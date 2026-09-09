@@ -1,0 +1,39 @@
+# Local guard for the two things CI also checks (see .github/workflows/lint.yml):
+# committed files must be usable on a case-insensitive, no-symlink Windows checkout, and
+# every commit message must follow https://www.conventionalcommits.org/.
+#
+# Setup: pip install pre-commit && pre-commit install
+# (installs both hook types below because of default_install_hook_types)
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+
+# Without this, hooks below that don't declare their own `stages` (everything
+# except conventional-pre-commit) also run during the commit-msg stage, against
+# the path of the temporary commit-message file rather than committed content.
+# On Windows that path contains backslashes, which check-illegal-windows-names
+# treats as an illegal character, failing every commit.
+default_stages:
+  - pre-commit
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # Two files differing only by case collide on Windows/macOS checkouts.
+      - id: check-case-conflict
+      # Reserved device names (CON, NUL, COM1, ...), trailing dots/spaces, and
+      # reserved characters (<>:"|?*) are all valid on Linux/macOS but refuse to
+      # check out on Windows.
+      - id: check-illegal-windows-names
+      # Git for Windows checks out symlinks as plain text files containing the
+      # target path unless the repo and runtime opt into them; catch a symlink
+      # before it is committed, and catch one that already degraded that way.
+      - id: check-symlinks
+      - id: destroyed-symlinks
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
