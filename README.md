@@ -219,6 +219,17 @@ dotnet run -c Release -- --filter *              # everything
 dotnet run -c Release -- --filter *WrapperCost*  # just the struct against class comparison
 ```
 
+## Contributing
+
+```
+pip install pre-commit
+pre-commit install
+```
+
+installs a `pre-commit` and a `commit-msg` hook that also run in CI (`.github/workflows/lint.yml`):
+committed files must stay usable on a case-insensitive, no-symlink Windows checkout, and commit
+messages must follow [Conventional Commits](https://www.conventionalcommits.org/).
+
 ## Licence
 
 MIT.
