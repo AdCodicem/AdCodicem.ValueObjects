@@ -21,7 +21,8 @@ public class CreationBenchmarks
     private const string Formatted = "FR76 3000 6000 0112 3456 7890 189";
     private const string Normalized = "FR7630006000011234567890189";
 
-    private readonly ValueObjectDescriptor _descriptor = Resolve();
+    private readonly ValueObjectDescriptor _descriptor = Resolve(typeof(Iban));
+    private readonly ValueObjectDescriptor _closedSet = Resolve(typeof(CountryCode));
     private readonly TypeConverter _typeConverter = TypeDescriptor.GetConverter(typeof(Iban));
 
     /// <summary>Doing the work by hand, with no value object at all: the floor.</summary>
@@ -65,9 +66,19 @@ public class CreationBenchmarks
     [Benchmark(Description = "CreateUnchecked (EF read path)")]
     public Iban Unchecked() => Iban.CreateUnchecked(Normalized);
 
-    private static ValueObjectDescriptor Resolve()
+    /// <summary>Boxing a member of a closed set, which is pre-boxed and therefore shared.</summary>
+    /// <returns>The shared box.</returns>
+    [Benchmark(Description = "Closed set, boxed (shared)")]
+    public object ClosedSetBoxed() => _closedSet.Create("FR");
+
+    /// <summary>The same conversion on an open set, where every box is a fresh allocation.</summary>
+    /// <returns>A freshly boxed value object.</returns>
+    [Benchmark(Description = "Open set, boxed (allocates)")]
+    public object OpenSetBoxed() => _descriptor.Create("FR7630006000011234567890189");
+
+    private static ValueObjectDescriptor Resolve(Type type)
     {
-        ValueObjectRegistry.TryGet(typeof(Iban), out var descriptor);
+        ValueObjectRegistry.TryGet(type, out var descriptor);
 
         return descriptor!;
     }

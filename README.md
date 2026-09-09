@@ -128,7 +128,7 @@ strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `Dat
 | `Pattern`, `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI schema. |
 | `Minimum`, `Maximum` | Written in invariant culture, parsed at compile time. |
 | `Comparison` | Equality, ordering and hashing for string value objects. Ordinal by default. |
-| `ValueSet = Closed` + `[KnownValue]` | Reference-data codes with a frozen lookup and a schema `enum`. |
+| `ValueSet = Closed` + `[KnownValue]` | Reference-data codes with a frozen lookup and a schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. |
 | `Arithmetic` | Operators and generic math for numeric value objects. Every result is re-validated. |
 | `ImplicitConversionToValue`, `ExplicitConversionFromValue` | Conversions, opt-in per type. |
 | `AllowEmpty`, `AllowDefault` | Loosen the two defaults that exist to catch mistakes. |
@@ -140,12 +140,30 @@ Declared on the partial struct and detected by name; all optional.
 | Hook | Signature |
 | --- | --- |
 | `NormalizeCore` | `private static TValue NormalizeCore(TValue value)` |
+| `NormalizeCore` (span) | `private static string NormalizeCore(ReadOnlySpan<char> value)` — string value objects only |
 | `ValidateCore` | `private static ValidationResult ValidateCore(in TValue value)` |
 | `TryFormatCore` | `private static bool TryFormatCore(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 | `FormatCore` | `private static string FormatCore(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 
 `NormalizeCore` must be idempotent and must not reject: an unnormalizable value is rejected by `ValidateCore`.
 `TryFormatCore`, when present, takes over formatting entirely, including the default format.
+
+Declaring the **span overload** of `NormalizeCore` alongside the plain one lets parsing and JSON reading
+normalize straight from the text, so that ingesting a value allocates the normalized string and nothing else.
+It is worth it for any string value object that normalizes: it halves what `TryParse` allocates, and makes
+deserializing a payload of value objects allocate exactly what deserializing the same payload of primitives
+does. Write the plain overload as a one-line delegation:
+
+```csharp
+private static string NormalizeCore(string value) => NormalizeCore(value.AsSpan());
+
+private static string NormalizeCore(ReadOnlySpan<char> value)
+{
+    Span<char> buffer = value.Length <= 64 ? stackalloc char[64] : new char[value.Length];
+    // ... write the normalized characters into buffer ...
+    return new string(buffer[..length]);
+}
+```
 
 ### Diagnostics
 

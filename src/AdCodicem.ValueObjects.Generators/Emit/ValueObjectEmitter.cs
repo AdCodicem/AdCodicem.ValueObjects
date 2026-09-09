@@ -372,6 +372,25 @@ internal static class ValueObjectEmitter
         writer.Line(Inline);
         writer.Line($"public static {self} CreateUnchecked({value} value) => new(value);");
         writer.Line();
+
+        if (model.HasSpanNormalizeHook)
+        {
+            // Normalizing straight from the span means the normalized string is the only one allocated, where
+            // going through TryCreate(string) would materialize the raw text first and then throw it away.
+            writer.Line("/// <summary>Creates from text without materializing it before normalization.</summary>");
+            writer.Open($"private static bool TryCreateFrom(global::System.ReadOnlySpan<char> value, out {self} result, out {ValidationResult} validation)");
+            writer.Line("var normalized = NormalizeCore(value);");
+            writer.Line("validation = Validate(in normalized);");
+            writer.Open("if (validation.IsValid)");
+            writer.Line($"result = new {self}(normalized);");
+            writer.Line("return true;");
+            writer.Close();
+            writer.Line();
+            writer.Line("result = default;");
+            writer.Line("return false;");
+            writer.Close();
+            writer.Line();
+        }
     }
 
     private static void EmitEquality(CodeWriter writer, ValueObjectModel model, string value, string self)
@@ -548,7 +567,9 @@ internal static class ValueObjectEmitter
 
         if (underlying.IsString)
         {
-            writer.Line("return TryCreate(s.ToString(), out result);");
+            writer.Line(model.HasSpanNormalizeHook
+                ? "return TryCreateFrom(s, out result, out _);"
+                : "return TryCreate(s.ToString(), out result);");
         }
         else if (underlying.Kind == UnderlyingKind.Char)
         {
@@ -586,7 +607,9 @@ internal static class ValueObjectEmitter
 
         if (underlying.IsString)
         {
-            writer.Line("return TryCreate(s.ToString(), out result, out validation);");
+            writer.Line(model.HasSpanNormalizeHook
+                ? "return TryCreateFrom(s, out result, out validation);"
+                : "return TryCreate(s.ToString(), out result, out validation);");
         }
         else
         {

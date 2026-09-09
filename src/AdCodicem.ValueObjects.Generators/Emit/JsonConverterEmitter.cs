@@ -27,6 +27,9 @@ internal static class JsonConverterEmitter
     private const string JsonException = Json + ".JsonException";
     private const string Invariant = "global::System.Globalization.CultureInfo.InvariantCulture";
 
+    /// <summary>Characters the read path is willing to put on the stack before falling back to a string.</summary>
+    private const int StackBufferSize = 512;
+
     public static void Emit(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value, string self)
     {
         writer.Line($"/// <summary>Serializes <see cref=\"{model.TypeName}\"/> as its bare underlying value.</summary>");
@@ -45,6 +48,29 @@ internal static class JsonConverterEmitter
     {
         writer.Line("/// <inheritdoc />");
         writer.Open($"public override {self} Read(ref {Reader} reader, global::System.Type typeToConvert, {Options} options)");
+
+        if (model.HasSpanNormalizeHook)
+        {
+            // Copy the text into a stack buffer and normalize straight from it, so the normalized string is the
+            // only allocation this read makes. CopyString unescapes, and a UTF-8 byte count is always an upper
+            // bound on the char count, so the byte length is a safe size for the destination.
+            writer.Open($"if (reader.TokenType == {TokenType}.String)");
+            writer.Line("var length = reader.HasValueSequence");
+            writer.Line("    ? checked((int)reader.ValueSequence.Length)");
+            writer.Line("    : reader.ValueSpan.Length;");
+            writer.Line();
+            writer.Open($"if (length <= {StackBufferSize})");
+            writer.Line($"global::System.Span<char> buffer = stackalloc char[{StackBufferSize}];");
+            writer.Line("var written = reader.CopyString(buffer);");
+            writer.Open($"if (!{self}.TryCreateFrom(buffer[..written], out var scoped, out var scopedValidation))");
+            writer.Line($"throw new {JsonException}($\"The value is not a valid {model.TypeName}: {{scopedValidation.ErrorMessage}}\");");
+            writer.Close();
+            writer.Line();
+            writer.Line("return scoped;");
+            writer.Close();
+            writer.Close();
+            writer.Line();
+        }
 
         writer.Line($"{value} raw;");
         writer.Open("switch (reader.TokenType)");
