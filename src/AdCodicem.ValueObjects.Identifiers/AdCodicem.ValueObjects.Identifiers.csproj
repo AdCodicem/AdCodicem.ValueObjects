@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Identifiers</RootNamespace>
+    <Description>Stripe-style public entity identifiers as value objects. Annotate a readonly partial struct with [EntityId("acc")] and get a prefixed, fixed-width, index-friendly identifier with a check character, generated with no reflection and no allocation beyond the value itself.</Description>
+    <PackageTags>$(PackageTags);identifier;primary-key;stripe;crockford-base32</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The unit tests live in the shared suite rather than in a per-package one. -->
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests" />
+  </ItemGroup>
+
+</Project>
