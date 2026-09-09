@@ -18,3 +18,7 @@ VO0010 | AdCodicem.ValueObjects | Error | Uninitialized value object
 VO0011 | AdCodicem.ValueObjects | Warning | Value object hook is not declared
 VO0013 | AdCodicem.ValueObjects | Error | Invalid known value
 VO0014 | AdCodicem.ValueObjects | Error | Invalid pattern
+VO0015 | AdCodicem.ValueObjects | Error | Invalid entity identifier prefix
+VO0016 | AdCodicem.ValueObjects | Error | Duplicate entity identifier prefix
+VO0017 | AdCodicem.ValueObjects | Error | Entity identifier owns its normalization
+VO0018 | AdCodicem.ValueObjects | Error | Conflicting value object annotations

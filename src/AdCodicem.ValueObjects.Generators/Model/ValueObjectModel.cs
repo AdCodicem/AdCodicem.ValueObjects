@@ -12,6 +12,18 @@ namespace AdCodicem.ValueObjects.Generators.Model;
 internal readonly record struct KnownValueModel(string Name, string Literal, string? Description);
 
 /// <summary>
+/// The entity identifier profile of a value object declared through <c>[EntityId]</c>.
+/// </summary>
+/// <param name="Prefix">Prefix the identifiers carry, without their trailing separator.</param>
+/// <param name="GranularityName">Name of the declared <c>IdGranularity</c> member.</param>
+/// <param name="TotalLength">Exact length of an identifier, and the width of its database column.</param>
+/// <remarks>
+/// A record struct of primitives, so it compares structurally and an unrelated edit does not invalidate the
+/// cached output of the pipeline.
+/// </remarks>
+internal readonly record struct EntityIdProfile(string Prefix, string GranularityName, int TotalLength);
+
+/// <summary>
 /// Everything the emitters need about one value object declaration.
 /// </summary>
 /// <remarks>
@@ -92,6 +104,22 @@ internal sealed record ValueObjectModel
     public bool HasFormatHook { get; init; }
 
     public EquatableArray<KnownValueModel> KnownValues { get; init; } = EquatableArray<KnownValueModel>.Empty;
+
+    /// <summary>Gets the entity identifier profile, or <see langword="null"/> for an ordinary value object.</summary>
+    public EntityIdProfile? Id { get; init; }
+
+    /// <summary>Gets a value indicating whether the type is a public entity identifier.</summary>
+    public bool IsEntityId => Id is not null;
+
+    /// <summary>
+    /// Gets a value indicating whether text is normalized straight from a span.
+    /// </summary>
+    /// <remarks>
+    /// Doing so means the normalized string is the only one allocated, where going through the string overload
+    /// would materialize the raw text first and immediately throw it away. An entity identifier always
+    /// qualifies: the generator owns its normalization, so it can always take the span path.
+    /// </remarks>
+    public bool NormalizesFromSpan => HasSpanNormalizeHook || IsEntityId;
 
     /// <summary>Gets the descriptor of the underlying type.</summary>
     public UnderlyingType Underlying

@@ -16,6 +16,7 @@
     <!-- Referenced as a library, not as an analyzer: these tests drive the generator themselves. -->
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
   </ItemGroup>
 
   <ItemGroup>

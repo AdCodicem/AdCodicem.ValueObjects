@@ -23,6 +23,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 {
     private const string ValueObjectAttributeName = "AdCodicem.ValueObjects.Annotations.ValueObjectAttribute`1";
     private const string KnownValueAttributeName = "AdCodicem.ValueObjects.Annotations.KnownValueAttribute";
+    private const string EntityIdAttributeName = "AdCodicem.ValueObjects.Identifiers.EntityIdAttribute";
     private const string JsonRegistryTypeName = "AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry";
 
     /// <summary>
@@ -48,23 +49,33 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
                 transform: static (attributeContext, _) => Parse(attributeContext))
             .WithTrackingName("ValueObjects");
 
-        context.RegisterSourceOutput(parsed, static (production, result) =>
-        {
-            foreach (var diagnostic in result.Diagnostics)
-            {
-                production.ReportDiagnostic(diagnostic.ToDiagnostic());
-            }
+        var parsedIds = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                EntityIdAttributeName,
+                predicate: static (node, _) => node is TypeDeclarationSyntax,
+                transform: static (attributeContext, _) => ParseEntityId(attributeContext))
+            .WithTrackingName("EntityIds");
 
-            if (result.Model is not null)
-            {
-                production.AddSource(result.Model.HintName, SourceText.From(ValueObjectEmitter.Emit(result.Model), Encoding.UTF8));
-            }
-        });
+        context.RegisterSourceOutput(parsed, static (production, result) => Produce(production, result));
+        context.RegisterSourceOutput(parsedIds, static (production, result) => Produce(production, result));
+
+        // Two types claiming one prefix can only be seen once every declaration has been visited, so the claims
+        // travel in their own provider. Keeping them out of the model matters: a claim carries a source
+        // location, and folding a location into the model would re-emit every generated file whenever an edit
+        // above a declaration shifted its line.
+        context.RegisterSourceOutput(
+            parsedIds.Select(static (result, _) => result.Claim).Where(static claim => claim is not null).Collect(),
+            static (production, claims) => ReportDuplicatePrefixes(production, claims));
 
         var models = parsed
             .Select(static (result, _) => result.Model)
             .Where(static model => model is not null)
-            .Collect();
+            .Collect()
+            .Combine(parsedIds
+                .Select(static (result, _) => result.Model)
+                .Where(static model => model is not null)
+                .Collect())
+            .Select(static (both, _) => both.Left.AddRange(both.Right));
 
         // Reduced to a bool so that the compilation changing on every keystroke does not invalidate the output.
         var jsonPackageReferenced = context.CompilationProvider.Select(static (compilation, _) =>
@@ -97,34 +108,19 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 
         var location = declaration.Identifier.GetLocation();
 
-        if (!declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+        // A type carrying both annotations is reported once, from the entity identifier side. Emitting from
+        // both paths would collide on the hint name and bring the whole generator down.
+        if (CarriesAttribute(symbol, EntityIdAttributeName))
         {
-            diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.MustBePartial, location, symbol.Name));
+            return new ParseResult(null, EquatableArray<DiagnosticInfo>.Empty);
         }
 
-        // A class, an interface and a record struct all reach here so that each is told why it was rejected,
-        // rather than being handed a type missing every member the attribute promised.
-        if (declaration is not StructDeclarationSyntax || !symbol.IsReadOnly || symbol.IsRecord)
+        if (!ValidateDeclaration(symbol, declaration, location, diagnostics))
         {
-            diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.MustBeReadOnlyStruct, location, symbol.Name));
-
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
 
-        var containingTypes = new List<string>();
-        for (var containing = symbol.ContainingType; containing is not null; containing = containing.ContainingType)
-        {
-            if (!containing.DeclaringSyntaxReferences
-                    .Select(static reference => reference.GetSyntax())
-                    .OfType<TypeDeclarationSyntax>()
-                    .Any(static syntax => syntax.Modifiers.Any(SyntaxKind.PartialKeyword)))
-            {
-                diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.ContainingTypeMustBePartial, location, symbol.Name, containing.Name));
-            }
-
-            containingTypes.Insert(0, $"{DeclarationKeyword(containing)} {containing.Name}");
-        }
+        var containingTypes = CollectContainingTypes(symbol, location, diagnostics);
 
         var attribute = context.Attributes[0];
         var underlyingSymbol = attribute.AttributeClass?.TypeArguments.FirstOrDefault();
@@ -221,6 +217,232 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         };
 
         return new ParseResult(model, EquatableArray<DiagnosticInfo>.From(diagnostics));
+    }
+
+    /// <summary>
+    /// Builds the model of a type annotated with <c>[EntityId]</c>.
+    /// </summary>
+    /// <remarks>
+    /// The result is an ordinary string value object model carrying a profile. Everything downstream — parsing,
+    /// formatting, equality, JSON, the registry entry — is therefore shared with every other value object, and
+    /// only normalization, validation and the minting members read the profile.
+    /// </remarks>
+    /// <param name="context">The annotated declaration.</param>
+    /// <returns>The model, the diagnostics, and the prefix this type claims.</returns>
+    private static ParseResult ParseEntityId(GeneratorAttributeSyntaxContext context)
+    {
+        var diagnostics = new List<DiagnosticInfo>();
+
+        if (context.TargetSymbol is not INamedTypeSymbol symbol || context.TargetNode is not TypeDeclarationSyntax declaration)
+        {
+            return new ParseResult(null, EquatableArray<DiagnosticInfo>.Empty);
+        }
+
+        var location = declaration.Identifier.GetLocation();
+
+        if (CarriesAttribute(symbol, ValueObjectAttributeName))
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.ConflictingValueObjectAnnotations, location, symbol.Name));
+
+            return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
+        }
+
+        if (!ValidateDeclaration(symbol, declaration, location, diagnostics))
+        {
+            return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
+        }
+
+        var containingTypes = CollectContainingTypes(symbol, location, diagnostics);
+        var attribute = context.Attributes[0];
+
+        var prefix = attribute.ConstructorArguments.Length > 0
+            ? attribute.ConstructorArguments[0].Value as string
+            : null;
+
+        if (!EntityIdLayout.IsValidPrefix(prefix, out var prefixError))
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.InvalidEntityIdPrefix, location, prefix ?? string.Empty, symbol.Name, prefixError));
+
+            return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
+        }
+
+        // The generator owns the normalization of the format, so a hook would be written and never called —
+        // exactly the silent failure the hook interfaces exist to prevent.
+        if (ImplementsHook(symbol, "IValueObjectNormalizer`1") || ImplementsHook(symbol, "IValueObjectSpanNormalizer"))
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.EntityIdOwnsNormalization, location, symbol.Name));
+
+            return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
+        }
+
+        var arguments = attribute.NamedArguments.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        var granularity = GetEnumName(arguments, "Granularity") ?? EntityIdLayout.DefaultGranularity;
+        var totalLength = EntityIdLayout.TotalLength(prefix!, granularity);
+        var summary = ExtractSummary(symbol, declaration);
+
+        var model = new ValueObjectModel
+        {
+            Namespace = symbol.ContainingNamespace.IsGlobalNamespace
+                ? string.Empty
+                : symbol.ContainingNamespace.ToDisplayString(),
+            TypeName = symbol.Name,
+            QualifiedName = symbol.ToDisplayString(QualifiedFormat),
+            ContainingTypes = EquatableArray<string>.From(containingTypes),
+            Kind = UnderlyingKind.String,
+            UnderlyingFullName = UnderlyingType.String.FullName,
+            HintName = BuildHintName(symbol),
+            XmlSummary = summary,
+
+            // The length is derived from the profile rather than declared, and reaches the database column and
+            // the OpenAPI schema through the same field every other rule uses. Fixed on both ends, so the
+            // column is CHAR rather than VARCHAR.
+            MinLength = totalLength,
+            MaxLength = totalLength,
+
+            // Left null on purpose: the schema publishes a pattern, but validation is a span scan, so no Regex
+            // is ever compiled for an identifier type.
+            Pattern = null,
+            SchemaFormat = null,
+            Description = GetString(arguments, "Description") ?? summary,
+            Example = GetString(arguments, "Example"),
+            HasValidateHook = ImplementsHook(symbol, "IValueObjectValidator`1"),
+            HasTryFormatHook = ImplementsHook(symbol, "IValueObjectFormatter`1"),
+            HasFormatHook = ImplementsHook(symbol, "IValueObjectStringFormatter`1"),
+            Id = new EntityIdProfile(prefix!, granularity, totalLength),
+        };
+
+        return new ParseResult(
+            model,
+            EquatableArray<DiagnosticInfo>.From(diagnostics),
+            new PrefixClaim(symbol.ToDisplayString(), prefix!, LocationInfo.From(location)));
+    }
+
+    private static void Produce(SourceProductionContext production, ParseResult result)
+    {
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            production.ReportDiagnostic(diagnostic.ToDiagnostic());
+        }
+
+        if (result.Model is not null)
+        {
+            production.AddSource(
+                result.Model.HintName,
+                SourceText.From(ValueObjectEmitter.Emit(result.Model), Encoding.UTF8));
+        }
+    }
+
+    /// <summary>
+    /// Reports the prefixes claimed by more than one type in the compilation.
+    /// </summary>
+    /// <remarks>
+    /// Ordered by type name so the diagnostic names the same offender on every build: which of two colliding
+    /// types is reported must not depend on the order the compiler happened to visit them in.
+    /// </remarks>
+    /// <param name="production">Diagnostic sink.</param>
+    /// <param name="claims">Every prefix claimed in the compilation.</param>
+    private static void ReportDuplicatePrefixes(SourceProductionContext production, ImmutableArray<PrefixClaim?> claims)
+    {
+        var owners = new Dictionary<string, PrefixClaim>(StringComparer.Ordinal);
+
+        foreach (var claim in claims.Where(static claim => claim is not null)
+                     .Select(static claim => claim!.Value)
+                     .OrderBy(static claim => claim.TypeName, StringComparer.Ordinal))
+        {
+            if (!owners.TryGetValue(claim.Prefix, out var owner))
+            {
+                owners.Add(claim.Prefix, claim);
+                continue;
+            }
+
+            if (owner.TypeName == claim.TypeName)
+            {
+                continue;
+            }
+
+            production.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.DuplicateEntityIdPrefix,
+                claim.Location?.ToLocation(),
+                claim.TypeName,
+                owner.TypeName,
+                claim.Prefix));
+        }
+    }
+
+    /// <summary>
+    /// Reports the ways a declaration cannot host generated members.
+    /// </summary>
+    /// <param name="symbol">Annotated type.</param>
+    /// <param name="declaration">Its syntax.</param>
+    /// <param name="location">Where to report.</param>
+    /// <param name="diagnostics">Sink.</param>
+    /// <returns><see langword="false"/> when the declaration is unusable and parsing must stop.</returns>
+    private static bool ValidateDeclaration(
+        INamedTypeSymbol symbol,
+        TypeDeclarationSyntax declaration,
+        Location location,
+        List<DiagnosticInfo> diagnostics)
+    {
+        if (!declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+        {
+            diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.MustBePartial, location, symbol.Name));
+        }
+
+        // A class, an interface and a record struct all reach here so that each is told why it was rejected,
+        // rather than being handed a type missing every member the attribute promised.
+        if (declaration is not StructDeclarationSyntax || !symbol.IsReadOnly || symbol.IsRecord)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.MustBeReadOnlyStruct, location, symbol.Name));
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private static List<string> CollectContainingTypes(
+        INamedTypeSymbol symbol,
+        Location location,
+        List<DiagnosticInfo> diagnostics)
+    {
+        var containingTypes = new List<string>();
+
+        for (var containing = symbol.ContainingType; containing is not null; containing = containing.ContainingType)
+        {
+            if (!containing.DeclaringSyntaxReferences
+                    .Select(static reference => reference.GetSyntax())
+                    .OfType<TypeDeclarationSyntax>()
+                    .Any(static syntax => syntax.Modifiers.Any(SyntaxKind.PartialKeyword)))
+            {
+                diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.ContainingTypeMustBePartial, location, symbol.Name, containing.Name));
+            }
+
+            containingTypes.Insert(0, $"{DeclarationKeyword(containing)} {containing.Name}");
+        }
+
+        return containingTypes;
+    }
+
+    /// <summary>
+    /// Determines whether a type carries an annotation, by metadata name so that generic arity is respected.
+    /// </summary>
+    /// <param name="symbol">Type to inspect.</param>
+    /// <param name="metadataName">Fully qualified metadata name of the attribute, arity included.</param>
+    /// <returns><see langword="true"/> when the attribute is present.</returns>
+    private static bool CarriesAttribute(INamedTypeSymbol symbol, string metadataName)
+    {
+        var separator = metadataName.LastIndexOf('.');
+        var containingNamespace = metadataName.Substring(0, separator);
+        var name = metadataName.Substring(separator + 1);
+
+        return symbol.GetAttributes().Any(attribute =>
+            attribute.AttributeClass is { } attributeClass
+            && string.Equals(attributeClass.MetadataName, name, StringComparison.Ordinal)
+            && string.Equals(attributeClass.ContainingNamespace.ToDisplayString(), containingNamespace, StringComparison.Ordinal));
     }
 
     private static List<KnownValueModel> ParseKnownValues(
@@ -440,5 +662,17 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         return null;
     }
 
-    private readonly record struct ParseResult(ValueObjectModel? Model, EquatableArray<DiagnosticInfo> Diagnostics);
+    private readonly record struct ParseResult(
+        ValueObjectModel? Model,
+        EquatableArray<DiagnosticInfo> Diagnostics,
+        PrefixClaim? Claim = null);
+
+    /// <summary>
+    /// One type's claim on a prefix, carried separately from the model so that a shifted source location does
+    /// not invalidate the generated output.
+    /// </summary>
+    /// <param name="TypeName">Display name of the claiming type.</param>
+    /// <param name="Prefix">The prefix claimed.</param>
+    /// <param name="Location">Where to report a collision.</param>
+    private readonly record struct PrefixClaim(string TypeName, string Prefix, LocationInfo? Location);
 }

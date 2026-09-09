@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Reflection;
 using AdCodicem.ValueObjects.Generators;
+using AdCodicem.ValueObjects.Identifiers;
 using Basic.Reference.Assemblies;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -111,22 +112,19 @@ public static class GeneratorHarness
                using System;
                using AdCodicem.ValueObjects;
                using AdCodicem.ValueObjects.Annotations;
+               using AdCodicem.ValueObjects.Identifiers;
 
                namespace Test;
 
                {source}
                """;
 
-    private static ImmutableArray<MetadataReference> BuildReferences()
-    {
-        var abstractions = typeof(IValueObject).Assembly.Location;
-
-        return
-        [
-            .. Net100.References.All,
-            MetadataReference.CreateFromFile(abstractions),
-        ];
-    }
+    private static ImmutableArray<MetadataReference> BuildReferences() =>
+    [
+        .. Net100.References.All,
+        MetadataReference.CreateFromFile(typeof(IValueObject).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(EntityIdAttribute).Assembly.Location),
+    ];
 
     /// <summary>
     /// Filters out the noise a bare snippet produces, keeping real compilation failures.

@@ -65,6 +65,30 @@ internal static class DiagnosticDescriptors
         "Invalid pattern",
         "The pattern declared on '{0}' is not a valid regular expression: {1}");
 
+    public static readonly DiagnosticDescriptor InvalidEntityIdPrefix = Error(
+        "VO0015",
+        "Invalid entity identifier prefix",
+        "The prefix '{0}' declared on '{1}' is unusable because {2}. Write one or more lowercase segments "
+        + "separated by '_', each opening on a letter, such as \"acc\" or \"sk_live\".");
+
+    public static readonly DiagnosticDescriptor DuplicateEntityIdPrefix = Error(
+        "VO0016",
+        "Duplicate entity identifier prefix",
+        "'{0}' and '{1}' both declare the prefix '{2}'. A prefix identifies one type and one only, otherwise "
+        + "an identifier of one kind parses as another and the confusion the prefix exists to prevent is back.");
+
+    public static readonly DiagnosticDescriptor EntityIdOwnsNormalization = Error(
+        "VO0017",
+        "Entity identifier owns its normalization",
+        "'{0}' declares a normalization hook, but [EntityId] generates the normalization of the format itself "
+        + "and would never call it. Remove the hook, or drop [EntityId] and declare the type as a value object.");
+
+    public static readonly DiagnosticDescriptor ConflictingValueObjectAnnotations = Error(
+        "VO0018",
+        "Conflicting value object annotations",
+        "'{0}' carries both [EntityId] and [ValueObject<T>]. Each of them generates a whole implementation, so "
+        + "keep the one that describes the type.");
+
     private static DiagnosticDescriptor Error(string id, string title, string messageFormat)
         => new(id, title, messageFormat, Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
 
