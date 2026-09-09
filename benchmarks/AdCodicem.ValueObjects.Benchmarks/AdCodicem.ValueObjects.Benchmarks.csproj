@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AdCodicem.ValueObjects.Benchmarks</RootNamespace>
+
+    <!-- Benchmarks must measure release code, whatever configuration the solution is built in. -->
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="AdCodicem.ValueObjects" />
+    <Using Include="AdCodicem.ValueObjects.Annotations" />
+    <Using Include="BenchmarkDotNet.Attributes" />
+  </ItemGroup>
+
+</Project>

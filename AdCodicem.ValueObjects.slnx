@@ -16,6 +16,9 @@
     <Project Path="tests/AdCodicem.ValueObjects.UnitTests/AdCodicem.ValueObjects.UnitTests.csproj" />
     <Project Path="tests/AdCodicem.ValueObjects.IntegrationTests/AdCodicem.ValueObjects.IntegrationTests.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/AdCodicem.ValueObjects.Benchmarks/AdCodicem.ValueObjects.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/AdCodicem.ValueObjects.Sample.Api/AdCodicem.ValueObjects.Sample.Api.csproj" />
   </Folder>
