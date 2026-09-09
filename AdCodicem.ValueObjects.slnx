@@ -1,0 +1,29 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AdCodicem.ValueObjects/AdCodicem.ValueObjects.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Abstractions/AdCodicem.ValueObjects.Abstractions.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Generators/AdCodicem.ValueObjects.Generators.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Json/AdCodicem.ValueObjects.Json.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.EntityFrameworkCore/AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.AspNetCore/AdCodicem.ValueObjects.AspNetCore.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.OpenApi/AdCodicem.ValueObjects.OpenApi.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.FluentValidation/AdCodicem.ValueObjects.FluentValidation.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Dapper/AdCodicem.ValueObjects.Dapper.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.NewtonsoftJson/AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AdCodicem.ValueObjects.UnitTests/AdCodicem.ValueObjects.UnitTests.csproj" />
+    <Project Path="tests/AdCodicem.ValueObjects.IntegrationTests/AdCodicem.ValueObjects.IntegrationTests.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/AdCodicem.ValueObjects.Sample.Api/AdCodicem.ValueObjects.Sample.Api.csproj" />
+  </Folder>
+  <Folder Name="/build/">
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="README.md" />
+    <File Path=".github/workflows/ci.yml" />
+  </Folder>
+</Solution>

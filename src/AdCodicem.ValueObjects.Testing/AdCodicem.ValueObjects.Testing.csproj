@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Testing</RootNamespace>
+    <Description>An xUnit contract kit for value objects: derive one small class and get the whole behavioural contract checked — normalization idempotence, equality and ordering consistency, parse and format round-trips, JSON shape, and rejection of invalid values.</Description>
+    <PackageTags>$(PackageTags);testing;xunit</PackageTags>
+
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+
+    <!--
+      The inherited test names read as sentences in the runner output, which is the whole point of the kit, and
+      the class documentation covers what they check as a whole.
+    -->
+    <NoWarn>$(NoWarn);CA1707;CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The extensibility package, not xunit.v3.core: a library that ships test helpers is not itself a
+         test project, and xunit.v3.core insists on being one. -->
+    <PackageReference Include="xunit.v3.extensibility.core" />
+    <PackageReference Include="xunit.v3.assert" />
+  </ItemGroup>
+
+</Project>

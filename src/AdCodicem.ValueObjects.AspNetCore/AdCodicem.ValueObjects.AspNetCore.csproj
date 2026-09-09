@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.AspNetCore</RootNamespace>
+    <Description>ASP.NET Core support for AdCodicem value objects: MVC model binding straight from the underlying value, and RFC 9457 problem details carrying the violated rule.</Description>
+    <PackageTags>$(PackageTags);aspnetcore;model-binding;problemdetails</PackageTags>
+
+    <!--
+      This package exists for MVC controllers, whose model binding is reflection-driven and not AOT compatible
+      to begin with. Minimal APIs need nothing from it: a generated value object implements IParsable<T>, which
+      is exactly what minimal API parameter binding looks for.
+    -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
+  </ItemGroup>
+
+</Project>

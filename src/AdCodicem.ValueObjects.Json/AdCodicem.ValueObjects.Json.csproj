@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Json</RootNamespace>
+    <Description>System.Text.Json support for AdCodicem value objects: a converter factory that covers source-generated serializer contexts and hand-written value objects, plus JsonSerializerOptions extensions.</Description>
+    <PackageTags>$(PackageTags);json;system.text.json</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
