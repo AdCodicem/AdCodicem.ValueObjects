@@ -5,3 +5,7 @@
 *.props text eol=crlf
 *.targets text eol=crlf
 *.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

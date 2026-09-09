@@ -23,12 +23,16 @@ x64/
 x86/
 [Aa][Rr][Mm]/
 [Bb]uild[Ll]og.*
+*.binlog
 TestResults/
 *.coverage
 *.coveragexml
 coverage*.json
 coverage*.xml
 coverage*.info
+
+## Verify (Verify.XunitV3) snapshot tests
+*.received.*
 
 ## Benchmarks
 BenchmarkDotNet.Artifacts/
