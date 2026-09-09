@@ -10,7 +10,7 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain;
     SchemaFormat = "iban",
     Example = "FR7630006000011234567890189",
     ImplicitConversionToValue = true)]
-public readonly partial struct Iban
+public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectValidator<string>, IValueObjectFormatter<string>
 {
     /// <summary>The named formats accepted by <see cref="ToString(string?, IFormatProvider?)"/>.</summary>
     public static class Formats
@@ -32,13 +32,13 @@ public readonly partial struct Iban
     private const int NormalizeStackLimit = 64;
 
     /// <summary>Strips separators and upper-cases. Delegates so the rule is written once.</summary>
-    private static string NormalizeCore(string value) => NormalizeCore(value.AsSpan());
+    public static string NormalizeValue(string value) => NormalizeValue(value.AsSpan());
 
     /// <summary>
     /// The span overload the generator looks for: parsing and JSON reading route through it, so normalizing
     /// text allocates the normalized string and nothing else.
     /// </summary>
-    private static string NormalizeCore(ReadOnlySpan<char> value)
+    public static string NormalizeValue(ReadOnlySpan<char> value)
     {
         Span<char> buffer = value.Length <= NormalizeStackLimit
             ? stackalloc char[NormalizeStackLimit]
@@ -57,7 +57,7 @@ public readonly partial struct Iban
     }
 
     /// <summary>Verifies the ISO 7064 MOD-97-10 check digits without allocating.</summary>
-    private static ValidationResult ValidateCore(in string value)
+    public static ValidationResult ValidateValue(in string value)
         => HasValidCheckDigits(value)
             ? ValidationResult.Success
             : ValidationResult.InvalidFormat("The IBAN check digits are incorrect.");
@@ -77,7 +77,7 @@ public readonly partial struct Iban
         return remainder == 1;
     }
 
-    private static bool TryFormatCore(
+    public static bool TryFormatValue(
         in string value,
         Span<char> destination,
         out int charsWritten,

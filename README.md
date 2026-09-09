@@ -135,35 +135,42 @@ strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `Dat
 
 ### Hooks
 
-Declared on the partial struct and detected by name; all optional.
+A value object declares a rule by implementing an interface, so the compiler checks the signature: a mis-typed
+rule fails the build instead of being silently ignored. All are optional, and `VO0011` reports a rule written
+without its interface — the one mistake the compiler cannot catch.
 
-| Hook | Signature |
+| Interface | Member |
 | --- | --- |
-| `NormalizeCore` | `private static TValue NormalizeCore(TValue value)` |
-| `NormalizeCore` (span) | `private static string NormalizeCore(ReadOnlySpan<char> value)` — string value objects only |
-| `ValidateCore` | `private static ValidationResult ValidateCore(in TValue value)` |
-| `TryFormatCore` | `private static bool TryFormatCore(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
-| `FormatCore` | `private static string FormatCore(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
+| `IValueObjectNormalizer<TValue>` | `static TValue NormalizeValue(TValue value)` |
+| `IValueObjectSpanNormalizer` | `static string NormalizeValue(ReadOnlySpan<char> value)` — string value objects only |
+| `IValueObjectValidator<TValue>` | `static ValidationResult ValidateValue(in TValue value)` |
+| `IValueObjectFormatter<TValue>` | `static bool TryFormatValue(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
+| `IValueObjectStringFormatter<TValue>` | `static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 
 `NormalizeCore` must be idempotent and must not reject: an unnormalizable value is rejected by `ValidateCore`.
 `TryFormatCore`, when present, takes over formatting entirely, including the default format.
 
-Declaring the **span overload** of `NormalizeCore` alongside the plain one lets parsing and JSON reading
-normalize straight from the text, so that ingesting a value allocates the normalized string and nothing else.
-It is worth it for any string value object that normalizes: it halves what `TryParse` allocates, and makes
-deserializing a payload of value objects allocate exactly what deserializing the same payload of primitives
-does. Write the plain overload as a one-line delegation:
+Adding `IValueObjectSpanNormalizer` alongside `IValueObjectNormalizer<string>` lets parsing and JSON reading
+normalize straight from the text, so ingesting a value allocates the normalized string and nothing else. It
+halves what `TryParse` allocates, and makes deserializing a payload of value objects allocate exactly what
+deserializing the same payload of primitives does. Write the value-typed overload as a one-line delegation:
 
 ```csharp
-private static string NormalizeCore(string value) => NormalizeCore(value.AsSpan());
-
-private static string NormalizeCore(ReadOnlySpan<char> value)
+public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer
 {
-    Span<char> buffer = value.Length <= 64 ? stackalloc char[64] : new char[value.Length];
-    // ... write the normalized characters into buffer ...
-    return new string(buffer[..length]);
+    public static string NormalizeValue(string value) => NormalizeValue(value.AsSpan());
+
+    public static string NormalizeValue(ReadOnlySpan<char> value)
+    {
+        Span<char> buffer = value.Length <= 64 ? stackalloc char[64] : new char[value.Length];
+        // ... write the normalized characters into buffer ...
+        return new string(buffer[..length]);
+    }
 }
 ```
+
+The rules are public because a static interface member cannot be anything else. `Normalize` remains the member
+callers use: it guards against a null underlying value and then defers to `NormalizeValue`.
 
 ### Diagnostics
 
@@ -179,7 +186,7 @@ private static string NormalizeCore(ReadOnlySpan<char> value)
 | `VO0008` | Warning | Length constraints on a non-string type. |
 | `VO0009` | Error | A containing type is not `partial`. |
 | `VO0010` | Error | An uninitialized value object. |
-| `VO0011` | Warning | A member named like a hook but missing the `Core` suffix. |
+| `VO0011` | Warning | A rule written without declaring its hook interface, so the generator will never call it. |
 | `VO0013` | Error | A known value could not be converted. |
 | `VO0014` | Error | An invalid regular expression. |
 
@@ -187,7 +194,7 @@ private static string NormalizeCore(ReadOnlySpan<char> value)
 
 ```
 src/          the shipped packages
-tests/        unit tests, and integration tests on real database engines
+tests/        unit tests, generator tests, and integration tests on real database engines
 samples/      a showcase API exercising the whole chain end to end
 benchmarks/   the measurements behind the design decisions above
 ```
@@ -198,7 +205,8 @@ Integration tests start PostgreSQL and SQL Server through Testcontainers, so the
 
 ```
 dotnet build
-dotnet test tests/AdCodicem.ValueObjects.UnitTests   # no Docker needed
+dotnet test tests/AdCodicem.ValueObjects.UnitTests        # no Docker needed
+dotnet test tests/AdCodicem.ValueObjects.GeneratorTests  # no Docker needed
 dotnet test                                          # everything, Docker required
 dotnet pack -c Release
 ```

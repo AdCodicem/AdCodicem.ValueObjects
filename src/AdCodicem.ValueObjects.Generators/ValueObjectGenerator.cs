@@ -23,13 +23,14 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 {
     private const string ValueObjectAttributeName = "AdCodicem.ValueObjects.Annotations.ValueObjectAttribute`1";
     private const string KnownValueAttributeName = "AdCodicem.ValueObjects.Annotations.KnownValueAttribute";
-    private const string ValidationResultTypeName = "global::AdCodicem.ValueObjects.ValidationResult";
     private const string JsonRegistryTypeName = "AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry";
 
     /// <summary>
     /// Fully qualified names without the C# keyword shorthand, so that <c>string</c> reads as
     /// <c>global::System.String</c> and matches the underlying type table.
     /// </summary>
+    private const string HookNamespace = "AdCodicem.ValueObjects";
+
     private static readonly SymbolDisplayFormat QualifiedFormat = SymbolDisplayFormat.FullyQualifiedFormat
         .WithMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
 
@@ -41,7 +42,9 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         var parsed = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 ValueObjectAttributeName,
-                predicate: static (node, _) => node is StructDeclarationSyntax,
+                // Any type declaration is admitted so that a value object written as a class or a record struct
+                // reaches VO0002. Narrowing to a struct here would make the attribute silently do nothing.
+                predicate: static (node, _) => node is TypeDeclarationSyntax,
                 transform: static (attributeContext, _) => Parse(attributeContext))
             .WithTrackingName("ValueObjects");
 
@@ -87,7 +90,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     {
         var diagnostics = new List<DiagnosticInfo>();
 
-        if (context.TargetSymbol is not INamedTypeSymbol symbol || context.TargetNode is not StructDeclarationSyntax declaration)
+        if (context.TargetSymbol is not INamedTypeSymbol symbol || context.TargetNode is not TypeDeclarationSyntax declaration)
         {
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.Empty);
         }
@@ -99,9 +102,13 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.MustBePartial, location, symbol.Name));
         }
 
-        if (!symbol.IsReadOnly || symbol.IsRecord)
+        // A class, an interface and a record struct all reach here so that each is told why it was rejected,
+        // rather than being handed a type missing every member the attribute promised.
+        if (declaration is not StructDeclarationSyntax || !symbol.IsReadOnly || symbol.IsRecord)
         {
             diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.MustBeReadOnlyStruct, location, symbol.Name));
+
+            return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
 
         var containingTypes = new List<string>();
@@ -205,11 +212,11 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             SchemaFormat = GetString(arguments, "SchemaFormat") ?? underlying.SchemaFormat,
             Example = GetString(arguments, "Example"),
             Description = GetString(arguments, "Description") ?? summary,
-            HasNormalizeHook = HasHook(symbol, "NormalizeCore", parameterCount: 1, underlying.FullName),
-            HasSpanNormalizeHook = underlying.IsString && HasSpanNormalizeOverload(symbol),
-            HasValidateHook = HasHook(symbol, "ValidateCore", parameterCount: 1, ValidationResultTypeName),
-            HasTryFormatHook = HasHook(symbol, "TryFormatCore", parameterCount: 5, "bool"),
-            HasFormatHook = HasHook(symbol, "FormatCore", parameterCount: 3, "string"),
+            HasNormalizeHook = ImplementsHook(symbol, "IValueObjectNormalizer`1"),
+            HasSpanNormalizeHook = underlying.IsString && ImplementsHook(symbol, "IValueObjectSpanNormalizer"),
+            HasValidateHook = ImplementsHook(symbol, "IValueObjectValidator`1"),
+            HasTryFormatHook = ImplementsHook(symbol, "IValueObjectFormatter`1"),
+            HasFormatHook = ImplementsHook(symbol, "IValueObjectStringFormatter`1"),
             KnownValues = EquatableArray<KnownValueModel>.From(knownValues),
         };
 
@@ -294,36 +301,19 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Detects <c>static string NormalizeCore(ReadOnlySpan&lt;char&gt; value)</c>, the overload that lets the
-    /// parsing paths skip materializing the raw text before normalizing it.
+    /// Whether the value object implements one of the hook interfaces.
     /// </summary>
-    private static bool HasSpanNormalizeOverload(INamedTypeSymbol symbol)
-        => symbol.GetMembers("NormalizeCore")
-            .OfType<IMethodSymbol>()
-            .Any(method => method.IsStatic
-                           && method.ReturnType.SpecialType == SpecialType.System_String
-                           && method.Parameters.Length == 1
-                           && IsReadOnlySpanOfChar(method.Parameters[0].Type));
-
-    private static bool IsReadOnlySpanOfChar(ITypeSymbol type)
-        => type is INamedTypeSymbol { Name: "ReadOnlySpan", TypeArguments.Length: 1 } span
-           && span.ContainingNamespace is { Name: "System", ContainingNamespace.IsGlobalNamespace: true }
-           && span.TypeArguments[0].SpecialType == SpecialType.System_Char;
-
-    private static bool HasHook(INamedTypeSymbol symbol, string name, int parameterCount, string returnTypeName)
-        => symbol.GetMembers(name)
-            .OfType<IMethodSymbol>()
-            .Any(method => method.IsStatic
-                           && method.Parameters.Length == parameterCount
-                           && MatchesReturnType(method.ReturnType, returnTypeName));
-
-    private static bool MatchesReturnType(ITypeSymbol returnType, string expected)
-        => expected switch
-        {
-            "bool" => returnType.SpecialType == SpecialType.System_Boolean,
-            "string" => returnType.SpecialType == SpecialType.System_String,
-            _ => string.Equals(returnType.ToDisplayString(QualifiedFormat), expected, StringComparison.Ordinal),
-        };
+    /// <remarks>
+    /// Hooks are declared by implementing an interface rather than by naming a member, so the compiler checks
+    /// the signature and a misspelled or mis-signed rule fails the build instead of being silently ignored.
+    /// </remarks>
+    /// <param name="symbol">The value object.</param>
+    /// <param name="metadataName">Unqualified metadata name of the hook interface, arity included.</param>
+    /// <returns><see langword="true"/> when the interface is implemented.</returns>
+    private static bool ImplementsHook(INamedTypeSymbol symbol, string metadataName)
+        => symbol.AllInterfaces.Any(candidate =>
+            string.Equals(candidate.MetadataName, metadataName, StringComparison.Ordinal)
+            && candidate.ContainingNamespace.ToDisplayString() == HookNamespace);
 
     private static string DeclarationKeyword(INamedTypeSymbol symbol) => symbol switch
     {
@@ -372,7 +362,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// <c>GetDocumentationCommentXml</c> then returns nothing at all. Since most consumers leave that setting
     /// off, the trivia is read directly as a fallback.
     /// </remarks>
-    private static string? ExtractSummary(INamedTypeSymbol symbol, StructDeclarationSyntax declaration)
+    private static string? ExtractSummary(INamedTypeSymbol symbol, TypeDeclarationSyntax declaration)
     {
         var fromCompilation = ExtractSummary(symbol.GetDocumentationCommentXml());
         if (fromCompilation is not null)
