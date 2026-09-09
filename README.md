@@ -55,6 +55,13 @@ JsonSerializer.Serialize(new { iban })      // {"iban":"FR7630006000011234567890
 would both bypass validation and the configured comparison. The generator owns equality, ordering and hashing so
 that `Comparison = StringComparison.OrdinalIgnoreCase` actually means something.
 
+**A struct, even when the underlying type is a `string`.** Holding 100 000 struct wrappers allocates exactly
+what holding 100 000 bare strings allocates, to the byte; the class equivalent costs four times the memory and
+twice the time, because a reference type adds 24 bytes of header, method table pointer and field per instance.
+The struct gives that back only when it crosses a non-generic boundary and boxes, so the generated equality,
+hashing and comparison exist to keep the hot paths generic — dictionary lookups and sorts on value objects
+allocate nothing. See [benchmarks/](benchmarks/README.md) for the numbers and for where the struct loses.
+
 **`default(Iban)` is a build error.** A struct can always be brought into existence uninitialized, and that is
 the one hole a struct value object cannot close by itself. The `VO0010` analyzer closes it at compile time,
 which is what makes the struct representation — zero allocation, no null — safe to choose. Opt out per type with
@@ -161,9 +168,10 @@ Declared on the partial struct and detected by name; all optional.
 ## Repository layout
 
 ```
-src/        the shipped packages
-tests/      unit tests, and integration tests on real database engines
-samples/    a showcase API exercising the whole chain end to end
+src/          the shipped packages
+tests/        unit tests, and integration tests on real database engines
+samples/      a showcase API exercising the whole chain end to end
+benchmarks/   the measurements behind the design decisions above
 ```
 
 Integration tests start PostgreSQL and SQL Server through Testcontainers, so they need a Docker daemon.
@@ -175,6 +183,14 @@ dotnet build
 dotnet test tests/AdCodicem.ValueObjects.UnitTests   # no Docker needed
 dotnet test                                          # everything, Docker required
 dotnet pack -c Release
+```
+
+Benchmarks are a separate run, and want a quiet machine:
+
+```
+cd benchmarks/AdCodicem.ValueObjects.Benchmarks
+dotnet run -c Release -- --filter *              # everything
+dotnet run -c Release -- --filter *WrapperCost*  # just the struct against class comparison
 ```
 
 ## Licence

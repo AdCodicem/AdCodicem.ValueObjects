@@ -30,6 +30,9 @@ coverage*.json
 coverage*.xml
 coverage*.info
 
+## Benchmarks
+BenchmarkDotNet.Artifacts/
+
 ## NuGet
 *.nupkg
 *.snupkg

@@ -1,0 +1,25 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Optimize>true</Optimize>
+
+    <!--
+      BenchmarkDotNet requires public instance methods it can discover and invoke, and the underscores keep the
+      row names readable in the summary table. The measurements, not the API shape, are the point here.
+      CA1036 is waived on purpose: the class wrapper omits comparison operators exactly as a hand written one
+      usually does, and adding them would stop it being a fair stand-in.
+    -->
+    <NoWarn>$(NoWarn);CA1515;CA1051;CA1002;CA1819;CA5394;CA1024;CA1707;CA1822;CA1036</NoWarn>
+  </PropertyGroup>
+
+  <!-- BenchmarkDotNet generates and compiles a host project at run time, which native AOT cannot do. -->
+  <PropertyGroup>
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+  </PropertyGroup>
+</Project>
