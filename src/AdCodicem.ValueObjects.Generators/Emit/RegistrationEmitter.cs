@@ -58,6 +58,20 @@ internal static class RegistrationEmitter
                 + $"<{model.QualifiedName}, {model.UnderlyingFullName}>({model.QualifiedName}.Schema);");
         }
 
+        var identifiers = models.Where(static model => model.IsEntityId).ToImmutableArray();
+        if (identifiers.Length > 0)
+        {
+            writer.Line();
+            writer.Line("// The reverse index, from a prefix to the type claiming it, is what lets AnyEntityId");
+            writer.Line("// resolve an identifier whose type is only known once the text arrives.");
+            foreach (var model in identifiers)
+            {
+                writer.Line(
+                    "global::AdCodicem.ValueObjects.Identifiers.EntityIdRegistry.Register"
+                    + $"<{model.QualifiedName}>();");
+            }
+        }
+
         if (registerJsonConverters)
         {
             writer.Line();

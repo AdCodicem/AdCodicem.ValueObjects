@@ -12,6 +12,8 @@ namespace AdCodicem.ValueObjects.Generators.Emit;
 internal static class ValueObjectEmitter
 {
     private const string Abstractions = "global::AdCodicem.ValueObjects";
+    private const string Identifiers = Abstractions + ".Identifiers";
+    private const string IdFormat = Identifiers + ".EntityIdFormat";
     private const string ValidationResult = Abstractions + ".ValidationResult";
     private const string ErrorCodes = Abstractions + ".ValueObjectErrorCodes";
     private const string Inline = "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]";
@@ -44,9 +46,18 @@ internal static class ValueObjectEmitter
         }
 
         EmitTypeAttributes(writer, model);
-        writer.Open($"partial struct {model.TypeName} : {Abstractions}.{(model.Arithmetic ? "INumericValueObject" : "IValueObject")}<{self}, {value}>");
+
+        var contract = model switch
+        {
+            { IsEntityId: true } => $"{Identifiers}.IEntityId<{self}>",
+            { Arithmetic: true } => $"{Abstractions}.INumericValueObject<{self}, {value}>",
+            _ => $"{Abstractions}.IValueObject<{self}, {value}>",
+        };
+
+        writer.Open($"partial struct {model.TypeName} : {contract}");
 
         EmitState(writer, model, value, self);
+        EmitEntityIdMembers(writer, model, self);
 
         // The named constants come before the schema so that the schema can publish their normalized values.
         EmitKnownValues(writer, model, value, self);
@@ -115,6 +126,50 @@ internal static class ValueObjectEmitter
         _ = self;
     }
 
+    /// <summary>
+    /// Emits the members an entity identifier adds over an ordinary string value object.
+    /// </summary>
+    /// <remarks>
+    /// The profile is emitted as expression-bodied properties rather than initialized fields, so that the
+    /// schema initializer below can read them regardless of the order the members appear in.
+    /// </remarks>
+    /// <param name="writer">Sink.</param>
+    /// <param name="model">Value object being emitted.</param>
+    /// <param name="self">Fully qualified name of the value object.</param>
+    private static void EmitEntityIdMembers(CodeWriter writer, ValueObjectModel model, string self)
+    {
+        if (model.Id is not { } profile)
+        {
+            return;
+        }
+
+        var granularity = $"{Identifiers}.IdGranularity.{profile.GranularityName}";
+
+        writer.Line("/// <inheritdoc />");
+        writer.Line($"public static string Prefix => {LiteralFactory.Quote(profile.Prefix)};");
+        writer.Line();
+
+        writer.Line("/// <inheritdoc />");
+        writer.Line($"public static {Identifiers}.IdGranularity Granularity => {granularity};");
+        writer.Line();
+
+        writer.Line("/// <inheritdoc />");
+        writer.Line($"public static int Length => {profile.TotalLength};");
+        writer.Line();
+
+        writer.Line("/// <inheritdoc />");
+        writer.Line(Inline);
+        writer.Line($"public static {self} New() => New({Identifiers}.ValueObjectIds.TimeProvider, {Identifiers}.ValueObjectIds.Entropy);");
+        writer.Line();
+
+        // Straight to the constructor: what Create produces is canonical and valid by construction, so
+        // re-normalizing and re-validating it would only cost a scan to reach the same value.
+        writer.Line("/// <inheritdoc />");
+        writer.Line($"public static {self} New(global::System.TimeProvider timeProvider, {Identifiers}.IdEntropySource entropy)");
+        writer.Line($"    => new({IdFormat}.Create(Prefix, Granularity, timeProvider, entropy));");
+        writer.Line();
+    }
+
     private static void EmitSchema(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying)
     {
         var properties = new List<string>();
@@ -122,6 +177,12 @@ internal static class ValueObjectEmitter
         if (model.Pattern is not null)
         {
             properties.Add($"Pattern = {LiteralFactory.Quote(model.Pattern)},");
+        }
+        else if (model.IsEntityId)
+        {
+            // Published for the clients generated from the document, and never compiled here: at fixed length
+            // over a fixed alphabet the running check is a span scan.
+            properties.Add($"Pattern = {IdFormat}.SchemaPattern(Prefix, Granularity),");
         }
 
         if (model.MinLength >= 0)
@@ -158,6 +219,12 @@ internal static class ValueObjectEmitter
         if (model.Example is not null)
         {
             properties.Add($"Example = {LiteralFactory.Quote(model.Example)},");
+        }
+        else if (model.IsEntityId)
+        {
+            // Derived rather than random, so that regenerating the document produces the same bytes and a
+            // committed specification does not churn on every build.
+            properties.Add($"Example = {IdFormat}.Example(Prefix, Granularity),");
         }
 
         if (model.IsClosedValueSet)
@@ -228,7 +295,15 @@ internal static class ValueObjectEmitter
         writer.Line("/// <inheritdoc />");
         writer.Line(Inline);
 
-        if (!model.HasNormalizeHook)
+        if (model.IsEntityId)
+        {
+            // The format owns its own canonical spelling — case, Crockford aliases, optional hyphens — so an
+            // identifier type never writes a normalizer, and VO0017 reports one that tried.
+            writer.Line(
+                $"public static {value} Normalize({value} value) => value is null "
+                + $"? value : {IdFormat}.Normalize(global::System.MemoryExtensions.AsSpan(value), Prefix);");
+        }
+        else if (!model.HasNormalizeHook)
         {
             writer.Line($"public static {value} Normalize({value} value) => value;");
         }
@@ -262,6 +337,33 @@ internal static class ValueObjectEmitter
 
         writer.Line("/// <inheritdoc />");
         writer.Open($"public static {ValidationResult} Validate(in {value} value)");
+
+        if (model.IsEntityId)
+        {
+            // An absent value reads as absent, not as a length violation, the same way it does for every other
+            // string value object. A caller distinguishing "the field was not filled in" from "the field holds
+            // something malformed" needs the two apart.
+            writer.Open("if (value is null || value.Length == 0)");
+            writer.Line($"return {ValidationResult}.Required(\"A value is required.\");");
+            writer.Close();
+            writer.Line();
+
+            // The format reports which rule broke — length, prefix, alphabet or check character — rather than
+            // flattening every rejection into one code a caller cannot act on.
+            writer.Line($"var shape = {IdFormat}.Validate(global::System.MemoryExtensions.AsSpan(value), Prefix, Granularity);");
+            writer.Open("if (!shape.IsValid)");
+            writer.Line("return shape;");
+            writer.Close();
+            writer.Line();
+
+            writer.Line(model.HasValidateHook
+                ? "return ValidateValue(in value);"
+                : $"return {ValidationResult}.Success;");
+
+            writer.Close();
+            writer.Line();
+            return;
+        }
 
         if (underlying.IsString)
         {
@@ -373,13 +475,15 @@ internal static class ValueObjectEmitter
         writer.Line($"public static {self} CreateUnchecked({value} value) => new(value);");
         writer.Line();
 
-        if (model.HasSpanNormalizeHook)
+        if (model.NormalizesFromSpan)
         {
             // Normalizing straight from the span means the normalized string is the only one allocated, where
             // going through TryCreate(string) would materialize the raw text first and then throw it away.
             writer.Line("/// <summary>Creates from text without materializing it before normalization.</summary>");
             writer.Open($"private static bool TryCreateFrom(global::System.ReadOnlySpan<char> value, out {self} result, out {ValidationResult} validation)");
-            writer.Line("var normalized = NormalizeValue(value);");
+            writer.Line(model.IsEntityId
+                ? $"var normalized = {IdFormat}.Normalize(value, Prefix);"
+                : "var normalized = NormalizeValue(value);");
             writer.Line("validation = Validate(in normalized);");
             writer.Open("if (validation.IsValid)");
             writer.Line($"result = new {self}(normalized);");
@@ -567,7 +671,7 @@ internal static class ValueObjectEmitter
 
         if (underlying.IsString)
         {
-            writer.Line(model.HasSpanNormalizeHook
+            writer.Line(model.NormalizesFromSpan
                 ? "return TryCreateFrom(s, out result, out _);"
                 : "return TryCreate(s.ToString(), out result);");
         }
@@ -607,7 +711,7 @@ internal static class ValueObjectEmitter
 
         if (underlying.IsString)
         {
-            writer.Line(model.HasSpanNormalizeHook
+            writer.Line(model.NormalizesFromSpan
                 ? "return TryCreateFrom(s, out result, out validation);"
                 : "return TryCreate(s.ToString(), out result, out validation);");
         }

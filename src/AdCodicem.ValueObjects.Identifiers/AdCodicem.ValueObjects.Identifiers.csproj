@@ -8,6 +8,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+
+    <!-- Not Abstractions alone: [EntityId] is useless without the generator that acts on it, and a consumer
+         installing this package and getting a partial struct with no implementation would have no way to tell
+         what was missing. Depending on the bundle makes the package self-sufficient. -->
+    <ProjectReference Include="..\AdCodicem.ValueObjects\AdCodicem.ValueObjects.csproj"
+                      IncludeAssets="all"
+                      PrivateAssets="none" />
   </ItemGroup>
 
   <ItemGroup>

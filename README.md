@@ -47,6 +47,7 @@ JsonSerializer.Serialize(new { iban })      // {"iban":"FR7630006000011234567890
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
+| `AdCodicem.ValueObjects.Identifiers` | Stripe-style public entity identifiers: `acc_2K7X9…`. |
 | `AdCodicem.ValueObjects.Testing` | An xUnit contract kit for your own value objects. |
 
 ## Design decisions worth knowing
@@ -172,6 +173,59 @@ public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObje
 The rules are public because a static interface member cannot be anything else. `Normalize` remains the member
 callers use: it guards against a null underlying value and then defers to `NormalizeValue`.
 
+### Entity identifiers
+
+`AdCodicem.ValueObjects.Identifiers` adds public identifiers in the shape everyone recognizes from Stripe.
+
+```csharp
+[EntityId("acc")]
+public readonly partial struct AccountId;
+
+var id = AccountId.New();   // acc_2K7X9WQMZ4H3N8VYB6TCR0FGJ0
+```
+
+That is a value object like any other — same parsing, same JSON, same column, same contract kit — plus `New()`,
+`Prefix`, `Granularity` and `Length`. The prefix is what makes `cus_…` fail to parse as an `AccountId`, so
+swapping one identifier for another in a request parameter is refused at the boundary instead of reaching a
+repository. It is stored in the database for the same reason: a raw-SQL join between two tables holding bare
+bodies would succeed silently.
+
+The body is 105 bits from a CSPRNG, in Crockford Base32, behind a coarse time bucket and followed by a check
+character:
+
+- the **time bucket** gives the index a monotonic head, so inserts land at the right edge of the B-tree instead
+  of scattering across it. It leaks the creation time at the granularity you choose — `Hour` by default,
+  `Minute` or `Day` on request — and nothing finer. It does not make an identifier guessable: the random part
+  keeps its full 105 bits regardless;
+- the **check character** catches every single mistyped character and almost every adjacent transposition
+  offline, before a query is ever sent, and covers the prefix too, so a body copied between two identifier
+  types is rejected even by a parser that does not know which prefix to expect;
+- the **alphabet** ascends in ASCII, so ordinal comparison — this library's default — sorts identifiers
+  chronologically, and its aliases (`I`, `L` → `1`, `O` → `0`) fold on the way in, which makes the stored value
+  canonical and takes a case-insensitive column collation out of the correctness path.
+
+Length is fixed per type, so the column is `char(n)` and the OpenAPI `pattern`, `minLength` and `maxLength`
+follow from the profile without being declared.
+
+`AnyEntityId` parses whichever registered prefix arrives, for webhooks, deep links and audit trails. It
+implements neither `IValueObject` nor `IEntityId`, which is what keeps it out of the EF Core convention: a
+polymorphic column cannot be mapped by accident.
+
+`New()` reads an ambient `TimeProvider` and `IdEntropySource`. Tests substitute them without an injected
+factory reaching every aggregate:
+
+```csharp
+using (ValueObjectIds.Use(fakeClock, deterministicBytes))
+{
+    var id = AccountId.New();
+}
+```
+
+The scope is bound to the execution flow, so suites running in parallel do not interfere.
+
+`docs/entity-identifiers.md` carries the format, the arithmetic behind the widths, and the reasoning — including
+why there is one identity rather than an internal surrogate key alongside it.
+
 ### Diagnostics
 
 | Id | Severity | Meaning |
@@ -189,6 +243,10 @@ callers use: it guards against a null underlying value and then defers to `Norma
 | `VO0011` | Warning | A rule written without declaring its hook interface, so the generator will never call it. |
 | `VO0013` | Error | A known value could not be converted. |
 | `VO0014` | Error | An invalid regular expression. |
+| `VO0015` | Error | A malformed entity identifier prefix. |
+| `VO0016` | Error | Two types claiming the same prefix. |
+| `VO0017` | Error | A normalization hook on an entity identifier, which owns its own. |
+| `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
 
 ## Repository layout
 

@@ -96,3 +96,39 @@ public sealed class OrderReferenceContract : ValueObjectContract<Ordering.OrderR
 
     protected override IEnumerable<string> RejectedValues => [string.Empty, "no"];
 }
+
+/// <summary>
+/// Generated identifiers go through the same kit as everything else, which is the point: nothing about them is
+/// exempt from the value object contract. The accepted values are minted once into a static so that every pass
+/// of the kit sees the same set — <c>New()</c> would hand back a different one on each enumeration.
+/// </summary>
+public sealed class AccountIdContract : ValueObjectContract<AccountId, string>
+{
+    private static readonly string[] Minted =
+    [
+        AccountId.New().Value,
+        AccountId.New().Value.ToLowerInvariant(),
+        AccountId.New().Value,
+    ];
+
+    protected override IEnumerable<string> AcceptedValues => Minted;
+
+    protected override IEnumerable<string> RejectedValues =>
+    [
+        string.Empty,
+        "acc_",
+        "acc_2K7X9WQMZ4H3N8VYB6TCR0FGJ",
+        "not-an-identifier",
+        SubscriptionId.New().Value,
+    ];
+}
+
+/// <inheritdoc cref="AccountIdContract" />
+public sealed class LedgerEntryIdContract : ValueObjectContract<LedgerEntryId, string>
+{
+    private static readonly string[] Minted = [LedgerEntryId.New().Value, LedgerEntryId.New().Value];
+
+    protected override IEnumerable<string> AcceptedValues => Minted;
+
+    protected override IEnumerable<string> RejectedValues => [string.Empty, "ldg_entry_nope", AccountId.New().Value];
+}

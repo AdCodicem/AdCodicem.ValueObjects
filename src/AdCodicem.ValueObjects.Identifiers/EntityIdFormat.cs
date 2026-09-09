@@ -265,6 +265,33 @@ public static class EntityIdFormat
     }
 
     /// <summary>
+    /// Builds a representative identifier, for publication in an OpenAPI schema.
+    /// </summary>
+    /// <param name="prefix">Declared prefix, without its trailing separator.</param>
+    /// <param name="granularity">Bucket width.</param>
+    /// <returns>A valid identifier of the right shape.</returns>
+    /// <remarks>
+    /// Derived from a fixed instant and a fixed byte pattern rather than minted, so that regenerating the
+    /// document twice produces the same bytes. An example drawn from the real entropy source would be valid and
+    /// would make a committed specification churn on every build.
+    /// </remarks>
+    public static string Example(string prefix, IdGranularity granularity)
+    {
+        ArgumentNullException.ThrowIfNull(prefix);
+
+        Span<byte> bytes = stackalloc byte[EntropyByteCount];
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            bytes[i] = (byte)((i * 7) + 3);
+        }
+
+        Span<char> buffer = stackalloc char[MaxTotalLength];
+        var written = Write(prefix, granularity, new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero), bytes, buffer);
+
+        return new string(buffer[..written]);
+    }
+
+    /// <summary>
     /// Determines whether a text opens with a prefix and its separator, ignoring case.
     /// </summary>
     /// <param name="text">Text to test.</param>
