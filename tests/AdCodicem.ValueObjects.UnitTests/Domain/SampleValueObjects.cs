@@ -8,26 +8,26 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain;
     Pattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$",
     SchemaFormat = "email",
     Example = "ada@example.com")]
-public readonly partial struct EmailAddress
+public readonly partial struct EmailAddress : IValueObjectNormalizer<string>
 {
     /// <summary>Gets the domain part of the address.</summary>
     public ReadOnlySpan<char> Domain => Value.AsSpan()[(Value.IndexOf('@') + 1)..];
 
-    private static string NormalizeCore(string value) => value.Trim().ToLowerInvariant();
+    public static string NormalizeValue(string value) => value.Trim().ToLowerInvariant();
 }
 
 /// <summary>
 /// A monetary amount in the ambient currency, never negative.
 /// </summary>
 [ValueObject<decimal>(Arithmetic = true, Minimum = "0", Example = "1250.00")]
-public readonly partial struct Amount
+public readonly partial struct Amount : IValueObjectNormalizer<decimal>
 {
     /// <summary>
     /// Rounds to the cent, the only precision a monetary amount is allowed to carry, and pins the scale so that
     /// every amount reads and serializes with two decimals. Adding a zero of scale two is what pins it: decimal
     /// addition keeps the larger of the two scales.
     /// </summary>
-    private static decimal NormalizeCore(decimal value) => decimal.Round(value, 2, MidpointRounding.ToEven) + 0.00m;
+    public static decimal NormalizeValue(decimal value) => decimal.Round(value, 2, MidpointRounding.ToEven) + 0.00m;
 }
 
 /// <summary>
@@ -46,13 +46,13 @@ public readonly partial struct Percentage
 /// The identifier of a customer.
 /// </summary>
 [ValueObject<Guid>]
-public readonly partial struct CustomerId
+public readonly partial struct CustomerId : IValueObjectValidator<Guid>
 {
     /// <summary>Creates a new identifier, sequential enough to keep a clustered index happy.</summary>
     /// <returns>A new identifier.</returns>
     public static CustomerId New() => CreateUnchecked(Guid.CreateVersion7());
 
-    private static ValidationResult ValidateCore(in Guid value)
+    public static ValidationResult ValidateValue(in Guid value)
         => value == Guid.Empty
             ? ValidationResult.Required("A customer identifier must not be empty.")
             : ValidationResult.Success;
@@ -65,9 +65,9 @@ public readonly partial struct CustomerId
 [KnownValue("France", "FR", Description = "France")]
 [KnownValue("Belgium", "BE", Description = "Belgium")]
 [KnownValue("Luxembourg", "LU", Description = "Luxembourg")]
-public readonly partial struct CountryCode
+public readonly partial struct CountryCode : IValueObjectNormalizer<string>
 {
-    private static string NormalizeCore(string value) => value.Trim().ToUpperInvariant();
+    public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
 }
 
 /// <summary>
@@ -99,8 +99,8 @@ public static partial class Ordering
 {
     /// <summary>The human-readable reference of an order.</summary>
     [ValueObject<string>(MinLength = 3, MaxLength = 20, Comparison = StringComparison.OrdinalIgnoreCase)]
-    public readonly partial struct OrderReference
+    public readonly partial struct OrderReference : IValueObjectNormalizer<string>
     {
-        private static string NormalizeCore(string value) => value.Trim();
+        public static string NormalizeValue(string value) => value.Trim();
     }
 }

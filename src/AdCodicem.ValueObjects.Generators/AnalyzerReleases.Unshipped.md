@@ -15,6 +15,6 @@ VO0007 | AdCodicem.ValueObjects | Error | Arithmetic requires a numeric underlyi
 VO0008 | AdCodicem.ValueObjects | Warning | Length constraints only apply to strings
 VO0009 | AdCodicem.ValueObjects | Error | Containing type must be partial
 VO0010 | AdCodicem.ValueObjects | Error | Uninitialized value object
-VO0011 | AdCodicem.ValueObjects | Warning | Member looks like a value object hook
+VO0011 | AdCodicem.ValueObjects | Warning | Value object hook is not declared
 VO0013 | AdCodicem.ValueObjects | Error | Invalid known value
 VO0014 | AdCodicem.ValueObjects | Error | Invalid pattern

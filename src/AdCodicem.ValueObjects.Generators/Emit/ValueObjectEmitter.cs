@@ -235,11 +235,11 @@ internal static class ValueObjectEmitter
         else if (model.Underlying.IsReferenceType)
         {
             // The hook never sees null: a missing value is rejected by Validate, not normalized into something.
-            writer.Line($"public static {value} Normalize({value} value) => value is null ? value : NormalizeCore(value);");
+            writer.Line($"public static {value} Normalize({value} value) => value is null ? value : NormalizeValue(value);");
         }
         else
         {
-            writer.Line($"public static {value} Normalize({value} value) => NormalizeCore(value);");
+            writer.Line($"public static {value} Normalize({value} value) => NormalizeValue(value);");
         }
 
         writer.Line();
@@ -328,7 +328,7 @@ internal static class ValueObjectEmitter
         }
 
         writer.Line(model.HasValidateHook
-            ? "return ValidateCore(in value);"
+            ? "return ValidateValue(in value);"
             : $"return {ValidationResult}.Success;");
 
         writer.Close();
@@ -379,7 +379,7 @@ internal static class ValueObjectEmitter
             // going through TryCreate(string) would materialize the raw text first and then throw it away.
             writer.Line("/// <summary>Creates from text without materializing it before normalization.</summary>");
             writer.Open($"private static bool TryCreateFrom(global::System.ReadOnlySpan<char> value, out {self} result, out {ValidationResult} validation)");
-            writer.Line("var normalized = NormalizeCore(value);");
+            writer.Line("var normalized = NormalizeValue(value);");
             writer.Line("validation = Validate(in normalized);");
             writer.Open("if (validation.IsValid)");
             writer.Line($"result = new {self}(normalized);");
@@ -471,7 +471,7 @@ internal static class ValueObjectEmitter
         {
             writer.Open("public string ToString(string? format, global::System.IFormatProvider? formatProvider)");
             writer.Line("var current = Value;");
-            writer.Line($"return FormatCore(in current, format.AsSpan(), formatProvider ?? {Invariant});");
+            writer.Line($"return FormatValue(in current, global::System.MemoryExtensions.AsSpan(format), formatProvider ?? {Invariant});");
             writer.Close();
         }
         else if (model.HasTryFormatHook)
@@ -480,13 +480,13 @@ internal static class ValueObjectEmitter
             writer.Line("var current = Value;");
             writer.Line($"var provider = formatProvider ?? {Invariant};");
             writer.Line($"global::System.Span<char> buffer = stackalloc char[{Math.Max(underlying.FormatBufferSize, 64)}];");
-            writer.Open("if (TryFormatCore(in current, buffer, out var written, format.AsSpan(), provider))");
+            writer.Open("if (TryFormatValue(in current, buffer, out var written, global::System.MemoryExtensions.AsSpan(format), provider))");
             writer.Line("return new string(buffer[..written]);");
             writer.Close();
             writer.Line();
             writer.Line("// The stack buffer was too small for this format: give the hook a destination it cannot outgrow.");
             writer.Line("var larger = new char[buffer.Length * 8];");
-            writer.Line("return TryFormatCore(in current, larger, out written, format.AsSpan(), provider)");
+            writer.Line("return TryFormatValue(in current, larger, out written, global::System.MemoryExtensions.AsSpan(format), provider)");
             writer.Line("    ? new string(larger, 0, written)");
             writer.Line("    : ToString();");
             writer.Close();
@@ -514,7 +514,7 @@ internal static class ValueObjectEmitter
         if (model.HasTryFormatHook)
         {
             writer.Line("var current = Value;");
-            writer.Line($"return TryFormatCore(in current, destination, out charsWritten, format, provider ?? {Invariant});");
+            writer.Line($"return TryFormatValue(in current, destination, out charsWritten, format, provider ?? {Invariant});");
         }
         else if (underlying.IsSpanFormattable)
         {
@@ -524,7 +524,7 @@ internal static class ValueObjectEmitter
         else
         {
             writer.Line(underlying.IsString ? "var text = Value;" : $"var text = ToString(null, provider ?? {Invariant});");
-            writer.Open("if (text.AsSpan().TryCopyTo(destination))");
+            writer.Open("if (global::System.MemoryExtensions.AsSpan(text).TryCopyTo(destination))");
             writer.Line("charsWritten = text.Length;");
             writer.Line("return true;");
             writer.Close();
@@ -554,12 +554,12 @@ internal static class ValueObjectEmitter
 
         writer.Line("/// <inheritdoc />");
         writer.Line(Inline);
-        writer.Line($"public static {self} Parse(string s, global::System.IFormatProvider? provider) => Parse(s.AsSpan(), provider);");
+        writer.Line($"public static {self} Parse(string s, global::System.IFormatProvider? provider) => Parse(global::System.MemoryExtensions.AsSpan(s), provider);");
         writer.Line();
 
         writer.Line("/// <inheritdoc cref=\"Parse(string, global::System.IFormatProvider?)\" />");
         writer.Line(Inline);
-        writer.Line($"public static {self} Parse(string s) => Parse(s.AsSpan(), null);");
+        writer.Line($"public static {self} Parse(string s) => Parse(global::System.MemoryExtensions.AsSpan(s), null);");
         writer.Line();
 
         writer.Line("/// <inheritdoc />");
@@ -649,7 +649,7 @@ internal static class ValueObjectEmitter
             writer.Line("return false;");
             writer.Close();
             writer.Line();
-            writer.Line("return TryParse(s.AsSpan(), provider, out result);");
+            writer.Line("return TryParse(global::System.MemoryExtensions.AsSpan(s), provider, out result);");
         }
 
         writer.Close();

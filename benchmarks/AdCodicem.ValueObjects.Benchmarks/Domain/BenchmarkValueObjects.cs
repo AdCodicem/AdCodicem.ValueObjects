@@ -10,14 +10,14 @@ namespace AdCodicem.ValueObjects.Benchmarks.Domain;
     MaxLength = 34,
     Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
     ImplicitConversionToValue = true)]
-public readonly partial struct Iban
+public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectValidator<string>
 {
-    private static string NormalizeCore(string value) => Normalization.Strip(value.AsSpan());
+    public static string NormalizeValue(string value) => Normalization.Strip(value.AsSpan());
 
     /// <summary>The span overload the generator routes parsing and JSON reading through.</summary>
-    private static string NormalizeCore(ReadOnlySpan<char> value) => Normalization.Strip(value);
+    public static string NormalizeValue(ReadOnlySpan<char> value) => Normalization.Strip(value);
 
-    private static ValidationResult ValidateCore(in string value)
+    public static ValidationResult ValidateValue(in string value)
         => Normalization.HasValidCheckDigits(value)
             ? ValidationResult.Success
             : ValidationResult.InvalidFormat("The IBAN check digits are incorrect.");
@@ -27,9 +27,9 @@ public readonly partial struct Iban
 /// An amount, as the framework generates it.
 /// </summary>
 [ValueObject<decimal>(Minimum = "0", Arithmetic = true)]
-public readonly partial struct Amount
+public readonly partial struct Amount : IValueObjectNormalizer<decimal>
 {
-    private static decimal NormalizeCore(decimal value)
+    public static decimal NormalizeValue(decimal value)
         => decimal.Round(value, 2, MidpointRounding.ToEven) + 0.00m;
 }
 
@@ -48,9 +48,9 @@ public readonly partial struct CustomerId;
 [KnownValue("Germany", "DE")]
 [KnownValue("Spain", "ES")]
 [KnownValue("Italy", "IT")]
-public readonly partial struct CountryCode
+public readonly partial struct CountryCode : IValueObjectNormalizer<string>
 {
-    private static string NormalizeCore(string value) => value.ToUpperInvariant();
+    public static string NormalizeValue(string value) => value.ToUpperInvariant();
 }
 
 /// <summary>

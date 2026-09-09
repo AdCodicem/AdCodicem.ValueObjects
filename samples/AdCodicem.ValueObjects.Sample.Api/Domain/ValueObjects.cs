@@ -4,13 +4,13 @@ namespace AdCodicem.ValueObjects.Sample.Api.Domain;
 /// The identifier of a customer.
 /// </summary>
 [ValueObject<Guid>(Example = "0193b1c0-0000-7000-8000-000000000001")]
-public readonly partial struct CustomerId
+public readonly partial struct CustomerId : IValueObjectValidator<Guid>
 {
     /// <summary>Creates a new identifier that a clustered index can live with.</summary>
     /// <returns>A new identifier.</returns>
     public static CustomerId New() => CreateUnchecked(Guid.CreateVersion7());
 
-    private static ValidationResult ValidateCore(in Guid value)
+    public static ValidationResult ValidateValue(in Guid value)
         => value == Guid.Empty
             ? ValidationResult.Required("A customer identifier must not be empty.")
             : ValidationResult.Success;
@@ -24,9 +24,9 @@ public readonly partial struct CustomerId
     Pattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$",
     SchemaFormat = "email",
     Example = "ada@example.com")]
-public readonly partial struct EmailAddress
+public readonly partial struct EmailAddress : IValueObjectNormalizer<string>
 {
-    private static string NormalizeCore(string value) => value.Trim().ToLowerInvariant();
+    public static string NormalizeValue(string value) => value.Trim().ToLowerInvariant();
 }
 
 /// <summary>
@@ -38,12 +38,12 @@ public readonly partial struct EmailAddress
     Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
     SchemaFormat = "iban",
     Example = "FR7630006000011234567890189")]
-public readonly partial struct Iban
+public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectValidator<string>
 {
     /// <summary>Gets the ISO 3166 country code of the account.</summary>
     public string CountryCode => Value[..2];
 
-    private static string NormalizeCore(string value)
+    public static string NormalizeValue(string value)
     {
         var length = 0;
         foreach (var character in value)
@@ -67,7 +67,7 @@ public readonly partial struct Iban
         });
     }
 
-    private static ValidationResult ValidateCore(in string value)
+    public static ValidationResult ValidateValue(in string value)
         => HasValidCheckDigits(value)
             ? ValidationResult.Success
             : ValidationResult.InvalidFormat("The IBAN check digits are incorrect.");
@@ -91,9 +91,9 @@ public readonly partial struct Iban
 /// A monetary amount in euros, never negative, always carrying two decimals.
 /// </summary>
 [ValueObject<decimal>(Arithmetic = true, Minimum = "0", Example = "1250.00")]
-public readonly partial struct Amount
+public readonly partial struct Amount : IValueObjectNormalizer<decimal>
 {
-    private static decimal NormalizeCore(decimal value) => decimal.Round(value, 2, MidpointRounding.ToEven) + 0.00m;
+    public static decimal NormalizeValue(decimal value) => decimal.Round(value, 2, MidpointRounding.ToEven) + 0.00m;
 }
 
 /// <summary>
@@ -104,7 +104,7 @@ public readonly partial struct Amount
 [KnownValue("Belgium", "BE", Description = "Belgium")]
 [KnownValue("Luxembourg", "LU", Description = "Luxembourg")]
 [KnownValue("Germany", "DE", Description = "Germany")]
-public readonly partial struct CountryCode
+public readonly partial struct CountryCode : IValueObjectNormalizer<string>
 {
-    private static string NormalizeCore(string value) => value.Trim().ToUpperInvariant();
+    public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
 }
