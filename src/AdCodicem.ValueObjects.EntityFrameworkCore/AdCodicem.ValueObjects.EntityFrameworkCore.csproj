@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.EntityFrameworkCore</RootNamespace>
+    <Description>Entity Framework Core support for AdCodicem value objects: value converters and comparers that store the bare underlying value, plus a convention that maps every value object of an assembly in one call.</Description>
+    <PackageTags>$(PackageTags);efcore;entity-framework;persistence</PackageTags>
+
+    <!-- Entity Framework Core builds its model by reflection, so this package cannot claim AOT compatibility. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.NewtonsoftJson</RootNamespace>
+    <Description>Newtonsoft.Json support for AdCodicem value objects, for interoperating with code, SDKs and message contracts that have not moved to System.Text.Json.</Description>
+    <PackageTags>$(PackageTags);newtonsoft;json.net</PackageTags>
+
+    <!-- Newtonsoft.Json resolves contracts by reflection. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" />
+  </ItemGroup>
+
+</Project>

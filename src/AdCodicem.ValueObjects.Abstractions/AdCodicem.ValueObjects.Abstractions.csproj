@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects</RootNamespace>
+    <Description>Dependency-free contracts for single-value DDD value objects: IValueObject&lt;TSelf, TValue&gt; with static abstract factories, allocation-free validation results and a runtime descriptor registry.</Description>
+    <PackageTags>$(PackageTags);abstractions</PackageTags>
+  </PropertyGroup>
+
+</Project>
