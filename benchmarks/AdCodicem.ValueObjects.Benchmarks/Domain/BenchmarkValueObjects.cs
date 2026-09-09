@@ -12,7 +12,10 @@ namespace AdCodicem.ValueObjects.Benchmarks.Domain;
     ImplicitConversionToValue = true)]
 public readonly partial struct Iban
 {
-    private static string NormalizeCore(string value) => Normalization.Strip(value);
+    private static string NormalizeCore(string value) => Normalization.Strip(value.AsSpan());
+
+    /// <summary>The span overload the generator routes parsing and JSON reading through.</summary>
+    private static string NormalizeCore(ReadOnlySpan<char> value) => Normalization.Strip(value);
 
     private static ValidationResult ValidateCore(in string value)
         => Normalization.HasValidCheckDigits(value)
@@ -35,6 +38,20 @@ public readonly partial struct Amount
 /// </summary>
 [ValueObject<Guid>]
 public readonly partial struct CustomerId;
+
+/// <summary>
+/// A closed set, whose members are boxed once and shared by the boxed paths.
+/// </summary>
+[ValueObject<string>(ValueSet = ValueSetKind.Closed, MinLength = 2, MaxLength = 2)]
+[KnownValue("France", "FR")]
+[KnownValue("Belgium", "BE")]
+[KnownValue("Germany", "DE")]
+[KnownValue("Spain", "ES")]
+[KnownValue("Italy", "IT")]
+public readonly partial struct CountryCode
+{
+    private static string NormalizeCore(string value) => value.ToUpperInvariant();
+}
 
 /// <summary>
 /// The same wrapper written by hand as a struct, with no generated code at all.
@@ -100,33 +117,26 @@ public sealed class ClassWrapper(string value) : IEquatable<ClassWrapper>, IComp
 /// </summary>
 public static class Normalization
 {
-    /// <summary>Strips separators and upper-cases, in a single pass and a single allocation.</summary>
+    /// <summary>Characters normalization puts on the stack before falling back to the heap.</summary>
+    private const int StackLimit = 64;
+
+    /// <summary>Strips separators and upper-cases, allocating only the result.</summary>
     /// <param name="value">Text to normalize.</param>
     /// <returns>The normalized text.</returns>
-    public static string Strip(string value)
+    public static string Strip(ReadOnlySpan<char> value)
     {
-        ArgumentNullException.ThrowIfNull(value);
+        Span<char> buffer = value.Length <= StackLimit ? stackalloc char[StackLimit] : new char[value.Length];
 
         var length = 0;
         foreach (var character in value)
         {
             if (!char.IsWhiteSpace(character) && character != '-')
             {
-                length++;
+                buffer[length++] = char.ToUpperInvariant(character);
             }
         }
 
-        return string.Create(length, value, static (destination, source) =>
-        {
-            var index = 0;
-            foreach (var character in source)
-            {
-                if (!char.IsWhiteSpace(character) && character != '-')
-                {
-                    destination[index++] = char.ToUpperInvariant(character);
-                }
-            }
-        });
+        return new string(buffer[..length]);
     }
 
     /// <summary>Verifies the ISO 7064 MOD-97-10 check digits without allocating.</summary>

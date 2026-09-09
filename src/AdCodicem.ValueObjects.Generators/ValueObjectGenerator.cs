@@ -206,6 +206,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             Example = GetString(arguments, "Example"),
             Description = GetString(arguments, "Description") ?? summary,
             HasNormalizeHook = HasHook(symbol, "NormalizeCore", parameterCount: 1, underlying.FullName),
+            HasSpanNormalizeHook = underlying.IsString && HasSpanNormalizeOverload(symbol),
             HasValidateHook = HasHook(symbol, "ValidateCore", parameterCount: 1, ValidationResultTypeName),
             HasTryFormatHook = HasHook(symbol, "TryFormatCore", parameterCount: 5, "bool"),
             HasFormatHook = HasHook(symbol, "FormatCore", parameterCount: 3, "string"),
@@ -291,6 +292,23 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         _ = symbol;
         return null;
     }
+
+    /// <summary>
+    /// Detects <c>static string NormalizeCore(ReadOnlySpan&lt;char&gt; value)</c>, the overload that lets the
+    /// parsing paths skip materializing the raw text before normalizing it.
+    /// </summary>
+    private static bool HasSpanNormalizeOverload(INamedTypeSymbol symbol)
+        => symbol.GetMembers("NormalizeCore")
+            .OfType<IMethodSymbol>()
+            .Any(method => method.IsStatic
+                           && method.ReturnType.SpecialType == SpecialType.System_String
+                           && method.Parameters.Length == 1
+                           && IsReadOnlySpanOfChar(method.Parameters[0].Type));
+
+    private static bool IsReadOnlySpanOfChar(ITypeSymbol type)
+        => type is INamedTypeSymbol { Name: "ReadOnlySpan", TypeArguments.Length: 1 } span
+           && span.ContainingNamespace is { Name: "System", ContainingNamespace.IsGlobalNamespace: true }
+           && span.TypeArguments[0].SpecialType == SpecialType.System_Char;
 
     private static bool HasHook(INamedTypeSymbol symbol, string name, int parameterCount, string returnTypeName)
         => symbol.GetMembers(name)

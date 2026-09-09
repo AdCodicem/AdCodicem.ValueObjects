@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Globalization;
 
 namespace AdCodicem.ValueObjects.Metadata;
@@ -116,13 +117,33 @@ public sealed class ValueObjectDescriptor
     {
         ArgumentNullException.ThrowIfNull(schema);
 
+        // A closed value set has a handful of instances that never change, so box each of them once here and
+        // hand the same box to every caller instead of allocating a new one per conversion. Lookups happen on
+        // the normalized value, and a miss simply falls through to creating one: the cache is never load
+        // bearing, only an allocation the boxed paths do not have to make.
+        var boxedKnownValues = BuildBoxedCache<TSelf, TValue>(schema);
+
         return new ValueObjectDescriptor(
             typeof(TSelf),
             typeof(TValue),
             schema,
-            create: static value => TSelf.Create(Unbox<TValue>(value)),
-            createUnchecked: static value => TSelf.CreateUnchecked(Unbox<TValue>(value)),
-            tryCreate: static (object? value, out object? result, out ValidationResult validation) =>
+            create: value =>
+            {
+                var typed = TSelf.Normalize(Unbox<TValue>(value));
+
+                return boxedKnownValues is not null && typed is not null && TryGetCached(boxedKnownValues, typed, out var cached)
+                    ? cached
+                    : TSelf.Create(typed);
+            },
+            createUnchecked: value =>
+            {
+                var typed = Unbox<TValue>(value);
+
+                return boxedKnownValues is not null && typed is not null && TryGetCached(boxedKnownValues, typed, out var cached)
+                    ? cached
+                    : TSelf.CreateUnchecked(typed);
+            },
+            tryCreate: (object? value, out object? result, out ValidationResult validation) =>
             {
                 TValue typed;
                 switch (value)
@@ -143,21 +164,25 @@ public sealed class ValueObjectDescriptor
 
                 if (TSelf.TryCreate(typed, out var created, out validation))
                 {
-                    result = created;
+                    result = boxedKnownValues is not null && created.Value is not null && TryGetCached(boxedKnownValues, created.Value, out var cached)
+                        ? cached
+                        : created;
                     return true;
                 }
 
                 result = null;
                 return false;
             },
-            tryParse: static (ReadOnlySpan<char> text, IFormatProvider? provider, out object? result, out ValidationResult validation) =>
+            tryParse: (ReadOnlySpan<char> text, IFormatProvider? provider, out object? result, out ValidationResult validation) =>
             {
                 // The four argument overload carries the rule that actually rejected the text, which is the
                 // whole point of declaring rules on the value object: a wrong IBAN check digit must surface as
                 // 'invalid_format' with its message, not flattened into a generic 'not_parsable'.
                 if (TSelf.TryParse(text, provider ?? CultureInfo.InvariantCulture, out var parsed, out validation))
                 {
-                    result = parsed;
+                    result = boxedKnownValues is not null && parsed.Value is not null && TryGetCached(boxedKnownValues, parsed.Value, out var cached)
+                        ? cached
+                        : parsed;
                     return true;
                 }
 
@@ -180,4 +205,53 @@ public sealed class ValueObjectDescriptor
 
     private static TValue Unbox<TValue>(object? value)
         => value is null ? default! : (TValue)value;
+
+    /// <summary>
+    /// Boxes every member of a closed value set once, so the boxed paths can hand out shared instances.
+    /// </summary>
+    /// <typeparam name="TSelf">Value object type.</typeparam>
+    /// <typeparam name="TValue">Underlying value type.</typeparam>
+    /// <param name="schema">Declarative constraints of the value object.</param>
+    /// <returns>The cache, or <see langword="null"/> when the type is not a closed set.</returns>
+    private static FrozenDictionary<object, object>? BuildBoxedCache<TSelf, TValue>(ValueObjectSchema schema)
+        where TSelf : struct, IValueObject<TSelf, TValue>
+    {
+        // Only reference-typed underlying values qualify. Keying on a boxed value type would mean boxing the
+        // key on every lookup, which costs exactly the allocation the cache exists to avoid.
+        if (!schema.IsClosedValueSet || schema.KnownValues.IsDefaultOrEmpty || typeof(TValue).IsValueType)
+        {
+            return null;
+        }
+
+        var entries = new Dictionary<object, object>(schema.KnownValues.Length);
+        foreach (var known in schema.KnownValues)
+        {
+            if (known is TValue typed)
+            {
+                // The schema publishes normalized values, so these keys already match what a lookup will hold.
+                entries[known] = TSelf.CreateUnchecked(typed);
+            }
+        }
+
+        return entries.Count == 0 ? null : entries.ToFrozenDictionary();
+    }
+
+    /// <summary>
+    /// Looks a normalized value up in the boxed cache, if there is one.
+    /// </summary>
+    /// <remarks>
+    /// Callers must test <paramref name="cache"/> before evaluating the key, so that a value-typed underlying
+    /// value is never boxed just to miss. The cache is keyed with the default comparer, so a value object
+    /// declaring a case-insensitive comparison may miss; a miss costs one allocation and nothing else, and
+    /// correctness never depends on hitting.
+    /// </remarks>
+    /// <param name="cache">Cache built by <see cref="BuildBoxedCache{TSelf, TValue}"/>.</param>
+    /// <param name="key">Normalized value, already boxed because the cache only holds reference types.</param>
+    /// <param name="cached">The shared box, when one exists.</param>
+    /// <returns><see langword="true"/> when a shared box was found.</returns>
+    private static bool TryGetCached(
+        FrozenDictionary<object, object> cache,
+        object key,
+        [NotNullWhen(true)] out object? cached)
+        => cache.TryGetValue(key, out cached);
 }

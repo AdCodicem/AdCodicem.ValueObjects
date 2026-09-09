@@ -28,29 +28,32 @@ public readonly partial struct Iban
     /// <summary>Gets the ISO 3166 country code of the account.</summary>
     public string CountryCode => Value[..2];
 
-    /// <summary>Strips separators and upper-cases, in a single pass and a single allocation.</summary>
-    private static string NormalizeCore(string value)
+    /// <summary>Characters normalization will put on the stack before falling back to the heap.</summary>
+    private const int NormalizeStackLimit = 64;
+
+    /// <summary>Strips separators and upper-cases. Delegates so the rule is written once.</summary>
+    private static string NormalizeCore(string value) => NormalizeCore(value.AsSpan());
+
+    /// <summary>
+    /// The span overload the generator looks for: parsing and JSON reading route through it, so normalizing
+    /// text allocates the normalized string and nothing else.
+    /// </summary>
+    private static string NormalizeCore(ReadOnlySpan<char> value)
     {
+        Span<char> buffer = value.Length <= NormalizeStackLimit
+            ? stackalloc char[NormalizeStackLimit]
+            : new char[value.Length];
+
         var length = 0;
         foreach (var character in value)
         {
             if (!char.IsWhiteSpace(character) && character != '-')
             {
-                length++;
+                buffer[length++] = char.ToUpperInvariant(character);
             }
         }
 
-        return string.Create(length, value, static (destination, source) =>
-        {
-            var index = 0;
-            foreach (var character in source)
-            {
-                if (!char.IsWhiteSpace(character) && character != '-')
-                {
-                    destination[index++] = char.ToUpperInvariant(character);
-                }
-            }
-        });
+        return new string(buffer[..length]);
     }
 
     /// <summary>Verifies the ISO 7064 MOD-97-10 check digits without allocating.</summary>

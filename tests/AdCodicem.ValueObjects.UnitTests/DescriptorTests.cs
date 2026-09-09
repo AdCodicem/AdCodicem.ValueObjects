@@ -106,6 +106,42 @@ public sealed class DescriptorTests
     }
 
     [Fact]
+    public void A_closed_value_set_hands_out_the_same_box_every_time()
+    {
+        var descriptor = Descriptor<CountryCode>();
+
+        var first = descriptor.Create("FR");
+        var second = descriptor.Create("FR");
+
+        // Boxing a value object allocates; a closed set has a fixed number of them, so they are boxed once.
+        first.Should().BeSameAs(second);
+    }
+
+    [Fact]
+    public void The_shared_box_is_also_used_on_the_parsing_path()
+    {
+        var descriptor = Descriptor<CountryCode>();
+
+        descriptor.TryParse("FR", CultureInfo.InvariantCulture, out var parsed, out _).Should().BeTrue();
+        descriptor.TryCreate("FR", out var created, out _).Should().BeTrue();
+
+        parsed.Should().BeSameAs(created);
+        parsed.Should().BeSameAs(descriptor.Create("FR"));
+    }
+
+    [Fact]
+    public void An_open_value_set_is_not_cached_and_stays_correct()
+    {
+        var descriptor = Descriptor<Iban>();
+
+        var first = descriptor.Create("FR7630006000011234567890189");
+        var second = descriptor.Create("FR7630006000011234567890189");
+
+        first.Should().NotBeSameAs(second, "only a closed set has a fixed number of instances to share");
+        first.Should().Be(second);
+    }
+
+    [Fact]
     public void The_descriptor_exposes_the_underlying_value_unwrapped()
     {
         var descriptor = Descriptor<Iban>();
