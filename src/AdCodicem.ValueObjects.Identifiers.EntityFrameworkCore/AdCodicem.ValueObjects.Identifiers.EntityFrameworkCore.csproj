@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore</RootNamespace>
+    <Description>Entity Framework Core mapping for AdCodicem entity identifiers: fixed-width non-Unicode columns sized from the identifier profile, with an optional binary collation, in one call.</Description>
+    <PackageTags>$(PackageTags);efcore;entity-framework;persistence;identifier</PackageTags>
+
+    <!-- Entity Framework Core builds its model by reflection, so this package cannot claim AOT compatibility. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
+    <ProjectReference Include="..\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+  </ItemGroup>
+
+</Project>

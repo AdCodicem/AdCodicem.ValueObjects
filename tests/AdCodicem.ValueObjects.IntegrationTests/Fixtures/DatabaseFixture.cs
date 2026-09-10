@@ -59,6 +59,12 @@ public abstract class DatabaseFixture : IAsyncLifetime
     /// <summary>Gets the name this provider gives a bounded text column in its catalog.</summary>
     public abstract string BoundedTextType { get; }
 
+    /// <summary>Gets the name this provider gives a fixed width text column in its catalog.</summary>
+    public abstract string FixedTextType { get; }
+
+    /// <summary>Gets the byte-wise collation of this provider, as its catalog reports it.</summary>
+    public abstract string BinaryCollation { get; }
+
     /// <summary>Configures the provider under test.</summary>
     /// <param name="builder">Options builder.</param>
     /// <param name="connectionString">Connection string of the running container.</param>
@@ -91,6 +97,12 @@ public sealed class PostgreSqlFixture : DatabaseFixture
 
     /// <inheritdoc />
     public override string BoundedTextType => "character varying";
+
+    /// <inheritdoc />
+    public override string FixedTextType => "character";
+
+    /// <inheritdoc />
+    public override string BinaryCollation => "C";
 
     /// <inheritdoc />
     public override async ValueTask DisposeAsync() => await _container.DisposeAsync();
@@ -126,6 +138,12 @@ public sealed class SqlServerFixture : DatabaseFixture
 
     /// <inheritdoc />
     public override string BoundedTextType => "nvarchar";
+
+    /// <inheritdoc />
+    public override string FixedTextType => "char";
+
+    /// <inheritdoc />
+    public override string BinaryCollation => "Latin1_General_BIN2";
 
     /// <inheritdoc />
     public override async ValueTask DisposeAsync() => await _container.DisposeAsync();

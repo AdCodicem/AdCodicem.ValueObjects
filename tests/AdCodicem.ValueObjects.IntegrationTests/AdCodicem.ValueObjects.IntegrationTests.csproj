@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <Using Include="AdCodicem.ValueObjects" />
+    <Using Include="AdCodicem.ValueObjects.Identifiers" />
     <Using Include="AdCodicem.ValueObjects.Sample.Api.Domain" />
     <Using Include="AdCodicem.ValueObjects.Sample.Api.Persistence" />
   </ItemGroup>

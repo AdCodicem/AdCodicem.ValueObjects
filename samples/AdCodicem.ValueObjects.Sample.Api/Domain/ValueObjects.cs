@@ -108,3 +108,14 @@ public readonly partial struct CountryCode : IValueObjectNormalizer<string>
 {
     public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
 }
+
+/// <summary>
+/// The public identifier of a payment, in the shape a client sees it: <c>pay_2K7X9…</c>.
+/// </summary>
+/// <remarks>
+/// Unlike <see cref="CustomerId"/>, which is internal and stored as a native uuid, this one crosses the API
+/// boundary. The prefix is what makes it impossible to pass a customer identifier where a payment is expected,
+/// and it is kept in the column so a raw SQL join cannot make that mistake either.
+/// </remarks>
+[EntityId("pay")]
+public readonly partial struct PaymentId;
