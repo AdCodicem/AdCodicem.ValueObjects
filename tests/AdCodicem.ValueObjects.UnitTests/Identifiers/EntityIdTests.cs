@@ -15,7 +15,7 @@ public class EntityIdTests
         var id = AccountId.New();
 
         id.Value.Should().StartWith("acc_").And.HaveLength(AccountId.Length);
-        AccountId.Length.Should().Be(30);
+        AccountId.Length.Should().Be(25);
         AccountId.Prefix.Should().Be("acc");
         AccountId.Granularity.Should().Be(IdGranularity.Hour);
     }
@@ -42,8 +42,8 @@ public class EntityIdTests
     [Fact]
     public void The_granularity_widens_or_narrows_the_identifier()
     {
-        EventId.Length.Should().Be(32, "a minute bucket costs two more characters than an hour one");
-        LedgerEntryId.Length.Should().Be(35, "'ldg_entry' is nine characters and a day bucket is three");
+        EventId.Length.Should().Be(27, "a minute bucket costs two more characters than an hour one");
+        LedgerEntryId.Length.Should().Be(30, "'ldg_entry' is nine characters and a day bucket is three");
         LedgerEntryId.Granularity.Should().Be(IdGranularity.Day);
     }
 
@@ -128,7 +128,7 @@ public class EntityIdTests
     [Theory]
     [InlineData("", ValueObjectErrorCodes.Required)]
     [InlineData("acc_", IdentifierErrorCodes.InvalidLength)]
-    [InlineData("acc_2K7X9WQMZ4H3N8VYB6TCR0FGJ", IdentifierErrorCodes.InvalidLength)]
+    [InlineData("acc_2K7X9WQMZ4H3N8VYB6TC", IdentifierErrorCodes.InvalidLength)]
     public void A_rejection_carries_the_rule_that_fired(string candidate, string expected)
     {
         AccountId.TryCreate(candidate, out _, out var validation).Should().BeFalse();
@@ -148,7 +148,7 @@ public class EntityIdTests
     [Fact]
     public void Create_throws_carrying_the_same_reason()
     {
-        var act = () => AccountId.Create("acc_2K7X9WQMZ4H3N8VYB6TCR0FGJ");
+        var act = () => AccountId.Create("acc_2K7X9WQMZ4H3N8VYB6TC");
 
         act.Should().Throw<ValueObjectException>()
             .Which.ErrorCode.Should().Be(IdentifierErrorCodes.InvalidLength);
@@ -164,7 +164,7 @@ public class EntityIdTests
         AccountId.Schema.MinLength.Should().Be(AccountId.Length);
         AccountId.Schema.MaxLength.Should().Be(AccountId.Length);
         AccountId.Schema.Description.Should().Be("The public identifier of an account.");
-        AccountId.Schema.Pattern.Should().Be("^acc_[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$");
+        AccountId.Schema.Pattern.Should().Be("^acc_[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{21}$");
     }
 
     [Fact]

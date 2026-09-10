@@ -22,10 +22,18 @@ public static class EntityIdFormat
     /// The number of characters carrying randomness, at every granularity.
     /// </summary>
     /// <remarks>
-    /// 21 symbols of five bits each: 105 bits. The birthday bound is roughly 6.4 × 10¹⁵ identifiers within one
-    /// time bucket, so a collision is not a thing that happens.
+    /// <para>
+    /// 16 symbols of five bits each: 80 bits. The birthday bound is roughly 1.1 × 10¹² identifiers within one
+    /// time bucket, against the 10⁴–10⁵ a bucket is sized to hold, so a collision is not a thing that happens.
+    /// </para>
+    /// <para>
+    /// Sized against the bucket, not against the table. Randomness is redrawn on every bucket, so what has to
+    /// stay out of reach is the number of identifiers minted within one bucket width — orders of magnitude
+    /// below the row count of the table, and the reason this is 80 bits rather than the 128 an unbucketed
+    /// identifier would need.
+    /// </para>
     /// </remarks>
-    public const int RandomLength = 21;
+    public const int RandomLength = 16;
 
     /// <summary>
     /// The number of trailing check characters.

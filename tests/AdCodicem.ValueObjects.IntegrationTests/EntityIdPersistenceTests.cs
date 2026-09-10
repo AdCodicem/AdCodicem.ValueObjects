@@ -78,7 +78,7 @@ public abstract class EntityIdPersistenceTests<TFixture>(TFixture fixture) : ICl
         // a width that gives nothing away.
         column.DataType.Should().Be(fixture.FixedTextType);
         column.MaximumLength.Should().Be(PaymentId.Length);
-        PaymentId.Length.Should().Be(30);
+        PaymentId.Length.Should().Be(25);
     }
 
     [Fact]

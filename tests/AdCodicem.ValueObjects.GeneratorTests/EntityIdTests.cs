@@ -31,7 +31,7 @@ public sealed class EntityIdTests
             """).SingleValueObject;
 
         generated.Should().Contain("public static string Prefix => \"acc\";");
-        generated.Should().Contain("public static int Length => 30;");
+        generated.Should().Contain("public static int Length => 25;");
         generated.Should().Contain("New()");
         generated.Should().Contain("New(global::System.TimeProvider timeProvider");
     }

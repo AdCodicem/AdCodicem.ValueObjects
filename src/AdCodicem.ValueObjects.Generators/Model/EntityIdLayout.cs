@@ -16,7 +16,7 @@ namespace AdCodicem.ValueObjects.Generators.Model;
 /// </remarks>
 internal static class EntityIdLayout
 {
-    public const int RandomLength = 21;
+    public const int RandomLength = 16;
 
     public const int ChecksumLength = 1;
 

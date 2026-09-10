@@ -7,7 +7,7 @@ namespace AdCodicem.ValueObjects.Identifiers;
 /// <para>
 /// The bucket exists to give the index a monotonic head, so that inserts land at the right edge of the B-tree
 /// instead of scattering across it. It leaks the creation time of the identifier at exactly this granularity
-/// and nothing finer; the random part keeps its full 105 bits either way, so enumeration is unaffected.
+/// and nothing finer; the random part keeps its full 80 bits either way, so enumeration is unaffected.
 /// </para>
 /// <para>
 /// Choose it from the insert rate of the table, not from taste: aim for a bucket holding roughly 10⁴–10⁵ rows.
