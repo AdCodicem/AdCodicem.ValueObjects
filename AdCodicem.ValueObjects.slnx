@@ -4,6 +4,7 @@
     <Project Path="src/AdCodicem.ValueObjects.Abstractions/AdCodicem.ValueObjects.Abstractions.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Generators/AdCodicem.ValueObjects.Generators.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Identifiers/AdCodicem.ValueObjects.Identifiers.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore/AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Json/AdCodicem.ValueObjects.Json.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.EntityFrameworkCore/AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AspNetCore/AdCodicem.ValueObjects.AspNetCore.csproj" />

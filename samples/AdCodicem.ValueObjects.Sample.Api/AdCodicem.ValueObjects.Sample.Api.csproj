@@ -9,6 +9,8 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore\AdCodicem.ValueObjects.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.OpenApi\AdCodicem.ValueObjects.OpenApi.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
@@ -28,6 +30,7 @@
   <ItemGroup>
     <Using Include="AdCodicem.ValueObjects" />
     <Using Include="AdCodicem.ValueObjects.Annotations" />
+    <Using Include="AdCodicem.ValueObjects.Identifiers" />
     <Using Include="AdCodicem.ValueObjects.Sample.Api.Domain" />
   </ItemGroup>
 

@@ -48,6 +48,7 @@ JsonSerializer.Serialize(new { iban })      // {"iban":"FR7630006000011234567890
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Identifiers` | Stripe-style public entity identifiers: `acc_2K7X9…`. |
+| `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | Fixed-width, non-Unicode columns for those identifiers. |
 | `AdCodicem.ValueObjects.Testing` | An xUnit contract kit for your own value objects. |
 
 ## Design decisions worth knowing
@@ -206,6 +207,20 @@ character:
 
 Length is fixed per type, so the column is `char(n)` and the OpenAPI `pattern`, `minLength` and `maxLength`
 follow from the profile without being declared.
+
+`AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` turns that fixed width into the narrowest column that
+holds it — `char(n)` rather than `varchar(n)`, and non-Unicode, so SQL Server does not silently double it to
+`nchar` for an alphabet of 32 ASCII symbols:
+
+```csharp
+protected override void ConfigureConventions(ModelConfigurationBuilder builder)
+    => builder.ConfigureEntityIds(typeof(AccountId).Assembly);
+```
+
+A binary collation (`IdCollations.SqlServer`, `IdCollations.PostgreSql`) is worth setting and is a performance
+choice rather than a correctness one, precisely because normalization already made the stored value canonical.
+What the package deliberately leaves to you is the physical layout: on SQL Server a primary key is clustered by
+default, and `IsClustered(false)` confines index churn to the 30-byte index instead of the whole row.
 
 `AnyEntityId` parses whichever registered prefix arrives, for webhooks, deep links and audit trails. It
 implements neither `IValueObject` nor `IEntityId`, which is what keeps it out of the EF Core convention: a
