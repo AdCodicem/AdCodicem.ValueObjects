@@ -184,7 +184,7 @@ callers use: it guards against a null underlying value and then defers to `Norma
 [EntityId("acc")]
 public readonly partial struct AccountId;
 
-var id = AccountId.New();   // acc_2K7X9WQMZ4H3N8VYB6TCR0FGJ0
+var id = AccountId.New();   // acc_1KCV3AHRZ6DMV29GQY5CV
 ```
 
 That is a value object like any other — same parsing, same JSON, same column, same contract kit — plus `New()`,
@@ -193,13 +193,13 @@ swapping one identifier for another in a request parameter is refused at the bou
 repository. It is stored in the database for the same reason: a raw-SQL join between two tables holding bare
 bodies would succeed silently.
 
-The body is 105 bits from a CSPRNG, in Crockford Base32, behind a coarse time bucket and followed by a check
+The body is 80 bits from a CSPRNG, in Crockford Base32, behind a coarse time bucket and followed by a check
 character:
 
 - the **time bucket** gives the index a monotonic head, so inserts land at the right edge of the B-tree instead
   of scattering across it. It leaks the creation time at the granularity you choose — `Hour` by default,
   `Minute` or `Day` on request — and nothing finer. It does not make an identifier guessable: the random part
-  keeps its full 105 bits regardless;
+  keeps its full 80 bits regardless;
 - the **check character** catches every single mistyped character and almost every adjacent transposition
   offline, before a query is ever sent, and covers the prefix too, so a body copied between two identifier
   types is rejected even by a parser that does not know which prefix to expect;
