@@ -6,7 +6,7 @@ slug: /entity-identifiers
 
 # Entity identifiers
 
-Stripe-style public identifiers — `acc_2K7X9WQMZ4H3N8VYB6TCR0F` — as value objects, from
+Stripe-style public identifiers — `acc_1KCV3AHRZ6DMV29GQY5CV` — as value objects, from
 `AdCodicem.ValueObjects.Identifiers`.
 
 This page records the design and the reasoning behind it.
@@ -26,10 +26,10 @@ by a query the application never sees.
 ## Format
 
 ```
-acc_ TTTT RRRRRRRRRRRRRRRRRRRRR C
-│    │    │                     │
-│    │    │                     └─ 1 check character
-│    │    └─ 21 characters = 105 bits from a CSPRNG
+acc_ TTTT RRRRRRRRRRRRRRRR C
+│    │    │                │
+│    │    │                └─ 1 check character
+│    │    └─ 16 characters = 80 bits from a CSPRNG
 │    └─ time bucket, width derived from the granularity
 └─ prefix, one or more lowercase segments
 ```
@@ -46,6 +46,9 @@ The alphabet is Crockford Base32 — `0123456789ABCDEFGHJKMNPQRSTVWXYZ` — chos
    no longer a correctness requirement.
 3. **It survives being read aloud.** No `l`/`I`/`O`/`0` confusion in a support ticket.
 
+A mixed-case alphabet would shorten an identifier by two characters. Why that is not worth taking is set out
+in [Rejected: a mixed-case alphabet](#rejected-a-mixed-case-alphabet).
+
 ### Widths
 
 The epoch is **2020-01-01T00:00:00Z**. Bucket width follows the granularity, sized to keep roughly a century of
@@ -53,12 +56,18 @@ horizon:
 
 | Granularity | Bucket chars | Bits | Horizon | Body | Example total for `acc_` |
 | --- | --- | --- | --- | --- | --- |
-| `Minute` | 6 | 30 | year 4062 | 28 | `char(32)` |
-| `Hour` (default) | 4 | 20 | year 2139 | 26 | `char(30)` |
-| `Day` | 3 | 15 | year 2109 | 25 | `char(29)` |
+| `Minute` | 6 | 30 | year 4062 | 23 | `char(27)` |
+| `Hour` (default) | 4 | 20 | year 2139 | 21 | `char(25)` |
+| `Day` | 3 | 15 | year 2109 | 20 | `char(24)` |
 
-The random part is 105 bits at every granularity. The birthday bound is therefore ≈ 6.4 × 10¹⁵ identifiers
-*per bucket* — out of reach.
+The random part is 80 bits at every granularity, giving a birthday bound of ≈ 1.1 × 10¹² identifiers *per
+bucket*.
+
+**Per bucket is the number that matters, and it is why this is 80 bits rather than 128.** Randomness is
+redrawn on every bucket, so what has to stay out of reach is the mint rate within one bucket width — and the
+bucket is deliberately sized at 10⁴–10⁵ rows, seven to eight orders of magnitude below the bound. One without
+a time bucket would have to budget against the lifetime row count of the table and would need its 128 bits;
+this one does not, and spending them would buy nothing but five characters on every row and every foreign key.
 
 Length is fixed per type, so the column is `char(n)`, not `varchar(n)`.
 
@@ -92,8 +101,8 @@ leaf pages on every insert, so the dirty working set is the whole index rather t
 Putting a coarse time bucket at the head of the body clusters insertions at the right edge of the tree. The
 security cost is bounded and explicit:
 
-- **enumeration is unaffected.** The random part keeps its full 105 bits. An attacker who knows the exact
-  creation instant still faces 2¹⁰⁵. Conflating "partially time-derived" with "partially guessable" is the
+- **enumeration is unaffected.** The random part keeps its full 80 bits. An attacker who knows the exact
+  creation instant still faces 2⁸⁰. Conflating "partially time-derived" with "partially guessable" is the
   usual mistake; it does not apply here;
 - **the leak is temporal only**, at exactly the granularity chosen. An hourly bucket reveals the hour and
   nothing finer. Identifiers within one bucket are unordered relative to each other, so holding a handful of
@@ -105,9 +114,34 @@ scatter again; too narrow and the identifier leaks more precisely than it needs 
 
 Two complementary knobs, neither of which this library sets for you:
 
-- on SQL Server, `PRIMARY KEY NONCLUSTERED` confines fragmentation to the ~30-byte index rather than the whole
+- on SQL Server, `PRIMARY KEY NONCLUSTERED` confines fragmentation to the ~25-byte index rather than the whole
   row;
 - with a monotonic head, insertions are effectively append-only, so `FILLFACTOR` can go back up towards 95–100.
+
+## Rejected: a mixed-case alphabet
+
+Base58 or Base62 would encode the same 80 bits in 14 characters instead of 16, taking `acc_` from 25 down to
+23. Base64url encodes no shorter than either at these widths and would collide with both separators — `_`
+opens the body, `-` is Crockford's readability separator — so it was never in the running.
+
+Two characters do not pay for what they cost:
+
+- **the check character loses its proof.** The weights `2·(i mod 16) + 1` run 1, 3, …, 31. Modulo 58 the
+  weight 29 is not invertible, so a substitution differing by two at that position slips through undetected;
+  modulo 62 the weight 31 fails the same way. Each alphabet would need its own weight sequence and its own
+  restated transposition bound;
+- **the encoder loses its uniformity for free.** 32 divides 256, so the low five bits of a uniform byte are a
+  uniform symbol. Neither 58 nor 62 divides anything convenient, which forces either rejection sampling — an
+  unbounded draw against a fixed `stackalloc` — or `UInt128` division;
+- **the collation stops being a performance choice.** Everything above rests on normalization folding an
+  identifier to a single canonical spelling. A case-sensitive alphabet cannot fold, so a case-insensitive
+  column collation — the default on SQL Server — can once again return the wrong row, and nothing enforces the
+  binary collation for raw SQL, a second application, or a database restored elsewhere.
+
+It was considered as a per-type option too, and rejected on a sharper line. `Granularity` trades index
+locality against temporal leakage and every setting of it is correct. An alphabet switch is not that kind of
+knob: it would make correctness depend on an ambient database setting the library cannot verify, chosen per
+type, and baked into every persisted row.
 
 ## Rejected: the two-key pattern
 

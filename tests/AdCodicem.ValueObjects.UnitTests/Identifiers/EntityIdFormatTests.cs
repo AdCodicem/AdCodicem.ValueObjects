@@ -9,9 +9,9 @@ public class EntityIdFormatTests
     private const string Prefix = "acc";
 
     [Theory]
-    [InlineData(IdGranularity.Minute, 6, 28, 32)]
-    [InlineData(IdGranularity.Hour, 4, 26, 30)]
-    [InlineData(IdGranularity.Day, 3, 25, 29)]
+    [InlineData(IdGranularity.Minute, 6, 23, 27)]
+    [InlineData(IdGranularity.Hour, 4, 21, 25)]
+    [InlineData(IdGranularity.Day, 3, 20, 24)]
     public void The_layout_is_fixed_width_per_granularity(
         IdGranularity granularity,
         int timestampLength,
@@ -24,9 +24,9 @@ public class EntityIdFormatTests
     }
 
     [Fact]
-    public void The_random_part_is_one_hundred_and_five_bits_at_every_granularity()
+    public void The_random_part_is_eighty_bits_at_every_granularity()
     {
-        (EntityIdFormat.RandomLength * CrockfordBase32.BitsPerSymbol).Should().Be(105);
+        (EntityIdFormat.RandomLength * CrockfordBase32.BitsPerSymbol).Should().Be(80);
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class EntityIdFormatTests
     {
         var id = EntityIdFormat.Create(Prefix, IdGranularity.Hour, TimeProvider.System, IdEntropySource.System);
 
-        id.Should().StartWith("acc_").And.HaveLength(30);
+        id.Should().StartWith("acc_").And.HaveLength(25);
         EntityIdFormat.Validate(id, Prefix, IdGranularity.Hour).IsValid.Should().BeTrue();
     }
 
@@ -120,13 +120,13 @@ public class EntityIdFormatTests
     }
 
     [Theory]
-    [InlineData("  acc_2K7X9WQMZ4H3N8VYB6TCR0FGJ0  ")]
-    [InlineData("ACC_2K7X9WQMZ4H3N8VYB6TCR0FGJ0")]
-    [InlineData("acc_2k7x9wqmz4h3n8vyb6tcr0fgj0")]
-    [InlineData("acc_2K7X9-WQMZ4-H3N8V-YB6TC-R0FGJ0")]
+    [InlineData("  acc_2K7X9WQMZ4H3N8VYB6TCR  ")]
+    [InlineData("ACC_2K7X9WQMZ4H3N8VYB6TCR")]
+    [InlineData("acc_2k7x9wqmz4h3n8vyb6tcr")]
+    [InlineData("acc_2K7X9-WQMZ4-H3N8V-YB6TC-R")]
     public void Normalize_folds_every_spelling_of_the_same_identifier(string input)
     {
-        EntityIdFormat.Normalize(input, Prefix).Should().Be("acc_2K7X9WQMZ4H3N8VYB6TCR0FGJ0");
+        EntityIdFormat.Normalize(input, Prefix).Should().Be("acc_2K7X9WQMZ4H3N8VYB6TCR");
     }
 
     [Theory]
@@ -148,7 +148,7 @@ public class EntityIdFormatTests
     [Fact]
     public void Normalize_settles_after_one_pass()
     {
-        const string Input = "  ACC_2k7x9-wqmz4-h3n8v-yb6tc-r0fgj0 ";
+        const string Input = "  ACC_2k7x9-wqmz4-h3n8v-yb6tc-r ";
 
         var once = EntityIdFormat.Normalize(Input, Prefix);
 

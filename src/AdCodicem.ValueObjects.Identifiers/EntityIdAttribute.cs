@@ -52,7 +52,7 @@ public sealed class EntityIdAttribute : Attribute
     /// <remarks>
     /// Pick it from the insert rate of the table: a bucket holding roughly 10⁴–10⁵ rows keeps the hot part of
     /// the index cached. It leaks the creation time at this granularity and nothing finer, and never affects
-    /// how guessable an identifier is — the random part keeps its 105 bits either way.
+    /// how guessable an identifier is — the random part keeps its 80 bits either way.
     /// </remarks>
     public IdGranularity Granularity { get; set; } = IdGranularity.Hour;
 

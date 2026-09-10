@@ -117,7 +117,7 @@ public sealed class AccountIdContract : ValueObjectContract<AccountId, string>
     [
         string.Empty,
         "acc_",
-        "acc_2K7X9WQMZ4H3N8VYB6TCR0FGJ",
+        "acc_2K7X9WQMZ4H3N8VYB6TC",
         "not-an-identifier",
         SubscriptionId.New().Value,
     ];
