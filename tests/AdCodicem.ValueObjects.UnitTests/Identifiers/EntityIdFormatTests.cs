@@ -101,7 +101,7 @@ public class EntityIdFormatTests
 
         var id = EntityIdFormat.Create(Prefix, IdGranularity.Hour, clock, new DeterministicEntropy());
 
-        id.Substring(4, 4).Should().Be("ZZZZ");
+        id.Substring(4, 4).Should().Be("zzzz");
     }
 
     [Theory]
@@ -120,13 +120,26 @@ public class EntityIdFormatTests
     }
 
     [Theory]
-    [InlineData("  acc_2K7X9WQMZ4H3N8VYB6TCR  ")]
+    [InlineData("  acc_2k7x9wqmz4h3n8vyb6tcr  ")]
     [InlineData("ACC_2K7X9WQMZ4H3N8VYB6TCR")]
-    [InlineData("acc_2k7x9wqmz4h3n8vyb6tcr")]
-    [InlineData("acc_2K7X9-WQMZ4-H3N8V-YB6TC-R")]
+    [InlineData("acc_2K7X9WQMZ4H3N8VYB6TCR")]
     public void Normalize_folds_every_spelling_of_the_same_identifier(string input)
     {
-        EntityIdFormat.Normalize(input, Prefix).Should().Be("acc_2K7X9WQMZ4H3N8VYB6TCR");
+        EntityIdFormat.Normalize(input, Prefix).Should().Be("acc_2k7x9wqmz4h3n8vyb6tcr");
+    }
+
+    /// <summary>
+    /// Crockford allows a hyphen anywhere in an encoded value for readability. This format does not, so
+    /// normalization drops nothing and the candidate keeps a length <c>Validate</c> refuses.
+    /// </summary>
+    [Fact]
+    public void Normalize_does_not_repair_a_hyphenated_candidate()
+    {
+        var normalized = EntityIdFormat.Normalize("acc_2K7X9-WQMZ4-H3N8V-YB6TC-R", Prefix);
+
+        normalized.Should().Be("acc_2k7x9-wqmz4-h3n8v-yb6tc-r");
+        EntityIdFormat.Validate(normalized, Prefix, IdGranularity.Hour).ErrorCode
+            .Should().Be(IdentifierErrorCodes.InvalidLength);
     }
 
     [Theory]
@@ -173,7 +186,7 @@ public class EntityIdFormatTests
     [Fact]
     public void Validate_reports_a_wrong_length()
     {
-        var result = EntityIdFormat.Validate("acc_2K7X9", Prefix, IdGranularity.Hour);
+        var result = EntityIdFormat.Validate("acc_2k7x9", Prefix, IdGranularity.Hour);
 
         result.ErrorCode.Should().Be(IdentifierErrorCodes.InvalidLength);
     }
@@ -192,7 +205,7 @@ public class EntityIdFormatTests
     public void Validate_reports_a_character_outside_the_alphabet()
     {
         var id = EntityIdFormat.Create(Prefix, IdGranularity.Hour, TimeProvider.System, IdEntropySource.System);
-        var corrupted = string.Concat(id.AsSpan(0, 4), "U", id.AsSpan(5));
+        var corrupted = string.Concat(id.AsSpan(0, 4), "u", id.AsSpan(5));
 
         var result = EntityIdFormat.Validate(corrupted, Prefix, IdGranularity.Hour);
 
@@ -203,7 +216,7 @@ public class EntityIdFormatTests
     public void Validate_reports_a_broken_check_character()
     {
         var id = EntityIdFormat.Create(Prefix, IdGranularity.Hour, TimeProvider.System, IdEntropySource.System);
-        var replacement = id[^1] == 'Z' ? 'Y' : 'Z';
+        var replacement = id[^1] == 'z' ? 'y' : 'z';
         var corrupted = string.Concat(id.AsSpan(0, id.Length - 1), replacement.ToString());
 
         var result = EntityIdFormat.Validate(corrupted, Prefix, IdGranularity.Hour);

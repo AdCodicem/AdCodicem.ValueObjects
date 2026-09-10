@@ -78,7 +78,7 @@ public class AnyEntityIdTests
     [Fact]
     public void An_unregistered_prefix_is_reported_as_such()
     {
-        AnyEntityId.TryParse("zzz_2K7X9WQMZ4H3N8VYB6TCR", null, out _, out var validation).Should().BeFalse();
+        AnyEntityId.TryParse("zzz_2k7x9wqmz4h3n8vyb6tcr", null, out _, out var validation).Should().BeFalse();
 
         validation.ErrorCode.Should().Be(IdentifierErrorCodes.UnknownPrefix);
     }

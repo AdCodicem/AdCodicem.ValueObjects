@@ -10,7 +10,7 @@ namespace AdCodicem.ValueObjects.UnitTests.Identifiers;
 public class IdCheckCharacterTests
 {
     private const string Prefix = "acc";
-    private const string Body = "2K7X9WQMZ4H3N8VYB6TCR0FGJ";
+    private const string Body = "2k7x9wqmz4h3n8vyb6tcr0fgj";
 
     [Fact]
     public void Compute_is_deterministic()

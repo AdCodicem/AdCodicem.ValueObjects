@@ -297,8 +297,8 @@ internal static class ValueObjectEmitter
 
         if (model.IsEntityId)
         {
-            // The format owns its own canonical spelling — case, Crockford aliases, optional hyphens — so an
-            // identifier type never writes a normalizer, and VO0017 reports one that tried.
+            // The format owns its own canonical spelling — lower case, Crockford aliases — so an identifier
+            // type never writes a normalizer, and VO0017 reports one that tried.
             writer.Line(
                 $"public static {value} Normalize({value} value) => value is null "
                 + $"? value : {IdFormat}.Normalize(global::System.MemoryExtensions.AsSpan(value), Prefix);");

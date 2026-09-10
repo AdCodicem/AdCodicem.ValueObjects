@@ -6,7 +6,7 @@ slug: /entity-identifiers
 
 # Entity identifiers
 
-Stripe-style public identifiers — `acc_1KCV3AHRZ6DMV29GQY5CV` — as value objects, from
+Stripe-style public identifiers — `acc_1kcv3ahrz6dmv29gqy5cv` — as value objects, from
 `AdCodicem.ValueObjects.Identifiers`.
 
 This page records the design and the reasoning behind it.
@@ -34,17 +34,28 @@ acc_ TTTT RRRRRRRRRRRRRRRR C
 └─ prefix, one or more lowercase segments
 ```
 
-The alphabet is Crockford Base32 — `0123456789ABCDEFGHJKMNPQRSTVWXYZ` — chosen over Base62 for three reasons:
+The alphabet is Crockford Base32 in lower case — `0123456789abcdefghjkmnpqrstvwxyz` — chosen over Base62 for
+three reasons:
 
 1. **It is order-preserving under ordinal comparison.** The alphabet is strictly increasing in ASCII, so
    comparing two identifiers as text reproduces the numeric order of their encoded values. The time bucket sits
    at the head of the body, which makes the B-tree ordering of the column chronological with no extra work and
    with `StringComparison.Ordinal`, already this library's default.
-2. **It removes the collation trap.** Normalization folds to upper case and maps Crockford's aliases (`I`, `L`
-   → `1`; `O` → `0`), so the stored value is canonical. A case-insensitive column collation can no longer
+2. **It removes the collation trap.** Normalization folds to lower case and maps Crockford's aliases (`i`, `l`
+   → `1`; `o` → `0`), so the stored value is canonical. A case-insensitive column collation can no longer
    collapse two distinct identifiers. `Latin1_General_BIN2` / `COLLATE "C"` remains preferable for speed, but is
    no longer a correctness requirement.
-3. **It survives being read aloud.** No `l`/`I`/`O`/`0` confusion in a support ticket.
+3. **It survives being read aloud.** No `l`/`i`/`o`/`0` confusion in a support ticket.
+
+Lower case is the canonical spelling, so an identifier is one unbroken token from prefix to check character —
+`acc_1kcv3ahrz6dmv29gqy5cv`, not a lowercase prefix bolted onto a shouting body. Upper case still parses and
+folds down, so nothing that quotes an identifier back in the wrong case is turned away.
+
+**Crockford's optional hyphen is not accepted.** The specification allows one anywhere in an encoded value for
+readability, and grouping helps someone reading digits off a page. These identifiers are never transcribed by
+hand, so the grouped spelling is one nobody produces — and accepting it would mean two texts mapping onto one
+identifier, in a format whose whole discipline is that there is exactly one. `Normalize` therefore drops
+nothing: a hyphenated candidate keeps its length and is refused as `invalid_length`.
 
 A mixed-case alphabet would shorten an identifier by two characters. Why that is not worth taking is set out
 in [Rejected: a mixed-case alphabet](#rejected-a-mixed-case-alphabet).
@@ -179,9 +190,9 @@ The pattern is published as schema text but never compiled: at fixed length over
 is a span scan, so an entity identifier costs no `Regex` at start-up, unlike a `Pattern`-constrained value
 object.
 
-The generated `Normalize` trims surrounding whitespace, drops Crockford's optional hyphens, folds the body to
-upper case and applies the alias mapping, and canonicalizes the prefix's case. It never rejects: a text without
-the expected prefix comes back unchanged and is refused by `Validate`.
+The generated `Normalize` trims surrounding whitespace, folds the body to lower case, applies the alias
+mapping, and canonicalizes the prefix's case. It drops nothing, so it preserves length. It never rejects
+either: a text without the expected prefix comes back unchanged and is refused by `Validate`.
 
 ### Error codes
 

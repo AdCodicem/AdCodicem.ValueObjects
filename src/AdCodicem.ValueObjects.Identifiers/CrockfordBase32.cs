@@ -5,8 +5,8 @@ namespace AdCodicem.ValueObjects.Identifiers;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The alphabet is <c>0123456789ABCDEFGHJKMNPQRSTVWXYZ</c>: the digits, then the letters with <c>I</c>,
-/// <c>L</c>, <c>O</c> and <c>U</c> removed. Two properties are load bearing here.
+/// The alphabet is <c>0123456789abcdefghjkmnpqrstvwxyz</c>: the digits, then the letters with <c>i</c>,
+/// <c>l</c>, <c>o</c> and <c>u</c> removed. Two properties are load bearing here.
 /// </para>
 /// <para>
 /// It is <b>strictly increasing in ASCII</b>, so an ordinal comparison of two encoded values reproduces the
@@ -25,17 +25,16 @@ public static class CrockfordBase32
     /// <summary>
     /// The encoding alphabet, indexed by the value it encodes.
     /// </summary>
-    public const string Alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+    /// <remarks>
+    /// Lower case is the canonical spelling, so an identifier is one unbroken lowercase token wherever it
+    /// travels — a URL, a JSON body, a log line. Upper case still decodes; normalization folds it down.
+    /// </remarks>
+    public const string Alphabet = "0123456789abcdefghjkmnpqrstvwxyz";
 
     /// <summary>
     /// The number of bits one symbol carries.
     /// </summary>
     public const int BitsPerSymbol = 5;
-
-    /// <summary>
-    /// The separator Crockford allows anywhere in an encoded value for readability, and which normalization drops.
-    /// </summary>
-    public const char Separator = '-';
 
     /// <summary>
     /// Value of every ASCII character, or -1 when the character is not a symbol.
@@ -95,18 +94,20 @@ public static class CrockfordBase32
         var table = new sbyte[128];
         table.AsSpan().Fill(-1);
 
+        // Both cases are registered explicitly rather than off the alphabet's own casing, so that flipping
+        // which case is canonical stays a one-line change here.
         for (var value = 0; value < Alphabet.Length; value++)
         {
             var symbol = Alphabet[value];
-            table[symbol] = (sbyte)value;
             table[char.ToLowerInvariant(symbol)] = (sbyte)value;
+            table[char.ToUpperInvariant(symbol)] = (sbyte)value;
         }
 
         // Crockford folds the characters a reader confuses with a digit, in both cases.
-        foreach (var (alias, value) in new[] { ('I', 1), ('L', 1), ('O', 0) })
+        foreach (var (alias, value) in new[] { ('i', 1), ('l', 1), ('o', 0) })
         {
-            table[alias] = (sbyte)value;
             table[char.ToLowerInvariant(alias)] = (sbyte)value;
+            table[char.ToUpperInvariant(alias)] = (sbyte)value;
         }
 
         return table;
