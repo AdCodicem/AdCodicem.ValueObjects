@@ -24,8 +24,8 @@ dotnet test tests/AdCodicem.ValueObjects.GeneratorTests   # the generator itself
 dotnet test tests/AdCodicem.ValueObjects.IntegrationTests # needs Docker
 dotnet pack -c Release -o artifacts/packages
 
-# One test
-dotnet test tests/AdCodicem.ValueObjects.UnitTests --filter "FullyQualifiedName~The_name_of_the_test"
+# One test (xunit.v3 runs on Microsoft Testing Platform; wildcards, not substrings, so wrap the name in *)
+dotnet test tests/AdCodicem.ValueObjects.UnitTests --filter-method "*The_name_of_the_test*"
 
 # Benchmarks; wants a quiet machine, and absolute timings are not comparable across runs
 cd benchmarks/AdCodicem.ValueObjects.Benchmarks
