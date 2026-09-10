@@ -184,7 +184,7 @@ callers use: it guards against a null underlying value and then defers to `Norma
 [EntityId("acc")]
 public readonly partial struct AccountId;
 
-var id = AccountId.New();   // acc_1KCV3AHRZ6DMV29GQY5CV
+var id = AccountId.New();   // acc_1kcv3ahrz6dmv29gqy5cv
 ```
 
 That is a value object like any other — same parsing, same JSON, same column, same contract kit — plus `New()`,
@@ -204,8 +204,10 @@ character:
   offline, before a query is ever sent, and covers the prefix too, so a body copied between two identifier
   types is rejected even by a parser that does not know which prefix to expect;
 - the **alphabet** ascends in ASCII, so ordinal comparison — this library's default — sorts identifiers
-  chronologically, and its aliases (`I`, `L` → `1`, `O` → `0`) fold on the way in, which makes the stored value
-  canonical and takes a case-insensitive column collation out of the correctness path.
+  chronologically. It is lower case, so an identifier is one unbroken token; upper case and the aliases
+  (`i`, `l` → `1`, `o` → `0`) fold on the way in, which makes the stored value canonical and takes a
+  case-insensitive column collation out of the correctness path. Crockford's optional hyphen is not accepted:
+  one identifier, one spelling.
 
 Length is fixed per type, so the column is `char(n)` and the OpenAPI `pattern`, `minLength` and `maxLength`
 follow from the profile without being declared.

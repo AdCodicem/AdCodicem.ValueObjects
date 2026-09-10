@@ -188,9 +188,15 @@ public static class EntityIdFormat
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="prefix"/> is <see langword="null"/>.</exception>
     /// <remarks>
-    /// Trims surrounding whitespace, drops the hyphens Crockford allows for readability, folds the body to its
-    /// canonical symbols, and restores the declared casing of the prefix. Idempotent, as the contract of a
+    /// Trims surrounding whitespace, folds the body to its canonical symbols — lower case, with Crockford's
+    /// aliases mapped — and restores the declared casing of the prefix. Idempotent, as the contract of a
     /// normalizer requires.
+    /// <para>
+    /// Length is preserved: nothing is dropped. Crockford allows a hyphen anywhere in an encoded value for
+    /// readability, and this format deliberately does not, because these identifiers are never transcribed by
+    /// hand. Repairing a hyphenated candidate would buy a spelling nobody produces at the price of a second
+    /// text that maps onto the same identifier.
+    /// </para>
     /// </remarks>
     public static string Normalize(ReadOnlySpan<char> text, string prefix)
     {
@@ -212,11 +218,6 @@ public static class EntityIdFormat
 
         foreach (var character in trimmed[(prefix.Length + 1)..])
         {
-            if (character == CrockfordBase32.Separator)
-            {
-                continue;
-            }
-
             buffer[written++] = CrockfordBase32.Canonicalize(character);
         }
 
