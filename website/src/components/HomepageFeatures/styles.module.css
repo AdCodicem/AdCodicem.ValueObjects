@@ -1,0 +1,15 @@
+.features {
+  padding: 3rem 0 4rem;
+  width: 100%;
+}
+
+.feature {
+  height: 100%;
+  padding: 1.5rem;
+  border-radius: var(--ifm-card-border-radius);
+  border: 1px solid var(--ifm-toc-border-color);
+}
+
+.feature code {
+  white-space: nowrap;
+}

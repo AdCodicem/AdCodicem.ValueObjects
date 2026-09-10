@@ -10,7 +10,9 @@ as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-strin
 wrapper. Consumers define their own value objects; this repository ships the frame.
 
 Read `README.md` for the authoring surface and `benchmarks/README.md` for the measurements behind the design
-decisions.
+decisions. The published documentation (`website/`, deployed from `main`) reorganises this same material into a
+narrative site — edit the source of truth first (README, this file, the benchmark numbers), then the
+corresponding page under `website/docs/`.
 
 ## Commands
 
@@ -28,6 +30,12 @@ dotnet test tests/AdCodicem.ValueObjects.UnitTests --filter "FullyQualifiedName~
 # Benchmarks; wants a quiet machine, and absolute timings are not comparable across runs
 cd benchmarks/AdCodicem.ValueObjects.Benchmarks
 dotnet run -c Release -- --filter '*WrapperCost*'
+
+# Documentation site (Docusaurus, published to https://adcodicem.github.io/AdCodicem.ValueObjects/)
+cd website
+npm ci
+npm start          # local dev server
+npm run build       # production build; fails on a broken internal link
 ```
 
 Integration tests start PostgreSQL and SQL Server through Testcontainers.

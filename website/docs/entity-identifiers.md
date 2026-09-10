@@ -1,9 +1,15 @@
+---
+title: Entity Identifiers
+sidebar_label: Entity Identifiers
+slug: /entity-identifiers
+---
+
 # Entity identifiers
 
-Stripe-style public identifiers — `acc_2K7X9WQMZ4H3N8VYB6TCR0F` — as value objects.
+Stripe-style public identifiers — `acc_2K7X9WQMZ4H3N8VYB6TCR0F` — as value objects, from
+`AdCodicem.ValueObjects.Identifiers`.
 
-This document records the design and the reasoning behind it. It is written in English to match the rest of the
-repository.
+This page records the design and the reasoning behind it.
 
 ## What the type is for
 
@@ -137,7 +143,7 @@ equality, ordering, the JSON converter, the `TypeConverter`, the registry entry 
 column and the OpenAPI schema exactly as they do for any other value object — the rule is still declared once.
 The pattern is published as schema text but never compiled: at fixed length over a fixed alphabet, validation
 is a span scan, so an entity identifier costs no `Regex` at start-up, unlike a `Pattern`-constrained value
-object which the `[GeneratedRegex]` limitation forces into a compiled `Regex`.
+object.
 
 The generated `Normalize` trims surrounding whitespace, drops Crockford's optional hyphens, folds the body to
 upper case and applies the alias mapping, and canonicalizes the prefix's case. It never rejects: a text without
@@ -234,3 +240,5 @@ request. A displayable fragment (the last four characters) is stored alongside f
 
 Issuance, rotation, revocation and expiry stay with the consumer, symmetrically with the decision not to own
 the entity model for identifiers.
+
+Next: [Testing](./testing.md).
