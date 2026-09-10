@@ -32,7 +32,18 @@ public class CrockfordBase32Tests
     [Fact]
     public void The_alphabet_excludes_the_characters_a_reader_confuses()
     {
-        CrockfordBase32.Alphabet.Should().NotContain("I").And.NotContain("L").And.NotContain("O").And.NotContain("U");
+        CrockfordBase32.Alphabet.Should().NotContain("i").And.NotContain("l").And.NotContain("o").And.NotContain("u");
+    }
+
+    /// <summary>
+    /// Lower case is the canonical spelling, so an identifier reads as one unbroken token. Pinned down here
+    /// because everything downstream — the schema pattern, the stored value, every literal in these suites —
+    /// follows the alphabet's own casing.
+    /// </summary>
+    [Fact]
+    public void The_canonical_spelling_is_lower_case()
+    {
+        CrockfordBase32.Alphabet.Should().Be(CrockfordBase32.Alphabet.ToLowerInvariant());
     }
 
     [Fact]
@@ -59,7 +70,7 @@ public class CrockfordBase32Tests
     {
         foreach (var symbol in CrockfordBase32.Alphabet)
         {
-            CrockfordBase32.Decode(char.ToLowerInvariant(symbol)).Should().Be(CrockfordBase32.Decode(symbol));
+            CrockfordBase32.Decode(char.ToUpperInvariant(symbol)).Should().Be(CrockfordBase32.Decode(symbol));
         }
     }
 

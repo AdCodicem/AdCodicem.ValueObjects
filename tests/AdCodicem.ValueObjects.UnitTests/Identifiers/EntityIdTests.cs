@@ -73,13 +73,19 @@ public class EntityIdTests
         AccountId.Create(canonical.ToLowerInvariant()).Value.Should().Be(canonical);
     }
 
+    /// <summary>
+    /// Crockford allows a hyphen anywhere for readability, and this format deliberately does not: these
+    /// identifiers are never transcribed by hand, so accepting a grouped spelling would only add a second
+    /// text mapping onto one identifier.
+    /// </summary>
     [Fact]
-    public void Create_drops_the_hyphens_Crockford_allows_for_readability()
+    public void Create_refuses_the_hyphens_Crockford_allows_for_readability()
     {
         var canonical = AccountId.New().Value;
         var grouped = string.Join('-', Chunk(canonical[4..], 5));
 
-        AccountId.Create($"acc_{grouped}").Value.Should().Be(canonical);
+        AccountId.TryCreate($"acc_{grouped}", out _, out var validation).Should().BeFalse();
+        validation.ErrorCode.Should().Be(IdentifierErrorCodes.InvalidLength);
     }
 
     [Fact]
@@ -128,7 +134,7 @@ public class EntityIdTests
     [Theory]
     [InlineData("", ValueObjectErrorCodes.Required)]
     [InlineData("acc_", IdentifierErrorCodes.InvalidLength)]
-    [InlineData("acc_2K7X9WQMZ4H3N8VYB6TC", IdentifierErrorCodes.InvalidLength)]
+    [InlineData("acc_2k7x9wqmz4h3n8vyb6tc", IdentifierErrorCodes.InvalidLength)]
     public void A_rejection_carries_the_rule_that_fired(string candidate, string expected)
     {
         AccountId.TryCreate(candidate, out _, out var validation).Should().BeFalse();
@@ -139,7 +145,7 @@ public class EntityIdTests
     [Fact]
     public void A_character_outside_the_alphabet_is_named_as_such()
     {
-        var corrupted = string.Concat("acc_U", AccountId.New().Value.AsSpan(5));
+        var corrupted = string.Concat("acc_u", AccountId.New().Value.AsSpan(5));
 
         AccountId.TryCreate(corrupted, out _, out var validation).Should().BeFalse();
         validation.ErrorCode.Should().Be(IdentifierErrorCodes.InvalidCharacter);
@@ -148,7 +154,7 @@ public class EntityIdTests
     [Fact]
     public void Create_throws_carrying_the_same_reason()
     {
-        var act = () => AccountId.Create("acc_2K7X9WQMZ4H3N8VYB6TC");
+        var act = () => AccountId.Create("acc_2k7x9wqmz4h3n8vyb6tc");
 
         act.Should().Throw<ValueObjectException>()
             .Which.ErrorCode.Should().Be(IdentifierErrorCodes.InvalidLength);
@@ -164,7 +170,7 @@ public class EntityIdTests
         AccountId.Schema.MinLength.Should().Be(AccountId.Length);
         AccountId.Schema.MaxLength.Should().Be(AccountId.Length);
         AccountId.Schema.Description.Should().Be("The public identifier of an account.");
-        AccountId.Schema.Pattern.Should().Be("^acc_[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{21}$");
+        AccountId.Schema.Pattern.Should().Be("^acc_[0123456789abcdefghjkmnpqrstvwxyz]{21}$");
     }
 
     [Fact]
