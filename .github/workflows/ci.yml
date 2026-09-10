@@ -62,13 +62,13 @@ jobs:
       - name: Pack
         run: dotnet pack --no-restore -c Release -o artifacts/packages
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results
           path: '**/*.trx'
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages
           path: artifacts/packages/*.*nupkg
