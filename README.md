@@ -2,6 +2,8 @@
 
 Single-value DDD value objects for .NET 10, with no reflection and no allocation on the paths that matter.
 
+**[Documentation](https://adcodicem.github.io/AdCodicem.ValueObjects/)**
+
 Declare the type and its rules once; the framework carries them into JSON, the database, model binding and the
 OpenAPI document, so they cannot drift apart.
 
@@ -238,8 +240,9 @@ using (ValueObjectIds.Use(fakeClock, deterministicBytes))
 
 The scope is bound to the execution flow, so suites running in parallel do not interfere.
 
-`docs/entity-identifiers.md` carries the format, the arithmetic behind the widths, and the reasoning — including
-why there is one identity rather than an internal surrogate key alongside it.
+[Entity Identifiers](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/entity-identifiers) carries the
+format, the arithmetic behind the widths, and the reasoning — including why there is one identity rather than
+an internal surrogate key alongside it.
 
 ### Diagnostics
 
