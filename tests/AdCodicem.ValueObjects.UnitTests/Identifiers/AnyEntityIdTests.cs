@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Text.Json;
 using AdCodicem.ValueObjects.Identifiers;
 
 namespace AdCodicem.ValueObjects.UnitTests.Identifiers;
@@ -109,6 +111,40 @@ public class AnyEntityIdTests
 
         AnyEntityId.Parse(account.Value).Should().Be(AnyEntityId.Parse(account.Value.ToLowerInvariant()));
         AnyEntityId.Parse(account.Value).Should().NotBe(AnyEntityId.Parse(SubscriptionId.New().Value));
+    }
+
+    /// <summary>
+    /// It is a transport type before anything else, so it has to cross a JSON boundary the way every other
+    /// identifier does: as the bare text. Reflected over instead, it would write an object carrying a value, a
+    /// prefix and a type name.
+    /// </summary>
+    [Fact]
+    public void It_serializes_as_the_bare_identifier()
+    {
+        var any = AnyEntityId.Parse(AccountId.New().Value);
+
+        var json = JsonSerializer.Serialize(any);
+
+        json.Should().Be($"\"{any.Value}\"");
+        JsonSerializer.Deserialize<AnyEntityId>(json).Should().Be(any);
+    }
+
+    [Fact]
+    public void Deserializing_something_no_type_claims_fails_loudly()
+    {
+        var act = () => JsonSerializer.Deserialize<AnyEntityId>("\"zzz_nope\"");
+
+        act.Should().Throw<JsonException>();
+    }
+
+    [Fact]
+    public void It_converts_through_the_type_descriptor_for_model_binding()
+    {
+        var any = AnyEntityId.Parse(EventId.New().Value);
+        var converter = TypeDescriptor.GetConverter(typeof(AnyEntityId));
+
+        converter.ConvertFromString(any.Value).Should().Be(any);
+        converter.ConvertToString(any).Should().Be(any.Value);
     }
 
     /// <summary>

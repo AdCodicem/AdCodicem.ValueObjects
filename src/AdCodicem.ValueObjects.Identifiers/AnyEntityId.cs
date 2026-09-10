@@ -18,6 +18,8 @@ namespace AdCodicem.ValueObjects.Identifiers;
 /// accident. It is a transport and resolution type, nothing more.
 /// </para>
 /// </remarks>
+[System.Text.Json.Serialization.JsonConverter(typeof(AnyEntityIdJsonConverter))]
+[System.ComponentModel.TypeConverter(typeof(AnyEntityIdTypeConverter))]
 public readonly struct AnyEntityId : IEquatable<AnyEntityId>, ISpanParsable<AnyEntityId>, ISpanFormattable
 {
     private readonly string? _value;
