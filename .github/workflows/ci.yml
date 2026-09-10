@@ -37,24 +37,24 @@ jobs:
 
       - name: Unit tests
         run: >-
-          dotnet test tests/AdCodicem.ValueObjects.UnitTests
+          dotnet test --project tests/AdCodicem.ValueObjects.UnitTests
           --no-build -c Release
-          --logger "trx;LogFileName=unit.trx"
-          --collect:"XPlat Code Coverage"
+          --report-trx --report-trx-filename unit.trx
+          --coverage --coverage-output-format cobertura
 
       - name: Generator tests
         run: >-
-          dotnet test tests/AdCodicem.ValueObjects.GeneratorTests
+          dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests
           --no-build -c Release
-          --logger "trx;LogFileName=generator.trx"
+          --report-trx --report-trx-filename generator.trx
 
       # The runner ships a Docker daemon, which is what Testcontainers needs to start
       # PostgreSQL and SQL Server for the persistence and API tests.
       - name: Integration tests
         run: >-
-          dotnet test tests/AdCodicem.ValueObjects.IntegrationTests
+          dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests
           --no-build -c Release
-          --logger "trx;LogFileName=integration.trx"
+          --report-trx --report-trx-filename integration.trx
 
       # Solution-wide --no-build trips NETSDK1085: the non-packable test/benchmark/sample
       # projects still resolve their ProjectReferences during Pack, which re-invokes Build
