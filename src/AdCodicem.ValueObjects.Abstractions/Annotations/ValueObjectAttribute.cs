@@ -1,7 +1,7 @@
 namespace AdCodicem.ValueObjects.Annotations;
 
 /// <summary>
-/// Marks a <c>readonly partial record struct</c> as a single-value value object and drives code generation for it.
+/// Marks a <c>readonly partial struct</c> as a single-value value object and drives code generation for it.
 /// </summary>
 /// <typeparam name="TValue">
 /// Underlying value type. Supported types are <see cref="string"/>, <see cref="Guid"/>, <see cref="bool"/>,
@@ -11,16 +11,16 @@ namespace AdCodicem.ValueObjects.Annotations;
 /// </typeparam>
 /// <remarks>
 /// <para>
-/// The declaring type opts into two hooks, both optional and both detected by name:
-/// <c>private static TValue NormalizeCore(TValue value)</c> and
-/// <c>private static ValidationResult ValidateCore(in TValue value)</c>. Declarative constraints set on this
-/// attribute (<see cref="Pattern"/>, <see cref="MinLength"/>, <see cref="Minimum"/>) are checked first and
-/// also feed the generated OpenAPI schema, so a rule is stated once and enforced everywhere.
+/// The declaring type opts into a rule by implementing the interface that declares it, so the compiler checks
+/// its signature: <see cref="IValueObjectNormalizer{TValue}"/>, <see cref="IValueObjectSpanNormalizer"/>,
+/// <see cref="IValueObjectValidator{TValue}"/>, <see cref="IValueObjectFormatter{TValue}"/> and
+/// <see cref="IValueObjectStringFormatter{TValue}"/>. All are optional, and a rule written without its
+/// interface is reported as <c>VO0011</c> rather than silently ignored.
 /// </para>
 /// <para>
-/// A third hook backs named formats without intermediate allocations:
-/// <c>private static bool TryFormatCore(in TValue value, Span&lt;char&gt; destination, out int charsWritten,
-/// ReadOnlySpan&lt;char&gt; format, IFormatProvider? provider)</c>.
+/// Declarative constraints set on this attribute (<see cref="Pattern"/>, <see cref="MinLength"/>,
+/// <see cref="Minimum"/>) are checked before any of those rules run, and also feed the generated OpenAPI
+/// schema, so a rule is stated once and enforced everywhere.
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
@@ -74,8 +74,8 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     /// </summary>
     /// <remarks>
     /// Those expressions produce an instance that never went through validation. They are reported as errors by
-    /// <c>AdCodicem.ValueObjects.Analyzers</c> unless this is set, which is occasionally needed for a value
-    /// object whose default state is meaningful, such as a sequence number starting at zero.
+    /// the analyzers shipped with <c>AdCodicem.ValueObjects</c> unless this is set, which is occasionally needed
+    /// for a value object whose default state is meaningful, such as a sequence number starting at zero.
     /// </remarks>
     public bool AllowDefault { get; set; }
 
@@ -83,8 +83,9 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     /// Gets or sets a regular expression the normalized value must match.
     /// </summary>
     /// <remarks>
-    /// Compiled through <c>[GeneratedRegex]</c>, so matching is done by generated code with no runtime regex
-    /// parsing. Also emitted as the <c>pattern</c> keyword of the OpenAPI schema.
+    /// Compiled once into a static <c>Regex</c> with <c>RegexOptions.Compiled</c>: one source generator cannot
+    /// see another's output, so <c>[GeneratedRegex]</c> is not reachable from emitted code. Also emitted as the
+    /// <c>pattern</c> keyword of the OpenAPI schema.
     /// </remarks>
     [StringSyntax(StringSyntaxAttribute.Regex)]
     public string? Pattern { get; set; }

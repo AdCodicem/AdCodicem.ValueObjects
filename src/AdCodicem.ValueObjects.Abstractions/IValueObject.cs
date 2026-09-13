@@ -41,7 +41,7 @@ public interface IValueObject<TValue> : IValueObject
 /// <typeparam name="TValue">Underlying value type.</typeparam>
 /// <remarks>
 /// <para>
-/// Implementations are expected to be <c>readonly record struct</c>s produced by the
+/// Implementations are expected to be <c>readonly partial struct</c>s produced by the
 /// <c>AdCodicem.ValueObjects.Generators</c> source generator. Writing one by hand is supported but tedious.
 /// </para>
 /// <para>
@@ -63,7 +63,7 @@ public interface IValueObject<TSelf, TValue> :
     /// </summary>
     /// <remarks>
     /// <c>default(TSelf)</c> and <c>new TSelf()</c> bypass validation because the CLR always allows them for a
-    /// struct. The <c>AdCodicem.ValueObjects.Analyzers</c> package reports those expressions as errors; this
+    /// struct. The analyzers shipped with <c>AdCodicem.ValueObjects</c> report those expressions as errors; this
     /// property is the runtime guard for values that cross a boundary the analyzer cannot see.
     /// </remarks>
     bool IsDefault { get; }

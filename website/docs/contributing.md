@@ -52,9 +52,11 @@ shipped artefact rather than a note to ourselves.
 `[ValueObject<T>]`, a new hook interface, a new diagnostic, a new error code, a renamed extension method. Two
 test classes in `AdCodicem.ValueObjects.GeneratorTests` make that mechanical rather than a thing to remember:
 
-- `SkillDocumentationTests` compiles every C# snippet of the skill through the generator harness and runs the
-  analyzers over it, so a snippet that stopped being valid fails the build. A block that cannot compile on its
-  own — wiring examples naming packages the test project does not reference — is tagged ` ```csharp skip `.
+- `DocumentationSnippetTests` runs the generator and the analyzers over every C# snippet the repository
+  publishes — the skill, this site, and the README. A skill snippet must compile outright, since an agent copies
+  it verbatim; a snippet here is prose and may elide a body, so what is checked is the declaration the generator
+  sees. A wiring or usage fragment is tagged ` ```csharp skip `. This is what would have caught the README
+  teaching `NormalizeCore` for months after hooks became interfaces.
 - `SkillCoverageTests` reflects over the shipped assemblies and fails when an attribute option, a hook member, a
   diagnostic identifier or a well-known error code is missing from the skill.
 
