@@ -268,6 +268,23 @@ an internal surrogate key alongside it.
 | `VO0017` | Error | A normalization hook on an entity identifier, which owns its own. |
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
 
+## Using it with an AI coding agent
+
+Because the whole implementation is generated, a model that has never seen this library guesses the surface
+wrong: a hand-written factory, a `record struct`, a `JsonConverter` nobody needs, a rule that never runs
+because its interface was not declared. `skills/value-objects/` states that surface as an agent skill — the
+attribute options, the hook interfaces, the wiring of each integration, and every `VO00xx` diagnostic with its
+fix. In Claude Code:
+
+```
+/plugin marketplace add AdCodicem/AdCodicem.ValueObjects
+/plugin install adcodicem-valueobjects@adcodicem
+```
+
+Any other agent can read the same files straight from the repository — they are plain Markdown. Every C#
+snippet in them is compiled by the generator test suite, so the skill cannot drift away from the generator
+without failing the build.
+
 ## Repository layout
 
 ```
@@ -275,6 +292,7 @@ src/          the shipped packages
 tests/        unit tests, generator tests, and integration tests on real database engines
 samples/      a showcase API exercising the whole chain end to end
 benchmarks/   the measurements behind the design decisions above
+skills/       the agent skill, and the plugin manifest that distributes it
 ```
 
 Integration tests start PostgreSQL and SQL Server through Testcontainers, so they need a Docker daemon.
