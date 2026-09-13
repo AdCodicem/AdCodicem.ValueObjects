@@ -210,7 +210,7 @@ Rejections carry a code precise enough to act on, rather than a generic `not_par
 `New()` reads a `TimeProvider` and an `IdEntropySource`. Both resolve through `ValueObjectIds`, which layers an
 `AsyncLocal` scope over a process-wide default:
 
-```csharp
+```csharp skip
 ValueObjectIds.Configure(timeProvider, entropy);          // once, at start-up
 
 using (ValueObjectIds.Use(fakeClock, deterministicBytes)) // scoped, wins over the default

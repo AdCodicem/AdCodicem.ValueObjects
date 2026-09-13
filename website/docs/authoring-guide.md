@@ -37,8 +37,8 @@ rule written without its interface — the one mistake the compiler cannot catch
 | `IValueObjectFormatter<TValue>` | `static bool TryFormatValue(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 | `IValueObjectStringFormatter<TValue>` | `static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 
-`NormalizeCore` must be idempotent and must not reject: an unnormalizable value is rejected by `ValidateCore`.
-`TryFormatCore`, when present, takes over formatting entirely, including the default format.
+`NormalizeValue` must be idempotent and must not reject: an unnormalizable value is rejected by
+`ValidateValue`. `TryFormatValue`, when present, takes over formatting entirely, including the default format.
 
 Adding `IValueObjectSpanNormalizer` alongside `IValueObjectNormalizer<string>` lets parsing and JSON reading
 normalize straight from the text, so ingesting a value allocates the normalized string and nothing else. It

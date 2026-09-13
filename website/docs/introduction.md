@@ -17,11 +17,11 @@ OpenAPI document, so they cannot drift apart.
     MaxLength = 34,
     Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
     SchemaFormat = "iban")]
-public readonly partial struct Iban
+public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectValidator<string>
 {
-    private static string NormalizeCore(string value) => /* strip separators, upper-case */;
+    public static string NormalizeValue(string value) => /* strip separators, upper-case */;
 
-    private static ValidationResult ValidateCore(in string value)
+    public static ValidationResult ValidateValue(in string value)
         => HasValidCheckDigits(value)
             ? ValidationResult.Success
             : ValidationResult.InvalidFormat("The IBAN check digits are incorrect.");
@@ -32,7 +32,7 @@ That declaration generates the constructor, `Create` / `TryCreate` / `CreateUnch
 (string and span), `ToString` / `TryFormat`, equality, ordering, the `System.Text.Json` converter, the
 `TypeConverter`, and the runtime registration — around 400 lines you no longer maintain.
 
-```csharp
+```csharp skip
 var iban = Iban.Create("fr76 3000 6000 0112 3456 7890 189");
 iban.Value                                  // "FR7630006000011234567890189"
 iban.ToString(Iban.Formats.Print, null)     // "FR76 3000 6000 0112 3456 7890 189"

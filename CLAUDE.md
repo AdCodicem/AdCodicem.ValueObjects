@@ -130,11 +130,12 @@ Three suites, each with a distinct job:
   `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Snippets compile **without** implicit usings, which
   is what catches unqualified names in emitted code. The incrementality tests assert on
   `IncrementalStepRunReason`, the only way to notice caching regressions — losing them breaks nothing visible
-  while making every IDE keystroke re-run the pipeline. `SkillDocumentationTests` also compiles every
-  ```` ```csharp ```` block of `skills/value-objects/` through the same harness and runs both analyzers over it,
-  so a skill snippet that stops generating — or that trips `VO0011` — fails the build. Tag a block
-  ```` ```csharp skip ```` when it cannot compile standalone, which is the case for wiring examples naming
-  packages this project does not reference.
+  while making every IDE keystroke re-run the pipeline. `DocumentationSnippetTests` also runs the generator and
+  both analyzers over every ```` ```csharp ```` block the repository publishes — `skills/value-objects/`,
+  `README.md` and `website/docs/` — so a snippet that stops generating, or that trips `VO0011`, fails the build.
+  A skill snippet must compile outright; a README or site snippet is prose and may elide a body, so only the
+  declaration the generator sees is held to account. Tag a block ```` ```csharp skip ```` when it is a wiring or
+  usage fragment rather than a declaration.
 - **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
   objects reach the column types they claim, plus the API surface end to end.
 

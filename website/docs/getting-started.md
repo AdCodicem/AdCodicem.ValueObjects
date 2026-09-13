@@ -12,7 +12,7 @@ dotnet add package AdCodicem.ValueObjects
 
 Then wire up whichever boundaries you have:
 
-```csharp
+```csharp skip
 builder.Services.AddControllers().AddValueObjects();
 builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetails());
 builder.Services.AddOpenApi(o => o.AddValueObjects());
@@ -28,7 +28,7 @@ minimal API parameter binding looks for.
 
 `AdCodicem.ValueObjects.Testing` ships a contract kit that derives a dozen checks from a short declaration:
 
-```csharp
+```csharp skip
 public sealed class IbanContract : ValueObjectContract<Iban, string>
 {
     protected override IEnumerable<string> AcceptedValues => ["FR7630006000011234567890189"];

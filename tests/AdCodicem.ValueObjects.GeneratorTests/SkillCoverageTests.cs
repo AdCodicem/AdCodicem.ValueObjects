@@ -12,7 +12,7 @@ namespace AdCodicem.ValueObjects.GeneratorTests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="SkillDocumentationTests"/> proves that what the skill says compiles. These tests prove the other
+/// <see cref="DocumentationSnippetTests"/> proves that what the skill says compiles. These tests prove the other
 /// direction, which is the one that rots silently: an option, a hook, a diagnostic or an error code added to the
 /// library and never written down. A skill that has gone quiet about half the surface still passes every
 /// snippet, and an agent reading it simply never learns the new thing exists.

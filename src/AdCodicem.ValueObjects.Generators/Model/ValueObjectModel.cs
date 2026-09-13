@@ -92,7 +92,7 @@ internal sealed record ValueObjectModel
     public bool HasNormalizeHook { get; init; }
 
     /// <summary>
-    /// Whether a <c>NormalizeCore(ReadOnlySpan&lt;char&gt;)</c> overload exists, letting text be normalized
+    /// Whether a <c>NormalizeValue(ReadOnlySpan&lt;char&gt;)</c> overload exists, letting text be normalized
     /// straight from a span so that parsing allocates the normalized string and nothing else.
     /// </summary>
     public bool HasSpanNormalizeHook { get; init; }
