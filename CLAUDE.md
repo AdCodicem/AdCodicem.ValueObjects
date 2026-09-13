@@ -14,6 +14,12 @@ decisions. The published documentation (`website/`, deployed from `main`) reorga
 narrative site — edit the source of truth first (README, this file, the benchmark numbers), then the
 corresponding page under `website/docs/`.
 
+`skills/value-objects/` is the consumer-facing agent skill, distributed as a Claude Code plugin through
+`.claude-plugin/`. It is prescriptive only — the authoring surface, the hooks, the wiring, the diagnostics — and
+deliberately carries no rationale or benchmark numbers, so it stays a short file rather than a fourth copy of
+the documentation. Anything that changes the surface a consumer writes (an option on `[ValueObject<T>]`, a hook
+interface, a diagnostic, an extension method) must be reflected there too.
+
 ## Commands
 
 ```bash
@@ -124,7 +130,11 @@ Three suites, each with a distinct job:
   `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Snippets compile **without** implicit usings, which
   is what catches unqualified names in emitted code. The incrementality tests assert on
   `IncrementalStepRunReason`, the only way to notice caching regressions — losing them breaks nothing visible
-  while making every IDE keystroke re-run the pipeline.
+  while making every IDE keystroke re-run the pipeline. `SkillDocumentationTests` also compiles every
+  ```` ```csharp ```` block of `skills/value-objects/` through the same harness and runs both analyzers over it,
+  so a skill snippet that stops generating — or that trips `VO0011` — fails the build. Tag a block
+  ```` ```csharp skip ```` when it cannot compile standalone, which is the case for wiring examples naming
+  packages this project does not reference.
 - **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
   objects reach the column types they claim, plus the API surface end to end.
 

@@ -1,0 +1,20 @@
+{
+  "name": "adcodicem-valueobjects",
+  "displayName": "AdCodicem.ValueObjects",
+  "version": "0.1.0",
+  "description": "Authoring and integration guidance for AdCodicem.ValueObjects: [ValueObject<T>] structs, [EntityId] identifiers, the hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation and OpenAPI integrations.",
+  "author": {
+    "name": "AdCodicem",
+    "url": "https://github.com/AdCodicem"
+  },
+  "homepage": "https://adcodicem.github.io/AdCodicem.ValueObjects/",
+  "repository": "https://github.com/AdCodicem/AdCodicem.ValueObjects",
+  "license": "MIT",
+  "keywords": [
+    "dotnet",
+    "csharp",
+    "ddd",
+    "value-object",
+    "source-generator"
+  ]
+}
