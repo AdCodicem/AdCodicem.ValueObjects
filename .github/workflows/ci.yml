@@ -25,12 +25,23 @@ jobs:
           # MinVer derives the version from the tag history, which a shallow clone does not have.
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
       - name: Restore
         run: dotnet restore
+
+      # whitespace and style only, deliberately not `analyzers`. dotnet format
+      # builds its own workspace without running source generators, so it cannot
+      # see the IParsable<T> implementation the generator emits and reports
+      # ASP0020 against the sample's minimal API endpoint. The real build, where
+      # the generator does run, is clean -- and EnforceCodeStyleInBuild already
+      # holds analyzer diagnostics to error there.
+      - name: Format
+        run: |
+          dotnet format AdCodicem.ValueObjects.slnx whitespace --verify-no-changes --verbosity minimal
+          dotnet format AdCodicem.ValueObjects.slnx style --verify-no-changes --verbosity minimal
 
       - name: Build
         run: dotnet build --no-restore -c Release
@@ -40,13 +51,14 @@ jobs:
           dotnet test --project tests/AdCodicem.ValueObjects.UnitTests
           --no-build -c Release
           --report-trx --report-trx-filename unit.trx
-          --coverage --coverage-output-format cobertura
+          --coverage --coverage-output-format cobertura --coverage-output unit.cobertura.xml
 
       - name: Generator tests
         run: >-
           dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests
           --no-build -c Release
           --report-trx --report-trx-filename generator.trx
+          --coverage --coverage-output-format cobertura --coverage-output generator.cobertura.xml
 
       # The runner ships a Docker daemon, which is what Testcontainers needs to start
       # PostgreSQL and SQL Server for the persistence and API tests.
@@ -55,6 +67,18 @@ jobs:
           dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests
           --no-build -c Release
           --report-trx --report-trx-filename integration.trx
+          --coverage --coverage-output-format cobertura --coverage-output integration.cobertura.xml
+
+      # All three suites, because they cover genuinely different surfaces: the
+      # typed path, the generator, and the integrations against real engines.
+      # Coverage from the unit suite alone would flatter the descriptor and the
+      # database mappings, which is exactly where defects have hidden before.
+      - name: Upload coverage
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: '**/*.cobertura.xml'
+          fail_ci_if_error: false
 
       # Solution-wide --no-build trips NETSDK1085: the non-packable test/benchmark/sample
       # projects still resolve their ProjectReferences during Pack, which re-invokes Build
@@ -83,12 +107,12 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: packages
           path: packages
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 

@@ -190,13 +190,27 @@ internal static class LiteralFactory
         {
             switch (character)
             {
-                case '\\': builder.Append("\\\\"); break;
-                case '"': builder.Append("\\\""); break;
-                case '\'': builder.Append("\\'"); break;
-                case '\r': builder.Append("\\r"); break;
-                case '\n': builder.Append("\\n"); break;
-                case '\t': builder.Append("\\t"); break;
-                case '\0': builder.Append("\\0"); break;
+                case '\\':
+                    builder.Append("\\\\");
+                    break;
+                case '"':
+                    builder.Append("\\\"");
+                    break;
+                case '\'':
+                    builder.Append("\\'");
+                    break;
+                case '\r':
+                    builder.Append("\\r");
+                    break;
+                case '\n':
+                    builder.Append("\\n");
+                    break;
+                case '\t':
+                    builder.Append("\\t");
+                    break;
+                case '\0':
+                    builder.Append("\\0");
+                    break;
                 default:
                     if (character < ' ')
                     {
