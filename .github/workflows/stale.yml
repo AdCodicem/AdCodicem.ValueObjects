@@ -1,0 +1,40 @@
+name: stale
+
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stale:
+    name: mark and close inactive items
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@v11
+        with:
+          days-before-stale: 60
+          days-before-close: 14
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: 'pinned,security'
+          exempt-pr-labels: 'pinned'
+          stale-issue-message: >
+            This issue has had no activity for 60 days. It will close in 14 days unless
+            something moves it along — a reply, or the `pinned` label if it should stay open.
+          stale-pr-message: >
+            This pull request has had no activity for 60 days. It will close in 14 days unless
+            something moves it along. Reopening later is fine; the branch is not deleted.
+          close-issue-message: >
+            Closing after 74 days without activity. If this is still relevant, comment and it
+            will be reopened — closing is a way to keep the list honest, not a verdict.
+          close-pr-message: >
+            Closing after 74 days without activity. Comment to reopen if you want to pick it
+            back up.
+          # A quiet repository should not burn its whole API budget here.
+          operations-per-run: 60
