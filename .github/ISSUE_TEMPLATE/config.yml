@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/AdCodicem/AdCodicem.ValueObjects/discussions
+    about: Ask how something works, or float an idea before it becomes a proposal.
+  - name: Security vulnerability
+    url: https://github.com/AdCodicem/AdCodicem.ValueObjects/security/advisories/new
+    about: Report privately. Please do not open a public issue for a vulnerability.
+  - name: Documentation
+    url: https://adcodicem.github.io/AdCodicem.ValueObjects/
+    about: The authoring guide, the integrations, and the diagnostics reference.

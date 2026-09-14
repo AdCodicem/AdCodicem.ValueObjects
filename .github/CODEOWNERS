@@ -1,0 +1,17 @@
+# Every change requests a review from the maintainer.
+# Later rules win, so the catch-all comes first.
+*                                   @AdCodicem
+
+# The surface consumers write against. A change here has to stay in step with
+# README.md, website/docs/ and skills/value-objects/ — see CONTRIBUTING.md.
+/src/AdCodicem.ValueObjects.Abstractions/ @AdCodicem
+/src/AdCodicem.ValueObjects.Generators/   @AdCodicem
+/skills/                                  @AdCodicem
+
+# Release and supply-chain wiring: a change here can publish packages or
+# weaken the checks that guard them.
+/.github/workflows/                 @AdCodicem
+/.releaserc.json                    @AdCodicem
+/Directory.Build.props              @AdCodicem
+/Directory.Packages.props           @AdCodicem
+/global.json                        @AdCodicem

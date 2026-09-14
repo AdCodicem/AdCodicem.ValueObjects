@@ -1,0 +1,53 @@
+name: Feature request
+description: Propose a new capability, or an option on an existing one.
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A rule in this library is declared once and has to reach everywhere it matters — validation,
+        the EF column, the OpenAPI schema. The most useful proposals say what a rule should mean in
+        each of those places, not just how it should be spelled.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to express today, and what makes it awkward or impossible?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed shape
+      description: How it would look in a consumer's code.
+      render: csharp
+    validations:
+      required: true
+
+  - type: textarea
+    id: reach
+    attributes:
+      label: Where the rule should reach
+      description: >-
+        If this is a new option on `[ValueObject<T>]`: what does it validate at run time, what does
+        it do to the database column, and what does it become in the OpenAPI document? Leave blank
+        if it is not that kind of change.
+      placeholder: |
+        Validation: ...
+        EF Core column: ...
+        OpenAPI schema: ...
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Including what a hook (a normalizer or validator you write yourself) cannot do here.
+
+  - type: checkboxes
+    id: breaking
+    attributes:
+      label: Compatibility
+      options:
+        - label: This would be a breaking change to the existing surface.
