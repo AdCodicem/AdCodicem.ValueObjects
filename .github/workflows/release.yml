@@ -1,0 +1,110 @@
+name: release
+
+# Cutting a stable release is a deliberate act, not a consequence of merging.
+# Merges to main publish previews (see ci.yml); this workflow is the moment a
+# human decides those changes are a release. That matters because pushing to
+# nuget.org cannot be undone -- a package can be delisted, never unpublished.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Compute the version and notes, publish nothing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  release:
+    name: ${{ inputs.dry_run && 'dry run' || 'publish' }}
+    runs-on: ubuntu-latest
+    environment: nuget
+    permissions:
+      # semantic-release commits CHANGELOG.md and pushes the tag.
+      contents: write
+      # It also creates the GitHub Release and comments on the issues it closes.
+      issues: write
+      pull-requests: write
+      # Exchanged for a short-lived nuget.org API key.
+      id-token: write
+    outputs:
+      released: ${{ steps.semantic.outcome == 'success' && !inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # semantic-release reads the whole tag history to find the last release.
+          fetch-depth: 0
+          # Left in place so @semantic-release/git can push the changelog commit.
+          persist-credentials: true
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install release tooling
+        run: npm ci
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      # A release must not be cut from a red tree. ci.yml has already run these
+      # on the merge, but nothing guarantees this workflow was dispatched from
+      # the same commit, and the cost of being wrong here is a bad package on
+      # nuget.org forever.
+      - name: Unit tests
+        run: dotnet test --project tests/AdCodicem.ValueObjects.UnitTests --no-build -c Release
+
+      - name: Generator tests
+        run: dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests --no-build -c Release
+
+      - name: Integration tests
+        run: dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests --no-build -c Release
+
+      # Trusted Publishing: exchanges this job's GitHub OIDC token for a NuGet
+      # API key scoped to this run, so no long-lived secret is stored.
+      - name: NuGet login (OIDC -> temporary API key)
+        if: ${{ !inputs.dry_run }}
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: AdCodicem
+
+      - name: semantic-release
+        id: semantic
+        run: npx semantic-release ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: release-packages
+          path: artifacts/packages/*.*nupkg
+          if-no-files-found: ignore
+
+  # The site carries the version-specific documentation, so a release that does
+  # not redeploy it leaves the published docs describing the previous version.
+  docs:
+    name: publish documentation
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy-docs.yml

@@ -46,6 +46,9 @@ packages/
 *.nuget.props
 *.nuget.targets
 
+## Node (release tooling at the root, Docusaurus under website/)
+node_modules/
+
 ## OS
 .DS_Store
 Thumbs.db

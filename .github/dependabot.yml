@@ -13,6 +13,17 @@ updates:
       dotnet:
         update-types: ["minor", "patch"]
 
+  # Release tooling (semantic-release and its plugins) in the root package.json.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      semantic-release:
+        update-types: ["minor", "patch"]
+
   - package-ecosystem: "npm"
     directory: "/website"
     schedule:
