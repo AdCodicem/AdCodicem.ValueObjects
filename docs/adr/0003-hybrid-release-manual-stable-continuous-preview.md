@@ -63,5 +63,29 @@ What this costs:
   Conventional Commits check on every pull request is what keeps it from happening, and the manual trigger
   means the maintainer notices when the computed version is not what they expected.
 
-Because the repository is pre-1.0 and the last tag is a prerelease, the version semantic-release computes for
-the first stable release must be verified with a dry run rather than assumed.
+## Before the first stable release
+
+One tag has to exist first, and this is not optional.
+
+semantic-release ignores prerelease tags when the branch is not a prerelease channel, so
+`v0.1.0-preview.1` and `v0.1.0-preview.2` are invisible to it. With no stable tag to start from it treats the
+repository as never released and goes straight to `1.0.0`. Measured, not assumed — three dry runs against
+`main`:
+
+| Starting tag | Commits analysed | First stable release |
+|---|---|---|
+| none (as the repository stands) | 33 | **1.0.0** |
+| `v0.0.0` at the initial commit | 32 | **0.1.0** |
+| `v0.1.0` at the `preview.2` commit | 3 | **0.2.0** |
+
+We take the second: the first stable release is `0.1.0`, continuing the preview line rather than jumping past
+the whole `0.x` range. The tag is a starting point for the computation, not a claim that a `0.1.0` package
+exists — nuget.org has only the two previews.
+
+```bash
+git tag -a v0.0.0 "$(git rev-list --max-parents=0 main)" -m "Version baseline for semantic-release."
+git push origin v0.0.0
+```
+
+Until that tag is on the remote, `release.yml` would publish `1.0.0`. Run the workflow with `dry_run` first
+and read the version it prints before letting it publish anything.

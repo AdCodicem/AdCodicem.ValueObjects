@@ -72,6 +72,10 @@ So nothing you merge publishes a stable package, and a commit type that triggers
 `test`) also contributes nothing to the next version. The reasoning, and what it costs, is in
 `docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md`.
 
+One prerequisite that is easy to miss: semantic-release ignores prerelease tags on a stable branch, so until a
+stable `v*` tag exists it computes `1.0.0` rather than `0.1.0`. `docs/maintaining.md` has that command and the
+rest of the one-time settings the workflows depend on.
+
 ## Architecture
 
 ### The generator is the centre
