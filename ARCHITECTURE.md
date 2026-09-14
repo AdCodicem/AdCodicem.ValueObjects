@@ -87,5 +87,7 @@ visible while making every IDE keystroke re-run the pipeline.
 
 ## Releases
 
-Merging to `main` publishes a preview package; a stable release is a manual action.
-See [ADR-0003](docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md).
+Merging to `main` publishes a preview package; a stable release is a manual action. See
+[ADR-0003](docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md) for why, and
+[`docs/maintaining.md`](docs/maintaining.md) for the one-time settings the release and publish workflows
+depend on.
