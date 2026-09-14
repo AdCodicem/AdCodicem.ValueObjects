@@ -1,0 +1,21 @@
+labels: ['question']
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: What are you trying to do?
+      description: The goal, not only the error — there is often a shorter path to it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: code
+    attributes:
+      label: What you have so far
+      render: csharp
+
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      placeholder: '0.1.0-preview.2'

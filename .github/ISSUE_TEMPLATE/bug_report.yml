@@ -1,0 +1,89 @@
+name: Bug report
+description: Something generated, validated, or serialized differently than it should have.
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most bugs here live in one of two places: the code the generator emits, or one of the
+        integrations that carries a value across a boundary. Knowing which one saves a round trip.
+
+  - type: textarea
+    id: declaration
+    attributes:
+      label: The value object declaration
+      description: >-
+        The `[ValueObject<T>]` or `[EntityId]` declaration involved, including any hook
+        (`IValueObjectNormalizer<T>`, `IValueObjectValidator<T>`, …) it implements.
+      render: csharp
+      placeholder: |
+        [ValueObject<string>(MaxLength = 34)]
+        public readonly partial struct Iban : IValueObjectValidator<string>
+        {
+            public static ValidationResult ValidateValue(in string value) => ...;
+        }
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: What you expected, and what happened
+      description: Include the exact exception, diagnostic id, or serialized output if there is one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: >-
+        The smallest code that shows it. If the problem only appears through an integration,
+        say which call path reaches it — model binding, EF Core read, Dapper, JSON, OpenAPI.
+      render: csharp
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where does it surface?
+      options:
+        - Generated code (constructor, Create/TryCreate, Parse/TryParse, ToString/TryFormat, equality)
+        - A generator diagnostic (VO####) that fired, or failed to fire
+        - System.Text.Json or Newtonsoft.Json
+        - Entity Framework Core
+        - Dapper
+        - ASP.NET Core model binding or ProblemDetails
+        - OpenAPI schema
+        - FluentValidation
+        - Entity identifiers (AdCodicem.ValueObjects.Identifiers)
+        - Somewhere else / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      placeholder: '0.1.0-preview.2'
+    validations:
+      required: true
+
+  - type: input
+    id: sdk
+    attributes:
+      label: .NET SDK version
+      description: Output of `dotnet --version`.
+      placeholder: '10.0.100'
+    validations:
+      required: true
+
+  - type: textarea
+    id: generated
+    attributes:
+      label: Generated source (optional)
+      description: >-
+        Often decisive for a generator bug. Set `<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>`
+        and paste the relevant part of the emitted file.
+      render: csharp
