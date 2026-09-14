@@ -25,13 +25,21 @@ interface, a diagnostic, an extension method) must be reflected there too.
 ```bash
 dotnet build -c Release
 dotnet test -c Release                                    # all three suites
-dotnet test tests/AdCodicem.ValueObjects.UnitTests        # behaviour of generated code
-dotnet test tests/AdCodicem.ValueObjects.GeneratorTests   # the generator itself
-dotnet test tests/AdCodicem.ValueObjects.IntegrationTests # needs Docker
+# One suite. --project is required: given a bare directory, dotnet test prints a hint and exits 0
+# without running anything, which reads exactly like a pass.
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests        # behaviour of generated code
+dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests   # the generator itself
+dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests # needs Docker
+
+# Formatting, as CI checks it. Not plain `dotnet format`: its workspace does not run source
+# generators, so `analyzers` reports ASP0020 against the sample's minimal API endpoint for an
+# IParsable<T> the generator does emit.
+dotnet format AdCodicem.ValueObjects.slnx whitespace --verify-no-changes
+dotnet format AdCodicem.ValueObjects.slnx style --verify-no-changes
 dotnet pack -c Release -o artifacts/packages
 
 # One test (xunit.v3 runs on Microsoft Testing Platform; wildcards, not substrings, so wrap the name in *)
-dotnet test tests/AdCodicem.ValueObjects.UnitTests --filter-method "*The_name_of_the_test*"
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests --filter-method "*The_name_of_the_test*"
 
 # Benchmarks; wants a quiet machine, and absolute timings are not comparable across runs
 cd benchmarks/AdCodicem.ValueObjects.Benchmarks
@@ -40,13 +48,29 @@ dotnet run -c Release -- --filter '*WrapperCost*'
 # Documentation site (Docusaurus, published to https://adcodicem.github.io/AdCodicem.ValueObjects/)
 cd website
 npm ci
-npm start          # local dev server
+npm run docs:api    # regenerate docs/api/ from the XML doc comments (DocFX; not committed)
+npm start           # local dev server
 npm run build       # production build; fails on a broken internal link
 ```
+
+`npm run docs:api` has to run before `npm start` or `npm run build` on a fresh checkout: `sidebars.ts`
+builds its API reference category from `website/docs/api/`, which is generated and gitignored.
 
 Integration tests start PostgreSQL and SQL Server through Testcontainers.
 
 `TreatWarningsAsErrors` is on repository-wide, so a warning fails the build.
+
+## Releases
+
+Merging to `main` publishes a **preview** to nuget.org, versioned by MinVer with no decision from anyone. A
+**stable** release is a manual `workflow_dispatch` on `release.yml`, where semantic-release computes the
+version from the Conventional Commits, writes `CHANGELOG.md`, packs, pushes, tags and redeploys the site. The
+bridge between the two is `MINVERVERSIONOVERRIDE`: semantic-release hands MinVer the stable version and MinVer
+steps aside. Both read the same `v*` tags.
+
+So nothing you merge publishes a stable package, and a commit type that triggers no release (`chore`, `ci`,
+`test`) also contributes nothing to the next version. The reasoning, and what it costs, is in
+`docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md`.
 
 ## Architecture
 

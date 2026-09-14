@@ -49,6 +49,9 @@ packages/
 ## Node (release tooling at the root, Docusaurus under website/)
 node_modules/
 
+## Generated API reference (DocFX -> Docusaurus). Regenerate with `dotnet docfx docs/docfx/docfx.json`.
+website/docs/api/
+
 ## OS
 .DS_Store
 Thumbs.db
