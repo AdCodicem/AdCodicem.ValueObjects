@@ -21,6 +21,12 @@ const config: Config = {
 
   onBrokenLinks: 'throw',
   markdown: {
+    // The generated API reference under docs/api/ is full of bare generic
+    // signatures -- ValueObjectContract<TValueObject, TValue> and the like --
+    // which MDX parses as JSX and rejects. 'detect' keeps MDX for .mdx and
+    // treats .md as CommonMark, where those are just text. None of the
+    // hand-written pages use MDX features, so nothing is given up.
+    format: 'detect',
     hooks: {
       onBrokenMarkdownLinks: 'throw',
     },

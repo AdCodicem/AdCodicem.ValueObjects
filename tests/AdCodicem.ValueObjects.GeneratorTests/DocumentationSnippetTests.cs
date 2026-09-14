@@ -170,8 +170,20 @@ public sealed partial class DocumentationSnippetTests
 
     private static IReadOnlyList<string> SkillFiles() => Relative(SkillDirectory(), "*.md");
 
+    /// <summary>
+    /// The hand-written pages of the documentation site, excluding <c>docs/api/</c>: that directory is
+    /// generated from XML doc comments by DocFX, its fenced blocks are member signatures rather than
+    /// declarations anyone wrote, and holding generated output to the authoring rules checked here would
+    /// fail the build over a signature the generator was never meant to see.
+    /// </summary>
     private static IReadOnlyList<string> DocumentationSite()
-        => Relative(Path.Combine(RepositoryRoot(), "website", "docs"), "*.md");
+    {
+        var generated = Path.Combine(RepositoryRoot(), "website", "docs", "api") + Path.DirectorySeparatorChar;
+
+        return [.. Relative(Path.Combine(RepositoryRoot(), "website", "docs"), "*.md")
+            .Where(path => !Path.Combine(RepositoryRoot(), path.Replace('/', Path.DirectorySeparatorChar))
+                .StartsWith(generated, StringComparison.Ordinal))];
+    }
 
     private static IReadOnlyList<string> Relative(string directory, string pattern)
         => [.. Directory
