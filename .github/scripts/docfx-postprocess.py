@@ -61,8 +61,11 @@ def main(directory: str) -> int:
 
     print(f"Rewrote {total} heading anchors across {len(files)} files.")
 
+    # Only headings that carry a title should have been rewritten; a bare
+    # '<a id="x"></a>' with no text is skipped on purpose above, so counting it
+    # here would fail the run over the very case the rewrite declines to touch.
     remaining = sum(
-        len(re.findall(r'^#{1,6} <a id=', p.read_text(encoding="utf-8"), re.MULTILINE))
+        len([m for m in HEADING_ANCHOR.finditer(p.read_text(encoding="utf-8")) if m["title"].strip()])
         for p in files
     )
     if remaining:
