@@ -1,0 +1,51 @@
+{
+  "branches": ["main"],
+  "tagFormat": "v${version}",
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits"
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            { "type": "feat", "section": "Features" },
+            { "type": "fix", "section": "Bug fixes" },
+            { "type": "perf", "section": "Performance" },
+            { "type": "docs", "section": "Documentation", "hidden": false },
+            { "type": "refactor", "section": "Refactoring", "hidden": false },
+            { "type": "test", "hidden": true },
+            { "type": "ci", "hidden": true },
+            { "type": "chore", "hidden": true }
+          ]
+        }
+      }
+    ],
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": ".github/scripts/release-pack.sh '${nextRelease.version}' '${nextRelease.type}' '${lastRelease.version || \"\"}'",
+        "publishCmd": "dotnet nuget push 'artifacts/packages/*.nupkg' --api-key \"$NUGET_API_KEY\" --source https://api.nuget.org/v3/index.json --skip-duplicate"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    "@semantic-release/github"
+  ]
+}

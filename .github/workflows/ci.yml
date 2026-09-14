@@ -3,7 +3,6 @@ name: ci
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -97,10 +96,15 @@ jobs:
           name: packages
           path: artifacts/packages/*.*nupkg
 
-  publish:
-    name: publish to nuget.org
+  # Every merge to main ships a preview, so a change can be tried before it is
+  # permanent. MinVer produces the version: with no stable tag at HEAD it yields
+  # the next patch as a prerelease (0.1.1-preview.0.N), which needs no decision
+  # from anyone. Stable releases are cut by hand -- see release.yml and
+  # docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md.
+  preview:
+    name: publish preview to nuget.org
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: nuget
     permissions:
@@ -116,6 +120,28 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # This job must never publish a stable version: that is release.yml's job,
+      # and it is the one step that cannot be undone. If a stable tag ever ends
+      # up at HEAD, MinVer stamps a stable version and these packages would claim
+      # to be a release nobody cut. Stop instead of guessing.
+      - name: Refuse to publish a non-preview version
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          packages=(packages/AdCodicem.ValueObjects.*.nupkg)
+          if (( ${#packages[@]} == 0 )); then
+            echo "::error::No packages were downloaded." >&2
+            exit 1
+          fi
+          for package in "${packages[@]}"; do
+            name="$(basename "$package")"
+            if [[ "$name" != *-preview* ]]; then
+              echo "::error::$name is not a preview build. Stable releases go through release.yml." >&2
+              exit 1
+            fi
+          done
+          echo "All ${#packages[@]} packages are preview builds."
+
       # Trusted Publishing: exchanges this job's GitHub OIDC token for a NuGet API key that
       # is scoped to this run and expires in an hour, so no long-lived secret is stored.
       - name: NuGet login (OIDC -> temporary API key)
@@ -124,7 +150,7 @@ jobs:
         with:
           user: AdCodicem
 
-      - name: Push
+      - name: Push preview
         run: >-
           dotnet nuget push "packages/*.nupkg"
           --api-key "${{ steps.login.outputs.NUGET_API_KEY }}"
