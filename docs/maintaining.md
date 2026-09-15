@@ -26,6 +26,7 @@ running it for real. Publishing to nuget.org cannot be undone — a package can 
 | Allow GitHub Actions to create and approve pull requests | Settings → Actions → General | Not needed for auto-merge, but required if a workflow is ever made to open PRs. |
 | Discussions | Settings → General → Features | `.github/DISCUSSION_TEMPLATE/q-a.yml` and the issue-template link to Discussions go nowhere. |
 | Pages source: GitHub Actions | Settings → Pages | `deploy-docs.yml` uploads an artifact that is never served. |
+| Code scanning: **default setup**, left enabled | Settings → Code security → Code scanning | This repository uses CodeQL's default setup. There is deliberately no `codeql.yml`: an advanced configuration cannot upload its results while default setup is on — GitHub rejects the SARIF with *"CodeQL analyses from advanced configurations cannot be processed when the default setup is enabled"*. Only add a workflow if you first disable default setup, and only if you need something it cannot do (custom query packs, or a manual build for a solution autobuild cannot handle). |
 | GitHub Sponsors | Account settings | `.github/FUNDING.yml` has no effect. |
 
 `@semantic-release/git` pushes the changelog commit to `main`. If `main` is protected, either allow the
