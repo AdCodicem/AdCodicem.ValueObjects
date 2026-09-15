@@ -3,7 +3,6 @@
 [![ci](https://github.com/AdCodicem/AdCodicem.ValueObjects/actions/workflows/ci.yml/badge.svg)](https://github.com/AdCodicem/AdCodicem.ValueObjects/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/AdCodicem.ValueObjects.svg?logo=nuget)](https://www.nuget.org/packages/AdCodicem.ValueObjects)
 [![codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects/branch/main/graph/badge.svg)](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects)
-[![CodeQL](https://github.com/AdCodicem/AdCodicem.ValueObjects/actions/workflows/codeql.yml/badge.svg)](https://github.com/AdCodicem/AdCodicem.ValueObjects/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/AdCodicem/AdCodicem.ValueObjects/badge)](https://scorecard.dev/viewer/?uri=github.com/AdCodicem/AdCodicem.ValueObjects)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
