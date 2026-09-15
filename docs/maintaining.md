@@ -4,18 +4,15 @@ One-time setup that lives in GitHub and nuget.org settings rather than in this r
 here succeed while doing nothing until the matching switch is on, so this list is worth checking if something
 looks wired up but never happens.
 
-## Before the first stable release
+## Cutting a stable release
 
-Create the version baseline tag, or `release.yml` publishes `1.0.0` instead of `0.1.0`. The reasoning and the
-measurements are in [ADR-0003](adr/0003-hybrid-release-manual-stable-continuous-preview.md).
+`v0.1.0` is the version baseline: a stable tag placed by hand on `main`, so semantic-release counts from `0.1.0`
+instead of starting at `1.0.0`. It is not a release — no `0.1.0` package exists, and nuget.org has only the two
+previews. The reasoning and the measurements are in
+[ADR-0003](adr/0003-hybrid-release-manual-stable-continuous-preview.md).
 
-```bash
-git tag -a v0.0.0 "$(git rev-list --max-parents=0 main)" -m "Version baseline for semantic-release."
-git push origin v0.0.0
-```
-
-Then run **Actions → release → Run workflow** with `dry_run` ticked and read the version it computes before
-running it for real. Publishing to nuget.org cannot be undone — a package can be delisted, never unpublished.
+Run **Actions → release → Run workflow** with `dry_run` ticked and read the version it computes before running
+it for real. Publishing to nuget.org cannot be undone — a package can be delisted, never unpublished.
 
 ## GitHub settings
 
@@ -37,8 +34,10 @@ running it for real. Publishing to nuget.org cannot be undone — a package can 
 | What | Where | Used by |
 |---|---|---|
 | **NuGet trusted publisher** — add GitHub owner `AdCodicem`, this repository, and workflow `ci.yml` **and** `release.yml` | nuget.org → each package → Manage → Trusted Publishers | The OIDC exchange in `ci.yml` (previews) and `release.yml` (stable). No stored API key. |
-| **`nuget` environment** | Settings → Environments | Both publish jobs target it; add a required reviewer here if you want a second gate on previews. |
+| **`nuget` environment** — no protection rules | Settings → Environments | `ci.yml`'s preview job targets it. Adding a required reviewer here would gate every merge's preview too, not just stable releases -- use `nuget-stable` for that instead. |
+| **`nuget-stable` environment** — required reviewer(s) | Settings → Environments | `release.yml`'s release job targets it. This is the approval gate: `workflow_dispatch` starts the job, but it waits for a reviewer before the OIDC exchange and `npx semantic-release` run. |
 | `CODECOV_TOKEN` | codecov.io → link the repository, then Settings → Secrets → Actions | The coverage upload in `ci.yml`. It is set to `fail_ci_if_error: false`, so without the token CI stays green and coverage is simply missing. |
 
 The trusted publisher has to name **both** workflows: `ci.yml` pushes previews on every merge, `release.yml`
-pushes the stable release. Registering only one leaves the other failing at the OIDC exchange.
+pushes the stable release. Registering only one leaves the other failing at the OIDC exchange. If a trusted
+publisher entry constrains itself to an environment, point `release.yml`'s entry at `nuget-stable`, not `nuget`.
