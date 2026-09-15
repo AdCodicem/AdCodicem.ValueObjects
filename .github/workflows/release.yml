@@ -23,7 +23,10 @@ jobs:
   release:
     name: ${{ inputs.dry_run && 'dry run' || 'publish' }}
     runs-on: ubuntu-latest
-    environment: nuget
+    # A separate environment from ci.yml's preview job: this is the one gated by a
+    # required reviewer, so cutting a stable release needs a deliberate approval
+    # while previews keep publishing on every merge without one.
+    environment: nuget-stable
     permissions:
       # semantic-release commits CHANGELOG.md and pushes the tag.
       contents: write
