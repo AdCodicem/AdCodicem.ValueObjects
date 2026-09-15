@@ -4,18 +4,15 @@ One-time setup that lives in GitHub and nuget.org settings rather than in this r
 here succeed while doing nothing until the matching switch is on, so this list is worth checking if something
 looks wired up but never happens.
 
-## Before the first stable release
+## Cutting a stable release
 
-Create the version baseline tag, or `release.yml` publishes `1.0.0` instead of `0.1.0`. The reasoning and the
-measurements are in [ADR-0003](adr/0003-hybrid-release-manual-stable-continuous-preview.md).
+`v0.1.0` is the version baseline: a stable tag placed by hand on `main`, so semantic-release counts from `0.1.0`
+instead of starting at `1.0.0`. It is not a release — no `0.1.0` package exists, and nuget.org has only the two
+previews. The reasoning and the measurements are in
+[ADR-0003](adr/0003-hybrid-release-manual-stable-continuous-preview.md).
 
-```bash
-git tag -a v0.0.0 "$(git rev-list --max-parents=0 main)" -m "Version baseline for semantic-release."
-git push origin v0.0.0
-```
-
-Then run **Actions → release → Run workflow** with `dry_run` ticked and read the version it computes before
-running it for real. Publishing to nuget.org cannot be undone — a package can be delisted, never unpublished.
+Run **Actions → release → Run workflow** with `dry_run` ticked and read the version it computes before running
+it for real. Publishing to nuget.org cannot be undone — a package can be delisted, never unpublished.
 
 ## GitHub settings
 
