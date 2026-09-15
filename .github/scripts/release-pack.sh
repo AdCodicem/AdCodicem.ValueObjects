@@ -28,8 +28,17 @@ elif [[ "$release_type" == "major" ]]; then
 elif [[ "$next_version" == 0.* && "$release_type" == "minor" ]]; then
   echo "Pre-1.0 minor: skipping package validation baseline (0.x minor is the breaking channel)."
 else
-  echo "Validating API compatibility against $last_version."
-  args+=("-p:PackageValidationBaselineVersion=$last_version")
+  # Only a published package can serve as a baseline. v0.1.0 is a tag placed by
+  # hand with no package behind it, and restoring a baseline that does not exist
+  # fails the pack. A failed lookup stops the script rather than skipping the check.
+  published="$(curl --fail --silent --show-error --retry 3 \
+    https://api.nuget.org/v3-flatcontainer/adcodicem.valueobjects/index.json)"
+  if grep -qF "\"${last_version}\"" <<<"$published"; then
+    echo "Validating API compatibility against $last_version."
+    args+=("-p:PackageValidationBaselineVersion=$last_version")
+  else
+    echo "$last_version was never published to nuget.org: skipping package validation baseline."
+  fi
 fi
 
 echo "Packing $next_version ($release_type)."
