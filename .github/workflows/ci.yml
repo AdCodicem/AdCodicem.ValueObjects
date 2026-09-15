@@ -106,6 +106,9 @@ jobs:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Deliberately unprotected -- see release.yml's `nuget-stable` for the environment
+    # that carries the required reviewer. Gating this one too would mean every merge to
+    # main needs a manual approval before the preview goes out, defeating the point.
     environment: nuget
     permissions:
       contents: read
