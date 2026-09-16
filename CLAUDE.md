@@ -146,6 +146,11 @@ These are all load-bearing, and each cost real debugging time:
   class or a record struct reaches `VO0002` instead of silently generating nothing.
 - **Analyzer release tracking** (`AnalyzerReleases.Shipped.md` / `.Unshipped.md`) must list every diagnostic, or
   RS2008 fails the build.
+- **`website/package.json` carries `overrides`** for `qs`, `serialize-javascript` and `uuid`. All three are
+  transitive under Docusaurus, which pins ranges too tight to pick up the patched versions on its own, so
+  Dependabot alerts on them and `npm audit fix --force` "fixes" it by *downgrading* `@docusaurus/core` to
+  3.5.2. Drop an override once Docusaurus widens the range that holds it back, not before, and re-run
+  `npm audit` after touching them.
 
 ## Testing
 
