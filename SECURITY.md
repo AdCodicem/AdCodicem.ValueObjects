@@ -10,10 +10,11 @@ ships in the next release rather than as a patch to an older line.
 
 Please **do not** open a public issue for a security vulnerability.
 
-Use GitHub's private vulnerability reporting instead: the **Security** tab of
-this repository → **Report a vulnerability**. That opens an advisory visible
-only to the maintainer, which is the fastest way to get a fix moving without
-disclosing the issue before a patch exists.
+Use GitHub's private vulnerability reporting instead:
+<https://github.com/AdCodicem/AdCodicem.ValueObjects/security/advisories/new>, or
+the **Security** tab of this repository → **Report a vulnerability**. That opens
+an advisory visible only to the maintainer, which is the fastest way to get a fix
+moving without disclosing the issue before a patch exists.
 
 Expect an initial response within a few days. If the report is confirmed, the
 fix is prepared privately and a GitHub Security Advisory is published alongside
