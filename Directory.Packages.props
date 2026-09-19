@@ -51,6 +51,7 @@
     <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.11" />
     <PackageVersion Include="Verify.XunitV3" Version="30.15.0" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+    <PackageVersion Include="FsCheck" Version="3.4.0" />
   </ItemGroup>
 
 </Project>

@@ -19,6 +19,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Property-based testing, in PropertyTests.cs. Deliberately the bare FsCheck package and not
+         FsCheck.Xunit, whose xunit.extensibility.execution [2.4.1, 3.0.0) dependency conflicts with
+         xunit.v3; the properties run from plain [Fact]s through Check(Config) instead. -->
+    <PackageReference Include="FsCheck" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="AdCodicem.ValueObjects" />
     <Using Include="AdCodicem.ValueObjects.Annotations" />
     <Using Include="AdCodicem.ValueObjects.UnitTests.Domain" />
