@@ -146,6 +146,18 @@ These are all load-bearing, and each cost real debugging time:
   class or a record struct reaches `VO0002` instead of silently generating nothing.
 - **Analyzer release tracking** (`AnalyzerReleases.Shipped.md` / `.Unshipped.md`) must list every diagnostic, or
   RS2008 fails the build.
+- **Every action in `.github/workflows` is pinned to a commit SHA**, with the release as a same-line comment
+  (`uses: actions/checkout@3d3c42e... # v7.0.1`). Dependabot reads that comment to derive the semver bump, so a
+  pin without one falls out of the `actions` group and may auto-merge as a non-major. Three of the sixteen
+  actions publish *annotated* tags — `codecov/codecov-action`, `ossf/scorecard-action`, `github/codeql-action` —
+  so re-pinning by hand needs `git ls-remote <repo> 'refs/tags/vX.Y.Z^{}'`: without the `^{}` you get the tag
+  object's SHA, which GitHub refuses to resolve. `release.yml`'s call to `./.github/workflows/deploy-docs.yml`
+  is a local reusable workflow and must stay unpinned; GitHub rejects `@ref` on one.
+- **NuGet lock files are deliberately absent**, and adding them breaks CI on the first run:
+  `src/Directory.Build.props` references `Microsoft.SourceLink.GitHub` under
+  `Condition="'$(GITHUB_ACTIONS)' == 'true'"`, so the package graph on a laptop is not the graph on the runner
+  and `--locked-mode` fails `NU1004`. `docs/adr/0004-pin-the-supply-chain-by-digest-not-nuget-lock-files.md`
+  has the full reasoning.
 - **`website/package.json` carries `overrides`** for `qs`, `serialize-javascript` and `uuid`. All three are
   transitive under Docusaurus, which pins ranges too tight to pick up the patched versions on its own, so
   Dependabot alerts on them and `npm audit fix --force` "fixes" it by *downgrading* `@docusaurus/core` to
@@ -158,6 +170,13 @@ Three suites, each with a distinct job:
 
 - **UnitTests** — behaviour of generated code, using value objects defined in `Domain/`. `EmitCompilerGeneratedFiles`
   is on, so generated sources land under `artifacts/obj/.../generated/` and can be read when diagnosing.
+  `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
+  idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
+  input. Two things keep such a suite honest and both are easy to lose: a property conditioned on "the value was
+  accepted" passes vacuously unless the generator produces values the type accepts, so each one counts how often
+  it reached the accepting branch and asserts on it; and a property over a wide type never lands on the boundary
+  by chance, so the range generator biases towards the edges. Change a generator and re-run the mutations in the
+  commit message before trusting the green.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
   `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Snippets compile **without** implicit usings, which

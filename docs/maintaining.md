@@ -29,6 +29,26 @@ it for real. Publishing to nuget.org cannot be undone — a package can be delis
 `@semantic-release/git` pushes the changelog commit to `main`. If `main` is protected, either allow the
 `github-actions[bot]` actor to bypass the rule, or give `release.yml` a token that can.
 
+## Supply chain and the OpenSSF scorecard
+
+`scorecards.yml` publishes to the OpenSSF API weekly, which is what backs the README badge. Most of what it
+measures is settled in this repository — see
+[ADR-0004](adr/0004-pin-the-supply-chain-by-digest-not-nuget-lock-files.md) — but four things live in settings
+or in another service and cannot be fixed by a commit.
+
+| What | Where | Why it matters |
+|---|---|---|
+| **Private vulnerability reporting**, left enabled | Settings → Code security | `SECURITY.md` links straight to `/security/advisories/new`. With reporting disabled that link 404s and the policy tells a reporter to do something they cannot. |
+| **OpenSSF Best Practices entry** | [bestpractices.dev](https://www.bestpractices.dev/) → sign in with GitHub → add `https://github.com/AdCodicem/AdCodicem.ValueObjects` | The `CII-Best-Practices` check is looked up by repository URL. Creating the entry scores *InProgress*; answering the questionnaire honestly reaches *Passing*, which is the realistic ceiling for a single-maintainer project. |
+| **Weekly `github-actions` Dependabot updates**, left enabled | `.github/dependabot.yml` | Dependabot raises **no security alerts for actions pinned to a SHA**, only for ones on a floating version. The weekly version update is what replaces that alerting, so switching it off silently removes the safety net the pinning depends on. |
+| **Branch protection**, before handing Scorecard a token that can read it | Settings → Rules | The `Branch-Protection` check currently errors and is *excluded from the average*. Giving `scorecards.yml` a `repo_token` with `Administration: Read-only`, or creating an ACTIVE ruleset on `main`, makes it readable — and it then enters the average at the heaviest weight. Its tiers are hard-gated: without "block deletions" and "block force-pushes" nothing above them counts, so enabling the read before the protection exists *lowers* the score rather than raising it. |
+
+Two checks stay low on purpose. `Code-Review` counts changesets approved by someone other than their author,
+which a single maintainer cannot honestly produce — auto-approving pull requests with a bot would move the
+number without moving the thing it measures. `Signed-Releases` needs signatures or SLSA provenance attached to
+the GitHub Release assets; it is worth doing, but it is a change to `release.yml`, the one workflow whose
+mistakes cannot be undone, so it belongs in its own piece of work rather than in a hardening sweep.
+
 ## Secrets and external services
 
 | What | Where | Used by |
