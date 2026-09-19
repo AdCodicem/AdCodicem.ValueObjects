@@ -37,8 +37,12 @@ jobs:
         with:
           python-version: '3.x'
 
+      # --require-hashes, so pip installs exactly the artefact whose digest is
+      # recorded in the requirements file and nothing else. OpenSSF Scorecard's
+      # Pinned-Dependencies check reads the flag off this command line; a version
+      # specifier alone does not count as pinned.
       - name: Install conventional-pre-commit
-        run: pip install conventional-pre-commit
+        run: pip install --require-hashes -r .github/requirements/requirements.txt
 
       # Re-checks every commit in the pull request, since the local commit-msg
       # hook only runs for people who installed it and can be skipped with

@@ -1,0 +1,13 @@
+# conventional-pre-commit re-validates every commit message in a pull request
+# (.github/workflows/lint.yml). The version tracks the `rev` of the same hook in
+# .pre-commit-config.yaml, so the CI job and the local git hook run the same tool.
+#
+# Installed with --require-hashes, so pip refuses any artefact whose digest is not
+# listed here -- a compromised or re-uploaded release cannot slip into a job that
+# runs on pull_request. Both the wheel and the sdist are listed because pip picks
+# whichever it resolves to. Dependabot keeps the version and the digests current.
+#
+#   pip install --require-hashes -r .github/requirements/requirements.txt
+conventional-pre-commit==4.4.0 \
+    --hash=sha256:5d266cb32a857344e1c4d87660c290cca1646d1ae480dcef6388e27bbc7f022f \
+    --hash=sha256:5426bef9039a162c3203cc7de3624954dea7120af8dec6f878d8f1c83c58af7b
