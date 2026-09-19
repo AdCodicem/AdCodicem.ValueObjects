@@ -38,18 +38,18 @@ jobs:
     outputs:
       released: ${{ steps.semantic.outcome == 'success' && !inputs.dry_run }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # semantic-release reads the whole tag history to find the last release.
           fetch-depth: 0
           # Left in place so @semantic-release/git can push the changelog commit.
           persist-credentials: true
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: lts/*
           cache: npm
@@ -81,7 +81,7 @@ jobs:
       # API key scoped to this run, so no long-lived secret is stored.
       - name: NuGet login (OIDC -> temporary API key)
         if: ${{ !inputs.dry_run }}
-        uses: NuGet/login@v1
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         id: login
         with:
           user: AdCodicem
@@ -93,7 +93,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: release-packages

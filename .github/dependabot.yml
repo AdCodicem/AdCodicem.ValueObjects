@@ -35,7 +35,10 @@ updates:
       docusaurus:
         update-types: ["minor", "patch"]
 
-  # Pinned action versions (actions/checkout@v4, etc.) across every workflow in .github/workflows.
+  # Every action in .github/workflows is pinned to a commit SHA with the release as a
+  # trailing comment (`uses: actions/checkout@3d3c42e... # v7.0.1`). Dependabot reads that
+  # comment to work out the semver bump, so it keeps both the SHA and the comment current
+  # and the `actions` group below still sorts minor/patch bumps from major ones.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
