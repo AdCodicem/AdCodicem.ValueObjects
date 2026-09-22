@@ -13,7 +13,7 @@ discussion, or a conversation — and then forgotten. Later nobody knows *why* s
 that it is.
 
 This repository already documents a good deal of its reasoning: [Design
-decisions](https://adcodicem.github.io/AdCodicem.ValueObjects/design-decisions) on the site explains the shape
+decisions](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/design-decisions) on the site explains the shape
 of the generated code, and `CLAUDE.md` lists the constraints that cost real debugging time. What neither
 records is *when* a decision was taken, what was rejected, or what would have to change for it to be revisited.
 

@@ -40,7 +40,7 @@ Rules are declared once on the attribute and carried by the generator into every
 the EF Core column, the OpenAPI schema — rather than restated per integration.
 
 The measurements behind the memory claims are in
-[Benchmarks](https://adcodicem.github.io/AdCodicem.ValueObjects/benchmarks), including where the struct loses.
+[Benchmarks](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/benchmarks), including where the struct loses.
 
 ## Consequences
 

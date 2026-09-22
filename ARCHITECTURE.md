@@ -1,7 +1,7 @@
 # Architecture
 
 The "where do I start reading" map. It describes the current shape; the reasoning behind that shape lives in
-[Design decisions](https://adcodicem.github.io/AdCodicem.ValueObjects/design-decisions) on the documentation
+[Design decisions](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/design-decisions) on the documentation
 site, and the decisions that were costly to reverse are recorded in [`docs/adr/`](docs/adr/).
 
 ## What the repository ships

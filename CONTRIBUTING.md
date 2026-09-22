@@ -71,7 +71,7 @@ pip install pre-commit && pre-commit install
 1. Branch from `main`.
 2. Keep it focused — one logical change.
 3. Add or update tests. The three suites have distinct jobs, described in
-   [Testing](https://adcodicem.github.io/AdCodicem.ValueObjects/testing); a defect confined to the descriptor
+   [Testing](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/testing); a defect confined to the descriptor
    is invisible to the typed-path unit tests, so check which surface your change actually touches.
 4. Run `dotnet format` before pushing — CI enforces it.
 5. Open the PR and fill in the template.
