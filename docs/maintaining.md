@@ -24,7 +24,9 @@ runner. After the first real release, check four things on the site:
 - the release commit contains `website/versioned_docs/version-<line>/api/`.
 
 If the snapshot step fails, semantic-release stops before publishing anything, so the fix is to correct it and
-dispatch again.
+dispatch again. If the release is published but its **publish documentation** job fails, use **Re-run failed
+jobs** on that run: it keeps the tag the release job computed. Dispatching **deploy docs** from `main` works too,
+since the snapshot is on `main` by then.
 
 ## GitHub settings
 
