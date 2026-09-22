@@ -99,15 +99,19 @@ jobs:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
 
       # semantic-release commits the changelog and the documentation snapshot,
-      # then tags that commit, so a stable tag at HEAD is the release to
-      # document. Without one there was nothing to release, and the site keeps
-      # what it has.
+      # then tags that commit, so when HEAD has moved off the dispatched commit
+      # the stable tag at HEAD is the release to document. When it has not,
+      # there was nothing to release -- even if the dispatched commit is itself
+      # an earlier release -- and the site keeps what it has.
       - name: Released tag
         id: released
         if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
-          tag="$(git tag --points-at HEAD --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          tag=""
+          if [[ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]]; then
+            tag="$(git tag --points-at HEAD --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          fi
           echo "Released tag: ${tag:-none}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 

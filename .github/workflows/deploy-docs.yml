@@ -103,12 +103,17 @@ jobs:
       contents: read
       pages: write
       id-token: write
-    # Job-level rather than workflow-level: this workflow mostly runs as a
-    # reusable one, and a job's concurrency is what a called workflow honours.
-    # A deployment waiting here is replaced by a newer one.
+    # Only publishing is serialised; builds run in parallel. `queue: max` keeps
+    # every waiting deployment instead of the default, which cancels whichever
+    # one was pending when another arrives -- regardless of commit -- so a newer
+    # preview, or a release's deployment, could otherwise be dropped in favour
+    # of an older commit that happened to be queued later. Deployments run in
+    # arrival order, and the freshness check below stops an older one from
+    # replacing a newer site.
     concurrency:
       group: pages
       cancel-in-progress: false
+      queue: max
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -117,11 +122,13 @@ jobs:
         id: pages
 
       # Two merges in quick succession run CI concurrently, and the older one
-      # can finish last. Its deployment would then replace a newer preview with
-      # an older one until the next merge. So compare against what is live and
-      # stand down when that is already a descendant of this commit. The same
-      # guard covers a stable release whose deployment runs after a newer
-      # preview: that preview's tree already contains the release's snapshot.
+      # can finish last, so its deployment arrives after the newer one's. It
+      # would then replace a newer preview with an older one until the next
+      # merge. So compare against what is live and stand down when that is
+      # already a descendant of this commit. The same check covers a stable
+      # release whose deployment runs after a newer preview: that preview's tree
+      # already contains the release's snapshot. The live commit itself is
+      # redeployed, which is what a manual dispatch to repair the site wants.
       - name: Skip if the site already shows a newer commit
         id: freshness
         env:
