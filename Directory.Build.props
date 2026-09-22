@@ -30,6 +30,7 @@
     <Copyright>Copyright (c) AdCodicem</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageTags>ddd;value-object;strongly-typed;source-generator;domain-driven-design</PackageTags>
     <RepositoryUrl>https://github.com/AdCodicem/AdCodicem.ValueObjects</RepositoryUrl>
     <PackageProjectUrl>https://github.com/AdCodicem/AdCodicem.ValueObjects</PackageProjectUrl>
