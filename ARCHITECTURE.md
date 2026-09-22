@@ -19,7 +19,7 @@ tests/        three suites with distinct jobs (see below)
 samples/      a showcase API exercising the whole chain end to end
 benchmarks/   the measurements behind the design decisions
 skills/       the consumer-facing agent skill, shipped as a Claude Code plugin via .claude-plugin/
-website/      the documentation site (Docusaurus, deployed from main)
+website/      the documentation site (Docusaurus, versioned: docs/ is the preview, versioned_docs/ the releases)
 docs/adr/     architecture decision records
 ```
 
@@ -92,3 +92,5 @@ Merging to `main` publishes a preview package; a stable release is a manual acti
 [`docs/maintaining.md`](docs/maintaining.md) for the one-time settings the release and publish workflows
 depend on. [ADR-0004](docs/adr/0004-pin-the-supply-chain-by-digest-not-nuget-lock-files.md) records how the
 build's own dependencies are pinned, and why NuGet lock files are not part of it.
+[ADR-0005](docs/adr/0005-version-the-documentation-site.md) records how the documentation site follows the same
+two tracks: every preview redeploys the preview pages, and each stable release freezes its own.
