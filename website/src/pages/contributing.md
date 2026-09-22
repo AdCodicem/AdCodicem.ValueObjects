@@ -1,7 +1,6 @@
 ---
 title: Contributing
-sidebar_label: Contributing
-slug: /contributing
+description: How to build, test and change AdCodicem.ValueObjects, its agent skill and this site.
 ---
 
 # Contributing
@@ -70,11 +69,36 @@ The site itself is a Docusaurus project under `website/`:
 ```bash
 cd website
 npm ci
+npm run docs:api   # the API reference, generated from the XML doc comments and not committed
 npm start          # local dev server with hot reload
-npm run build       # production build, fails on a broken internal link
+npm run build      # production build, fails on a broken internal link
 ```
 
-It deploys to GitHub Pages automatically on every push to `main` that touches `website/`.
+This page is the one part of the site that is not versioned: it describes how to work on `main`, whichever
+release you are reading about.
+
+### Versions
+
+`website/docs/` is the **preview**. It describes `main`, and every merge that publishes a preview package to
+nuget.org redeploys it under `/docs/preview/`. A stable release freezes it into `website/versioned_docs/` —
+one entry per minor while the version is 0.x (`0.3.x`), one per major from 1.0 on (`1.x`) — and `/docs/`
+serves the newest of those. So a change to `website/docs/` reaches readers of the stable documentation with the
+next release, not before. Until the first stable release exists, `/docs/` serves the preview.
+
+The release workflow writes `versioned_docs/`, `versioned_sidebars/`, `versions.json` and
+`released-versions.json`; nothing else should add or remove an entry.
+
+### Correcting a released version
+
+An error in the stable documentation can be corrected before the next release when it would mislead someone
+using that release: a snippet that does not compile against it, an option described as doing something it does
+not. Fix it in `website/docs/` **and** in `website/versioned_docs/version-<line>/`, in the same pull request.
+Both are needed: the next release of that line replaces its snapshot wholesale with a fresh copy of
+`website/docs/`, so a fix made only in the snapshot is lost there.
+
+Anything else waits for the next release, and documentation of a feature that exists only on `main` never goes
+into a snapshot. `DocumentationSnippetTests` checks `website/docs/` against the current generator and not the
+snapshots, which describe an older one, so a snippet fixed in a snapshot has to be checked by hand.
 
 ## Licence
 

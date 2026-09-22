@@ -26,7 +26,53 @@ Two things about that generated output are worth knowing if you touch the pipeli
   heading ids. Without it Docusaurus nests its own anchor inside DocFX's, which is invalid HTML and produces
   several hundred minifier diagnostics.
 
-Deployment is automatic: `.github/workflows/deploy-docs.yml` builds and publishes this site to GitHub Pages on
-every push to `main` that touches this directory, and is also called by `release.yml` after a stable
-release so the published site never describes an older version than nuget.org. There is no `deploy` script here — the site is not pushed to
-a `gh-pages` branch by hand.
+## Versions
+
+The site is versioned with Docusaurus' own docs versioning; the reasoning and the alternatives turned down are
+in [ADR-0005](../docs/adr/0005-version-the-documentation-site.md).
+
+| What | Source | Served at |
+| --- | --- | --- |
+| Latest stable line | `versioned_docs/version-<line>/`, the first entry of `versions.json` | `/docs/` |
+| Preview | `docs/` — it describes `main` | `/docs/preview/`, or `/docs/` until the first stable release |
+| Older stable lines | the other entries of `versions.json` | `/docs/<line>/`, e.g. `/docs/0.2.x/` |
+
+A line is `0.<minor>.x` while the major is 0 and `<major>.x` from 1.0 on. `.github/scripts/docs-snapshot.sh`
+writes `versioned_docs/`, `versioned_sidebars/`, `versions.json` and `released-versions.json` during a stable
+release — the last one maps each line to the exact release it was frozen at, for the version selector — and
+replaces a line's snapshot wholesale when that line ships again. Those files are not edited by hand, except to
+correct a released page as described on the [Contributing](src/pages/contributing.md) page.
+
+`docusaurus.config.ts` derives every version option from those two JSON files, so the configuration never names
+a version. Two things there are worth knowing:
+
+- **The preview label comes from the build environment.** `DOCS_PREVIEW_VERSION` is set by `deploy-docs.yml`
+  from MinVer, so the preview reads `Preview (0.4.0-preview.0.12)`. A local build without it reads `Preview`.
+- **The homepage example is a partial**, `docs/_homepage-example.md`. It is frozen with the rest of the docs, and
+  the `homepage-example` plugin points the homepage at the copy in the latest stable snapshot, so the homepage
+  shows the code of the package `dotnet add package` installs.
+
+`contributing` is a plain page under `src/pages/`, not a doc: it describes how to work on `main`, so a copy frozen
+in each version would only go stale.
+
+To try the versioned layout locally, run the snapshot script for a made-up version and discard what it writes
+afterwards (it needs `python3` for the DocFX post-processing):
+
+```bash
+../.github/scripts/docs-snapshot.sh 0.9.0
+npm run build
+rm -rf versioned_docs versioned_sidebars versions.json released-versions.json
+```
+
+## Deployment
+
+Deployment is automatic, through `.github/workflows/deploy-docs.yml`, and always rebuilds the whole site:
+
+- `ci.yml` calls it on every merge to `main`, once the preview package is on nuget.org, so the preview
+  documentation always describes a package that can be installed.
+- `release.yml` calls it after a stable release, on the release tag, whose commit carries the new snapshot.
+
+Each deployment writes `deployment.json` at the root of the site, and the next one reads it back: when the live
+site was built from a descendant of the commit about to be deployed — two merges whose CI finished out of
+order — the older deployment stands down instead of rolling the preview back. There is no `deploy` script here —
+the site is not pushed to a `gh-pages` branch by hand.

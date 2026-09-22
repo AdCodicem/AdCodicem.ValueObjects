@@ -12,7 +12,6 @@ const sidebars: SidebarsConfig = {
     'entity-identifiers',
     'testing',
     'benchmarks',
-    'contributing',
     {
       type: 'category',
       label: 'API reference',
