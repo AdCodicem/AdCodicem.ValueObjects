@@ -14,6 +14,18 @@ previews. The reasoning and the measurements are in
 Run **Actions → release → Run workflow** with `dry_run` ticked and read the version it computes before running
 it for real. Publishing to nuget.org cannot be undone — a package can be delisted, never unpublished.
 
+A real run also freezes the documentation. It commits `website/versioned_docs/` along with the changelog, then
+redeploys the site from the new tag ([ADR-0005](adr/0005-version-the-documentation-site.md)). The dry run
+skips that step, like every other prepare step, so the first stable release is the first time it runs on a
+runner. After the first real release, check four things on the site:
+- `/docs/` names the new line in the version selector, for example `0.2.x (0.2.0)`;
+- the **Preview** button leads to `/docs/preview/`;
+- the "no stable release yet" bar is gone;
+- the release commit contains `website/versioned_docs/version-<line>/api/`.
+
+If the snapshot step fails, semantic-release stops before publishing anything, so the fix is to correct it and
+dispatch again.
+
 ## GitHub settings
 
 | Setting | Where | Without it |
@@ -23,6 +35,7 @@ it for real. Publishing to nuget.org cannot be undone — a package can be delis
 | Allow GitHub Actions to create and approve pull requests | Settings → Actions → General | Not needed for auto-merge, but required if a workflow is ever made to open PRs. |
 | Discussions | Settings → General → Features | `.github/DISCUSSION_TEMPLATE/q-a.yml` and the issue-template link to Discussions go nowhere. |
 | Pages source: GitHub Actions | Settings → Pages | `deploy-docs.yml` uploads an artifact that is never served. |
+| `github-pages` environment limited to `main` (the default) | Settings → Environments | Nothing breaks, but a `deploy docs` dispatched from another branch could replace the live site. Every deployment this repository makes runs from `main`: `ci.yml` on push, `release.yml` dispatched there. |
 | Code scanning: **default setup**, left enabled | Settings → Code security → Code scanning | This repository uses CodeQL's default setup. There is deliberately no `codeql.yml`: an advanced configuration cannot upload its results while default setup is on — GitHub rejects the SARIF with *"CodeQL analyses from advanced configurations cannot be processed when the default setup is enabled"*. Only add a workflow if you first disable default setup, and only if you need something it cannot do (custom query packs, or a manual build for a solution autobuild cannot handle). |
 | GitHub Sponsors | Account settings | `.github/FUNDING.yml` has no effect. |
 
