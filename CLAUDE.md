@@ -162,8 +162,9 @@ These are all load-bearing, and each cost real debugging time:
   pin without one falls out of the `actions` group and may auto-merge as a non-major. Three of the sixteen
   actions publish *annotated* tags — `codecov/codecov-action`, `ossf/scorecard-action`, `github/codeql-action` —
   so re-pinning by hand needs `git ls-remote <repo> 'refs/tags/vX.Y.Z^{}'`: without the `^{}` you get the tag
-  object's SHA, which GitHub refuses to resolve. `release.yml`'s call to `./.github/workflows/deploy-docs.yml`
-  is a local reusable workflow and must stay unpinned; GitHub rejects `@ref` on one.
+  object's SHA, which GitHub refuses to resolve. The calls from `ci.yml` and `release.yml` to
+  `./.github/workflows/deploy-docs.yml` target a local reusable workflow and must stay unpinned; GitHub rejects
+  `@ref` on one.
 - **NuGet lock files are deliberately absent**, and adding them breaks CI on the first run:
   `src/Directory.Build.props` references `Microsoft.SourceLink.GitHub` under
   `Condition="'$(GITHUB_ACTIONS)' == 'true'"`, so the package graph on a laptop is not the graph on the runner
