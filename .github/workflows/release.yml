@@ -36,7 +36,8 @@ jobs:
       # Exchanged for a short-lived nuget.org API key.
       id-token: write
     outputs:
-      released: ${{ steps.semantic.outcome == 'success' && !inputs.dry_run }}
+      released: ${{ steps.released.outputs.tag != '' }}
+      tag: ${{ steps.released.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -86,12 +87,29 @@ jobs:
         with:
           user: AdCodicem
 
+      # Its prepare step also freezes website/docs/ as this release's
+      # documentation (.github/scripts/docs-snapshot.sh), which needs the DocFX
+      # tool, python3 and the site's npm packages -- all available on the runner
+      # or installed by the script.
       - name: semantic-release
         id: semantic
         run: npx semantic-release ${{ inputs.dry_run && '--dry-run' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+
+      # semantic-release commits the changelog and the documentation snapshot,
+      # then tags that commit, so a stable tag at HEAD is the release to
+      # document. Without one there was nothing to release, and the site keeps
+      # what it has.
+      - name: Released tag
+        id: released
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          tag="$(git tag --points-at HEAD --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          echo "Released tag: ${tag:-none}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -100,8 +118,9 @@ jobs:
           path: artifacts/packages/*.*nupkg
           if-no-files-found: ignore
 
-  # The site carries the version-specific documentation, so a release that does
-  # not redeploy it leaves the published docs describing the previous version.
+  # The new snapshot only exists in the release commit, and the workflow was
+  # dispatched from the commit before it, so the build is pointed at the tag:
+  # without it the site would be rebuilt without the version just released.
   docs:
     name: publish documentation
     needs: release
@@ -111,3 +130,5 @@ jobs:
       pages: write
       id-token: write
     uses: ./.github/workflows/deploy-docs.yml
+    with:
+      ref: ${{ needs.release.outputs.tag }}

@@ -159,3 +159,16 @@ jobs:
           --api-key "${{ steps.login.outputs.NUGET_API_KEY }}"
           --source https://api.nuget.org/v3/index.json
           --skip-duplicate
+
+  # The preview documentation follows the preview package: redeployed once the
+  # package is on nuget.org, and not at all when the push above fails, so the
+  # site never describes a preview nobody can install. Stable documentation is
+  # frozen by release.yml and only rebuilt here, unchanged.
+  docs:
+    name: publish preview documentation
+    needs: preview
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy-docs.yml
