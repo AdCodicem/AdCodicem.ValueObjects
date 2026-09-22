@@ -95,7 +95,10 @@ public class PropertyTests
         (3, Gen.Select(ElectronicIbans, text => (string?)text)),
         (2, Gen.Select(IbanSpellings, spelling => (string?)spelling.AsWritten)),
         (3, Gen.Select(Emails, text => (string?)text)),
-        (3, Gen.Select(CountryCodeSpellings, text => (string?)text)),
+        // Weighted above the others: only 6 of CountryCodeSpellings' 11 elements are known values, so at
+        // equal weight the closed-set law's accepted count landed within a standard deviation of its own
+        // threshold and flaked on CI (observed: 48 and 49 against a >50 bound, over 500 trials).
+        (6, Gen.Select(CountryCodeSpellings, text => (string?)text)),
     ]));
 
     /// <summary>
