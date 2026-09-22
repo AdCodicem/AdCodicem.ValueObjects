@@ -14,11 +14,11 @@ const example = `[ValueObject<string>(
     MaxLength = 34,
     Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
     SchemaFormat = "iban")]
-public readonly partial struct Iban
+public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectValidator<string>
 {
-    private static string NormalizeCore(string value) => /* strip separators, upper-case */;
+    public static string NormalizeValue(string value) => /* strip separators, upper-case */;
 
-    private static ValidationResult ValidateCore(in string value)
+    public static ValidationResult ValidateValue(in string value)
         => HasValidCheckDigits(value)
             ? ValidationResult.Success
             : ValidationResult.InvalidFormat("The IBAN check digits are incorrect.");
