@@ -10,9 +10,11 @@ as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-strin
 wrapper. Consumers define their own value objects; this repository ships the frame.
 
 Read `README.md` for the authoring surface and `benchmarks/README.md` for the measurements behind the design
-decisions. The published documentation (`website/`, deployed from `main`) reorganises this same material into a
-narrative site — edit the source of truth first (README, this file, the benchmark numbers), then the
-corresponding page under `website/docs/`.
+decisions. The published documentation (`website/`) reorganises this same material into a narrative site — edit
+the source of truth first (README, this file, the benchmark numbers), then the corresponding page under
+`website/docs/`. The site is versioned: `website/docs/` is the preview and describes `main`, while
+`website/versioned_docs/` holds what each stable line was released with (see Releases below). A change to
+`website/docs/` therefore reaches the stable pages at the next release, not before.
 
 `skills/value-objects/` is the consumer-facing agent skill, distributed as a Claude Code plugin through
 `.claude-plugin/`. It is prescriptive only — the authoring surface, the hooks, the wiring, the diagnostics — and
@@ -71,6 +73,15 @@ steps aside. Both read the same `v*` tags.
 So nothing you merge publishes a stable package, and a commit type that triggers no release (`chore`, `ci`,
 `test`) also contributes nothing to the next version. The reasoning, and what it costs, is in
 `docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md`.
+
+The documentation follows the same two tracks (`docs/adr/0005-version-the-documentation-site.md`). Every
+preview redeploys the site, with `website/docs/` as the preview under `/docs/preview/`. A stable release
+freezes `website/docs/` — generated API reference included — into `website/versioned_docs/` through
+`.github/scripts/docs-snapshot.sh`, which semantic-release runs in its prepare step and commits with the
+changelog. There is one entry per line, `0.<minor>.x` before 1.0 and `<major>.x` after, replaced wholesale when
+the line ships again. Never add or remove an entry by hand. Editing a released page is allowed only to correct
+an error that misleads users of that release, and the same fix must land in `website/docs/`, or the next
+snapshot of the line discards it.
 
 `v0.1.0` is a baseline tag placed by hand, not a release: no `0.1.0` package exists. semantic-release ignores
 prerelease tags on a stable branch, so without it the first stable release would have been `1.0.0`.
@@ -187,7 +198,9 @@ Three suites, each with a distinct job:
   `README.md` and `website/docs/` — so a snippet that stops generating, or that trips `VO0011`, fails the build.
   A skill snippet must compile outright; a README or site snippet is prose and may elide a body, so only the
   declaration the generator sees is held to account. Tag a block ```` ```csharp skip ```` when it is a wiring or
-  usage fragment rather than a declaration.
+  usage fragment rather than a declaration. The homepage example is covered too, because it lives in the partial
+  `website/docs/_homepage-example.md` rather than in the TSX. `website/versioned_docs/` is deliberately out of
+  scope: those snapshots describe older releases, not the current generator.
 - **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
   objects reach the column types they claim, plus the API surface end to end.
 
