@@ -88,6 +88,11 @@ next release, not before. Until the first stable release exists, `/docs/` serves
 The release workflow writes `versioned_docs/`, `versioned_sidebars/`, `versions.json` and
 `released-versions.json`; nothing else should add or remove an entry.
 
+The navbar, the footer and the homepage are not versioned, but their links to `/docs/<page>` go to the latest
+stable line. Renaming or removing one of those pages therefore breaks the build, which fails on a broken link. It
+breaks straight away if the link changes in the same pull request, and at the next release if it does not. Such a
+rename needs a client redirect.
+
 ### Correcting a released version
 
 An error in the stable documentation can be corrected before the next release when it would mislead someone

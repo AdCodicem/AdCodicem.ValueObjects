@@ -2,7 +2,8 @@
   The example on the homepage. It lives here rather than in src/pages/index.tsx so that it is frozen with the
   rest of the documentation at each stable release, which lets the homepage show the latest stable version's
   code, and so that DocumentationSnippetTests checks it like every other published snippet.
-  docusaurus.config.ts resolves it by this file name: keep the two in step.
+  docusaurus.config.ts resolves it by this file name in the latest snapshot, so renaming it breaks the build until
+  a release carries the new name.
 -->
 
 ```csharp

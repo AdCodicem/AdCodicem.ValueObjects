@@ -47,7 +47,8 @@ correct a released page as described on the [Contributing](src/pages/contributin
 a version. Two things there are worth knowing:
 
 - **The preview label comes from the build environment.** `DOCS_PREVIEW_VERSION` is set by `deploy-docs.yml`
-  from MinVer, so the preview reads `Preview (0.4.0-preview.0.12)`. A local build without it reads `Preview`.
+  from MinVer, so twelve commits after `v0.3.2` the preview reads `Preview (0.3.3-preview.0.12)`. A local build
+  without it reads `Preview`.
 - **The homepage example is a partial**, `docs/_homepage-example.md`. It is frozen with the rest of the docs, and
   the `homepage-example` plugin points the homepage at the copy in the latest stable snapshot, so the homepage
   shows the code of the package `dotnet add package` installs.
@@ -55,13 +56,21 @@ a version. Two things there are worth knowing:
 `contributing` is a plain page under `src/pages/`, not a doc: it describes how to work on `main`, so a copy frozen
 in each version would only go stale.
 
-To try the versioned layout locally, run the snapshot script for a made-up version and discard what it writes
-afterwards (it needs `python3` for the DocFX post-processing):
+The `/docs/<page>` links in the navbar, the footer and on the homepage are not versioned, and after the first
+release they resolve against the latest stable line. So renaming or removing one of those pages fails the build:
+straight away if the link changes with it, at the next release otherwise. A rename needs a client redirect.
+
+To try the versioned layout locally, run the snapshot script in a throwaway worktree rather than in your
+checkout. It writes the same files the release commits, and for a version in a line that already exists it
+replaces that line's real snapshot. It needs `python3` for the DocFX post-processing.
 
 ```bash
-../.github/scripts/docs-snapshot.sh 0.9.0
-npm run build
-rm -rf versioned_docs versioned_sidebars versions.json released-versions.json
+git worktree add ../docs-try HEAD
+cd ../docs-try/website
+npm ci
+../.github/scripts/docs-snapshot.sh 0.99.0
+npm run build && npm run serve
+cd - && git worktree remove --force ../docs-try
 ```
 
 ## Deployment
@@ -72,7 +81,8 @@ Deployment is automatic, through `.github/workflows/deploy-docs.yml`, and always
   documentation always describes a package that can be installed.
 - `release.yml` calls it after a stable release, on the release tag, whose commit carries the new snapshot.
 
-Each deployment writes `deployment.json` at the root of the site, and the next one reads it back: when the live
-site was built from a descendant of the commit about to be deployed — two merges whose CI finished out of
-order — the older deployment stands down instead of rolling the preview back. There is no `deploy` script here —
-the site is not pushed to a `gh-pages` branch by hand.
+Deployments queue in the `pages` concurrency group (`queue: max`), in the order they arrive, and none is
+dropped. Each one writes `deployment.json` at the root of the site, and the next one reads it back. When the
+live site was built from a descendant of the commit about to be deployed, the older deployment stands down
+instead of rolling the preview back. That happens when two merges' CI runs finish out of order. There is no
+`deploy` script here: the site is never pushed to a `gh-pages` branch by hand.

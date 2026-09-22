@@ -36,10 +36,14 @@ const editRoot = 'https://github.com/AdCodicem/AdCodicem.ValueObjects/edit/main/
 // what the site serves by default anyway.
 function homepageExample(): Plugin {
   const partial = '_homepage-example.md';
-  const stable = hasStable
+  const source = hasStable
     ? path.join(__dirname, 'versioned_docs', `version-${stableLines[0]}`, partial)
-    : undefined;
-  const source = stable && fs.existsSync(stable) ? stable : path.join(__dirname, 'docs', partial);
+    : path.join(__dirname, 'docs', partial);
+  // Falling back to docs/ here would quietly put unreleased code on the homepage, which is
+  // exactly what reading the snapshot is for. A renamed partial has to wait for the next release.
+  if (!fs.existsSync(source)) {
+    throw new Error(`The homepage example ${path.relative(__dirname, source)} does not exist.`);
+  }
   return {
     name: 'homepage-example',
     configureWebpack: () => ({resolve: {alias: {'@homepage-example': source}}}),
