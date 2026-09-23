@@ -23,6 +23,13 @@ updates:
     groups:
       semantic-release:
         update-types: ["minor", "patch"]
+    ignore:
+      # Preset 10 renders only with conventional-changelog-writer 9, while the stable
+      # commit-analyzer 13 and release-notes-generator 14 still bundle writer 8: the
+      # release then fails in generateNotes with a "Missing helper" error. Lift this
+      # once those plugins ship a stable major on writer 9.
+      - dependency-name: "conventional-changelog-conventionalcommits"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/website"
