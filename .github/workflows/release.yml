@@ -39,11 +39,28 @@ jobs:
       released: ${{ steps.released.outputs.tag != '' }}
       tag: ${{ steps.released.outputs.tag }}
     steps:
+      # The ruleset on main rejects direct pushes, and its bypass list takes roles,
+      # teams, apps and deploy keys but never this job's GITHUB_TOKEN. The release
+      # commit is therefore pushed as a GitHub App on that bypass list. Its key is a
+      # secret of the nuget-stable environment, so it is only readable after the
+      # required reviewer has approved the run. docs/maintaining.md has the setup.
+      - name: Release token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # semantic-release reads the whole tag history to find the last release.
           fetch-depth: 0
-          # Left in place so @semantic-release/git can push the changelog commit.
+          # Checked out with the App's token and left in place, so the credentials
+          # git uses for @semantic-release/git's push are the ones allowed to bypass.
+          token: ${{ steps.app-token.outputs.token }}
           persist-credentials: true
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -95,7 +112,7 @@ jobs:
         id: semantic
         run: npx semantic-release ${{ inputs.dry_run && '--dry-run' || '' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
 
       # semantic-release commits the changelog and the documentation snapshot,

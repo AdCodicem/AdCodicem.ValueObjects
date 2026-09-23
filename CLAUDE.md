@@ -159,7 +159,7 @@ These are all load-bearing, and each cost real debugging time:
   RS2008 fails the build.
 - **Every action in `.github/workflows` is pinned to a commit SHA**, with the release as a same-line comment
   (`uses: actions/checkout@3d3c42e... # v7.0.1`). Dependabot reads that comment to derive the semver bump, so a
-  pin without one falls out of the `actions` group and may auto-merge as a non-major. Three of the sixteen
+  pin without one falls out of the `actions` group and may auto-merge as a non-major. Three of the seventeen
   actions publish *annotated* tags — `codecov/codecov-action`, `ossf/scorecard-action`, `github/codeql-action` —
   so re-pinning by hand needs `git ls-remote <repo> 'refs/tags/vX.Y.Z^{}'`: without the `^{}` you get the tag
   object's SHA, which GitHub refuses to resolve. The calls from `ci.yml` and `release.yml` to
