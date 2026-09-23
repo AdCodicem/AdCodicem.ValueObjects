@@ -41,8 +41,21 @@ since the snapshot is on `main` by then.
 | Code scanning: **default setup**, left enabled | Settings → Code security → Code scanning | This repository uses CodeQL's default setup. There is deliberately no `codeql.yml`: an advanced configuration cannot upload its results while default setup is on — GitHub rejects the SARIF with *"CodeQL analyses from advanced configurations cannot be processed when the default setup is enabled"*. Only add a workflow if you first disable default setup, and only if you need something it cannot do (custom query packs, or a manual build for a solution autobuild cannot handle). |
 | GitHub Sponsors | Account settings | `.github/FUNDING.yml` has no effect. |
 
-`@semantic-release/git` pushes the changelog commit to `main`. If `main` is protected, either allow the
-`github-actions[bot]` actor to bypass the rule, or give `release.yml` a token that can.
+`@semantic-release/git` pushes the changelog commit and the tag to `main`, which the ruleset on `main` rejects
+(*"GH013: Changes must be made through a pull request"*). A ruleset's bypass list takes repository roles,
+teams, GitHub Apps and deploy keys, but not the `GITHUB_TOKEN` a workflow runs with, so `release.yml` pushes
+as a dedicated GitHub App instead:
+
+1. Create a GitHub App (Settings → Developer settings → GitHub Apps → New), with no webhook, repository
+   permissions **Contents**, **Issues** and **Pull requests** set to *Read and write*, installable on this
+   account only. Generate a private key.
+2. Install it on this repository only.
+3. Add the App to the bypass list of the ruleset on `main` (Settings → Rules → Rulesets), mode *Always allow*.
+4. On the `nuget-stable` environment, add the variable `RELEASE_APP_CLIENT_ID` (the App's Client ID) and the
+   secret `RELEASE_APP_PRIVATE_KEY` (the whole `.pem`). Keeping them on the environment rather than the
+   repository means the key is only readable once the required reviewer has approved the run.
+
+Without them the release stops at its first step, before anything is built or published.
 
 ## Supply chain and the OpenSSF scorecard
 
@@ -71,6 +84,7 @@ mistakes cannot be undone, so it belongs in its own piece of work rather than in
 | **NuGet trusted publisher** — add GitHub owner `AdCodicem`, this repository, and workflow `ci.yml` **and** `release.yml` | nuget.org → each package → Manage → Trusted Publishers | The OIDC exchange in `ci.yml` (previews) and `release.yml` (stable). No stored API key. |
 | **`nuget` environment** — no protection rules | Settings → Environments | `ci.yml`'s preview job targets it. Adding a required reviewer here would gate every merge's preview too, not just stable releases -- use `nuget-stable` for that instead. |
 | **`nuget-stable` environment** — required reviewer(s) | Settings → Environments | `release.yml`'s release job targets it. This is the approval gate: `workflow_dispatch` starts the job, but it waits for a reviewer before the OIDC exchange and `npx semantic-release` run. |
+| `RELEASE_APP_CLIENT_ID` (variable) and `RELEASE_APP_PRIVATE_KEY` (secret) on `nuget-stable` | Settings → Environments → `nuget-stable` | `release.yml`, to push the release commit and tag past the ruleset on `main` as a GitHub App. See [Repository settings](#github-settings) for creating the App. |
 | `CODECOV_TOKEN` | codecov.io → link the repository, then Settings → Secrets → Actions | The coverage upload in `ci.yml`. It is set to `fail_ci_if_error: false`, so without the token CI stays green and coverage is simply missing. |
 
 The trusted publisher has to name **both** workflows: `ci.yml` pushes previews on every merge, `release.yml`
