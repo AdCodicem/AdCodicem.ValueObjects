@@ -70,6 +70,11 @@ version from the Conventional Commits, writes `CHANGELOG.md`, packs, pushes, tag
 bridge between the two is `MINVERVERSIONOVERRIDE`: semantic-release hands MinVer the stable version and MinVer
 steps aside. Both read the same `v*` tags.
 
+The GitHub Release links every package to its version on nuget.org. That list is never written down:
+`.github/scripts/package-ids.sh` evaluates the packable projects under `src/` into `RELEASE_PACKAGE_IDS` before
+semantic-release starts (the release body is rendered from that starting environment, so a prepare step cannot
+feed it), and `release-pack.sh` fails the run before the push if the packages it built differ from that list.
+
 So nothing you merge publishes a stable package, and a commit type that triggers no release (`chore`, `ci`,
 `test`) also contributes nothing to the next version. The reasoning, and what it costs, is in
 `docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md`.

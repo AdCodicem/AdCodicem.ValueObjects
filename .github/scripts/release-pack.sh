@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Packs every publishable project at the version semantic-release computed.
+# Packs every publishable project at the version semantic-release computed, and
+# checks the packages against the list the release notes link to.
 #
 # Usage: release-pack.sh <next-version> <release-type> [last-version]
 #
@@ -51,3 +52,24 @@ if ! ls "artifacts/packages/AdCodicem.ValueObjects.${next_version}.nupkg" >/dev/
   ls -1 artifacts/packages/ >&2 || true
   exit 1
 fi
+
+# The GitHub Release links every package in RELEASE_PACKAGE_IDS to nuget.org
+# (see release.yml and .releaserc.json). That list comes from evaluating the
+# projects before semantic-release starts, so check it against what was packed:
+# a mismatch would publish a release whose links 404, or that omits a package.
+# Failing here, in the prepare step, stops the run before anything is pushed.
+if [[ -z "${RELEASE_PACKAGE_IDS:-}" ]]; then
+  echo "::error::RELEASE_PACKAGE_IDS is not set; the release notes would carry no nuget.org links. Run .github/scripts/package-ids.sh first." >&2
+  exit 1
+fi
+expected="$(tr -s ' ' '\n' <<<"$RELEASE_PACKAGE_IDS" | sed '/^$/d' | LC_ALL=C sort -u)"
+packed="$(for package in artifacts/packages/*."${next_version}".nupkg; do
+  name="$(basename "$package")"
+  echo "${name%."${next_version}".nupkg}"
+done | LC_ALL=C sort -u)"
+if [[ "$expected" != "$packed" ]]; then
+  echo "::error::The packed packages do not match RELEASE_PACKAGE_IDS." >&2
+  diff <(echo "$expected") <(echo "$packed") >&2 || true
+  exit 1
+fi
+echo "Packed $(wc -l <<<"$packed") packages, matching RELEASE_PACKAGE_IDS."

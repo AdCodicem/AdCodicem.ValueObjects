@@ -28,6 +28,14 @@ dispatch again. If the release is published but its **publish documentation** jo
 jobs** on that run: it keeps the tag the release job computed. Dispatching **deploy docs** from `main` works too,
 since the snapshot is on `main` by then.
 
+The GitHub Release ends with a table linking each package to its version page on nuget.org, and carries the
+`.nupkg` and `.snupkg` files as assets. The table is not written by hand: `.github/scripts/package-ids.sh` reads
+every packable project under `src/` before semantic-release starts, and `release-pack.sh` fails the prepare
+step, before anything is pushed, if that list does not match the packages it built. The links can answer 404
+for a few minutes after the release, until nuget.org has indexed the push. In the other direction, each
+package's release notes on nuget.org point to its GitHub Release, or to `CHANGELOG.md` for a preview, which has
+no release of its own (`src/Directory.Build.props`).
+
 ## GitHub settings
 
 | Setting | Where | Without it |
@@ -74,7 +82,7 @@ or in another service and cannot be fixed by a commit.
 Two checks stay low on purpose. `Code-Review` counts changesets approved by someone other than their author,
 which a single maintainer cannot honestly produce — auto-approving pull requests with a bot would move the
 number without moving the thing it measures. `Signed-Releases` needs signatures or SLSA provenance attached to
-the GitHub Release assets; it is worth doing, but it is a change to `release.yml`, the one workflow whose
+the GitHub Release assets. The packages are attached, but unsigned; signing them is worth doing, but it is a change to `release.yml`, the one workflow whose
 mistakes cannot be undone, so it belongs in its own piece of work rather than in a hardening sweep.
 
 ## Secrets and external services
