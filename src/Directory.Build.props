@@ -25,6 +25,18 @@
     <None Include="$(MSBuildThisFileDirectory)../icon.png" Pack="true" PackagePath="/" />
   </ItemGroup>
 
+  <!--
+    Release notes on nuget.org point back to GitHub. A stable package links to its own GitHub Release, which
+    semantic-release creates with the tag right after the push. A preview has no release of its own, so it links
+    to the changelog. The version is only known once MinVer has run, hence a target rather than a property.
+  -->
+  <Target Name="_SetPackageReleaseNotes" AfterTargets="MinVer">
+    <PropertyGroup>
+      <PackageReleaseNotes Condition="'$(MinVerPreRelease)' == ''">$(RepositoryUrl)/releases/tag/v$(PackageVersion)</PackageReleaseNotes>
+      <PackageReleaseNotes Condition="'$(MinVerPreRelease)' != ''">$(RepositoryUrl)/blob/main/CHANGELOG.md</PackageReleaseNotes>
+    </PropertyGroup>
+  </Target>
+
   <ItemGroup>
     <InternalsVisibleTo Include="$(AssemblyName).UnitTests" />
     <InternalsVisibleTo Include="$(AssemblyName).IntegrationTests" />
