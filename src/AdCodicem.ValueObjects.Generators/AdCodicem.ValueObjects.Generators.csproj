@@ -18,12 +18,11 @@
     <NoWarn>$(NoWarn);CA1062;CA1848;CA1305;CA1307;CA1310;CA1002;CA1819;CA1812</NoWarn>
   </PropertyGroup>
 
-  <ItemGroup>
-    <!-- Release tracking keeps the published diagnostic identifiers under review. -->
-    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
-    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
-  </ItemGroup>
-
+  <!--
+    Release tracking keeps the published diagnostic identifiers under review. AnalyzerReleases.Shipped.md and
+    AnalyzerReleases.Unshipped.md are picked up as AdditionalFiles by Microsoft.CodeAnalysis.Analyzers itself;
+    declaring them here as well makes the build warn about duplicate source files.
+  -->
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
