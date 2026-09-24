@@ -1,0 +1,174 @@
+### YamlMime:TableOfContent
+- name: AdCodicem.ValueObjects
+  href: AdCodicem.ValueObjects.md
+  items:
+  - name: Classes
+  - name: UnderlyingValue
+    href: AdCodicem.ValueObjects.UnderlyingValue.md
+  - name: ValueObjectErrorCodes
+    href: AdCodicem.ValueObjects.ValueObjectErrorCodes.md
+  - name: ValueObjectException
+    href: AdCodicem.ValueObjects.ValueObjectException.md
+  - name: Structs
+  - name: ValidationResult
+    href: AdCodicem.ValueObjects.ValidationResult.md
+  - name: Interfaces
+  - name: INumericValueObject<TSelf, TValue>
+    href: AdCodicem.ValueObjects.INumericValueObject-2.md
+  - name: IValueObject
+    href: AdCodicem.ValueObjects.IValueObject.md
+  - name: IValueObject<TSelf, TValue>
+    href: AdCodicem.ValueObjects.IValueObject-2.md
+  - name: IValueObject<TValue>
+    href: AdCodicem.ValueObjects.IValueObject-1.md
+  - name: IValueObjectFormatter<TValue>
+    href: AdCodicem.ValueObjects.IValueObjectFormatter-1.md
+  - name: IValueObjectNormalizer<TValue>
+    href: AdCodicem.ValueObjects.IValueObjectNormalizer-1.md
+  - name: IValueObjectSpanNormalizer
+    href: AdCodicem.ValueObjects.IValueObjectSpanNormalizer.md
+  - name: IValueObjectStringFormatter<TValue>
+    href: AdCodicem.ValueObjects.IValueObjectStringFormatter-1.md
+  - name: IValueObjectValidator<TValue>
+    href: AdCodicem.ValueObjects.IValueObjectValidator-1.md
+- name: AdCodicem.ValueObjects.Annotations
+  href: AdCodicem.ValueObjects.Annotations.md
+  items:
+  - name: Classes
+  - name: KnownValueAttribute
+    href: AdCodicem.ValueObjects.Annotations.KnownValueAttribute.md
+  - name: ValueObjectAttribute<TValue>
+    href: AdCodicem.ValueObjects.Annotations.ValueObjectAttribute-1.md
+  - name: Enums
+  - name: ValueSetKind
+    href: AdCodicem.ValueObjects.Annotations.ValueSetKind.md
+- name: AdCodicem.ValueObjects.AspNetCore
+  href: AdCodicem.ValueObjects.AspNetCore.md
+  items:
+  - name: Classes
+  - name: ValueObjectMvcExtensions
+    href: AdCodicem.ValueObjects.AspNetCore.ValueObjectMvcExtensions.md
+  - name: ValueObjectProblemDetails
+    href: AdCodicem.ValueObjects.AspNetCore.ValueObjectProblemDetails.md
+- name: AdCodicem.ValueObjects.AspNetCore.ModelBinding
+  href: AdCodicem.ValueObjects.AspNetCore.ModelBinding.md
+  items:
+  - name: Classes
+  - name: ValueObjectModelBinder<TSelf, TValue>
+    href: AdCodicem.ValueObjects.AspNetCore.ModelBinding.ValueObjectModelBinder-2.md
+  - name: ValueObjectModelBinderProvider
+    href: AdCodicem.ValueObjects.AspNetCore.ModelBinding.ValueObjectModelBinderProvider.md
+- name: AdCodicem.ValueObjects.Dapper
+  href: AdCodicem.ValueObjects.Dapper.md
+  items:
+  - name: Classes
+  - name: ValueObjectDapper
+    href: AdCodicem.ValueObjects.Dapper.ValueObjectDapper.md
+  - name: ValueObjectTypeHandler<TSelf, TValue>
+    href: AdCodicem.ValueObjects.Dapper.ValueObjectTypeHandler-2.md
+- name: AdCodicem.ValueObjects.EntityFrameworkCore
+  href: AdCodicem.ValueObjects.EntityFrameworkCore.md
+  items:
+  - name: Classes
+  - name: StrictValueObjectConverter<TSelf, TValue>
+    href: AdCodicem.ValueObjects.EntityFrameworkCore.StrictValueObjectConverter-2.md
+  - name: ValueObjectComparer<TSelf>
+    href: AdCodicem.ValueObjects.EntityFrameworkCore.ValueObjectComparer-1.md
+  - name: ValueObjectConventionExtensions
+    href: AdCodicem.ValueObjects.EntityFrameworkCore.ValueObjectConventionExtensions.md
+  - name: ValueObjectConverter<TSelf, TValue>
+    href: AdCodicem.ValueObjects.EntityFrameworkCore.ValueObjectConverter-2.md
+- name: AdCodicem.ValueObjects.FluentValidation
+  href: AdCodicem.ValueObjects.FluentValidation.md
+  items:
+  - name: Classes
+  - name: ValueObjectRuleBuilderExtensions
+    href: AdCodicem.ValueObjects.FluentValidation.ValueObjectRuleBuilderExtensions.md
+- name: AdCodicem.ValueObjects.Identifiers
+  href: AdCodicem.ValueObjects.Identifiers.md
+  items:
+  - name: Classes
+  - name: AnyEntityIdJsonConverter
+    href: AdCodicem.ValueObjects.Identifiers.AnyEntityIdJsonConverter.md
+  - name: AnyEntityIdTypeConverter
+    href: AdCodicem.ValueObjects.Identifiers.AnyEntityIdTypeConverter.md
+  - name: CrockfordBase32
+    href: AdCodicem.ValueObjects.Identifiers.CrockfordBase32.md
+  - name: EntityIdAttribute
+    href: AdCodicem.ValueObjects.Identifiers.EntityIdAttribute.md
+  - name: EntityIdDescriptor
+    href: AdCodicem.ValueObjects.Identifiers.EntityIdDescriptor.md
+  - name: EntityIdFormat
+    href: AdCodicem.ValueObjects.Identifiers.EntityIdFormat.md
+  - name: EntityIdPrefix
+    href: AdCodicem.ValueObjects.Identifiers.EntityIdPrefix.md
+  - name: EntityIdRegistry
+    href: AdCodicem.ValueObjects.Identifiers.EntityIdRegistry.md
+  - name: IdCheckCharacter
+    href: AdCodicem.ValueObjects.Identifiers.IdCheckCharacter.md
+  - name: IdEntropySource
+    href: AdCodicem.ValueObjects.Identifiers.IdEntropySource.md
+  - name: IdentifierErrorCodes
+    href: AdCodicem.ValueObjects.Identifiers.IdentifierErrorCodes.md
+  - name: ValueObjectIds
+    href: AdCodicem.ValueObjects.Identifiers.ValueObjectIds.md
+  - name: Structs
+  - name: AnyEntityId
+    href: AdCodicem.ValueObjects.Identifiers.AnyEntityId.md
+  - name: Interfaces
+  - name: IEntityId
+    href: AdCodicem.ValueObjects.Identifiers.IEntityId.md
+  - name: IEntityId<TSelf>
+    href: AdCodicem.ValueObjects.Identifiers.IEntityId-1.md
+  - name: Enums
+  - name: IdGranularity
+    href: AdCodicem.ValueObjects.Identifiers.IdGranularity.md
+- name: AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore
+  href: AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.md
+  items:
+  - name: Classes
+  - name: EntityIdConventionExtensions
+    href: AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.EntityIdConventionExtensions.md
+  - name: IdCollations
+    href: AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.IdCollations.md
+- name: AdCodicem.ValueObjects.Json
+  href: AdCodicem.ValueObjects.Json.md
+  items:
+  - name: Classes
+  - name: JsonSerializerOptionsExtensions
+    href: AdCodicem.ValueObjects.Json.JsonSerializerOptionsExtensions.md
+  - name: ValueObjectJsonConverter<TSelf, TValue>
+    href: AdCodicem.ValueObjects.Json.ValueObjectJsonConverter-2.md
+  - name: ValueObjectJsonConverterFactory
+    href: AdCodicem.ValueObjects.Json.ValueObjectJsonConverterFactory.md
+  - name: ValueObjectJsonRegistry
+    href: AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry.md
+- name: AdCodicem.ValueObjects.Metadata
+  href: AdCodicem.ValueObjects.Metadata.md
+  items:
+  - name: Classes
+  - name: ValueObjectDescriptor
+    href: AdCodicem.ValueObjects.Metadata.ValueObjectDescriptor.md
+  - name: ValueObjectRegistry
+    href: AdCodicem.ValueObjects.Metadata.ValueObjectRegistry.md
+  - name: ValueObjectSchema
+    href: AdCodicem.ValueObjects.Metadata.ValueObjectSchema.md
+  - name: Delegates
+  - name: BoxedTryCreate
+    href: AdCodicem.ValueObjects.Metadata.BoxedTryCreate.md
+  - name: BoxedTryParse
+    href: AdCodicem.ValueObjects.Metadata.BoxedTryParse.md
+- name: AdCodicem.ValueObjects.NewtonsoftJson
+  href: AdCodicem.ValueObjects.NewtonsoftJson.md
+  items:
+  - name: Classes
+  - name: ValueObjectConverter
+    href: AdCodicem.ValueObjects.NewtonsoftJson.ValueObjectConverter.md
+- name: AdCodicem.ValueObjects.OpenApi
+  href: AdCodicem.ValueObjects.OpenApi.md
+  items:
+  - name: Classes
+  - name: ValueObjectOpenApiExtensions
+    href: AdCodicem.ValueObjects.OpenApi.ValueObjectOpenApiExtensions.md
+  - name: ValueObjectSchemaTransformer
+    href: AdCodicem.ValueObjects.OpenApi.ValueObjectSchemaTransformer.md
