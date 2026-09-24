@@ -104,6 +104,17 @@ jobs:
         with:
           user: AdCodicem
 
+      # The GitHub Release links each package to its page on nuget.org. Its body
+      # is rendered from the environment semantic-release starts with, so the
+      # list has to exist before it runs; release-pack.sh then checks it against
+      # the packages actually built, before anything is pushed.
+      - name: Package list
+        run: |
+          set -euo pipefail
+          ids="$(.github/scripts/package-ids.sh | paste -sd ' ' -)"
+          echo "Packages: $ids"
+          echo "RELEASE_PACKAGE_IDS=$ids" >> "$GITHUB_ENV"
+
       # Its prepare step also freezes website/docs/ as this release's
       # documentation (.github/scripts/docs-snapshot.sh), which needs the DocFX
       # tool, python3 and the site's npm packages -- all available on the runner
