@@ -29,12 +29,14 @@ jobs** on that run: it keeps the tag the release job computed. Dispatching **dep
 since the snapshot is on `main` by then.
 
 The GitHub Release ends with a table linking each package to its version page on nuget.org, and carries the
-`.nupkg` and `.snupkg` files as assets. The table is not written by hand: `.github/scripts/package-ids.sh` reads
-every packable project under `src/` before semantic-release starts, and `release-pack.sh` fails the prepare
-step, before anything is pushed, if that list does not match the packages it built. The links can answer 404
-for a few minutes after the release, until nuget.org has indexed the push. In the other direction, each
-package's release notes on nuget.org point to its GitHub Release, or to `CHANGELOG.md` for a preview, which has
-no release of its own (`src/Directory.Build.props`).
+`.nupkg` and `.snupkg` files as assets, signed by a SLSA build provenance attestation that the **attest
+provenance** job adds once the release exists (`AdCodicem.ValueObjects.<version>.sigstore.json`). If that job
+fails, use **Re-run failed jobs**: dispatching the release again would find nothing to release and skip it. The
+table is not written by hand: `.github/scripts/package-ids.sh` reads every packable project under `src/` before
+semantic-release starts, and `release-pack.sh` fails the prepare step, before anything is pushed, if that list does
+not match the packages it built. The links can answer 404 for a few minutes after the release, until nuget.org has
+indexed the push. In the other direction, each package's release notes on nuget.org point to its GitHub Release, or
+to `CHANGELOG.md` for a preview, which has no release of its own (`src/Directory.Build.props`).
 
 ## GitHub settings
 
@@ -79,11 +81,13 @@ or in another service and cannot be fixed by a commit.
 | **Weekly `github-actions` Dependabot updates**, left enabled | `.github/dependabot.yml` | Dependabot raises **no security alerts for actions pinned to a SHA**, only for ones on a floating version. The weekly version update is what replaces that alerting, so switching it off silently removes the safety net the pinning depends on. |
 | **Branch protection**, before handing Scorecard a token that can read it | Settings → Rules | The `Branch-Protection` check currently errors and is *excluded from the average*. Giving `scorecards.yml` a `repo_token` with `Administration: Read-only`, or creating an ACTIVE ruleset on `main`, makes it readable — and it then enters the average at the heaviest weight. Its tiers are hard-gated: without "block deletions" and "block force-pushes" nothing above them counts, so enabling the read before the protection exists *lowers* the score rather than raising it. |
 
-Two checks stay low on purpose. `Code-Review` counts changesets approved by someone other than their author,
+One check stays low on purpose. `Code-Review` counts changesets approved by someone other than their author,
 which a single maintainer cannot honestly produce — auto-approving pull requests with a bot would move the
-number without moving the thing it measures. `Signed-Releases` needs signatures or SLSA provenance attached to
-the GitHub Release assets. The packages are attached, but unsigned; signing them is worth doing, but it is a change to `release.yml`, the one workflow whose
-mistakes cannot be undone, so it belongs in its own piece of work rather than in a hardening sweep.
+number without moving the thing it measures.
+
+`Signed-Releases` looks for signatures or SLSA provenance among the GitHub Release assets of the most recent
+releases. Each stable release now attaches a Sigstore provenance bundle, but releases cut before that carry
+none, so the score climbs as new releases replace them rather than all at once.
 
 ## Secrets and external services
 

@@ -74,6 +74,9 @@ The GitHub Release links every package to its version on nuget.org. That list is
 `.github/scripts/package-ids.sh` evaluates the packable projects under `src/` into `RELEASE_PACKAGE_IDS` before
 semantic-release starts (the release body is rendered from that starting environment, so a prepare step cannot
 feed it), and `release-pack.sh` fails the run before the push if the packages it built differ from that list.
+The **attest provenance** job then signs those packages with a Sigstore SLSA provenance attestation and attaches
+the bundle to the release. It attests the release assets, not the nuget.org copies, which nuget.org re-signs
+and whose digest therefore differs.
 
 So nothing you merge publishes a stable package, and a commit type that triggers no release (`chore`, `ci`,
 `test`) also contributes nothing to the next version. The reasoning, and what it costs, is in
@@ -164,7 +167,7 @@ These are all load-bearing, and each cost real debugging time:
   RS2008 fails the build.
 - **Every action in `.github/workflows` is pinned to a commit SHA**, with the release as a same-line comment
   (`uses: actions/checkout@3d3c42e... # v7.0.1`). Dependabot reads that comment to derive the semver bump, so a
-  pin without one falls out of the `actions` group and may auto-merge as a non-major. Three of the seventeen
+  pin without one falls out of the `actions` group and may auto-merge as a non-major. Three of the eighteen
   actions publish *annotated* tags — `codecov/codecov-action`, `ossf/scorecard-action`, `github/codeql-action` —
   so re-pinning by hand needs `git ls-remote <repo> 'refs/tags/vX.Y.Z^{}'`: without the `^{}` you get the tag
   object's SHA, which GitHub refuses to resolve. The calls from `ci.yml` and `release.yml` to

@@ -21,6 +21,23 @@ fix is prepared privately and a GitHub Security Advisory is published alongside
 the patched release, crediting the reporter unless you would rather stay
 anonymous.
 
+## Verifying a release
+
+Every stable release attaches its `.nupkg` and `.snupkg` files to the
+[GitHub Release](https://github.com/AdCodicem/AdCodicem.ValueObjects/releases),
+together with a SLSA build provenance attestation signed through Sigstore. It
+proves which workflow run, at which commit of this repository, built each file:
+
+```sh
+gh attestation verify AdCodicem.ValueObjects.<version>.nupkg --repo AdCodicem/AdCodicem.ValueObjects
+```
+
+Verify the files downloaded from the GitHub Release. The copy nuget.org serves
+carries nuget.org's own repository signature, added after the upload, so its
+digest no longer matches the attestation. To restrict restores to packages
+published by this account on nuget.org instead, use
+`dotnet nuget trust repository nuget.org --owners AdCodicem`.
+
 ## Scope
 
 These packages generate code that runs inside a consumer's application and
