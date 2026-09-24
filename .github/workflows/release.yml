@@ -150,6 +150,58 @@ jobs:
           path: artifacts/packages/*.*nupkg
           if-no-files-found: ignore
 
+  # Signs the released packages with a SLSA build provenance attestation:
+  # keyless, through Sigstore and this run's OIDC token, verifiable with
+  # `gh attestation verify <file> --repo AdCodicem/AdCodicem.ValueObjects`.
+  # The bundle is also attached to the GitHub Release, which is where the
+  # OpenSSF Scorecard Signed-Releases check looks for it.
+  #
+  # It attests the files the release job uploaded, which are byte for byte the
+  # GitHub Release assets. The copies on nuget.org carry nuget.org's repository
+  # signature, added after the push, so their digest differs and they do not
+  # verify against this attestation.
+  #
+  # A job of its own, after the push rather than inside semantic-release: an
+  # action cannot run between semantic-release's steps, and a failure here can
+  # be retried with "Re-run failed jobs" without re-running the release, which
+  # would find nothing left to release and so skip the attestation for good.
+  provenance:
+    name: attest provenance
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      # Uploads the bundle to the GitHub Release.
+      contents: write
+      # Requests the short-lived Sigstore signing certificate.
+      id-token: write
+      # Stores the attestation with the repository.
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-packages
+          path: packages
+
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        id: attest
+        with:
+          subject-path: |
+            packages/*.nupkg
+            packages/*.snupkg
+
+      - name: Attach the attestation to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          asset="AdCodicem.ValueObjects.${TAG#v}.sigstore.json"
+          cp "$BUNDLE" "$asset"
+          gh release upload "$TAG" "$asset" --repo "$GITHUB_REPOSITORY" --clobber
+
   # The new snapshot only exists in the release commit, and the workflow was
   # dispatched from the commit before it, so the build is pointed at the tag:
   # without it the site would be rebuilt without the version just released.
