@@ -88,8 +88,12 @@ public class AnyEntityIdTests
     {
         // The distinction matters: one is "I have never heard of this kind of thing", the other is "I know
         // exactly what this is and it is damaged". A caller cannot write a useful message without it.
+        //
+        // The replacement has to be a canonical, lower-case symbol. An upper-case one is folded back down by
+        // normalization, so whenever the check character already was that letter — one run in 32 — the
+        // "corrupt" text normalized to the original identifier and parsed.
         var value = AccountId.New().Value;
-        var corrupted = string.Concat(value.AsSpan(0, value.Length - 1), value[^1] == 'Z' ? "Y" : "Z");
+        var corrupted = string.Concat(value.AsSpan(0, value.Length - 1), value[^1] == 'z' ? "y" : "z");
 
         AnyEntityId.TryParse(corrupted, null, out _, out var validation).Should().BeFalse();
 
