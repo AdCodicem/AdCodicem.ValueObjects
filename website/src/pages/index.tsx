@@ -23,7 +23,8 @@ function HomepageHeader() {
             </Heading>
             <p className="hero__subtitle">{siteConfig.tagline}</p>
             <p className={styles.heroLede}>
-              Declare the type and its rules once; the framework carries them into JSON, the database, model
+              An IBAN carried as a bare <code>string</code> is validated wherever someone remembered to. Declare
+              the type and its rules once instead; the framework carries them into JSON, the database, model
               binding and the OpenAPI document, so they cannot drift apart.
             </p>
             <div className={styles.buttons}>

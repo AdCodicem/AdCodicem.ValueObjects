@@ -52,7 +52,7 @@ function homepageExample(): Plugin {
 
 const config: Config = {
   title: 'AdCodicem.ValueObjects',
-  tagline: 'Single-value DDD value objects for .NET, with no reflection and no allocation on the paths that matter.',
+  tagline: 'An answer to primitive obsession in .NET: single-value DDD value objects, with no reflection and no allocation on the paths that matter.',
   favicon: 'img/favicon.svg',
 
   future: {
