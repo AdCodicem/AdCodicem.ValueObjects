@@ -31,9 +31,9 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
-    <PackageTags>ddd;value-object;strongly-typed;source-generator;domain-driven-design</PackageTags>
+    <PackageTags>ddd;value-object;strongly-typed;strongly-typed-id;primitive-obsession;source-generator;domain-driven-design</PackageTags>
     <RepositoryUrl>https://github.com/AdCodicem/AdCodicem.ValueObjects</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/AdCodicem/AdCodicem.ValueObjects</PackageProjectUrl>
+    <PackageProjectUrl>https://adcodicem.github.io/AdCodicem.ValueObjects/</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
   </PropertyGroup>

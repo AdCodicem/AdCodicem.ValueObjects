@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects</RootNamespace>
-    <Description>Single-value DDD value objects for .NET. Annotate a readonly partial struct with [ValueObject&lt;T&gt;] and get validation, normalization, parsing, formatting, comparison, JSON and type conversion generated with no reflection and no allocation. This is the package to install.</Description>
+    <Description>An answer to primitive obsession: single-value DDD value objects for .NET. Annotate a readonly partial struct with [ValueObject&lt;T&gt;] and get validation, normalization, parsing, formatting, comparison, JSON and type conversion generated with no reflection and no allocation. This is the package to install.</Description>
     <PackageTags>$(PackageTags);source-generator;analyzer</PackageTags>
 
     <!-- The assembly carries no code of its own: it exists to bundle the contracts with the generator. -->
