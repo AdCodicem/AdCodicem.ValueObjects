@@ -128,6 +128,17 @@ also writes to.
 `maxLength` keyword of the OpenAPI schema. `[KnownValue]` entries become named constants, a frozen membership
 lookup, and the `enum` keyword of the schema.
 
+## Compared with other libraries
+
+Vogen, StronglyTypedId and Thinktecture.Runtime.Extensions generate value objects too, and each is the better
+choice for some projects: an older target framework, a class or an arbitrary underlying type, smart enums and
+unions. What sets this one apart is that a rule declared on the type also reaches the EF Core column and the
+OpenAPI schema, and that a rejection carries a stable error code all the way to the API response.
+[The comparison](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/explanation/comparison) has the
+full table, including where the others are stronger, and
+[the migration guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/migrating) maps each
+library's surface onto this one.
+
 ## Getting started
 
 ```

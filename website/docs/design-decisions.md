@@ -1,7 +1,8 @@
 ---
 title: Design Decisions
-sidebar_label: Design Decisions
+sidebar_label: Design decisions
 slug: /design-decisions
+description: Why a value object is a readonly partial struct, why default is a build error, why rejection is not an exception, and why rules are declared once.
 ---
 
 # Design decisions worth knowing

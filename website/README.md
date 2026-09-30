@@ -3,6 +3,13 @@
 The [documentation site](https://adcodicem.github.io/AdCodicem.ValueObjects/), built with
 [Docusaurus](https://docusaurus.io/). Content lives in `docs/`; the sidebar order is explicit in `sidebars.ts`.
 
+The sidebar is organized by what the reader is doing: **tutorials** to learn (`docs/tutorials/`), **how-to
+guides** to solve one precise problem (`docs/how-to/`), **reference** to look something up (`docs/reference/`),
+**explanation** to understand why (`docs/explanation/`), and a FAQ. The pages that predate that layout stay at
+the root of `docs/` with their original slugs, because the navbar, the footer and the README link to them. A
+new page goes in the folder of its kind, and every page carries a `description` in its front matter: it is the
+page's meta description, and its summary in `llms.txt`.
+
 ```bash
 npm ci
 npm run docs:api    # generate docs/api/ from the XML doc comments in ../src (needs the .NET SDK)
