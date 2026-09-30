@@ -72,7 +72,7 @@ function llmsTxt(): Plugin {
         const [, frontMatter = '', body = source] = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(source) ?? [];
         const field = (name: string) =>
           new RegExp(`^${name}:\\s*(.+)$`, 'm').exec(frontMatter)?.[1].trim().replace(/^(['"])(.*)\1$/, '$2');
-        const text = body.replace(/<!--[\s\S]*?-->/g, '').trim();
+        const text = body.trim();
         return {
           title: field('title') ?? id,
           url: `${site}docs${field('slug') ?? `/${id}`}`,
