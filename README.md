@@ -4,16 +4,38 @@
 [![NuGet](https://img.shields.io/nuget/v/AdCodicem.ValueObjects.svg?logo=nuget)](https://www.nuget.org/packages/AdCodicem.ValueObjects)
 [![codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects/branch/main/graph/badge.svg)](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/AdCodicem/AdCodicem.ValueObjects/badge)](https://scorecard.dev/viewer/?uri=github.com/AdCodicem/AdCodicem.ValueObjects)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/LICENSE)
 
-Single-value DDD value objects for .NET 10, with no reflection and no allocation on the paths that matter.
+An answer to primitive obsession for .NET 10: single-value DDD value objects, generated at compile time, with no
+reflection and no allocation on the paths that matter.
 
 **[Documentation](https://adcodicem.github.io/AdCodicem.ValueObjects/)**
 
-Declare the type and its rules once; the framework carries them into JSON, the database, model binding and the
-OpenAPI document, so they cannot drift apart.
+## Primitive obsession
+
+```csharp skip
+Task PayAsync(string customerId, string iban, decimal amount);
+```
+
+A call to it compiles with the two strings swapped, `"hello"` passes for a bank account, and the signature says
+nothing about what an IBAN is. So every layer says it again: the controller checks the format, a migration
+guesses the column width, the OpenAPI document settles for `string`, and nothing keeps the three in agreement.
+That is primitive obsession — domain concepts carried as bare `string`, `int` and `Guid`.
+
+The remedy is well known: give each concept a type that cannot hold an invalid value. It stays rare because the
+type is only the start. It also needs equality, parsing, formatting, a JSON converter, an EF Core value
+converter, a model binder and a schema — a few hundred lines per concept, which is why codebases drift back to
+`string`.
+
+Here the type costs one declaration. Its rules are written once and carried into JSON, the database, model
+binding and the OpenAPI document, so they cannot drift apart. This compiles as it stands:
 
 ```csharp
+using AdCodicem.ValueObjects;
+using AdCodicem.ValueObjects.Annotations;
+
+namespace Banking;
+
 [ValueObject<string>(
     MinLength = 15,
     MaxLength = 34,
@@ -21,12 +43,26 @@ OpenAPI document, so they cannot drift apart.
     SchemaFormat = "iban")]
 public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectValidator<string>
 {
-    public static string NormalizeValue(string value) => /* strip separators, upper-case */;
+    // Runs first, on every way in: "fr76 3000 6000 …" and "FR7630006000…" are the same account.
+    public static string NormalizeValue(string value)
+        => value.Replace(" ", "").Replace("-", "").ToUpperInvariant();
 
+    // Runs once the declared length and pattern hold: the ISO 7064 MOD-97-10 check digits.
     public static ValidationResult ValidateValue(in string value)
-        => HasValidCheckDigits(value)
+    {
+        var remainder = 0;
+        for (var i = 0; i < value.Length; i++)
+        {
+            var c = value[(i + 4) % value.Length];
+            remainder = char.IsAsciiDigit(c)
+                ? ((remainder * 10) + (c - '0')) % 97
+                : ((remainder * 100) + (c - 'A' + 10)) % 97;
+        }
+
+        return remainder == 1
             ? ValidationResult.Success
             : ValidationResult.InvalidFormat("The IBAN check digits are incorrect.");
+    }
 }
 ```
 
@@ -37,9 +73,10 @@ That declaration generates the constructor, `Create` / `TryCreate` / `CreateUnch
 ```csharp skip
 var iban = Iban.Create("fr76 3000 6000 0112 3456 7890 189");
 iban.Value                                  // "FR7630006000011234567890189"
-iban.ToString(Iban.Formats.Print, null)     // "FR76 3000 6000 0112 3456 7890 189"
-
+Iban.TryCreate("FR00 0000", out _)          // false: rejection is not an exception
 JsonSerializer.Serialize(new { iban })      // {"iban":"FR7630006000011234567890189"}
+
+Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the two no longer compiles
 ```
 
 ## Packages
@@ -70,7 +107,7 @@ what holding 100 000 bare strings allocates, to the byte; the class equivalent c
 twice the time, because a reference type adds 24 bytes of header, method table pointer and field per instance.
 The struct gives that back only when it crosses a non-generic boundary and boxes, so the generated equality,
 hashing and comparison exist to keep the hot paths generic — dictionary lookups and sorts on value objects
-allocate nothing. See [benchmarks/](benchmarks/README.md) for the numbers and for where the struct loses.
+allocate nothing. See [benchmarks/](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/benchmarks/README.md) for the numbers and for where the struct loses.
 
 **`default(Iban)` is a build error.** A struct can always be brought into existence uninitialized, and that is
 the one hole a struct value object cannot close by itself. The `VO0010` analyzer closes it at compile time,

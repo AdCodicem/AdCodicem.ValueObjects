@@ -15,6 +15,7 @@
     "csharp",
     "ddd",
     "value-object",
+    "primitive-obsession",
     "source-generator"
   ]
 }
