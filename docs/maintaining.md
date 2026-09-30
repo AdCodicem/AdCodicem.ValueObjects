@@ -30,8 +30,12 @@ since the snapshot is on `main` by then.
 
 The GitHub Release ends with a table linking each package to its version page on nuget.org, and carries the
 `.nupkg` and `.snupkg` files as assets, signed by a SLSA build provenance attestation that the **attest
-provenance** job adds once the release exists (`AdCodicem.ValueObjects.<version>.sigstore.json`). If that job
-fails, use **Re-run failed jobs**: dispatching the release again would find nothing to release and skip it. The
+provenance** job adds (`AdCodicem.ValueObjects.<version>.sigstore.json`). Releases are immutable on this
+repository, and a published release refuses any new asset, so semantic-release only creates a **draft**
+(`draftRelease` in `.releaserc.json`): the attest provenance job attaches the bundle to it and then publishes it.
+Until that job succeeds, the release exists only as a draft, even though nuget.org already has the packages. If it
+fails, use **Re-run failed jobs**: dispatching the release again would find nothing to release and skip it. Do not
+publish the draft by hand either, or the release freezes without its bundle. The
 table is not written by hand: `.github/scripts/package-ids.sh` reads every packable project under `src/` before
 semantic-release starts, and `release-pack.sh` fails the prepare step, before anything is pushed, if that list does
 not match the packages it built. The links can answer 404 for a few minutes after the release, until nuget.org has
@@ -48,6 +52,7 @@ to `CHANGELOG.md` for a preview, which has no release of its own (`src/Directory
 | Discussions | Settings → General → Features | `.github/DISCUSSION_TEMPLATE/q-a.yml` and the issue-template link to Discussions go nowhere. |
 | Pages source: GitHub Actions | Settings → Pages | `deploy-docs.yml` uploads an artifact that is never served. |
 | `github-pages` environment limited to `main` (the default) | Settings → Environments | Nothing breaks, but a `deploy docs` dispatched from another branch could replace the live site. Every deployment this repository makes runs from `main`: `ci.yml` on push, `release.yml` dispatched there. |
+| Immutable releases | Settings → General → Releases | Nothing breaks, but release assets and tags could be altered after publication. With it on, a published release takes no new asset, which is why `release.yml` publishes a draft only after the attest provenance job has attached its bundle; turning it off does not require undoing that. |
 | Code scanning: **default setup**, left enabled | Settings → Code security → Code scanning | This repository uses CodeQL's default setup. There is deliberately no `codeql.yml`: an advanced configuration cannot upload its results while default setup is on — GitHub rejects the SARIF with *"CodeQL analyses from advanced configurations cannot be processed when the default setup is enabled"*. Only add a workflow if you first disable default setup, and only if you need something it cannot do (custom query packs, or a manual build for a solution autobuild cannot handle). |
 | GitHub Sponsors | Account settings | `.github/FUNDING.yml` has no effect. |
 

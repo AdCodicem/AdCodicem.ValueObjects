@@ -64,7 +64,9 @@
         "assets": [
           { "path": "artifacts/packages/*.nupkg" },
           { "path": "artifacts/packages/*.snupkg" }
-        ]
+        ],
+        "draftRelease": true,
+        "successComment": ":tada: This ${issue.pull_request ? 'PR is included' : 'issue has been resolved'} in version ${nextRelease.version} :tada:\n\nThe release is available on [GitHub release](https://github.com/AdCodicem/AdCodicem.ValueObjects/releases/tag/${nextRelease.gitTag})\n\nYour **[semantic-release](https://github.com/semantic-release/semantic-release)** bot :package::rocket:"
       }
     ]
   ]
