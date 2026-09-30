@@ -1,7 +1,8 @@
 ---
 title: Entity Identifiers
-sidebar_label: Entity Identifiers
+sidebar_label: Entity identifiers
 slug: /entity-identifiers
+description: The design of Stripe-style public identifiers — format, widths, check character, time bucket — and the alternatives that were turned down.
 ---
 
 # Entity identifiers
@@ -286,4 +287,4 @@ request. A displayable fragment (the last four characters) is stored alongside f
 Issuance, rotation, revocation and expiry stay with the consumer, symmetrically with the decision not to own
 the entity model for identifiers.
 
-Next: [Testing](./testing.md).
+Next: [Benchmarks](./benchmarks.md).

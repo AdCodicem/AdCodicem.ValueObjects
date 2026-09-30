@@ -2,11 +2,12 @@
 title: Packages
 sidebar_label: Packages
 slug: /packages
+description: The twelve AdCodicem.ValueObjects packages, and which boundary each one covers.
 ---
 
 # Packages
 
-Ten NuGet packages. Install `AdCodicem.ValueObjects` and add whichever of the others cover the boundaries your
+Twelve NuGet packages. Install `AdCodicem.ValueObjects` and add whichever of the others cover the boundaries your
 application actually has.
 
 | Package | What it gives you |
