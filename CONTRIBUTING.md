@@ -51,12 +51,15 @@ Version numbers and the changelog are computed from commit history, so commit me
 ```
 
 `feat` bumps the minor version, `fix` bumps the patch. `docs`, `refactor`, `test`, `chore` and `ci` trigger no
-release on their own. A breaking change is marked with `!` after the type, or a `BREAKING CHANGE:` footer, and
-bumps the major.
+release on their own, with two exceptions that bump the patch because they change what ships inside every
+package: `build(pack)` for the package metadata, and `docs(readme)` for the README, which is also each package's
+page on nuget.org. A breaking change is marked with `!` after the type, or a `BREAKING CHANGE:` footer, and bumps
+the major.
 
 ```
 feat(generator): emit a span-based TryParse for numeric underlying types
 fix(descriptor): keep the rule that rejected the value instead of not_parsable
+build(pack): point packages at the documentation site
 feat!: drop the implicit conversion to the underlying type
 ```
 

@@ -5,7 +5,11 @@
     [
       "@semantic-release/commit-analyzer",
       {
-        "preset": "conventionalcommits"
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          { "type": "build", "scope": "pack", "release": "patch" },
+          { "type": "docs", "scope": "readme", "release": "patch" }
+        ]
       }
     ],
     [
@@ -17,6 +21,7 @@
             { "type": "feat", "section": "Features" },
             { "type": "fix", "section": "Bug fixes" },
             { "type": "perf", "section": "Performance" },
+            { "type": "build", "scope": "pack", "section": "Packaging" },
             { "type": "docs", "section": "Documentation", "hidden": false },
             { "type": "refactor", "section": "Refactoring", "hidden": false },
             { "type": "test", "hidden": true },
