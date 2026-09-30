@@ -76,7 +76,10 @@ semantic-release starts (the release body is rendered from that starting environ
 feed it), and `release-pack.sh` fails the run before the push if the packages it built differ from that list.
 The **attest provenance** job then signs those packages with a Sigstore SLSA provenance attestation and attaches
 the bundle to the release. It attests the release assets, not the nuget.org copies, which nuget.org re-signs
-and whose digest therefore differs.
+and whose digest therefore differs. Releases are immutable on this repository — a published release takes no new
+asset — so semantic-release creates the GitHub Release as a draft (`draftRelease`) and that job publishes it once
+the bundle is attached. The draft's URL dies when it is published, which is why `.releaserc.json` overrides
+`successComment` to link to the tag instead.
 
 So nothing you merge publishes a stable package, and a commit type that triggers no release (`chore`, `ci`,
 `test`) also contributes nothing to the next version. The reasoning, and what it costs, is in
