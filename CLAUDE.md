@@ -80,7 +80,11 @@ and whose digest therefore differs.
 
 So nothing you merge publishes a stable package, and a commit type that triggers no release (`chore`, `ci`,
 `test`) also contributes nothing to the next version. The reasoning, and what it costs, is in
-`docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md`.
+`docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md`. `build(pack)` and `docs(readme)` are the
+exceptions among the types that otherwise release nothing: `.releaserc.json` rates them a patch, because the
+package metadata and the README ship inside every `.nupkg` — the README is its nuget.org page — so a change to
+either reaches users only through a release. Scope the commit accordingly, or the change waits for the next
+`feat` or `fix`.
 
 The documentation follows the same two tracks (`docs/adr/0005-version-the-documentation-site.md`). Every
 preview redeploys the site, with `website/docs/` as the preview under `/docs/preview/`. A stable release
