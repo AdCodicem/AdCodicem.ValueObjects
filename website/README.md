@@ -60,6 +60,11 @@ a version. Two things there are worth knowing:
   the `homepage-example` plugin points the homepage at the copy in the latest stable snapshot, so the homepage
   shows the code of the package `dotnet add package` installs.
 
+- **`llms.txt` and `llms-full.txt` follow the same rule.** The `llms-txt` plugin writes them into the build
+  output from the latest stable snapshot — an index of its pages grouped by sidebar category, and the whole of
+  it as one Markdown file — so an assistant reading them describes what `dotnet add package` installs. The
+  generated API reference is linked rather than inlined. `npm start` does not serve them; `npm run build` does.
+
 `contributing` is a plain page under `src/pages/`, not a doc: it describes how to work on `main`, so a copy frozen
 in each version would only go stale.
 
