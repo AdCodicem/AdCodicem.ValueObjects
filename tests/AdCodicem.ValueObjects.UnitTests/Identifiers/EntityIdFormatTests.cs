@@ -257,6 +257,21 @@ public class EntityIdFormatTests
         act.Should().Throw<ArgumentException>();
     }
 
+    /// <summary>
+    /// An example is published as a valid identifier of its type, so it holds to the prefix rules Create holds to:
+    /// a malformed prefix gave an "example" Create refuses, and one past 16 characters overflowed the buffer under
+    /// the name of a parameter Example does not have.
+    /// </summary>
+    [Theory]
+    [InlineData("Acc")]
+    [InlineData("abcdefgh_abcdefgh")]
+    public void Example_refuses_a_prefix_Create_would_refuse(string prefix)
+    {
+        var act = () => EntityIdFormat.Example(prefix, IdGranularity.Minute);
+
+        act.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("prefix");
+    }
+
     private sealed class FakeTimeProvider : TimeProvider
     {
         private readonly DateTimeOffset _now;

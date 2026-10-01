@@ -279,6 +279,8 @@ public static class EntityIdFormat
     /// <param name="prefix">Declared prefix, without its trailing separator.</param>
     /// <param name="granularity">Bucket width.</param>
     /// <returns>A valid identifier of the right shape.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="prefix"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="prefix"/> breaks the prefix rules.</exception>
     /// <remarks>
     /// Derived from a fixed instant and a fixed byte pattern rather than minted, so that regenerating the
     /// document twice produces the same bytes. An example drawn from the real entropy source would be valid and
@@ -287,6 +289,7 @@ public static class EntityIdFormat
     public static string Example(string prefix, IdGranularity granularity)
     {
         ArgumentNullException.ThrowIfNull(prefix);
+        EntityIdPrefix.ThrowIfInvalid(prefix, nameof(prefix));
 
         Span<byte> bytes = stackalloc byte[EntropyByteCount];
         for (var i = 0; i < bytes.Length; i++)
