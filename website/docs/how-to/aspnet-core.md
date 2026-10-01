@@ -74,7 +74,11 @@ return result.IsValid
         result.ToDictionary(),
         extensions: new Dictionary<string, object?>
         {
-            [ValueObjectProblemDetails.ExtensionName] =
-                result.Errors.ToDictionary(failure => failure.PropertyName, failure => failure.ErrorCode),
+            [ValueObjectProblemDetails.ExtensionName] = result.Errors
+                .GroupBy(failure => failure.PropertyName)
+                .ToDictionary(member => member.Key, member => member.First().ErrorCode),
         });
 ```
+
+A member can fail more than one rule — empty text fails both `NotEmpty()` and `MustParseAs` — so the failures are
+grouped by member, and each member reports the code of the first rule it failed.

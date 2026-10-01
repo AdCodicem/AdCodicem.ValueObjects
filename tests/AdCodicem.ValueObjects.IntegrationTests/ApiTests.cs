@@ -164,6 +164,36 @@ public sealed class ApiTests(PostgreSqlFixture database) : IClassFixture<Postgre
     }
 
     [Fact]
+    public async Task A_raw_payload_with_an_IBAN_the_type_accepts_is_accepted()
+    {
+        var response = await _client.PostAsync(
+            "/accounts/import",
+            Json("""{"iban":"fr76 3000 6000 0112 3456 7890 189"}"""),
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+    }
+
+    /// <summary>
+    /// The validator chains NotEmpty and MustParseAs, and empty text fails both: the member is reported once, with
+    /// the code of the first rule, rather than breaking the dictionary of codes with a duplicate key.
+    /// </summary>
+    /// <param name="body">A payload whose IBAN is missing, null or empty.</param>
+    [Theory]
+    [InlineData("""{"iban":""}""")]
+    [InlineData("""{"iban":null}""")]
+    [InlineData("{}")]
+    public async Task A_raw_payload_without_an_IBAN_is_rejected_once_under_its_member(string body)
+    {
+        var response = await _client.PostAsync("/accounts/import", Json(body), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        problem.GetProperty("errorCodes").GetProperty("Iban").GetString().Should().Be("NotEmptyValidator");
+    }
+
+    [Fact]
     public async Task The_OpenAPI_document_describes_a_value_object_as_its_underlying_type()
     {
         var document = await _client.GetFromJsonAsync<JsonElement>("/openapi/v1.json", TestContext.Current.CancellationToken);

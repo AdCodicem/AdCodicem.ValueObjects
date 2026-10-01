@@ -56,6 +56,8 @@ app.MapPost("/accounts/import", (ImportAccountRequest request, IValidator<Import
 {
     var result = validator.Validate(request);
 
+    // A member can fail more than one rule - empty text fails both NotEmpty and MustParseAs - and gets the code
+    // of the first.
     return result.IsValid
         ? Results.Accepted()
         : Results.ValidationProblem(
@@ -63,7 +65,8 @@ app.MapPost("/accounts/import", (ImportAccountRequest request, IValidator<Import
             extensions: new Dictionary<string, object?>
             {
                 [ValueObjectProblemDetails.ExtensionName] = result.Errors
-                    .ToDictionary(failure => failure.PropertyName, failure => failure.ErrorCode),
+                    .GroupBy(failure => failure.PropertyName)
+                    .ToDictionary(member => member.Key, member => member.First().ErrorCode),
             });
 });
 
