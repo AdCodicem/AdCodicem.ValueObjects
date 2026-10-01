@@ -413,7 +413,7 @@ internal static class ValueObjectEmitter
         if (underlying.SupportsBounds && model.MinimumLiteral is not null)
         {
             writer.Open(floating ? $"if (!(value >= {model.MinimumLiteral}))" : $"if (value < {model.MinimumLiteral})");
-            writer.Line($"return {ValidationResult}.OutOfRange(\"The value must be greater than or equal to {Xml(model.MinimumText!)}.\");");
+            writer.Line($"return {ValidationResult}.OutOfRange({LiteralFactory.Quote($"The value must be greater than or equal to {model.MinimumText}.")});");
             writer.Close();
             writer.Line();
         }
@@ -421,7 +421,7 @@ internal static class ValueObjectEmitter
         if (underlying.SupportsBounds && model.MaximumLiteral is not null)
         {
             writer.Open(floating ? $"if (!(value <= {model.MaximumLiteral}))" : $"if (value > {model.MaximumLiteral})");
-            writer.Line($"return {ValidationResult}.OutOfRange(\"The value must be less than or equal to {Xml(model.MaximumText!)}.\");");
+            writer.Line($"return {ValidationResult}.OutOfRange({LiteralFactory.Quote($"The value must be less than or equal to {model.MaximumText}.")});");
             writer.Close();
             writer.Line();
         }
