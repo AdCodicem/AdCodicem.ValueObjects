@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.IO;
 using System.Reflection;
 using AdCodicem.ValueObjects.Generators;
 using AdCodicem.ValueObjects.Identifiers;
@@ -63,15 +64,29 @@ public static class GeneratorHarness
     }
 
     /// <summary>
+    /// Gets the framework alone, which is what a project that does not reference the library compiles against.
+    /// </summary>
+    public static ImmutableArray<MetadataReference> FrameworkReferences { get; } = [.. Net100.References.All];
+
+    /// <summary>
+    /// Gets what every snippet compiles against unless told otherwise: the framework, the contracts and the
+    /// identifiers.
+    /// </summary>
+    public static ImmutableArray<MetadataReference> LibraryReferences => References;
+
+    /// <summary>
     /// Compiles source, runs the generator, then runs an analyzer over the result.
     /// </summary>
     /// <typeparam name="TAnalyzer">Analyzer to run.</typeparam>
     /// <param name="source">Source to compile.</param>
+    /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
     /// <returns>The analyzer's diagnostics.</returns>
-    public static async Task<ImmutableArray<Diagnostic>> RunAnalyzerAsync<TAnalyzer>(string source)
+    public static async Task<ImmutableArray<Diagnostic>> RunAnalyzerAsync<TAnalyzer>(
+        string source,
+        ImmutableArray<MetadataReference>? references = null)
         where TAnalyzer : DiagnosticAnalyzer, new()
     {
-        var compilation = Compile(source);
+        var compilation = Compile(source, references: references);
         var updated = CSharpGeneratorDriver
             .Create([new ValueObjectGenerator().AsSourceGenerator()], parseOptions: ParseOptions)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
@@ -81,6 +96,28 @@ public static class GeneratorHarness
         var withAnalyzers = output.WithAnalyzers([new TAnalyzer()]);
 
         return await withAnalyzers.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// Compiles source, runs the generator, and emits the result as the image of an assembly another snippet can
+    /// reference, so that what it declares reaches that snippet as metadata rather than as source.
+    /// </summary>
+    /// <param name="source">Source to compile. A namespace and usings are added if absent.</param>
+    /// <param name="assemblyName">Name of the assembly, distinct from the snippet that will reference it.</param>
+    /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
+    /// <returns>The bytes of the assembly.</returns>
+    public static byte[] Emit(string source, string assemblyName, ImmutableArray<MetadataReference>? references = null)
+    {
+        CSharpGeneratorDriver
+            .Create([new ValueObjectGenerator().AsSourceGenerator()], parseOptions: ParseOptions)
+            .RunGeneratorsAndUpdateCompilation(Compile(source, references: references, assemblyName: assemblyName), out var output, out _);
+
+        using var image = new MemoryStream();
+        var emitted = output.Emit(image, cancellationToken: TestContext.Current.CancellationToken);
+
+        emitted.Diagnostics.Where(IsRelevant).Should().BeEmpty("the assembly a snippet references must compile");
+
+        return image.ToArray();
     }
 
     /// <summary>
@@ -119,9 +156,10 @@ public static class GeneratorHarness
     private static CSharpCompilation Compile(
         string source,
         CSharpParseOptions? parseOptions = null,
-        ImmutableArray<MetadataReference>? references = null)
+        ImmutableArray<MetadataReference>? references = null,
+        string assemblyName = "GeneratorTests")
         => CSharpCompilation.Create(
-            "GeneratorTests",
+            assemblyName,
             [CSharpSyntaxTree.ParseText(Wrap(source), parseOptions ?? ParseOptions)],
             references ?? References,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
