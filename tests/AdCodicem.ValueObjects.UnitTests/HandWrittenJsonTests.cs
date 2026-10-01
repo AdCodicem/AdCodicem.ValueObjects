@@ -30,7 +30,8 @@ public class HandWrittenJsonTests
     }
 
     /// <summary>
-    /// A key is formatted on the stack when it fits 64 characters, and through a string when it does not.
+    /// A key is the underlying value as System.Text.Json writes a key of its type, which a string does at any
+    /// length.
     /// </summary>
     [Fact]
     public void A_hand_written_value_object_works_as_a_dictionary_key_of_any_length()
@@ -45,6 +46,26 @@ public class HandWrittenJsonTests
 
         json.Should().Be($$"""{"ABC":1,"{{new string('A', 100)}}":2}""");
         JsonSerializer.Deserialize<Dictionary<HandWrittenCode, int>>(json, Options).Should().BeEquivalentTo(dictionary);
+    }
+
+    /// <summary>
+    /// The value object prints "3 items", which its own parser does not read: the key carries the underlying value
+    /// instead, as the JSON value does, and reads back.
+    /// </summary>
+    [Fact]
+    public void A_hand_written_dictionary_key_carries_the_underlying_value_whatever_the_type_prints()
+    {
+        var stock = new Dictionary<HandWrittenItemCount, string>
+        {
+            [HandWrittenItemCount.Create(3)] = "pens",
+            [HandWrittenItemCount.Create(12)] = "folders",
+        };
+
+        var json = JsonSerializer.Serialize(stock, Options);
+
+        $"{HandWrittenItemCount.Create(3)}".Should().Be("3 items");
+        json.Should().Be("""{"3":"pens","12":"folders"}""");
+        JsonSerializer.Deserialize<Dictionary<HandWrittenItemCount, string>>(json, Options).Should().Equal(stock);
     }
 
     [Fact]
