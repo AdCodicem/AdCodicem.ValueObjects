@@ -49,8 +49,9 @@ public class HandWrittenJsonTests
     }
 
     /// <summary>
-    /// The value object prints "3 items", which its own parser does not read: the key carries the underlying value
-    /// instead, as the JSON value does, and reads back.
+    /// The value object prints and parses "3 items". The key carries the underlying value instead, as the JSON value
+    /// does, and is read back the same way: as System.Text.Json reads a key of the underlying type, then through
+    /// <c>TryCreate</c>, never through the value object's own parser, which refuses the bare number.
     /// </summary>
     [Fact]
     public void A_hand_written_dictionary_key_carries_the_underlying_value_whatever_the_type_prints()
@@ -64,16 +65,40 @@ public class HandWrittenJsonTests
         var json = JsonSerializer.Serialize(stock, Options);
 
         $"{HandWrittenItemCount.Create(3)}".Should().Be("3 items");
+        HandWrittenItemCount.TryParse("3", null, out _).Should().BeFalse("the type parses only what it prints");
         json.Should().Be("""{"3":"pens","12":"folders"}""");
         JsonSerializer.Deserialize<Dictionary<HandWrittenItemCount, string>>(json, Options).Should().Equal(stock);
     }
 
+    /// <summary>
+    /// A key is validated as a value is, through <c>TryCreate</c>, and refused with the rule that fired.
+    /// </summary>
     [Fact]
     public void A_dictionary_key_the_hand_written_value_object_rejects_is_refused_as_JSON()
     {
-        var act = () => JsonSerializer.Deserialize<Dictionary<HandWrittenCode, int>>("""{"ab1":1}""", Options);
+        var code = () => JsonSerializer.Deserialize<Dictionary<HandWrittenCode, int>>("""{"ab1":1}""", Options);
+        var count = () => JsonSerializer.Deserialize<Dictionary<HandWrittenItemCount, int>>("""{"0":1}""", Options);
 
-        act.Should().Throw<JsonException>().WithMessage("The dictionary key is not a valid HandWrittenCode.");
+        code.Should().Throw<JsonException>().WithMessage("The dictionary key is not a valid HandWrittenCode: A code holds ASCII letters only.");
+        count.Should().Throw<JsonException>().WithMessage("The dictionary key is not a valid HandWrittenItemCount: A count of items is positive.");
+    }
+
+    /// <summary>
+    /// A key that is not the underlying type's key at all is refused as System.Text.Json refuses it in a dictionary
+    /// keyed by that type, the value object's own text included.
+    /// </summary>
+    [Theory]
+    [InlineData("three")]
+    [InlineData("3 items")]
+    public void A_dictionary_key_that_is_not_one_of_the_underlying_type_is_refused_as_JSON(string key)
+    {
+        var json = $$"""{"{{key}}":"pens"}""";
+
+        var asValueObject = () => JsonSerializer.Deserialize<Dictionary<HandWrittenItemCount, string>>(json, Options);
+        var asUnderlying = () => JsonSerializer.Deserialize<Dictionary<int, string>>(json, Options);
+
+        asValueObject.Should().Throw<JsonException>();
+        asUnderlying.Should().Throw<JsonException>();
     }
 
     /// <summary>

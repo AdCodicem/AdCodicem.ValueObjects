@@ -3,11 +3,13 @@ using System.Globalization;
 namespace AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
 /// <summary>
-/// A number of items written by hand, which prints with its unit, "3 items", and parses the bare number only.
+/// A number of items written by hand, which prints with its unit, "3 items", and parses that text back, never the
+/// bare number.
 /// </summary>
 /// <remarks>
-/// Its own formatting is the hand-written counterpart of a formatting hook: text meant for people, which its parser
-/// does not read. Nothing registers it, so the serializer reaches it through the general-purpose converter.
+/// Its own text is the hand-written counterpart of a formatting hook, text meant for people, with a parser that reads
+/// it, as a hand-written value object is free to have: the underlying value in its JSON form is text that parser
+/// refuses. Nothing registers it, so the serializer reaches it through the general-purpose converter.
 /// </remarks>
 public readonly struct HandWrittenItemCount : IValueObject<HandWrittenItemCount, int>
 {
@@ -45,7 +47,9 @@ public readonly struct HandWrittenItemCount : IValueObject<HandWrittenItemCount,
 
     public static bool TryParse(ReadOnlySpan<char> text, IFormatProvider? provider, out HandWrittenItemCount result, out ValidationResult validation)
     {
-        if (int.TryParse(text, NumberStyles.None, provider, out var raw))
+        const string Unit = " items";
+
+        if (text.EndsWith(Unit, StringComparison.Ordinal) && int.TryParse(text[..^Unit.Length], NumberStyles.None, provider, out var raw))
         {
             return TryCreate(raw, out result, out validation);
         }
