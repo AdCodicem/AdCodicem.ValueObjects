@@ -75,6 +75,55 @@ public sealed class DiagnosticTests
         run.Ids.Should().Contain("VO0004");
     }
 
+    /// <summary>
+    /// A bound that parses as some integer but not as the underlying one must be refused by the generator, or it
+    /// turns into a literal the compiler rejects inside a file the author cannot edit.
+    /// </summary>
+    [Theory]
+    [InlineData("sbyte", "128")]
+    [InlineData("sbyte", "-129")]
+    [InlineData("byte", "300")]
+    [InlineData("byte", "-1")]
+    [InlineData("short", "32768")]
+    [InlineData("ushort", "65536")]
+    [InlineData("ushort", "-1")]
+    [InlineData("int", "2147483648")]
+    [InlineData("uint", "4294967296")]
+    [InlineData("uint", "-1")]
+    [InlineData("long", "9223372036854775808")]
+    [InlineData("long", "-9223372036854775809")]
+    [InlineData("ulong", "-1")]
+    [InlineData("ulong", "18446744073709551616")]
+    public void A_bound_outside_the_range_of_its_underlying_type_is_reported(string underlying, string bound)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>(Maximum = "{{bound}}")]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Ids.Should().Contain("VO0004");
+        run.CompilationDiagnostics.Should().BeEmpty("a refused bound must not reach the generated code");
+    }
+
+    [Theory]
+    [InlineData("byte", "300")]
+    [InlineData("sbyte", "-129")]
+    [InlineData("ushort", "-1")]
+    [InlineData("uint", "-1")]
+    [InlineData("long", "9223372036854775808")]
+    [InlineData("ulong", "-1")]
+    public void A_known_value_outside_the_range_of_its_underlying_type_is_reported(string underlying, string value)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>]
+            [KnownValue("Edge", {{value}})]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Ids.Should().Contain("VO0013");
+        run.CompilationDiagnostics.Should().BeEmpty("a refused known value must not reach the generated code");
+    }
+
     [Fact]
     public void A_closed_set_with_no_known_value_is_reported()
     {

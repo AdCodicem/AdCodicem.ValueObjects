@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Numerics;
 using AdCodicem.ValueObjects.Generators.Model;
 
 namespace AdCodicem.ValueObjects.Generators.Internal;
@@ -68,17 +69,29 @@ internal static class LiteralFactory
                 literal = $"'{Escape(text)}'";
                 return true;
 
-            case UnderlyingKind.SByte or UnderlyingKind.Byte or UnderlyingKind.Int16 or UnderlyingKind.UInt16 or UnderlyingKind.Int32:
-                return TryNumber(text, suffix: string.Empty, cast: underlying.Keyword, out literal);
+            case UnderlyingKind.SByte:
+                return TryInteger(text, sbyte.MinValue, sbyte.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal);
+
+            case UnderlyingKind.Byte:
+                return TryInteger(text, byte.MinValue, byte.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal);
+
+            case UnderlyingKind.Int16:
+                return TryInteger(text, short.MinValue, short.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal);
+
+            case UnderlyingKind.UInt16:
+                return TryInteger(text, ushort.MinValue, ushort.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal);
+
+            case UnderlyingKind.Int32:
+                return TryInteger(text, int.MinValue, int.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal);
 
             case UnderlyingKind.UInt32:
-                return TryNumber(text, "U", cast: null, out literal);
+                return TryInteger(text, uint.MinValue, uint.MaxValue, "U", cast: null, out literal);
 
             case UnderlyingKind.Int64:
-                return TryNumber(text, "L", cast: null, out literal);
+                return TryInteger(text, long.MinValue, long.MaxValue, "L", cast: null, out literal);
 
             case UnderlyingKind.UInt64:
-                return TryNumber(text, "UL", cast: null, out literal);
+                return TryInteger(text, ulong.MinValue, ulong.MaxValue, "UL", cast: null, out literal);
 
             case UnderlyingKind.Int128 or UnderlyingKind.UInt128:
                 literal = $"{underlying.FullName}.Parse({Quote(text)}, global::System.Globalization.CultureInfo.InvariantCulture)";
@@ -168,18 +181,35 @@ internal static class LiteralFactory
     /// <returns>The literal expression.</returns>
     public static string Quote(string value) => $"\"{Escape(value)}\"";
 
-    private static bool TryNumber(string text, string suffix, string? cast, out string literal)
+    /// <summary>
+    /// Builds an integer literal, refusing a value outside the range of the underlying type.
+    /// </summary>
+    /// <remarks>
+    /// Parsing as some wider integer is not enough: <c>"300"</c> for a <c>byte</c> or <c>"-1"</c> for a
+    /// <c>ulong</c> would become a literal the compiler rejects, inside a file the author cannot edit. The
+    /// literal is written from the parsed number rather than from the text, so a sign or a leading zero the
+    /// author wrote cannot change how the compiler reads it either.
+    /// </remarks>
+    private static bool TryInteger(
+        string text,
+        BigInteger minimum,
+        BigInteger maximum,
+        string suffix,
+        string? cast,
+        out string literal)
     {
         literal = string.Empty;
-        var value = text.Trim();
-        if (!long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
-            && !ulong.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+        if (!BigInteger.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)
+            || number < minimum
+            || number > maximum)
         {
             return false;
         }
 
+        var digits = number.ToString(CultureInfo.InvariantCulture);
+
         // A cast keeps the literal well typed for the narrow integer types, which have no literal suffix.
-        literal = cast is null ? value + suffix : $"({cast})({value})";
+        literal = cast is null ? digits + suffix : $"({cast})({digits})";
         return true;
     }
 
