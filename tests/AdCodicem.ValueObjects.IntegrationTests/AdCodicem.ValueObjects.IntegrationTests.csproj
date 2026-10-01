@@ -8,6 +8,11 @@
     <ProjectReference Include="..\..\samples\AdCodicem.ValueObjects.Sample.Api\AdCodicem.ValueObjects.Sample.Api.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Dapper\AdCodicem.ValueObjects.Dapper.csproj" />
+    <!-- Value objects over the date and time types the sample does not use, to read what each provider returns
+         for those columns (Fixtures/DateAndTimeValueObjects.cs). -->
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
