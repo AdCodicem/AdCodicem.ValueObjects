@@ -392,6 +392,26 @@ public sealed class EmissionTests
     }
 
     /// <summary>
+    /// XML admits neither U+FFFE nor U+FFFF, nor half of a surrogate pair, so a project producing its documentation
+    /// file reports a summary holding one as malformed. A whole pair stands for one character and stays.
+    /// </summary>
+    [Fact]
+    public void A_known_value_description_folds_the_characters_xml_cannot_hold_and_keeps_a_surrogate_pair()
+    {
+        var run = GeneratorHarness.Run(
+            """
+            [ValueObject<string>]
+            [KnownValue("France", "FR", Description = "a\uFFFEb\uFFFFc\uD800d\uDC00e\uD83D\uDE00f\uDBFF")]
+            public readonly partial struct Country;
+            """,
+            DocumentationMode.Diagnose);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("/// <summary>a b c d e\uD83D\uDE00f </summary>");
+    }
+
+    /// <summary>
     /// The message of a violated bound quotes the bound as written, inside a string literal of the generated code,
     /// so the text has to be escaped for C#, not for XML.
     /// </summary>
