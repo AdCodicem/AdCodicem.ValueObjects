@@ -238,6 +238,9 @@ make identifiers predictable from a handful of samples.
 `AnyEntityId` parses any registered prefix and reports which type it belongs to. It serves webhooks, deep
 links, audit logs and heterogeneous references.
 
+In JSON it is the bare identifier text, as a value or as a dictionary key. A `null` is refused with a
+`JsonException`, as it is for every identifier; a reference that may be absent is declared `AnyEntityId?`.
+
 It deliberately does **not** implement `IValueObject`, which is what makes it non-persistable by construction:
 the EF Core convention keys off that interface, so `AnyEntityId` is invisible to it and no one can accidentally
 map a polymorphic column. It is a transport and resolution type, nothing more.

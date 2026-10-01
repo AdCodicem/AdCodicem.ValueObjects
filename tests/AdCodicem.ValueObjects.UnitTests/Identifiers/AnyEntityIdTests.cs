@@ -141,6 +141,19 @@ public class AnyEntityIdTests
         act.Should().Throw<JsonException>();
     }
 
+    /// <summary>
+    /// A required reference sent as null must fail where it arrives, as it does for every typed identifier, rather
+    /// than pass as a default that belongs to no type and fails much later. An optional one is declared optional.
+    /// </summary>
+    [Fact]
+    public void A_JSON_null_is_refused_unless_the_identifier_is_optional()
+    {
+        var act = () => JsonSerializer.Deserialize<AnyEntityId>("null");
+
+        act.Should().Throw<JsonException>().WithMessage("*found Null*");
+        JsonSerializer.Deserialize<AnyEntityId?>("null").Should().BeNull();
+    }
+
     [Fact]
     public void It_converts_through_the_type_descriptor_for_model_binding()
     {
