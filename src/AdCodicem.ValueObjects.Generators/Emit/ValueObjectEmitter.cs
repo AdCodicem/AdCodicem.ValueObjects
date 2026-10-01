@@ -791,7 +791,7 @@ internal static class ValueObjectEmitter
         }
         else
         {
-            writer.Open($"if ({Abstractions}.UnderlyingValue.TryParse<{value}>(s, provider ?? {Invariant}, out var raw))");
+            writer.Open($"if ({ParseUnderlying(underlying, value, "out var raw")})");
             writer.Line("return TryCreate(raw, out result);");
             writer.Close();
             writer.Line();
@@ -817,7 +817,7 @@ internal static class ValueObjectEmitter
             {
                 UnderlyingKind.Char => "s.Length == 1",
                 UnderlyingKind.Boolean => "bool.TryParse(s, out raw)",
-                _ => $"{Abstractions}.UnderlyingValue.TryParse<{value}>(s, provider ?? {Invariant}, out raw)",
+                _ => ParseUnderlying(underlying, value, "out raw"),
             };
 
             writer.Line($"{value} raw = default;");
@@ -865,6 +865,23 @@ internal static class ValueObjectEmitter
         writer.Line($"public static bool TryParse(global::System.ReadOnlySpan<char> s, out {self} result) => TryParse(s, null, out result);");
         writer.Line();
     }
+
+    /// <summary>
+    /// Gets the call parsing the text <c>s</c> into the underlying value, in the form ToString writes it.
+    /// </summary>
+    /// <remarks>
+    /// A <see cref="DateTime"/> is written in its round-trip form, which names its kind with a <c>Z</c> or an offset.
+    /// Read without <c>RoundtripKind</c>, that suffix turns the value into local time: a UTC value would come back
+    /// with another kind, and on a machine outside UTC with other ticks. Every other type reads its own form as is.
+    /// </remarks>
+    /// <param name="underlying">The underlying type, neither a string, a bool nor a char.</param>
+    /// <param name="value">Its qualified name.</param>
+    /// <param name="output">The out argument receiving the value.</param>
+    /// <returns>A boolean expression.</returns>
+    private static string ParseUnderlying(UnderlyingType underlying, string value, string output)
+        => underlying.Kind == UnderlyingKind.DateTime
+            ? $"global::System.DateTime.TryParse(s, provider ?? {Invariant}, global::System.Globalization.DateTimeStyles.RoundtripKind, {output})"
+            : $"{Abstractions}.UnderlyingValue.TryParse<{value}>(s, provider ?? {Invariant}, {output})";
 
     private static void EmitConversions(CodeWriter writer, ValueObjectModel model, string value, string self)
     {
