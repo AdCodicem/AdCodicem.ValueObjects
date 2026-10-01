@@ -4,9 +4,10 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 /// A string value object written by hand that nothing ever registers.
 /// </summary>
 /// <remarks>
-/// Reserved for the contract kit's view of an unregistered type. Resolving it through
-/// <c>ValueObjectRegistry.TryResolve</c> would register it by reflection for the rest of the process, so nothing
-/// else may touch it: the tests that use it would then depend on the order they ran in.
+/// Reserved for the views of an unregistered type: the contract kit's, and the length Entity Framework Core's
+/// per-property mapping finds for it. Resolving it through <c>ValueObjectRegistry.TryResolve</c> would register it
+/// by reflection for the rest of the process, so nothing may resolve it: the tests that use it would then depend
+/// on the order they ran in. A lookup through <c>ValueObjectRegistry.TryGet</c> registers nothing.
 /// </remarks>
 public readonly struct UnregisteredCode : IValueObject<UnregisteredCode, string>
 {
