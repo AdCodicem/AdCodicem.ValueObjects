@@ -73,7 +73,11 @@ pip install pre-commit && pre-commit install
 
 1. Branch from `main`.
 2. Keep it focused — one logical change.
-3. Add or update tests. The three suites have distinct jobs, described in
+3. Keep it to 100 commits or fewer. `main` takes a linear history, and a pull request lands with *Rebase and merge*
+   so that each Conventional Commit reaches the changelog. GitHub refuses to rebase more than 100 commits, and its
+   web UI reports that as a conflict that does not exist. Split larger work into pull requests stacked on one
+   another.
+4. Add or update tests. The three suites have distinct jobs, described in
    [Testing](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/testing); a defect confined to the descriptor
    is invisible to the typed-path unit tests, so check which surface your change actually touches.
    Codecov reports on each pull request: 95 % of the lines it changes covered, the project's coverage down by half
@@ -81,8 +85,8 @@ pip install pre-commit && pre-commit install
    defensive branch no test reaches stays, a private member is covered through its callers or not at all, and code
    goes only when no input can reach it. The full rule is in
    [ADR-0006](docs/adr/0006-coverage-is-a-signal-not-a-goal.md).
-4. Run `dotnet format` before pushing — CI enforces it.
-5. Open the PR and fill in the template.
+5. Run `dotnet format` before pushing — CI enforces it.
+6. Open the PR and fill in the template.
 
 Releases are cut manually by the maintainer from `main`, so a merged pull request does not publish anything by
 itself; it publishes a preview package, and ships in the next stable release.

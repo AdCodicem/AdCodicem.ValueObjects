@@ -60,6 +60,10 @@ installs a `pre-commit` and a `commit-msg` hook that also run in CI:
 - committed files must stay usable on a case-insensitive, no-symlink Windows checkout;
 - commit messages must follow [Conventional Commits](https://www.conventionalcommits.org/).
 
+A pull request lands with *Rebase and merge*, so that each of its commits reaches the changelog, and GitHub rebases
+at most 100 commits: past that it refuses, and its web UI blames conflicts that do not exist. Keep a pull request to
+100 commits or fewer, and split larger work into pull requests stacked on one another.
+
 ## The agent skill
 
 `skills/value-objects/` is what an AI coding agent reads before writing a value object: the attribute options,
