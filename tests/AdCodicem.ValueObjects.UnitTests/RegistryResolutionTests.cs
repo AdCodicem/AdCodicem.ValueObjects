@@ -108,7 +108,9 @@ public class RegistryResolutionTests
     public void A_value_object_nothing_registered_still_reports_its_underlying_type()
     {
         ValueObjectRegistry.GetUnderlyingType(typeof(HandWrittenCounter)).Should().Be<int>();
-        ValueObjectRegistry.GetUnderlyingType(typeof(SelflessValue)).Should().Be<string>();
+        ValueObjectRegistry.GetUnderlyingType(typeof(UnregisteredCode?)).Should().Be<string>();
+
+        ValueObjectRegistry.TryGet(typeof(UnregisteredCode), out _).Should().BeFalse("answering registers nothing");
     }
 
     [Fact]
@@ -123,7 +125,9 @@ public class RegistryResolutionTests
     /// <summary>
     /// Each of these implements the marker, and none is a struct implementing
     /// <see cref="IValueObject{TSelf, TValue}"/> over itself, which is what a descriptor is built from. So none is a
-    /// value object, and a Try method answers that with <see langword="false"/>, not with an exception.
+    /// value object: it has no underlying type, even where it declares a value through
+    /// <see cref="IValueObject{TValue}"/>, and a Try method answers with <see langword="false"/>, not with an
+    /// exception.
     /// </summary>
     [Theory]
     [InlineData(typeof(IValueObject))]
@@ -136,6 +140,7 @@ public class RegistryResolutionTests
     public void A_type_no_descriptor_can_describe_is_no_value_object_and_resolves_to_none(Type type)
     {
         ValueObjectRegistry.IsValueObject(type).Should().BeFalse();
+        ValueObjectRegistry.GetUnderlyingType(type).Should().BeNull();
 
         ValueObjectRegistry.TryResolve(type, out var descriptor).Should().BeFalse();
         descriptor.Should().BeNull();

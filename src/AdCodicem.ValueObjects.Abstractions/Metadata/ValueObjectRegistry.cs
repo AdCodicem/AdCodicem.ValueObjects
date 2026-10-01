@@ -135,29 +135,21 @@ public static class ValueObjectRegistry
     /// Gets the underlying value type of a value object.
     /// </summary>
     /// <param name="type">Value object type, possibly nullable.</param>
-    /// <returns>The underlying value type, or <see langword="null"/> when the type is not a value object.</returns>
-    [UnconditionalSuppressMessage(
-        "Trimming",
-        "IL2070:UnrecognizedReflectionPattern",
-        Justification = "The interface list of a value object is preserved: the type is referenced by the caller and its IValueObject implementation is part of its public contract.")]
+    /// <returns>
+    /// The <c>TValue</c> of the <see cref="IValueObject{TSelf, TValue}"/> the type implements over itself, or
+    /// <see langword="null"/> when the type is not a value object as <see cref="IsValueObject"/> defines one — a
+    /// class or a struct implementing only <see cref="IValueObject{TValue}"/> included.
+    /// </returns>
+    /// <remarks>
+    /// Answering registers nothing. A registered type is answered from the registry, without reflection.
+    /// </remarks>
     public static Type? GetUnderlyingType(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
 
         return UnderlyingTypes.GetOrAdd(
             Nullable.GetUnderlyingType(type) ?? type,
-            static key =>
-            {
-                foreach (var candidate in key.GetInterfaces())
-                {
-                    if (candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IValueObject<>))
-                    {
-                        return candidate.GetGenericArguments()[0];
-                    }
-                }
-
-                return null;
-            });
+            static key => TryGetSelfDescribedValueType(key, out var valueType) ? valueType : null);
     }
 
     /// <summary>
