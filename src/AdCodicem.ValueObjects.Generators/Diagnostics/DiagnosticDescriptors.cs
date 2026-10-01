@@ -17,8 +17,10 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor MustBeReadOnlyStruct = Error(
         "VO0002",
         "Value object must be a readonly struct",
-        "'{0}' must be declared as a 'readonly partial struct'. A record struct is rejected on purpose because its "
-        + "'with' expression and field-wise equality would bypass both validation and the configured comparison.");
+        "'{0}' must be declared as a 'readonly partial struct', not as a class, a record struct or a ref struct. A "
+        + "record struct is rejected on purpose because its 'with' expression and field-wise equality would bypass "
+        + "both validation and the configured comparison, and a ref struct because it can be neither boxed nor a "
+        + "type argument, which the generated members require.");
 
     public static readonly DiagnosticDescriptor UnsupportedUnderlyingType = Error(
         "VO0003",
