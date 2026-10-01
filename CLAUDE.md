@@ -185,6 +185,15 @@ These are all load-bearing, and each cost real debugging time:
   `Condition="'$(GITHUB_ACTIONS)' == 'true'"`, so the package graph on a laptop is not the graph on the runner
   and `--locked-mode` fails `NU1004`. `docs/adr/0004-pin-the-supply-chain-by-digest-not-nuget-lock-files.md`
   has the full reasoning.
+- **A pull request of more than 100 commits cannot be merged.** `main` takes a linear history and no merge
+  commit, and a session's pull request lands with *Rebase and merge*, so that semantic-release reads each of its
+  commits. GitHub rebases at most 100 commits
+  ([its documented limit](https://docs.github.com/en/repositories/creating-and-managing-repositories/repository-limits#rebase-limits)).
+  Past that, the API answers `rebaseable: false` beside `mergeable: true`, and the web UI blames conflicts that
+  do not exist. *Squash and merge* still works, but it folds every `fix` and `feat` into one changelog line. Count
+  with `git rev-list --count origin/main..HEAD` before opening a pull request, and split work past 100 commits into
+  pull requests stacked on one another. CI runs only on pull requests that target `main`, so a stacked one gets
+  its checks once the one beneath it has merged and it has been rebased onto `main`.
 - **`website/package.json` carries `overrides`** for `qs`, `serialize-javascript` and `uuid`. All three are
   transitive under Docusaurus, which pins ranges too tight to pick up the patched versions on its own, so
   Dependabot alerts on them and `npm audit fix --force` "fixes" it by *downgrading* `@docusaurus/core` to
