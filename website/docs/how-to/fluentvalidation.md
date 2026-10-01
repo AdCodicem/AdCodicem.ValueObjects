@@ -33,6 +33,11 @@ public sealed class ImportAccountValidator : AbstractValidator<ImportAccountRequ
 carries the value object's error code — `value_object.invalid_format` for a wrong check digit — as the
 FluentValidation `ErrorCode`.
 
+A `null` passes `MustParseAs`, as it passes every FluentValidation rule but `NotNull` and `NotEmpty`: whether the
+member is required is theirs to say, which is why the validator above chains `NotEmpty()` first. Empty text does
+not pass: it fails with `value_object.required`, the code of the value object's own rule, so with both rules
+chained, empty text fails twice under one member.
+
 The type is passed as a `Type` rather than a type argument so the rule stays readable: C# cannot infer one type
 argument while another is given explicitly.
 
@@ -42,7 +47,8 @@ argument while another is given explicitly.
 RuleFor(request => request.Amount).MustSatisfy<TransferRequest, Amount, decimal>();
 ```
 
-`MustSatisfy` checks a raw underlying value against the rules of a value object without constructing one.
+`MustSatisfy` checks a raw underlying value against the rules of a value object without constructing one. Like
+`MustParseAs`, it lets `null` through.
 
 ## An uninitialized value object
 
