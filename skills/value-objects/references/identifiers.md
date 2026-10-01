@@ -35,6 +35,7 @@ public static class Minting
 | --- | --- | --- |
 | `Prefix` (constructor argument) | required | One or more lowercase segments separated by `_`, each opening on a letter: `"acc"`, `"sk_live"`. Malformed → `VO0015`; claimed twice → `VO0016`. |
 | `Granularity` | `IdGranularity.Hour` | Width of the time bucket: `Minute` (6 chars), `Hour` (4), `Day` (3). A value the enum does not define → `VO0020`. |
+| `AllowDefault` | `false` | Silences `VO0010` for `default(AccountId)` and `new AccountId()`, as on `[ValueObject<T>]`. Only for a type whose default state is meaningful to the code holding it; absence is `AccountId?`. |
 | `Description`, `Example` | none | OpenAPI documentation. |
 
 Choose `Granularity` from the insert rate of the table, aiming for roughly 10⁴–10⁵ rows per bucket — not from
@@ -43,6 +44,10 @@ taste. It leaks the creation time at exactly that granularity and nothing finer;
 
 An identifier owns its own normalization: declaring a normalizer hook on one is `VO0017`. Both `[EntityId]` and
 `[ValueObject<T>]` on the same type is `VO0018`.
+
+`default(AccountId)` and `new AccountId()` are build error `VO0010`, as for any value object: the instance they
+produce has an empty `Value` and never went through validation. Mint with `New()`, read with `Parse` or
+`TryParse`, and write absence as `AccountId?`.
 
 ## Why the prefix is stored, not stripped
 

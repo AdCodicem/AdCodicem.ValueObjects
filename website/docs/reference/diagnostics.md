@@ -21,7 +21,7 @@ error. There is no `VO0012`.
 | `VO0007` | Arithmetic requested on a non-numeric type. | Remove `Arithmetic = true`, or change the underlying type. |
 | `VO0008` | Length constraints on a non-string type (warning). | `MinLength` and `MaxLength` apply to `string` only; use `Minimum` and `Maximum` for a number. |
 | `VO0009` | A containing type is not `partial`. | Every enclosing type must be `partial`, not only the value object. |
-| `VO0010` | An uninitialized value object: `default(T)` or `new T()`. | Construct through `Create`, `TryCreate` or `Parse`, and express absence as `T?`. If the zero state is genuinely meaningful, set `AllowDefault = true` on the type. |
+| `VO0010` | An uninitialized value object or entity identifier: `default(T)` or `new T()`. | Construct through `Create`, `TryCreate` or `Parse` (or `New()` for an identifier), and express absence as `T?`. If the zero state is genuinely meaningful, set `AllowDefault = true` on the type, on `[ValueObject<T>]` or `[EntityId]` alike. |
 | `VO0011` | A rule written without its hook interface (warning). | Declare the interface — `IValueObjectNormalizer<T>`, `IValueObjectValidator<T>`, `IValueObjectFormatter<T>`, `IValueObjectStringFormatter<T>`. Until then the rule never runs. |
 | `VO0013` | A known value could not be converted. | A `Guid`, a `decimal` or a `DateOnly` is written as invariant-culture text and converted at compile time; fix the text. A known value follows the same rules as a bound, and is a single value: neither `null` nor an array. |
 | `VO0014` | An invalid regular expression. | Fix `Pattern`. A verbatim string (`@"^\d+$"`) keeps escapes intact. |

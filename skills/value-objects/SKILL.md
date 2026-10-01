@@ -126,9 +126,9 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
 
 ## Never do these
 
-- `default(Iban)` or `new Iban()` — build error `VO0010`, because those bypass validation. Construct through
-  `Create`/`TryCreate`; express absence as `Iban?`, never as an empty or default instance. A test that needs
-  one disables `VO0010` on that line with a comment saying why.
+- `default(Iban)` or `new Iban()`, and the same on an `[EntityId]` — build error `VO0010`, because those bypass
+  validation. Construct through `Create`/`TryCreate`; express absence as `Iban?`, never as an empty or default
+  instance. A test that needs one disables `VO0010` on that line with a comment saying why.
 - `NormalizeCore` / `ValidateCore` / `TryFormatCore` — the pre-interface names. They compile, they never run.
 - `CreateUnchecked` on input from outside the application. It validates nothing; it is for the EF read path.
 - A separate FluentValidation rule restating length or pattern — defer to the value object

@@ -191,6 +191,11 @@ The pattern is published as schema text but never compiled: at fixed length over
 is a span scan, so an entity identifier costs no `Regex` at start-up, unlike a `Pattern`-constrained value
 object.
 
+An identifier that skipped validation is refused at compile time, as any value object is: `default(AccountId)`
+and `new AccountId()` are `VO0010`, because the instance they produce has an empty `Value` and no prefix. One
+is minted with `New()` or read with `Parse` and `TryParse`, and absence is written `AccountId?`.
+`[EntityId("acc", AllowDefault = true)]` opts a type out, with the same meaning as on `[ValueObject<T>]`.
+
 The generated `Normalize` trims surrounding whitespace, folds the body to lower case, applies the alias
 mapping, and canonicalizes the prefix's case. It drops nothing, so it preserves length. It never rejects
 either: a text without the expected prefix comes back unchanged and is refused by `Validate`.
@@ -258,6 +263,7 @@ without the package, the attribute does not exist.
 
 | Id | Severity | Meaning |
 | --- | --- | --- |
+| `VO0010` | Error | `default(AccountId)` or `new AccountId()`: an identifier that never went through validation. `AllowDefault = true` opts a type out. |
 | `VO0015` | Error | Malformed prefix: empty, wrong characters, or an over-long segment. |
 | `VO0016` | Error | Two types in the compilation declare the same prefix. |
 | `VO0017` | Error | An option that `[EntityId]` derives or forbids was set by hand. |

@@ -69,8 +69,9 @@ lists what to expect.
 
 ### How do I represent a missing value?
 
-With `T?`. `default(T)` and `new T()` are build errors (`VO0010`), because an uninitialized struct would skip
-every rule. A type whose zero value is genuinely meaningful can opt out with `AllowDefault = true`.
+With `T?`. `default(T)` and `new T()` are build errors (`VO0010`), entity identifiers included, because an
+uninitialized struct would skip every rule. A type whose zero value is genuinely meaningful can opt out with
+`AllowDefault = true`, on `[ValueObject<T>]` as on `[EntityId]`.
 
 ### Can I throw my own exception type?
 
