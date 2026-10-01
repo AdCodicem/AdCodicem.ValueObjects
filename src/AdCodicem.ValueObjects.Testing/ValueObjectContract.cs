@@ -201,6 +201,8 @@ public abstract class ValueObjectContract<TSelf, TValue>
     [Fact]
     public void The_type_is_discoverable_at_run_time()
     {
+        EnsureRegistered();
+
         Assert.True(
             ValueObjectRegistry.TryGet(typeof(TSelf), out var descriptor),
             $"'{typeof(TSelf).Name}' did not register itself. Is the generator running on its assembly?");
@@ -219,6 +221,7 @@ public abstract class ValueObjectContract<TSelf, TValue>
     {
         // The limits are read from the registry's schema. Without it there is nothing to check, which is a skip to
         // report rather than a pass to claim.
+        EnsureRegistered();
         if (!ValueObjectRegistry.TryGet(typeof(TSelf), out var descriptor))
         {
             Assert.Skip(
@@ -246,4 +249,10 @@ public abstract class ValueObjectContract<TSelf, TValue>
     }
 
     private IEnumerable<TSelf> Accepted() => AcceptedValues.Select(TSelf.Create);
+
+    /// <summary>
+    /// Runs the generated registration of the assembly declaring <typeparamref name="TSelf"/>, which a contract kept in
+    /// a test assembly of its own may be the first to need: the registry only knows a type once that has run.
+    /// </summary>
+    private static void EnsureRegistered() => ValueObjectRegistry.EnsureAssemblyRegistered(typeof(TSelf).Assembly);
 }

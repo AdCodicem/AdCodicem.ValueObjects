@@ -49,6 +49,9 @@ Each is an xUnit test in your suite:
 - every accepted value respects the declared length limits. A type that did not register itself has no declared
   limits to read, and this check reports itself skipped.
 
+The last two read the registry. They run the generated registration of the type's assembly first, so they do not
+depend on another test having used that assembly, which matters for contracts kept in a test project of their own.
+
 ## Constructing an invalid instance on purpose
 
 A test that needs an uninitialized instance — to check a guard, say — trips `VO0010`, which is a build error.
