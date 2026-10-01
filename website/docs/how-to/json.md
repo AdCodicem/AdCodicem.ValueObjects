@@ -74,8 +74,27 @@ dotnet add package AdCodicem.ValueObjects.NewtonsoftJson
 ```
 
 ```csharp skip
-var settings = new JsonSerializerSettings();
+var settings = new JsonSerializerSettings
+{
+    DateParseHandling = DateParseHandling.None,       // hand the converter the text of every string
+    FloatParseHandling = FloatParseHandling.Decimal,  // and every digit of every number
+};
 settings.Converters.Add(new ValueObjectConverter());
 ```
 
-One converter covers every value object, reading and writing the bare underlying value with the same rules.
+One converter covers every value object, with the same rules and the same JSON as System.Text.Json: a number or a
+boolean as such, anything else as a string in the same form, `Int128` and `UInt128` included. It reads only the
+kind of token it writes, so a number in a string, or a string where a number belongs, is refused as JSON rather
+than converted. A rejected value throws a `JsonSerializationException` naming the type and the rule.
+
+Newtonsoft.Json reads each token before a converter sees it, under the serializer's settings, which is what the two
+above are for. Left to its defaults, it turns a string that looks like a date into a `DateTime`, and a number with
+a fraction into a `double`:
+
+- A `DateTime` value object reads such a date as System.Text.Json reads the text, and so does a `DateTimeOffset`
+  value object when the text is in UTC or names no zone. A text with another offset was converted to local time,
+  and its offset is lost; a string value object has lost its text. Both are refused rather than read as another
+  value, until `DateParseHandling` is `None`.
+- A `decimal` value object keeps the fifteen to seventeen digits a `double` carries. `FloatParseHandling.Decimal`
+  keeps all of them, as System.Text.Json does; it also gives an `object` or `JToken` member a `decimal` rather than
+  a `double` for such a number.
