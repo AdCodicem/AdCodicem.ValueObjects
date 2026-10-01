@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace AdCodicem.ValueObjects.UnitTests.Domain;
 
 // Value objects whose formatting hook writes, by default, something other than the bare value, so that a test can
@@ -23,4 +25,19 @@ public readonly partial struct Floor : IValueObjectFormatter<int>, IValueObjectS
         ReadOnlySpan<char> format,
         IFormatProvider? provider)
         => value.TryFormat(destination, out charsWritten, format, provider);
+}
+
+/// <summary>A temperature in degrees Celsius, printed with its unit unless a numeric format is asked for.</summary>
+[ValueObject<int>(Minimum = "-273")]
+public readonly partial struct Celsius : IValueObjectFormatter<int>
+{
+    public static bool TryFormatValue(
+        in int value,
+        Span<char> destination,
+        out int charsWritten,
+        ReadOnlySpan<char> format,
+        IFormatProvider? provider)
+        => format.IsEmpty
+            ? destination.TryWrite(CultureInfo.InvariantCulture, $"{value} °C", out charsWritten)
+            : value.TryFormat(destination, out charsWritten, format, provider);
 }

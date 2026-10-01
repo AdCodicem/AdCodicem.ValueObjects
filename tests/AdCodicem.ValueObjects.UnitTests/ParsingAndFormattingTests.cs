@@ -240,4 +240,18 @@ public class ParsingAndFormattingTests
         new string(buffer, 0, written).Should().Be("floor 3");
         $"{floor:D2}".Should().Be("03");
     }
+
+    /// <summary>
+    /// A formatting hook takes over formatting entirely, the default format included, so ToString() writes the
+    /// text interpolation and ToString(null, null) write rather than the bare value.
+    /// </summary>
+    [Fact]
+    public void ToString_goes_through_the_formatting_hook_with_the_default_format()
+    {
+        var celsius = Celsius.Create(21);
+        var floor = Floor.Create(3);
+
+        celsius.ToString().Should().Be("21 °C").And.Be(celsius.ToString(null, null)).And.Be($"{celsius}");
+        floor.ToString().Should().Be("floor 3").And.Be(floor.ToString(null, null)).And.Be($"{floor}");
+    }
 }
