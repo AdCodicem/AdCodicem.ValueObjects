@@ -83,4 +83,16 @@ public sealed record EveryValueObject(
     DocumentStatus Status,
     Mass Mass,
     TransferLimit Limit,
-    Luminance Luminance);
+    Luminance Luminance,
+    Priority Priority,
+    StorageQuota Quota,
+    VatRate VatRate,
+    VoteWeight VoteWeight,
+    Opacity Opacity,
+    TermsAccepted Terms,
+    HttpStatus HttpStatus,
+    BlockSize BlockSize,
+    CutOffDate CutOff,
+    ShiftStart Shift,
+    LaunchMoment Launch,
+    Answer Answer);

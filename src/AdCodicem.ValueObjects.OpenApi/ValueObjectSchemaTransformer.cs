@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using AdCodicem.ValueObjects.Metadata;
 using Microsoft.AspNetCore.OpenApi;
@@ -79,7 +80,15 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
 
         if (declared.IsClosedValueSet && !declared.KnownValues.IsEmpty)
         {
-            schema.Enum = [.. declared.KnownValues.Select(ToJsonNode)];
+            // Each value is written by the type's own converter, under the options the document describes the wire
+            // with, so that a client checks a payload against exactly what the type writes: a number of any width as
+            // a number, a date in its round-trip form.
+            var typeInfo = context.JsonTypeInfo.Options.GetTypeInfo(descriptor.ValueObjectType);
+            schema.Enum =
+            [
+                .. declared.KnownValues.Select(value =>
+                    JsonSerializer.SerializeToNode(descriptor.CreateUnchecked(value), typeInfo)!),
+            ];
         }
 
         return Task.CompletedTask;
@@ -118,17 +127,5 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
             or TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Int64 or TypeCode.UInt64 => JsonSchemaType.Integer,
         TypeCode.Decimal or TypeCode.Double or TypeCode.Single => JsonSchemaType.Number,
         _ => JsonSchemaType.String,
-    };
-
-    private static JsonNode ToJsonNode(object value) => value switch
-    {
-        string text => JsonValue.Create(text),
-        bool boolean => JsonValue.Create(boolean),
-        decimal number => JsonValue.Create(number),
-        double number => JsonValue.Create(number),
-        float number => JsonValue.Create(number),
-        long number => JsonValue.Create(number),
-        int number => JsonValue.Create(number),
-        _ => JsonValue.Create(Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty),
     };
 }
