@@ -20,13 +20,33 @@ website/      this documentation site
 
 ```bash
 dotnet build
-dotnet test tests/AdCodicem.ValueObjects.UnitTests        # no Docker needed
-dotnet test tests/AdCodicem.ValueObjects.GeneratorTests   # no Docker needed
-dotnet test                                                # everything, Docker required
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests        # no Docker needed
+dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests   # no Docker needed
+dotnet test                                                          # everything, Docker required
 dotnet pack -c Release
 ```
 
 Integration tests start PostgreSQL and SQL Server through Testcontainers, so they need a Docker daemon.
+
+## Coverage
+
+CI uploads the coverage of all three suites to [Codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects),
+which reports on each pull request against two floors set in `codecov.yml`: 95 % of the lines the pull request
+changes, a partial line counting as missed, and the project's coverage down by half a point at most. Only `src/` is
+measured. The floor is not the aim; 100 % of each patch is, under a rule that keeps the number honest
+([ADR-0006](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0006-coverage-is-a-signal-not-a-goal.md)):
+
+- every member that is not private is covered as far as it can be — through a natural input where one reaches it
+  (a declaration compiled through the generator, a call through the public API, a request through ASP.NET Core, a
+  database round trip), otherwise by a test that calls it directly;
+- a private member is covered through its callers or not at all, never by reflection;
+- a branch the compiler adds that no input can take stays partial rather than being rewritten;
+- code is removed only when no input can reach it, never because no test does, and a defensive branch stays;
+- a public member nothing calls is a question for the maintainer, not a removal.
+
+Two things the figure cannot show. A package no test loads is missing from the report rather than at 0 %, so CI
+fails when a project under `src/` is in no report. And the code the generator emits lands in the consumer's
+assembly, outside what Codecov measures: the emitters are counted, what they produce is audited by hand.
 
 ## Commit hygiene
 

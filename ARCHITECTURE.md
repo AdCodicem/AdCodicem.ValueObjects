@@ -85,6 +85,10 @@ which is what catches unqualified names in emitted code. Its incrementality test
 `IncrementalStepRunReason` — the only way to notice a caching regression, which otherwise breaks nothing
 visible while making every IDE keystroke re-run the pipeline.
 
+[ADR-0006](docs/adr/0006-coverage-is-a-signal-not-a-goal.md) records what coverage a pull request owes, what stays
+uncovered and why, and the two things Codecov's figure cannot show: a package no test loads, and the code the
+generator emits.
+
 ## Releases
 
 Merging to `main` publishes a preview package; a stable release is a manual action. See

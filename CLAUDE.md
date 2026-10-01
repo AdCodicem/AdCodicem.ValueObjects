@@ -223,5 +223,25 @@ Three suites, each with a distinct job:
 `AdCodicem.ValueObjects.Testing` ships a contract kit (`ValueObjectContract`) that consumers point at their own
 types; the unit tests use it on every sample value object.
 
+**Coverage aims at 100 % of each pull request's patch, as Codecov counts it**
+(`docs/adr/0006-coverage-is-a-signal-not-a-goal.md`). `codecov.yml` is the floor, not the aim: 95 % of the lines a
+pull request changes, a partial line counting as missed, and the project's coverage dropping by half a point at
+most, measuring `src/` only. Every member that is not private — public, internal, protected — is covered as far as
+it can be: through a natural input where one reaches it (a declaration compiled through the generator, a call
+through the public API, a request through ASP.NET Core, a database round trip), otherwise by a test that calls it
+directly, with what no natural input can produce. A private member, or a member of a private nested type, which a
+test could reach only by reflection, is not tested directly: its callers cover it, or it stays uncovered. A branch
+the compiler adds that no input can take — the default arm of an exhaustive switch expression, a `?.` on a value
+never null — stays partial rather than being rewritten. Code is removed for coverage only when no input can reach
+it — conditions that contradict each other, a dead branch, a non-public member nothing calls —, never because no
+test does. A defensive branch stays, covered or not. A public member nothing calls is a question for the
+maintainer, not a removal.
+
+Two blind spots, both deliberate. The collector instruments only the assemblies a test loads, so a package no test
+loads is missing from the report rather than at 0 %: `.github/scripts/coverage-modules.sh` fails CI when a project
+under `src/` is in no report. And the code the generator emits lives in the consumer's assembly — here the unit
+test assembly, which is not measured — so Codecov sees the emitters, not what they produce; it is audited by hand
+(see the ADR), not tracked.
+
 Stack: xUnit v3 (`TestContext.Current.CancellationToken`), AwesomeAssertions, NSubstitute, Testcontainers.
 Versions are centrally managed in `Directory.Packages.props`; versions live there, never in a `.csproj`.
