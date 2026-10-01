@@ -1,7 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using AdCodicem.ValueObjects.Metadata;
 
 namespace AdCodicem.ValueObjects.Json;
 
@@ -33,11 +32,16 @@ public sealed class ValueObjectJsonConverterFactory : JsonConverterFactory
         + "native AOT has to supply its own converter.";
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Claims a value object only, never <see cref="Nullable{T}"/> over one: a converter in the options outranks the
+    /// serializer's own handling of nullable types, which wraps the converter of the value object itself once this
+    /// one declines.
+    /// </remarks>
     public override bool CanConvert(Type typeToConvert)
     {
         ArgumentNullException.ThrowIfNull(typeToConvert);
 
-        return ValueObjectRegistry.IsValueObject(typeToConvert);
+        return ValueObjectJsonRegistry.TryGet(typeToConvert, out _) || TryGetValueType(typeToConvert, out _);
     }
 
     /// <inheritdoc />
@@ -55,8 +59,7 @@ public sealed class ValueObjectJsonConverterFactory : JsonConverterFactory
             return registered;
         }
 
-        var valueType = ValueObjectRegistry.GetUnderlyingType(typeToConvert);
-        if (valueType is null)
+        if (!TryGetValueType(typeToConvert, out var valueType))
         {
             return null;
         }
@@ -64,5 +67,37 @@ public sealed class ValueObjectJsonConverterFactory : JsonConverterFactory
         var converterType = typeof(ValueObjectJsonConverter<,>).MakeGenericType(typeToConvert, valueType);
 
         return (JsonConverter?)Activator.CreateInstance(converterType);
+    }
+
+    /// <summary>
+    /// Finds the underlying type of a struct implementing <see cref="IValueObject{TSelf, TValue}"/> over itself, the
+    /// only shape <see cref="ValueObjectJsonConverter{TSelf, TValue}"/> can be built for.
+    /// </summary>
+    /// <param name="type">Candidate type.</param>
+    /// <param name="valueType">The underlying type when the candidate qualifies.</param>
+    /// <returns><see langword="true"/> when a converter can be built for <paramref name="type"/>.</returns>
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2070:UnrecognizedReflectionPattern",
+        Justification = "The interface list of a value object is preserved: the type is referenced by the caller and its IValueObject implementation is part of its public contract.")]
+    private static bool TryGetValueType(Type type, [NotNullWhen(true)] out Type? valueType)
+    {
+        // The marker is a cheap filter for the many structs a serializer meets that are not value objects at all.
+        if (type.IsValueType && typeof(IValueObject).IsAssignableFrom(type))
+        {
+            foreach (var candidate in type.GetInterfaces())
+            {
+                if (candidate.IsGenericType
+                    && candidate.GetGenericTypeDefinition() == typeof(IValueObject<,>)
+                    && candidate.GetGenericArguments()[0] == type)
+                {
+                    valueType = candidate.GetGenericArguments()[1];
+                    return true;
+                }
+            }
+        }
+
+        valueType = null;
+        return false;
     }
 }
