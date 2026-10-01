@@ -14,7 +14,46 @@ namespace AdCodicem.ValueObjects.UnitTests.Persistence;
 /// </remarks>
 public class DapperTests
 {
+    /// <summary>
+    /// What a provider returns for a column of the date and time family, when it is not the value object's own
+    /// underlying type, keyed by a description of the case: SQL Server returns a <see cref="DateTime"/> for a
+    /// <c>date</c> and a <see cref="TimeSpan"/> for a <c>time</c>, Npgsql a <see cref="DateOnly"/> and a
+    /// <see cref="TimeOnly"/> for them, and a UTC <see cref="DateTime"/> for a <c>timestamptz</c>.
+    /// </summary>
+    private static readonly Dictionary<string, (Type Type, object Cell, object Expected)> ProviderTypes = new()
+    {
+        ["a SQL Server date into a DateOnly"] =
+            (typeof(BirthDate), new DateTime(1990, 5, 17), BirthDate.Create(new DateOnly(1990, 5, 17))),
+        ["a SQL Server time into a TimeOnly"] =
+            (typeof(OpeningTime), new TimeSpan(9, 30, 0), OpeningTime.Create(new TimeOnly(9, 30))),
+        ["an Npgsql date into a DateTime"] =
+            (typeof(RecordedAt), new DateOnly(2024, 5, 17), RecordedAt.Create(new DateTime(2024, 5, 17))),
+        ["an Npgsql time into a TimeSpan"] =
+            (typeof(Duration), new TimeOnly(1, 30), Duration.Create(TimeSpan.FromMinutes(90))),
+        ["an Npgsql timestamptz into a DateTimeOffset"] = (
+            typeof(OccurredAt),
+            new DateTime(2024, 5, 17, 10, 0, 0, DateTimeKind.Utc),
+            OccurredAt.Create(new DateTimeOffset(2024, 5, 17, 10, 0, 0, TimeSpan.Zero))),
+        ["a float into a decimal"] = (typeof(Amount), 12.5d, Amount.Create(12.5m)),
+    };
+
+    /// <summary>
+    /// Values of the date and time family that the value object cannot hold, keyed by a description of the case.
+    /// </summary>
+    private static readonly Dictionary<string, (Type Type, object Cell)> Mismatches = new()
+    {
+        ["a DateTime of unknown zone into a DateTimeOffset"] =
+            (typeof(OccurredAt), new DateTime(2024, 5, 17, 10, 0, 0, DateTimeKind.Unspecified)),
+        ["a DateOnly into a DateTimeOffset"] = (typeof(OccurredAt), new DateOnly(2024, 5, 17)),
+        ["a TimeSpan into a DateTimeOffset"] = (typeof(OccurredAt), new TimeSpan(9, 30, 0)),
+        ["a TimeOnly into a DateTimeOffset"] = (typeof(OccurredAt), new TimeOnly(9, 30)),
+    };
+
     static DapperTests() => ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);
+
+    public static TheoryData<string> EveryProviderType => [.. ProviderTypes.Keys];
+
+    public static TheoryData<string> EveryMismatch => [.. Mismatches.Keys];
 
     [Fact]
     public void A_NULL_read_into_an_optional_value_object_is_null()
@@ -29,6 +68,30 @@ public class DapperTests
         var act = () => Read(typeof(Iban), DBNull.Value);
 
         act.Should().Throw<DataException>().WithMessage("*NULL*Iban*");
+    }
+
+    /// <summary>
+    /// What the provider returns as another type than the underlying one is converted, and trusted as a value of
+    /// the underlying type would be.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryProviderType))]
+    public void A_column_the_provider_returns_as_another_type_is_converted_to_the_underlying_one(string name)
+    {
+        var (type, cell, expected) = ProviderTypes[name];
+
+        Read(type, cell).Should().Be(expected);
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryMismatch))]
+    public void A_column_the_value_object_cannot_hold_is_refused(string name)
+    {
+        var (type, cell) = Mismatches[name];
+
+        var act = () => Read(type, cell);
+
+        act.Should().Throw<InvalidCastException>();
     }
 
     /// <summary>

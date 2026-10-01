@@ -61,9 +61,34 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
                 : throw new DataException($"The value read is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}");
         }
 
-        // Providers are not always faithful otherwise either: a decimal may come back as a double.
-        return TSelf.CreateUnchecked((TValue)Convert.ChangeType(value, typeof(TValue), CultureInfo.InvariantCulture));
+        return TSelf.CreateUnchecked(Convert(value));
     }
+
+    /// <summary>
+    /// Converts what the provider returned into the underlying type, when it returned another type.
+    /// </summary>
+    /// <param name="value">Value the provider returned.</param>
+    /// <returns>The underlying value.</returns>
+    /// <remarks>
+    /// Providers return their own type for some columns of the date and time family, and
+    /// <see cref="System.Convert.ChangeType(object, Type, IFormatProvider)"/> converts none of these, since none
+    /// implements <see cref="IConvertible"/> on both sides: SQL Server returns a <see cref="DateTime"/> for a
+    /// <c>date</c> and a <see cref="TimeSpan"/> for a <c>time</c>, Npgsql a <see cref="DateOnly"/> and a
+    /// <see cref="TimeOnly"/> for them, and a UTC <see cref="DateTime"/> for a <c>timestamptz</c>. A
+    /// <see cref="DateTime"/> that does not say which zone it is in has no offset to give, and stays refused.
+    /// Everything else goes to <see cref="System.Convert.ChangeType(object, Type, IFormatProvider)"/>, which turns
+    /// the double a provider may return for a decimal into one.
+    /// </remarks>
+    private static TValue Convert(object value) => value switch
+    {
+        DateTime dateTime when typeof(TValue) == typeof(DateOnly) => (TValue)(object)DateOnly.FromDateTime(dateTime),
+        DateOnly date when typeof(TValue) == typeof(DateTime) => (TValue)(object)date.ToDateTime(TimeOnly.MinValue),
+        TimeSpan time when typeof(TValue) == typeof(TimeOnly) => (TValue)(object)TimeOnly.FromTimeSpan(time),
+        TimeOnly time when typeof(TValue) == typeof(TimeSpan) => (TValue)(object)time.ToTimeSpan(),
+        DateTime { Kind: not DateTimeKind.Unspecified } instant when typeof(TValue) == typeof(DateTimeOffset)
+            => (TValue)(object)new DateTimeOffset(instant),
+        _ => (TValue)System.Convert.ChangeType(value, typeof(TValue), CultureInfo.InvariantCulture),
+    };
 
     /// <inheritdoc />
     void SqlMapper.ITypeHandler.SetValue(IDbDataParameter parameter, object value)
