@@ -30,9 +30,10 @@ Three suites, each with a distinct job:
   These need a Docker daemon: Testcontainers starts both engines for the run.
 
 `AdCodicem.ValueObjects.Testing` ships the contract kit (`ValueObjectContract`) described in
-[Test your value objects](./how-to/test-value-objects.md); the unit tests use it on every sample
-value object in the repository, so the framework's own test suite is a live example of how a consumer would use
-it.
+[Test your value objects](./how-to/test-value-objects.md); the unit tests use it on every generated sample value
+object but two, so the framework's own test suite is a live example of how a consumer would use it. `Floor` and
+`Celsius` cannot satisfy it: their formatting hooks write text such as `floor 3` or `21 °C`, which does not parse
+back, and the kit requires a text round trip.
 
 ## Two ways to reach a value object — and why bugs hide in one of them
 
