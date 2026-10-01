@@ -12,7 +12,9 @@ namespace AdCodicem.ValueObjects.Dapper;
 /// <remarks>
 /// <para>
 /// Reading uses the trusted factory, on the same reasoning as the Entity Framework Core converter: the rows come
-/// from a database this application wrote through the validating factory, and read paths are hot.
+/// from a database this application wrote through the validating factory, and read paths are hot. Text read into
+/// a value object whose underlying type is not <see cref="string"/> is the exception: it is parsed, and so
+/// validated, the way the value object parses text.
 /// </para>
 /// <para>
 /// A SQL <c>NULL</c> reads as <see langword="null"/> into an optional value object, <c>TSelf?</c>, and is refused
@@ -33,7 +35,9 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
     }
 
     /// <inheritdoc />
-    /// <exception cref="DataException"><paramref name="value"/> is a SQL <c>NULL</c>, which a value object cannot hold.</exception>
+    /// <exception cref="DataException">
+    /// <paramref name="value"/> is a SQL <c>NULL</c>, which a value object cannot hold, or text the value object refuses.
+    /// </exception>
     public override TSelf Parse(object value)
     {
         if (value is TValue typed)
@@ -47,13 +51,17 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
                 $"A NULL cannot be read as {typeof(TSelf).Name}; read the column as a nullable {typeof(TSelf).Name}? instead.");
         }
 
-        // Providers are not always faithful: a Guid may come back as a string, a decimal as a double.
-        // Going through the value object's own parser keeps that conversion in one place.
-        if (value is string text && TSelf.TryParse(text, CultureInfo.InvariantCulture, out var parsed))
+        // A legacy schema may keep a Guid or a number in a text column. Text goes through the value object's own
+        // parser, which validates: unlike a value the provider returns as TValue, text was not necessarily written
+        // through the value object, and a rejection says which rule refused it.
+        if (value is string text)
         {
-            return parsed;
+            return TSelf.TryParse(text, CultureInfo.InvariantCulture, out var parsed, out var validation)
+                ? parsed
+                : throw new DataException($"The value read is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}");
         }
 
+        // Providers are not always faithful otherwise either: a decimal may come back as a double.
         return TSelf.CreateUnchecked((TValue)Convert.ChangeType(value, typeof(TValue), CultureInfo.InvariantCulture));
     }
 
