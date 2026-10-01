@@ -26,7 +26,9 @@ Two cases need `AdCodicem.ValueObjects.Json`:
 
 ```csharp skip
 // 1. A source-generated serializer context. One source generator never sees another's output, so the STJ
-//    generator cannot see the emitted [JsonConverter]. Name the hand-written factory it *can* see.
+//    generator cannot see the emitted [JsonConverter]. Name the hand-written factory it *can* see, and reference
+//    AdCodicem.ValueObjects.Json from the assembly that DECLARES the value objects too: that reference is what
+//    makes the generator register each converter for the factory.
 [JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]
 [JsonSerializable(typeof(AccountResponse))]
 public partial class ApiJsonContext : JsonSerializerContext;
