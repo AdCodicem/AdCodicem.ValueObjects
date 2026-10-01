@@ -45,4 +45,8 @@ is documented as a `string` of format `iban`, between 15 and 34 characters, matc
 object with a `value` property. There is nothing to restate in an annotation, and nothing to keep in sync: the
 schema comes from the declaration that validates.
 
+A known value is written by the type's converter only when it is of the underlying type, which the generated
+registration guarantees. A value object written by hand where no generator runs is described from its annotation
+instead, and a known value the attribute had to take as text — a decimal, a `Guid`, a date — is listed as that text.
+
 The transformer targets the built-in OpenAPI stack. Swashbuckle is not supported.
