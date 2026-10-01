@@ -25,3 +25,21 @@ public readonly partial struct EventId;
 /// </summary>
 [EntityId("ldg_entry", Granularity = IdGranularity.Day, Description = "Identifies one line of the ledger.")]
 public readonly partial struct LedgerEntryId;
+
+/// <summary>
+/// The identifier of a grant, which can be revoked after it was issued: its validation hook reads state that changes.
+/// </summary>
+[EntityId("rvk")]
+public readonly partial struct RevocableId : IValueObjectValidator<string>
+{
+    /// <summary>
+    /// Gets the identifier revoked in the current execution flow, if any. Scoped to the flow so that the test
+    /// revoking one does not reach a test running beside it.
+    /// </summary>
+    internal static AsyncLocal<string?> Revoked { get; } = new();
+
+    public static ValidationResult ValidateValue(in string value)
+        => string.Equals(value, Revoked.Value, StringComparison.Ordinal)
+            ? ValidationResult.Failure("grant.revoked", "The grant was revoked.")
+            : ValidationResult.Success;
+}

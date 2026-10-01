@@ -35,6 +35,7 @@ public static class Samples
             Sample.Of<SubscriptionId, string>(SubscriptionId.New(), SubscriptionId.New(), "sub_nope"),
             Sample.Of<EventId, string>(EventId.New(), EventId.New(), "evt_nope"),
             Sample.Of<LedgerEntryId, string>(LedgerEntryId.New(), LedgerEntryId.New(), "ldg_entry_nope"),
+            Sample.Of<RevocableId, string>(RevocableId.New(), RevocableId.New(), "rvk_nope"),
             Sample.Of<Consent, bool>(Consent.Create(false), Consent.Create(true), "maybe"),
             Sample.Of<Grade, char>(Grade.Create('A'), Grade.Create('B'), "Z"),
             Sample.Numeric<Adjustment, sbyte>(Adjustment.Create(-1), Adjustment.Create(1), "11"),

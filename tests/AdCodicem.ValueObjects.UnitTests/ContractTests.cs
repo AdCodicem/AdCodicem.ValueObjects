@@ -152,3 +152,13 @@ public sealed class EventIdContract : ValueObjectContract<EventId, string>
 
     protected override IEnumerable<string> RejectedValues => [string.Empty, "evt_nope", AccountId.New().Value];
 }
+
+/// <inheritdoc cref="AccountIdContract" />
+public sealed class RevocableIdContract : ValueObjectContract<RevocableId, string>
+{
+    private static readonly string[] Minted = [RevocableId.New().Value, RevocableId.New().Value];
+
+    protected override IEnumerable<string> AcceptedValues => Minted;
+
+    protected override IEnumerable<string> RejectedValues => [string.Empty, "rvk_nope", AccountId.New().Value];
+}

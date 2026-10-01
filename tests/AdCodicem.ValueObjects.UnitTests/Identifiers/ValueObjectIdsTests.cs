@@ -36,6 +36,24 @@ public class ValueObjectIdsTests
     }
 
     [Fact]
+    public void Configure_keeps_the_entropy_when_only_the_clock_is_replaced()
+    {
+        var clock = new ForwardingClock();
+
+        try
+        {
+            ValueObjectIds.Configure(timeProvider: clock);
+
+            ValueObjectIds.TimeProvider.Should().BeSameAs(clock);
+            ValueObjectIds.Entropy.Should().BeSameAs(IdEntropySource.System, "the entropy was not part of the call");
+        }
+        finally
+        {
+            ValueObjectIds.Configure(timeProvider: TimeProvider.System);
+        }
+    }
+
+    [Fact]
     public void Use_wins_over_the_default_and_restores_on_dispose()
     {
         var scoped = new DeterministicEntropy(1);
@@ -75,6 +93,20 @@ public class ValueObjectIdsTests
         using (ValueObjectIds.Use(entropy: new DeterministicEntropy(4)))
         {
             ValueObjectIds.TimeProvider.Should().BeSameAs(clock, "the inner scope only replaced the entropy");
+        }
+    }
+
+    [Fact]
+    public void A_scope_replacing_only_the_clock_keeps_the_enclosing_entropy()
+    {
+        var entropy = new DeterministicEntropy(5);
+        var clock = new StoppedClock(DateTimeOffset.UnixEpoch);
+
+        using (ValueObjectIds.Use(entropy: entropy))
+        using (ValueObjectIds.Use(timeProvider: clock))
+        {
+            ValueObjectIds.TimeProvider.Should().BeSameAs(clock);
+            ValueObjectIds.Entropy.Should().BeSameAs(entropy, "the inner scope only replaced the clock");
         }
     }
 
@@ -128,6 +160,14 @@ public class ValueObjectIdsTests
     private sealed class ForwardingEntropy : IdEntropySource
     {
         public override void Fill(Span<byte> destination) => IdEntropySource.System.Fill(destination);
+    }
+
+    /// <summary>
+    /// A clock distinct from the system one but reading it, for the same reason as <see cref="ForwardingEntropy"/>.
+    /// </summary>
+    private sealed class ForwardingClock : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => TimeProvider.System.GetUtcNow();
     }
 
     private sealed class StoppedClock : TimeProvider
