@@ -116,7 +116,11 @@ internal static class LiteralFactory
                 return true;
 
             case UnderlyingKind.Double:
-                if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var dbl))
+                // NaN and the infinities parse, and so does text past double.MaxValue, as an infinity. None of
+                // them has a literal: written with its suffix, each would be an identifier the compiler cannot find.
+                if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var dbl)
+                    || double.IsNaN(dbl)
+                    || double.IsInfinity(dbl))
                 {
                     return false;
                 }
@@ -125,7 +129,9 @@ internal static class LiteralFactory
                 return true;
 
             case UnderlyingKind.Single:
-                if (!float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var flt))
+                if (!float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var flt)
+                    || float.IsNaN(flt)
+                    || float.IsInfinity(flt))
                 {
                     return false;
                 }

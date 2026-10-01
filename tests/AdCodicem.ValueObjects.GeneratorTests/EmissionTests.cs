@@ -202,6 +202,23 @@ public sealed class EmissionTests
     }
 
     [Theory]
+    [InlineData("double", "0.5", "1e3", "1000d")]
+    [InlineData("double", "-1.7976931348623157E+308", "1.7976931348623157E+308", "1.7976931348623157E+308d")]
+    [InlineData("float", "0.5", "2.5", "2.5f")]
+    [InlineData("float", "-3.4028235E+38", "3.4028235E+38", "3.4028235E+38f")]
+    public void A_finite_floating_point_bound_compiles(string underlying, string minimum, string maximum, string literal)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>(Minimum = "{{minimum}}", Maximum = "{{maximum}}")]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain(literal);
+    }
+
+    [Theory]
     [InlineData("string")]
     [InlineData("int")]
     [InlineData("long")]
