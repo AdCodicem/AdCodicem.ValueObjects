@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Metadata;
 using Xunit;
 
@@ -186,11 +187,14 @@ public abstract class ValueObjectContract<TSelf, TValue>
     [Fact]
     public void Json_rejects_a_value_the_type_would_reject()
     {
+        // NaN and the infinities are values a bounded floating-point type rejects, and plain JSON cannot write them.
+        var options = new JsonSerializerOptions { NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals };
+
         foreach (var value in RejectedValues)
         {
-            var json = JsonSerializer.Serialize(value);
+            var json = JsonSerializer.Serialize(value, options);
 
-            Assert.ThrowsAny<Exception>(() => JsonSerializer.Deserialize<TSelf>(json));
+            Assert.ThrowsAny<Exception>(() => JsonSerializer.Deserialize<TSelf>(json, options));
         }
     }
 
