@@ -247,6 +247,38 @@ public sealed class EmissionTests
         run.SingleValueObject.Should().Contain(literal);
     }
 
+    /// <summary>
+    /// C# ends a line at U+0085, U+2028 and U+2029 as well as at a line feed, and a regular string or character
+    /// literal cannot hold any of them raw.
+    /// </summary>
+    [Fact]
+    public void A_unicode_line_terminator_in_author_text_is_escaped_in_every_literal()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>(Description = "One\u2028two", Example = "a\u0085b", Pattern = "^[^\u2029]+$")]
+            [KnownValue("Separated", "a\u2028b\u2029c\u0085d")]
+            public readonly partial struct Token;
+
+            [ValueObject<char>]
+            [KnownValue("LineSeparator", '\u2028')]
+            [KnownValue("NextLine", "\u0085")]
+            public readonly partial struct Separator;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        var token = run.Files.Single(file => file.HintName.Contains("Token", StringComparison.Ordinal)).Text;
+        token.Should().Contain("Create(\"a\\u2028b\\u2029c\\u0085d\")");
+        token.Should().Contain("Description = \"One\\u2028two\"");
+        token.Should().Contain("Example = \"a\\u0085b\"");
+        token.Should().Contain("\"^[^\\u2029]+$\"");
+
+        var separator = run.Files.Single(file => file.HintName.Contains("Separator", StringComparison.Ordinal)).Text;
+        separator.Should().Contain("Create('\\u2028')");
+        separator.Should().Contain("Create('\\u0085')");
+    }
+
     [Theory]
     [InlineData("string")]
     [InlineData("int")]
