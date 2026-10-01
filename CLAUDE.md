@@ -229,7 +229,9 @@ Three suites, each with a distinct job:
   objects reach the column types they claim, plus the API surface end to end.
 
 `AdCodicem.ValueObjects.Testing` ships a contract kit (`ValueObjectContract`) that consumers point at their own
-types; the unit tests use it on every sample value object.
+types; the unit tests use it on every generated value object of `Domain/` but two. `Floor` and `Celsius` cannot
+satisfy it: their formatting hooks write text such as `floor 3` or `21 °C`, which does not parse back, and the kit
+requires a text round trip. Add a contract with each value object added to `Domain/`.
 
 **Coverage aims at 100 % of each pull request's patch, as Codecov counts it**
 (`docs/adr/0006-coverage-is-a-signal-not-a-goal.md`). `codecov.yml` is the floor, not the aim: 95 % of the lines a
