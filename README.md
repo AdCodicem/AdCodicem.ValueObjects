@@ -206,7 +206,11 @@ without its interface — the one mistake the compiler cannot catch.
 | `IValueObjectStringFormatter<TValue>` | `static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 
 `NormalizeValue` must be idempotent and must not reject: an unnormalizable value is rejected by
-`ValidateValue`. `TryFormatValue`, when present, takes over formatting entirely, including the default format.
+`ValidateValue`. A formatting hook, when present, takes over formatting entirely, including the default format:
+`ToString()`, `ToString(format, provider)`, `TryFormat` and interpolation all write what it writes. When a type
+declares both, `FormatValue` answers everywhere and `TryFormatValue` is never called; `TryFormat` then copies the
+string `FormatValue` returns. Formatting stops at text for people: JSON, dictionary keys included, and the
+database carry the underlying value.
 
 Adding `IValueObjectSpanNormalizer` alongside `IValueObjectNormalizer<string>` lets parsing and JSON reading
 normalize straight from the text, so ingesting a value allocates the normalized string and nothing else. It
@@ -305,9 +309,9 @@ an internal surrogate key alongside it.
 | Id | Severity | Meaning |
 | --- | --- | --- |
 | `VO0001` | Error | The type is not `partial`. |
-| `VO0002` | Error | The type is not a `readonly struct`, or is a record. |
+| `VO0002` | Error | The type is not a `readonly struct`, or is a record or a `ref struct`. |
 | `VO0003` | Error | Unsupported underlying type. |
-| `VO0004` | Error | A bound could not be parsed. |
+| `VO0004` | Error | A bound is not written in the form of its type, or is set on a type that takes none. |
 | `VO0005` | Error | A closed value set declares no value. |
 | `VO0006` | Error | A known value has an unusable name. |
 | `VO0007` | Error | Arithmetic requested on a non-numeric type. |
@@ -321,6 +325,8 @@ an internal surrogate key alongside it.
 | `VO0016` | Error | Two types claiming the same prefix. |
 | `VO0017` | Error | A normalization hook on an entity identifier, which owns its own. |
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
+| `VO0019` | Error | The type is generic, or nested in a generic type or an interface. |
+| `VO0020` | Error | `Comparison`, `ValueSet` or `Granularity` holds a value its enum does not define. |
 
 ## Using it with an AI coding agent
 
