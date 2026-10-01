@@ -24,3 +24,28 @@ public readonly partial struct RecordedAt;
 /// <summary>When an event occurred, with the offset it occurred at.</summary>
 [ValueObject<DateTimeOffset>(Minimum = "2000-01-01T00:00:00+00:00")]
 public readonly partial struct OccurredAt;
+
+/// <summary>An international phone number, printed in groups by its own formatter.</summary>
+[ValueObject<string>(Pattern = @"^\+[0-9]{6,15}$")]
+public readonly partial struct PhoneNumber : IValueObjectStringFormatter<string>
+{
+    /// <summary>The grouped format: the country part, then groups of three digits.</summary>
+    public const string Grouped = "G";
+
+    public static string FormatValue(in string value, ReadOnlySpan<char> format, IFormatProvider? provider)
+    {
+        _ = provider;
+        if (!format.Equals(Grouped, StringComparison.OrdinalIgnoreCase))
+        {
+            return value;
+        }
+
+        var grouped = new System.Text.StringBuilder(value[..3]);
+        for (var i = 3; i < value.Length; i += 3)
+        {
+            grouped.Append(' ').Append(value.AsSpan(i, Math.Min(3, value.Length - i)));
+        }
+
+        return grouped.ToString();
+    }
+}

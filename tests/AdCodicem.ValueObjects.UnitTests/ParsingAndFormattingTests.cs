@@ -184,4 +184,15 @@ public class ParsingAndFormattingTests
         $"{occurred}".Should().Be("2024-06-01T12:30:45.1230000+02:00");
         recorded.ToString(null, CultureInfo.InvariantCulture).Should().Be(recorded.ToString());
     }
+
+    [Fact]
+    public void A_string_formatter_formats_interpolation_and_spans_too()
+    {
+        var phone = PhoneNumber.Create("+33123456789");
+        var buffer = new char[32];
+
+        $"{phone:G}".Should().Be("+33 123 456 789");
+        phone.TryFormat(buffer, out var written, PhoneNumber.Grouped, null).Should().BeTrue();
+        new string(buffer, 0, written).Should().Be("+33 123 456 789");
+    }
 }
