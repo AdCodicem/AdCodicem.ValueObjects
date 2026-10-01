@@ -144,7 +144,8 @@ Buying guaranteed-valid values at the boundary for ~240 ns is the trade the whol
 `PatternBenchmarks` checks the shape of an IBAN and of a five-digit postal code four ways: through the deprecated
 `Pattern` option, which compiles a `Regex` at run time; through the pattern hook, whose `[GeneratedRegex]` is
 compiled with the type; by hand, in the validator; and not at all, the floor. The setup asserts that every
-variant accepts and rejects the same input. Each table comes from one run, under the JIT, then under native AOT:
+variant accepts and rejects the same input. Each table comes from one run, under the JIT, then under native AOT, on
+the CPU, BenchmarkDotNet and Windows build of [Cost of creating one](#cost-of-creating-one):
 
 ```
 dotnet run -c Release -- --filter '*PatternBenchmarks*' --runtimes nativeaot10.0
@@ -189,6 +190,69 @@ taking the median of 41 processes per variant:
 
 Under the JIT most of that first call is the regular expression machinery itself, which the hook pays too; the
 option adds 0.15 to 0.3 ms of compilation on top. Under native AOT both are tens of microseconds, once per type.
+
+## Formatting hooks
+
+This table and the next come from one later run, on the CPU, BenchmarkDotNet and Windows build of
+[Cost of creating one](#cost-of-creating-one):
+
+```
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.9550)
+Intel Core i9-10980HK CPU 2.40GHz, 8 physical cores
+.NET 10.0.12, X64 RyuJIT x86-64-v3
+```
+
+`Bban` and `StringFormattedBban` mask a 23-character account number with the same rule, and the benchmark asserts
+in its setup that they print the same text. The first writes into a span (`IValueObjectFormatter<string>`), the
+second returns a string (`IValueObjectStringFormatter<string>`), so anything between their rows is the shape of
+the hook.
+
+| Operation                     |    Time | Allocated |
+| ----------------------------- | ------: | --------: |
+| Span hook, `ToString()`       |  9.9 ns |   **0 B** |
+| Span hook, `ToString("M")`    | 18.7 ns |      72 B |
+| Span hook, `TryFormat("M")`   |  4.3 ns |   **0 B** |
+| String hook, `ToString()`     |  0.0 ns |       0 B |
+| String hook, `ToString("M")`  |  9.8 ns |      72 B |
+| String hook, `TryFormat("M")` | 14.0 ns |  **72 B** |
+
+**A span hook allocates only the text it is asked for.** Its default format writes the value unchanged, and
+`ToString` then hands back the string the value object already holds rather than a copy of it. `TryFormat`, and
+so interpolation, writes straight into the caller's buffer and allocates nothing.
+
+**A string hook costs every string it builds**, `TryFormat` included: the hook builds its 72 B string for this
+text, and the destination receives a copy of it. Where a value object is mostly interpolated into larger text, the
+span hook is the one to write.
+
+**A span hook's `ToString` is the slower of the two, in both rows.** It formats into a stack buffer and compares
+the result with the held string before returning that string or copying the text into a new one. That fixed cost,
+9 to 10 ns here, is one the string hook does not pay. On `ToString("M")` it is 1.9 times as slow as the string hook
+in this run; four runs made before the hook's retry loop moved out of `ToString` measured 1.6 to 2.3 times.
+
+The `TryFormat` rows write into a pinned buffer. Unpinned, identical machine code for one of these rows
+measured 4 ns in one build and 17 ns in another. Pinned, it measured 5.3 to 5.9 ns in both of those builds, at
+every offset tried.
+
+## Dates
+
+| Operation                       |     Time | Allocated |
+| ------------------------------- | -------: | --------: |
+| Format raw `DateTime`, `"O"`    |  25.3 ns |      80 B |
+| Format value object             |  23.7 ns |  **80 B** |
+| Parse raw `DateTime`            | 128.8 ns |       0 B |
+| Parse value object              | 134.0 ns |   **0 B** |
+| Format raw `DateTimeOffset`     |  25.4 ns |      88 B |
+| Format value object             |  27.4 ns |  **88 B** |
+| `TryFormat` value object        |  18.1 ns |   **0 B** |
+| Parse raw `DateTimeOffset`      | 163.8 ns |       0 B |
+| Parse value object              | 166.1 ns |   **0 B** |
+
+**A date value object with no rules costs what the bare value costs, to within a few nanoseconds.** It formats in
+the round-trip form `O` by default, within 2 ns of the raw row, and the setup asserts that this is exactly the text
+the raw row produces. It allocates the same 80 or 88 B. Parsing that text back lands within 5 ns of the bare parse,
+which for a `DateTime` keeps its kind through `DateTimeStyles.RoundtripKind`. The wrapper adds no allocation in
+either direction. A value object with bounds or a validation hook adds
+the cost of its rules on top.
 
 ## What the optimization pass changed
 
