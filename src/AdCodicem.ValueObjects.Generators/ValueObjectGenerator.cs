@@ -201,6 +201,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         var hasSpanNormalizeHook = underlying.IsString && ImplementsHook(symbol, "IValueObjectSpanNormalizer");
         var implicitConversion = GetBool(arguments, "ImplicitConversionToValue");
         var explicitConversion = GetBool(arguments, "ExplicitConversionFromValue");
+        var formatsThroughSpanHook = FormatsThroughSpanHook(symbol);
         var generated = ValueObjectEmitter.TakenNames(
             symbol.Name,
             underlying,
@@ -209,7 +210,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             explicitConversion,
             isClosed,
             pattern is not null,
-            hasSpanNormalizeHook);
+            hasSpanNormalizeHook,
+            formatsThroughSpanHook);
         var usableName = ValidateName(
             symbol,
             ValueObjectEmitter.MemberNames(
@@ -220,7 +222,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
                 isClosed,
                 pattern is not null,
                 hasSpanNormalizeHook,
-                entityId: false),
+                entityId: false,
+                formatsThroughSpanHook),
             location,
             diagnostics);
         var knownValues = ParseKnownValues(symbol, underlying, generated, location, diagnostics);
@@ -345,7 +348,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             closedValueSet: false,
             pattern: false,
             normalizesFromSpan: true,
-            entityId: true);
+            entityId: true,
+            FormatsThroughSpanHook(symbol));
         var usableName = ValidateName(symbol, members, location, diagnostics);
 
         var arguments = attribute.NamedArguments.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
@@ -895,6 +899,15 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         => symbol.AllInterfaces.Any(candidate =>
             string.Equals(candidate.MetadataName, metadataName, StringComparison.Ordinal)
             && candidate.ContainingNamespace.ToDisplayString() == HookNamespace);
+
+    /// <summary>
+    /// Whether <c>ToString</c> goes through the span formatting hook, which only happens when no string formatting
+    /// hook answers in its place.
+    /// </summary>
+    /// <param name="symbol">The value object.</param>
+    /// <returns><see langword="true"/> when the span hook formats the value.</returns>
+    private static bool FormatsThroughSpanHook(INamedTypeSymbol symbol)
+        => ImplementsHook(symbol, "IValueObjectFormatter`1") && !ImplementsHook(symbol, "IValueObjectStringFormatter`1");
 
     private static string DeclarationKeyword(INamedTypeSymbol symbol) => symbol switch
     {
