@@ -57,8 +57,21 @@ Thrown by `Create`, by `Parse`, and by an explicit conversion, when the value is
 | `AttemptedValue` | The value as it was passed in, before normalization. |
 | `Message` | The message of the violated rule, after the text and the type for `Parse`. |
 
-Every integration on a boundary — JSON, model binding, EF Core, Dapper — uses `TryCreate` instead, so the
-exception is reserved for code that treats a rejected value as a bug.
+The integrations on a boundary report a rejected value in their own terms, so the exception is reserved for code
+that treats a rejected value as a bug, and for a strict EF Core read:
+
+| Integration | A rejected value |
+| --- | --- |
+| The System.Text.Json converters | `JsonException`, with the message of the rule. |
+| The Newtonsoft.Json converter | `JsonSerializationException`, with the message of the rule. |
+| ASP.NET Core model binding | A model state error; the [problem details](../how-to/aspnet-core.md#problem-details-carrying-the-rule) carry its code. |
+| FluentValidation, `MustParseAs` and `MustSatisfy` | A validation failure carrying the code. |
+| Dapper | `DataException`, for text the value object refuses or a value it cannot convert. |
+| EF Core with `strict: true` | `ValueObjectException`, from `Create`: the query fails. |
+
+The other reads do not validate. EF Core by default, and Dapper for a value the provider returns as the underlying
+type, build the value object with `CreateUnchecked`: they read what this application validated when it wrote it.
+[EF Core](../how-to/ef-core.md#validation-on-read) says when to read strictly.
 
 ## Detecting an uninitialized instance
 
