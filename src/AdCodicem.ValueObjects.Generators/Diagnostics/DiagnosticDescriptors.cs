@@ -40,7 +40,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor InvalidKnownValueName = Error(
         "VO0006",
         "Invalid known value name",
-        "'{0}' is not usable as the name of a generated member on '{1}'");
+        "'{0}' is not usable as the name of a generated member on '{1}': {2}");
 
     public static readonly DiagnosticDescriptor ArithmeticRequiresNumeric = Error(
         "VO0007",

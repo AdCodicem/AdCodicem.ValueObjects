@@ -52,6 +52,11 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 
     private static readonly string[] LineSeparators = ["\r\n", "\n"];
 
+    /// <summary>
+    /// The members of <see cref="object"/> that no value object overrides and a static property would hide.
+    /// </summary>
+    private static readonly string[] InheritedNames = ["GetType", "MemberwiseClone", "ReferenceEquals"];
+
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -194,8 +199,18 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 
         var isClosed = valueSet == "Closed";
         var hasSpanNormalizeHook = underlying.IsString && ImplementsHook(symbol, "IValueObjectSpanNormalizer");
-        var taken = ValueObjectEmitter.TakenNames(symbol.Name, arithmetic, isClosed, pattern is not null, hasSpanNormalizeHook);
-        var knownValues = ParseKnownValues(symbol, underlying, taken, location, diagnostics);
+        var implicitConversion = GetBool(arguments, "ImplicitConversionToValue");
+        var explicitConversion = GetBool(arguments, "ExplicitConversionFromValue");
+        var generated = ValueObjectEmitter.TakenNames(
+            symbol.Name,
+            underlying,
+            arithmetic,
+            implicitConversion,
+            explicitConversion,
+            isClosed,
+            pattern is not null,
+            hasSpanNormalizeHook);
+        var knownValues = ParseKnownValues(symbol, underlying, generated, location, diagnostics);
 
         if (isClosed && knownValues.Count == 0)
         {
@@ -223,8 +238,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             UnderlyingFullName = underlying.FullName,
             HintName = BuildHintName(symbol),
             ComparisonName = comparison ?? "Ordinal",
-            ImplicitConversionToValue = GetBool(arguments, "ImplicitConversionToValue"),
-            ExplicitConversionFromValue = GetBool(arguments, "ExplicitConversionFromValue"),
+            ImplicitConversionToValue = implicitConversion,
+            ExplicitConversionFromValue = explicitConversion,
             Arithmetic = arithmetic,
             IsClosedValueSet = isClosed,
             AllowEmpty = GetBool(arguments, "AllowEmpty"),
@@ -530,21 +545,19 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// </summary>
     /// <param name="symbol">Annotated type.</param>
     /// <param name="underlying">Its underlying type.</param>
-    /// <param name="names">
-    /// The names already taken on the type by the members the generator writes, to which each accepted known value
-    /// adds its own.
-    /// </param>
+    /// <param name="generated">The names the generated code uses on the type.</param>
     /// <param name="location">Where to report.</param>
     /// <param name="diagnostics">Sink.</param>
     /// <returns>The known values that can be generated, in declaration order.</returns>
     private static List<KnownValueModel> ParseKnownValues(
         INamedTypeSymbol symbol,
         UnderlyingType underlying,
-        HashSet<string> names,
+        HashSet<string> generated,
         Location location,
         List<DiagnosticInfo> diagnostics)
     {
         var knownValues = new List<KnownValueModel>();
+        var accepted = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var attribute in symbol.GetAttributes())
         {
@@ -561,15 +574,11 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             var name = attribute.ConstructorArguments[0].Value as string;
             var argument = attribute.ConstructorArguments[1];
 
-            // A keyword is refused rather than escaped: a member a caller has to write as @class is no constant
-            // anyone wants. A contextual keyword is an ordinary identifier in a member's name, and stays allowed.
-            if (string.IsNullOrEmpty(name)
-                || !SyntaxFacts.IsValidIdentifier(name)
-                || SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None
-                || !names.Add(name!))
+            var refusal = RefuseKnownValueName(name, symbol, generated, accepted);
+            if (refusal is not null)
             {
                 diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.InvalidKnownValueName, location, name ?? "?", symbol.Name));
+                    DiagnosticDescriptors.InvalidKnownValueName, location, name ?? "?", symbol.Name, refusal));
                 continue;
             }
 
@@ -597,6 +606,49 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         }
 
         return knownValues;
+    }
+
+    /// <summary>
+    /// Says why a known value cannot take a name, if it cannot.
+    /// </summary>
+    /// <remarks>
+    /// A keyword is refused rather than escaped: a member a caller has to write as <c>@class</c> is no constant
+    /// anyone wants. A contextual keyword is an ordinary identifier in a member's name, and stays allowed. The
+    /// members the type has are the author's, which the generator's compilation holds without the generated ones,
+    /// and the members of <see cref="object"/> a static property would hide, with a warning in the generated file.
+    /// </remarks>
+    /// <param name="name">The name the known value asks for.</param>
+    /// <param name="symbol">The value object.</param>
+    /// <param name="generated">The names the generated code uses on the type.</param>
+    /// <param name="accepted">The names of the known values accepted so far, to which this one is added.</param>
+    /// <returns>The rule the name breaks, or <see langword="null"/> when it is usable.</returns>
+    private static string? RefuseKnownValueName(
+        string? name,
+        INamedTypeSymbol symbol,
+        HashSet<string> generated,
+        HashSet<string> accepted)
+    {
+        if (string.IsNullOrEmpty(name) || !SyntaxFacts.IsValidIdentifier(name))
+        {
+            return "it is not a C# identifier";
+        }
+
+        if (SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None)
+        {
+            return "it is a C# keyword";
+        }
+
+        if (generated.Contains(name!))
+        {
+            return "the generated code already uses that name";
+        }
+
+        if (!symbol.GetMembers(name!).IsEmpty || InheritedNames.Contains(name!, StringComparer.Ordinal))
+        {
+            return "the type already has a member of that name";
+        }
+
+        return accepted.Add(name!) ? null : "another known value already takes that name";
     }
 
     private static string? ParseBound(
