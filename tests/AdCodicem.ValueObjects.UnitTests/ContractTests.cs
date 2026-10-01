@@ -132,3 +132,23 @@ public sealed class LedgerEntryIdContract : ValueObjectContract<LedgerEntryId, s
 
     protected override IEnumerable<string> RejectedValues => [string.Empty, "ldg_entry_nope", AccountId.New().Value];
 }
+
+/// <inheritdoc cref="AccountIdContract" />
+public sealed class SubscriptionIdContract : ValueObjectContract<SubscriptionId, string>
+{
+    private static readonly string[] Minted = [SubscriptionId.New().Value, SubscriptionId.New().Value];
+
+    protected override IEnumerable<string> AcceptedValues => Minted;
+
+    protected override IEnumerable<string> RejectedValues => [string.Empty, "sub_nope", AccountId.New().Value];
+}
+
+/// <inheritdoc cref="AccountIdContract" />
+public sealed class EventIdContract : ValueObjectContract<EventId, string>
+{
+    private static readonly string[] Minted = [EventId.New().Value, EventId.New().Value];
+
+    protected override IEnumerable<string> AcceptedValues => Minted;
+
+    protected override IEnumerable<string> RejectedValues => [string.Empty, "evt_nope", AccountId.New().Value];
+}
