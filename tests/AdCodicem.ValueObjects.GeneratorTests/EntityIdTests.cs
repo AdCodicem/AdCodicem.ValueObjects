@@ -310,6 +310,7 @@ public sealed class EntityIdTests
     [InlineData("public readonly struct AccountId;", "VO0001")]
     [InlineData("public readonly partial record struct AccountId;", "VO0002")]
     [InlineData("public readonly partial class AccountId;", "VO0002")]
+    [InlineData("public readonly ref partial struct AccountId;", "VO0002")]
     public void An_identifier_declared_wrongly_reaches_the_same_diagnostics_as_a_value_object(
         string declaration,
         string expected)

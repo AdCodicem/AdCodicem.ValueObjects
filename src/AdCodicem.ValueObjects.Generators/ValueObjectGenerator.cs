@@ -425,9 +425,11 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.MustBePartial, location, symbol.Name));
         }
 
-        // A class, an interface and a record struct all reach here so that each is told why it was rejected,
-        // rather than being handed a type missing every member the attribute promised.
-        if (declaration is not StructDeclarationSyntax || !symbol.IsReadOnly || symbol.IsRecord)
+        // A class, an interface, a record struct and a ref struct all reach here so that each is told why it was
+        // rejected, rather than being handed a type missing every member the attribute promised. A ref struct
+        // would get members it cannot compile: it can be neither boxed nor a type argument, and the generated
+        // code implements IValueObject<TSelf, TValue> over the type and registers a descriptor that boxes it.
+        if (declaration is not StructDeclarationSyntax || !symbol.IsReadOnly || symbol.IsRecord || symbol.IsRefLikeType)
         {
             diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.MustBeReadOnlyStruct, location, symbol.Name));
 

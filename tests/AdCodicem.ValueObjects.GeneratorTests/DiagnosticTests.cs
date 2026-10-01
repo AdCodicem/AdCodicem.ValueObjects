@@ -56,6 +56,24 @@ public sealed class DiagnosticTests
         run.Ids.Should().Contain("VO0002");
     }
 
+    /// <summary>
+    /// A ref struct can be neither boxed nor a type argument, and the generated code makes it both: the type
+    /// implements <c>IValueObject&lt;TSelf, TValue&gt;</c> over itself and registers a descriptor that boxes it.
+    /// </summary>
+    [Fact]
+    public void A_ref_struct_is_reported_instead_of_generating_code_that_cannot_compile()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>]
+            public readonly ref partial struct Code;
+            """);
+
+        run.Ids.Should().Equal("VO0002");
+        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Contain("ref struct");
+        run.Files.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+    }
+
     [Fact]
     public void An_unsupported_underlying_type_is_reported()
     {
