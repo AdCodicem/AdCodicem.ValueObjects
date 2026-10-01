@@ -35,7 +35,9 @@ does not read it as zero.
 
 `ValueObjectRegistry.IsValueObject(type)` and `ValueObjectRegistry.GetUnderlyingType(type)` answer without a
 descriptor. `TryResolve` also unwraps `Nullable<T>`, which is what a model binder or a serializer is usually
-holding.
+holding. `IsValueObject` says yes to anything carrying the `IValueObject` marker, interfaces included; `TryResolve`
+answers `false` for what no descriptor can describe — an interface, a class, a struct without
+`IValueObject<TSelf, TValue>` over itself.
 
 ## When a type is not found
 
