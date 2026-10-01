@@ -571,15 +571,16 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
                 continue;
             }
 
-            // An array is a legal argument for the object parameter, but no underlying type is one, and reading
-            // the Value of an array constant throws.
-            var isArray = argument.Kind == TypedConstantKind.Array;
-            if (isArray || !LiteralFactory.TryCreate(underlying, argument.Value, out var literal))
+            // An array, a type and an enum member are legal arguments for the object parameter, but none is a
+            // value of an underlying type. Reading the Value of an array constant throws, and read as text a type
+            // would become its name and an enum member its number, so each is refused as written.
+            var notAValue = argument.Kind is TypedConstantKind.Array or TypedConstantKind.Type or TypedConstantKind.Enum;
+            if (notAValue || !LiteralFactory.TryCreate(underlying, argument.Value, out var literal))
             {
                 diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.InvalidKnownValueLiteral,
                     location,
-                    isArray ? argument.ToCSharpString() : argument.Value?.ToString() ?? "null",
+                    notAValue ? argument.ToCSharpString() : argument.Value?.ToString() ?? "null",
                     symbol.Name,
                     underlying.Keyword));
                 continue;
