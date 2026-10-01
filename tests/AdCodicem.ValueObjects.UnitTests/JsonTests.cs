@@ -117,4 +117,22 @@ public partial class JsonTests
         JsonSerializer.Deserialize<Dictionary<CustomerId, Amount>>(json)!.Should().ContainKey(customer);
     }
 
+    /// <summary>
+    /// A key carries the underlying value, as the JSON value does: Floor prints "floor 3" through its string
+    /// formatter and Celsius "21 °C" through its span formatter, and neither text could be read back as a key.
+    /// </summary>
+    [Fact]
+    public void A_dictionary_key_carries_the_underlying_value_whatever_the_formatting_hook_writes()
+    {
+        var floors = new Dictionary<Floor, int> { [Floor.Create(3)] = 1, [Floor.Create(-2)] = 2 };
+        var temperatures = new Dictionary<Celsius, int> { [Celsius.Create(21)] = 1, [Celsius.Create(-40)] = 2 };
+
+        var floorsJson = JsonSerializer.Serialize(floors);
+        var temperaturesJson = JsonSerializer.Serialize(temperatures);
+
+        floorsJson.Should().Be("""{"3":1,"-2":2}""");
+        temperaturesJson.Should().Be("""{"21":1,"-40":2}""");
+        JsonSerializer.Deserialize<Dictionary<Floor, int>>(floorsJson).Should().Equal(floors);
+        JsonSerializer.Deserialize<Dictionary<Celsius, int>>(temperaturesJson).Should().Equal(temperatures);
+    }
 }

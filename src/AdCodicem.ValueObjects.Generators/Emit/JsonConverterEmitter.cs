@@ -175,22 +175,34 @@ internal static class JsonConverterEmitter
         writer.Close();
         writer.Line();
 
+        // A key carries the underlying value, in the form the JSON value is written in, as Write does. Formatting
+        // the value object instead would hand the key to a formatting hook, whose text TryParse cannot read back.
         writer.Line("/// <inheritdoc />");
         writer.Open($"public override void WriteAsPropertyName({Writer} writer, {self} value, {Options} options)");
 
-        if (underlying.IsString)
+        switch (underlying.Kind)
         {
-            writer.Line("writer.WritePropertyName(value.Value);");
-        }
-        else
-        {
-            writer.Line($"global::System.Span<char> buffer = stackalloc char[{underlying.FormatBufferSize}];");
-            writer.Open($"if (value.TryFormat(buffer, out var written, {FormatArgument(underlying)}, {Invariant}))");
-            writer.Line("writer.WritePropertyName(buffer[..written]);");
-            writer.Close();
-            writer.Open("else");
-            writer.Line("writer.WritePropertyName(value.ToString());");
-            writer.Close();
+            case UnderlyingKind.String:
+                writer.Line("writer.WritePropertyName(value.Value);");
+                break;
+
+            case UnderlyingKind.Boolean:
+                writer.Line($"writer.WritePropertyName(value.Value.ToString({Invariant}));");
+                break;
+
+            case UnderlyingKind.Char:
+                writer.Line("global::System.Span<char> buffer = stackalloc char[1];");
+                writer.Line("buffer[0] = value.Value;");
+                writer.Line("writer.WritePropertyName(buffer);");
+                break;
+
+            default:
+                // The buffer holds the longest text of the type in its round-trip form, as in Write.
+                writer.Line($"global::System.Span<char> buffer = stackalloc char[{underlying.FormatBufferSize}];");
+                writer.Line("var current = value.Value;");
+                writer.Line($"global::AdCodicem.ValueObjects.UnderlyingValue.TryFormat(in current, buffer, out var written, {FormatArgument(underlying)}, {Invariant});");
+                writer.Line("writer.WritePropertyName(buffer[..written]);");
+                break;
         }
 
         writer.Close();
