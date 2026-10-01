@@ -26,19 +26,15 @@ public sealed class ValueObjectModelBinderProvider : IModelBinderProvider
 
     private static IModelBinder? Create(Type modelType)
     {
-        var valueObjectType = Nullable.GetUnderlyingType(modelType) ?? modelType;
-        if (!ValueObjectRegistry.IsValueObject(valueObjectType))
+        // A descriptor exists for a struct implementing IValueObject<TSelf, TValue> over itself, the one shape the
+        // binder can be closed over. Anything else carrying the marker - an interface, a class, a struct with the
+        // marker or IValueObject<TValue> alone - is left to MVC's own binders.
+        if (!ValueObjectRegistry.TryResolve(modelType, out var descriptor))
         {
             return null;
         }
 
-        var valueType = ValueObjectRegistry.GetUnderlyingType(valueObjectType);
-        if (valueType is null)
-        {
-            return null;
-        }
-
-        var binderType = typeof(ValueObjectModelBinder<,>).MakeGenericType(valueObjectType, valueType);
+        var binderType = typeof(ValueObjectModelBinder<,>).MakeGenericType(descriptor.ValueObjectType, descriptor.ValueType);
 
         return (IModelBinder?)Activator.CreateInstance(binderType);
     }
