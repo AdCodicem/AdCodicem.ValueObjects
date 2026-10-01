@@ -17,8 +17,9 @@ public sealed class KnownValueAttribute : Attribute
     /// <param name="name">
     /// Name of the generated static property. Must be a valid C# identifier, not a keyword, and a name the type does
     /// not already have: neither a member it declares nor one the generated code uses, the metadata names of its
-    /// operators and the getters of its properties included, nor the name of another known value. Any other name is
-    /// reported with the rule it breaks.
+    /// operators and the getters of its properties included, nor the name of another known value. The property's own
+    /// getter, <c>get_</c> followed by the name, must be free too: no field, nested type or method without
+    /// parameters of the type takes it. Any other name is reported with the rule it breaks.
     /// </param>
     /// <param name="value">
     /// The underlying value. Types that cannot appear as an attribute argument, such as <see cref="Guid"/>,

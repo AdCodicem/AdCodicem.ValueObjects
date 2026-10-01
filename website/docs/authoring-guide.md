@@ -47,7 +47,7 @@ value, and the message names the form the type expects.
 | `sbyte`, `short`, `int`, `long`, `Int128` | Digits, with `-` in front when negative. | `"-42"` |
 | `byte`, `ushort`, `uint`, `ulong`, `UInt128` | Digits alone. | `"42"` |
 | `decimal` | Digits, an optional `-` in front, an optional fraction after `.`. No exponent. | `"-19.99"` |
-| `double`, `float` | As `decimal`, plus an optional exponent: `e` or `E`, an optional sign, digits. A finite value. | `"9.1e-31"` |
+| `double`, `float` | As `decimal`, plus an optional exponent: `e` or `E`, an optional sign, digits. A finite value, and zero only when written as zero. | `"9.1e-31"` |
 | `char` | Exactly one character. | `"A"` |
 | `DateOnly` | `yyyy-MM-dd` | `"2024-01-31"` |
 | `TimeOnly` | `HH:mm`, `HH:mm:ss` or `HH:mm:ss.fffffff`, with one to seven digits of fraction. | `"08:30"` |
@@ -58,7 +58,8 @@ value, and the message names the form the type expects.
 | `Guid` | Any form `Guid.Parse` reads. Known values only. | `"6f9619ff-8b86-d011-b42d-00c04fc964ff"` |
 | `bool` | `true` or `false`, in any case. Known values only. | `"true"` |
 
-The value must also exist in the type: `"300"` is no `byte`, `"2023-02-29"` no date, `"25:00"` no time of day.
+The value must also exist in the type: `"300"` is no `byte`, `"2023-02-29"` no date, `"25:00"` no time of day,
+and `"1e-400"`, which reads as zero, no `double`.
 A time of day written alone is neither a `DateTime` nor a `DateTimeOffset`, since it would take the date of the
 day the project is built; [date and time bounds](./reference/diagnostics.md#date-and-time-bounds) explains the
 rest. A `string`, a `Guid` and a `bool` have no order, and take no bound.
