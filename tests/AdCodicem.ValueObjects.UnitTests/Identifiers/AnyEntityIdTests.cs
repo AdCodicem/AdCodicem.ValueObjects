@@ -379,10 +379,23 @@ public partial class AnyEntityIdTests
         converter.CanConvertTo(typeof(string)).Should().BeTrue();
         converter.CanConvertTo(typeof(int)).Should().BeFalse();
 
-        ((AnyEntityId)converter.ConvertFrom(null!)!).IsDefault.Should().BeTrue();
         converter.ConvertToString(null).Should().BeEmpty();
         FluentActions.Invoking(() => converter.ConvertFrom(42)).Should().Throw<NotSupportedException>();
         FluentActions.Invoking(() => converter.ConvertTo(any, typeof(int))).Should().Throw<NotSupportedException>();
+    }
+
+    /// <summary>
+    /// A null is no identifier, and the converter of every generated identifier refuses it: this one does not turn it
+    /// into a default that belongs to no type.
+    /// </summary>
+    [Fact]
+    public void The_type_converter_refuses_null_as_a_generated_identifier_converter_does()
+    {
+        var converter = TypeDescriptor.GetConverter(typeof(AnyEntityId));
+
+        FluentActions.Invoking(() => converter.ConvertFrom(null!)).Should().Throw<NotSupportedException>();
+        FluentActions.Invoking(() => TypeDescriptor.GetConverter(typeof(AccountId)).ConvertFrom(null!))
+            .Should().Throw<NotSupportedException>();
     }
 
     /// <summary>
