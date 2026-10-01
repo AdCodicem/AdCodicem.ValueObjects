@@ -13,8 +13,9 @@ namespace AdCodicem.ValueObjects.Generators.Emit;
 /// work inside a <c>JsonSerializerContext</c>, which is what keeps the whole chain compatible with native AOT.
 /// </para>
 /// <para>
-/// <c>null</c> is deliberately not handled: System.Text.Json rejects a null token for a non-nullable struct
-/// before the converter is reached, and routes it to the nullable wrapper for an optional value object.
+/// <c>null</c> needs no case of its own. System.Text.Json hands a null token to the converter of a value type, and
+/// the generated <c>Read</c> refuses it from its default arm with a <c>JsonException</c>; for an optional value
+/// object, the nullable wrapper System.Text.Json puts around the converter answers the null itself.
 /// </para>
 /// </remarks>
 internal static class JsonConverterEmitter
