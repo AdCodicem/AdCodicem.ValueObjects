@@ -1,11 +1,13 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.OpenApi;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi;
 
 namespace AdCodicem.ValueObjects.UnitTests.Web;
 
@@ -28,7 +30,26 @@ public sealed class OpenApiDocument : IAsyncLifetime
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
-        builder.Services.AddOpenApi(static options => options.AddValueObjects());
+        builder.Services.AddOpenApi(static options =>
+        {
+            // A transformer that runs first and describes each value object as the object it is in memory, as a
+            // generator blind to its converter would. The value object transformer must replace that shape.
+            options.AddSchemaTransformer(static (schema, context, _) =>
+            {
+                if (ValueObjectRegistry.IsValueObject(context.JsonTypeInfo.Type))
+                {
+                    schema.Properties = new Dictionary<string, IOpenApiSchema>
+                    {
+                        ["value"] = new OpenApiSchema { Type = JsonSchemaType.String },
+                    };
+                    schema.Required = new HashSet<string> { "value" };
+                }
+
+                return Task.CompletedTask;
+            });
+
+            options.AddValueObjects();
+        });
 
         await using var application = builder.Build();
         application.MapPost("/everything", static (EveryValueObject body) => Results.Ok(body));
