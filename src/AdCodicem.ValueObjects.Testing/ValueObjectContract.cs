@@ -217,9 +217,13 @@ public abstract class ValueObjectContract<TSelf, TValue>
     [Fact]
     public void Declared_length_limits_hold_for_every_accepted_value()
     {
+        // The limits are read from the registry's schema. Without it there is nothing to check, which is a skip to
+        // report rather than a pass to claim.
         if (!ValueObjectRegistry.TryGet(typeof(TSelf), out var descriptor))
         {
-            return;
+            Assert.Skip(
+                $"'{typeof(TSelf).Name}' did not register itself, so it has no declared length limits to check. "
+                + "The_type_is_discoverable_at_run_time says why.");
         }
 
         foreach (var created in Accepted())
