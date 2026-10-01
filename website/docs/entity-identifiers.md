@@ -269,9 +269,10 @@ without the package, the attribute does not exist.
 | Id | Severity | Meaning |
 | --- | --- | --- |
 | `VO0010` | Error | `default(AccountId)` or `new AccountId()`: an identifier that never went through validation. `AllowDefault = true` opts a type out. |
+| `VO0011` | Warning | A validator or a formatter written without its hook interface, which the generator never calls. |
 | `VO0015` | Error | Malformed prefix: empty, wrong characters, or an over-long segment. |
 | `VO0016` | Error | Two types in the compilation declare the same prefix. |
-| `VO0017` | Error | An option that `[EntityId]` derives or forbids was set by hand. |
+| `VO0017` | Error | A normalization hook on an identifier, which normalizes its own format and would never call it. |
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
 | `VO0020` | Error | `Granularity` holds a value `IdGranularity` does not define. |
 
