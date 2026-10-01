@@ -50,17 +50,17 @@ public sealed class ValueObjectJsonConverter<TSelf, TValue> : JsonConverter<TSel
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The key is the underlying value, written as System.Text.Json writes a key of <typeparamref name="TValue"/>:
+    /// the form the value itself travels in. The value object's own formatting, which may print something its
+    /// parser does not read, never reaches the wire. An underlying type System.Text.Json cannot write as a key is
+    /// refused as it is in a dictionary of its own, with a <see cref="NotSupportedException"/>.
+    /// </remarks>
     public override void WriteAsPropertyName(Utf8JsonWriter writer, TSelf value, JsonSerializerOptions options)
     {
-        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(options);
 
-        Span<char> buffer = stackalloc char[64];
-        if (value.TryFormat(buffer, out var written, default, CultureInfo.InvariantCulture))
-        {
-            writer.WritePropertyName(buffer[..written]);
-            return;
-        }
-
-        writer.WritePropertyName(value.ToString(null, CultureInfo.InvariantCulture));
+        var converter = (JsonConverter<TValue>)options.GetConverter(typeof(TValue));
+        converter.WriteAsPropertyName(writer, value.Value!, options);
     }
 }
