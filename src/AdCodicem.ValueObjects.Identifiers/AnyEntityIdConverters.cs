@@ -50,7 +50,16 @@ public sealed class AnyEntityIdJsonConverter : JsonConverter<AnyEntityId>
 
     /// <inheritdoc />
     public override AnyEntityId ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        => AnyEntityId.Parse(reader.GetString() ?? string.Empty, CultureInfo.InvariantCulture);
+    {
+        var text = reader.GetString();
+
+        if (!AnyEntityId.TryParse(text, CultureInfo.InvariantCulture, out var result))
+        {
+            throw new JsonException($"'{text}' is not an identifier of any registered type.");
+        }
+
+        return result;
+    }
 
     /// <inheritdoc />
     public override void WriteAsPropertyName(Utf8JsonWriter writer, AnyEntityId value, JsonSerializerOptions options)
