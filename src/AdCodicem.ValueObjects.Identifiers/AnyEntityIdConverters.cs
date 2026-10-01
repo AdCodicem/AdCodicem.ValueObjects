@@ -14,17 +14,17 @@ namespace AdCodicem.ValueObjects.Identifiers;
 /// wrong shape for the payloads this type exists to serve. Writing the text also makes the default OpenAPI
 /// schema a plain string, which is the representation chosen over a <c>oneOf</c> across every registered
 /// pattern: faithful, and unreadable past a handful of identifier types.
+/// <para>
+/// A JSON <c>null</c> is refused like any other token that is not a string, as it is by the converter of every
+/// generated identifier: an identifier that may be absent is declared <c>AnyEntityId?</c>, whose null never
+/// reaches this converter.
+/// </para>
 /// </remarks>
 public sealed class AnyEntityIdJsonConverter : JsonConverter<AnyEntityId>
 {
     /// <inheritdoc />
     public override AnyEntityId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        if (reader.TokenType == JsonTokenType.Null)
-        {
-            return default;
-        }
-
         if (reader.TokenType != JsonTokenType.String)
         {
             throw new JsonException($"Expected a string holding an entity identifier, found {reader.TokenType}.");
