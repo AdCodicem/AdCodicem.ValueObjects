@@ -609,13 +609,30 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             return null;
         }
 
+        // A string, a Guid or a bool has no order a bound could hold to. Accepted, the text would be published in
+        // the schema as a limit that nothing enforces.
+        if (!underlying.SupportsBounds)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.InvalidBound,
+                location,
+                text,
+                boundName,
+                underlying.Keyword,
+                underlying.IsString
+                    ? "a string takes no bound; constrain it with MinLength, MaxLength or Pattern"
+                    : "the type takes no bound"));
+
+            return null;
+        }
+
         if (LiteralFactory.TryCreate(underlying, text, out var literal))
         {
             return literal;
         }
 
         diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.InvalidBound, location, text, boundName, underlying.Keyword));
+            DiagnosticDescriptors.InvalidBound, location, text, boundName, underlying.Keyword, "write it in invariant culture"));
 
         _ = symbol;
         return null;
