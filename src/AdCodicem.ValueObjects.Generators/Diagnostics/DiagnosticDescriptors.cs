@@ -91,11 +91,10 @@ internal static class DiagnosticDescriptors
         "'{0}' carries both [EntityId] and [ValueObject<T>]. Each of them generates a whole implementation, so "
         + "keep the one that describes the type.");
 
-    public static readonly DiagnosticDescriptor UnsupportedDeclarationContext = Error(
+    public static readonly DiagnosticDescriptor UnsupportedDeclaration = Error(
         "VO0019",
-        "Value object is generic or nested in a generic type or an interface",
-        "'{0}' {1}, which the generator does not support. Declare it without type parameters, either at namespace "
-        + "level or nested in non-generic classes, structs and records.");
+        "Unsupported value object declaration",
+        "'{0}' {1}, which the generator does not support. {2}.");
 
     public static readonly DiagnosticDescriptor UndefinedEnumValue = Error(
         "VO0020",

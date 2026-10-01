@@ -1,7 +1,5 @@
 using System.Globalization;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace AdCodicem.ValueObjects.GeneratorTests;
 
@@ -187,7 +185,7 @@ public sealed class KnownValueNameTests
         "1")]
     public void Every_member_the_generator_writes_is_refused_as_a_known_value_name(string declaration, string literal)
     {
-        var members = MembersWrittenOn(GeneratorHarness.Run(declaration).SingleValueObject, "Code")
+        var members = GeneratedMembers.WrittenOn(GeneratorHarness.Run(declaration).SingleValueObject, "Code")
             .Where(name => name is not ("Kept" or "get_Kept"))
             .ToList();
 
@@ -201,7 +199,7 @@ public sealed class KnownValueNameTests
         run.Diagnostics.Should().OnlyContain(diagnostic => diagnostic.Id == "VO0006");
         run.Diagnostics.Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture)).Should().BeEquivalentTo(
             members.Select(name => Message(name, "Code", Generated)));
-        MembersWrittenOn(run.SingleValueObject, "Code").Should().BeEquivalentTo([.. members, "Kept", "get_Kept"]);
+        GeneratedMembers.WrittenOn(run.SingleValueObject, "Code").Should().BeEquivalentTo([.. members, "Kept", "get_Kept"]);
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
@@ -301,67 +299,6 @@ public sealed class KnownValueNameTests
         run.SingleValueObject.Should().Contain("public static global::Test.Country France { get; }");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
-
-    private static List<string> MembersWrittenOn(string generated, string typeName)
-    {
-        var type = CSharpSyntaxTree.ParseText(generated, cancellationToken: TestContext.Current.CancellationToken)
-            .GetRoot(TestContext.Current.CancellationToken)
-            .DescendantNodes()
-            .OfType<StructDeclarationSyntax>()
-            .Single(declaration => declaration.Identifier.ValueText == typeName);
-
-        return [.. type.Members.SelectMany(NamesOf).Distinct(StringComparer.Ordinal)];
-    }
-
-    /// <summary>
-    /// The names a member takes in the scope of the type. An operator takes its metadata name, a property its own and
-    /// its getter's, explicit interface implementations take none, and a constructor takes the name of the type.
-    /// </summary>
-    private static IEnumerable<string> NamesOf(MemberDeclarationSyntax member) => member switch
-    {
-        FieldDeclarationSyntax field => field.Declaration.Variables.Select(variable => variable.Identifier.ValueText),
-        PropertyDeclarationSyntax { ExplicitInterfaceSpecifier: null } property => NamesOf(property),
-        MethodDeclarationSyntax { ExplicitInterfaceSpecifier: null } method => [method.Identifier.ValueText],
-        ConstructorDeclarationSyntax constructor => [constructor.Identifier.ValueText],
-        BaseTypeDeclarationSyntax nested => [nested.Identifier.ValueText],
-        OperatorDeclarationSyntax { ExplicitInterfaceSpecifier: null } @operator => [MetadataNameOf(@operator)],
-        ConversionOperatorDeclarationSyntax { ExplicitInterfaceSpecifier: null } conversion =>
-            [conversion.ImplicitOrExplicitKeyword.IsKind(SyntaxKind.ImplicitKeyword)
-                ? WellKnownMemberNames.ImplicitConversionName
-                : WellKnownMemberNames.ExplicitConversionName],
-        _ => [],
-    };
-
-    /// <summary>
-    /// A property's name, and its getter's, which the generator always writes: every generated property is read-only.
-    /// </summary>
-    private static IEnumerable<string> NamesOf(PropertyDeclarationSyntax property)
-    {
-        property.AccessorList?.Accessors.Should().OnlyContain(accessor => accessor.IsKind(SyntaxKind.GetAccessorDeclaration));
-
-        return [property.Identifier.ValueText, $"get_{property.Identifier.ValueText}"];
-    }
-
-    /// <summary>
-    /// The metadata name of an operator the generator writes. One it does not write yet fails the test, so that the
-    /// operator is added here, and to the names the generator refuses, when it is added to an emitter.
-    /// </summary>
-    private static string MetadataNameOf(OperatorDeclarationSyntax @operator)
-        => (@operator.OperatorToken.Kind(), @operator.ParameterList.Parameters.Count) switch
-        {
-            (SyntaxKind.EqualsEqualsToken, 2) => WellKnownMemberNames.EqualityOperatorName,
-            (SyntaxKind.ExclamationEqualsToken, 2) => WellKnownMemberNames.InequalityOperatorName,
-            (SyntaxKind.LessThanToken, 2) => WellKnownMemberNames.LessThanOperatorName,
-            (SyntaxKind.GreaterThanToken, 2) => WellKnownMemberNames.GreaterThanOperatorName,
-            (SyntaxKind.LessThanEqualsToken, 2) => WellKnownMemberNames.LessThanOrEqualOperatorName,
-            (SyntaxKind.GreaterThanEqualsToken, 2) => WellKnownMemberNames.GreaterThanOrEqualOperatorName,
-            (SyntaxKind.PlusToken, 2) => WellKnownMemberNames.AdditionOperatorName,
-            (SyntaxKind.MinusToken, 2) => WellKnownMemberNames.SubtractionOperatorName,
-            (SyntaxKind.MinusToken, 1) => WellKnownMemberNames.UnaryNegationOperatorName,
-            (SyntaxKind.AsteriskToken, 2) => WellKnownMemberNames.MultiplyOperatorName,
-            (SyntaxKind.SlashToken, 2) => WellKnownMemberNames.DivisionOperatorName,
-            var unknown => throw new InvalidOperationException($"The operator {unknown} has no metadata name here yet."),
-        };
 
     private static string Message(string name, string typeName, string reason)
         => $"'{name}' is not usable as the name of a generated member on '{typeName}': {reason}";

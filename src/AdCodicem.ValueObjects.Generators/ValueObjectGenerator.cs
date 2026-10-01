@@ -210,6 +210,19 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             isClosed,
             pattern is not null,
             hasSpanNormalizeHook);
+        var usableName = ValidateName(
+            symbol,
+            ValueObjectEmitter.MemberNames(
+                underlying,
+                arithmetic,
+                implicitConversion,
+                explicitConversion,
+                isClosed,
+                pattern is not null,
+                hasSpanNormalizeHook,
+                entityId: false),
+            location,
+            diagnostics);
         var knownValues = ParseKnownValues(symbol, underlying, generated, location, diagnostics);
 
         if (isClosed && knownValues.Count == 0)
@@ -218,7 +231,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             isClosed = false;
         }
 
-        if (!definedValueSet || !definedComparison)
+        if (!definedValueSet || !definedComparison || !usableName)
         {
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
@@ -324,8 +337,20 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
 
+        var members = ValueObjectEmitter.MemberNames(
+            UnderlyingType.String,
+            arithmetic: false,
+            implicitConversion: false,
+            explicitConversion: false,
+            closedValueSet: false,
+            pattern: false,
+            normalizesFromSpan: true,
+            entityId: true);
+        var usableName = ValidateName(symbol, members, location, diagnostics);
+
         var arguments = attribute.NamedArguments.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-        if (!TryGetEnumName(arguments, "Granularity", symbol, location, diagnostics, out var declaredGranularity))
+        if (!TryGetEnumName(arguments, "Granularity", symbol, location, diagnostics, out var declaredGranularity)
+            || !usableName)
         {
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
@@ -457,13 +482,20 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Reports a declaration the generated code cannot reopen: one with type parameters of its own, or nested in a
-    /// generic type or in an interface.
+    /// Reports a declaration the generated code cannot reopen or reach.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The generated code reopens the value object and each type around it by name alone, which drops their type
-    /// parameters, and reopens a containing type as a class, a struct or a record, which an interface is not.
+    /// parameters, and reopens a containing type as a class, a struct or a record, which an interface is not. It
+    /// reopens them in a file of its own, where a file-local type is another type, and registers the value object
+    /// from a class of its own, which a private or a protected type, or one nested in such a type, is hidden from.
+    /// Inside the value object, its statements write <c>var</c> and the discard <c>_</c>, which a type of either
+    /// name, the value object or one around it, would capture.
+    /// </para>
+    /// <para>
     /// What it wrote would not compile, in a file the author cannot edit, so the type is reported and left alone.
+    /// </para>
     /// </remarks>
     /// <param name="symbol">Annotated type.</param>
     /// <param name="location">Where to report.</param>
@@ -471,21 +503,10 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// <returns><see langword="false"/> when nothing must be generated for the type.</returns>
     private static bool ValidateContext(INamedTypeSymbol symbol, Location location, List<DiagnosticInfo> diagnostics)
     {
-        var reason = symbol.Arity > 0 ? "is generic" : null;
-
-        for (var containing = symbol.ContainingType; reason is null && containing is not null; containing = containing.ContainingType)
-        {
-            var name = containing.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-
-            if (containing.TypeKind == TypeKind.Interface)
-            {
-                reason = $"is nested in the interface '{name}'";
-            }
-            else if (containing.Arity > 0)
-            {
-                reason = $"is nested in the generic type '{name}'";
-            }
-        }
+        var (reason, remedy) = RefuseGenericContext(symbol)
+            ?? RefuseHiddenContext(symbol)
+            ?? RefuseCapturingName(symbol)
+            ?? default;
 
         if (reason is null)
         {
@@ -493,7 +514,138 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         }
 
         diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.UnsupportedDeclarationContext, location, symbol.Name, reason));
+            DiagnosticDescriptors.UnsupportedDeclaration, location, symbol.Name, reason, remedy));
+
+        return false;
+    }
+
+    /// <summary>
+    /// Says why the generated code cannot reopen a type with type parameters, or nested in a generic type or an
+    /// interface.
+    /// </summary>
+    private static (string Reason, string Remedy)? RefuseGenericContext(INamedTypeSymbol symbol)
+    {
+        const string remedy = "Declare it without type parameters, either at namespace level or nested in non-generic "
+            + "classes, structs and records";
+
+        if (symbol.Arity > 0)
+        {
+            return ("is generic", remedy);
+        }
+
+        for (var containing = symbol.ContainingType; containing is not null; containing = containing.ContainingType)
+        {
+            var name = containing.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+            if (containing.TypeKind == TypeKind.Interface)
+            {
+                return ($"is nested in the interface '{name}'", remedy);
+            }
+
+            if (containing.Arity > 0)
+            {
+                return ($"is nested in the generic type '{name}'", remedy);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Says why the generated code cannot reach a type, or a type around it: one private, protected or private
+    /// protected, which the registration cannot see, or a file-local one, which the generated file cannot reopen.
+    /// </summary>
+    private static (string Reason, string Remedy)? RefuseHiddenContext(INamedTypeSymbol symbol)
+    {
+        for (var type = symbol; type is not null; type = type.ContainingType)
+        {
+            var hidden = type.DeclaredAccessibility switch
+            {
+                Accessibility.Private => "private",
+                Accessibility.Protected => "protected",
+                Accessibility.ProtectedAndInternal => "private protected",
+                _ => null,
+            };
+
+            if (hidden is not null)
+            {
+                return (
+                    Describe(symbol, type, hidden),
+                    "Declare it, and every type around it, internal or public: the registration the generator writes for "
+                    + "the assembly refers to it from a class of its own");
+            }
+
+            if (type.IsFileLocal)
+            {
+                return (
+                    Describe(symbol, type, "file-local"),
+                    "Declare it, and every type around it, without the file modifier: the generated code reopens them in "
+                    + "a file of its own, where a file-local type is out of reach");
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Says why the statements the generator writes inside a type would not compile: the type, or one around it,
+    /// takes the name <c>var</c> or <c>_</c>, which they write, and which would then refer to that type.
+    /// </summary>
+    private static (string Reason, string Remedy)? RefuseCapturingName(INamedTypeSymbol symbol)
+    {
+        for (var type = symbol; type is not null; type = type.ContainingType)
+        {
+            if (type.Name is "var" or "_")
+            {
+                return (
+                    SymbolEqualityComparer.Default.Equals(type, symbol)
+                        ? $"takes the name {type.Name}"
+                        : $"is nested in the type '{type.Name}'",
+                    $"Rename the type '{type.Name}': the generated code writes {type.Name} in its statements, where it would "
+                    + "refer to that type instead");
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Describes a value object as hidden by its own declaration or by that of a type around it.
+    /// </summary>
+    private static string Describe(INamedTypeSymbol symbol, INamedTypeSymbol hiding, string modifier)
+        => SymbolEqualityComparer.Default.Equals(hiding, symbol)
+            ? $"is {modifier}"
+            : $"is nested in the {modifier} type '{hiding.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}'";
+
+    /// <summary>
+    /// Reports a value object named after a member the generated code writes on it.
+    /// </summary>
+    /// <remarks>
+    /// C# does not let a member take the name of the type that declares it, so the member written there would not
+    /// compile, in a file the author cannot edit.
+    /// </remarks>
+    /// <param name="symbol">Annotated type.</param>
+    /// <param name="members">The names the generated members take on the type.</param>
+    /// <param name="location">Where to report.</param>
+    /// <param name="diagnostics">Sink.</param>
+    /// <returns><see langword="false"/> when nothing must be generated for the type.</returns>
+    private static bool ValidateName(
+        INamedTypeSymbol symbol,
+        HashSet<string> members,
+        Location location,
+        List<DiagnosticInfo> diagnostics)
+    {
+        if (!members.Contains(symbol.Name))
+        {
+            return true;
+        }
+
+        diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.UnsupportedDeclaration,
+            location,
+            symbol.Name,
+            "takes the name of a member the generated code writes on it",
+            "Rename it: C# does not let a member take the name of the type that declares it"));
 
         return false;
     }

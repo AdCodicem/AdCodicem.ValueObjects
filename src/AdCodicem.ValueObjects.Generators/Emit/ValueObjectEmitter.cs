@@ -58,20 +58,20 @@ internal static class ValueObjectEmitter
     /// <summary>The metadata names of the binary operators arithmetic adds.</summary>
     private static readonly string[] ArithmeticOperators = ["op_Addition", "op_Subtraction", "op_Multiply", "op_Division"];
 
+    /// <summary>The members an entity identifier adds, by name, its getters included.</summary>
+    private static readonly string[] EntityIdMembers =
+        ["Prefix", "Granularity", "Length", "New", "get_Prefix", "get_Granularity", "get_Length"];
+
     /// <summary>
-    /// Gets the names a known value cannot take on a value object because the generated code uses them.
+    /// Gets the names the members written on a value object take in its scope.
     /// </summary>
     /// <remarks>
-    /// A known value becomes a static property of the value object, so a name already taken there would not
-    /// compile, in a file the author cannot edit: the members written here, the metadata names of the operators
-    /// and of the property getters written here, the name of the type, which its constructor takes, and the
-    /// discard written as <c>out _</c>,
-    /// which a member called <c>_</c> would capture. The names follow the options because the members do:
+    /// The members written here, the metadata names of the operators and of the property getters written here: the
+    /// compiler reserves each of them in the type. The names follow the options because the members do:
     /// <c>Zero</c> is only taken on a value object with arithmetic. They are listed beside the emitters so that a
-    /// member added here is added to them in the same change; <c>KnownValueNameTests</c> reads the generated code to
-    /// check it.
+    /// member added here is added to them in the same change; <c>KnownValueNameTests</c> and <c>TypeNameTests</c>
+    /// read the generated code to check it.
     /// </remarks>
-    /// <param name="typeName">Name of the value object, which its constructor takes.</param>
     /// <param name="underlying">The underlying type, whose sign decides whether a negation is written.</param>
     /// <param name="arithmetic">Whether the arithmetic members are written.</param>
     /// <param name="implicitConversion">Whether the implicit conversion to the underlying value is written.</param>
@@ -79,18 +79,19 @@ internal static class ValueObjectEmitter
     /// <param name="closedValueSet">Whether the membership lookup of a closed value set is written.</param>
     /// <param name="pattern">Whether the compiled pattern is written.</param>
     /// <param name="normalizesFromSpan">Whether the factory normalizing from a span is written.</param>
-    /// <returns>The names taken, compared ordinally.</returns>
-    public static HashSet<string> TakenNames(
-        string typeName,
+    /// <param name="entityId">Whether the members of an entity identifier are written.</param>
+    /// <returns>The names, compared ordinally.</returns>
+    public static HashSet<string> MemberNames(
         UnderlyingType underlying,
         bool arithmetic,
         bool implicitConversion,
         bool explicitConversion,
         bool closedValueSet,
         bool pattern,
-        bool normalizesFromSpan)
+        bool normalizesFromSpan,
+        bool entityId)
     {
-        var names = new HashSet<string>(CommonMembers, StringComparer.Ordinal) { typeName, "_" };
+        var names = new HashSet<string>(CommonMembers, StringComparer.Ordinal);
         names.UnionWith(CommonGetters);
         names.UnionWith(ComparisonOperators);
 
@@ -130,6 +131,54 @@ internal static class ValueObjectEmitter
         {
             names.Add("TryCreateFrom");
         }
+
+        if (entityId)
+        {
+            names.UnionWith(EntityIdMembers);
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// Gets the names a known value cannot take on a value object because the generated code uses them.
+    /// </summary>
+    /// <remarks>
+    /// A known value becomes a static property of the value object, so a name already taken there would not
+    /// compile, in a file the author cannot edit: the names of the members written here, the name of the type,
+    /// which its constructor takes, and the discard written as <c>out _</c>, which a member called <c>_</c> would
+    /// capture.
+    /// </remarks>
+    /// <param name="typeName">Name of the value object, which its constructor takes.</param>
+    /// <param name="underlying">The underlying type, whose sign decides whether a negation is written.</param>
+    /// <param name="arithmetic">Whether the arithmetic members are written.</param>
+    /// <param name="implicitConversion">Whether the implicit conversion to the underlying value is written.</param>
+    /// <param name="explicitConversion">Whether the explicit conversion from the underlying value is written.</param>
+    /// <param name="closedValueSet">Whether the membership lookup of a closed value set is written.</param>
+    /// <param name="pattern">Whether the compiled pattern is written.</param>
+    /// <param name="normalizesFromSpan">Whether the factory normalizing from a span is written.</param>
+    /// <returns>The names taken, compared ordinally.</returns>
+    public static HashSet<string> TakenNames(
+        string typeName,
+        UnderlyingType underlying,
+        bool arithmetic,
+        bool implicitConversion,
+        bool explicitConversion,
+        bool closedValueSet,
+        bool pattern,
+        bool normalizesFromSpan)
+    {
+        var names = MemberNames(
+            underlying,
+            arithmetic,
+            implicitConversion,
+            explicitConversion,
+            closedValueSet,
+            pattern,
+            normalizesFromSpan,
+            entityId: false);
+        names.Add(typeName);
+        names.Add("_");
 
         return names;
     }

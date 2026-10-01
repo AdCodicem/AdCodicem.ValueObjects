@@ -379,6 +379,136 @@ public sealed class DiagnosticTests
     }
 
     /// <summary>
+    /// The registration the generator writes for the assembly refers to every value object from a class of its own,
+    /// which a private or a protected type, or one nested in such a type, is hidden from. A file-local type is out of
+    /// reach of the generated file, which would reopen another type of the same name and leave the author's empty.
+    /// Each is reported, and nothing is generated for it, while the rest of the compilation still is.
+    /// </summary>
+    [Theory]
+    [InlineData(
+        """
+        public partial class Outer
+        {
+            [ValueObject<string>]
+            private readonly partial struct Code;
+        }
+        """,
+        "private readonly partial struct Code;",
+        "is private")]
+    [InlineData(
+        """
+        public partial class Outer
+        {
+            [ValueObject<string>]
+            protected readonly partial struct Code;
+        }
+        """,
+        "protected readonly partial struct Code;",
+        "is protected")]
+    [InlineData(
+        """
+        public partial class Outer
+        {
+            [EntityId("acc")]
+            private protected readonly partial struct Code;
+        }
+        """,
+        "private protected readonly partial struct Code;",
+        "is private protected")]
+    [InlineData(
+        """
+        public partial class Outer
+        {
+            private partial class Inner
+            {
+                [ValueObject<string>]
+                public readonly partial struct Code;
+            }
+        }
+        """,
+        "public readonly partial struct Code;",
+        "is nested in the private type 'Inner'")]
+    [InlineData(
+        """
+        public partial class Outer
+        {
+            protected partial record Inner
+            {
+                [EntityId("acc")]
+                internal readonly partial struct Code;
+            }
+        }
+        """,
+        "internal readonly partial struct Code;",
+        "is nested in the protected type 'Inner'")]
+    [InlineData(
+        """
+        [ValueObject<string>]
+        file readonly partial struct Code;
+        """,
+        "file readonly partial struct Code;",
+        "is file-local")]
+    [InlineData(
+        """
+        file partial class Outer
+        {
+            [EntityId("acc")]
+            public readonly partial struct Code;
+        }
+        """,
+        "public readonly partial struct Code;",
+        "is nested in the file-local type 'Outer'")]
+    public void A_value_object_the_generated_code_cannot_reach_is_reported_and_not_generated(
+        string declaration,
+        string line,
+        string reason)
+    {
+        var run = GeneratorHarness.Run($"""
+            {declaration}
+
+            [ValueObject<string>]
+            public readonly partial struct Other;
+            """);
+
+        var diagnostic = run.Diagnostics.Should().ContainSingle().Subject;
+        diagnostic.Id.Should().Be("VO0019");
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+        run.Locate(diagnostic).Should().Be(("Code", line));
+        var remedy = reason.Contains("file-local", StringComparison.Ordinal)
+            ? "Declare it, and every type around it, without the file modifier: the generated code reopens them in a "
+              + "file of its own, where a file-local type is out of reach."
+            : "Declare it, and every type around it, internal or public: the registration the generator writes for the "
+              + "assembly refers to it from a class of its own.";
+        diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
+            $"'Code' {reason}, which the generator does not support. {remedy}");
+
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo("Test.Other.g.cs", "ValueObjectRegistration.g.cs");
+        run.CompilationDiagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Internal and protected internal both reach the whole assembly, the generated registration included.
+    /// </summary>
+    [Theory]
+    [InlineData("[ValueObject<string>]", "internal")]
+    [InlineData("[ValueObject<string>]", "protected internal")]
+    [InlineData("[EntityId(\"acc\")]", "protected internal")]
+    public void A_value_object_the_assembly_can_reach_is_generated(string attribute, string accessibility)
+    {
+        var run = GeneratorHarness.Run($$"""
+            internal partial class Outer
+            {
+                {{attribute}}
+                {{accessibility}} readonly partial struct Code;
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo("Test.Outer.Code.g.cs", "ValueObjectRegistration.g.cs");
+        run.CompilationDiagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// A cast makes any number a constant of an enum type, so an option can hold a value its enum does not define.
     /// Generating the type with a default in its place would drop what the author wrote without a word: a closed
     /// value set would accept any value, and an identifier would take a granularity nobody chose.
