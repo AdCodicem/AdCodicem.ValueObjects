@@ -32,7 +32,9 @@ Non-negotiable, each one a diagnostic if you get it wrong:
 
 - `readonly partial struct` — never a `class`, never a `record struct`, never a `ref struct`, never a non-`readonly` struct (`VO0002`).
 - `partial` on the type *and* on every containing type (`VO0001`, `VO0009`).
-- No type parameters on the type, and no generic type or interface around it (`VO0019`).
+- No type parameters on the type, and no generic type or interface around it; the type and every type around it
+  `internal` or `public`, never `file`-local; a name that is not a generated member's (`Value`, `Create`, …), nor
+  `var` or `_` (`VO0019`).
 - The underlying type is one of 22: `string`, `Guid`, `bool`, `char`, every built-in integer (`Int128` and
   `UInt128` included), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `DateTimeOffset`,
   `TimeSpan` (`VO0003`).

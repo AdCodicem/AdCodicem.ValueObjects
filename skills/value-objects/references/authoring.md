@@ -31,7 +31,7 @@ underlying type**, and in no other: no culture, no time zone, no white space aro
 | `sbyte`, `short`, `int`, `long`, `Int128` | Digits, with `-` in front when negative. | `"-42"` |
 | `byte`, `ushort`, `uint`, `ulong`, `UInt128` | Digits alone. | `"42"` |
 | `decimal` | Digits, an optional `-` in front, an optional fraction after `.`. No exponent. | `"-19.99"` |
-| `double`, `float` | As `decimal`, plus an optional exponent (`e` or `E`, an optional sign, digits). Finite. | `"9.1e-31"` |
+| `double`, `float` | As `decimal`, plus an optional exponent (`e` or `E`, an optional sign, digits). Finite, and zero only when written as zero. | `"9.1e-31"` |
 | `char` | Exactly one character. | `"A"` |
 | `DateOnly` | `yyyy-MM-dd` | `"2024-01-31"` |
 | `TimeOnly` | `HH:mm`, `HH:mm:ss` or `HH:mm:ss.fffffff`, one to seven digits of fraction. | `"08:30"` |
@@ -42,9 +42,9 @@ underlying type**, and in no other: no culture, no time zone, no white space aro
 | `Guid` | Any form `Guid.Parse` reads. Known values only. | `"6f9619ff-8b86-d011-b42d-00c04fc964ff"` |
 | `bool` | `true` or `false`, in any case. Known values only. | `"true"` |
 
-The value must exist in the type: `"300"` is no `byte`, `"2023-02-29"` no date, `"25:00"` no time. A time of day
-alone is neither a `DateTime` nor a `DateTimeOffset`, since it would take the date of the day the project is
-built. `string`, `Guid` and `bool` take no bound at all. A known value may also be a C# constant — `200`, `0.5`,
+The value must exist in the type: `"300"` is no `byte`, `"2023-02-29"` no date, `"25:00"` no time, `"1e-400"`
+(which reads as zero) no `double`. A time of day alone is neither a `DateTime` nor a `DateTimeOffset`, since it
+would take the date of the day the project is built. `string`, `Guid` and `bool` take no bound at all. A known value may also be a C# constant — `200`, `0.5`,
 `'A'`, `true` — which is held to the same form through its invariant text, a `double` or a `float` in round-trip
 form. A `typeof(...)`, an enum member, an array and `null` are not values: `VO0013`.
 
@@ -224,7 +224,9 @@ legitimate for input coming from outside.
 
 A value object declared inside another type requires **every** containing type to be `partial` (`VO0009`). The
 containing types are classes, structs or records without type parameters: nesting in a generic type or in an
-interface is `VO0019`, and so is a value object with type parameters of its own.
+interface is `VO0019`, and so is a value object with type parameters of its own. The value object and every type
+around it are `internal` or `public` — never `private`, `protected` or `private protected` — and never `file`-local
+(`VO0019`): the generated registration and the generated file reach them from outside.
 
 ## Consuming a value object
 
