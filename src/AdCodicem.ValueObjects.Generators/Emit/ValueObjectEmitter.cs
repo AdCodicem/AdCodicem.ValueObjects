@@ -20,6 +20,12 @@ internal static class ValueObjectEmitter
     private const string Inline = "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]";
     private const string Invariant = "global::System.Globalization.CultureInfo.InvariantCulture";
 
+    /// <summary>
+    /// The most characters a formatting hook is offered before <c>ToString</c> gives up on it: far more than the text
+    /// of any value object, and few enough that a hook which never succeeds costs a few megabytes, once.
+    /// </summary>
+    private const int MaxFormattedLength = 1 << 20;
+
     /// <summary>The members written on every value object, by name.</summary>
     private static readonly string[] CommonMembers =
     [
@@ -650,21 +656,7 @@ internal static class ValueObjectEmitter
         }
         else if (model.HasTryFormatHook)
         {
-            writer.Open("public string ToString(string? format, global::System.IFormatProvider? formatProvider)");
-            writer.Line("var current = Value;");
-            writer.Line($"var provider = formatProvider ?? {Invariant};");
-            writer.Line($"global::System.Span<char> buffer = stackalloc char[{Math.Max(underlying.FormatBufferSize, 64)}];");
-            writer.Open("if (TryFormatValue(in current, buffer, out var written, global::System.MemoryExtensions.AsSpan(format), provider))");
-            writer.Line("return new string(buffer[..written]);");
-            writer.Close();
-            writer.Line();
-            writer.Line("// The stack buffer was too small for this format: give the hook a destination it cannot outgrow, and");
-            writer.Line("// fall back to the plain value if even that is not enough. ToString() would come back here.");
-            writer.Line("var larger = new char[buffer.Length * 8];");
-            writer.Line("return TryFormatValue(in current, larger, out written, global::System.MemoryExtensions.AsSpan(format), provider)");
-            writer.Line("    ? new string(larger, 0, written)");
-            writer.Line($"    : {plainText};");
-            writer.Close();
+            EmitHookToString(writer, model, underlying);
         }
         else if (underlying.IsString)
         {
@@ -732,6 +724,67 @@ internal static class ValueObjectEmitter
         writer.Line();
 
         _ = value;
+    }
+
+    /// <summary>
+    /// Emits <c>ToString(format, provider)</c> through a span formatting hook.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The hook writes into a stack buffer first, and into a pooled one twice as large each time it answers that the
+    /// destination is too small, as the framework contract has it. The growth stops at
+    /// <see cref="MaxFormattedLength"/> characters, which no text of a value object reaches: a hook still refusing
+    /// then is one that never succeeds, and an exception says so rather than looping or writing another text.
+    /// </para>
+    /// <para>
+    /// A string value object whose hook writes its value unchanged, as an IBAN's default format does, gets back the
+    /// string it already holds rather than a copy of it, so <c>ToString()</c> allocates nothing.
+    /// </para>
+    /// </remarks>
+    /// <param name="writer">Sink.</param>
+    /// <param name="model">Value object being emitted.</param>
+    /// <param name="underlying">Its underlying type.</param>
+    private static void EmitHookToString(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying)
+    {
+        void Return(string span)
+        {
+            if (!underlying.IsString)
+            {
+                writer.Line($"return new string({span});");
+                return;
+            }
+
+            writer.Line($"global::System.ReadOnlySpan<char> text = {span};");
+            writer.Line("return global::System.MemoryExtensions.SequenceEqual(text, global::System.MemoryExtensions.AsSpan(current))");
+            writer.Line("    ? current");
+            writer.Line("    : new string(text);");
+        }
+
+        writer.Open("public string ToString(string? format, global::System.IFormatProvider? formatProvider)");
+        writer.Line("var current = Value;");
+        writer.Line($"var provider = formatProvider ?? {Invariant};");
+        writer.Line($"global::System.Span<char> buffer = stackalloc char[{Math.Max(underlying.FormatBufferSize, 64)}];");
+        writer.Open("if (TryFormatValue(in current, buffer, out var written, global::System.MemoryExtensions.AsSpan(format), provider))");
+        Return("buffer[..written]");
+        writer.Close();
+        writer.Line();
+        writer.Line("// The hook needs more room than the stack gives it: hand it a pooled buffer twice as large each time.");
+        writer.Open($"for (var length = buffer.Length * 2; length <= {MaxFormattedLength}; length *= 2)");
+        writer.Line("var rented = global::System.Buffers.ArrayPool<char>.Shared.Rent(length);");
+        writer.Open("try");
+        writer.Open("if (TryFormatValue(in current, rented, out written, global::System.MemoryExtensions.AsSpan(format), provider))");
+        Return("new global::System.ReadOnlySpan<char>(rented, 0, written)");
+        writer.Close();
+        writer.Close();
+        writer.Open("finally");
+        writer.Line("global::System.Buffers.ArrayPool<char>.Shared.Return(rented);");
+        writer.Close();
+        writer.Close();
+        writer.Line();
+        writer.Line("throw new global::System.FormatException(");
+        writer.Line($"    $\"The formatting hook of {model.TypeName} wrote no text for the format '{{format}}' in {MaxFormattedLength} characters. \"");
+        writer.Line("    + \"TryFormatValue returns false only when the destination is too small.\");");
+        writer.Close();
     }
 
     private static void EmitParsing(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value, string self)

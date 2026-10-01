@@ -56,9 +56,57 @@ public class EmittedOptionTests
     }
 
     [Fact]
-    public void A_formatter_that_never_fits_falls_back_to_the_plain_text()
+    public void A_formatter_is_handed_a_buffer_as_large_as_its_text_needs()
     {
-        Label.Create("urgent").ToString(Label.Unbounded, null).Should().Be("urgent");
+        var label = Label.Create(new string('x', 200));
+
+        label.ToString(Label.Wider, null).Should().Be(string.Concat(Enumerable.Repeat("x   ", 200)));
+    }
+
+    [Fact]
+    public void A_formatter_over_a_number_is_handed_a_larger_buffer_too()
+    {
+        Celsius.Create(21).ToString("D100", null).Should().Be(new string('0', 98) + "21");
+    }
+
+    /// <summary>
+    /// A hook returns false only when the destination is too small. One that still does past a million characters
+    /// never succeeds, whatever it is handed, and writing some other text in its place would hide that.
+    /// </summary>
+    [Fact]
+    public void A_formatter_that_never_fits_makes_ToString_throw_rather_than_write_another_text()
+    {
+        var label = Label.Create("urgent");
+        var temperature = Celsius.Create(21);
+
+        label.Invoking(value => value.ToString(Label.Unbounded, null)).Should().Throw<FormatException>().WithMessage(
+            "The formatting hook of Label wrote no text for the format 'U' in 1048576 characters. "
+            + "TryFormatValue returns false only when the destination is too small.");
+        temperature.Invoking(value => value.ToString("D2000000", null)).Should().Throw<FormatException>()
+            .WithMessage("The formatting hook of Celsius wrote no text for the format 'D2000000' in 1048576 characters.*");
+    }
+
+    /// <summary>
+    /// An IBAN's default format is its electronic form, the value it holds: the hook writes it unchanged, and
+    /// <c>ToString()</c> hands back the string the value object holds rather than a copy, from the stack buffer or
+    /// from a pooled one alike.
+    /// </summary>
+    [Fact]
+    public void A_formatter_writing_a_string_unchanged_returns_the_string_held_without_allocating()
+    {
+        var iban = Iban.Create("FR7630006000011234567890189");
+        var label = Label.Create(new string('x', 200));
+
+        iban.ToString().Should().BeSameAs(iban.Value);
+        iban.ToString(Iban.Formats.Electronic, null).Should().BeSameAs(iban.Value);
+        label.ToString().Should().BeSameAs(label.Value);
+        iban.ToString(Iban.Formats.Print, null).Should().Be("FR76 3000 6000 0112 3456 7890 189");
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        _ = iban.ToString();
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        allocated.Should().Be(0);
     }
 
     [Fact]

@@ -60,9 +60,12 @@ $"{bban:M}"                                // the same, through ISpanFormattable
 - **It takes over formatting entirely**, including the empty and `null` format. Handle the default case —
   here, anything but `M` writes the value as it is. `ToString()`, `$"{bban}"` and `ToString(null, provider)` all
   write what the hook writes for it.
-- **Return `false` when the destination is too small.** The generated `ToString(format, provider)` grows its
-  buffer and calls again; that is the framework contract, not an error. A hook that refuses the larger buffer too
-  gets the plain value written in its place.
+- **Return `false` when the destination is too small, and only then.** The generated `ToString(format, provider)`
+  calls again with a pooled buffer twice as large; that is the framework contract, not an error. A hook still
+  refusing a buffer of 1,048,576 characters is one that never succeeds, and `ToString` throws a `FormatException`
+  rather than write some other text in its place. Throw `FormatException` yourself for a format you do not support.
+- **Write a string value as it is, and nothing is allocated.** When the text the hook writes for a `string` value
+  object is the value it holds, as `Bban`'s default format is, `ToString` returns that string rather than a copy.
 - The `Formats` class is a convention, not a requirement: named constants spare callers a magic letter.
 
 `IValueObjectFormatter<TValue>` writes into a span and allocates nothing. For a rule whose output is naturally a

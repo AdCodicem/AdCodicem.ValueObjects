@@ -136,11 +136,11 @@ public sealed class HookTests
     }
 
     /// <summary>
-    /// A formatting hook takes over the default format too, so ToString() goes through it. The fallback for a hook
-    /// that no buffer satisfies writes the plain value instead, since ToString() would only come back to the hook.
+    /// A formatting hook takes over the default format too, so ToString() goes through it. A hook that no buffer
+    /// satisfies, up to the bound, makes it throw rather than write the plain value, which is not what was asked for.
     /// </summary>
     [Fact]
-    public void With_a_formatting_hook_ToString_goes_through_it_and_falls_back_to_the_plain_value()
+    public void With_a_formatting_hook_ToString_goes_through_it_and_never_writes_another_text()
     {
         var run = GeneratorHarness.Run("""
             [ValueObject<int>]
@@ -160,7 +160,9 @@ public sealed class HookTests
         run.CompilationDiagnostics.Should().BeEmpty();
         run.SingleValueObject.Should()
             .Contain("public override string ToString() => ToString(null, null);")
-            .And.Contain(": Value.ToString(null, global::System.Globalization.CultureInfo.InvariantCulture);")
+            .And.Contain("global::System.Buffers.ArrayPool<char>.Shared.Rent(length)")
+            .And.Contain("throw new global::System.FormatException(")
+            .And.NotContain("Value.ToString(")
             .And.NotContain(": ToString();");
     }
 

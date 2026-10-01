@@ -102,14 +102,17 @@ public readonly partial struct PhoneNumber : IValueObjectStringFormatter<string>
     }
 }
 
-/// <summary>A free-text label, which may be empty, and whose wide format outgrows the emitted stack buffer.</summary>
+/// <summary>A free-text label, which may be empty, and whose wide formats outgrow the emitted stack buffer.</summary>
 [ValueObject<string>(MaxLength = 200, AllowEmpty = true)]
 public readonly partial struct Label : IValueObjectFormatter<string>
 {
     /// <summary>The wide format: every character followed by a space, twice the label's length.</summary>
     public const string Wide = "W";
 
-    /// <summary>A format no destination is ever large enough for, which falls back to the plain text.</summary>
+    /// <summary>The wider format: every character followed by three spaces, four times the label's length.</summary>
+    public const string Wider = "WW";
+
+    /// <summary>A format no destination is ever large enough for.</summary>
     public const string Unbounded = "U";
 
     public static bool TryFormatValue(
@@ -126,23 +129,18 @@ public readonly partial struct Label : IValueObjectFormatter<string>
             return false;
         }
 
-        var wide = format.Equals(Wide, StringComparison.Ordinal);
-        var required = wide ? value.Length * 2 : value.Length;
-        if (destination.Length < required)
+        var spaces = format.Equals(Wider, StringComparison.Ordinal) ? 3 : format.Equals(Wide, StringComparison.Ordinal) ? 1 : 0;
+        if (destination.Length < value.Length * (spaces + 1))
         {
             return false;
         }
 
-        for (var i = 0; i < value.Length; i++)
+        foreach (var character in value)
         {
-            if (wide)
+            destination[charsWritten++] = character;
+            for (var i = 0; i < spaces; i++)
             {
-                destination[charsWritten++] = value[i];
                 destination[charsWritten++] = ' ';
-            }
-            else
-            {
-                destination[charsWritten++] = value[i];
             }
         }
 

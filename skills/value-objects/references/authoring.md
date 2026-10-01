@@ -164,8 +164,10 @@ public readonly partial struct Bban : IValueObjectFormatter<string>
 
 Declaring the hook takes over formatting **entirely**, including the empty and `null` format specifier, so
 handle the default case: `ToString()` and `$"{bban}"` write what the hook writes for it. Return `false` when the
-destination is too small — that is the framework contract, and the generated `ToString(format, provider)` grows a
-buffer and retries, then writes the plain value if the hook still refuses. Prefer `IValueObjectFormatter<TValue>`,
+destination is too small, and only then — that is the framework contract, and the generated
+`ToString(format, provider)` retries with a pooled buffer twice as large, up to 1,048,576 characters, then throws
+`FormatException`; throw it yourself for a format you do not support. For a `string` value object, text equal to the
+value returns the string it holds, without allocating. Prefer `IValueObjectFormatter<TValue>`,
 which formats without allocating; `IValueObjectStringFormatter<TValue>` exists for rules whose output is
 naturally a `string` — its `TryFormat` copies that string — and wins everywhere when both are declared. A hook
 formats text for people only: JSON, dictionary keys included, carries the underlying value.
