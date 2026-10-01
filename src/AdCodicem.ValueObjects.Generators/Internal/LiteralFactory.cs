@@ -15,6 +15,13 @@ namespace AdCodicem.ValueObjects.Generators.Internal;
 /// </remarks>
 internal static class LiteralFactory
 {
+    // The generator targets netstandard2.0, which has neither Int128 nor UInt128 to read the limits from.
+    private static readonly BigInteger Int128Maximum = (BigInteger.One << 127) - 1;
+
+    private static readonly BigInteger Int128Minimum = -(BigInteger.One << 127);
+
+    private static readonly BigInteger UInt128Maximum = (BigInteger.One << 128) - 1;
+
     /// <summary>
     /// Builds the C# literal expression for a value of the given underlying type.
     /// </summary>
@@ -93,9 +100,11 @@ internal static class LiteralFactory
             case UnderlyingKind.UInt64:
                 return TryInteger(text, ulong.MinValue, ulong.MaxValue, "UL", cast: null, out literal);
 
-            case UnderlyingKind.Int128 or UnderlyingKind.UInt128:
-                literal = $"{underlying.FullName}.Parse({Quote(text)}, global::System.Globalization.CultureInfo.InvariantCulture)";
-                return decimal.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out _);
+            case UnderlyingKind.Int128:
+                return TryInteger128(text, underlying, Int128Minimum, Int128Maximum, out literal);
+
+            case UnderlyingKind.UInt128:
+                return TryInteger128(text, underlying, BigInteger.Zero, UInt128Maximum, out literal);
 
             case UnderlyingKind.Decimal:
                 if (!decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var dec))
@@ -180,6 +189,31 @@ internal static class LiteralFactory
     /// <param name="value">Value to quote.</param>
     /// <returns>The literal expression.</returns>
     public static string Quote(string value) => $"\"{Escape(value)}\"";
+
+    /// <summary>
+    /// Builds the parse expression of a 128-bit integer, which C# has no literal for, refusing a value outside
+    /// the range of the underlying type.
+    /// </summary>
+    /// <remarks>
+    /// The range is checked here because the expression is evaluated by the generated code: a value it cannot
+    /// hold would throw an <see cref="OverflowException"/> out of <c>Create</c> and <c>TryCreate</c>.
+    /// </remarks>
+    private static bool TryInteger128(
+        string text,
+        UnderlyingType underlying,
+        BigInteger minimum,
+        BigInteger maximum,
+        out string literal)
+    {
+        if (!TryInteger(text, minimum, maximum, suffix: string.Empty, cast: null, out var digits))
+        {
+            literal = string.Empty;
+            return false;
+        }
+
+        literal = $"{underlying.FullName}.Parse({Quote(digits)}, global::System.Globalization.CultureInfo.InvariantCulture)";
+        return true;
+    }
 
     /// <summary>
     /// Builds an integer literal, refusing a value outside the range of the underlying type.
