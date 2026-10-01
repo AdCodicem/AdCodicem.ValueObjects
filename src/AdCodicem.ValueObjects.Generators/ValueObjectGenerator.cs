@@ -36,6 +36,20 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     private static readonly SymbolDisplayFormat QualifiedFormat = SymbolDisplayFormat.FullyQualifiedFormat
         .WithMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
 
+    /// <summary>
+    /// A namespace as a declaration writes it: qualified, without <c>global::</c>, and a keyword escaped.
+    /// </summary>
+    private static readonly SymbolDisplayFormat NamespaceFormat = new(
+        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        miscellaneousOptions: SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
+
+    /// <summary>
+    /// A type as a declaration writes it: its name alone, and a keyword escaped, so that <c>@event</c> is reopened
+    /// as <c>@event</c> rather than as the keyword.
+    /// </summary>
+    private static readonly SymbolDisplayFormat IdentifierFormat = new(
+        miscellaneousOptions: SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
+
     private static readonly string[] LineSeparators = ["\r\n", "\n"];
 
     /// <inheritdoc />
@@ -198,8 +212,9 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         {
             Namespace = symbol.ContainingNamespace.IsGlobalNamespace
                 ? string.Empty
-                : symbol.ContainingNamespace.ToDisplayString(),
+                : symbol.ContainingNamespace.ToDisplayString(NamespaceFormat),
             TypeName = symbol.Name,
+            Identifier = symbol.ToDisplayString(IdentifierFormat),
             QualifiedName = symbol.ToDisplayString(QualifiedFormat),
             ContainingTypes = EquatableArray<string>.From(containingTypes),
             Kind = underlying.Kind,
@@ -307,8 +322,9 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         {
             Namespace = symbol.ContainingNamespace.IsGlobalNamespace
                 ? string.Empty
-                : symbol.ContainingNamespace.ToDisplayString(),
+                : symbol.ContainingNamespace.ToDisplayString(NamespaceFormat),
             TypeName = symbol.Name,
+            Identifier = symbol.ToDisplayString(IdentifierFormat),
             QualifiedName = symbol.ToDisplayString(QualifiedFormat),
             ContainingTypes = EquatableArray<string>.From(containingTypes),
             Kind = UnderlyingKind.String,
@@ -483,7 +499,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
                     DiagnosticDescriptors.ContainingTypeMustBePartial, location, symbol.Name, containing.Name));
             }
 
-            containingTypes.Insert(0, $"{DeclarationKeyword(containing)} {containing.Name}");
+            containingTypes.Insert(0, $"{DeclarationKeyword(containing)} {containing.ToDisplayString(IdentifierFormat)}");
         }
 
         return containingTypes;

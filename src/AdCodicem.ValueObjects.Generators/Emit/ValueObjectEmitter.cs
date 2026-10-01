@@ -121,7 +121,7 @@ internal static class ValueObjectEmitter
             _ => $"{Abstractions}.IValueObject<{self}, {value}>",
         };
 
-        writer.Open($"partial struct {model.TypeName} : {contract}");
+        writer.Open($"partial struct {model.Identifier} : {contract}");
 
         EmitState(writer, model, value, self);
         EmitEntityIdMembers(writer, model, self);
@@ -169,7 +169,7 @@ internal static class ValueObjectEmitter
 
         writer.Line("/// <summary>Wraps an already normalized and validated value.</summary>");
         writer.Line(Inline);
-        writer.Open($"private {model.TypeName}({value} value)");
+        writer.Open($"private {model.Identifier}({value} value)");
         writer.Line("_value = value;");
         writer.Close();
         writer.Line();
@@ -848,12 +848,12 @@ internal static class ValueObjectEmitter
         writer.Close();
         writer.Line();
 
-        writer.Line("/// <inheritdoc cref=\"TryParse(string, global::System.IFormatProvider?, out " + model.TypeName + ")\" />");
+        writer.Line("/// <inheritdoc cref=\"TryParse(string, global::System.IFormatProvider?, out " + model.Identifier + ")\" />");
         writer.Line(Inline);
         writer.Line($"public static bool TryParse(string? s, out {self} result) => TryParse(s, null, out result);");
         writer.Line();
 
-        writer.Line("/// <inheritdoc cref=\"TryParse(string, global::System.IFormatProvider?, out " + model.TypeName + ")\" />");
+        writer.Line("/// <inheritdoc cref=\"TryParse(string, global::System.IFormatProvider?, out " + model.Identifier + ")\" />");
         writer.Line(Inline);
         writer.Line($"public static bool TryParse(global::System.ReadOnlySpan<char> s, out {self} result) => TryParse(s, null, out result);");
         writer.Line();

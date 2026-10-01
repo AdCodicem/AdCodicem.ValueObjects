@@ -32,7 +32,7 @@ internal static class JsonConverterEmitter
 
     public static void Emit(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value, string self)
     {
-        writer.Line($"/// <summary>Serializes <see cref=\"{model.TypeName}\"/> as its bare underlying value.</summary>");
+        writer.Line($"/// <summary>Serializes <see cref=\"{model.Identifier}\"/> as its bare underlying value.</summary>");
         writer.Open($"public sealed class ValueJsonConverter : {Json}.Serialization.JsonConverter<{self}>");
 
         EmitRead(writer, model, underlying, value, self);

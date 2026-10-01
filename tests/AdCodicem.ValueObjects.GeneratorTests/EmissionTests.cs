@@ -1,3 +1,5 @@
+using Microsoft.CodeAnalysis;
+
 namespace AdCodicem.ValueObjects.GeneratorTests;
 
 /// <summary>
@@ -141,6 +143,41 @@ public sealed class EmissionTests
 
         run.CompilationDiagnostics.Should().BeEmpty();
         run.SingleValueObject.Should().Contain("partial class Outer").And.Contain("partial class Inner");
+    }
+
+    /// <summary>
+    /// A keyword is a legal name for a type or a namespace once escaped, so the generated code has to write it
+    /// escaped wherever it names one: the namespace, the containing types, the value object, its constructor, and
+    /// the documentation references, which only a project producing its documentation file resolves.
+    /// </summary>
+    [Fact]
+    public void A_value_object_named_after_a_keyword_is_written_with_its_escape()
+    {
+        var run = GeneratorHarness.Run(
+            """
+            using AdCodicem.ValueObjects.Annotations;
+
+            namespace @class.@namespace;
+
+            public static partial class @static
+            {
+                [ValueObject<string>]
+                public readonly partial struct @event;
+            }
+            """,
+            DocumentationMode.Diagnose);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().OnlyContain(
+            diagnostic => diagnostic.Id == "CS8981" && diagnostic.Location.SourceTree!.FilePath.Length == 0,
+            "a lower-case type name is the author's to answer for, on their declaration and nowhere else");
+
+        var generated = run.SingleValueObject;
+        generated.Should().Contain("namespace @class.@namespace");
+        generated.Should().Contain("partial class @static");
+        generated.Should().Contain("partial struct @event : ");
+        generated.Should().Contain("private @event(");
+        generated.Should().Contain("cref=\"@event\"");
     }
 
     [Fact]
