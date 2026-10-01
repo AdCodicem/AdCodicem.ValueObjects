@@ -338,6 +338,59 @@ public sealed class DiagnosticTests
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A cast makes any number a constant of an enum type, so an option can hold a value its enum does not define.
+    /// Generating the type with a default in its place would drop what the author wrote without a word: a closed
+    /// value set would accept any value, and an identifier would take a granularity nobody chose.
+    /// </summary>
+    [Theory]
+    [InlineData("[ValueObject<string>(Comparison = (StringComparison)42)]", "Comparison", "42", "StringComparison")]
+    [InlineData("[ValueObject<string>(Comparison = (StringComparison)(-1))]", "Comparison", "-1", "StringComparison")]
+    [InlineData("[ValueObject<string>(ValueSet = (ValueSetKind)5)]", "ValueSet", "5", "ValueSetKind")]
+    [InlineData("[EntityId(\"acc\", Granularity = (IdGranularity)9)]", "Granularity", "9", "IdGranularity")]
+    public void An_option_set_to_a_value_its_enum_does_not_define_is_reported_and_not_generated(
+        string attribute,
+        string option,
+        string value,
+        string enumName)
+    {
+        var run = GeneratorHarness.Run($"""
+            {attribute}
+            [KnownValue("First", "first")]
+            public readonly partial struct Code;
+
+            [ValueObject<string>]
+            public readonly partial struct Other;
+            """);
+
+        var diagnostic = run.Diagnostics.Should().ContainSingle().Subject;
+        diagnostic.Id.Should().Be("VO0020");
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+        run.Locate(diagnostic).Should().Be(("Code", "public readonly partial struct Code;"));
+        diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
+            $"'Code' sets {option} to {value}, which '{enumName}' does not define. Use one of its named members.");
+
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo("Test.Other.g.cs", "ValueObjectRegistration.g.cs");
+        run.CompilationDiagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Every_option_set_to_an_undefined_value_is_reported_along_with_the_other_mistakes()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>(Comparison = (StringComparison)42, ValueSet = (ValueSetKind)5, Pattern = "([unclosed")]
+            public readonly partial struct Code;
+            """);
+
+        run.Ids.Should().BeEquivalentTo("VO0020", "VO0020", "VO0014");
+        run.Diagnostics.Where(diagnostic => diagnostic.Id == "VO0020")
+            .Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture))
+            .Should().BeEquivalentTo(
+                "'Code' sets Comparison to 42, which 'StringComparison' does not define. Use one of its named members.",
+                "'Code' sets ValueSet to 5, which 'ValueSetKind' does not define. Use one of its named members.");
+        run.Files.Should().BeEmpty();
+    }
+
     [Fact]
     public void A_known_value_of_the_wrong_type_is_reported()
     {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -170,13 +171,23 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         var minimumLiteral = ParseBound(underlying, minimumText, "Minimum", symbol, location, diagnostics);
         var maximumLiteral = ParseBound(underlying, maximumText, "Maximum", symbol, location, diagnostics);
 
-        var isClosed = GetEnumName(arguments, "ValueSet") == "Closed";
+        // An option holding a value its enum does not define stops generation once every mistake is reported:
+        // falling back to the default would drop what the author wrote without a word.
+        var definedValueSet = TryGetEnumName(arguments, "ValueSet", symbol, location, diagnostics, out var valueSet);
+        var definedComparison = TryGetEnumName(arguments, "Comparison", symbol, location, diagnostics, out var comparison);
+
+        var isClosed = valueSet == "Closed";
         var knownValues = ParseKnownValues(symbol, underlying, location, diagnostics);
 
         if (isClosed && knownValues.Count == 0)
         {
             diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.ClosedSetWithoutValues, location, symbol.Name));
             isClosed = false;
+        }
+
+        if (!definedValueSet || !definedComparison)
+        {
+            return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
 
         var summary = ExtractSummary(symbol, declaration);
@@ -193,7 +204,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             UnderlyingFullName = underlying.FullName,
             HintName = BuildHintName(symbol),
             XmlSummary = summary,
-            ComparisonName = GetEnumName(arguments, "Comparison") ?? "Ordinal",
+            ComparisonName = comparison ?? "Ordinal",
             ImplicitConversionToValue = GetBool(arguments, "ImplicitConversionToValue"),
             ExplicitConversionFromValue = GetBool(arguments, "ExplicitConversionFromValue"),
             Arithmetic = arithmetic,
@@ -281,7 +292,12 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         }
 
         var arguments = attribute.NamedArguments.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-        var granularity = GetEnumName(arguments, "Granularity") ?? EntityIdLayout.DefaultGranularity;
+        if (!TryGetEnumName(arguments, "Granularity", symbol, location, diagnostics, out var declaredGranularity))
+        {
+            return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
+        }
+
+        var granularity = declaredGranularity ?? EntityIdLayout.DefaultGranularity;
         var totalLength = EntityIdLayout.TotalLength(prefix!, granularity);
         var summary = ExtractSummary(symbol, declaration);
 
@@ -691,22 +707,52 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 
-    private static string? GetEnumName(Dictionary<string, TypedConstant> arguments, string name)
+    /// <summary>
+    /// Reads an enum option as the name of the member it holds.
+    /// </summary>
+    /// <remarks>
+    /// A cast makes any number a constant of the enum type, so an option can hold a value its enum does not
+    /// define. That is reported rather than read as the default, which would drop what the author wrote.
+    /// </remarks>
+    /// <param name="arguments">Named arguments of the attribute.</param>
+    /// <param name="option">Name of the option.</param>
+    /// <param name="symbol">Annotated type.</param>
+    /// <param name="location">Where to report.</param>
+    /// <param name="diagnostics">Sink.</param>
+    /// <param name="member">The member the option holds, or <see langword="null"/> when it is not set.</param>
+    /// <returns><see langword="false"/> when the option holds a value its enum does not define.</returns>
+    private static bool TryGetEnumName(
+        Dictionary<string, TypedConstant> arguments,
+        string option,
+        INamedTypeSymbol symbol,
+        Location location,
+        List<DiagnosticInfo> diagnostics,
+        out string? member)
     {
-        if (!arguments.TryGetValue(name, out var value) || value.Value is null || value.Type is not INamedTypeSymbol enumType)
+        member = null;
+        if (!arguments.TryGetValue(option, out var value) || value.Value is null || value.Type is not INamedTypeSymbol enumType)
         {
-            return null;
+            return true;
         }
 
-        foreach (var member in enumType.GetMembers().OfType<IFieldSymbol>())
+        foreach (var field in enumType.GetMembers().OfType<IFieldSymbol>())
         {
-            if (member.HasConstantValue && Equals(member.ConstantValue, value.Value))
+            if (field.HasConstantValue && Equals(field.ConstantValue, value.Value))
             {
-                return member.Name;
+                member = field.Name;
+                return true;
             }
         }
 
-        return null;
+        diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.UndefinedEnumValue,
+            location,
+            symbol.Name,
+            option,
+            string.Format(CultureInfo.InvariantCulture, "{0}", value.Value),
+            enumType.Name));
+
+        return false;
     }
 
     private readonly record struct ParseResult(

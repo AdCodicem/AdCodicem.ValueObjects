@@ -23,3 +23,4 @@ VO0016 | AdCodicem.ValueObjects | Error | Duplicate entity identifier prefix
 VO0017 | AdCodicem.ValueObjects | Error | Entity identifier owns its normalization
 VO0018 | AdCodicem.ValueObjects | Error | Conflicting value object annotations
 VO0019 | AdCodicem.ValueObjects | Error | Value object is generic or nested in a generic type or an interface
+VO0020 | AdCodicem.ValueObjects | Error | Option set to an undefined enum value

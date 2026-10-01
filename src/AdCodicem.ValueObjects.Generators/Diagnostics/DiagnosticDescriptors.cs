@@ -95,6 +95,11 @@ internal static class DiagnosticDescriptors
         "'{0}' {1}, which the generator does not support. Declare it without type parameters, either at namespace "
         + "level or nested in non-generic classes, structs and records.");
 
+    public static readonly DiagnosticDescriptor UndefinedEnumValue = Error(
+        "VO0020",
+        "Option set to an undefined enum value",
+        "'{0}' sets {1} to {2}, which '{3}' does not define. Use one of its named members.");
+
     private static DiagnosticDescriptor Error(string id, string title, string messageFormat)
         => new(id, title, messageFormat, Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
 
