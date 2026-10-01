@@ -3,8 +3,9 @@ using AdCodicem.ValueObjects.Testing;
 namespace AdCodicem.ValueObjects.UnitTests;
 
 /// <summary>
-/// Every value object of this assembly is put through the shipped contract kit. This is what a consumer writes
-/// for their own types: a handful of accepted and rejected values, and the rest is checked for them.
+/// Every generated value object of the domain is put through the shipped contract kit, but <c>Floor</c> and
+/// <c>Celsius</c>, whose formatted text does not parse back. This is what a consumer writes for their own types: a
+/// handful of accepted and rejected values, and the rest is checked for them.
 /// </summary>
 public sealed class IbanContract : ValueObjectContract<Iban, string>
 {
