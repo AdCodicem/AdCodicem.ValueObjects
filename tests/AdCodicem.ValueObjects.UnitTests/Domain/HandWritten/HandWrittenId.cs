@@ -14,8 +14,8 @@ public interface IHandWrittenIdProfile
     /// <summary>Gets a value indicating whether the parser refuses every text without giving a reason.</summary>
     static virtual bool RefusesSilently => false;
 
-    /// <summary>Gets a value indicating whether <c>ToString()</c> answers <see langword="null"/>.</summary>
-    static virtual bool HidesItsText => false;
+    /// <summary>Gets a value indicating whether <c>Value</c> answers <see langword="null"/>, which its contract rules out.</summary>
+    static virtual bool HidesItsValue => false;
 }
 
 /// <summary>
@@ -47,7 +47,7 @@ public readonly struct HandWrittenId<TProfile> : IEntityId<HandWrittenId<TProfil
 
     public static int Length => EntityIdFormat.TotalLength(Prefix, Granularity);
 
-    public string Value => _value ?? string.Empty;
+    public string Value => TProfile.HidesItsValue ? null! : _value ?? string.Empty;
 
     public bool IsDefault => _value is null;
 
@@ -112,7 +112,7 @@ public readonly struct HandWrittenId<TProfile> : IEntityId<HandWrittenId<TProfil
 
     public int CompareTo(HandWrittenId<TProfile> other) => string.CompareOrdinal(Value, other.Value);
 
-    public override string? ToString() => TProfile.HidesItsText ? null : Value;
+    public override string ToString() => Value;
 
     public string ToString(string? format, IFormatProvider? formatProvider) => Value;
 
@@ -155,10 +155,10 @@ public sealed class MuteProfile : IHandWrittenIdProfile
     public static bool RefusesSilently => true;
 }
 
-/// <summary>Accepts its identifiers and hands back no text for them.</summary>
+/// <summary>Accepts its identifiers and hands back no value for them.</summary>
 public sealed class BlankProfile : IHandWrittenIdProfile
 {
     public static string Prefix => "blank";
 
-    public static bool HidesItsText => true;
+    public static bool HidesItsValue => true;
 }
