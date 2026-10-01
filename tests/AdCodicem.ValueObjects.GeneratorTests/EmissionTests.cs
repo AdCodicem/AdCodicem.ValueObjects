@@ -298,6 +298,19 @@ public sealed class EmissionTests
             "/// <summary>The French Republic, mainland and overseas &lt;&amp;&gt;</summary>");
     }
 
+    [Fact]
+    public void A_known_value_description_keeps_its_tabs_and_folds_every_other_line_break()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>]
+            [KnownValue("France", "FR", Description = "French\rRépublique\tFR\u0085mainland\u2029overseas\u20AC\r")]
+            public readonly partial struct Country;
+            """);
+
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("/// <summary>French République\tFR mainland overseas€ </summary>");
+    }
+
     /// <summary>
     /// The message of a violated bound quotes the bound as written, inside a string literal of the generated code,
     /// so the text has to be escaped for C#, not for XML.
