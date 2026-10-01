@@ -54,9 +54,6 @@ internal sealed record ValueObjectModel
     /// <summary>Gets the file name of the generated source.</summary>
     public required string HintName { get; init; }
 
-    /// <summary>Gets the XML summary of the declared type, reused as the OpenAPI description.</summary>
-    public string? XmlSummary { get; init; }
-
     public string ComparisonName { get; init; } = "Ordinal";
 
     public bool ImplicitConversionToValue { get; init; }

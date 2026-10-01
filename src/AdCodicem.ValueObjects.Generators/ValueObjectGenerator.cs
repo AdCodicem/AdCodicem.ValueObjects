@@ -220,7 +220,6 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             Kind = underlying.Kind,
             UnderlyingFullName = underlying.FullName,
             HintName = BuildHintName(symbol),
-            XmlSummary = summary,
             ComparisonName = comparison ?? "Ordinal",
             ImplicitConversionToValue = GetBool(arguments, "ImplicitConversionToValue"),
             ExplicitConversionFromValue = GetBool(arguments, "ExplicitConversionFromValue"),
@@ -330,7 +329,6 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             Kind = UnderlyingKind.String,
             UnderlyingFullName = UnderlyingType.String.FullName,
             HintName = BuildHintName(symbol),
-            XmlSummary = summary,
 
             // The length is derived from the profile rather than declared, and reaches the database column and
             // the OpenAPI schema through the same field every other rule uses. Fixed on both ends, so the
@@ -546,7 +544,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 
         foreach (var attribute in symbol.GetAttributes())
         {
-            if (attribute.AttributeClass?.ToDisplayString() != KnownValueAttributeName.Replace("`1", string.Empty))
+            if (attribute.AttributeClass?.ToDisplayString() != KnownValueAttributeName)
             {
                 continue;
             }
