@@ -443,6 +443,35 @@ public sealed class DiagnosticTests
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A type and an enum member are legal arguments for the <c>object</c> parameter of <c>[KnownValue]</c>, and
+    /// neither is a value of any underlying type. Read as text, <c>typeof(int)</c> became the string <c>"int"</c>
+    /// and an enum member its number, without a word.
+    /// </summary>
+    [Theory]
+    [InlineData("string", "typeof(int)", "typeof(int)")]
+    [InlineData("string", "typeof(string[])", "typeof(string[])")]
+    [InlineData("string", "DayOfWeek.Monday", "System.DayOfWeek.Monday")]
+    [InlineData("int", "DayOfWeek.Monday", "System.DayOfWeek.Monday")]
+    [InlineData("int", "(DayOfWeek)42", "42")]
+    public void A_known_value_given_as_a_type_or_an_enum_member_is_reported(
+        string underlying,
+        string value,
+        string quoted)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>]
+            [KnownValue("Named", {{value}})]
+            [KnownValue("Kept", "1")]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Ids.Should().Equal("VO0013");
+        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Contain($"'{quoted}'");
+        run.SingleValueObject.Should().Contain(" Kept ").And.NotContain(" Named ");
+        run.CompilationDiagnostics.Should().BeEmpty();
+    }
+
     [Fact]
     public void A_pattern_that_is_not_a_regular_expression_is_reported()
     {
