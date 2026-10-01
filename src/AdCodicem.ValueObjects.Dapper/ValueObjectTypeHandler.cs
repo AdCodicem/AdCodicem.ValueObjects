@@ -41,7 +41,8 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
 
     /// <inheritdoc />
     /// <exception cref="DataException">
-    /// <paramref name="value"/> is a SQL <c>NULL</c>, which a value object cannot hold, or text the value object refuses.
+    /// <paramref name="value"/> is a SQL <c>NULL</c>, which a value object cannot hold, text the value object refuses,
+    /// or a value that cannot be converted to <typeparamref name="TValue"/>.
     /// </exception>
     public override TSelf Parse(object value)
     {
@@ -74,26 +75,64 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
     /// </summary>
     /// <param name="value">Value the provider returned.</param>
     /// <returns>The underlying value.</returns>
+    /// <exception cref="DataException">The value cannot be converted to the underlying type.</exception>
     /// <remarks>
     /// Providers return their own type for some columns of the date and time family, and
     /// <see cref="System.Convert.ChangeType(object, Type, IFormatProvider)"/> converts none of these, since none
     /// implements <see cref="IConvertible"/> on both sides: SQL Server returns a <see cref="DateTime"/> for a
     /// <c>date</c> and a <see cref="TimeSpan"/> for a <c>time</c>, Npgsql a <see cref="DateOnly"/> and a
     /// <see cref="TimeOnly"/> for them, and a UTC <see cref="DateTime"/> for a <c>timestamptz</c>. A
-    /// <see cref="DateTime"/> that does not say which zone it is in has no offset to give, and stays refused.
+    /// <see cref="DateTime"/> that does not say which zone it is in has no offset to give, and is refused.
     /// Everything else goes to <see cref="System.Convert.ChangeType(object, Type, IFormatProvider)"/>, which turns
-    /// the double a provider may return for a decimal into one.
+    /// the double a provider may return for a decimal into one. What none of them can convert - another type, a
+    /// value out of the range of the underlying type - is refused with the type read and the type wanted.
     /// </remarks>
-    private static TValue Convert(object value) => value switch
+    private static TValue Convert(object value)
     {
-        DateTime dateTime when typeof(TValue) == typeof(DateOnly) => (TValue)(object)DateOnly.FromDateTime(dateTime),
-        DateOnly date when typeof(TValue) == typeof(DateTime) => (TValue)(object)date.ToDateTime(TimeOnly.MinValue),
-        TimeSpan time when typeof(TValue) == typeof(TimeOnly) => (TValue)(object)TimeOnly.FromTimeSpan(time),
-        TimeOnly time when typeof(TValue) == typeof(TimeSpan) => (TValue)(object)time.ToTimeSpan(),
-        DateTime { Kind: not DateTimeKind.Unspecified } instant when typeof(TValue) == typeof(DateTimeOffset)
-            => (TValue)(object)new DateTimeOffset(instant),
-        _ => (TValue)System.Convert.ChangeType(value, typeof(TValue), CultureInfo.InvariantCulture),
-    };
+        try
+        {
+            return value switch
+            {
+                DateTime dateTime when typeof(TValue) == typeof(DateOnly)
+                    => (TValue)(object)DateOnly.FromDateTime(dateTime),
+                DateOnly date when typeof(TValue) == typeof(DateTime)
+                    => (TValue)(object)date.ToDateTime(TimeOnly.MinValue),
+                TimeSpan time when typeof(TValue) == typeof(TimeOnly) => (TValue)(object)TimeOnly.FromTimeSpan(time),
+                TimeOnly time when typeof(TValue) == typeof(TimeSpan) => (TValue)(object)time.ToTimeSpan(),
+                DateTime { Kind: DateTimeKind.Unspecified } when typeof(TValue) == typeof(DateTimeOffset)
+                    => throw new DataException(
+                        "The DateTime read names no zone, and so no offset: it cannot be converted to "
+                        + $"{typeof(TSelf).Name}, a value object over DateTimeOffset."),
+                DateTime instant when typeof(TValue) == typeof(DateTimeOffset)
+                    => (TValue)(object)new DateTimeOffset(instant),
+                _ => (TValue)System.Convert.ChangeType(value, typeof(TValue), CultureInfo.InvariantCulture),
+            };
+        }
+        catch (InvalidCastException exception)
+        {
+            throw Unconvertible(value, exception);
+        }
+        catch (OverflowException exception)
+        {
+            throw Unconvertible(value, exception);
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            throw Unconvertible(value, exception);
+        }
+    }
+
+    /// <summary>
+    /// Reports a value the handler cannot convert to the underlying type, naming the type the provider returned.
+    /// </summary>
+    /// <param name="value">Value the provider returned.</param>
+    /// <param name="exception">What the conversion threw.</param>
+    /// <returns>The exception to throw.</returns>
+    private static DataException Unconvertible(object value, Exception exception)
+        => new(
+            $"The {value.GetType().Name} read cannot be converted to {typeof(TSelf).Name}, a value object over "
+            + $"{typeof(TValue).Name}.",
+            exception);
 
     /// <inheritdoc />
     void SqlMapper.ITypeHandler.SetValue(IDbDataParameter parameter, object value)

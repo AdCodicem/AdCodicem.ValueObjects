@@ -38,15 +38,18 @@ public class DapperTests
     };
 
     /// <summary>
-    /// Values of the date and time family that the value object cannot hold, keyed by a description of the case.
+    /// Values the handler cannot convert to the underlying type, keyed by a description of the case.
     /// </summary>
     private static readonly Dictionary<string, (Type Type, object Cell)> Mismatches = new()
     {
-        ["a DateTime of unknown zone into a DateTimeOffset"] =
-            (typeof(OccurredAt), new DateTime(2024, 5, 17, 10, 0, 0, DateTimeKind.Unspecified)),
         ["a DateOnly into a DateTimeOffset"] = (typeof(OccurredAt), new DateOnly(2024, 5, 17)),
         ["a TimeSpan into a DateTimeOffset"] = (typeof(OccurredAt), new TimeSpan(9, 30, 0)),
         ["a TimeOnly into a DateTimeOffset"] = (typeof(OccurredAt), new TimeOnly(9, 30)),
+        ["a Guid into an int"] = (typeof(PageNumber), Guid.Parse("0192f4a0-0000-7000-8000-000000000001")),
+        ["a long out of the range of an int"] = (typeof(PageNumber), 5_000_000_000L),
+        ["a float out of the range of a decimal"] = (typeof(Amount), 1e30d),
+        ["a TimeSpan longer than a day into a TimeOnly"] = (typeof(OpeningTime), new TimeSpan(25, 0, 0)),
+        ["a negative TimeSpan into a TimeOnly"] = (typeof(OpeningTime), TimeSpan.FromHours(-1)),
     };
 
     static DapperTests() => ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);
@@ -165,15 +168,35 @@ public class DapperTests
         Read(type, cell).Should().Be(expected);
     }
 
+    /// <summary>
+    /// Read in a single-column query, what the handler throws reaches the caller as it is: a conversion it cannot
+    /// make is a <see cref="DataException"/>, as a NULL or text the value object refuses is, naming the type the
+    /// provider returned and the value object it was read into.
+    /// </summary>
+    /// <param name="name">The case.</param>
     [Theory]
     [MemberData(nameof(EveryMismatch))]
-    public void A_column_the_value_object_cannot_hold_is_refused(string name)
+    public void A_column_the_value_object_cannot_hold_is_a_DataException_naming_both_types(string name)
     {
         var (type, cell) = Mismatches[name];
 
         var act = () => Read(type, cell);
 
-        act.Should().Throw<InvalidCastException>();
+        act.Should().Throw<DataException>()
+            .WithMessage($"The {cell.GetType().Name} read cannot be converted to {type.Name}, a value object over *.");
+    }
+
+    /// <summary>
+    /// SQL Server returns a <c>datetime2</c>, and Npgsql a <c>timestamp</c>, as a DateTime that names no zone, and
+    /// no offset can be taken from it without guessing one.
+    /// </summary>
+    [Fact]
+    public void A_DateTime_of_no_zone_read_into_a_DateTimeOffset_is_a_DataException()
+    {
+        var act = () => Read(typeof(OccurredAt), new DateTime(2024, 5, 17, 10, 0, 0, DateTimeKind.Unspecified));
+
+        act.Should().Throw<DataException>()
+            .WithMessage("The DateTime read names no zone*cannot be converted to OccurredAt, a value object over DateTimeOffset.");
     }
 
     /// <summary>
