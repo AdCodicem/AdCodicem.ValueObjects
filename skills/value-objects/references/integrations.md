@@ -79,8 +79,9 @@ return Results.ValidationProblem(
     result.ToDictionary(),
     extensions: new Dictionary<string, object?>
     {
-        [ValueObjectProblemDetails.ExtensionName] =
-            result.Errors.ToDictionary(failure => failure.PropertyName, failure => failure.ErrorCode),
+        [ValueObjectProblemDetails.ExtensionName] = result.Errors
+            .GroupBy(failure => failure.PropertyName)   // a member can fail more than one rule
+            .ToDictionary(member => member.Key, member => member.First().ErrorCode),
     });
 ```
 
