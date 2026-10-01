@@ -153,9 +153,9 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
     }
 
     /// <summary>
-    /// The attribute reads a decimal, double or float bound as a floating-point literal, exponent included, and the
-    /// type enforces what it read. A double's bound may also lie beyond the range of decimal or below its
-    /// precision, where reading it as a decimal would publish another value or none.
+    /// The attribute reads a double or float bound as a floating-point literal, exponent included, and the type
+    /// enforces what it read. A double's bound may also lie beyond the range of decimal or below its precision,
+    /// where reading it as a decimal would publish another value or none. A decimal bound takes no exponent.
     /// </summary>
     [Fact]
     public void A_bound_written_with_an_exponent_is_published_as_the_number_the_type_enforces()

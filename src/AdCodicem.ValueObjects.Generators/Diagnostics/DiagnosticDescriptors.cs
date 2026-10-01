@@ -60,7 +60,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor InvalidKnownValueLiteral = Error(
         "VO0013",
         "Invalid known value",
-        "The known value '{0}' declared on '{1}' cannot be converted to the underlying type '{2}'");
+        "The known value '{0}' declared on '{1}' cannot be converted to the underlying type '{2}': {3}");
 
     public static readonly DiagnosticDescriptor InvalidPattern = Error(
         "VO0014",

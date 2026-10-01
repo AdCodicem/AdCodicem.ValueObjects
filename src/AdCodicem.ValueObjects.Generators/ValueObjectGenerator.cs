@@ -180,8 +180,10 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             pattern = null;
         }
 
-        var minimumText = GetString(arguments, "Minimum");
-        var maximumText = GetString(arguments, "Maximum");
+        // Read as written, white space included: a bound is held to the one form of its type, and an empty or a
+        // blank one is no more that form than any other text.
+        var minimumText = GetText(arguments, "Minimum");
+        var maximumText = GetText(arguments, "Maximum");
         var minimumLiteral = ParseBound(underlying, minimumText, "Minimum", symbol, location, diagnostics);
         var maximumLiteral = ParseBound(underlying, maximumText, "Maximum", symbol, location, diagnostics);
 
@@ -582,7 +584,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
                     location,
                     notAValue ? argument.ToCSharpString() : argument.Value?.ToString() ?? "null",
                     symbol.Name,
-                    underlying.Keyword));
+                    underlying.Keyword,
+                    ExpectedForm(underlying)));
                 continue;
             }
 
@@ -632,11 +635,13 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         }
 
         diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.InvalidBound, location, text, boundName, underlying.Keyword, "write it in invariant culture"));
+            DiagnosticDescriptors.InvalidBound, location, text, boundName, underlying.Keyword, ExpectedForm(underlying)));
 
         _ = symbol;
         return null;
     }
+
+    private static string ExpectedForm(UnderlyingType underlying) => $"write a value of that type as {underlying.LiteralForm}";
 
     /// <summary>
     /// Whether the value object implements one of the hook interfaces.
@@ -749,6 +754,9 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 
     private static int GetInt32(Dictionary<string, TypedConstant> arguments, string name)
         => arguments.TryGetValue(name, out var value) && value.Value is int number ? number : -1;
+
+    private static string? GetText(Dictionary<string, TypedConstant> arguments, string name)
+        => arguments.TryGetValue(name, out var value) ? value.Value as string : null;
 
     private static string? GetString(Dictionary<string, TypedConstant> arguments, string name)
     {
