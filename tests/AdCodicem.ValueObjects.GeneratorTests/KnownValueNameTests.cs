@@ -94,6 +94,52 @@ public sealed class KnownValueNameTests
     }
 
     /// <summary>
+    /// A known value is a property, whose getter the compiler names <c>get_</c> followed by its name. A member the type
+    /// declares under that name collides with the getter, whatever its kind, unless it is a method taking parameters,
+    /// which the getter overloads: a field or a nested type is a second definition of the name (CS0102), and a method
+    /// without parameters, generic or not, static or not, reserves the getter's signature (CS0082).
+    /// </summary>
+    [Fact]
+    public void A_known_value_whose_getter_takes_the_name_of_a_member_the_type_declares_is_reported()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>]
+            [KnownValue("France", "FR")]
+            [KnownValue("Belgium", "BE")]
+            [KnownValue("Austria", "AT")]
+            [KnownValue("Spain", "ES")]
+            [KnownValue("Italy", "IT")]
+            [KnownValue("Germany", "DE")]
+            public readonly partial struct Country
+            {
+                public static readonly string get_Spain = "ES";
+
+                public static string get_France() => "FR";
+
+                public int get_Belgium() => 0;
+
+                public static T get_Austria<T>() => default!;
+
+                public static string get_Germany(int index) => "DE";
+
+                public static class get_Italy
+                {
+                }
+            }
+            """);
+
+        run.Diagnostics.Should().OnlyContain(diagnostic => diagnostic.Id == "VO0006");
+        run.Diagnostics.Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture)).Should().Equal(
+            Message("France", "Country", Getter("France")),
+            Message("Belgium", "Country", Getter("Belgium")),
+            Message("Austria", "Country", Getter("Austria")),
+            Message("Spain", "Country", Getter("Spain")),
+            Message("Italy", "Country", Getter("Italy")));
+        run.SingleValueObject.Should().Contain("public static global::Test.Country Germany { get; }");
+        run.CompilationDiagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// A known value is a property, whose getter the compiler names <c>get_</c> followed by its name: another known
     /// value of that name would collide with it, whichever is declared first.
     /// </summary>
@@ -299,6 +345,9 @@ public sealed class KnownValueNameTests
         run.SingleValueObject.Should().Contain("public static global::Test.Country France { get; }");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
+
+    private static string Getter(string name)
+        => $"the type already has a member named get_{name}, which the property's getter would take";
 
     private static string Message(string name, string typeName, string reason)
         => $"'{name}' is not usable as the name of a generated member on '{typeName}': {reason}";
