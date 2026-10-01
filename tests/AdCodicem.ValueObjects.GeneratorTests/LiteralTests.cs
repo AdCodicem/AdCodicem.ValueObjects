@@ -7,8 +7,8 @@ namespace AdCodicem.ValueObjects.GeneratorTests;
 /// </summary>
 /// <remarks>
 /// Attribute arguments carry only a handful of constant types, so most bounds and known values are text the
-/// generator parses at compile time. Each underlying type parses its own way, and each way fails its own way:
-/// these cover one declaration per type, accepted and refused.
+/// generator parses at compile time. Each underlying type reads its own form, and each fails its own way: these
+/// cover one declaration per type, accepted and refused, and <see cref="LiteralFormTests"/> every form.
 /// </remarks>
 public sealed class LiteralTests
 {
@@ -146,8 +146,8 @@ public sealed class LiteralTests
     }
 
     /// <summary>
-    /// Text that does not have the shape of the underlying type, in the invariant culture the bounds are written
-    /// in, is refused on the declaration.
+    /// Text that does not have the form of the underlying type is refused on the declaration.
+    /// <see cref="LiteralFormTests"/> goes through every form, accepted and refused.
     /// </summary>
     [Theory]
     [InlineData("long", "12x")]
