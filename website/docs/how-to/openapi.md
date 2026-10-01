@@ -25,7 +25,7 @@ object is then documented as what it is on the wire — its underlying type — 
 | `MinLength`, `MaxLength` | `minLength`, `maxLength` |
 | `Pattern` | `pattern` |
 | `Minimum`, `Maximum` | `minimum`, `maximum` |
-| `[KnownValue]` on a closed set | `enum` |
+| `[KnownValue]` on a closed set | `enum`, each value as the type writes it in JSON |
 | `Example` | an example |
 | `Description`, or the type's XML `<summary>` | `description` |
 
