@@ -73,7 +73,11 @@ public static class ValueObjectRegistry
     /// </summary>
     /// <param name="type">Value object type, possibly nullable.</param>
     /// <param name="descriptor">The descriptor when the type is a value object.</param>
-    /// <returns><see langword="true"/> when <paramref name="type"/> is a value object.</returns>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="type"/> is a value object: a struct implementing
+    /// <see cref="IValueObject{TSelf, TValue}"/> over itself. An interface, a class, or a type carrying only the
+    /// <see cref="IValueObject"/> marker cannot be described, and gives <see langword="false"/>.
+    /// </returns>
     [RequiresDynamicCode("Building a descriptor for an unregistered value object instantiates a generic method at run time.")]
     [RequiresUnreferencedCode("Building a descriptor for an unregistered value object inspects its interfaces and attributes.")]
     public static bool TryResolve(Type type, [NotNullWhen(true)] out ValueObjectDescriptor? descriptor)
@@ -86,7 +90,7 @@ public static class ValueObjectRegistry
             return true;
         }
 
-        if (!IsValueObject(valueObjectType))
+        if (!IsValueObject(valueObjectType) || !TryGetSelfDescribedValueType(valueObjectType, out var valueType))
         {
             descriptor = null;
             return false;
@@ -99,7 +103,10 @@ public static class ValueObjectRegistry
             return true;
         }
 
-        descriptor = Descriptors.GetOrAdd(valueObjectType, static key => BuildByReflection(key));
+        descriptor = Descriptors.GetOrAdd(
+            valueObjectType,
+            static (key, underlying) => BuildByReflection(key, underlying),
+            valueType);
         return true;
     }
 
@@ -168,14 +175,38 @@ public static class ValueObjectRegistry
             ?.Invoke(null, null);
     }
 
+    /// <summary>
+    /// Finds the underlying type of a struct implementing <see cref="IValueObject{TSelf, TValue}"/> over itself,
+    /// the only shape <see cref="ValueObjectDescriptor.For{TSelf, TValue}"/> accepts.
+    /// </summary>
+    /// <param name="type">Candidate type, already unwrapped from <see cref="Nullable{T}"/>.</param>
+    /// <param name="valueType">The underlying type when the candidate qualifies.</param>
+    /// <returns><see langword="true"/> when a descriptor can be built for <paramref name="type"/>.</returns>
+    [RequiresUnreferencedCode("Reads the value object interfaces of the type.")]
+    private static bool TryGetSelfDescribedValueType(Type type, [NotNullWhen(true)] out Type? valueType)
+    {
+        if (type.IsValueType)
+        {
+            foreach (var candidate in type.GetInterfaces())
+            {
+                if (candidate.IsGenericType
+                    && candidate.GetGenericTypeDefinition() == typeof(IValueObject<,>)
+                    && candidate.GetGenericArguments()[0] == type)
+                {
+                    valueType = candidate.GetGenericArguments()[1];
+                    return true;
+                }
+            }
+        }
+
+        valueType = null;
+        return false;
+    }
+
     [RequiresDynamicCode("Instantiates ValueObjectDescriptor.For<,> for the resolved type arguments.")]
     [RequiresUnreferencedCode("Reads the value object interfaces and annotations of the type.")]
-    private static ValueObjectDescriptor BuildByReflection(Type valueObjectType)
+    private static ValueObjectDescriptor BuildByReflection(Type valueObjectType, Type valueType)
     {
-        var valueType = GetUnderlyingType(valueObjectType)
-                        ?? throw new InvalidOperationException(
-                            $"'{valueObjectType.Name}' implements IValueObject but not IValueObject<TValue>.");
-
         var factory = typeof(ValueObjectDescriptor)
             .GetMethod(nameof(ValueObjectDescriptor.For), BindingFlags.Public | BindingFlags.Static)!
             .MakeGenericMethod(valueObjectType, valueType);
