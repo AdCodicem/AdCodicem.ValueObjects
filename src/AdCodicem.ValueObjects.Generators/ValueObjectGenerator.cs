@@ -785,8 +785,10 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// anyone wants. A contextual keyword is an ordinary identifier in a member's name, and stays allowed. The
     /// members the type has are the author's, getters included, which the generator's compilation holds without the
     /// generated ones, and the members of <see cref="object"/> a static property would hide, with a warning in the
-    /// generated file. The getter of another known value is checked after them, so that a name the author's own
-    /// property already holds is reported as the author's, even when a refused known value asked for it too.
+    /// generated file. So is a member of the author's taking the name of the property's getter, <c>get_</c> followed
+    /// by the name, which only a method with parameters leaves free. The getter of another known value is checked
+    /// after them, so that a name the author's own property already holds is reported as the author's, even when a
+    /// refused known value asked for it too.
     /// </remarks>
     /// <param name="name">The name the known value asks for.</param>
     /// <param name="symbol">The value object.</param>
@@ -819,6 +821,12 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         if (!symbol.GetMembers(name!).IsEmpty || InheritedNames.Contains(name!, StringComparer.Ordinal))
         {
             return "the type already has a member of that name";
+        }
+
+        // Only a method taking parameters leaves the getter's name free, as an overload of it.
+        if (symbol.GetMembers($"get_{name}").Any(static member => member is not IMethodSymbol { Parameters.IsEmpty: false }))
+        {
+            return $"the type already has a member named get_{name}, which the property's getter would take";
         }
 
         if (getters.Contains(name!))
