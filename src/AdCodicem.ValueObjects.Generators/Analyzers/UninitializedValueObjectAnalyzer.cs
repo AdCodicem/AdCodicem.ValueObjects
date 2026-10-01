@@ -21,6 +21,11 @@ namespace AdCodicem.ValueObjects.Generators.Analyzers;
 /// default state is genuinely meaningful opts out with <c>[ValueObject&lt;T&gt;(AllowDefault = true)]</c>, an
 /// identifier with <c>[EntityId("acc", AllowDefault = true)]</c>.
 /// </para>
+/// <para>
+/// It is reported where <c>default</c> or <c>new</c> is written, and nowhere else. A parameter declared
+/// <c>Iban iban = default</c> is reported on its declaration; a call omitting that argument holds an implicit
+/// <c>default</c> the compiler supplies, which is left alone, since fixing the declaration fixes every call.
+/// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class UninitializedValueObjectAnalyzer : DiagnosticAnalyzer
@@ -96,11 +101,16 @@ public sealed class UninitializedValueObjectAnalyzer : DiagnosticAnalyzer
     }
 
     private static void AnalyzeDefault(OperationAnalysisContext context, ImmutableArray<INamedTypeSymbol> annotations)
-        => Report(context, context.Operation.Type, annotations);
+    {
+        if (!context.Operation.IsImplicit)
+        {
+            Report(context, context.Operation.Type, annotations);
+        }
+    }
 
     private static void AnalyzeCreation(OperationAnalysisContext context, ImmutableArray<INamedTypeSymbol> annotations)
     {
-        if (context.Operation is IObjectCreationOperation { Arguments.Length: 0 } creation)
+        if (context.Operation is IObjectCreationOperation { Arguments.Length: 0, IsImplicit: false } creation)
         {
             Report(context, creation.Type, annotations);
         }

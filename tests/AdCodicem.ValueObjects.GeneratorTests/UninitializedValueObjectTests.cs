@@ -76,12 +76,12 @@ public sealed class UninitializedValueObjectTests
     }
 
     /// <summary>
-    /// A parameter defaulting to <c>default</c> is reported where it is declared, and so is every call that omits
-    /// the argument, at the call: the omitted argument is an implicit <c>default</c>, which produces the same
-    /// uninitialized instance. An argument written out as <c>default</c> is reported on its own.
+    /// A parameter defaulting to <c>default</c> or <c>new Code()</c> is reported once, where that is written: a call
+    /// omitting the argument writes neither, and fixing the declaration fixes every call. An argument written out
+    /// as <c>default</c> is reported on its own.
     /// </summary>
     [Fact]
-    public async Task A_parameter_defaulting_to_default_is_reported_where_it_is_declared_and_where_it_is_omitted()
+    public async Task A_parameter_defaulting_to_default_is_reported_where_it_is_declared_and_not_where_it_is_omitted()
     {
         var diagnostics = await RunAsync("""
             [ValueObject<string>]
@@ -91,7 +91,9 @@ public sealed class UninitializedValueObjectTests
             {
                 public static int Count(Code code = default) => 0;
 
-                public static int Omitted() => Count();
+                public static int Measure(Code code = new Code()) => 0;
+
+                public static int Omitted() => Count() + Measure();
 
                 public static int Written() => Count(default);
 
@@ -101,7 +103,7 @@ public sealed class UninitializedValueObjectTests
 
         Located(diagnostics).Should().Equal(
             ("default", "public static int Count(Code code = default) => 0;"),
-            ("Count()", "public static int Omitted() => Count();"),
+            ("new Code()", "public static int Measure(Code code = new Code()) => 0;"),
             ("default", "public static int Written() => Count(default);"));
     }
 
