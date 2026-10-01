@@ -154,6 +154,20 @@ public abstract class DapperTests<TFixture>(TFixture fixture) : IClassFixture<TF
         await refused.Should().ThrowAsync<DataException>().WithMessage("*not a valid CustomerId*must not be empty*");
     }
 
+    /// <summary>
+    /// The provider returns a <c>bigint</c> as a long, which the handler turns into text for a value object over a
+    /// string: no value object wrote that text, so it is validated, and these digits are no IBAN.
+    /// </summary>
+    [Fact]
+    public async Task A_string_value_object_returned_as_a_number_is_validated()
+    {
+        await using var connection = fixture.CreateConnection();
+
+        var refused = () => connection.QuerySingleAsync<Iban>(Command("SELECT CAST(7630006000 AS bigint)"));
+
+        await refused.Should().ThrowAsync<DataException>().WithMessage("The value read is not a valid Iban: *");
+    }
+
     [Fact]
     public async Task A_decimal_value_object_returned_as_a_float_is_converted()
     {

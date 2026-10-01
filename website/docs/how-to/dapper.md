@@ -38,9 +38,12 @@ SQL Server `datetime2`, a PostgreSQL `timestamp` — cannot become a `DateTimeOf
 the handler cannot convert to the underlying type, another type or one out of its range: each throws a
 `DataException` naming the type the provider returned and the value object it was read into.
 
-Text read into a value object whose underlying type is not `string` — a Guid or a number kept in a text column — is
-the exception: it is parsed the way the value object parses text, so it is normalized and validated. Text the value
-object refuses throws a `DataException` carrying the rule's message.
+A column holding text where the underlying type is not text, or the reverse, is the exception: the value object did
+not write it. Text read into a value object whose underlying type is not `string` — a Guid or a number kept in a
+text column — is parsed the way the value object parses text, so it is normalized and validated. A number read into
+a value object over `string` — the digits of a reference kept in a numeric column — is turned into text, then
+normalized and validated through `TryCreate`. Either way, a value the value object refuses throws a `DataException`
+carrying the rule's message.
 
 ## NULL
 
