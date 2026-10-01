@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Globalization;
+using System.Numerics;
 using AdCodicem.ValueObjects.Metadata;
 using Newtonsoft.Json;
 
@@ -29,21 +30,21 @@ public sealed class ValueObjectConverter : JsonConverter
         [typeof(char)] = new(JsonToken.String),
         [typeof(Guid)] = new(JsonToken.String, "D"),
         [typeof(bool)] = new(JsonToken.Boolean),
-        [typeof(sbyte)] = new(JsonToken.Integer),
-        [typeof(byte)] = new(JsonToken.Integer),
-        [typeof(short)] = new(JsonToken.Integer),
-        [typeof(ushort)] = new(JsonToken.Integer),
-        [typeof(int)] = new(JsonToken.Integer),
-        [typeof(uint)] = new(JsonToken.Integer),
-        [typeof(long)] = new(JsonToken.Integer),
-        [typeof(ulong)] = new(JsonToken.Integer),
+        [typeof(sbyte)] = Wire.Integer<sbyte>(),
+        [typeof(byte)] = Wire.Integer<byte>(),
+        [typeof(short)] = Wire.Integer<short>(),
+        [typeof(ushort)] = Wire.Integer<ushort>(),
+        [typeof(int)] = Wire.Integer<int>(),
+        [typeof(uint)] = Wire.Integer<uint>(),
+        [typeof(long)] = Wire.Integer<long>(),
+        [typeof(ulong)] = Wire.Integer<ulong>(),
 
         // No JSON consumer holds a 128-bit integer in a number without losing precision.
         [typeof(Int128)] = new(JsonToken.String, "D"),
         [typeof(UInt128)] = new(JsonToken.String, "D"),
-        [typeof(decimal)] = new(JsonToken.Float),
-        [typeof(double)] = new(JsonToken.Float),
-        [typeof(float)] = new(JsonToken.Float),
+        [typeof(decimal)] = Wire.Real<decimal>(),
+        [typeof(double)] = Wire.Real<double>(),
+        [typeof(float)] = Wire.Real<float>(),
         [typeof(DateOnly)] = new(JsonToken.String, "O"),
         [typeof(TimeOnly)] = new(JsonToken.String, "O"),
         [typeof(DateTime)] = new(JsonToken.String, "O"),
@@ -76,6 +77,15 @@ public sealed class ValueObjectConverter : JsonConverter
 
         var descriptor = Resolve(objectType);
 
+        if (Wires.TryGetValue(descriptor.ValueType, out var wire) && wire.Token != JsonToken.String)
+        {
+            var value = wire.Token == JsonToken.Boolean
+                ? ReadBoolean(reader, descriptor)
+                : ReadNumber(reader, descriptor, wire);
+
+            return Create(descriptor, value);
+        }
+
         if (reader.Value is string text)
         {
             if (descriptor.TryParse(text, CultureInfo.InvariantCulture, out var parsed, out var textValidation))
@@ -96,6 +106,56 @@ public sealed class ValueObjectConverter : JsonConverter
         throw new JsonSerializationException(
             $"The value is not a valid {descriptor.ValueObjectType.Name}: {validation.ErrorMessage}");
     }
+
+    /// <summary>
+    /// Reads a boolean from a boolean token only, as System.Text.Json does.
+    /// </summary>
+    /// <param name="reader">Reader positioned on the token.</param>
+    /// <param name="descriptor">Value object being read.</param>
+    /// <returns>The underlying value.</returns>
+    private static object ReadBoolean(JsonReader reader, ValueObjectDescriptor descriptor)
+        => reader.TokenType == JsonToken.Boolean ? reader.Value! : throw Expected(descriptor, "boolean", reader);
+
+    /// <summary>
+    /// Reads a number as System.Text.Json reads it: from a number token only, with no fraction for an integral type,
+    /// and within the range of the type.
+    /// </summary>
+    /// <param name="reader">Reader positioned on the token.</param>
+    /// <param name="descriptor">Value object being read.</param>
+    /// <param name="wire">How the underlying type travels.</param>
+    /// <returns>The underlying value.</returns>
+    private static object ReadNumber(JsonReader reader, ValueObjectDescriptor descriptor, Wire wire)
+    {
+        if (reader.TokenType is not (JsonToken.Integer or JsonToken.Float))
+        {
+            throw Expected(descriptor, "number", reader);
+        }
+
+        // Newtonsoft.Json has already turned the token into a long, a ulong or a BigInteger, or, under the
+        // serializer's FloatParseHandling, into a double or a decimal. The invariant text of each is the token's own
+        // digits, but for a double, whose shortest round-trip text is the closest to them it left: a decimal is never
+        // read through a double's fifteen digits.
+        var text = Convert.ToString(reader.Value, CultureInfo.InvariantCulture)!;
+
+        return (reader.TokenType == JsonToken.Integer || wire.Token == JsonToken.Float) && wire.Parse!(text) is { } number
+            ? number
+            : throw new JsonSerializationException($"The value could not be read as {descriptor.ValueObjectType.Name}.");
+    }
+
+    /// <summary>
+    /// Builds the value object from its underlying value, through its rules.
+    /// </summary>
+    /// <param name="descriptor">Value object being read.</param>
+    /// <param name="raw">Underlying value.</param>
+    /// <returns>The value object.</returns>
+    private static object Create(ValueObjectDescriptor descriptor, object raw)
+        => descriptor.TryCreate(raw, out var created, out var validation)
+            ? created!
+            : throw new JsonSerializationException(
+                $"The value is not a valid {descriptor.ValueObjectType.Name}: {validation.ErrorMessage}");
+
+    private static JsonSerializationException Expected(ValueObjectDescriptor descriptor, string token, JsonReader reader)
+        => new($"Expected a JSON {token} for {descriptor.ValueObjectType.Name} but found {reader.TokenType}.");
 
     /// <inheritdoc />
     /// <remarks>
@@ -178,5 +238,22 @@ public sealed class ValueObjectConverter : JsonConverter
     /// The round-trip format it writes a string in, or <see langword="null"/> for a value Newtonsoft.Json already
     /// writes the same way.
     /// </param>
-    private sealed record Wire(JsonToken Token, string? Format = null);
+    /// <param name="Parse">
+    /// For a number, parses the invariant text of the token, giving <see langword="null"/> for what the type cannot
+    /// hold: out of its range, or not finite.
+    /// </param>
+    private sealed record Wire(JsonToken Token, string? Format = null, Func<string, object?>? Parse = null)
+    {
+        public static Wire Integer<T>()
+            where T : struct, INumberBase<T>
+            => new(JsonToken.Integer, Parse: static text => Number<T>(text, NumberStyles.AllowLeadingSign));
+
+        public static Wire Real<T>()
+            where T : struct, INumberBase<T>
+            => new(JsonToken.Float, Parse: static text => Number<T>(text, NumberStyles.Float));
+
+        private static object? Number<T>(string text, NumberStyles styles)
+            where T : struct, INumberBase<T>
+            => T.TryParse(text, styles, CultureInfo.InvariantCulture, out var value) && T.IsFinite(value) ? value : null;
+    }
 }

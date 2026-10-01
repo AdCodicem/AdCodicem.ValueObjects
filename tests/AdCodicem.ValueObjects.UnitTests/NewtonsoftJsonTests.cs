@@ -13,6 +13,17 @@ public class NewtonsoftJsonTests
     /// <summary>The converter alone, under Newtonsoft.Json's defaults.</summary>
     private static readonly JsonSerializerSettings Defaults = new() { Converters = { new ValueObjectConverter() } };
 
+    /// <summary>
+    /// The settings the JSON how-to recommends, under which Newtonsoft.Json hands the converter the text of every
+    /// string and the digits of every number.
+    /// </summary>
+    private static readonly JsonSerializerSettings Recommended = new()
+    {
+        DateParseHandling = DateParseHandling.None,
+        FloatParseHandling = FloatParseHandling.Decimal,
+        Converters = { new ValueObjectConverter() },
+    };
+
     /// <summary>One value object for each of the 22 underlying types, keyed by a description of the case.</summary>
     private static readonly Dictionary<string, object> EveryUnderlyingType = new()
     {
@@ -53,6 +64,73 @@ public class NewtonsoftJsonTests
         var newtonsoft = JsonConvert.SerializeObject(value, value.GetType(), Defaults);
 
         newtonsoft.Should().Be(StjSerializer.Serialize(value, value.GetType()));
+    }
+
+    [Theory]
+    [MemberData(nameof(Every))]
+    public void Newtonsoft_reads_back_what_System_Text_Json_writes(string name)
+    {
+        var value = EveryUnderlyingType[name];
+
+        var read = JsonConvert.DeserializeObject(StjSerializer.Serialize(value, value.GetType()), value.GetType(), Recommended);
+
+        read.Should().Be(value);
+    }
+
+    /// <summary>
+    /// Under its default float handling, Newtonsoft.Json reads a number with a fraction as a double before the
+    /// converter sees it. The double's shortest round-trip text gives back the digits a double can carry; a decimal
+    /// with more than that wants <see cref="FloatParseHandling.Decimal"/>.
+    /// </summary>
+    [Fact]
+    public void A_decimal_keeps_its_digits_under_the_default_float_handling()
+    {
+        JsonConvert.DeserializeObject<Amount>("12345678901234.56", Defaults).Value.Should().Be(12345678901234.56m);
+        JsonConvert.DeserializeObject<Amount>("1250", Defaults).Value.Should().Be(1250.00m);
+    }
+
+    [Theory]
+    [InlineData("70000", typeof(Quantity))]
+    [InlineData("-1", typeof(Score))]
+    [InlineData("-1", typeof(ByteCount))]
+    [InlineData("18446744073709551616", typeof(ByteCount))]
+    [InlineData("1.5", typeof(PageNumber))]
+    [InlineData("2.0", typeof(PageNumber))]
+    [InlineData("NaN", typeof(Latitude))]
+    [InlineData("1e400", typeof(Latitude))]
+    public void A_number_the_underlying_type_cannot_hold_is_refused_as_JSON(string json, Type type)
+    {
+        var act = () => JsonConvert.DeserializeObject(json, type, Defaults);
+
+        act.Should().Throw<JsonSerializationException>().WithMessage($"The value could not be read as {type.Name}.");
+    }
+
+    /// <summary>
+    /// System.Text.Json reads a number from a string only when its options allow it, and Newtonsoft.Json has no such
+    /// option to honour.
+    /// </summary>
+    [Theory]
+    [InlineData("\"12\"", typeof(Amount), "number", "String")]
+    [InlineData("{}", typeof(Amount), "number", "StartObject")]
+    [InlineData("true", typeof(PageNumber), "number", "Boolean")]
+    [InlineData("\"true\"", typeof(Consent), "boolean", "String")]
+    [InlineData("1", typeof(Consent), "boolean", "Integer")]
+    public void A_token_of_another_kind_is_refused_rather_than_coerced(string json, Type type, string expected, string found)
+    {
+        var act = () => JsonConvert.DeserializeObject(json, type, Defaults);
+
+        act.Should().Throw<JsonSerializationException>()
+            .WithMessage($"Expected a JSON {expected} for {type.Name} but found {found}.");
+    }
+
+    [Fact]
+    public void A_number_is_read_through_the_rules_of_the_value_object()
+    {
+        var act = () => JsonConvert.DeserializeObject<Amount>("-1", Defaults);
+
+        JsonConvert.DeserializeObject<Amount>("12.345", Recommended).Value.Should().Be(12.34m, "the amount normalizes");
+        JsonConvert.DeserializeObject<Consent>("false", Defaults).Value.Should().BeFalse();
+        act.Should().Throw<JsonSerializationException>().WithMessage("The value is not a valid Amount: *greater than or equal to 0*");
     }
 
     /// <summary>
