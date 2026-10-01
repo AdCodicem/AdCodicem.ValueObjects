@@ -161,6 +161,51 @@ public sealed class EntityIdTests
             .Should().Contain(rule);
     }
 
+    /// <summary>
+    /// A generator runs on the text as the author types it, so an annotation still missing its prefix, or naming a
+    /// null one, is reported as an empty prefix rather than taken down with the compiler's own error.
+    /// </summary>
+    [Theory]
+    [InlineData("[EntityId]")]
+    [InlineData("[EntityId(null)]")]
+    public void An_identifier_without_a_prefix_is_reported_as_empty(string annotation)
+    {
+        var run = GeneratorHarness.Run($$"""
+            {{annotation}}
+            public readonly partial struct AccountId;
+            """);
+
+        run.Diagnostics.Should().ContainSingle(d => d.Id == "VO0015")
+            .Which.GetMessage().Should().StartWith("The prefix '' declared on 'AccountId' is unusable because it is empty.");
+        run.Files.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void An_identifier_publishes_its_declared_description()
+    {
+        var run = GeneratorHarness.Run("""
+            /// <summary>From the summary.</summary>
+            [EntityId("acc", Description = "The public identifier of an account.")]
+            public readonly partial struct AccountId;
+            """);
+
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("Description = \"The public identifier of an account.\",");
+    }
+
+    [Fact]
+    public void An_identifier_publishes_its_summary_when_it_declares_no_description()
+    {
+        var run = GeneratorHarness.Run("""
+            /// <summary>The public identifier of an account.</summary>
+            [EntityId("acc")]
+            public readonly partial struct AccountId;
+            """);
+
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("Description = \"The public identifier of an account.\",");
+    }
+
     [Fact]
     public void Two_types_claiming_one_prefix_are_reported()
     {

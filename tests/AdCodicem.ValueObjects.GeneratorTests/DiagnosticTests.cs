@@ -436,6 +436,30 @@ public sealed class DiagnosticTests
         run.Ids.Should().Contain("VO0014");
     }
 
+    /// <summary>
+    /// A generator runs on the text as the author types it: an option holding a constant of the wrong type is the
+    /// compiler's error to report on the declaration, and the generator reads the option as absent meanwhile.
+    /// </summary>
+    [Theory]
+    [InlineData("int", "Arithmetic = 1", "operator +")]
+    [InlineData("string", "MaxLength = \"3\"", "MaxLength =")]
+    [InlineData("string", "Description = 3", "Description =")]
+    public void An_option_holding_a_constant_of_the_wrong_type_is_read_as_absent(
+        string underlying,
+        string option,
+        string absent)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>({{option}})]
+            public readonly partial struct Code;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().ContainSingle()
+            .Which.Location.SourceTree!.FilePath.Should().BeEmpty("the compiler reports the declaration, not the generated code");
+        run.SingleValueObject.Should().NotContain(absent);
+    }
+
     [Fact]
     public void A_well_formed_value_object_reports_nothing()
     {
