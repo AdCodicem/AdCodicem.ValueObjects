@@ -117,6 +117,18 @@ public partial class JsonTests
         JsonSerializer.Deserialize<Dictionary<CustomerId, Amount>>(json)!.Should().ContainKey(customer);
     }
 
+    [Fact]
+    public void A_boolean_key_is_written_as_System_Text_Json_writes_a_bool_key()
+    {
+        var consents = new Dictionary<Consent, int> { [Consent.Create(true)] = 1, [Consent.Create(false)] = 2 };
+
+        var json = JsonSerializer.Serialize(consents);
+
+        json.Should().Be(JsonSerializer.Serialize(new Dictionary<bool, int> { [true] = 1, [false] = 2 }));
+        JsonSerializer.Deserialize<Dictionary<Consent, int>>(json).Should().Equal(consents);
+        JsonSerializer.Deserialize<Dictionary<Consent, int>>("""{"true":1,"FALSE":2}""").Should().Equal(consents);
+    }
+
     /// <summary>
     /// A key carries the underlying value, as the JSON value does: Floor prints "floor 3" through its string
     /// formatter and Celsius "21 °C" through its span formatter, and neither text could be read back as a key.
