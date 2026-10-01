@@ -158,16 +158,21 @@ internal static class LiteralFactory
                 return true;
 
             case UnderlyingKind.DateTime:
-                if (!DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dateTime))
+                // A DateTime bound is a reading of the clock. Written with an offset or Z, it would have to be
+                // converted to some time zone, and the only one at hand is the build machine's.
+                if (!TryParseDateTime(text, out var dateTime) || dateTime.Kind != DateTimeKind.Unspecified)
                 {
                     return false;
                 }
 
-                literal = $"new global::System.DateTime({dateTime.Ticks}L, global::System.DateTimeKind.{dateTime.Kind})";
+                literal = $"new global::System.DateTime({dateTime.Ticks}L, global::System.DateTimeKind.Unspecified)";
                 return true;
 
             case UnderlyingKind.DateTimeOffset:
-                if (!DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dateTimeOffset))
+                // Without an offset, the text would take the offset of the build machine.
+                if (!TryParseDateTime(text, out var instant)
+                    || instant.Kind != DateTimeKind.Utc
+                    || !DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateTimeOffset))
                 {
                     return false;
                 }
@@ -195,6 +200,17 @@ internal static class LiteralFactory
     /// <param name="value">Value to quote.</param>
     /// <returns>The literal expression.</returns>
     public static string Quote(string value) => $"\"{Escape(value)}\"";
+
+    /// <summary>
+    /// Reads a date and time without involving the time zone of the machine running the compiler.
+    /// </summary>
+    /// <remarks>
+    /// A text that names its offset — an explicit one, <c>Z</c> or <c>GMT</c> — is converted to UTC by that
+    /// offset alone and comes back with <see cref="DateTimeKind.Utc"/>. Any other text comes back as written,
+    /// with <see cref="DateTimeKind.Unspecified"/>. The kind therefore says whether the text carried an offset.
+    /// </remarks>
+    private static bool TryParseDateTime(string text, out DateTime value)
+        => DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out value);
 
     /// <summary>
     /// Builds the parse expression of a 128-bit integer, which C# has no literal for, refusing a value outside
