@@ -298,7 +298,8 @@ internal static class LiteralFactory
                     builder.Append("\\0");
                     break;
                 default:
-                    if (character < ' ')
+                    // C# also ends a line at U+0085, U+2028 and U+2029, which a regular literal cannot hold raw.
+                    if (character < ' ' || character is '\u0085' or '\u2028' or '\u2029')
                     {
                         builder.Append("\\u").Append(((int)character).ToString("X4", CultureInfo.InvariantCulture));
                     }
