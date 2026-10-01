@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace AdCodicem.ValueObjects.GeneratorTests;
 
 /// <summary>
@@ -258,6 +260,28 @@ public sealed class DiagnosticTests
             """);
 
         run.Ids.Should().Contain("VO0013");
+    }
+
+    /// <summary>
+    /// An array is a legal argument for the <c>object</c> parameter of <c>[KnownValue]</c>, and no underlying type
+    /// is one. A generator that fails on it takes the generated code of every other value object down with it.
+    /// </summary>
+    [Fact]
+    public void A_known_value_given_as_an_array_is_reported()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>]
+            [KnownValue("Pair", new[] { 1, 2 })]
+            public readonly partial struct Level;
+
+            [ValueObject<string>]
+            public readonly partial struct Code;
+            """);
+
+        run.Ids.Should().Equal("VO0013");
+        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Contain("{1, 2}");
+        run.Files.Select(file => file.HintName).Should().Contain(["Test.Level.g.cs", "Test.Code.g.cs"]);
+        run.CompilationDiagnostics.Should().BeEmpty();
     }
 
     [Fact]

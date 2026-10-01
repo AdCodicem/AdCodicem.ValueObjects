@@ -467,7 +467,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             }
 
             var name = attribute.ConstructorArguments[0].Value as string;
-            var rawValue = attribute.ConstructorArguments[1].Value;
+            var argument = attribute.ConstructorArguments[1];
 
             if (string.IsNullOrEmpty(name) || !SyntaxFacts.IsValidIdentifier(name) || !names.Add(name!))
             {
@@ -476,12 +476,15 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
                 continue;
             }
 
-            if (!LiteralFactory.TryCreate(underlying, rawValue, out var literal))
+            // An array is a legal argument for the object parameter, but no underlying type is one, and reading
+            // the Value of an array constant throws.
+            var isArray = argument.Kind == TypedConstantKind.Array;
+            if (isArray || !LiteralFactory.TryCreate(underlying, argument.Value, out var literal))
             {
                 diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.InvalidKnownValueLiteral,
                     location,
-                    rawValue?.ToString() ?? "null",
+                    isArray ? argument.ToCSharpString() : argument.Value?.ToString() ?? "null",
                     symbol.Name,
                     underlying.Keyword));
                 continue;
