@@ -558,7 +558,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     {
         var knownValues = new List<KnownValueModel>();
         var accepted = new HashSet<string>(StringComparer.Ordinal);
-
+        var declarations = new List<AttributeData>();
         foreach (var attribute in symbol.GetAttributes())
         {
             if (attribute.AttributeClass?.ToDisplayString() != KnownValueAttributeName)
@@ -571,10 +571,27 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
                 continue;
             }
 
+            declarations.Add(attribute);
+        }
+
+        // Each known value is a property, whose getter takes the name get_ followed by its own, whichever of the
+        // two is declared first.
+        var getters = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var declaration in declarations)
+        {
+            if (declaration.ConstructorArguments[0].Value is string requested)
+            {
+                getters.Add($"get_{requested}");
+            }
+        }
+
+        foreach (var attribute in declarations)
+        {
+
             var name = attribute.ConstructorArguments[0].Value as string;
             var argument = attribute.ConstructorArguments[1];
 
-            var refusal = RefuseKnownValueName(name, symbol, generated, accepted);
+            var refusal = RefuseKnownValueName(name, symbol, generated, getters, accepted);
             if (refusal is not null)
             {
                 diagnostics.Add(DiagnosticInfo.Create(
@@ -614,18 +631,22 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// <remarks>
     /// A keyword is refused rather than escaped: a member a caller has to write as <c>@class</c> is no constant
     /// anyone wants. A contextual keyword is an ordinary identifier in a member's name, and stays allowed. The
-    /// members the type has are the author's, which the generator's compilation holds without the generated ones,
-    /// and the members of <see cref="object"/> a static property would hide, with a warning in the generated file.
+    /// members the type has are the author's, getters included, which the generator's compilation holds without the
+    /// generated ones, and the members of <see cref="object"/> a static property would hide, with a warning in the
+    /// generated file. The getter of another known value is checked after them, so that a name the author's own
+    /// property already holds is reported as the author's, even when a refused known value asked for it too.
     /// </remarks>
     /// <param name="name">The name the known value asks for.</param>
     /// <param name="symbol">The value object.</param>
     /// <param name="generated">The names the generated code uses on the type.</param>
+    /// <param name="getters">The names the getters of the known values take.</param>
     /// <param name="accepted">The names of the known values accepted so far, to which this one is added.</param>
     /// <returns>The rule the name breaks, or <see langword="null"/> when it is usable.</returns>
     private static string? RefuseKnownValueName(
         string? name,
         INamedTypeSymbol symbol,
         HashSet<string> generated,
+        HashSet<string> getters,
         HashSet<string> accepted)
     {
         if (string.IsNullOrEmpty(name) || !SyntaxFacts.IsValidIdentifier(name))
@@ -646,6 +667,11 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         if (!symbol.GetMembers(name!).IsEmpty || InheritedNames.Contains(name!, StringComparer.Ordinal))
         {
             return "the type already has a member of that name";
+        }
+
+        if (getters.Contains(name!))
+        {
+            return "the generated code already uses that name";
         }
 
         return accepted.Add(name!) ? null : "another known value already takes that name";

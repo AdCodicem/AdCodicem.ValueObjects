@@ -38,6 +38,15 @@ internal static class ValueObjectEmitter
     private static readonly string[] ArithmeticMembers = ["Zero", "One", "IsZero", "Abs", "Min", "Max", "Sum"];
 
     /// <summary>
+    /// The getters of the properties written on every value object. The compiler names a getter <c>get_</c>
+    /// followed by its property's name and reserves that name in the type, as it does a member's.
+    /// </summary>
+    private static readonly string[] CommonGetters = ["get_Value", "get_IsDefault", "get_KnownValues", "get_Schema"];
+
+    /// <summary>The getters of the properties arithmetic adds.</summary>
+    private static readonly string[] ArithmeticGetters = ["get_Zero", "get_One", "get_IsZero"];
+
+    /// <summary>
     /// The metadata names of the operators written on every value object. The compiler reserves an operator's
     /// metadata name in the type as it does any member's, so a property of that name would not compile.
     /// </summary>
@@ -55,7 +64,8 @@ internal static class ValueObjectEmitter
     /// <remarks>
     /// A known value becomes a static property of the value object, so a name already taken there would not
     /// compile, in a file the author cannot edit: the members written here, the metadata names of the operators
-    /// written here, the name of the type, which its constructor takes, and the discard written as <c>out _</c>,
+    /// and of the property getters written here, the name of the type, which its constructor takes, and the
+    /// discard written as <c>out _</c>,
     /// which a member called <c>_</c> would capture. The names follow the options because the members do:
     /// <c>Zero</c> is only taken on a value object with arithmetic. They are listed beside the emitters so that a
     /// member added here is added to them in the same change; <c>KnownValueNameTests</c> reads the generated code to
@@ -81,11 +91,13 @@ internal static class ValueObjectEmitter
         bool normalizesFromSpan)
     {
         var names = new HashSet<string>(CommonMembers, StringComparer.Ordinal) { typeName, "_" };
+        names.UnionWith(CommonGetters);
         names.UnionWith(ComparisonOperators);
 
         if (arithmetic)
         {
             names.UnionWith(ArithmeticMembers);
+            names.UnionWith(ArithmeticGetters);
             names.UnionWith(ArithmeticOperators);
 
             if (underlying.IsSigned)

@@ -66,6 +66,7 @@ public sealed class KnownValueNameTests
             [KnownValue("NormalizeValue", "N")]
             [KnownValue("Fallback", "B")]
             [KnownValue("Region", "R")]
+            [KnownValue("get_Region", "G")]
             [KnownValue("Formats", "S")]
             [KnownValue("France", "FR")]
             public readonly partial struct Country : IValueObjectNormalizer<string>
@@ -88,8 +89,30 @@ public sealed class KnownValueNameTests
             Message("NormalizeValue", "Country", Declared),
             Message("Fallback", "Country", Declared),
             Message("Region", "Country", Declared),
+            Message("get_Region", "Country", Declared),
             Message("Formats", "Country", Declared));
         run.SingleValueObject.Should().Contain("public static global::Test.Country France { get; }");
+        run.CompilationDiagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A known value is a property, whose getter the compiler names <c>get_</c> followed by its name: another known
+    /// value of that name would collide with it, whichever is declared first.
+    /// </summary>
+    [Fact]
+    public void A_known_value_named_after_the_getter_of_another_is_reported()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>]
+            [KnownValue("get_France", "FX")]
+            [KnownValue("France", "FR")]
+            [KnownValue("get_Belgium", "BX")]
+            public readonly partial struct Country;
+            """);
+
+        run.Diagnostics.Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture)).Should().Equal(
+            Message("get_France", "Country", Generated));
+        run.SingleValueObject.Should().Contain("public static global::Test.Country get_Belgium { get; }");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
@@ -138,8 +161,9 @@ public sealed class KnownValueNameTests
 
     /// <summary>
     /// Reads the members out of the generated code rather than out of a list, so that a member added to an emitter
-    /// and forgotten by the check fails here. An operator counts under its metadata name, which the compiler reserves
-    /// in the type as it does any other member's. Each configuration turns on every option that adds a member.
+    /// and forgotten by the check fails here. An operator counts under its metadata name, and a property under the
+    /// name of its getter too, which the compiler reserves in the type as it does any other member's. Each
+    /// configuration turns on every option that adds a member.
     /// </summary>
     [Theory]
     [InlineData(
@@ -164,10 +188,12 @@ public sealed class KnownValueNameTests
     public void Every_member_the_generator_writes_is_refused_as_a_known_value_name(string declaration, string literal)
     {
         var members = MembersWrittenOn(GeneratorHarness.Run(declaration).SingleValueObject, "Code")
-            .Where(name => name != "Kept")
+            .Where(name => name is not ("Kept" or "get_Kept"))
             .ToList();
 
-        members.Should().Contain(["Code", "Value", "Schema", "Create", "KnownValues", "op_Equality", "op_Implicit"], "the reading must keep finding them");
+        members.Should().Contain(
+            ["Code", "Value", "get_Value", "Schema", "Create", "KnownValues", "op_Equality", "op_Implicit"],
+            "the reading must keep finding them");
 
         var attributes = string.Concat(members.Select(name => $"[KnownValue(\"{name}\", {literal})]\n"));
         var run = GeneratorHarness.Run(attributes + declaration);
@@ -175,7 +201,7 @@ public sealed class KnownValueNameTests
         run.Diagnostics.Should().OnlyContain(diagnostic => diagnostic.Id == "VO0006");
         run.Diagnostics.Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture)).Should().BeEquivalentTo(
             members.Select(name => Message(name, "Code", Generated)));
-        MembersWrittenOn(run.SingleValueObject, "Code").Should().BeEquivalentTo([.. members, "Kept"]);
+        MembersWrittenOn(run.SingleValueObject, "Code").Should().BeEquivalentTo([.. members, "Kept", "get_Kept"]);
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
@@ -288,13 +314,13 @@ public sealed class KnownValueNameTests
     }
 
     /// <summary>
-    /// The name a member takes in the scope of the type. An operator takes its metadata name, explicit interface
-    /// implementations take none, and a constructor takes the name of the type.
+    /// The names a member takes in the scope of the type. An operator takes its metadata name, a property its own and
+    /// its getter's, explicit interface implementations take none, and a constructor takes the name of the type.
     /// </summary>
     private static IEnumerable<string> NamesOf(MemberDeclarationSyntax member) => member switch
     {
         FieldDeclarationSyntax field => field.Declaration.Variables.Select(variable => variable.Identifier.ValueText),
-        PropertyDeclarationSyntax { ExplicitInterfaceSpecifier: null } property => [property.Identifier.ValueText],
+        PropertyDeclarationSyntax { ExplicitInterfaceSpecifier: null } property => NamesOf(property),
         MethodDeclarationSyntax { ExplicitInterfaceSpecifier: null } method => [method.Identifier.ValueText],
         ConstructorDeclarationSyntax constructor => [constructor.Identifier.ValueText],
         BaseTypeDeclarationSyntax nested => [nested.Identifier.ValueText],
@@ -305,6 +331,16 @@ public sealed class KnownValueNameTests
                 : WellKnownMemberNames.ExplicitConversionName],
         _ => [],
     };
+
+    /// <summary>
+    /// A property's name, and its getter's, which the generator always writes: every generated property is read-only.
+    /// </summary>
+    private static IEnumerable<string> NamesOf(PropertyDeclarationSyntax property)
+    {
+        property.AccessorList?.Accessors.Should().OnlyContain(accessor => accessor.IsKind(SyntaxKind.GetAccessorDeclaration));
+
+        return [property.Identifier.ValueText, $"get_{property.Identifier.ValueText}"];
+    }
 
     /// <summary>
     /// The metadata name of an operator the generator writes. One it does not write yet fails the test, so that the
