@@ -27,7 +27,9 @@ A descriptor exposes what the type declares and how to build one:
 - `Create`, `TryCreate`, `CreateUnchecked` and `TryParse`, which take and return boxed values;
 - `GetValue` and `Format`, to read an instance back.
 
-A rejection carries the same `ValidationResult` as the typed path, with the code of the rule that fired.
+A rejection carries the same `ValidationResult` as the typed path, with the code of the rule that fired. `Create`
+and `TryCreate` reject a `null` as `value_object.required` whatever the underlying type: a decimal value object
+does not read it as zero.
 
 ## Cheaper questions
 

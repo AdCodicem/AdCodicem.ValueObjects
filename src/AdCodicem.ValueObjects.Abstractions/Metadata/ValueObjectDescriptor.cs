@@ -38,6 +38,11 @@ public delegate bool BoxedTryParse(ReadOnlySpan<char> text, IFormatProvider? pro
 /// </remarks>
 public sealed class ValueObjectDescriptor
 {
+    /// <summary>
+    /// The message a generated value object gives when it is handed <see langword="null"/>.
+    /// </summary>
+    private const string RequiredMessage = "A value is required.";
+
     private ValueObjectDescriptor(
         Type valueObjectType,
         Type valueType,
@@ -78,6 +83,11 @@ public sealed class ValueObjectDescriptor
     /// <summary>
     /// Gets the validating factory. Throws <see cref="ValueObjectException"/> on a rejected value.
     /// </summary>
+    /// <remarks>
+    /// A <see langword="null"/> is rejected as <see cref="ValueObjectErrorCodes.Required"/> whatever the
+    /// underlying type: a string value object rejects it through its own rule, and a value-typed underlying value
+    /// has no null to accept.
+    /// </remarks>
     public Func<object?, object> Create { get; }
 
     /// <summary>
@@ -88,6 +98,10 @@ public sealed class ValueObjectDescriptor
     /// <summary>
     /// Gets the non-throwing validating factory.
     /// </summary>
+    /// <remarks>
+    /// A <see langword="null"/> is rejected as <see cref="ValueObjectErrorCodes.Required"/> whatever the
+    /// underlying type, as it is by <see cref="Create"/>.
+    /// </remarks>
     public BoxedTryCreate TryCreate { get; }
 
     /// <summary>
@@ -129,6 +143,11 @@ public sealed class ValueObjectDescriptor
             schema,
             create: value =>
             {
+                if (value is null && default(TValue) is not null)
+                {
+                    ValueObjectException.Throw(typeof(TSelf), ValueObjectErrorCodes.Required, RequiredMessage, null);
+                }
+
                 var typed = TSelf.Normalize(Unbox<TValue>(value));
 
                 return boxedKnownValues is not null && typed is not null && TryGetCached(boxedKnownValues, typed, out var cached)
@@ -148,6 +167,11 @@ public sealed class ValueObjectDescriptor
                 TValue typed;
                 switch (value)
                 {
+                    // Reading null as default(TValue) would turn "no value" into a valid zero.
+                    case null when default(TValue) is not null:
+                        result = null;
+                        validation = ValidationResult.Required(RequiredMessage);
+                        return false;
                     case null:
                         typed = default!;
                         break;
