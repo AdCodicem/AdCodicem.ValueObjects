@@ -626,8 +626,9 @@ internal static class LiteralFactory
     private static string Escape(string value)
     {
         var builder = new System.Text.StringBuilder(value.Length + 8);
-        foreach (var character in value)
+        for (var i = 0; i < value.Length; i++)
         {
+            var character = value[i];
             switch (character)
             {
                 case '\\':
@@ -651,9 +652,14 @@ internal static class LiteralFactory
                 case '\0':
                     builder.Append("\\0");
                     break;
+                case >= '\uD800' and <= '\uDBFF' when i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]):
+                    // A whole pair stands for one character, which the UTF-8 the file is written in holds.
+                    builder.Append(character).Append(value[++i]);
+                    break;
                 default:
-                    // C# also ends a line at U+0085, U+2028 and U+2029, which a regular literal cannot hold raw.
-                    if (character < ' ' || character is '\u0085' or '\u2028' or '\u2029')
+                    // C# also ends a line at U+0085, U+2028 and U+2029, which a regular literal cannot hold raw, and
+                    // half of a surrogate pair has no UTF-8 form: written raw, it would reach the file as U+FFFD.
+                    if (character < ' ' || character is '\u0085' or '\u2028' or '\u2029' || char.IsSurrogate(character))
                     {
                         builder.Append("\\u").Append(((int)character).ToString("X4", CultureInfo.InvariantCulture));
                     }

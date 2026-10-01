@@ -1,3 +1,4 @@
+using System.Text;
 using AdCodicem.ValueObjects.Generators.Model;
 using Microsoft.CodeAnalysis;
 
@@ -357,6 +358,47 @@ public sealed class EmissionTests
         var separator = run.Files.Single(file => file.HintName.Contains("Separator", StringComparison.Ordinal)).Text;
         separator.Should().Contain("Create('\\u2028')");
         separator.Should().Contain("Create('\\u0085')");
+    }
+
+    /// <summary>
+    /// A generated file is written as UTF-8, which cannot hold half of a surrogate pair: written raw, a lone
+    /// surrogate becomes U+FFFD in the file on disk and in the source embedded for the debugger, while the compiler
+    /// read another string. It is escaped in every literal, as a line terminator is, and a whole pair, which stands
+    /// for one character, is kept as written.
+    /// </summary>
+    [Fact]
+    public void A_lone_surrogate_in_author_text_is_escaped_in_every_literal()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>(Description = "One\uD800", Example = "\uDC00b", Pattern = "^[^\uDBFF]+$")]
+            [KnownValue("Broken", "a\uD800b\uDC00")]
+            [KnownValue("Reversed", "\uDE00\uD83D")]
+            [KnownValue("Paired", "\uD83D\uDE00")]
+            public readonly partial struct Token;
+
+            [ValueObject<char>]
+            [KnownValue("High", '\uD800')]
+            [KnownValue("Low", "\uDFFF")]
+            public readonly partial struct Half;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        var token = run.Files.Single(file => file.HintName.Contains("Token", StringComparison.Ordinal)).Text;
+        token.Should().Contain("Create(\"a\\uD800b\\uDC00\")");
+        token.Should().Contain("Create(\"\\uDE00\\uD83D\")");
+        token.Should().Contain("Create(\"\uD83D\uDE00\")");
+        token.Should().Contain("Description = \"One\\uD800\"");
+        token.Should().Contain("Example = \"\\uDC00b\"");
+        token.Should().Contain("\"^[^\\uDBFF]+$\"");
+
+        var half = run.Files.Single(file => file.HintName.Contains("Half", StringComparison.Ordinal)).Text;
+        half.Should().Contain("Create('\\uD800')");
+        half.Should().Contain("Create('\\uDFFF')");
+
+        var strict = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        run.Files.Should().AllSatisfy(file => strict.Invoking(encoding => encoding.GetBytes(file.Text)).Should().NotThrow());
     }
 
     /// <summary>
