@@ -605,8 +605,13 @@ internal static class ValueObjectEmitter
         }
         else if (underlying.IsSpanFormattable)
         {
+            // The default format is the one ToString() uses, so that interpolation, a TypeConverter and a binder
+            // write what Parse reads back; left to the underlying type, a TimeOnly would drop its seconds.
+            var format = underlying.RoundTripFormat is null
+                ? "format"
+                : $"string.IsNullOrEmpty(format) ? {LiteralFactory.Quote(underlying.RoundTripFormat)} : format";
             writer.Line("public string ToString(string? format, global::System.IFormatProvider? formatProvider)");
-            writer.Line($"    => Value.ToString(format, formatProvider ?? {Invariant});");
+            writer.Line($"    => Value.ToString({format}, formatProvider ?? {Invariant});");
         }
         else
         {
@@ -626,8 +631,11 @@ internal static class ValueObjectEmitter
         }
         else if (underlying.IsSpanFormattable)
         {
+            var format = underlying.RoundTripFormat is null
+                ? "format"
+                : $"format.IsEmpty ? global::System.MemoryExtensions.AsSpan({LiteralFactory.Quote(underlying.RoundTripFormat)}) : format";
             writer.Line("var current = Value;");
-            writer.Line($"return {Abstractions}.UnderlyingValue.TryFormat(in current, destination, out charsWritten, format, provider ?? {Invariant});");
+            writer.Line($"return {Abstractions}.UnderlyingValue.TryFormat(in current, destination, out charsWritten, {format}, provider ?? {Invariant});");
         }
         else
         {
