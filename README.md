@@ -184,12 +184,24 @@ strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `Dat
 | Option | Effect |
 | --- | --- |
 | `Pattern`, `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI schema. |
-| `Minimum`, `Maximum` | Written in invariant culture, parsed at compile time. |
+| `Minimum`, `Maximum` | Inclusive bounds, written as text in the one form of the underlying type and read at compile time. Validation and OpenAPI schema. |
 | `Comparison` | Equality, ordering and hashing for string value objects. Ordinal by default. |
 | `ValueSet = Closed` + `[KnownValue]` | Reference-data codes with a frozen lookup and a schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. |
 | `Arithmetic` | Operators and generic math for numeric value objects. Every result is re-validated. |
 | `ImplicitConversionToValue`, `ExplicitConversionFromValue` | Conversions, opt-in per type. |
 | `AllowEmpty`, `AllowDefault` | Loosen the two defaults that exist to catch mistakes. |
+
+`Minimum` and `Maximum` are text because an attribute argument cannot be a `decimal` or a date, and each underlying
+type reads them in one form and no other: digits for an integer, with `-` in front when negative (`"-42"`); a
+`decimal` with an optional fraction after `.` (`"-19.99"`), and a `double` or a `float` with an optional exponent as
+well (`"9.1e-31"`), finite, and zero only when written as zero; one character for a `char`; `yyyy-MM-dd` for a
+`DateOnly`; `HH:mm`, `HH:mm:ss` or `HH:mm:ss.fffffff` for a `TimeOnly`; a date, or a date and a time after `T`,
+without an offset for a `DateTime` (`"2024-01-31T08:30"`); a date and a time followed by `Z`, `+HH:mm` or `-HH:mm`
+for a `DateTimeOffset`; and `[-][d.]hh:mm:ss[.fffffff]` for a `TimeSpan`. No white space, no culture, no time zone:
+the same declaration compiles to the same bound on every machine. Any other text, or a value the type cannot hold,
+is `VO0004`, and the message names the form. A `string`, a `Guid` and a `bool` take no bound, which is `VO0004`
+too: constrain a string with `MinLength`, `MaxLength` or `Pattern`. A `[KnownValue]` written as text is read in
+the same form, and refused with `VO0013`.
 
 ### Hooks
 
@@ -309,9 +321,9 @@ an internal surrogate key alongside it.
 | Id | Severity | Meaning |
 | --- | --- | --- |
 | `VO0001` | Error | The type is not `partial`. |
-| `VO0002` | Error | The type is not a `readonly struct`, or is a record or a `ref struct`. |
+| `VO0002` | Error | The type is not a `readonly struct`: a class, an interface, a record, a `ref struct`, or a struct without `readonly`. |
 | `VO0003` | Error | Unsupported underlying type. |
-| `VO0004` | Error | A bound is not written in the form of its type, or is set on a type that takes none. |
+| `VO0004` | Error | A bound is not written in the one form of its underlying type, names no value of it, or is set on a `string`, a `Guid` or a `bool`, which take none. |
 | `VO0005` | Error | A closed value set declares no value. |
 | `VO0006` | Error | A known value has an unusable name. |
 | `VO0007` | Error | Arithmetic requested on a non-numeric type. |
@@ -319,13 +331,13 @@ an internal surrogate key alongside it.
 | `VO0009` | Error | A containing type is not `partial`. |
 | `VO0010` | Error | An uninitialized value object. |
 | `VO0011` | Warning | A rule written without declaring its hook interface, so the generator will never call it. |
-| `VO0013` | Error | A known value could not be converted. |
+| `VO0013` | Error | A known value is not written in the one form of its underlying type, names no value of it, or is no value at all: `null`, an array, a `typeof(...)`, an enum member. |
 | `VO0014` | Error | An invalid regular expression. |
 | `VO0015` | Error | A malformed entity identifier prefix. |
 | `VO0016` | Error | Two types claiming the same prefix. |
 | `VO0017` | Error | A normalization hook on an entity identifier, which owns its own. |
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
-| `VO0019` | Error | The type is generic, or nested in a generic type or an interface. |
+| `VO0019` | Error | The generated code cannot reopen, reach or name the type: it is generic or nested in a generic type or an interface; it, or a type around it, is `private`, `protected` or `file`-local; or it is named after a member the generator writes on it, or `var` or `_`. |
 | `VO0020` | Error | `Comparison`, `ValueSet` or `Granularity` holds a value its enum does not define. |
 
 ## Using it with an AI coding agent
