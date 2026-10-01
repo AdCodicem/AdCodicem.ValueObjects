@@ -61,50 +61,119 @@ public sealed class ValueObjectConverter : JsonConverter
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The value is read as the System.Text.Json converter the generator emits reads it: from the kind of token it
+    /// writes, and through the value object's rules, so a rejection says which rule refused it. Newtonsoft.Json
+    /// turns a string that looks like a date into a date under its default <see cref="DateParseHandling"/>, before
+    /// the converter sees it; where that date no longer says what the text said, the value is refused rather than
+    /// rebuilt into something else. <see cref="DateParseHandling.None"/> keeps the text.
+    /// </remarks>
     public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(objectType);
-
-        var isNullable = Nullable.GetUnderlyingType(objectType) is not null;
+        ArgumentNullException.ThrowIfNull(serializer);
 
         if (reader.TokenType == JsonToken.Null)
         {
-            return isNullable
+            return Nullable.GetUnderlyingType(objectType) is not null
                 ? null
                 : throw new JsonSerializationException($"Cannot convert null to '{objectType.Name}'.");
         }
 
         var descriptor = Resolve(objectType);
 
-        if (Wires.TryGetValue(descriptor.ValueType, out var wire) && wire.Token != JsonToken.String)
+        if (!Wires.TryGetValue(descriptor.ValueType, out var wire))
         {
-            var value = wire.Token == JsonToken.Boolean
-                ? ReadBoolean(reader, descriptor)
-                : ReadNumber(reader, descriptor, wire);
-
-            return Create(descriptor, value);
+            // A value object written by hand over a type the generator does not support: its value is read the way
+            // Newtonsoft.Json reads that type, as the general-purpose System.Text.Json converter does.
+            return Create(descriptor, serializer.Deserialize(reader, descriptor.ValueType));
         }
 
-        if (reader.Value is string text)
+        return wire.Token switch
         {
-            if (descriptor.TryParse(text, CultureInfo.InvariantCulture, out var parsed, out var textValidation))
-            {
-                return parsed;
-            }
+            JsonToken.String => ReadText(reader, descriptor),
+            JsonToken.Boolean => Create(descriptor, ReadBoolean(reader, descriptor)),
+            _ => Create(descriptor, ReadNumber(reader, descriptor, wire)),
+        };
+    }
 
-            throw new JsonSerializationException(
-                $"The value is not a valid {descriptor.ValueObjectType.Name}: {textValidation.ErrorMessage}");
+    /// <inheritdoc />
+    /// <remarks>
+    /// The value is written as the System.Text.Json converter the generator emits writes it: a number or a boolean
+    /// as such, and anything else as a string, <see cref="Int128"/> and <see cref="UInt128"/> included, in the same
+    /// round-trip form. The serializer's date settings do not apply, so that both serializers write the same text.
+    /// </remarks>
+    public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(serializer);
+
+        if (value is null)
+        {
+            writer.WriteNull();
+            return;
         }
 
-        var raw = Convert.ChangeType(reader.Value, descriptor.ValueType, CultureInfo.InvariantCulture);
-        if (descriptor.TryCreate(raw, out var created, out var validation))
+        var descriptor = Resolve(value.GetType());
+        var raw = descriptor.GetValue(value);
+
+        if (!Wires.TryGetValue(descriptor.ValueType, out var wire))
         {
-            return created;
+            // A value object written by hand over a type the generator does not support: its value is written the
+            // way Newtonsoft.Json writes that type, as the general-purpose System.Text.Json converter does.
+            serializer.Serialize(writer, raw);
+            return;
         }
 
-        throw new JsonSerializationException(
-            $"The value is not a valid {descriptor.ValueObjectType.Name}: {validation.ErrorMessage}");
+        writer.WriteValue(wire.Format is null ? raw : Format(raw!, wire.Format));
+    }
+
+    /// <summary>
+    /// Reads a value System.Text.Json writes as a string, from the text of a string token.
+    /// </summary>
+    /// <param name="reader">Reader positioned on the token.</param>
+    /// <param name="descriptor">Value object being read.</param>
+    /// <returns>The value object.</returns>
+    private static object ReadText(JsonReader reader, ValueObjectDescriptor descriptor)
+    {
+        var type = descriptor.ValueType;
+
+        switch (reader.Value)
+        {
+            // A DateTime is read as System.Text.Json reads one: UTC stays UTC, an offset is converted to local time,
+            // and no zone leaves the kind unspecified. Text that is not a date falls to the value object's parser,
+            // which says so.
+            case string text when type == typeof(DateTime)
+                && DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dateTime):
+                return Create(descriptor, dateTime);
+
+            case string text:
+                return descriptor.TryParse(text, CultureInfo.InvariantCulture, out var parsed, out var validation)
+                    ? parsed!
+                    : throw Invalid(descriptor, validation);
+
+            // Newtonsoft.Json read the string as a date. The same kind of date is the same value; a DateTime in UTC,
+            // or of no zone, gives the DateTimeOffset System.Text.Json reads from the same text. A DateTime in local
+            // time is an offset Newtonsoft.Json converted away, and any other date stands for a text that is lost.
+            case DateTime date when type == typeof(DateTime):
+                return Create(descriptor, date);
+
+            case DateTimeOffset instant when type == typeof(DateTimeOffset):
+                return Create(descriptor, instant);
+
+            case DateTime { Kind: not DateTimeKind.Local } date when type == typeof(DateTimeOffset):
+                return Create(descriptor, new DateTimeOffset(date));
+
+            case DateTime or DateTimeOffset:
+                throw new JsonSerializationException(
+                    "Newtonsoft.Json read the string as a date before the converter saw it, and "
+                    + $"{descriptor.ValueObjectType.Name} cannot be read back from that date. "
+                    + "Set DateParseHandling to None in the serializer settings.");
+
+            default:
+                throw Expected(descriptor, "string", reader);
+        }
     }
 
     /// <summary>
@@ -148,45 +217,14 @@ public sealed class ValueObjectConverter : JsonConverter
     /// <param name="descriptor">Value object being read.</param>
     /// <param name="raw">Underlying value.</param>
     /// <returns>The value object.</returns>
-    private static object Create(ValueObjectDescriptor descriptor, object raw)
-        => descriptor.TryCreate(raw, out var created, out var validation)
-            ? created!
-            : throw new JsonSerializationException(
-                $"The value is not a valid {descriptor.ValueObjectType.Name}: {validation.ErrorMessage}");
+    private static object Create(ValueObjectDescriptor descriptor, object? raw)
+        => descriptor.TryCreate(raw, out var created, out var validation) ? created! : throw Invalid(descriptor, validation);
+
+    private static JsonSerializationException Invalid(ValueObjectDescriptor descriptor, ValidationResult validation)
+        => new($"The value is not a valid {descriptor.ValueObjectType.Name}: {validation.ErrorMessage}");
 
     private static JsonSerializationException Expected(ValueObjectDescriptor descriptor, string token, JsonReader reader)
         => new($"Expected a JSON {token} for {descriptor.ValueObjectType.Name} but found {reader.TokenType}.");
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// The value is written as the System.Text.Json converter the generator emits writes it: a number or a boolean
-    /// as such, and anything else as a string, <see cref="Int128"/> and <see cref="UInt128"/> included, in the same
-    /// round-trip form. The serializer's date settings do not apply, so that both serializers write the same text.
-    /// </remarks>
-    public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
-    {
-        ArgumentNullException.ThrowIfNull(writer);
-        ArgumentNullException.ThrowIfNull(serializer);
-
-        if (value is null)
-        {
-            writer.WriteNull();
-            return;
-        }
-
-        var descriptor = Resolve(value.GetType());
-        var raw = descriptor.GetValue(value);
-
-        if (!Wires.TryGetValue(descriptor.ValueType, out var wire))
-        {
-            // A value object written by hand over a type the generator does not support: its value is written the
-            // way Newtonsoft.Json writes that type, as the general-purpose System.Text.Json converter does.
-            serializer.Serialize(writer, raw);
-            return;
-        }
-
-        writer.WriteValue(wire.Format is null ? raw : Format(raw!, wire.Format));
-    }
 
     /// <summary>
     /// Formats a value System.Text.Json writes as a string, in the form it writes it in.
