@@ -190,7 +190,9 @@ legitimate for input coming from outside.
 
 ## Nesting
 
-A value object declared inside another type requires **every** containing type to be `partial` (`VO0009`).
+A value object declared inside another type requires **every** containing type to be `partial` (`VO0009`). The
+containing types are classes, structs or records without type parameters: nesting in a generic type or in an
+interface is `VO0019`, and so is a value object with type parameters of its own.
 
 ## Consuming a value object
 

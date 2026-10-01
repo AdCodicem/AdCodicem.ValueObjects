@@ -6,6 +6,7 @@ using Basic.Reference.Assemblies;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Text;
 
 namespace AdCodicem.ValueObjects.GeneratorTests.Harness;
 
@@ -41,7 +42,8 @@ public static class GeneratorHarness
                 generated.SourceText.ToString()))],
             [.. generatorDiagnostics],
             [.. output.GetDiagnostics().Where(IsRelevant)],
-            driver);
+            driver,
+            compilation.SyntaxTrees.Single().GetText(TestContext.Current.CancellationToken));
     }
 
     /// <summary>
@@ -144,11 +146,13 @@ public sealed record GeneratedFile(string HintName, string Text);
 /// <param name="Diagnostics">Diagnostics the generator reported.</param>
 /// <param name="CompilationDiagnostics">Diagnostics from compiling the result.</param>
 /// <param name="Driver">The driver, for incremental inspection.</param>
+/// <param name="Source">The source compiled, as wrapped by the harness.</param>
 public sealed record GeneratorRun(
     ImmutableArray<GeneratedFile> Files,
     ImmutableArray<Diagnostic> Diagnostics,
     ImmutableArray<Diagnostic> CompilationDiagnostics,
-    GeneratorDriver Driver)
+    GeneratorDriver Driver,
+    SourceText Source)
 {
     /// <summary>Gets the single generated value object file, failing when there is not exactly one.</summary>
     public string SingleValueObject
@@ -156,4 +160,20 @@ public sealed record GeneratorRun(
 
     /// <summary>Gets the identifiers of every diagnostic reported.</summary>
     public IReadOnlyList<string> Ids => [.. Diagnostics.Select(diagnostic => diagnostic.Id)];
+
+    /// <summary>
+    /// Gets the source a diagnostic points at: the text of its span, and the whole line it starts on, trimmed.
+    /// </summary>
+    /// <remarks>
+    /// The generator reports through a location rebuilt from a path and a span, which carries no syntax tree to
+    /// read the text back from, so it is read from the source this run compiled.
+    /// </remarks>
+    /// <param name="diagnostic">A diagnostic reported against <see cref="Source"/>.</param>
+    /// <returns>The spanned text and its line.</returns>
+    public (string Text, string Line) Locate(Diagnostic diagnostic)
+    {
+        var span = diagnostic.Location.SourceSpan;
+
+        return (Source.ToString(span), Source.Lines.GetLineFromPosition(span.Start).ToString().Trim());
+    }
 }

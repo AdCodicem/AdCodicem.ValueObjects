@@ -29,6 +29,7 @@ error. There is no `VO0012`.
 | `VO0016` | Two types claim the same prefix. | Give each identifier type its own prefix, or one kind of identifier would parse as another. |
 | `VO0017` | A normalization hook on an entity identifier. | `[EntityId]` normalizes its own format and would never call the hook: remove it. |
 | `VO0018` | Both `[EntityId]` and `[ValueObject<T>]` on one type. | Each generates a whole implementation; keep the one that describes the type. |
+| `VO0019` | The type has type parameters, or is nested in a generic type or an interface. | The generated code cannot reopen such a type, so nothing is generated for it. Declare it without type parameters, at namespace level or nested in non-generic classes, structs and records. |
 
 `VO0011` deserves its warning more than most. The code it reports compiles and looks right, and in a project
 without `TreatWarningsAsErrors` it ships with the rule silently absent. It also recognizes the names hooks had

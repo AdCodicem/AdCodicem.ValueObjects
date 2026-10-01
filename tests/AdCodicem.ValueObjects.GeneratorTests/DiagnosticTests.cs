@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.CodeAnalysis;
 
 namespace AdCodicem.ValueObjects.GeneratorTests;
 
@@ -248,6 +249,93 @@ public sealed class DiagnosticTests
             """);
 
         run.Ids.Should().Contain("VO0009");
+    }
+
+    /// <summary>
+    /// The generated code reopens the value object and every type around it, which it cannot do for a type with
+    /// type parameters or for an interface: what it wrote would not compile, in a file the author cannot edit. The
+    /// declaration is reported instead, and nothing is generated for it, while the rest of the compilation still is.
+    /// </summary>
+    [Theory]
+    [InlineData(
+        """
+        [ValueObject<string>]
+        public readonly partial struct Code<T>;
+        """,
+        "public readonly partial struct Code<T>;",
+        "is generic")]
+    [InlineData(
+        """
+        [EntityId("acc")]
+        public readonly partial struct Code<TKey, TValue>;
+        """,
+        "public readonly partial struct Code<TKey, TValue>;",
+        "is generic")]
+    [InlineData(
+        """
+        public partial class Outer<T>
+        {
+            [ValueObject<string>]
+            public readonly partial struct Code;
+        }
+        """,
+        "public readonly partial struct Code;",
+        "is nested in the generic type 'Outer<T>'")]
+    [InlineData(
+        """
+        public partial class Outer<T>
+        {
+            public partial record Middle
+            {
+                [EntityId("acc")]
+                public readonly partial struct Code;
+            }
+        }
+        """,
+        "public readonly partial struct Code;",
+        "is nested in the generic type 'Outer<T>'")]
+    [InlineData(
+        """
+        public partial interface IOuter
+        {
+            [ValueObject<string>]
+            public readonly partial struct Code;
+        }
+        """,
+        "public readonly partial struct Code;",
+        "is nested in the interface 'IOuter'")]
+    [InlineData(
+        """
+        public partial interface IOuter<T>
+        {
+            [EntityId("acc")]
+            public readonly partial struct Code;
+        }
+        """,
+        "public readonly partial struct Code;",
+        "is nested in the interface 'IOuter<T>'")]
+    public void A_value_object_the_generated_code_cannot_reopen_is_reported_and_not_generated(
+        string declaration,
+        string line,
+        string reason)
+    {
+        var run = GeneratorHarness.Run($"""
+            {declaration}
+
+            [ValueObject<string>]
+            public readonly partial struct Other;
+            """);
+
+        var diagnostic = run.Diagnostics.Should().ContainSingle().Subject;
+        diagnostic.Id.Should().Be("VO0019");
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+        run.Locate(diagnostic).Should().Be(("Code", line));
+        diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
+            $"'Code' {reason}, which the generator does not support. Declare it without type parameters, either at "
+            + "namespace level or nested in non-generic classes, structs and records.");
+
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo("Test.Other.g.cs", "ValueObjectRegistration.g.cs");
+        run.CompilationDiagnostics.Should().BeEmpty();
     }
 
     [Fact]

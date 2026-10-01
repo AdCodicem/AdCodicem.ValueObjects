@@ -22,6 +22,7 @@ warnings; everything else is an error. There is no `VO0012`.
 | `VO0016` | Two types claiming the same prefix. | A prefix identifies one type and one only — otherwise an identifier of one kind parses as another, and the confusion the prefix exists to prevent is back. |
 | `VO0017` | A normalization hook on an entity identifier. | `[EntityId]` generates the normalization of the format itself and would never call the hook. Remove it, or drop `[EntityId]` and declare an ordinary value object. |
 | `VO0018` | Both `[EntityId]` and `[ValueObject<T>]` on one type. | Each generates a whole implementation. Keep the one that describes the type. |
+| `VO0019` | The type has type parameters, or is nested in a generic type or an interface. | The generated code cannot reopen such a type, so nothing is generated for it. Declare it without type parameters, at namespace level or nested in non-generic classes, structs and records. |
 
 ## Diagnosing generated code
 
