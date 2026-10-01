@@ -206,8 +206,8 @@ public sealed class ApiTests(PostgreSqlFixture database) : IClassFixture<Postgre
     }
 
     /// <summary>
-    /// The validator chains NotEmpty and MustParseAs, and empty text fails both: the member is reported once, with
-    /// the code of the first rule, rather than breaking the dictionary of codes with a duplicate key.
+    /// The validator chains NotEmpty and MustParseAs, and empty text would fail both: it stops the member at its
+    /// first failure, so the member is reported once, with one message and the code of the first rule.
     /// </summary>
     /// <param name="body">A payload whose IBAN is missing, null or empty.</param>
     [Theory]
@@ -221,6 +221,8 @@ public sealed class ApiTests(PostgreSqlFixture database) : IClassFixture<Postgre
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        problem.GetProperty("errors").EnumerateObject().Should().ContainSingle()
+            .Which.Value.GetArrayLength().Should().Be(1);
         problem.GetProperty("errorCodes").GetProperty("Iban").GetString().Should().Be("NotEmptyValidator");
     }
 

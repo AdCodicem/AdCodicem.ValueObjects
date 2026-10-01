@@ -140,10 +140,15 @@ Defer to the rules the value object already owns instead of restating them:
 RuleFor(x => x.Iban).MustParseAs(typeof(Iban));        // the member holds raw text
 RuleFor(x => x.Amount).MustSatisfy<Request, Amount, decimal>();  // raw underlying value, no instance built
 RuleFor(x => x.Account).NotDefault<Request, Iban, string>();     // catches an uninitialized instance
+
+// A required member: stop at the first failure, or empty text fails NotEmpty and the value object's rule both.
+RuleFor(x => x.Iban).Cascade(CascadeMode.Stop).NotEmpty().MustParseAs(typeof(Iban));
 ```
 
 Each failure carries the value object's own stable error code, so the API answers with the same vocabulary
 everywhere. `MustParseAs` and `MustSatisfy` let `null` through: chain `NotEmpty()` when the member is required.
+Empty text reaching `MustParseAs` is the value object's to judge: `value_object.required` for a string value object,
+`value_object.not_parsable` for one over another type, and a pass for one declaring `AllowEmpty = true`.
 
 ## OpenAPI
 
