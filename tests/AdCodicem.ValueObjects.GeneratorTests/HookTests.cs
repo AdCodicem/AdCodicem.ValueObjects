@@ -110,6 +110,10 @@ public sealed class HookTests
         run.SingleValueObject.Should().Contain("TryFormatValue(in current,");
     }
 
+    /// <summary>
+    /// The hook answers every formatting member, and the JSON converter alone formats the underlying value itself,
+    /// for a dictionary key, which a formatting hook never writes.
+    /// </summary>
     [Fact]
     public void A_declared_string_formatter_takes_over_formatting()
     {
@@ -127,7 +131,8 @@ public sealed class HookTests
         run.SingleValueObject.Should()
             .Contain("return FormatValue(in current, global::System.MemoryExtensions.AsSpan(format), formatProvider ?? ")
             .And.Contain("var text = FormatValue(in current, format, provider ?? ")
-            .And.NotContain("UnderlyingValue.TryFormat(");
+            .And.NotContain("UnderlyingValue.TryFormat(in current, destination,")
+            .And.Contain("UnderlyingValue.TryFormat(in current, buffer, out var written, default, ");
     }
 
     /// <summary>
