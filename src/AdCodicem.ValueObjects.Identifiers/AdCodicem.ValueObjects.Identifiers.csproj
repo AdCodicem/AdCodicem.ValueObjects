@@ -17,9 +17,4 @@
                       PrivateAssets="none" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- The unit tests live in the shared suite rather than in a per-package one. -->
-    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests" />
-  </ItemGroup>
-
 </Project>
