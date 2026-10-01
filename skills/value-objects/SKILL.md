@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation and OpenAPI integrations. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0018 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation and OpenAPI integrations. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0019 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -32,6 +32,7 @@ Non-negotiable, each one a diagnostic if you get it wrong:
 
 - `readonly partial struct` — never a `class`, never a `record struct`, never a non-`readonly` struct (`VO0002`).
 - `partial` on the type *and* on every containing type (`VO0001`, `VO0009`).
+- No type parameters on the type, and no generic type or interface around it (`VO0019`).
 - The underlying type is one of 22: `string`, `Guid`, `bool`, `char`, every built-in integer (`Int128` and
   `UInt128` included), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `DateTimeOffset`,
   `TimeSpan` (`VO0003`).
@@ -171,6 +172,6 @@ it for every value object, then test only the domain behaviour that is actually 
 | `references/authoring.md` | Every attribute option, closed value sets, arithmetic, formats, span normalization. |
 | `references/integrations.md` | ASP.NET Core, EF Core, JSON, Dapper, FluentValidation, OpenAPI, Newtonsoft. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, `AnyEntityId`, deterministic tests. |
-| `references/diagnostics.md` | `VO0001`–`VO0018`, with the fix for each. |
+| `references/diagnostics.md` | `VO0001`–`VO0019`, with the fix for each. |
 
 Published documentation: <https://adcodicem.github.io/AdCodicem.ValueObjects/>

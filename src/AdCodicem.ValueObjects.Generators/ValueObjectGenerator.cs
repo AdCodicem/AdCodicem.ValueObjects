@@ -115,7 +115,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.Empty);
         }
 
-        if (!ValidateDeclaration(symbol, declaration, location, diagnostics))
+        if (!ValidateDeclaration(symbol, declaration, location, diagnostics)
+            || !ValidateContext(symbol, location, diagnostics))
         {
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
@@ -248,7 +249,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
 
-        if (!ValidateDeclaration(symbol, declaration, location, diagnostics))
+        if (!ValidateDeclaration(symbol, declaration, location, diagnostics)
+            || !ValidateContext(symbol, location, diagnostics))
         {
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
@@ -401,6 +403,48 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Reports a declaration the generated code cannot reopen: one with type parameters of its own, or nested in a
+    /// generic type or in an interface.
+    /// </summary>
+    /// <remarks>
+    /// The generated code reopens the value object and each type around it by name alone, which drops their type
+    /// parameters, and reopens a containing type as a class, a struct or a record, which an interface is not.
+    /// What it wrote would not compile, in a file the author cannot edit, so the type is reported and left alone.
+    /// </remarks>
+    /// <param name="symbol">Annotated type.</param>
+    /// <param name="location">Where to report.</param>
+    /// <param name="diagnostics">Sink.</param>
+    /// <returns><see langword="false"/> when nothing must be generated for the type.</returns>
+    private static bool ValidateContext(INamedTypeSymbol symbol, Location location, List<DiagnosticInfo> diagnostics)
+    {
+        var reason = symbol.Arity > 0 ? "is generic" : null;
+
+        for (var containing = symbol.ContainingType; reason is null && containing is not null; containing = containing.ContainingType)
+        {
+            var name = containing.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+            if (containing.TypeKind == TypeKind.Interface)
+            {
+                reason = $"is nested in the interface '{name}'";
+            }
+            else if (containing.Arity > 0)
+            {
+                reason = $"is nested in the generic type '{name}'";
+            }
+        }
+
+        if (reason is null)
+        {
+            return true;
+        }
+
+        diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.UnsupportedDeclarationContext, location, symbol.Name, reason));
+
+        return false;
     }
 
     private static List<string> CollectContainingTypes(
