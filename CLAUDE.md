@@ -195,7 +195,10 @@ These are all load-bearing, and each cost real debugging time:
 
 Three suites, each with a distinct job:
 
-- **UnitTests** — behaviour of generated code, using value objects defined in `Domain/`. `EmitCompilerGeneratedFiles`
+- **UnitTests** — behaviour of generated code, using value objects defined in `Domain/`, and of every integration
+  package called directly. `Domain/UnderlyingTypes.cs` declares one value object for each underlying type and each
+  option or hook the rest of `Domain/` leaves out, and `GeneratedSurface/` runs every emitted member family on all
+  of them, so nothing the generator emits only compiles. `EmitCompilerGeneratedFiles`
   is on, so generated sources land under `artifacts/obj/.../generated/` and can be read when diagnosing.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated

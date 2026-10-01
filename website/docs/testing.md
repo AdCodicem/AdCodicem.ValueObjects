@@ -12,8 +12,10 @@ about the library's own suites.
 
 Three suites, each with a distinct job:
 
-- **UnitTests** — behaviour of generated code, using sample value objects. Generated sources are emitted to
-  disk during the build, so they can be read when diagnosing a failure instead of decompiled from memory.
+- **UnitTests** — behaviour of generated code, and of every integration package called directly. The sample
+  value objects declare each of the 22 underlying types and each option and hook at least once, so that what the
+  generator emits for every one of them runs rather than only compiles. Generated sources are emitted to disk
+  during the build, so they can be read when diagnosing a failure instead of decompiled from memory.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that
@@ -21,8 +23,8 @@ Three suites, each with a distinct job:
   only way to notice a caching regression, since losing incrementality breaks nothing visible while making
   every IDE keystroke re-run the pipeline.
 - **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
-  objects reach the column types they claim, plus the API surface end to end. These need a Docker daemon:
-  Testcontainers starts both engines for the run.
+  objects reach the column types they claim, Dapper and EF Core round trips, plus the API surface end to end.
+  These need a Docker daemon: Testcontainers starts both engines for the run.
 
 `AdCodicem.ValueObjects.Testing` ships the contract kit (`ValueObjectContract`) described in
 [Test your value objects](./how-to/test-value-objects.md); the unit tests use it on every sample
@@ -42,22 +44,31 @@ Unit tests naturally exercise the typed path, so a defect confined to the descri
 unless the suite deliberately covers that surface too. That asymmetry is worth keeping in mind when adding a
 test for a new rule: prove it holds on both paths, not just the one that's convenient to call from a unit test.
 
+## Coverage
+
+Every pull request reports its coverage through Codecov: 95 % of the lines it changes, and the project's
+coverage down by half a point at most. That is a floor; the aim is everything that can be covered, under a rule
+that keeps the number honest — a defensive branch no test reaches stays, a private member is covered through its
+callers or not at all, and code is removed only when no input can reach it. The rule, and the two things the
+figure cannot show (a package no test loads, and the code the generator emits into the consumer's assembly), are
+on the [Contributing](/contributing) page.
+
 ## Stack
 
-xUnit v3, AwesomeAssertions, NSubstitute, Testcontainers.
+xUnit v3, AwesomeAssertions, NSubstitute, FsCheck, Testcontainers.
 
 ## Commands
 
 ```bash
 dotnet build -c Release
 dotnet test -c Release                                    # all three suites
-dotnet test tests/AdCodicem.ValueObjects.UnitTests         # behaviour of generated code
-dotnet test tests/AdCodicem.ValueObjects.GeneratorTests    # the generator itself
-dotnet test tests/AdCodicem.ValueObjects.IntegrationTests  # needs Docker
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests         # behaviour of generated code
+dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests    # the generator itself
+dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests  # needs Docker
 dotnet pack -c Release -o artifacts/packages
 
-# One test
-dotnet test tests/AdCodicem.ValueObjects.UnitTests --filter "FullyQualifiedName~The_name_of_the_test"
+# One test (Microsoft Testing Platform: a wildcard pattern, not a substring)
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests --filter-method "*The_name_of_the_test*"
 ```
 
 `TreatWarningsAsErrors` is on repository-wide, so a warning fails the build before it reaches any of the three
