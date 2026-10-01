@@ -355,9 +355,9 @@ Integration tests start PostgreSQL and SQL Server through Testcontainers, so the
 
 ```
 dotnet build
-dotnet test tests/AdCodicem.ValueObjects.UnitTests        # no Docker needed
-dotnet test tests/AdCodicem.ValueObjects.GeneratorTests  # no Docker needed
-dotnet test                                          # everything, Docker required
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests        # no Docker needed
+dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests  # no Docker needed
+dotnet test                                                    # everything, Docker required
 dotnet pack -c Release
 ```
 
