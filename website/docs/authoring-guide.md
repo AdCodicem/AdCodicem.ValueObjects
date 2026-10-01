@@ -75,7 +75,7 @@ member callers use: it guards against a null underlying value and then defers to
 
 ## Diagnostics
 
-The generator and the analyzers report `VO0001` to `VO0019`. [Diagnostics](./reference/diagnostics.md) lists
+The generator and the analyzers report `VO0001` to `VO0020`. [Diagnostics](./reference/diagnostics.md) lists
 each one with its fix.
 
 Next: [Generated members](./reference/generated-members.md), for what the generator writes from all of this.

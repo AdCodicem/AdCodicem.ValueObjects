@@ -23,6 +23,7 @@ warnings; everything else is an error. There is no `VO0012`.
 | `VO0017` | A normalization hook on an entity identifier. | `[EntityId]` generates the normalization of the format itself and would never call the hook. Remove it, or drop `[EntityId]` and declare an ordinary value object. |
 | `VO0018` | Both `[EntityId]` and `[ValueObject<T>]` on one type. | Each generates a whole implementation. Keep the one that describes the type. |
 | `VO0019` | The type has type parameters, or is nested in a generic type or an interface. | The generated code cannot reopen such a type, so nothing is generated for it. Declare it without type parameters, at namespace level or nested in non-generic classes, structs and records. |
+| `VO0020` | `Comparison`, `ValueSet` or `Granularity` holds a value its enum does not define, such as `(StringComparison)42`. | Use one of the enum's named members. Nothing is generated for the type until then, rather than a default nobody chose. |
 
 ## Diagnosing generated code
 
