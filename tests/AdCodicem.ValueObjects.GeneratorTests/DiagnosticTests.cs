@@ -109,6 +109,46 @@ public sealed class DiagnosticTests
         run.CompilationDiagnostics.Should().BeEmpty("a refused bound must not reach the generated code");
     }
 
+    /// <summary>
+    /// NaN and the infinities parse as a double or a float, and text past the largest one parses as an infinity,
+    /// but none has a C# literal and none can bound anything.
+    /// </summary>
+    [Theory]
+    [InlineData("double", "NaN")]
+    [InlineData("double", "Infinity")]
+    [InlineData("double", "-Infinity")]
+    [InlineData("double", "1e400")]
+    [InlineData("float", "NaN")]
+    [InlineData("float", "-Infinity")]
+    [InlineData("float", "1e39")]
+    public void A_floating_point_bound_that_is_not_a_finite_number_is_reported(string underlying, string bound)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>(Minimum = "{{bound}}")]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Ids.Should().Contain("VO0004");
+        run.CompilationDiagnostics.Should().BeEmpty("a refused bound must not reach the generated code");
+    }
+
+    [Theory]
+    [InlineData("double", "double.NaN")]
+    [InlineData("double", "double.PositiveInfinity")]
+    [InlineData("float", "float.NaN")]
+    [InlineData("float", "float.NegativeInfinity")]
+    public void A_floating_point_known_value_that_is_not_a_finite_number_is_reported(string underlying, string value)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>]
+            [KnownValue("Unknown", {{value}})]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Ids.Should().Contain("VO0013");
+        run.CompilationDiagnostics.Should().BeEmpty("a refused known value must not reach the generated code");
+    }
+
     [Theory]
     [InlineData("byte", "300")]
     [InlineData("sbyte", "-129")]
