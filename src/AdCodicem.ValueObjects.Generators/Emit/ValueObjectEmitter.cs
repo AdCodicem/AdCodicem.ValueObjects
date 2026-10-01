@@ -20,6 +20,72 @@ internal static class ValueObjectEmitter
     private const string Inline = "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]";
     private const string Invariant = "global::System.Globalization.CultureInfo.InvariantCulture";
 
+    /// <summary>The members written on every value object, by name.</summary>
+    private static readonly string[] CommonMembers =
+    [
+        "_value", "Value", "IsDefault", "KnownValues", "Schema", "Normalize", "Validate", "Create", "TryCreate",
+        "CreateUnchecked", "Equals", "GetHashCode", "CompareTo", "ToString", "TryFormat", "Parse", "TryParse",
+        "ValueJsonConverter", "ValueTypeConverter",
+    ];
+
+    /// <summary>The members arithmetic adds, by name.</summary>
+    private static readonly string[] ArithmeticMembers = ["Zero", "One", "IsZero", "Abs", "Min", "Max", "Sum"];
+
+    /// <summary>
+    /// The names a static property would take from the generated code without colliding with a member written
+    /// here: the discard written as <c>out _</c>, which a member called <c>_</c> would capture, and the members of
+    /// <see cref="object"/> it would hide, with a warning located in the generated file.
+    /// </summary>
+    private static readonly string[] OtherTakenNames = ["_", "GetType", "MemberwiseClone", "ReferenceEquals"];
+
+    /// <summary>
+    /// Gets the names a known value cannot take on a value object.
+    /// </summary>
+    /// <remarks>
+    /// A known value becomes a static property of the value object, so a name already taken there would not
+    /// compile, in a file the author cannot edit. The names follow the options because the members do: <c>Zero</c>
+    /// is only taken on a value object with arithmetic. They are listed beside the emitters so that a member added
+    /// here is added to them in the same change; <c>KnownValueNameTests</c> reads the generated code to check it.
+    /// </remarks>
+    /// <param name="typeName">Name of the value object, which its constructor takes.</param>
+    /// <param name="arithmetic">Whether the arithmetic members are written.</param>
+    /// <param name="closedValueSet">Whether the membership lookup of a closed value set is written.</param>
+    /// <param name="pattern">Whether the compiled pattern is written.</param>
+    /// <param name="normalizesFromSpan">Whether the factory normalizing from a span is written.</param>
+    /// <returns>The names taken, compared ordinally.</returns>
+    public static HashSet<string> TakenNames(
+        string typeName,
+        bool arithmetic,
+        bool closedValueSet,
+        bool pattern,
+        bool normalizesFromSpan)
+    {
+        var names = new HashSet<string>(CommonMembers, StringComparer.Ordinal) { typeName };
+        names.UnionWith(OtherTakenNames);
+
+        if (arithmetic)
+        {
+            names.UnionWith(ArithmeticMembers);
+        }
+
+        if (closedValueSet)
+        {
+            names.Add("KnownUnderlyingValues");
+        }
+
+        if (pattern)
+        {
+            names.Add("DeclaredPattern");
+        }
+
+        if (normalizesFromSpan)
+        {
+            names.Add("TryCreateFrom");
+        }
+
+        return names;
+    }
+
     public static string Emit(ValueObjectModel model)
     {
         var writer = new CodeWriter();

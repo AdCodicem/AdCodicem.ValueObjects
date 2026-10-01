@@ -177,7 +177,9 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         var definedComparison = TryGetEnumName(arguments, "Comparison", symbol, location, diagnostics, out var comparison);
 
         var isClosed = valueSet == "Closed";
-        var knownValues = ParseKnownValues(symbol, underlying, location, diagnostics);
+        var hasSpanNormalizeHook = underlying.IsString && ImplementsHook(symbol, "IValueObjectSpanNormalizer");
+        var taken = ValueObjectEmitter.TakenNames(symbol.Name, arithmetic, isClosed, pattern is not null, hasSpanNormalizeHook);
+        var knownValues = ParseKnownValues(symbol, underlying, taken, location, diagnostics);
 
         if (isClosed && knownValues.Count == 0)
         {
@@ -221,7 +223,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             Example = GetString(arguments, "Example"),
             Description = GetString(arguments, "Description") ?? summary,
             HasNormalizeHook = ImplementsHook(symbol, "IValueObjectNormalizer`1"),
-            HasSpanNormalizeHook = underlying.IsString && ImplementsHook(symbol, "IValueObjectSpanNormalizer"),
+            HasSpanNormalizeHook = hasSpanNormalizeHook,
             HasValidateHook = ImplementsHook(symbol, "IValueObjectValidator`1"),
             HasTryFormatHook = ImplementsHook(symbol, "IValueObjectFormatter`1"),
             HasFormatHook = ImplementsHook(symbol, "IValueObjectStringFormatter`1"),
@@ -505,14 +507,26 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             && string.Equals(attributeClass.ContainingNamespace.ToDisplayString(), containingNamespace, StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Reads the values declared through <c>[KnownValue]</c>, reporting the ones that cannot be generated.
+    /// </summary>
+    /// <param name="symbol">Annotated type.</param>
+    /// <param name="underlying">Its underlying type.</param>
+    /// <param name="names">
+    /// The names already taken on the type by the members the generator writes, to which each accepted known value
+    /// adds its own.
+    /// </param>
+    /// <param name="location">Where to report.</param>
+    /// <param name="diagnostics">Sink.</param>
+    /// <returns>The known values that can be generated, in declaration order.</returns>
     private static List<KnownValueModel> ParseKnownValues(
         INamedTypeSymbol symbol,
         UnderlyingType underlying,
+        HashSet<string> names,
         Location location,
         List<DiagnosticInfo> diagnostics)
     {
         var knownValues = new List<KnownValueModel>();
-        var names = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var attribute in symbol.GetAttributes())
         {
@@ -529,7 +543,12 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             var name = attribute.ConstructorArguments[0].Value as string;
             var argument = attribute.ConstructorArguments[1];
 
-            if (string.IsNullOrEmpty(name) || !SyntaxFacts.IsValidIdentifier(name) || !names.Add(name!))
+            // A keyword is refused rather than escaped: a member a caller has to write as @class is no constant
+            // anyone wants. A contextual keyword is an ordinary identifier in a member's name, and stays allowed.
+            if (string.IsNullOrEmpty(name)
+                || !SyntaxFacts.IsValidIdentifier(name)
+                || SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None
+                || !names.Add(name!))
             {
                 diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.InvalidKnownValueName, location, name ?? "?", symbol.Name));
