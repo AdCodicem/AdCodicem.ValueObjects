@@ -97,6 +97,28 @@ public sealed class DiagnosticTests
     }
 
     /// <summary>
+    /// A string, a Guid or a bool has no order a bound could hold to. Accepted, the text was published in the schema
+    /// as a limit, and nothing enforced it.
+    /// </summary>
+    [Theory]
+    [InlineData("string", "Minimum", "A", "a string takes no bound; constrain it with MinLength, MaxLength or Pattern")]
+    [InlineData("string", "Maximum", "Z", "a string takes no bound; constrain it with MinLength, MaxLength or Pattern")]
+    [InlineData("Guid", "Minimum", "00000000-0000-0000-0000-000000000001", "the type takes no bound")]
+    [InlineData("bool", "Maximum", "true", "the type takes no bound")]
+    public void A_bound_on_a_type_that_takes_none_is_reported(string underlying, string bound, string text, string reason)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>({{bound}} = "{{text}}")]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Ids.Should().Equal("VO0004");
+        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().EndWith(reason);
+        run.SingleValueObject.Should().NotContain($"{bound} = ");
+        run.CompilationDiagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// A bound that parses as some integer but not as the underlying one must be refused by the generator, or it
     /// turns into a literal the compiler rejects inside a file the author cannot edit.
     /// </summary>

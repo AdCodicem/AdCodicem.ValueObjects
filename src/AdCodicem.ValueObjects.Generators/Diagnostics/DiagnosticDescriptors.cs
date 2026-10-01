@@ -30,7 +30,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor InvalidBound = Error(
         "VO0004",
         "Invalid bound",
-        "'{0}' is not a valid {1} for underlying type '{2}'. Write it in invariant culture.");
+        "'{0}' is not a valid {1} for underlying type '{2}': {3}");
 
     public static readonly DiagnosticDescriptor ClosedSetWithoutValues = Error(
         "VO0005",
