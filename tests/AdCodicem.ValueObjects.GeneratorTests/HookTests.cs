@@ -110,6 +110,26 @@ public sealed class HookTests
         run.SingleValueObject.Should().Contain("TryFormatValue(in current,");
     }
 
+    [Fact]
+    public void A_declared_string_formatter_takes_over_formatting()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>]
+            public readonly partial struct Floor : IValueObjectStringFormatter<int>
+            {
+                public static string FormatValue(in int value, ReadOnlySpan<char> format, IFormatProvider? provider)
+                    => "floor " + value.ToString(provider);
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should()
+            .Contain("return FormatValue(in current, global::System.MemoryExtensions.AsSpan(format), formatProvider ?? ")
+            .And.Contain("var text = FormatValue(in current, format, provider ?? ")
+            .And.NotContain("UnderlyingValue.TryFormat(");
+    }
+
     /// <summary>
     /// A formatting hook takes over the default format too, so ToString() goes through it. The fallback for a hook
     /// that no buffer satisfies writes the plain value instead, since ToString() would only come back to the hook.

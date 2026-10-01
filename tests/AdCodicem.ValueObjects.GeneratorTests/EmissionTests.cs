@@ -1,3 +1,4 @@
+using AdCodicem.ValueObjects.Generators.Model;
 using Microsoft.CodeAnalysis;
 
 namespace AdCodicem.ValueObjects.GeneratorTests;
@@ -420,20 +421,152 @@ public sealed class EmissionTests
         Generated("Spaced").Should().Contain("""OutOfRange("The value must be greater than or equal to 1\n.")""");
     }
 
+    [Fact]
+    public void A_value_object_declared_outside_any_namespace_compiles()
+    {
+        var run = GeneratorHarness.Run("""
+            using AdCodicem.ValueObjects.Annotations;
+            using AdCodicem.ValueObjects.Identifiers;
+
+            // In the global namespace: the harness wraps a snippet in a namespace only when its text never mentions one.
+            [ValueObject<string>]
+            public readonly partial struct GlobalCode;
+
+            [EntityId("glb")]
+            public readonly partial struct GlobalId;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.Files.Select(file => file.HintName)
+            .Should().BeEquivalentTo("GlobalCode.g.cs", "GlobalId.g.cs", "ValueObjectRegistration.g.cs");
+        run.Files.Where(file => file.HintName != "ValueObjectRegistration.g.cs")
+            .Should().AllSatisfy(file => file.Text.Should().NotContain("namespace "));
+    }
+
+    /// <summary>
+    /// A project referencing the JSON package serializes through a source-generated context, which cannot see the
+    /// converters this generator writes, so each one is published to the package's registry at start-up.
+    /// </summary>
+    [Fact]
+    public void With_the_json_package_referenced_every_converter_is_published()
+    {
+        const string source = """
+            [ValueObject<string>]
+            public readonly partial struct Code;
+
+            [EntityId("acc")]
+            public readonly partial struct AccountId;
+            """;
+
+        var with = GeneratorHarness.Run(source, referenceJsonPackage: true);
+        var without = GeneratorHarness.Run(source);
+
+        with.Diagnostics.Should().BeEmpty();
+        with.CompilationDiagnostics.Should().BeEmpty("the calls bind to the package's Register<TSelf>");
+        Registration(with).Should()
+            .Contain("global::AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry.Register(new global::Test.Code.ValueJsonConverter());")
+            .And.Contain("global::AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry.Register(new global::Test.AccountId.ValueJsonConverter());");
+        Registration(without).Should().NotContain("ValueObjectJsonRegistry");
+
+        static string Registration(GeneratorRun run)
+            => run.Files.Single(file => file.HintName == "ValueObjectRegistration.g.cs").Text;
+    }
+
+    [Fact]
+    public void The_summary_of_a_value_object_becomes_its_schema_description()
+    {
+        var run = GeneratorHarness.Run("""
+            /// <summary>
+            ///   An order reference,
+            ///   as printed on the invoice.
+            /// </summary>
+            [ValueObject<string>]
+            public readonly partial struct OrderReference;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("Description = \"An order reference, as printed on the invoice.\",");
+    }
+
+    /// <summary>
+    /// A project that produces no documentation file compiles its comments as plain trivia, and most projects do:
+    /// the summary is read from the trivia then.
+    /// </summary>
+    [Fact]
+    public void The_summary_is_read_even_when_the_project_produces_no_documentation_file()
+    {
+        var run = GeneratorHarness.Run(
+            """
+            /// <summary>An order reference.</summary>
+            [ValueObject<string>]
+            public readonly partial struct OrderReference;
+            """,
+            DocumentationMode.None);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("Description = \"An order reference.\",");
+    }
+
     [Theory]
-    [InlineData("string")]
-    [InlineData("int")]
-    [InlineData("long")]
-    [InlineData("decimal")]
-    [InlineData("double")]
-    [InlineData("Guid")]
-    [InlineData("DateOnly")]
-    [InlineData("TimeOnly")]
-    [InlineData("DateTimeOffset")]
-    [InlineData("TimeSpan")]
-    [InlineData("bool")]
-    [InlineData("char")]
-    [InlineData("Int128")]
+    [InlineData("/// <remarks>Only remarks.</remarks>", DocumentationMode.Parse)]
+    [InlineData("/// <remarks>Only remarks.</remarks>", DocumentationMode.None)]
+    [InlineData("/// <summary>Never closed.", DocumentationMode.Parse)]
+    [InlineData("/// <summary>Never closed.", DocumentationMode.None)]
+    [InlineData("/// </summary>Closed first.<summary>", DocumentationMode.None)]
+    [InlineData("/// <summary>   </summary>", DocumentationMode.Parse)]
+    [InlineData("/// <summary>   </summary>", DocumentationMode.None)]
+    public void A_doc_comment_without_a_usable_summary_publishes_no_description(string comment, DocumentationMode mode)
+    {
+        var run = GeneratorHarness.Run(
+            $$"""
+            {{comment}}
+            [ValueObject<string>]
+            public readonly partial struct OrderReference;
+            """,
+            mode);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().NotContain("Description =");
+    }
+
+    [Fact]
+    public void A_declared_description_wins_over_the_summary()
+    {
+        var run = GeneratorHarness.Run("""
+            /// <summary>From the summary.</summary>
+            [ValueObject<string>(Description = "From the attribute.")]
+            public readonly partial struct OrderReference;
+            """);
+
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("Description = \"From the attribute.\",").And.NotContain("From the summary.");
+    }
+
+    [Fact]
+    public void A_blank_text_option_is_treated_as_absent()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>(Description = " ", Example = "", SchemaFormat = "\t")]
+            public readonly partial struct Code;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().NotContain("Description =").And.NotContain("Example =").And.NotContain("Format =");
+    }
+
+    /// <summary>The supported underlying types, by the name the diagnostics give them.</summary>
+    public static TheoryData<string> SupportedUnderlyingTypes => [.. UnderlyingType.SupportedNames];
+
+    /// <summary>
+    /// Every supported type compiles, and is written to JSON in the form its kind calls for: a number as a number,
+    /// a narrow integer widened to one, and a 128-bit integer, a date or a time as text read back by a helper.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(SupportedUnderlyingTypes))]
     public void Every_supported_underlying_type_produces_compiling_code(string underlying)
     {
         var run = GeneratorHarness.Run($$"""
@@ -443,5 +576,69 @@ public sealed class EmissionTests
 
         run.Diagnostics.Should().BeEmpty();
         run.CompilationDiagnostics.Should().BeEmpty("'{0}' must generate code that compiles", underlying);
+        run.SingleValueObject.Should().Contain(JsonForms[underlying]);
+    }
+
+    /// <summary>The line of the JSON converter that sets each underlying type apart.</summary>
+    private static readonly Dictionary<string, string> JsonForms = new(StringComparer.Ordinal)
+    {
+        ["string"] = "writer.WriteStringValue(value.Value);",
+        ["System.Guid"] = "writer.WriteStringValue(value.Value);",
+        ["bool"] = "writer.WriteBooleanValue(value.Value);",
+        ["char"] = "buffer[0] = value.Value;",
+        ["sbyte"] = "writer.WriteNumberValue((int)value.Value);",
+        ["byte"] = "writer.WriteNumberValue((int)value.Value);",
+        ["short"] = "writer.WriteNumberValue((int)value.Value);",
+        ["ushort"] = "writer.WriteNumberValue((int)value.Value);",
+        ["int"] = "writer.WriteNumberValue(value.Value);",
+        ["uint"] = "writer.WriteNumberValue(value.Value);",
+        ["long"] = "writer.WriteNumberValue(value.Value);",
+        ["ulong"] = "writer.WriteNumberValue(value.Value);",
+        ["System.Int128"] = "private static global::System.Int128 ReadInt128(ref",
+        ["System.UInt128"] = "private static global::System.UInt128 ReadUInt128(ref",
+        ["decimal"] = "writer.WriteNumberValue(value.Value);",
+        ["double"] = "writer.WriteNumberValue(value.Value);",
+        ["float"] = "writer.WriteNumberValue(value.Value);",
+        ["System.DateOnly"] = "private static global::System.DateOnly ReadDateOnly(ref",
+        ["System.TimeOnly"] = "private static global::System.TimeOnly ReadTimeOnly(ref",
+        ["System.DateTime"] = "writer.WriteStringValue(value.Value);",
+        ["System.DateTimeOffset"] = "writer.WriteStringValue(value.Value);",
+        ["System.TimeSpan"] = "private static global::System.TimeSpan ReadTimeSpan(ref",
+    };
+
+    /// <summary>
+    /// The narrow integers promote to int under arithmetic, so their results are cast back; every integral
+    /// operation is checked; and an unsigned type has no negation, and is its own absolute value.
+    /// </summary>
+    [Theory]
+    [InlineData("sbyte", "checked((sbyte)(left.Value + right.Value))", true)]
+    [InlineData("byte", "checked((byte)(left.Value + right.Value))", false)]
+    [InlineData("short", "checked((short)(left.Value + right.Value))", true)]
+    [InlineData("ushort", "checked((ushort)(left.Value + right.Value))", false)]
+    [InlineData("int", "checked(left.Value + right.Value)", true)]
+    [InlineData("uint", "checked(left.Value + right.Value)", false)]
+    [InlineData("long", "checked(left.Value + right.Value)", true)]
+    [InlineData("ulong", "checked(left.Value + right.Value)", false)]
+    [InlineData("Int128", "checked(left.Value + right.Value)", true)]
+    [InlineData("UInt128", "checked(left.Value + right.Value)", false)]
+    [InlineData("decimal", "left.Value + right.Value", true)]
+    [InlineData("double", "left.Value + right.Value", true)]
+    [InlineData("float", "left.Value + right.Value", true)]
+    public void Arithmetic_compiles_for_every_numeric_underlying_type(string underlying, string sum, bool negatable)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>(Arithmetic = true)]
+            public readonly partial struct Count;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty("arithmetic over '{0}' must compile", underlying);
+
+        var generated = run.SingleValueObject;
+        generated.Should().Contain($"operator +(global::Test.Count left, global::Test.Count right) => Create({sum});");
+        generated.Contains("operator -(global::Test.Count value)", StringComparison.Ordinal)
+            .Should().Be(negatable, "only a signed type is negated");
+        generated.Contains("Abs(global::Test.Count value) => value;", StringComparison.Ordinal)
+            .Should().Be(!negatable, "an unsigned value is its own absolute value");
     }
 }

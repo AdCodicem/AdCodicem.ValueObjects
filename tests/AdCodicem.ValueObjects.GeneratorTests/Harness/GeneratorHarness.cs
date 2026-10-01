@@ -22,6 +22,9 @@ public static class GeneratorHarness
 {
     private static readonly ImmutableArray<MetadataReference> References = BuildReferences();
 
+    private static readonly ImmutableArray<MetadataReference> WithJsonPackage =
+        References.Add(MetadataReference.CreateFromFile(typeof(Json.ValueObjectJsonRegistry).Assembly.Location));
+
     /// <summary>
     /// Compiles source, runs the generator, and reports what came out.
     /// </summary>
@@ -31,11 +34,18 @@ public static class GeneratorHarness
     /// <see cref="DocumentationMode.Diagnose"/> is what a project producing its documentation file compiles with,
     /// and the only mode that reports a malformed comment or a broken <c>cref</c>.
     /// </param>
+    /// <param name="referenceJsonPackage">
+    /// Whether the compilation references AdCodicem.ValueObjects.Json, as a project serializing through a
+    /// source-generated context does. The generator then publishes every converter to the package's registry.
+    /// </param>
     /// <returns>The generated sources and every diagnostic produced.</returns>
-    public static GeneratorRun Run(string source, DocumentationMode documentationMode = DocumentationMode.Parse)
+    public static GeneratorRun Run(
+        string source,
+        DocumentationMode documentationMode = DocumentationMode.Parse,
+        bool referenceJsonPackage = false)
     {
         var parseOptions = ParseOptions.WithDocumentationMode(documentationMode);
-        var compilation = Compile(source, parseOptions);
+        var compilation = Compile(source, parseOptions, referenceJsonPackage ? WithJsonPackage : References);
         var driver = CSharpGeneratorDriver
             .Create([new ValueObjectGenerator().AsSourceGenerator()], parseOptions: parseOptions, driverOptions: DriverOptions)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics);
@@ -106,11 +116,14 @@ public static class GeneratorHarness
     private static readonly GeneratorDriverOptions DriverOptions =
         new(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true);
 
-    private static CSharpCompilation Compile(string source, CSharpParseOptions? parseOptions = null)
+    private static CSharpCompilation Compile(
+        string source,
+        CSharpParseOptions? parseOptions = null,
+        ImmutableArray<MetadataReference>? references = null)
         => CSharpCompilation.Create(
             "GeneratorTests",
             [CSharpSyntaxTree.ParseText(Wrap(source), parseOptions ?? ParseOptions)],
-            References,
+            references ?? References,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
 
     private static string Wrap(string source)
