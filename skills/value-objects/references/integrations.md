@@ -39,8 +39,19 @@ var options = new JsonSerializerOptions().AddValueObjects();
 
 `Int128` and `UInt128` value objects travel as JSON **strings**, because JSON numbers cannot carry them.
 
-Newtonsoft.Json: add `ValueObjectConverter` from `AdCodicem.ValueObjects.NewtonsoftJson` to
-`JsonSerializerSettings.Converters`.
+Newtonsoft.Json: add `ValueObjectConverter` from `AdCodicem.ValueObjects.NewtonsoftJson`. It writes the same JSON
+as System.Text.Json and reads only the token kind it writes. Set the two parse options, or Newtonsoft.Json turns
+date-like strings into `DateTime` and fractions into `double` before the converter sees them, and the converter
+refuses a date that lost its text or offset:
+
+```csharp skip
+var settings = new JsonSerializerSettings
+{
+    DateParseHandling = DateParseHandling.None,
+    FloatParseHandling = FloatParseHandling.Decimal,
+    Converters = { new ValueObjectConverter() },
+};
+```
 
 ## ASP.NET Core
 
@@ -103,6 +114,12 @@ ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);   // once, at s
 
 Dapper keeps handlers in a process-wide table. Without this, every query touching a value object needs an
 explicit projection.
+
+- Read a nullable column into `Iban?`: `NULL` gives `null`. Read into `Iban`, it throws `DataException`.
+- A column the provider returns as the underlying type, or as its date and time counterpart (`DateTime` for a
+  `date`, `TimeSpan` for a `time`, a UTC `DateTime` for a `timestamptz`), is trusted, like the EF Core read path.
+- Text read into a non-string value object is parsed and validated; a refusal throws `DataException` carrying the
+  rule.
 
 ## FluentValidation
 
