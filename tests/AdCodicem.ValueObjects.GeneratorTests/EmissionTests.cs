@@ -298,6 +298,36 @@ public sealed class EmissionTests
             "/// <summary>The French Republic, mainland and overseas &lt;&amp;&gt;</summary>");
     }
 
+    /// <summary>
+    /// The message of a violated bound quotes the bound as written, inside a string literal of the generated code,
+    /// so the text has to be escaped for C#, not for XML.
+    /// </summary>
+    [Fact]
+    public void A_bound_is_quoted_in_its_message_as_written()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<char>(Minimum = "\"", Maximum = "\\")]
+            public readonly partial struct Quoted;
+
+            [ValueObject<char>(Minimum = "<")]
+            public readonly partial struct Angled;
+
+            [ValueObject<int>(Minimum = "1\n")]
+            public readonly partial struct Spaced;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        string Generated(string name) => run.Files.Single(file => file.HintName == $"Test.{name}.g.cs").Text;
+
+        Generated("Quoted").Should()
+            .Contain("""OutOfRange("The value must be greater than or equal to \".")""")
+            .And.Contain("""OutOfRange("The value must be less than or equal to \\.")""");
+        Generated("Angled").Should().Contain("""OutOfRange("The value must be greater than or equal to <.")""");
+        Generated("Spaced").Should().Contain("""OutOfRange("The value must be greater than or equal to 1\n.")""");
+    }
+
     [Theory]
     [InlineData("string")]
     [InlineData("int")]
