@@ -34,7 +34,7 @@ public static class Minting
 | Member | Default | Effect |
 | --- | --- | --- |
 | `Prefix` (constructor argument) | required | One or more lowercase segments separated by `_`, each opening on a letter: `"acc"`, `"sk_live"`. Malformed → `VO0015`; claimed twice → `VO0016`. |
-| `Granularity` | `IdGranularity.Hour` | Width of the time bucket: `Minute` (6 chars), `Hour` (4), `Day` (3). |
+| `Granularity` | `IdGranularity.Hour` | Width of the time bucket: `Minute` (6 chars), `Hour` (4), `Day` (3). A value the enum does not define → `VO0020`. |
 | `Description`, `Example` | none | OpenAPI documentation. |
 
 Choose `Granularity` from the insert rate of the table, aiming for roughly 10⁴–10⁵ rows per bucket — not from
