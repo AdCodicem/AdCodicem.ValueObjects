@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
 using AdCodicem.ValueObjects.Metadata;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
@@ -80,19 +81,31 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
 
         if (declared.IsClosedValueSet && !declared.KnownValues.IsEmpty)
         {
-            // Each value is written by the type's own converter, under the options the document describes the wire
-            // with, so that a client checks a payload against exactly what the type writes: a number of any width as
-            // a number, a date in its round-trip form.
             var typeInfo = context.JsonTypeInfo.Options.GetTypeInfo(descriptor.ValueObjectType);
-            schema.Enum =
-            [
-                .. declared.KnownValues.Select(value =>
-                    JsonSerializer.SerializeToNode(descriptor.CreateUnchecked(value), typeInfo)!),
-            ];
+            schema.Enum = [.. declared.KnownValues.Select(value => WriteKnownValue(value, descriptor, typeInfo))];
         }
 
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Writes one known value of a closed set as the type writes it in JSON.
+    /// </summary>
+    /// <param name="value">The known value, as the schema holds it.</param>
+    /// <param name="descriptor">Descriptor of the value object.</param>
+    /// <param name="typeInfo">The value object's contract, under the options the document describes the wire with.</param>
+    /// <returns>The value as JSON.</returns>
+    /// <remarks>
+    /// A value of the underlying type is written by the type's own converter, so that a client checks a payload
+    /// against exactly what the type writes: a number of any width as a number, a date in its round-trip form. Only a
+    /// generated registration guarantees that type. A schema read from an annotation by reflection holds what the
+    /// attribute was given, such as a decimal written as text, and a hand-made one holds anything: such a value is
+    /// written as its text.
+    /// </remarks>
+    private static JsonNode WriteKnownValue(object value, ValueObjectDescriptor descriptor, JsonTypeInfo typeInfo)
+        => descriptor.ValueType.IsInstanceOfType(value)
+            ? JsonSerializer.SerializeToNode(descriptor.CreateUnchecked(value), typeInfo)!
+            : JsonValue.Create(Convert.ToString(value, CultureInfo.InvariantCulture))!;
 
     /// <summary>
     /// Reads a declared bound as the number the type enforces, in the form the document writes it.
