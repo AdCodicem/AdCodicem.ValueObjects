@@ -41,7 +41,7 @@ public sealed class PriorityContract : ValueObjectContract<Priority, int>
 /// <inheritdoc cref="IbanContract" />
 public sealed class StorageQuotaContract : ValueObjectContract<StorageQuota, long>
 {
-    protected override IEnumerable<long> AcceptedValues => [10_000_000_000L];
+    protected override IEnumerable<long> AcceptedValues => [1_000_000_000L, 10_000_000_000L];
 
     protected override IEnumerable<long> RejectedValues => [0L, 9_999_999_999L];
 }
@@ -65,7 +65,7 @@ public sealed class VoteWeightContract : ValueObjectContract<VoteWeight, double>
 /// <inheritdoc cref="IbanContract" />
 public sealed class OpacityContract : ValueObjectContract<Opacity, float>
 {
-    protected override IEnumerable<float> AcceptedValues => [0.25f];
+    protected override IEnumerable<float> AcceptedValues => [0.25f, 1f];
 
     protected override IEnumerable<float> RejectedValues => [0.5f, 0f];
 }
@@ -97,7 +97,7 @@ public sealed class BlockSizeContract : ValueObjectContract<BlockSize, uint>
 /// <inheritdoc cref="IbanContract" />
 public sealed class CutOffDateContract : ValueObjectContract<CutOffDate, DateOnly>
 {
-    protected override IEnumerable<DateOnly> AcceptedValues => [new(2000, 1, 1)];
+    protected override IEnumerable<DateOnly> AcceptedValues => [new(2000, 1, 1), new(2001, 1, 1)];
 
     protected override IEnumerable<DateOnly> RejectedValues => [new(2000, 1, 2), DateOnly.MinValue];
 }
@@ -113,7 +113,8 @@ public sealed class ShiftStartContract : ValueObjectContract<ShiftStart, TimeOnl
 /// <inheritdoc cref="IbanContract" />
 public sealed class LaunchMomentContract : ValueObjectContract<LaunchMoment, DateTimeOffset>
 {
-    protected override IEnumerable<DateTimeOffset> AcceptedValues => [new(2000, 1, 1, 9, 0, 0, TimeSpan.FromHours(1))];
+    protected override IEnumerable<DateTimeOffset> AcceptedValues =>
+        [new(2000, 1, 1, 9, 0, 0, TimeSpan.FromHours(1)), new(2001, 1, 1, 9, 0, 0, TimeSpan.FromHours(1))];
 
     protected override IEnumerable<DateTimeOffset> RejectedValues =>
         [new(2000, 1, 1, 9, 0, 0, TimeSpan.Zero), DateTimeOffset.MinValue];

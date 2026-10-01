@@ -26,6 +26,7 @@ public readonly partial struct Priority;
 
 /// <summary>The storage a plan grants, in bytes.</summary>
 [ValueObject<long>(ValueSet = ValueSetKind.Closed)]
+[KnownValue("Standard", 1_000_000_000L)]
 [KnownValue("Large", 10_000_000_000L)]
 public readonly partial struct StorageQuota;
 
@@ -44,6 +45,7 @@ public readonly partial struct VoteWeight;
 /// <summary>The opacity of a layer.</summary>
 [ValueObject<float>(ValueSet = ValueSetKind.Closed)]
 [KnownValue("Translucent", 0.25f)]
+[KnownValue("Opaque", 1f)]
 public readonly partial struct Opacity;
 
 /// <summary>Whether the terms were accepted, which a contract requires.</summary>
@@ -66,6 +68,7 @@ public readonly partial struct BlockSize;
 /// <summary>The date from which archived records are kept.</summary>
 [ValueObject<DateOnly>(ValueSet = ValueSetKind.Closed)]
 [KnownValue("Epoch", "2000-01-01")]
+[KnownValue("Millennium", "2001-01-01")]
 public readonly partial struct CutOffDate;
 
 /// <summary>The time a shift starts.</summary>
@@ -77,6 +80,7 @@ public readonly partial struct ShiftStart;
 /// <summary>The moment a service went live, with the offset it went live at.</summary>
 [ValueObject<DateTimeOffset>(ValueSet = ValueSetKind.Closed)]
 [KnownValue("Launch", "2000-01-01T09:00:00+01:00")]
+[KnownValue("Relaunch", "2001-01-01T09:00:00+01:00")]
 public readonly partial struct LaunchMoment;
 
 /// <summary>An answer to a yes-or-no question.</summary>

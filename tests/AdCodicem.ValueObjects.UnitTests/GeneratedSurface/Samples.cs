@@ -2,7 +2,11 @@ using System.Globalization;
 
 namespace AdCodicem.ValueObjects.UnitTests.GeneratedSurface;
 
-/// <summary>One <see cref="Sample"/> for every value object of the domain.</summary>
+/// <summary>
+/// One <see cref="Sample"/> for every value object of the domain but <see cref="TermsAccepted"/>: a closed set of a
+/// single boolean holds one value, where a sample needs two. Its emitted code is <see cref="Consent"/>'s but for the
+/// known-value check, which its contract runs.
+/// </summary>
 public static class Samples
 {
     public static IReadOnlyDictionary<string, Sample> All { get; } = Build();
@@ -62,6 +66,22 @@ public static class Samples
             Sample.Of<PhoneNumber, string>(PhoneNumber.Create("+33123456789"), PhoneNumber.Create("+4930123456"), "123"),
             Sample.Of<Label, string>(Label.Create("a"), Label.Create("b"), new string('x', 201)),
             Sample.Of<DocumentStatus, string>(DocumentStatus.Draft, DocumentStatus.Final, "archived"),
+            Sample.Of<Floor, int>(Floor.Create(1), Floor.Create(2), "201", parsed: "1"),
+            Sample.Of<Celsius, int>(Celsius.Create(1), Celsius.Create(2), "-274", parsed: "1"),
+            Sample.Of<Mass, double>(Mass.Create(1), Mass.Create(2), "0"),
+            Sample.Of<TransferLimit, decimal>(TransferLimit.Create(1m), TransferLimit.Create(2m), "-1"),
+            Sample.Of<Luminance, float>(Luminance.Create(1f), Luminance.Create(2f), "1501"),
+            Sample.Of<Priority, int>(Priority.Low, Priority.High, "2"),
+            Sample.Of<StorageQuota, long>(StorageQuota.Standard, StorageQuota.Large, "1"),
+            Sample.Of<VatRate, decimal>(VatRate.Reduced, VatRate.Standard, "7"),
+            Sample.Of<VoteWeight, double>(VoteWeight.Half, VoteWeight.Full, "0.75"),
+            Sample.Of<Opacity, float>(Opacity.Translucent, Opacity.Opaque, "0.5"),
+            Sample.Of<HttpStatus, short>(HttpStatus.Ok, HttpStatus.NotFound, "500"),
+            Sample.Of<BlockSize, uint>(BlockSize.Small, BlockSize.Large, "512"),
+            Sample.Of<CutOffDate, DateOnly>(CutOffDate.Epoch, CutOffDate.Millennium, "2000-01-02"),
+            Sample.Of<ShiftStart, TimeOnly>(ShiftStart.Early, ShiftStart.Late, "10:00"),
+            Sample.Of<LaunchMoment, DateTimeOffset>(LaunchMoment.Launch, LaunchMoment.Relaunch, "2000-01-01T09:00:00+00:00"),
+            Sample.Of<Answer, char>(Answer.No, Answer.Yes, "M"),
         ];
 
         return samples.ToDictionary(sample => sample.ToString()!, StringComparer.Ordinal);

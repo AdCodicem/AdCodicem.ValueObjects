@@ -41,9 +41,16 @@ public abstract class Sample
     public virtual void ComputesThroughEveryArithmeticMember()
         => throw new InvalidOperationException($"{this} declares no arithmetic.");
 
-    public static Sample Of<TSelf, TValue>(TSelf first, TSelf second, string refused)
+    /// <param name="first">One instance.</param>
+    /// <param name="second">Another instance, larger or smaller.</param>
+    /// <param name="refused">Text the type refuses.</param>
+    /// <param name="parsed">
+    /// The text the smaller instance is parsed from, when its formatting hook writes text that does not parse back;
+    /// <see langword="null"/> when what it writes is what it reads.
+    /// </param>
+    public static Sample Of<TSelf, TValue>(TSelf first, TSelf second, string refused, string? parsed = null)
         where TSelf : struct, IValueObject<TSelf, TValue>
-        => new Sample<TSelf, TValue>(first, second, refused);
+        => new Sample<TSelf, TValue>(first, second, refused, parsed);
 
     public static Sample Numeric<TSelf, TValue>(TSelf first, TSelf second, string refused)
         where TSelf : struct, INumericValueObject<TSelf, TValue>
@@ -61,11 +68,13 @@ public class Sample<TSelf, TValue> : Sample
 
     private delegate bool TryParseSpan(ReadOnlySpan<char> text, out TSelf result);
 
-    public Sample(TSelf first, TSelf second, string refused)
+    public Sample(TSelf first, TSelf second, string refused, string? parsed = null)
     {
         (Small, Large) = first.CompareTo(second) <= 0 ? (first, second) : (second, first);
         Small.Should().NotBe(Large, "a sample needs two distinct values to compare");
         Refused = refused;
+        Written = Small.ToString(null, CultureInfo.InvariantCulture);
+        Text = parsed ?? Written;
     }
 
     protected TSelf Small { get; }
@@ -76,7 +85,11 @@ public class Sample<TSelf, TValue> : Sample
 
     private const string Unparsable = "not a value";
 
-    private string Text => Small.ToString(null, CultureInfo.InvariantCulture);
+    /// <summary>Gets the text the smaller instance is parsed from.</summary>
+    private string Text { get; }
+
+    /// <summary>Gets the text the smaller instance is formatted as, which is <see cref="Text"/> but for a hook.</summary>
+    private string Written { get; }
 
     public override string ToString() => typeof(TSelf).Name;
 
@@ -96,9 +109,9 @@ public class Sample<TSelf, TValue> : Sample
         converter.CanConvertTo(typeof(string)).Should().BeTrue();
         converter.CanConvertTo(typeof(TValue)).Should().BeTrue();
         converter.CanConvertTo(typeof(Uri)).Should().BeFalse();
-        converter.ConvertToInvariantString(Small).Should().Be(Text);
-        converter.ConvertTo(null, null, Small, typeof(string)).Should().Be(Text);
-        converter.ConvertTo(Small, typeof(TValue)).Should().Be(typeof(TValue) == typeof(string) ? Text : Small.Value);
+        converter.ConvertToInvariantString(Small).Should().Be(Written);
+        converter.ConvertTo(null, null, Small, typeof(string)).Should().Be(Written);
+        converter.ConvertTo(Small, typeof(TValue)).Should().Be(typeof(TValue) == typeof(string) ? Written : Small.Value);
         converter.ConvertTo("not a value object", typeof(string)).Should().Be("not a value object");
         converter.Invoking(c => c.ConvertTo(Small, typeof(Uri))).Should().Throw<NotSupportedException>();
     }
@@ -182,7 +195,7 @@ public class Sample<TSelf, TValue> : Sample
 
         Small.Equals((object)twin).Should().BeTrue();
         Small.Equals((object)Large).Should().BeFalse();
-        Small.Equals((object)Text).Should().BeFalse();
+        Small.Equals((object)Written).Should().BeFalse();
         ((IComparable)Small).CompareTo(Large).Should().BeNegative();
     }
 
@@ -203,13 +216,13 @@ public class Sample<TSelf, TValue> : Sample
 
     public override void FormatsWithoutAProvider()
     {
-        Small.ToString(null, null).Should().Be(Text);
-        Small.ToString().Should().Be(Text, "the default format is the same whichever overload asks for it");
-        $"{Small}".Should().Be(Text, "interpolation formats through TryFormat, with the default format");
+        Small.ToString(null, null).Should().Be(Written);
+        Small.ToString().Should().Be(Written, "the default format is the same whichever overload asks for it");
+        $"{Small}".Should().Be(Written, "interpolation formats through TryFormat, with the default format");
 
-        var buffer = new char[Text.Length];
+        var buffer = new char[Written.Length];
         Small.TryFormat(buffer, out var written, default, null).Should().BeTrue();
-        new string(buffer, 0, written).Should().Be(Text);
+        new string(buffer, 0, written).Should().Be(Written);
     }
 
     public override void RefusesJsonOfTheWrongShape()
