@@ -629,7 +629,7 @@ internal static class ValueObjectEmitter
             writer.Line("var current = Value;");
             writer.Line($"return TryFormatValue(in current, destination, out charsWritten, format, provider ?? {Invariant});");
         }
-        else if (underlying.IsSpanFormattable)
+        else if (underlying.IsSpanFormattable && !model.HasFormatHook)
         {
             var format = underlying.RoundTripFormat is null
                 ? "format"
@@ -639,7 +639,17 @@ internal static class ValueObjectEmitter
         }
         else
         {
-            writer.Line(underlying.IsString ? "var text = Value;" : $"var text = ToString(null, provider ?? {Invariant});");
+            if (model.HasFormatHook)
+            {
+                // Interpolation and every span-based writer come through here: the hook decides for them too.
+                writer.Line("var current = Value;");
+                writer.Line($"var text = FormatValue(in current, format, provider ?? {Invariant});");
+            }
+            else
+            {
+                writer.Line(underlying.IsString ? "var text = Value;" : $"var text = ToString(null, provider ?? {Invariant});");
+            }
+
             writer.Open("if (global::System.MemoryExtensions.AsSpan(text).TryCopyTo(destination))");
             writer.Line("charsWritten = text.Length;");
             writer.Line("return true;");
