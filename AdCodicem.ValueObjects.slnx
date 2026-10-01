@@ -19,6 +19,10 @@
     <Project Path="tests/AdCodicem.ValueObjects.IntegrationTests/AdCodicem.ValueObjects.IntegrationTests.csproj" />
     <Project Path="tests/AdCodicem.ValueObjects.GeneratorTests/AdCodicem.ValueObjects.GeneratorTests.csproj" />
   </Folder>
+  <Folder Name="/tests/Fixtures/">
+    <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Untouched/AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
+    <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WithoutGenerator/AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
+  </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/AdCodicem.ValueObjects.Benchmarks/AdCodicem.ValueObjects.Benchmarks.csproj" />
   </Folder>

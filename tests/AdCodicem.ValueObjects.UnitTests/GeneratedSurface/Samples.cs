@@ -60,6 +60,7 @@ public static class Samples
                 Duration.Create(TimeSpan.FromHours(1)), Duration.Create(TimeSpan.FromHours(2)), "-00:00:01"),
             Sample.Of<PhoneNumber, string>(PhoneNumber.Create("+33123456789"), PhoneNumber.Create("+4930123456"), "123"),
             Sample.Of<Label, string>(Label.Create("a"), Label.Create("b"), new string('x', 201)),
+            Sample.Of<DocumentStatus, string>(DocumentStatus.Draft, DocumentStatus.Final, "archived"),
         ];
 
         return samples.ToDictionary(sample => sample.ToString()!, StringComparer.Ordinal);

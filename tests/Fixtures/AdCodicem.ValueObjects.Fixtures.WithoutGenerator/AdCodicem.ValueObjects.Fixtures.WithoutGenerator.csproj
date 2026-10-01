@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Value objects written by hand and annotated with [ValueObject<T>], in an assembly the generator does not run on,
+    so nothing registers them: the registry can only describe them from their annotations, by reflection.
+  -->
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Fixtures.WithoutGenerator</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
