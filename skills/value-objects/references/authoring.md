@@ -167,7 +167,8 @@ handle the default case: `ToString()` and `$"{bban}"` write what the hook writes
 destination is too small — that is the framework contract, and the generated `ToString(format, provider)` grows a
 buffer and retries, then writes the plain value if the hook still refuses. Prefer `IValueObjectFormatter<TValue>`,
 which formats without allocating; `IValueObjectStringFormatter<TValue>` exists for rules whose output is
-naturally a `string`, and wins everywhere when both are declared.
+naturally a `string` — its `TryFormat` copies that string — and wins everywhere when both are declared. A hook
+formats text for people only: JSON, dictionary keys included, carries the underlying value.
 
 ## Domain members you *should* add
 

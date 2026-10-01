@@ -66,7 +66,9 @@ $"{bban:M}"                                // the same, through ISpanFormattable
 - The `Formats` class is a convention, not a requirement: named constants spare callers a magic letter.
 
 `IValueObjectFormatter<TValue>` writes into a span and allocates nothing. For a rule whose output is naturally a
-`string`, `IValueObjectStringFormatter<TValue>` takes `FormatValue(in value, format, provider)` instead; when a type
-declares both, the string formatter wins, in `ToString` and in `TryFormat` alike.
+`string`, `IValueObjectStringFormatter<TValue>` takes `FormatValue(in value, format, provider)` instead, and costs
+that string: `TryFormat`, and so interpolation, copies it into the destination. When a type declares both, the
+string formatter wins, in `ToString` and in `TryFormat` alike, and the span formatter is never called.
 
-Formatting never affects the wire: JSON, the database and model binding always carry the underlying value.
+Formatting never affects the wire: JSON, a dictionary key included, the database and model binding always carry
+the underlying value.
