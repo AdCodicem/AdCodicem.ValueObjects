@@ -180,6 +180,69 @@ public sealed class UninitializedValueObjectTests
     }
 
     /// <summary>
+    /// An identifier is a value object like any other, generated with an <c>IsDefault</c> and an empty
+    /// <c>Value</c> for the instance that skipped validation: the analyzer forbids producing it, as it does for
+    /// <c>[ValueObject&lt;T&gt;]</c>.
+    /// </summary>
+    [Fact]
+    public async Task An_uninitialized_entity_identifier_is_reported()
+    {
+        var diagnostics = await RunAsync("""
+            [EntityId("acc")]
+            public readonly partial struct AccountId;
+
+            public static class Use
+            {
+                public static AccountId Missing() => default;
+
+                public static AccountId Fresh() => new AccountId();
+
+                public static AccountId? Absent() => default;
+            }
+            """);
+
+        Located(diagnostics).Should().Equal(
+            ("default", "public static AccountId Missing() => default;"),
+            ("new AccountId()", "public static AccountId Fresh() => new AccountId();"));
+        diagnostics.Should().AllSatisfy(diagnostic =>
+            diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().StartWith("'AccountId' produced here"));
+    }
+
+    [Fact]
+    public async Task AllowDefault_silences_VO0010_on_an_entity_identifier()
+    {
+        var diagnostics = await RunAsync("""
+            [EntityId("acc", Granularity = IdGranularity.Day, AllowDefault = true)]
+            public readonly partial struct AccountId;
+
+            public static class Use
+            {
+                public static AccountId Missing() => default;
+
+                public static AccountId Fresh() => new();
+            }
+            """);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AllowDefault_set_to_false_still_reports_VO0010_on_an_entity_identifier()
+    {
+        var diagnostics = await RunAsync("""
+            [EntityId("acc", Granularity = IdGranularity.Day, AllowDefault = false)]
+            public readonly partial struct AccountId;
+
+            public static class Use
+            {
+                public static AccountId Fresh() => new();
+            }
+            """);
+
+        Located(diagnostics).Should().Equal(("new()", "public static AccountId Fresh() => new();"));
+    }
+
+    /// <summary>
     /// An analyzer runs on the text as the author types it. <c>AllowDefault = 1</c> is the compiler's error to
     /// report on the declaration; meanwhile the option is read as absent, so it opts nothing out.
     /// </summary>
@@ -216,11 +279,14 @@ public sealed class UninitializedValueObjectTests
             [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
             [KnownValue("Eur", "EUR")]
             public readonly partial struct Currency;
+
+            [EntityId("acc")]
+            public readonly partial struct AccountId;
             """;
 
         var generated = GeneratorHarness.Run(Source).Files;
         generated.Where(file => file.Text.Contains("result = default;", StringComparison.Ordinal))
-            .Should().HaveCount(3, "every value object assigns default on its rejection paths");
+            .Should().HaveCount(4, "every value object and identifier assigns default on its rejection paths");
 
         var diagnostics = await RunAsync(Source);
 
@@ -253,6 +319,30 @@ public sealed class UninitializedValueObjectTests
             GeneratorHarness.LibraryReferences.Add(MetadataReference.CreateFromImage(domain)));
 
         Located(diagnostics).Should().Equal(("default", "public static Test.Code Missing() => default;"));
+    }
+
+    [Fact]
+    public async Task An_entity_identifier_from_a_referenced_assembly_is_reported()
+    {
+        var domain = GeneratorHarness.Emit(
+            """
+            [EntityId("acc")]
+            public readonly partial struct AccountId;
+            """,
+            "Domain");
+
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<UninitializedValueObjectAnalyzer>(
+            """
+            namespace Consumer;
+
+            public static class Use
+            {
+                public static Test.AccountId Fresh() => new();
+            }
+            """,
+            GeneratorHarness.LibraryReferences.Add(MetadataReference.CreateFromImage(domain)));
+
+        Located(diagnostics).Should().Equal(("new()", "public static Test.AccountId Fresh() => new();"));
     }
 
     /// <summary>
