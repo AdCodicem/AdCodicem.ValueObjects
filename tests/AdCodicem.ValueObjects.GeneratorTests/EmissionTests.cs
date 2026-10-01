@@ -258,12 +258,12 @@ public sealed class EmissionTests
         "Int128",
         "-170141183460469231731687303715884105728",
         "170141183460469231731687303715884105727",
-        "global::System.Int128.Parse(\"170141183460469231731687303715884105727\", global::System.Globalization.CultureInfo.InvariantCulture)")]
+        "new global::System.Int128(9223372036854775807UL, 18446744073709551615UL)")]
     [InlineData(
         "UInt128",
         "0",
         "340282366920938463463374607431768211455",
-        "global::System.UInt128.Parse(\"340282366920938463463374607431768211455\", global::System.Globalization.CultureInfo.InvariantCulture)")]
+        "new global::System.UInt128(18446744073709551615UL, 18446744073709551615UL)")]
     [InlineData("long", "-0", "1", "(value < 0L)")]
     [InlineData("int", "007", "8", "(int)(7)")]
     public void An_integer_bound_at_the_extremes_of_its_type_compiles(

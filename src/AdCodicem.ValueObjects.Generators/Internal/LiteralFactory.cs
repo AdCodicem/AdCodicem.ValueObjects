@@ -563,12 +563,13 @@ internal static class LiteralFactory
     private static bool IsDigit(char character) => character is >= '0' and <= '9';
 
     /// <summary>
-    /// Builds the parse expression of a 128-bit integer, which C# has no literal for, refusing a value outside
-    /// the range of the underlying type.
+    /// Builds the expression of a 128-bit integer, which C# has no literal for, refusing a value outside the range
+    /// of the underlying type.
     /// </summary>
     /// <remarks>
-    /// The range is checked here because the expression is evaluated by the generated code: a value it cannot
-    /// hold would throw an <see cref="OverflowException"/> out of <c>Create</c> and <c>TryCreate</c>.
+    /// The value is constructed from its two 64-bit halves, in two's complement for a negative one, the way the
+    /// type stores it: a bound is evaluated on every call to <c>Validate</c>, where parsing text each time would
+    /// cost what the comparison it feeds does not.
     /// </remarks>
     private static bool TryInteger128(
         string text,
@@ -577,13 +578,17 @@ internal static class LiteralFactory
         BigInteger maximum,
         out string literal)
     {
-        if (!TryInteger(text, minimum, maximum, suffix: string.Empty, cast: null, out var digits))
+        literal = string.Empty;
+        if (!TryReadInteger(text, minimum, maximum, out var number))
         {
-            literal = string.Empty;
             return false;
         }
 
-        literal = $"{underlying.FullName}.Parse({Quote(digits)}, global::System.Globalization.CultureInfo.InvariantCulture)";
+        var bits = number.Sign < 0 ? number + (BigInteger.One << 128) : number;
+        var upper = (ulong)(bits >> 64);
+        var lower = (ulong)(bits & ulong.MaxValue);
+
+        literal = string.Format(CultureInfo.InvariantCulture, "new {0}({1}UL, {2}UL)", underlying.FullName, upper, lower);
         return true;
     }
 
@@ -605,13 +610,7 @@ internal static class LiteralFactory
         out string literal)
     {
         literal = string.Empty;
-        if (!IsInteger(text, signed: minimum < 0))
-        {
-            return false;
-        }
-
-        var number = BigInteger.Parse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
-        if (number < minimum || number > maximum)
+        if (!TryReadInteger(text, minimum, maximum, out var number))
         {
             return false;
         }
@@ -621,6 +620,22 @@ internal static class LiteralFactory
         // A cast keeps the literal well typed for the narrow integer types, which have no literal suffix.
         literal = cast is null ? digits + suffix : $"({cast})({digits})";
         return true;
+    }
+
+    /// <summary>
+    /// Reads an integer written as digits, with a leading <c>-</c> when the type is signed, within the range of the
+    /// type.
+    /// </summary>
+    private static bool TryReadInteger(string text, BigInteger minimum, BigInteger maximum, out BigInteger number)
+    {
+        number = BigInteger.Zero;
+        if (!IsInteger(text, signed: minimum < 0))
+        {
+            return false;
+        }
+
+        number = BigInteger.Parse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
+        return number >= minimum && number <= maximum;
     }
 
     private static string Escape(string value)

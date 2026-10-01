@@ -75,13 +75,16 @@ public sealed class LiteralFormTests
         {
             "Int128",
             "-170141183460469231731687303715884105728",
-            "global::System.Int128.Parse(\"-170141183460469231731687303715884105728\", global::System.Globalization.CultureInfo.InvariantCulture)"
+            "new global::System.Int128(9223372036854775808UL, 0UL)"
         },
         {
             "UInt128",
             "0340282366920938463463374607431768211455",
-            "global::System.UInt128.Parse(\"340282366920938463463374607431768211455\", global::System.Globalization.CultureInfo.InvariantCulture)"
+            "new global::System.UInt128(18446744073709551615UL, 18446744073709551615UL)"
         },
+        { "Int128", "-1", "new global::System.Int128(18446744073709551615UL, 18446744073709551615UL)" },
+        { "Int128", "18446744073709551616", "new global::System.Int128(1UL, 0UL)" },
+        { "UInt128", "42", "new global::System.UInt128(0UL, 42UL)" },
         { "decimal", "-19.990", "-19.990m" },
         { "decimal", "0", "0m" },
         { "decimal", "-0.5", "-0.5m" },

@@ -19,7 +19,7 @@ public sealed class LiteralTests
     [InlineData("char", "'\\''", "Create('\\'')")]
     [InlineData("int", "0", "Create((int)(0))")]
     [InlineData("long", "\"-42\"", "Create(-42L)")]
-    [InlineData("UInt128", "7", "Create(global::System.UInt128.Parse(\"7\", global::System.Globalization.CultureInfo.InvariantCulture))")]
+    [InlineData("UInt128", "7", "Create(new global::System.UInt128(0UL, 7UL))")]
     [InlineData("decimal", "\"19.990\"", "Create(19.990m)")]
     [InlineData("double", "0.25", "Create(0.25d)")]
     [InlineData("float", "1.5f", "Create(1.5f)")]
