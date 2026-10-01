@@ -121,9 +121,9 @@ public class RegistryResolutionTests
     }
 
     /// <summary>
-    /// Each of these implements the marker, so <see cref="ValueObjectRegistry.IsValueObject"/> claims it, and none
-    /// is a struct implementing <see cref="IValueObject{TSelf, TValue}"/> over itself, which is what a descriptor
-    /// is built from. A Try method answers that with <see langword="false"/>, not with an exception.
+    /// Each of these implements the marker, and none is a struct implementing
+    /// <see cref="IValueObject{TSelf, TValue}"/> over itself, which is what a descriptor is built from. So none is a
+    /// value object, and a Try method answers that with <see langword="false"/>, not with an exception.
     /// </summary>
     [Theory]
     [InlineData(typeof(IValueObject))]
@@ -132,11 +132,28 @@ public class RegistryResolutionTests
     [InlineData(typeof(MarkerOnlyValue))]
     [InlineData(typeof(ClassBackedValue))]
     [InlineData(typeof(SelflessValue))]
-    public void A_type_no_descriptor_can_describe_resolves_to_none(Type type)
+    [InlineData(typeof(SelflessValue?))]
+    public void A_type_no_descriptor_can_describe_is_no_value_object_and_resolves_to_none(Type type)
     {
-        ValueObjectRegistry.IsValueObject(type).Should().BeTrue();
+        ValueObjectRegistry.IsValueObject(type).Should().BeFalse();
 
         ValueObjectRegistry.TryResolve(type, out var descriptor).Should().BeFalse();
         descriptor.Should().BeNull();
+    }
+
+    /// <summary>
+    /// A value object is what the registry can describe, whether it registered itself or not: a hand-written one that
+    /// nothing has resolved is answered from its interfaces, without registering it.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(Iban))]
+    [InlineData(typeof(Iban?))]
+    [InlineData(typeof(UnregisteredCode))]
+    [InlineData(typeof(UnregisteredCode?))]
+    public void A_struct_implementing_the_contract_over_itself_is_a_value_object(Type type)
+    {
+        ValueObjectRegistry.IsValueObject(type).Should().BeTrue();
+
+        ValueObjectRegistry.TryGet(typeof(UnregisteredCode), out _).Should().BeFalse("answering registers nothing");
     }
 }
