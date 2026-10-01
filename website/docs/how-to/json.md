@@ -76,25 +76,50 @@ dotnet add package AdCodicem.ValueObjects.NewtonsoftJson
 ```csharp skip
 var settings = new JsonSerializerSettings
 {
-    DateParseHandling = DateParseHandling.None,       // hand the converter the text of every string
-    FloatParseHandling = FloatParseHandling.Decimal,  // and every digit of every number
+    DateParseHandling = DateParseHandling.None,   // hand the converter the text of every string
 };
 settings.Converters.Add(new ValueObjectConverter());
 ```
 
-One converter covers every value object, with the same rules and the same JSON as System.Text.Json: a number or a
-boolean as such, anything else as a string in the same form, `Int128` and `UInt128` included. It reads only the
-kind of token it writes, so a number in a string, or a string where a number belongs, is refused as JSON rather
-than converted. A rejected value throws a `JsonSerializationException` naming the type and the rule.
+One converter covers every value object, with the same rules as System.Text.Json and the same values on the wire:
+a number or a boolean as such, anything else as a string in the same form, `Int128` and `UInt128` included. The
+text is the same too, but for a whole `decimal`, `double` or `float`: Newtonsoft.Json always writes a real with a
+fraction, `1250.0` where System.Text.Json writes `1250`, and each serializer reads the other's text as the same
+value. The converter reads only the kind of token it writes, so a number in a string, or a string where a number
+belongs, is refused as JSON rather than converted. A rejected value throws a `JsonSerializationException` naming
+the type and the rule.
 
-Newtonsoft.Json reads each token before a converter sees it, under the serializer's settings, which is what the two
-above are for. Left to its defaults, it turns a string that looks like a date into a `DateTime`, and a number with
-a fraction into a `double`:
+Newtonsoft.Json reads each token before a converter sees it, under the serializer's settings, and its defaults
+change what the converter is handed.
 
-- A `DateTime` value object reads such a date as System.Text.Json reads the text, and so does a `DateTimeOffset`
-  value object when the text is in UTC or names no zone. A text with another offset was converted to local time,
-  and its offset is lost; a string value object has lost its text. Both are refused rather than read as another
-  value, until `DateParseHandling` is `None`.
-- A `decimal` value object keeps the fifteen to seventeen digits a `double` carries. `FloatParseHandling.Decimal`
-  keeps all of them, as System.Text.Json does; it also gives an `object` or `JToken` member a `decimal` rather than
-  a `double` for such a number.
+### Dates
+
+Under the default `DateParseHandling`, Newtonsoft.Json turns a string that looks like a date into a `DateTime`, and
+converts one written with an offset to local time. What a value object makes of that date:
+
+- A `DateTime` value object reads it as System.Text.Json reads the text.
+- A `DateTimeOffset` value object reads it as System.Text.Json reads the text when the text ends in `Z` or names
+  no zone, and refuses any text with an explicit offset, which the date has lost. That includes its own output: a
+  `DateTimeOffset` is always written with its offset, `+00:00` for UTC, so under the default settings it cannot be
+  read back.
+- A string value object has lost its text, and refuses it.
+
+A date that no longer says what the text said is refused rather than read as another value. Set
+`DateParseHandling` to `None`, as above, and every string reaches the converter as text.
+
+### Numbers
+
+Under the default `FloatParseHandling`, Newtonsoft.Json reads a number with a fraction or an exponent as a
+`double`, and a `decimal` value object keeps the fifteen to seventeen significant digits a `double` carries. When
+`decimal` value objects carry more, set `FloatParseHandling.Decimal`, which keeps all of them, as System.Text.Json
+does:
+
+```csharp skip
+settings.FloatParseHandling = FloatParseHandling.Decimal;   // for decimal value objects only
+```
+
+It applies to every number of the payload, and a `decimal` holds a narrower range than a `double`. Under it, a
+`double` or `float` value object beyond about ±7.9 × 10²⁸ makes the reader throw a `JsonReaderException`, and one
+smaller than a `decimal`'s 28 decimal places keeps only the digits that fit in them — none below about 10⁻²⁸, so it
+reads as zero. Leave the default when a payload carries such values. `FloatParseHandling.Decimal` also gives an
+`object` or `JToken` member a `decimal` rather than a `double` for such a number.

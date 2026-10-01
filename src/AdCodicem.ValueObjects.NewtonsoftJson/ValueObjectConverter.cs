@@ -16,7 +16,10 @@ namespace AdCodicem.ValueObjects.NewtonsoftJson;
 /// nothing to gain from a generic converter per type here.
 /// </para>
 /// <para>
-/// It follows the System.Text.Json converter the generator emits: the same rules, and the same JSON.
+/// It follows the System.Text.Json converter the generator emits: the same rules, and the same values on the wire.
+/// The text is the same too, but for a whole <see cref="decimal"/>, <see cref="double"/> or <see cref="float"/>,
+/// which Newtonsoft.Json always writes with a fraction: <c>1250.0</c> where System.Text.Json writes <c>1250</c>.
+/// Each serializer reads the other's text as the same value.
 /// </para>
 /// </remarks>
 public sealed class ValueObjectConverter : JsonConverter
@@ -62,11 +65,25 @@ public sealed class ValueObjectConverter : JsonConverter
 
     /// <inheritdoc />
     /// <remarks>
+    /// <para>
     /// The value is read as the System.Text.Json converter the generator emits reads it: from the kind of token it
-    /// writes, and through the value object's rules, so a rejection says which rule refused it. Newtonsoft.Json
-    /// turns a string that looks like a date into a date under its default <see cref="DateParseHandling"/>, before
-    /// the converter sees it; where that date no longer says what the text said, the value is refused rather than
-    /// rebuilt into something else. <see cref="DateParseHandling.None"/> keeps the text.
+    /// writes, and through the value object's rules, so a rejection says which rule refused it.
+    /// </para>
+    /// <para>
+    /// Newtonsoft.Json reads the token under the serializer's settings before the converter sees it. Under its
+    /// default <see cref="DateParseHandling"/>, a string that looks like a date becomes a <see cref="DateTime"/>,
+    /// converted to local time when the text carries an offset; where that date no longer says what the text said,
+    /// the value is refused rather than rebuilt into something else. A <see cref="DateTimeOffset"/> value object
+    /// therefore refuses any text with an explicit offset, its own output included, since it is written with its
+    /// offset, <c>+00:00</c> for UTC. <see cref="DateParseHandling.None"/> keeps the text, and reads it back.
+    /// </para>
+    /// <para>
+    /// Under <see cref="FloatParseHandling.Decimal"/>, every number with a fraction or an exponent becomes a
+    /// <see cref="decimal"/>, which keeps every digit of a <see cref="decimal"/> value object. A
+    /// <see cref="double"/> or <see cref="float"/> value object beyond the range of a <see cref="decimal"/> then makes
+    /// the reader throw, and one smaller than its 28 decimal places loses the digits past them, all of them below
+    /// about 10^-28, where it reads as zero.
+    /// </para>
     /// </remarks>
     public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
     {
@@ -103,6 +120,8 @@ public sealed class ValueObjectConverter : JsonConverter
     /// The value is written as the System.Text.Json converter the generator emits writes it: a number or a boolean
     /// as such, and anything else as a string, <see cref="Int128"/> and <see cref="UInt128"/> included, in the same
     /// round-trip form. The serializer's date settings do not apply, so that both serializers write the same text.
+    /// A whole <see cref="decimal"/>, <see cref="double"/> or <see cref="float"/> is the one difference:
+    /// Newtonsoft.Json writes it with a fraction, as the same value.
     /// </remarks>
     public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
     {

@@ -54,7 +54,31 @@ public class NewtonsoftJsonTests
         ["TimeSpan"] = Duration.Create(new TimeSpan(0, 2, 30, 15, 500)),
     };
 
+    /// <summary>
+    /// A value object over each real type holding a whole value, keyed by a description of the case. Newtonsoft.Json
+    /// writes such a value with a fraction, where System.Text.Json writes none.
+    /// </summary>
+    private static readonly Dictionary<string, (object Value, string Newtonsoft, string SystemTextJson)> WholeReals = new()
+    {
+        ["decimal"] = (TransferLimit.Create(1250m), "1250.0", "1250"),
+        ["double"] = (Latitude.Create(12), "12.0", "12"),
+        ["float"] = (Ratio.Create(1f), "1.0", "1"),
+    };
+
+    /// <summary>
+    /// The DateTimeOffset value objects of the round trips under the default date handling, keyed by their offset.
+    /// </summary>
+    private static readonly Dictionary<string, OccurredAt> Instants = new()
+    {
+        ["UTC"] = OccurredAt.Create(new DateTimeOffset(2024, 6, 1, 12, 30, 45, TimeSpan.Zero)),
+        ["two hours east"] = OccurredAt.Create(new DateTimeOffset(2024, 6, 1, 12, 30, 45, TimeSpan.FromHours(2))),
+    };
+
     public static TheoryData<string> Every => [.. EveryUnderlyingType.Keys];
+
+    public static TheoryData<string> EveryWholeReal => [.. WholeReals.Keys];
+
+    public static TheoryData<string> EveryInstant => [.. Instants.Keys];
 
     /// <summary>
     /// The payment <see cref="JsonTests"/> writes with System.Text.Json, written with Newtonsoft.Json: the converter
@@ -153,6 +177,26 @@ public class NewtonsoftJsonTests
         newtonsoft.Should().Be(StjSerializer.Serialize(value, value.GetType()));
     }
 
+    /// <summary>
+    /// Newtonsoft.Json always writes a real with a fraction, so a whole value is written <c>1250.0</c> where
+    /// System.Text.Json writes <c>1250</c>: the same value, not the same text, which each serializer reads back as
+    /// the value the other wrote.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryWholeReal))]
+    public void A_whole_real_is_written_with_a_fraction_and_read_back_as_the_same_value(string name)
+    {
+        var (value, expected, systemTextJson) = WholeReals[name];
+
+        var newtonsoft = JsonConvert.SerializeObject(value, value.GetType(), Defaults);
+
+        newtonsoft.Should().Be(expected);
+        StjSerializer.Serialize(value, value.GetType()).Should().Be(systemTextJson);
+        StjSerializer.Deserialize(newtonsoft, value.GetType()).Should().Be(value);
+        JsonConvert.DeserializeObject(systemTextJson, value.GetType(), Defaults).Should().Be(value);
+        JsonConvert.DeserializeObject(systemTextJson, value.GetType(), Recommended).Should().Be(value);
+    }
+
     [Theory]
     [MemberData(nameof(Every))]
     public void Newtonsoft_reads_back_what_System_Text_Json_writes(string name)
@@ -174,6 +218,46 @@ public class NewtonsoftJsonTests
     {
         JsonConvert.DeserializeObject<Amount>("12345678901234.56", Defaults).Value.Should().Be(12345678901234.56m);
         JsonConvert.DeserializeObject<Amount>("1250", Defaults).Value.Should().Be(1250.00m);
+    }
+
+    /// <summary>
+    /// Under <see cref="FloatParseHandling.Decimal"/>, Newtonsoft.Json reads every number with a fraction or an
+    /// exponent as a decimal before the converter sees it. A double or a float beyond what a decimal holds does not
+    /// survive that: one too large makes the reader throw, one too small for a decimal's 28 places is rounded, to
+    /// zero when nothing is left of it. Under the default float handling each travels as System.Text.Json carries it.
+    /// </summary>
+    [Fact]
+    public void Decimal_float_handling_loses_a_double_or_a_float_a_decimal_cannot_hold()
+    {
+        var decimals = new JsonSerializerSettings
+        {
+            FloatParseHandling = FloatParseHandling.Decimal,
+            Converters = { new ValueObjectConverter() },
+        };
+        var large = Mass.Create(1e30);
+        var small = Mass.Create(1.2345678901234567e-20);
+        var lightest = Mass.Create(9.1e-31);
+        var tiny = Ratio.Create(1e-30f);
+        var largeJson = JsonConvert.SerializeObject(large, Defaults);
+        var smallJson = JsonConvert.SerializeObject(small, Defaults);
+        var lightestJson = JsonConvert.SerializeObject(lightest, Defaults);
+        var tinyJson = JsonConvert.SerializeObject(tiny, Defaults);
+
+        var readLarge = () => JsonConvert.DeserializeObject<Mass>(largeJson, decimals);
+        var readLightest = () => JsonConvert.DeserializeObject<Mass>(lightestJson, decimals);
+
+        largeJson.Should().Be("1E+30").And.Be(StjSerializer.Serialize(large));
+        JsonConvert.DeserializeObject<Mass>(largeJson, Defaults).Should().Be(large);
+        JsonConvert.DeserializeObject<Mass>(smallJson, Defaults).Should().Be(small);
+        JsonConvert.DeserializeObject<Mass>(lightestJson, Defaults).Should().Be(lightest);
+        JsonConvert.DeserializeObject<Ratio>(tinyJson, Defaults).Should().Be(tiny);
+
+        readLarge.Should().Throw<JsonReaderException>();
+        JsonConvert.DeserializeObject<Mass>(smallJson, decimals).Value
+            .Should().NotBe(small.Value, "a decimal keeps 28 places, and so nine digits of this one");
+        readLightest.Should().Throw<JsonSerializationException>()
+            .WithMessage("The value is not a valid Mass: *", "read as zero, the lightest mass is below its own minimum");
+        JsonConvert.DeserializeObject<Ratio>(tinyJson, decimals).Value.Should().Be(0f);
     }
 
     [Theory]
@@ -281,6 +365,42 @@ public class NewtonsoftJsonTests
 
         converted.Should().Throw<JsonSerializationException>().WithMessage("*OccurredAt*DateParseHandling*");
         reinterpreted.Should().Throw<JsonSerializationException>().WithMessage("*RecordedAt*DateParseHandling*");
+    }
+
+    /// <summary>
+    /// A DateTimeOffset is written with its offset, <c>+00:00</c> for UTC, never with <c>Z</c>. Under the default
+    /// date handling Newtonsoft.Json converts any text with an offset to local time before the converter sees it,
+    /// and the offset is gone: the value object refuses it, its own output included, whatever the offset.
+    /// </summary>
+    /// <param name="name">The offset of the instant.</param>
+    [Theory]
+    [MemberData(nameof(EveryInstant))]
+    public void A_DateTimeOffset_value_object_refuses_its_own_output_under_the_default_date_handling(string name)
+    {
+        var instant = Instants[name];
+
+        var json = JsonConvert.SerializeObject(instant, Defaults);
+        var read = () => JsonConvert.DeserializeObject<OccurredAt>(json, Defaults);
+
+        json.Should().MatchRegex("""^"2024-06-01T12:30:45[+-]\d\d:\d\d"$""");
+        read.Should().Throw<JsonSerializationException>().WithMessage("*OccurredAt*DateParseHandling to None*");
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryInstant))]
+    public void A_DateTimeOffset_value_object_reads_back_its_own_output_when_strings_are_left_alone(string name)
+    {
+        var instant = Instants[name];
+        var settings = new JsonSerializerSettings
+        {
+            DateParseHandling = DateParseHandling.None,
+            Converters = { new ValueObjectConverter() },
+        };
+
+        var read = JsonConvert.DeserializeObject<OccurredAt>(JsonConvert.SerializeObject(instant, settings), settings);
+
+        read.Should().Be(instant);
+        read.Value.Offset.Should().Be(instant.Value.Offset);
     }
 
     [Theory]
