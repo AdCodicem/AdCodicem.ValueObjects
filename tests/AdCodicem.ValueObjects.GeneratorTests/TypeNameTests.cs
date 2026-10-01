@@ -113,23 +113,49 @@ public sealed class TypeNameTests
         """
         [ValueObject<string>(Pattern = "^[A-Z]+$", ValueSet = ValueSetKind.Closed, ImplicitConversionToValue = true, ExplicitConversionFromValue = true)]
         [KnownValue("Kept", "K")]
-        public readonly partial struct Code : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer
+        public readonly partial struct Code : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectFormatter<string>
         {
             public static string NormalizeValue(string value) => NormalizeValue(value.AsSpan());
 
             public static string NormalizeValue(ReadOnlySpan<char> value) => value.Trim().ToString();
+
+            public static bool TryFormatValue(
+                in string value,
+                Span<char> destination,
+                out int charsWritten,
+                ReadOnlySpan<char> format,
+                IFormatProvider? provider)
+                => destination.TryWrite(provider, $"{value}", out charsWritten);
         }
         """)]
     [InlineData(
         """
         [ValueObject<int>(Arithmetic = true, ValueSet = ValueSetKind.Closed, ImplicitConversionToValue = true, ExplicitConversionFromValue = true)]
         [KnownValue("Kept", 1)]
-        public readonly partial struct Code;
+        public readonly partial struct Code : IValueObjectFormatter<int>
+        {
+            public static bool TryFormatValue(
+                in int value,
+                Span<char> destination,
+                out int charsWritten,
+                ReadOnlySpan<char> format,
+                IFormatProvider? provider)
+                => destination.TryWrite(provider, $"{value}", out charsWritten);
+        }
         """)]
     [InlineData(
         """
         [EntityId("acc")]
-        public readonly partial struct Code;
+        public readonly partial struct Code : IValueObjectFormatter<string>
+        {
+            public static bool TryFormatValue(
+                in string value,
+                Span<char> destination,
+                out int charsWritten,
+                ReadOnlySpan<char> format,
+                IFormatProvider? provider)
+                => destination.TryWrite(provider, $"{value}", out charsWritten);
+        }
         """)]
     public void A_value_object_named_after_a_member_the_generator_writes_on_it_is_reported(string declaration)
     {
@@ -165,6 +191,7 @@ public sealed class TypeNameTests
     [InlineData("[ValueObject<int>]", "op_Implicit")]
     [InlineData("[ValueObject<string>]", "DeclaredPattern")]
     [InlineData("[ValueObject<string>]", "TryCreateFrom")]
+    [InlineData("[ValueObject<string>]", "FormatWithPooledBuffer")]
     [InlineData("[ValueObject<string>]", "Prefix")]
     [InlineData("[ValueObject<string>]", "New")]
     [InlineData("[EntityId(\"acc\")]", "Zero")]
@@ -177,6 +204,38 @@ public sealed class TypeNameTests
 
         run.Diagnostics.Should().BeEmpty();
         run.Files.Select(file => file.HintName).Should().BeEquivalentTo($"Test.{name}.g.cs", "ValueObjectRegistration.g.cs");
+        run.CompilationDiagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The retry loop of a span formatting hook is written only where that hook answers. When a string formatting
+    /// hook answers in its place, on a value object as on an identifier, a type may take the loop's name.
+    /// </summary>
+    [Theory]
+    [InlineData("[ValueObject<string>]")]
+    [InlineData("[EntityId(\"acc\")]")]
+    public void A_type_whose_string_formatter_answers_may_take_the_name_of_the_retry_loop(string attribute)
+    {
+        var run = GeneratorHarness.Run($$"""
+            {{attribute}}
+            public readonly partial struct FormatWithPooledBuffer : IValueObjectFormatter<string>, IValueObjectStringFormatter<string>
+            {
+                public static string FormatValue(in string value, ReadOnlySpan<char> format, IFormatProvider? provider) => value;
+
+                public static bool TryFormatValue(
+                    in string value,
+                    Span<char> destination,
+                    out int charsWritten,
+                    ReadOnlySpan<char> format,
+                    IFormatProvider? provider)
+                    => destination.TryWrite(provider, $"{value}", out charsWritten);
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo(
+            "Test.FormatWithPooledBuffer.g.cs",
+            "ValueObjectRegistration.g.cs");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 }

@@ -26,6 +26,11 @@ internal static class ValueObjectEmitter
     /// </summary>
     private const int MaxFormattedLength = 1 << 20;
 
+    /// <summary>
+    /// The member a span formatting hook's <c>ToString</c> hands its retry loop to, once the stack buffer is too small.
+    /// </summary>
+    private const string PooledFormatMethod = "FormatWithPooledBuffer";
+
     /// <summary>The members written on every value object, by name.</summary>
     private static readonly string[] CommonMembers =
     [
@@ -80,6 +85,9 @@ internal static class ValueObjectEmitter
     /// <param name="pattern">Whether the compiled pattern is written.</param>
     /// <param name="normalizesFromSpan">Whether the factory normalizing from a span is written.</param>
     /// <param name="entityId">Whether the members of an entity identifier are written.</param>
+    /// <param name="formatsThroughSpanHook">
+    /// Whether <c>ToString</c> goes through a span formatting hook, which writes its retry loop as a member of its own.
+    /// </param>
     /// <returns>The names, compared ordinally.</returns>
     public static HashSet<string> MemberNames(
         UnderlyingType underlying,
@@ -89,7 +97,8 @@ internal static class ValueObjectEmitter
         bool closedValueSet,
         bool pattern,
         bool normalizesFromSpan,
-        bool entityId)
+        bool entityId,
+        bool formatsThroughSpanHook)
     {
         var names = new HashSet<string>(CommonMembers, StringComparer.Ordinal);
         names.UnionWith(CommonGetters);
@@ -137,6 +146,11 @@ internal static class ValueObjectEmitter
             names.UnionWith(EntityIdMembers);
         }
 
+        if (formatsThroughSpanHook)
+        {
+            names.Add(PooledFormatMethod);
+        }
+
         return names;
     }
 
@@ -157,6 +171,7 @@ internal static class ValueObjectEmitter
     /// <param name="closedValueSet">Whether the membership lookup of a closed value set is written.</param>
     /// <param name="pattern">Whether the compiled pattern is written.</param>
     /// <param name="normalizesFromSpan">Whether the factory normalizing from a span is written.</param>
+    /// <param name="formatsThroughSpanHook">Whether <c>ToString</c> goes through a span formatting hook.</param>
     /// <returns>The names taken, compared ordinally.</returns>
     public static HashSet<string> TakenNames(
         string typeName,
@@ -166,7 +181,8 @@ internal static class ValueObjectEmitter
         bool explicitConversion,
         bool closedValueSet,
         bool pattern,
-        bool normalizesFromSpan)
+        bool normalizesFromSpan,
+        bool formatsThroughSpanHook)
     {
         var names = MemberNames(
             underlying,
@@ -176,7 +192,8 @@ internal static class ValueObjectEmitter
             closedValueSet,
             pattern,
             normalizesFromSpan,
-            entityId: false);
+            entityId: false,
+            formatsThroughSpanHook);
         names.Add(typeName);
         names.Add("_");
 
@@ -847,6 +864,12 @@ internal static class ValueObjectEmitter
     /// A string value object whose hook writes its value unchanged, as an IBAN's default format does, gets back the
     /// string it already holds rather than a copy of it, so <c>ToString()</c> allocates nothing.
     /// </para>
+    /// <para>
+    /// The retry loop is a member of its own that the JIT never inlines, <see cref="PooledFormatMethod"/>. Written
+    /// into <c>ToString</c>, it spent the JIT's inlining budget on a path that almost never runs. A small hook was
+    /// inlined in full anyway, but a larger one kept calls to what it calls in turn, which cost up to about 3 ns on
+    /// every <c>ToString</c>.
+    /// </para>
     /// </remarks>
     /// <param name="writer">Sink.</param>
     /// <param name="model">Value object being emitted.</param>
@@ -875,11 +898,18 @@ internal static class ValueObjectEmitter
         Return("buffer[..written]");
         writer.Close();
         writer.Line();
+        writer.Line($"return {PooledFormatMethod}(current, format, provider, buffer.Length * 2);");
+        writer.Close();
+        writer.Line();
+
+        // Kept out of ToString, so that the JIT spends its inlining budget on the hook above, not on the retry.
+        writer.Line("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]");
+        writer.Open($"private static string {PooledFormatMethod}({underlying.FullName} current, string? format, global::System.IFormatProvider provider, int length)");
         writer.Line("// The hook needs more room than the stack gives it: hand it a pooled buffer twice as large each time.");
-        writer.Open($"for (var length = buffer.Length * 2; length <= {MaxFormattedLength}; length *= 2)");
+        writer.Open($"for (; length <= {MaxFormattedLength}; length *= 2)");
         writer.Line("var rented = global::System.Buffers.ArrayPool<char>.Shared.Rent(length);");
         writer.Open("try");
-        writer.Open("if (TryFormatValue(in current, rented, out written, global::System.MemoryExtensions.AsSpan(format), provider))");
+        writer.Open("if (TryFormatValue(in current, rented, out var written, global::System.MemoryExtensions.AsSpan(format), provider))");
         Return("new global::System.ReadOnlySpan<char>(rented, 0, written)");
         writer.Close();
         writer.Close();

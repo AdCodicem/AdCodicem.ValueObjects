@@ -170,6 +170,41 @@ public sealed class HookTests
     }
 
     /// <summary>
+    /// The retry loop of a span hook's <c>ToString</c> is written apart, where the JIT never inlines it, so that it does
+    /// not spend the inlining budget the hook on the common path needs.
+    /// </summary>
+    [Fact]
+    public void With_a_span_formatting_hook_the_retry_loop_is_kept_out_of_ToString()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>]
+            public readonly partial struct Label : IValueObjectFormatter<string>
+            {
+                public static bool TryFormatValue(
+                    in string value,
+                    Span<char> destination,
+                    out int charsWritten,
+                    ReadOnlySpan<char> format,
+                    IFormatProvider? provider)
+                    => destination.TryWrite(provider, $"{value}", out charsWritten);
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        var toString = run.SingleValueObject[
+            run.SingleValueObject.IndexOf("public string ToString(string? format", StringComparison.Ordinal)..];
+        var retry = toString[toString.IndexOf("private static string FormatWithPooledBuffer(", StringComparison.Ordinal)..];
+
+        toString[..^retry.Length].Should()
+            .Contain("return FormatWithPooledBuffer(current, format, provider, buffer.Length * 2);")
+            .And.Contain("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]")
+            .And.NotContain("ArrayPool");
+        retry.Should().Contain("global::System.Buffers.ArrayPool<char>.Shared.Rent(length)");
+    }
+
+    /// <summary>
     /// The string formatter takes precedence when a type declares both hooks, in span formatting as in
     /// <c>ToString</c>, so that interpolation and <c>ToString(format, provider)</c> write the same text.
     /// </summary>

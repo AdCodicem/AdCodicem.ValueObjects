@@ -214,11 +214,19 @@ public sealed class KnownValueNameTests
         """
         [ValueObject<string>(Pattern = "^[A-Z]+$", ValueSet = ValueSetKind.Closed, ImplicitConversionToValue = true, ExplicitConversionFromValue = true)]
         [KnownValue("Kept", "K")]
-        public readonly partial struct Code : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer
+        public readonly partial struct Code : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectFormatter<string>
         {
             public static string NormalizeValue(string value) => NormalizeValue(value.AsSpan());
 
             public static string NormalizeValue(ReadOnlySpan<char> value) => value.Trim().ToString();
+
+            public static bool TryFormatValue(
+                in string value,
+                Span<char> destination,
+                out int charsWritten,
+                ReadOnlySpan<char> format,
+                IFormatProvider? provider)
+                => destination.TryWrite(provider, $"{value}", out charsWritten);
         }
         """,
         "\"K\"")]
@@ -226,7 +234,16 @@ public sealed class KnownValueNameTests
         """
         [ValueObject<int>(Arithmetic = true, ValueSet = ValueSetKind.Closed, ImplicitConversionToValue = true, ExplicitConversionFromValue = true)]
         [KnownValue("Kept", 1)]
-        public readonly partial struct Code;
+        public readonly partial struct Code : IValueObjectFormatter<int>
+        {
+            public static bool TryFormatValue(
+                in int value,
+                Span<char> destination,
+                out int charsWritten,
+                ReadOnlySpan<char> format,
+                IFormatProvider? provider)
+                => destination.TryWrite(provider, $"{value}", out charsWritten);
+        }
         """,
         "1")]
     public void Every_member_the_generator_writes_is_refused_as_a_known_value_name(string declaration, string literal)
@@ -263,6 +280,8 @@ public sealed class KnownValueNameTests
     [InlineData("string", "DeclaredPattern", "\"P\"")]
     [InlineData("string", "KnownUnderlyingValues", "\"K\"")]
     [InlineData("string", "TryCreateFrom", "\"T\"")]
+    [InlineData("string", "FormatWithPooledBuffer", "\"F\"")]
+    [InlineData("int", "FormatWithPooledBuffer", "6")]
     public void A_member_name_the_options_leave_free_is_usable_as_a_known_value_name(
         string underlying,
         string name,
@@ -276,6 +295,36 @@ public sealed class KnownValueNameTests
 
         run.Diagnostics.Should().BeEmpty();
         run.SingleValueObject.Should().Contain($"public static global::Test.Code {name} {{ get; }}");
+        run.CompilationDiagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The retry loop of a span formatting hook is written only where that hook answers. When a string formatting
+    /// hook answers in its place, its name stays free.
+    /// </summary>
+    [Fact]
+    public void The_retry_loop_takes_its_name_only_where_the_span_formatting_hook_answers()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>]
+            [KnownValue("FormatWithPooledBuffer", 1)]
+            public readonly partial struct Floor : IValueObjectFormatter<int>, IValueObjectStringFormatter<int>
+            {
+                public static string FormatValue(in int value, ReadOnlySpan<char> format, IFormatProvider? provider)
+                    => "floor " + value.ToString(provider);
+
+                public static bool TryFormatValue(
+                    in int value,
+                    Span<char> destination,
+                    out int charsWritten,
+                    ReadOnlySpan<char> format,
+                    IFormatProvider? provider)
+                    => value.TryFormat(destination, out charsWritten, format, provider);
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("public static global::Test.Floor FormatWithPooledBuffer { get; }");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
