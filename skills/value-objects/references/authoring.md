@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | `Pattern` | `string?` | none | Regular expression the **normalized** value must match. Also the OpenAPI `pattern`. Malformed → `VO0014`. |
 | `MinLength` / `MaxLength` | `int` | `-1` (unconstrained) | `string` only (`VO0008` otherwise). Validation, OpenAPI `minLength`/`maxLength`, and the EF Core column size. |
-| `Minimum` / `Maximum` | `string?` | none | Inclusive bounds written in **invariant-culture text**, so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Parsed at compile time; unparsable, or outside the type → `VO0004`. A `DateTime` bound carries no offset, a `DateTimeOffset` bound always does. |
+| `Minimum` / `Maximum` | `string?` | none | Inclusive bounds written as **text**, in the one form of the underlying type ([below](#bounds-and-known-values-written-as-text)), so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Numbers, `char`, dates, times and durations only: on `string`, `Guid` or `bool` → `VO0004`. Parsed at compile time; any other text, or a value outside the type → `VO0004`. |
 | `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering, hashing. Pick `OrdinalIgnoreCase` only when the value is not case-normalized, and make the database collation agree. A value the enum does not define → `VO0020`. |
 | `ValueSet` | `ValueSetKind` | `Open` | `Closed` accepts only the declared `[KnownValue]`s. Empty closed set → `VO0005`; a value the enum does not define → `VO0020`. |
 | `Arithmetic` | `bool` | `false` | Numeric types only (`VO0007` otherwise). Operators, generic math, `Zero`, `One`, `IsZero`, `Min`, `Max`. |
@@ -19,6 +19,34 @@
 | `Description` | `string?` | XML `<summary>` of the type | OpenAPI description. |
 
 Declarative rules run **before** any hook, so a validator hook only ever sees values that already satisfy them.
+
+## Bounds and known values written as text
+
+`Minimum`, `Maximum` and a `[KnownValue]` given as a string are read at compile time in **one form per
+underlying type**, and in no other: no culture, no time zone, no white space around the value. Anything else is
+`VO0004` for a bound and `VO0013` for a known value, and the message names the form.
+
+| Underlying type | Form | Example |
+| --- | --- | --- |
+| `sbyte`, `short`, `int`, `long`, `Int128` | Digits, with `-` in front when negative. | `"-42"` |
+| `byte`, `ushort`, `uint`, `ulong`, `UInt128` | Digits alone. | `"42"` |
+| `decimal` | Digits, an optional `-` in front, an optional fraction after `.`. No exponent. | `"-19.99"` |
+| `double`, `float` | As `decimal`, plus an optional exponent (`e` or `E`, an optional sign, digits). Finite. | `"9.1e-31"` |
+| `char` | Exactly one character. | `"A"` |
+| `DateOnly` | `yyyy-MM-dd` | `"2024-01-31"` |
+| `TimeOnly` | `HH:mm`, `HH:mm:ss` or `HH:mm:ss.fffffff`, one to seven digits of fraction. | `"08:30"` |
+| `DateTime` | `yyyy-MM-dd` or `yyyy-MM-ddTHH:mm[:ss[.fffffff]]`. Never an offset or `Z`. | `"2024-01-31T08:30"` |
+| `DateTimeOffset` | `yyyy-MM-ddTHH:mm[:ss[.fffffff]]` followed by `Z`, `+HH:mm` or `-HH:mm`, always. | `"2024-01-31T08:30+01:00"` |
+| `TimeSpan` | `[-][d.]hh:mm:ss[.fffffff]`, the invariant constant format `"c"`. | `"1.12:00:00"` |
+| `string` | Any text. Known values only. | `"FR"` |
+| `Guid` | Any form `Guid.Parse` reads. Known values only. | `"6f9619ff-8b86-d011-b42d-00c04fc964ff"` |
+| `bool` | `true` or `false`, in any case. Known values only. | `"true"` |
+
+The value must exist in the type: `"300"` is no `byte`, `"2023-02-29"` no date, `"25:00"` no time. A time of day
+alone is neither a `DateTime` nor a `DateTimeOffset`, since it would take the date of the day the project is
+built. `string`, `Guid` and `bool` take no bound at all. A known value may also be a C# constant — `200`, `0.5`,
+`'A'`, `true` — which is held to the same form through its invariant text, a `double` or a `float` in round-trip
+form. A `typeof(...)`, an enum member, an array and `null` are not values: `VO0013`.
 
 ## Normalization
 
@@ -104,9 +132,9 @@ order), a `FrozenSet` membership check rejecting anything else with `value_objec
 OpenAPI `enum`. This is how reference-data codes are modelled: a C# `enum` can carry neither validation nor a
 stable wire format.
 
-Values that cannot appear as an attribute argument (`Guid`, `decimal`, `DateOnly`) are written as
-invariant-culture text and parsed at compile time (`VO0013` when that fails). An unusable member name is
-`VO0006`. On an **open** set, `[KnownValue]` still generates the constants — they are convenience only.
+Values that cannot appear as an attribute argument (`Guid`, `decimal`, `DateOnly`) are written as text, in the
+form of their type ([table](#bounds-and-known-values-written-as-text)), and parsed at compile time (`VO0013`
+when that fails). An unusable member name is `VO0006`. On an **open** set, `[KnownValue]` still generates the constants — they are convenience only.
 
 ## Arithmetic
 

@@ -57,8 +57,9 @@ as the currencies the application treats specially among all ISO 4217 codes.
 
 ## Values that are not strings
 
-An attribute argument can only be a constant, so a `Guid`, a `decimal` or a `DateOnly` is written as
-invariant-culture text and converted at compile time. A value that does not convert is `VO0013`; a member name
+An attribute argument can only be a constant, so a `Guid`, a `decimal` or a `DateOnly` is written as text, in
+the form the [authoring reference](../authoring-guide.md#bounds-and-known-values-written-as-text) gives for its
+type, and converted at compile time. A value that does not convert is `VO0013`; a member name
 that is not a valid C# identifier is `VO0006`; a closed set with no value at all is `VO0005`, since no value
 could ever be valid.
 

@@ -30,7 +30,7 @@ public readonly partial struct EmailAddress : IValueObjectNormalizer<string>
 
 Non-negotiable, each one a diagnostic if you get it wrong:
 
-- `readonly partial struct` — never a `class`, never a `record struct`, never a non-`readonly` struct (`VO0002`).
+- `readonly partial struct` — never a `class`, never a `record struct`, never a `ref struct`, never a non-`readonly` struct (`VO0002`).
 - `partial` on the type *and* on every containing type (`VO0001`, `VO0009`).
 - No type parameters on the type, and no generic type or interface around it (`VO0019`).
 - The underlying type is one of 22: `string`, `Guid`, `bool`, `char`, every built-in integer (`Int128` and
@@ -46,7 +46,7 @@ schema keyword. A rule buried in code does only the first. Never restate a decla
 | Option | Effect |
 | --- | --- |
 | `Pattern`, `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI `pattern`/`minLength`/`maxLength`. |
-| `Minimum`, `Maximum` | Inclusive bounds, written as invariant-culture **text**, parsed at compile time. |
+| `Minimum`, `Maximum` | Inclusive bounds on numbers, `char`, dates, times and durations, written as **text** in the one form of the type (`references/authoring.md`), parsed at compile time. |
 | `Comparison` | Equality, ordering and hashing for `string` value objects. `Ordinal` by default. |
 | `ValueSet = ValueSetKind.Closed` + `[KnownValue]` | Reference-data codes: frozen membership lookup, named constants, schema `enum`. |
 | `Arithmetic = true` | Operators and generic math on a numeric type. Every result is re-validated. |

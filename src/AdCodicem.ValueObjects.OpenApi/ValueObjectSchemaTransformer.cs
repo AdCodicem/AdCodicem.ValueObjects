@@ -114,9 +114,8 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     /// <param name="valueType">Underlying type of the value object.</param>
     /// <returns>The number, or <see langword="null"/> when the bound is not one, as a date's is not.</returns>
     /// <remarks>
-    /// The attribute reads a decimal, double or float bound as a floating-point literal, so an exponent is part of
-    /// the syntax. A double or a float bound may lie beyond the range of decimal or below its precision, so it is
-    /// read as a double; every other numeric type has bounds decimal carries exactly.
+    /// A double or a float bound may be written with an exponent, and may lie beyond the range of decimal or below
+    /// its precision, so it is read as a double; every other numeric type has bounds decimal carries exactly.
     /// </remarks>
     private static string? FormatBound(string bound, Type valueType)
     {

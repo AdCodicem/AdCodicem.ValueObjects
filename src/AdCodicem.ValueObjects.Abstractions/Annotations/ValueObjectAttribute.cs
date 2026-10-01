@@ -107,17 +107,31 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     public int MaxLength { get; set; } = -1;
 
     /// <summary>
-    /// Gets or sets the inclusive lower bound, written in invariant culture.
+    /// Gets or sets the inclusive lower bound, written as text in the one form of the underlying type.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Expressed as text so that <see cref="decimal"/>, <see cref="DateOnly"/> or <see cref="TimeSpan"/> bounds
-    /// keep full precision; attribute arguments cannot carry those types. Parsed at compile time and reported
-    /// as a diagnostic when malformed. Also emitted as the <c>minimum</c> OpenAPI keyword.
+    /// keep full precision; attribute arguments cannot carry those types. Each type reads one form, with no white
+    /// space around it and nothing taken from the culture or the time zone of the build machine: digits, with
+    /// <c>-</c> in front of a negative integer; a <see cref="decimal"/> with an optional fraction after
+    /// <c>.</c>; a <see cref="double"/> or a <see cref="float"/> with an optional exponent as well; one
+    /// character; <c>yyyy-MM-dd</c>; <c>HH:mm</c>, <c>HH:mm:ss</c> or <c>HH:mm:ss.fffffff</c>; a
+    /// <see cref="DateTime"/> as a date, or a date and a time after <c>T</c>, without an offset; a
+    /// <see cref="DateTimeOffset"/> as a date and a time after <c>T</c>, always followed by <c>Z</c>,
+    /// <c>+HH:mm</c> or <c>-HH:mm</c>; and a <see cref="TimeSpan"/> as <c>[-][d.]hh:mm:ss[.fffffff]</c>.
+    /// </para>
+    /// <para>
+    /// Only meaningful for numbers, characters, dates, times and durations: a <see cref="string"/>, a
+    /// <see cref="Guid"/> or a <see cref="bool"/> takes no bound. Parsed at compile time, and reported as a
+    /// diagnostic when written in any other form, outside the type, or on a type that takes none. Also emitted
+    /// as the <c>minimum</c> OpenAPI keyword.
+    /// </para>
     /// </remarks>
     public string? Minimum { get; set; }
 
     /// <summary>
-    /// Gets or sets the inclusive upper bound, written in invariant culture.
+    /// Gets or sets the inclusive upper bound, written as text in the one form of the underlying type.
     /// </summary>
     /// <inheritdoc cref="Minimum" path="/remarks"/>
     public string? Maximum { get; set; }

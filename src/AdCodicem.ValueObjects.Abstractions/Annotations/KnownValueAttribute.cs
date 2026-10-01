@@ -17,8 +17,10 @@ public sealed class KnownValueAttribute : Attribute
     /// <param name="name">Name of the generated static property. Must be a valid identifier.</param>
     /// <param name="value">
     /// The underlying value. Types that cannot appear as an attribute argument, such as <see cref="Guid"/>,
-    /// <see cref="decimal"/> or <see cref="DateOnly"/>, are written as invariant-culture text and parsed at
-    /// compile time.
+    /// <see cref="decimal"/> or <see cref="DateOnly"/>, are written as text and parsed at compile time, in the one
+    /// form of the type that a bound is written in (<see cref="ValueObjectAttribute{TValue}.Minimum"/>). A constant
+    /// of a C# type is held to the same form through its invariant text. A type, an enum member, an array and
+    /// <see langword="null"/> are not values, and are reported.
     /// </param>
     public KnownValueAttribute(string name, object value)
     {
