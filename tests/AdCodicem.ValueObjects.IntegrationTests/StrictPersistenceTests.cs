@@ -51,6 +51,49 @@ public abstract class StrictPersistenceTests<TFixture>(TFixture fixture) : IClas
     }
 
     /// <summary>
+    /// A row stored under a key the strict read normalizes is tracked under the normalized key, which the table does
+    /// not hold: an update or a delete through the strict context matches no row, Entity Framework Core reports it as
+    /// a concurrency conflict, and the row stays as it was.
+    /// </summary>
+    [Fact]
+    public async Task A_strict_context_cannot_write_back_a_row_whose_key_it_normalized()
+    {
+        var owner = await StoreAccountAsync("fr76 3000 6000 0112 3456 7890 189");
+
+        await using (var update = CreateStrictContext())
+        {
+            var account = await update.Accounts.SingleAsync(
+                entity => entity.CustomerId == owner,
+                TestContext.Current.CancellationToken);
+            account.Balance = Amount.Create(20m);
+
+            var save = () => update.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            await save.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        }
+
+        await using (var delete = CreateStrictContext())
+        {
+            var account = await delete.Accounts.SingleAsync(
+                entity => entity.CustomerId == owner,
+                TestContext.Current.CancellationToken);
+            delete.Accounts.Remove(account);
+
+            var save = () => delete.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            await save.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        }
+
+        await using var lenient = fixture.CreateContext();
+        var stored = await lenient.Accounts.SingleAsync(
+            entity => entity.CustomerId == owner,
+            TestContext.Current.CancellationToken);
+
+        stored.Iban.Value.Should().Be("fr76 3000 6000 0112 3456 7890 189");
+        stored.Balance.Should().Be(Amount.Create(10m));
+    }
+
+    /// <summary>
     /// Stores an account the way another writer would, past the value objects, under a new customer.
     /// </summary>
     /// <param name="iban">The account number, as that writer stores it.</param>
