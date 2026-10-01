@@ -132,7 +132,7 @@ RuleFor(x => x.Account).NotDefault<Request, Iban, string>();     // catches an u
 ```
 
 Each failure carries the value object's own stable error code, so the API answers with the same vocabulary
-everywhere.
+everywhere. `MustParseAs` and `MustSatisfy` let `null` through: chain `NotEmpty()` when the member is required.
 
 ## OpenAPI
 
