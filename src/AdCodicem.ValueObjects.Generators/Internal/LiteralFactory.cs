@@ -37,7 +37,18 @@ internal static class LiteralFactory
             return false;
         }
 
-        var text = value as string ?? Convert.ToString(value, CultureInfo.InvariantCulture);
+        var text = value switch
+        {
+            string written => written,
+
+            // The compiler may run on .NET Framework, as in Visual Studio, whose default form of a double keeps
+            // 15 significant digits and of a float 7, and so names a neighbouring value. The round-trip form
+            // names the value itself.
+            double real => real.ToString("R", CultureInfo.InvariantCulture),
+            float single => single.ToString("R", CultureInfo.InvariantCulture),
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture),
+        };
+
         if (text is null)
         {
             return false;
