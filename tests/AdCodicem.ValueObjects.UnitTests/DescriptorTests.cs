@@ -96,6 +96,24 @@ public sealed class DescriptorTests
         }
     }
 
+    /// <summary>
+    /// A boxed null is "no value". A string value object says so through its own rule; a decimal one has no null to
+    /// say it about, so the descriptor must, rather than quietly reading null as zero.
+    /// </summary>
+    [Fact]
+    public void A_boxed_null_is_rejected_as_required_whatever_the_underlying_type()
+    {
+        foreach (var descriptor in new[] { Descriptor<CountryCode>(), Descriptor<Amount>(), Descriptor<Quantity>() })
+        {
+            descriptor.TryCreate(null, out var result, out var validation).Should().BeFalse(descriptor.ValueObjectType.Name);
+            result.Should().BeNull();
+            validation.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
+
+            var create = () => descriptor.Create(null);
+            create.Should().Throw<ValueObjectException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
+        }
+    }
+
     [Fact]
     public void The_boxed_creation_path_reports_the_same_rule()
     {
