@@ -11,7 +11,8 @@ The measurements behind the [design decisions](./design-decisions.md). Absolute 
 any one machine — the same unchanged code measured 248 ns in one run and 152 ns in another — so read the
 ratios, not the nanoseconds. Allocation figures are deterministic and comparable across runs.
 
-The full tables, including JSON round-tripping, the cost of each creation route and checking a pattern, live in
+The full tables, including JSON round-tripping, the cost of each creation route, checking a pattern, formatting
+hooks and dates, live in
 [`benchmarks/README.md`](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/benchmarks/README.md)
 in the repository, alongside the exact hardware and BenchmarkDotNet version each run used. Run them yourself
 with:
