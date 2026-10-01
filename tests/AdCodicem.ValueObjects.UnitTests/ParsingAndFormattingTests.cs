@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 
 namespace AdCodicem.ValueObjects.UnitTests;
 
@@ -215,6 +216,54 @@ public class ParsingAndFormattingTests
         $"{recorded}".Should().Be("2024-06-01T12:30:45.1230000Z");
         $"{occurred}".Should().Be("2024-06-01T12:30:45.1230000+02:00");
         recorded.ToString(null, CultureInfo.InvariantCulture).Should().Be(recorded.ToString());
+    }
+
+    /// <summary>
+    /// ToString writes a DateTime in its round-trip form, which names its kind: Parse reads back the same ticks and
+    /// the same kind, on a machine in any time zone, rather than turning a UTC value into local time. A dictionary
+    /// key is written in that form and read through TryParse, so it keeps both too.
+    /// </summary>
+    [Theory]
+    [InlineData(DateTimeKind.Utc)]
+    [InlineData(DateTimeKind.Local)]
+    [InlineData(DateTimeKind.Unspecified)]
+    public void A_date_and_time_reads_back_what_ToString_writes_with_its_kind(DateTimeKind kind)
+    {
+        var recorded = RecordedAt.Create(new DateTime(2024, 6, 1, 12, 30, 45, kind).AddTicks(1234567));
+        var text = recorded.ToString();
+
+        var parsed = RecordedAt.Parse(text, CultureInfo.InvariantCulture);
+        RecordedAt.TryParse(text, CultureInfo.InvariantCulture, out var tried, out _).Should().BeTrue();
+
+        var keys = JsonSerializer.Deserialize<Dictionary<RecordedAt, int>>(
+            JsonSerializer.Serialize(new Dictionary<RecordedAt, int> { [recorded] = 1 }))!.Keys;
+
+        parsed.Value.Ticks.Should().Be(recorded.Value.Ticks);
+        parsed.Value.Kind.Should().Be(kind);
+        tried.Value.Kind.Should().Be(kind);
+        keys.Should().ContainSingle().Which.Value.Ticks.Should().Be(recorded.Value.Ticks);
+        keys.Single().Value.Kind.Should().Be(kind);
+    }
+
+    /// <summary>
+    /// The other dates and times write a form their parser reads back exactly too: an offset is kept as written,
+    /// and a time of day or a duration keeps its fraction of a second.
+    /// </summary>
+    [Fact]
+    public void Every_date_and_time_reads_back_what_ToString_writes()
+    {
+        var occurred = OccurredAt.Create(new DateTimeOffset(2024, 6, 1, 12, 30, 45, TimeSpan.FromHours(-9.5)).AddTicks(1234567));
+        var birthDate = BirthDate.Create(new DateOnly(1980, 5, 17));
+        var opening = OpeningTime.Create(new TimeOnly(9, 30, 15).Add(TimeSpan.FromTicks(1234567)));
+        var duration = Duration.Create(new TimeSpan(0, 23, 59, 59).Add(TimeSpan.FromTicks(1234567)));
+
+        var readOccurred = OccurredAt.Parse(occurred.ToString(), CultureInfo.InvariantCulture);
+
+        readOccurred.Value.Ticks.Should().Be(occurred.Value.Ticks);
+        readOccurred.Value.Offset.Should().Be(occurred.Value.Offset);
+        BirthDate.Parse(birthDate.ToString(), CultureInfo.InvariantCulture).Should().Be(birthDate);
+        OpeningTime.Parse(opening.ToString(), CultureInfo.InvariantCulture).Value.Ticks.Should().Be(opening.Value.Ticks);
+        Duration.Parse(duration.ToString(), CultureInfo.InvariantCulture).Value.Ticks.Should().Be(duration.Value.Ticks);
     }
 
     [Fact]
