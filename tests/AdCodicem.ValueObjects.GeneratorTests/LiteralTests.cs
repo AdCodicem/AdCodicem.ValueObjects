@@ -47,6 +47,32 @@ public sealed class LiteralTests
         run.SingleValueObject.Should().Contain($"Named {{ get; }} = {initializer};");
     }
 
+    /// <summary>
+    /// A double or a float given as a constant becomes text in its round-trip form before it becomes a literal.
+    /// Its default form keeps 15 significant digits for a double and 7 for a float when the compiler runs on .NET
+    /// Framework, as in Visual Studio, and there names a neighbouring value.
+    /// </summary>
+    [Theory]
+    [InlineData("double", "1d / 3d", "0.3333333333333333d")]
+    [InlineData("double", "0.1 + 0.2", "0.30000000000000004d")]
+    [InlineData("float", "1f / 3f", "0.33333334f")]
+    [InlineData("float", "1d / 3d", "0.33333334f")]
+    public void A_floating_point_known_value_given_as_a_constant_keeps_every_digit_of_its_value(
+        string underlying,
+        string value,
+        string literal)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>]
+            [KnownValue("Named", {{value}})]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain($"Named {{ get; }} = Create({literal});");
+    }
+
     [Theory]
     [InlineData("Guid", "\"not a guid\"")]
     [InlineData("bool", "\"maybe\"")]
