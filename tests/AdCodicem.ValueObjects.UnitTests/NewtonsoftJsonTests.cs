@@ -1,4 +1,5 @@
 using System.Globalization;
+using AdCodicem.ValueObjects.Identifiers;
 using AdCodicem.ValueObjects.NewtonsoftJson;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 using Newtonsoft.Json;
@@ -164,6 +165,21 @@ public class NewtonsoftJsonTests
         new ValueObjectConverter().CanConvert(typeof(string)).Should().BeFalse();
         write.Should().Throw<JsonSerializationException>().WithMessage("'String' is not a value object.");
         read.Should().Throw<JsonSerializationException>().WithMessage("'String' is not a value object.");
+    }
+
+    /// <summary>
+    /// Carrying a value, or the marker, does not make a value object: the converter claims what the registry can
+    /// describe, and leaves anything else to Newtonsoft.Json, which writes it as the object it is.
+    /// </summary>
+    [Fact]
+    public void A_type_that_carries_a_value_without_the_contract_of_a_value_object_is_left_to_the_serializer()
+    {
+        var converter = new ValueObjectConverter();
+
+        converter.CanConvert(typeof(IEntityId)).Should().BeFalse();
+        converter.CanConvert(typeof(MarkerOnlyValue)).Should().BeFalse();
+        JsonConvert.SerializeObject(new ClassBackedValue(), Defaults).Should().Be("""{"Value":"class"}""");
+        JsonConvert.SerializeObject(new SelflessValue(), Defaults).Should().Be("""{"Value":"selfless"}""");
     }
 
     [Theory]

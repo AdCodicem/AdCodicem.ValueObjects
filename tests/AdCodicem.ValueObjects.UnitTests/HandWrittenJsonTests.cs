@@ -85,4 +85,14 @@ public class HandWrittenJsonTests
     {
         new ValueObjectJsonConverterFactory().CreateConverter(typeof(MarkerOnlyValue), new JsonSerializerOptions()).Should().BeNull();
     }
+
+    /// <summary>
+    /// Nor does it ask for <see cref="Nullable{T}"/> over a value object, which it wraps around the value object's own
+    /// converter: built for the nullable type, the converter would hand back the wrong type.
+    /// </summary>
+    [Fact]
+    public void The_factory_builds_no_converter_for_a_nullable_value_object()
+    {
+        new ValueObjectJsonConverterFactory().CreateConverter(typeof(HandWrittenCode?), new JsonSerializerOptions()).Should().BeNull();
+    }
 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AdCodicem.ValueObjects.Identifiers;
 using AdCodicem.ValueObjects.Json;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
@@ -96,6 +97,7 @@ public partial class JsonSourceGenerationTests
     [InlineData(typeof(int), false)]
     [InlineData(typeof(string), false)]
     [InlineData(typeof(IValueObject), false)]
+    [InlineData(typeof(IEntityId), false)]
     [InlineData(typeof(MarkerOnlyValue), false)]
     [InlineData(typeof(ClassBackedValue), false)]
     [InlineData(typeof(SelflessValue), false)]

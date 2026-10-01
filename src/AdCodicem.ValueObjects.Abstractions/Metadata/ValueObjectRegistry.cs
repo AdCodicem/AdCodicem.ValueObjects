@@ -74,9 +74,8 @@ public static class ValueObjectRegistry
     /// <param name="type">Value object type, possibly nullable.</param>
     /// <param name="descriptor">The descriptor when the type is a value object.</param>
     /// <returns>
-    /// <see langword="true"/> when <paramref name="type"/> is a value object: a struct implementing
-    /// <see cref="IValueObject{TSelf, TValue}"/> over itself. An interface, a class, or a type carrying only the
-    /// <see cref="IValueObject"/> marker cannot be described, and gives <see langword="false"/>.
+    /// <see langword="true"/> when <paramref name="type"/> is a value object, as <see cref="IsValueObject"/> defines
+    /// one.
     /// </returns>
     [RequiresDynamicCode("Building a descriptor for an unregistered value object instantiates a generic method at run time.")]
     [RequiresUnreferencedCode("Building a descriptor for an unregistered value object inspects its interfaces and attributes.")]
@@ -90,7 +89,7 @@ public static class ValueObjectRegistry
             return true;
         }
 
-        if (!IsValueObject(valueObjectType) || !TryGetSelfDescribedValueType(valueObjectType, out var valueType))
+        if (!TryGetSelfDescribedValueType(valueObjectType, out var valueType))
         {
             descriptor = null;
             return false;
@@ -111,15 +110,25 @@ public static class ValueObjectRegistry
     }
 
     /// <summary>
-    /// Determines whether a type is a value object.
+    /// Determines whether a type is a value object: a struct implementing <see cref="IValueObject{TSelf, TValue}"/>
+    /// over itself, the one shape a descriptor, a converter or a model binder can be built for.
     /// </summary>
     /// <param name="type">Type to test, possibly nullable.</param>
-    /// <returns><see langword="true"/> when the type implements <see cref="IValueObject"/>.</returns>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="type"/>, or the type it makes nullable, is a value object, which is
+    /// exactly when <see cref="TryResolve"/> describes it. An interface, a class, or a struct carrying only the
+    /// <see cref="IValueObject"/> marker or <see cref="IValueObject{TValue}"/> is not one.
+    /// </returns>
+    /// <remarks>
+    /// Answering registers nothing. A registered type is answered from the registry, without reflection.
+    /// </remarks>
     public static bool IsValueObject(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
 
-        return typeof(IValueObject).IsAssignableFrom(Nullable.GetUnderlyingType(type) ?? type);
+        var valueObjectType = Nullable.GetUnderlyingType(type) ?? type;
+
+        return Descriptors.ContainsKey(valueObjectType) || TryGetSelfDescribedValueType(valueObjectType, out _);
     }
 
     /// <summary>
@@ -182,10 +191,14 @@ public static class ValueObjectRegistry
     /// <param name="type">Candidate type, already unwrapped from <see cref="Nullable{T}"/>.</param>
     /// <param name="valueType">The underlying type when the candidate qualifies.</param>
     /// <returns><see langword="true"/> when a descriptor can be built for <paramref name="type"/>.</returns>
-    [RequiresUnreferencedCode("Reads the value object interfaces of the type.")]
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2070:UnrecognizedReflectionPattern",
+        Justification = "The interface list of a value object is preserved: the type is referenced by the caller and its IValueObject implementation is part of its public contract.")]
     private static bool TryGetSelfDescribedValueType(Type type, [NotNullWhen(true)] out Type? valueType)
     {
-        if (type.IsValueType)
+        // The marker is a cheap filter for the many types a serializer asks about that are not value objects at all.
+        if (type.IsValueType && typeof(IValueObject).IsAssignableFrom(type))
         {
             foreach (var candidate in type.GetInterfaces())
             {

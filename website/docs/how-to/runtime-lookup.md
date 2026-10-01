@@ -33,11 +33,15 @@ does not read it as zero.
 
 ## Cheaper questions
 
-`ValueObjectRegistry.IsValueObject(type)` and `ValueObjectRegistry.GetUnderlyingType(type)` answer without a
-descriptor. `TryResolve` also unwraps `Nullable<T>`, which is what a model binder or a serializer is usually
-holding. `IsValueObject` says yes to anything carrying the `IValueObject` marker, interfaces included; `TryResolve`
-answers `false` for what no descriptor can describe — an interface, a class, a struct without
-`IValueObject<TSelf, TValue>` over itself.
+`ValueObjectRegistry.IsValueObject(type)` and `ValueObjectRegistry.GetUnderlyingType(type)` answer without building
+a descriptor. Like `TryResolve`, they unwrap `Nullable<T>`, which is what a model binder or a serializer is usually
+holding.
+
+A value object is a struct implementing `IValueObject<TSelf, TValue>` over itself. `IsValueObject` answers `true`
+exactly for the types `TryResolve` describes, and `false` for an interface, a class, or a struct carrying only the
+`IValueObject` marker or `IValueObject<TValue>`. The integrations claim a type by the same rule: the JSON converter
+factory, the Newtonsoft.Json converter, the MVC model binder and `MustParseAs` leave anything else to the framework,
+or refuse it.
 
 ## When a type is not found
 
