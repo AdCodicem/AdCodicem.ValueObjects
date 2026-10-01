@@ -279,6 +279,25 @@ public sealed class EmissionTests
         separator.Should().Contain("Create('\\u0085')");
     }
 
+    /// <summary>
+    /// The description of a known value becomes a one-line documentation comment: a line break would end the
+    /// comment and leave the rest of the text as code.
+    /// </summary>
+    [Fact]
+    public void A_known_value_description_spanning_several_lines_is_folded_into_one_summary_line()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>]
+            [KnownValue("France", "FR", Description = "The French Republic,\nmainland\r\nand\u2028overseas\u0001<&>")]
+            public readonly partial struct Country;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain(
+            "/// <summary>The French Republic, mainland and overseas &lt;&amp;&gt;</summary>");
+    }
+
     [Theory]
     [InlineData("string")]
     [InlineData("int")]

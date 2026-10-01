@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using AdCodicem.ValueObjects.Generators.Internal;
 using AdCodicem.ValueObjects.Generators.Model;
 
@@ -927,6 +928,45 @@ internal static class ValueObjectEmitter
         writer.Line();
     }
 
+    /// <summary>
+    /// Writes author text into a one-line XML documentation comment.
+    /// </summary>
+    /// <remarks>
+    /// A line break would end the comment and leave the rest of the text as code, so every character C# ends a
+    /// line at is folded into a space, a CR LF pair into one. So are the other control characters, which XML
+    /// cannot hold and which a project generating its documentation file would report as malformed.
+    /// </remarks>
+    /// <param name="text">Text written by the author.</param>
+    /// <returns>The text, escaped and on one line.</returns>
     internal static string Xml(string text)
-        => text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+    {
+        var builder = new StringBuilder(text.Length);
+        for (var i = 0; i < text.Length; i++)
+        {
+            var character = text[i];
+            switch (character)
+            {
+                case '&':
+                    builder.Append("&amp;");
+                    break;
+                case '<':
+                    builder.Append("&lt;");
+                    break;
+                case '>':
+                    builder.Append("&gt;");
+                    break;
+                case '\r' when i + 1 < text.Length && text[i + 1] == '\n':
+                    // The line feed that follows becomes the space.
+                    break;
+                case '\u0085' or '\u2028' or '\u2029':
+                    builder.Append(' ');
+                    break;
+                default:
+                    builder.Append(character < ' ' && character != '\t' ? ' ' : character);
+                    break;
+            }
+        }
+
+        return builder.ToString();
+    }
 }
