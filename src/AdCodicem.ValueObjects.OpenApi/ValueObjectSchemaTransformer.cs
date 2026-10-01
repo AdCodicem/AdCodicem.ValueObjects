@@ -57,14 +57,14 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
             schema.MaxLength = maxLength;
         }
 
-        if (declared.Minimum is { } minimum && decimal.TryParse(minimum, CultureInfo.InvariantCulture, out var min))
+        if (declared.Minimum is { } minimum && FormatBound(minimum, descriptor.ValueType) is { } min)
         {
-            schema.Minimum = min.ToString(CultureInfo.InvariantCulture);
+            schema.Minimum = min;
         }
 
-        if (declared.Maximum is { } maximum && decimal.TryParse(maximum, CultureInfo.InvariantCulture, out var max))
+        if (declared.Maximum is { } maximum && FormatBound(maximum, descriptor.ValueType) is { } max)
         {
-            schema.Maximum = max.ToString(CultureInfo.InvariantCulture);
+            schema.Maximum = max;
         }
 
         if (!string.IsNullOrEmpty(declared.Description))
@@ -83,6 +83,32 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Reads a declared bound as the number the type enforces, in the form the document writes it.
+    /// </summary>
+    /// <param name="bound">The bound, as declared.</param>
+    /// <param name="valueType">Underlying type of the value object.</param>
+    /// <returns>The number, or <see langword="null"/> when the bound is not one, as a date's is not.</returns>
+    /// <remarks>
+    /// The attribute reads a decimal, double or float bound as a floating-point literal, so an exponent is part of
+    /// the syntax. A double or a float bound may lie beyond the range of decimal or below its precision, so it is
+    /// read as a double; every other numeric type has bounds decimal carries exactly.
+    /// </remarks>
+    private static string? FormatBound(string bound, Type valueType)
+    {
+        if (valueType == typeof(double) || valueType == typeof(float))
+        {
+            // The document is JSON, which has no number for an infinity.
+            return double.TryParse(bound, NumberStyles.Float, CultureInfo.InvariantCulture, out var real) && double.IsFinite(real)
+                ? real.ToString("R", CultureInfo.InvariantCulture)
+                : null;
+        }
+
+        return decimal.TryParse(bound, NumberStyles.Float, CultureInfo.InvariantCulture, out var exact)
+            ? exact.ToString(CultureInfo.InvariantCulture)
+            : null;
     }
 
     private static JsonSchemaType MapType(Type valueType) => Type.GetTypeCode(valueType) switch
