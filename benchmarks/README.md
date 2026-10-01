@@ -60,14 +60,16 @@ check that they do.
 nothing boxes and nothing falls back to the reflection-based `ValueType.Equals`. That is what makes the struct
 choice above safe.
 
-Among the three wrappers, the lookup differences are not resolved by this benchmark — the spread is ~15% with
-error bars to match, so treat them as equivalent. The sort numbers are cleaner and the ordering there is real:
-sorting value objects beats sorting the underlying strings, because `Array.Sort` devirtualizes `IComparable<T>`
-on a struct where the string overload goes through a comparer, and beats the class by 16%.
+Among the three wrappers, the lookup differences are small and do not keep their order from one run to the next:
+the spread is 17% in this table, with the value object slowest, and was 4–6% when the suite was rerun on the same
+CPU under BenchmarkDotNet 0.15.8 (#63), with the class wrapper slowest. Treat them as equivalent. The sort numbers
+are cleaner and the ordering there is real: sorting value objects beats sorting the underlying strings, because
+`Array.Sort` devirtualizes `IComparable<T>` on a struct where the string overload goes through a comparer, and
+beats the class by 16%.
 
-Lookups on any wrapper are ~40% slower than a `Dictionary<string, int>` built with `StringComparer.Ordinal`.
-That gap is the string hashing strategy, not the wrapper: the specialized string comparer has a non-randomized
-fast path a generated `GetHashCode` cannot reach.
+Lookups on any wrapper are roughly 40–65% slower than a `Dictionary<string, int>` built with
+`StringComparer.Ordinal`. That gap is the string hashing strategy, not the wrapper: the specialized string
+comparer has a non-randomized fast path a generated `GetHashCode` cannot reach.
 
 ## Cost of creating one
 
@@ -121,8 +123,8 @@ does not re-validate values this same application already validated on the way i
 primitives allocates**, byte for byte, because the JSON reader copies the text into a stack buffer and
 normalizes from it. Before the span path it allocated 216 B against the same 136 B.
 
-Serializing costs 9% over primitives and produces byte-identical JSON — the benchmark asserts that in its
-setup, so the comparison stays honest.
+Serializing costs under 10% over primitives (9% here, 1–8% on the rerun) and produces byte-identical JSON — the
+benchmark asserts that in its setup, so the comparison stays honest.
 
 Deserializing costs 1.69x the primitive version in time, and that is the validation, not the wrapper: every
 field is normalized and checked on the way in, including the IBAN's `Pattern` and its MOD-97 check digits.
