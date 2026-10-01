@@ -200,6 +200,11 @@ Three suites, each with a distinct job:
   option or hook the rest of `Domain/` leaves out, and `GeneratedSurface/` runs every emitted member family on all
   of them, so nothing the generator emits only compiles. `EmitCompilerGeneratedFiles`
   is on, so generated sources land under `artifacts/obj/.../generated/` and can be read when diagnosing.
+  `Domain/HandWritten/` holds value objects written by hand, the supported input that reaches what the generator
+  always replaces: the interface defaults and the registry's reflection fallback. The test assembly cannot hold
+  the rest, since the generator runs on it and its module initializer has run before any test does, so two
+  fixture assemblies under `tests/Fixtures/` do: a generated value object in a module nothing has used yet, and
+  annotated hand-written ones where no generator runs.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
   input. Two things keep such a suite honest and both are easy to lose: a property conditioned on "the value was

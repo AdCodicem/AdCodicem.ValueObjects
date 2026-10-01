@@ -171,3 +171,11 @@ public sealed class LabelContract : ValueObjectContract<Label, string>
 
     protected override IEnumerable<string> RejectedValues => [new string('x', 201)];
 }
+
+/// <inheritdoc cref="IbanContract" />
+public sealed class DocumentStatusContract : ValueObjectContract<DocumentStatus, string>
+{
+    protected override IEnumerable<string> AcceptedValues => ["draft", "FINAL"];
+
+    protected override IEnumerable<string> RejectedValues => [string.Empty, "archived"];
+}

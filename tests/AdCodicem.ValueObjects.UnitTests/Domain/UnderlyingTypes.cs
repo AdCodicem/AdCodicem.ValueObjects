@@ -149,3 +149,9 @@ public readonly partial struct Label : IValueObjectFormatter<string>
         return true;
     }
 }
+
+/// <summary>The status of a document, from a closed set whose spelling does not matter.</summary>
+[ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.OrdinalIgnoreCase)]
+[KnownValue("Draft", "draft")]
+[KnownValue("Final", "final")]
+public readonly partial struct DocumentStatus;
