@@ -130,10 +130,17 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
 ### Invariants worth knowing before changing anything
 
 - **Normalize, then validate, then assign**, so a non-default instance is by construction normalized and valid.
-  The one exception is the EF Core read path, which uses `CreateUnchecked` because it reads values this same
-  application already validated. `ConfigureValueObjects(strict: true)` turns validation back on.
-- **Rejection is not an exception.** `ValidationResult` is a struct that allocates nothing on success; every
-  integration goes through `TryCreate`. Validation is fail-fast: the first violated rule wins.
+  The exceptions are the EF Core and Dapper read paths, which use `CreateUnchecked` because they read values this
+  same application already validated. `ConfigureValueObjects(strict: true)` turns validation back on for EF Core;
+  Dapper validates only a column the value object cannot have written: text read into a value object over another
+  type, or a number read into one over `string`.
+- **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on
+  success. The integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a
+  `JsonException` or `JsonSerializationException`, a model state error, a FluentValidation failure, a Dapper
+  `DataException`. The one that throws `ValueObjectException` is a strict EF Core read, which goes through `Create`
+  and fails the query; `Create`, `Parse` and an explicit conversion throw it for code that treats a rejected value
+  as a bug. `website/docs/reference/errors.md` names what each integration throws. Validation is fail-fast: the
+  first violated rule wins.
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI
   `maxLength`. Anything added to `[ValueObject<T>]` should feed all three.
 - **`default(T)` is a build error** (`VO0010`). Tests that deliberately construct one need a targeted
