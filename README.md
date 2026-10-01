@@ -115,8 +115,10 @@ which is what makes the struct representation — zero allocation, no null — s
 `AllowDefault = true`.
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value
-is valid, and every integration — JSON, model binding, EF Core, Dapper — goes through `TryCreate`. `Create`
-throws, and is for the call sites that want it. Validation is fail-fast: the first violated rule wins.
+is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
+their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`.
+`Create` throws `ValueObjectException`, and is for the call sites that want it; a strict EF Core read goes through
+it, and fails the query. Validation is fail-fast: the first violated rule wins.
 
 **Normalize, then validate, then assign.** So a non-default instance is by construction both normalized and
 valid. It happens on construction, on parsing, on deserialization and on model binding — but *not* when
