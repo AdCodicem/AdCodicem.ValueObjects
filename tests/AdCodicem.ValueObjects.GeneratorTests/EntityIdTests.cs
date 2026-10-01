@@ -120,6 +120,12 @@ public sealed class EntityIdTests
     [InlineData("acc__x")]
     [InlineData("verylongsegmentname")]
     [InlineData("aaaaaaaa_bbbbbbbb_cc")]
+    [InlineData("acc2")]
+    [InlineData("aCc")]
+    [InlineData("acé")]
+    [InlineData("customers")]
+    [InlineData("acc_customers")]
+    [InlineData("acc_12345678")]
     public void The_generator_and_the_runtime_agree_on_which_prefixes_are_valid(string prefix)
     {
         var run = GeneratorHarness.Run($$"""
@@ -133,18 +139,26 @@ public sealed class EntityIdTests
         acceptedByGenerator.Should().Be(acceptedByRuntime, "the prefix '{0}'", prefix);
     }
 
-    [Fact]
-    public void A_malformed_prefix_says_which_rule_it_broke()
+    [Theory]
+    [InlineData("", "it is empty")]
+    [InlineData("abcdefgh_abcdefgh", "longer than 16 characters")]
+    [InlineData("Acc", "lowercase letter")]
+    [InlineData("acc__x", "one of its segments is empty")]
+    [InlineData("aCc", "outside 'a'-'z'")]
+    [InlineData("acé", "outside 'a'-'z'")]
+    [InlineData("customers", "one of its segments is longer than 8 characters")]
+    [InlineData("acc_", "it ends with a separator")]
+    public void A_malformed_prefix_says_which_rule_it_broke(string prefix, string rule)
     {
-        var run = GeneratorHarness.Run("""
-            [EntityId("Acc")]
+        var run = GeneratorHarness.Run($$"""
+            [EntityId("{{prefix}}")]
             public readonly partial struct AccountId;
             """);
 
         run.Ids.Should().Contain("VO0015");
         run.Diagnostics.Single(d => d.Id == "VO0015")
             .GetMessage()
-            .Should().Contain("lowercase letter");
+            .Should().Contain(rule);
     }
 
     [Fact]
