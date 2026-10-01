@@ -66,11 +66,12 @@ that treats a rejected value as a bug, and for a strict EF Core read:
 | The Newtonsoft.Json converter | `JsonSerializationException`, with the message of the rule. |
 | ASP.NET Core model binding | A model state error; the [problem details](../how-to/aspnet-core.md#problem-details-carrying-the-rule) carry its code. |
 | FluentValidation, `MustParseAs` and `MustSatisfy` | A validation failure carrying the code. |
-| Dapper | `DataException`, for text the value object refuses or a value it cannot convert. |
+| Dapper | `DataException`, for a value it cannot convert, and for text read into a value object over another type, or a number read into one over `string`, that the value object refuses. |
 | EF Core with `strict: true` | `ValueObjectException`, from `Create`: the query fails. |
 
 The other reads do not validate. EF Core by default, and Dapper for a value the provider returns as the underlying
-type, build the value object with `CreateUnchecked`: they read what this application validated when it wrote it.
+type or as its date and time counterpart, build the value object with `CreateUnchecked`: they read what this
+application validated when it wrote it.
 [EF Core](../how-to/ef-core.md#validation-on-read) says when to read strictly.
 
 ## Detecting an uninitialized instance
