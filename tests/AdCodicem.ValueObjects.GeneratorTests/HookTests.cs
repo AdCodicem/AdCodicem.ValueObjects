@@ -110,6 +110,37 @@ public sealed class HookTests
         run.SingleValueObject.Should().Contain("TryFormatValue(in current,");
     }
 
+    /// <summary>
+    /// The string formatter takes precedence when a type declares both hooks, in span formatting as in
+    /// <c>ToString</c>, so that interpolation and <c>ToString(format, provider)</c> write the same text.
+    /// </summary>
+    [Fact]
+    public void With_both_formatting_hooks_the_string_formatter_answers()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>]
+            public readonly partial struct Floor : IValueObjectFormatter<int>, IValueObjectStringFormatter<int>
+            {
+                public static string FormatValue(in int value, ReadOnlySpan<char> format, IFormatProvider? provider)
+                    => "floor " + value.ToString(provider);
+
+                public static bool TryFormatValue(
+                    in int value,
+                    Span<char> destination,
+                    out int charsWritten,
+                    ReadOnlySpan<char> format,
+                    IFormatProvider? provider)
+                    => value.TryFormat(destination, out charsWritten, format, provider);
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should()
+            .Contain("var text = FormatValue(in current, format, provider ?? ")
+            .And.NotContain("TryFormatValue(");
+    }
+
     [Fact]
     public void A_rule_written_without_its_interface_is_ignored_by_the_generator()
     {

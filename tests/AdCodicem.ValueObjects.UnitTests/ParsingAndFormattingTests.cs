@@ -227,4 +227,17 @@ public class ParsingAndFormattingTests
         phone.TryFormat(buffer, out var written, PhoneNumber.Grouped, null).Should().BeTrue();
         new string(buffer, 0, written).Should().Be("+33 123 456 789");
     }
+
+    [Fact]
+    public void With_both_formatting_hooks_the_string_formatter_answers_every_formatting_member()
+    {
+        var floor = Floor.Create(3);
+        var buffer = new char[32];
+
+        floor.ToString(null, CultureInfo.InvariantCulture).Should().Be("floor 3");
+        $"{floor}".Should().Be("floor 3");
+        floor.TryFormat(buffer, out var written, default, CultureInfo.InvariantCulture).Should().BeTrue();
+        new string(buffer, 0, written).Should().Be("floor 3");
+        $"{floor:D2}".Should().Be("03");
+    }
 }
