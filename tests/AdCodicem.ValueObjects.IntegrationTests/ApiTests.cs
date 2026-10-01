@@ -148,6 +148,35 @@ public sealed class ApiTests(PostgreSqlFixture database) : IClassFixture<Postgre
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    /// <summary>
+    /// The country is not stored: each response reads it from the account's IBAN, a member the value object derives
+    /// from its value. The IBAN is used by no other test, since it keys the account in the shared database.
+    /// </summary>
+    [Fact]
+    public async Task An_account_is_returned_with_the_country_its_IBAN_names()
+    {
+        var customer = await CreateCustomerAsync("account.country@example.com");
+        var id = customer.GetProperty("id").GetString();
+
+        var opened = await _client.PostAsync(
+            $"/customers/{id}/accounts",
+            Json("""{"iban":"de89 3704 0044 0532 0130 00","initialBalance":1250}"""),
+            TestContext.Current.CancellationToken);
+
+        opened.StatusCode.Should().Be(HttpStatusCode.Created);
+        var account = await opened.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        account.GetProperty("iban").GetString().Should().Be("DE89370400440532013000");
+        account.GetProperty("country").GetString().Should().Be("DE");
+
+        var read = await _client.GetFromJsonAsync<JsonElement>(
+            "/accounts/DE89370400440532013000",
+            TestContext.Current.CancellationToken);
+        read.GetProperty("country").GetString().Should().Be("DE");
+
+        var owner = await _client.GetFromJsonAsync<JsonElement>($"/customers/{id}", TestContext.Current.CancellationToken);
+        owner.GetProperty("accounts")[0].GetProperty("country").GetString().Should().Be("DE");
+    }
+
     [Fact]
     public async Task A_validator_reports_the_rule_the_value_object_owns()
     {
