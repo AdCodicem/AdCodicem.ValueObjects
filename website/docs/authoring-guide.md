@@ -18,7 +18,7 @@ JSON strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`,
 | --- | --- | --- | --- |
 | `Pattern` | `string?` | none | Regular expression the **normalized** value must match. Also the OpenAPI `pattern`. Invalid → `VO0014`. |
 | `MinLength`, `MaxLength` | `int` | `-1`, unconstrained | `string` only (`VO0008` otherwise). Validation, OpenAPI `minLength` / `maxLength`, and the EF Core column size. |
-| `Minimum`, `Maximum` | `string?` | none | Inclusive bounds in **invariant-culture text**, so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Parsed at compile time; unparsable, or outside the type → `VO0004`. A `DateTime` bound carries no offset and a `DateTimeOffset` bound always does, so neither depends on the build machine's time zone. Also OpenAPI `minimum` / `maximum`. |
+| `Minimum`, `Maximum` | `string?` | none | Inclusive bounds in **invariant-culture text**, so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Parsed at compile time; unparsable, or outside the type → `VO0004`. A `DateTime` bound carries no offset and a `DateTimeOffset` bound always does ([why](./reference/diagnostics.md#date-and-time-bounds)). Also OpenAPI `minimum` / `maximum`. |
 | `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering and hashing together. |
 | `ValueSet` | `ValueSetKind` | `Open` | `Closed` accepts only the declared `[KnownValue]`s, through a frozen lookup, and becomes the schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. |
 | `Arithmetic` | `bool` | `false` | Numeric types only (`VO0007` otherwise). Operators and generic math; every result is validated again. |
