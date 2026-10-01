@@ -1,5 +1,6 @@
 using System.Globalization;
 using AdCodicem.ValueObjects.NewtonsoftJson;
+using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 using Newtonsoft.Json;
 using StjSerializer = System.Text.Json.JsonSerializer;
 
@@ -54,6 +55,92 @@ public class NewtonsoftJsonTests
     };
 
     public static TheoryData<string> Every => [.. EveryUnderlyingType.Keys];
+
+    /// <summary>
+    /// The payment <see cref="JsonTests"/> writes with System.Text.Json, written with Newtonsoft.Json: the converter
+    /// claims each value object, an optional one included, and leaves the payment itself to the serializer.
+    /// </summary>
+    [Fact]
+    public void A_value_object_travels_as_its_bare_underlying_value()
+    {
+        var payment = new Payment(
+            Iban.Create("FR7630006000011234567890189"),
+            Amount.Create(1250m),
+            CustomerId.Create(Guid.Parse("0192f4a0-0000-7000-8000-000000000001")),
+            BirthDate.Create(new DateOnly(1980, 5, 17)),
+            Quantity.Create(3));
+
+        var json = JsonConvert.SerializeObject(payment, Defaults);
+
+        json.Should().Be(
+            """
+            {"Account":"FR7630006000011234567890189","Total":1250.00,"Customer":"0192f4a0-0000-7000-8000-000000000001","Birth":"1980-05-17","Lines":3}
+            """);
+        JsonConvert.DeserializeObject<Payment>(json, Defaults).Should().Be(payment);
+    }
+
+    [Fact]
+    public void A_null_is_no_value_for_an_optional_value_object_and_refused_for_a_required_one()
+    {
+        const string json =
+            """
+            {"Account":"FR7630006000011234567890189","Total":1250,"Customer":"0192f4a0-0000-7000-8000-000000000001","Birth":null,"Lines":3}
+            """;
+
+        var required = () => JsonConvert.DeserializeObject<Iban>("null", Defaults);
+
+        JsonConvert.DeserializeObject<Payment>(json, Defaults)!.Birth.Should().BeNull();
+        required.Should().Throw<JsonSerializationException>().WithMessage("Cannot convert null to 'Iban'.");
+    }
+
+    /// <summary>
+    /// A value object written by hand may carry a type the generator does not support. Its value then travels the
+    /// way Newtonsoft.Json writes and reads that type, as the general-purpose System.Text.Json converter lets
+    /// System.Text.Json handle it, and its rules still apply.
+    /// </summary>
+    [Fact]
+    public void A_value_object_over_another_type_travels_as_Newtonsoft_carries_that_type()
+    {
+        var link = HandWrittenLink.Create(new Uri("https://example.com/a"));
+
+        var json = JsonConvert.SerializeObject(link, Defaults);
+        var relative = () => JsonConvert.DeserializeObject<HandWrittenLink>("\"/a\"", Defaults);
+
+        json.Should().Be("\"https://example.com/a\"");
+        JsonConvert.DeserializeObject<HandWrittenLink>(json, Defaults).Should().Be(link);
+        relative.Should().Throw<JsonSerializationException>()
+            .WithMessage("The value is not a valid HandWrittenLink: A link is an absolute URI.");
+    }
+
+    /// <summary>
+    /// The serializer writes a null itself before it looks for a converter, so only a caller of the converter - one
+    /// that delegates to it, say - hands it one.
+    /// </summary>
+    [Fact]
+    public void Writing_null_through_the_converter_writes_a_JSON_null()
+    {
+        using var text = new StringWriter(CultureInfo.InvariantCulture);
+        using var writer = new JsonTextWriter(text);
+
+        new ValueObjectConverter().WriteJson(writer, null, JsonSerializer.CreateDefault());
+        writer.Flush();
+
+        text.ToString().Should().Be("null");
+    }
+
+    /// <summary>
+    /// The serializer does not ask a converter named on a member whether it converts the member's type.
+    /// </summary>
+    [Fact]
+    public void The_converter_refuses_a_member_that_is_not_a_value_object()
+    {
+        var write = () => JsonConvert.SerializeObject(new Tagged { Name = "x" });
+        var read = () => JsonConvert.DeserializeObject<Tagged>("""{"Name":"x"}""");
+
+        new ValueObjectConverter().CanConvert(typeof(string)).Should().BeFalse();
+        write.Should().Throw<JsonSerializationException>().WithMessage("'String' is not a value object.");
+        read.Should().Throw<JsonSerializationException>().WithMessage("'String' is not a value object.");
+    }
 
     [Theory]
     [MemberData(nameof(Every))]
@@ -239,5 +326,14 @@ public class NewtonsoftJsonTests
         var recorded = RecordedAt.Create(new DateTime(2024, 6, 1, 12, 30, 45, 123, DateTimeKind.Utc));
 
         JsonConvert.SerializeObject(recorded, settings).Should().Be("\"2024-06-01T12:30:45.123Z\"");
+    }
+
+    private sealed record Payment(Iban Account, Amount Total, CustomerId Customer, BirthDate? Birth, Quantity Lines);
+
+    /// <summary>A member naming the converter although it holds no value object.</summary>
+    private sealed class Tagged
+    {
+        [JsonConverter(typeof(ValueObjectConverter))]
+        public string? Name { get; set; }
     }
 }
