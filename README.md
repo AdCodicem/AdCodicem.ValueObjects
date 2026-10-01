@@ -104,7 +104,7 @@ that `Comparison = StringComparison.OrdinalIgnoreCase` actually means something.
 
 **A struct, even when the underlying type is a `string`.** Holding 100 000 struct wrappers allocates exactly
 what holding 100 000 bare strings allocates, to the byte; the class equivalent costs four times the memory and
-twice the time, because a reference type adds 24 bytes of header, method table pointer and field per instance.
+2.3x the time, because a reference type adds 24 bytes of header, method table pointer and field per instance.
 The struct gives that back only when it crosses a non-generic boundary and boxes, so the generated equality,
 hashing and comparison exist to keep the hot paths generic — dictionary lookups and sorts on value objects
 allocate nothing. See [benchmarks/](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/benchmarks/README.md) for the numbers and for where the struct loses.
