@@ -38,40 +38,70 @@ internal static class ValueObjectEmitter
     private static readonly string[] ArithmeticMembers = ["Zero", "One", "IsZero", "Abs", "Min", "Max", "Sum"];
 
     /// <summary>
-    /// The names a static property would take from the generated code without colliding with a member written
-    /// here: the discard written as <c>out _</c>, which a member called <c>_</c> would capture, and the members of
-    /// <see cref="object"/> it would hide, with a warning located in the generated file.
+    /// The metadata names of the operators written on every value object. The compiler reserves an operator's
+    /// metadata name in the type as it does any member's, so a property of that name would not compile.
     /// </summary>
-    private static readonly string[] OtherTakenNames = ["_", "GetType", "MemberwiseClone", "ReferenceEquals"];
+    private static readonly string[] ComparisonOperators =
+    [
+        "op_Equality", "op_Inequality", "op_LessThan", "op_GreaterThan", "op_LessThanOrEqual", "op_GreaterThanOrEqual",
+    ];
+
+    /// <summary>The metadata names of the binary operators arithmetic adds.</summary>
+    private static readonly string[] ArithmeticOperators = ["op_Addition", "op_Subtraction", "op_Multiply", "op_Division"];
 
     /// <summary>
-    /// Gets the names a known value cannot take on a value object.
+    /// Gets the names a known value cannot take on a value object because the generated code uses them.
     /// </summary>
     /// <remarks>
     /// A known value becomes a static property of the value object, so a name already taken there would not
-    /// compile, in a file the author cannot edit. The names follow the options because the members do: <c>Zero</c>
-    /// is only taken on a value object with arithmetic. They are listed beside the emitters so that a member added
-    /// here is added to them in the same change; <c>KnownValueNameTests</c> reads the generated code to check it.
+    /// compile, in a file the author cannot edit: the members written here, the metadata names of the operators
+    /// written here, the name of the type, which its constructor takes, and the discard written as <c>out _</c>,
+    /// which a member called <c>_</c> would capture. The names follow the options because the members do:
+    /// <c>Zero</c> is only taken on a value object with arithmetic. They are listed beside the emitters so that a
+    /// member added here is added to them in the same change; <c>KnownValueNameTests</c> reads the generated code to
+    /// check it.
     /// </remarks>
     /// <param name="typeName">Name of the value object, which its constructor takes.</param>
+    /// <param name="underlying">The underlying type, whose sign decides whether a negation is written.</param>
     /// <param name="arithmetic">Whether the arithmetic members are written.</param>
+    /// <param name="implicitConversion">Whether the implicit conversion to the underlying value is written.</param>
+    /// <param name="explicitConversion">Whether the explicit conversion from the underlying value is written.</param>
     /// <param name="closedValueSet">Whether the membership lookup of a closed value set is written.</param>
     /// <param name="pattern">Whether the compiled pattern is written.</param>
     /// <param name="normalizesFromSpan">Whether the factory normalizing from a span is written.</param>
     /// <returns>The names taken, compared ordinally.</returns>
     public static HashSet<string> TakenNames(
         string typeName,
+        UnderlyingType underlying,
         bool arithmetic,
+        bool implicitConversion,
+        bool explicitConversion,
         bool closedValueSet,
         bool pattern,
         bool normalizesFromSpan)
     {
-        var names = new HashSet<string>(CommonMembers, StringComparer.Ordinal) { typeName };
-        names.UnionWith(OtherTakenNames);
+        var names = new HashSet<string>(CommonMembers, StringComparer.Ordinal) { typeName, "_" };
+        names.UnionWith(ComparisonOperators);
 
         if (arithmetic)
         {
             names.UnionWith(ArithmeticMembers);
+            names.UnionWith(ArithmeticOperators);
+
+            if (underlying.IsSigned)
+            {
+                names.Add("op_UnaryNegation");
+            }
+        }
+
+        if (implicitConversion)
+        {
+            names.Add("op_Implicit");
+        }
+
+        if (explicitConversion)
+        {
+            names.Add("op_Explicit");
         }
 
         if (closedValueSet)
