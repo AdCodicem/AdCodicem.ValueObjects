@@ -111,6 +111,35 @@ public sealed class HookTests
     }
 
     /// <summary>
+    /// A formatting hook takes over the default format too, so ToString() goes through it. The fallback for a hook
+    /// that no buffer satisfies writes the plain value instead, since ToString() would only come back to the hook.
+    /// </summary>
+    [Fact]
+    public void With_a_formatting_hook_ToString_goes_through_it_and_falls_back_to_the_plain_value()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>]
+            public readonly partial struct Celsius : IValueObjectFormatter<int>
+            {
+                public static bool TryFormatValue(
+                    in int value,
+                    Span<char> destination,
+                    out int charsWritten,
+                    ReadOnlySpan<char> format,
+                    IFormatProvider? provider)
+                    => destination.TryWrite(provider, $"{value} °C", out charsWritten);
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should()
+            .Contain("public override string ToString() => ToString(null, null);")
+            .And.Contain(": Value.ToString(null, global::System.Globalization.CultureInfo.InvariantCulture);")
+            .And.NotContain(": ToString();");
+    }
+
+    /// <summary>
     /// The string formatter takes precedence when a type declares both hooks, in span formatting as in
     /// <c>ToString</c>, so that interpolation and <c>ToString(format, provider)</c> write the same text.
     /// </summary>

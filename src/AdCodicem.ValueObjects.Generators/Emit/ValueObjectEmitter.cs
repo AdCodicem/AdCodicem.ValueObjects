@@ -624,21 +624,20 @@ internal static class ValueObjectEmitter
 
     private static void EmitFormatting(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value)
     {
-        writer.Line("/// <inheritdoc />");
-        if (underlying.IsString)
-        {
-            writer.Line("public override string ToString() => Value;");
-        }
-        else if (underlying.IsSpanFormattable)
-        {
-            var format = underlying.RoundTripFormat is null ? "null" : LiteralFactory.Quote(underlying.RoundTripFormat);
-            writer.Line($"public override string ToString() => Value.ToString({format}, {Invariant});");
-        }
-        else
-        {
-            writer.Line($"public override string ToString() => Value.ToString({Invariant});");
-        }
+        // The text of the underlying value, in the form Parse reads back.
+        var roundTrip = underlying.RoundTripFormat is null ? "null" : LiteralFactory.Quote(underlying.RoundTripFormat);
+        var plainText = underlying.IsString
+            ? "Value"
+            : underlying.IsSpanFormattable
+                ? $"Value.ToString({roundTrip}, {Invariant})"
+                : $"Value.ToString({Invariant})";
 
+        // A hook takes over formatting entirely, the default format included, so ToString() writes what
+        // interpolation and ToString(null, null) write.
+        writer.Line("/// <inheritdoc />");
+        writer.Line(model.HasFormatHook || model.HasTryFormatHook
+            ? "public override string ToString() => ToString(null, null);"
+            : $"public override string ToString() => {plainText};");
         writer.Line();
 
         writer.Line("/// <inheritdoc />");
@@ -659,11 +658,12 @@ internal static class ValueObjectEmitter
             writer.Line("return new string(buffer[..written]);");
             writer.Close();
             writer.Line();
-            writer.Line("// The stack buffer was too small for this format: give the hook a destination it cannot outgrow.");
+            writer.Line("// The stack buffer was too small for this format: give the hook a destination it cannot outgrow, and");
+            writer.Line("// fall back to the plain value if even that is not enough. ToString() would come back here.");
             writer.Line("var larger = new char[buffer.Length * 8];");
             writer.Line("return TryFormatValue(in current, larger, out written, global::System.MemoryExtensions.AsSpan(format), provider)");
             writer.Line("    ? new string(larger, 0, written)");
-            writer.Line("    : ToString();");
+            writer.Line($"    : {plainText};");
             writer.Close();
         }
         else if (underlying.IsString)
