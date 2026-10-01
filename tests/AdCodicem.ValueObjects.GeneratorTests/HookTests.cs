@@ -1,3 +1,6 @@
+using System.Globalization;
+using Microsoft.CodeAnalysis;
+
 namespace AdCodicem.ValueObjects.GeneratorTests;
 
 /// <summary>
@@ -256,6 +259,105 @@ public sealed class HookTests
     }
 
     /// <summary>
+    /// An identifier is generated like a string value object, and calls a validator or a formatter through its
+    /// interface only: written without it, the rule never runs, as on <c>[ValueObject&lt;T&gt;]</c>.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_reports_a_rule_an_entity_identifier_writes_without_its_interface()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>("""
+            [EntityId("acc")]
+            public readonly partial struct AccountId
+            {
+                public static ValidationResult ValidateValue(in string value) => ValidationResult.Success;
+
+                public static bool TryFormatValue(
+                    in string value,
+                    Span<char> destination,
+                    out int charsWritten,
+                    ReadOnlySpan<char> format,
+                    IFormatProvider? provider)
+                {
+                    charsWritten = 0;
+                    return false;
+                }
+
+                public static string FormatValue(in string value, ReadOnlySpan<char> format, IFormatProvider? provider)
+                    => value;
+
+                private static ValidationResult ValidateCore(string value) => ValidationResult.Success;
+            }
+            """);
+
+        diagnostics.Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture)).Should().BeEquivalentTo(
+            Undeclared("ValidateValue", "AccountId", "IValueObjectValidator<T>"),
+            Undeclared("TryFormatValue", "AccountId", "IValueObjectFormatter<T>"),
+            Undeclared("FormatValue", "AccountId", "IValueObjectStringFormatter<T>"),
+            Undeclared("ValidateCore", "AccountId", "IValueObjectValidator<T>"));
+        diagnostics.Should().OnlyContain(diagnostic => diagnostic.Id == "VO0011");
+    }
+
+    [Fact]
+    public async Task The_analyzer_says_nothing_when_an_entity_identifier_declares_the_interface()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>("""
+            [EntityId("acc")]
+            public readonly partial struct AccountId : IValueObjectValidator<string>
+            {
+                public static ValidationResult ValidateValue(in string value) => ValidationResult.Success;
+            }
+            """);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// An identifier normalizes its own format and never calls a normalizer, interface or not: one declared with its
+    /// interface is <c>VO0017</c>'s to report, and one without it would only be told to declare what VO0017 refuses.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_leaves_a_normalizer_on_an_entity_identifier_to_VO0017()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>("""
+            [EntityId("acc")]
+            public readonly partial struct AccountId
+            {
+                public static string NormalizeValue(string value) => value.Trim();
+
+                private static string NormalizeCore(string value) => value.Trim();
+            }
+            """);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A project using <c>[ValueObject&lt;T&gt;]</c> alone does not reference the identifiers package, so no type can
+    /// be an identifier there, and value objects are still held to their hooks.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_reports_a_value_object_where_the_identifiers_package_is_not_referenced()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>(
+            """
+            using AdCodicem.ValueObjects;
+            using AdCodicem.ValueObjects.Annotations;
+
+            namespace Plain;
+
+            [ValueObject<string>]
+            public readonly partial struct Code
+            {
+                public static ValidationResult ValidateValue(in string value) => ValidationResult.Success;
+            }
+            """,
+            GeneratorHarness.FrameworkReferences.Add(MetadataReference.CreateFromFile(typeof(IValueObject).Assembly.Location)));
+
+        diagnostics.Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture)).Should().Equal(
+            Undeclared("ValidateValue", "Code", "IValueObjectValidator<T>"));
+    }
+
+    /// <summary>
     /// The analyzer ships inside the package, but nothing stops a project from loading it without the contracts:
     /// a member shaped like a hook is then just a member, since no type can be a value object.
     /// </summary>
@@ -287,4 +389,8 @@ public sealed class HookTests
 
         analyzer.Invoking(target => target.Initialize(null!)).Should().NotThrow();
     }
+
+    private static string Undeclared(string member, string typeName, string hookInterface)
+        => $"'{member}' looks like a value object rule but '{typeName}' does not implement '{hookInterface}'. "
+            + "Declare the interface, or the rule will never run.";
 }

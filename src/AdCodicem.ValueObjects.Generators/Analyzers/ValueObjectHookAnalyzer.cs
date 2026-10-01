@@ -10,14 +10,22 @@ namespace AdCodicem.ValueObjects.Generators.Analyzers;
 /// Reports a member that looks like a generator hook but that the generator will never call.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Hooks are declared by implementing an interface, so a mis-signed one is a compiler error rather than a
 /// silent no-op. What the compiler cannot catch is a correctly written rule whose interface was never declared:
 /// the member sits there looking right and never runs. That is what this reports.
+/// </para>
+/// <para>
+/// An entity identifier calls a validator or a formatter it declares, like any value object, and is held to the
+/// same rule. It never calls a normalizer, since it normalizes its own format: a normalizer on one is
+/// <c>VO0017</c>'s to report, and is left to it.
+/// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
 {
     private const string ValueObjectAttributeName = "AdCodicem.ValueObjects.Annotations.ValueObjectAttribute`1";
+    private const string EntityIdAttributeName = "AdCodicem.ValueObjects.Identifiers.EntityIdAttribute";
     private const string HookNamespace = "AdCodicem.ValueObjects";
 
     /// <summary>
@@ -62,6 +70,9 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
         ["FormatCore"] = ["IValueObjectStringFormatter`1"],
     };
 
+    /// <summary>The hook member names of a normalizer, which an entity identifier leaves to <c>VO0017</c>.</summary>
+    private static readonly string[] Normalizers = ["NormalizeValue", "NormalizeCore"];
+
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [UndeclaredHook];
 
@@ -78,19 +89,26 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
 
         context.RegisterCompilationStartAction(static compilationContext =>
         {
-            var attributeSymbol = compilationContext.Compilation.GetTypeByMetadataName(ValueObjectAttributeName);
-            if (attributeSymbol is null)
+            var valueObjectAttribute = compilationContext.Compilation.GetTypeByMetadataName(ValueObjectAttributeName);
+            if (valueObjectAttribute is null)
             {
                 return;
             }
 
+            // An identifier needs the identifiers package, which a project using only [ValueObject<T>] does not
+            // reference.
+            var entityIdAttribute = compilationContext.Compilation.GetTypeByMetadataName(EntityIdAttributeName);
+
             compilationContext.RegisterSymbolAction(
-                symbolContext => Analyze(symbolContext, attributeSymbol),
+                symbolContext => Analyze(symbolContext, valueObjectAttribute, entityIdAttribute),
                 SymbolKind.Method);
         });
     }
 
-    private static void Analyze(SymbolAnalysisContext context, INamedTypeSymbol attributeSymbol)
+    private static void Analyze(
+        SymbolAnalysisContext context,
+        INamedTypeSymbol valueObjectAttribute,
+        INamedTypeSymbol? entityIdAttribute)
     {
         if (context.Symbol is not IMethodSymbol { IsStatic: true } method
             || method.ContainingType is not { TypeKind: TypeKind.Struct } containingType
@@ -99,10 +117,14 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var isValueObject = containingType.GetAttributes().Any(candidate =>
-            SymbolEqualityComparer.Default.Equals(candidate.AttributeClass?.OriginalDefinition, attributeSymbol));
+        var isEntityId = Carries(containingType, entityIdAttribute);
+        if ((!isEntityId && !Carries(containingType, valueObjectAttribute)) || method.DeclaringSyntaxReferences.Length == 0)
+        {
+            return;
+        }
 
-        if (!isValueObject || method.DeclaringSyntaxReferences.Length == 0)
+        // An identifier normalizes its own format and never calls a normalizer: one on an identifier is VO0017's.
+        if (isEntityId && Normalizers.Contains(method.Name, StringComparer.Ordinal))
         {
             return;
         }
@@ -124,4 +146,8 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
             containingType.Name,
             expected));
     }
+
+    private static bool Carries(INamedTypeSymbol type, INamedTypeSymbol? attribute)
+        => attribute is not null && type.GetAttributes().Any(candidate =>
+            SymbolEqualityComparer.Default.Equals(candidate.AttributeClass?.OriginalDefinition, attribute));
 }
