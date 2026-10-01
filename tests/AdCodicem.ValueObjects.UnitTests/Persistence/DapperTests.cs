@@ -32,6 +32,30 @@ public class DapperTests
     }
 
     /// <summary>
+    /// A legacy schema may keep a Guid or a number in a text column. The text is parsed the way the value object
+    /// parses text, which normalizes it, and validates it: unlike a value the provider returns as the underlying
+    /// type, text was not necessarily written through the value object.
+    /// </summary>
+    [Fact]
+    public void Text_read_into_a_value_object_of_another_type_is_parsed_and_validated()
+    {
+        Read(typeof(CustomerId), "0192f4a0-0000-7000-8000-000000000001")
+            .Should().Be(CustomerId.Create(Guid.Parse("0192f4a0-0000-7000-8000-000000000001")));
+        Read(typeof(Amount), "12.345").Should().Be(Amount.Create(12.34m), "text normalizes as Parse normalizes it");
+    }
+
+    [Theory]
+    [InlineData(typeof(CustomerId), "00000000-0000-0000-0000-000000000000", "*not a valid CustomerId*must not be empty*")]
+    [InlineData(typeof(Amount), "-5", "*not a valid Amount*greater than or equal to 0*")]
+    [InlineData(typeof(Amount), "five", "*not a valid Amount*")]
+    public void Text_the_value_object_refuses_is_a_DataException_carrying_the_rule(Type type, string text, string message)
+    {
+        var act = () => Read(type, text);
+
+        act.Should().Throw<DataException>().WithMessage(message);
+    }
+
+    /// <summary>
     /// Dapper checks for DBNull before it hands a column to the handler of a typed member, and the readers it
     /// drives return DBNull rather than null, so only a direct call shows that null is refused like DBNull.
     /// </summary>
