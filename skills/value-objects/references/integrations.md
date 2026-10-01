@@ -176,8 +176,8 @@ Registration happens through a generated `[ModuleInitializer]`, so nothing needs
 module initializer only runs once its assembly is loaded, which is what `EnsureAssemblyRegistered(assembly)`
 forces (the EF Core and Dapper entry points already call it). `TryResolve` also unwraps `Nullable<T>`;
 `IsValueObject` and `GetUnderlyingType` answer the cheap questions. A value object is a struct implementing
-`IValueObject<TSelf, TValue>` over itself: `IsValueObject` is `true` exactly for what `TryResolve` describes, and
-every integration claims a type by that rule.
+`IValueObject<TSelf, TValue>` over itself: `IsValueObject` is `true`, and `GetUnderlyingType` other than `null`,
+exactly for what `TryResolve` describes, and every integration claims a type by that rule.
 
 This boxed path is for callers that only know a `Type` at run time. Domain code and the integrations above use
 the typed path — the static abstract members of `IValueObject<TSelf, TValue>` — which neither boxes nor

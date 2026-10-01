@@ -1,8 +1,8 @@
 namespace AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
 // Types that claim to be value objects without carrying the contract that describes one: each implements the
-// marker, so IsValueObject answers yes, and none implements IValueObject<TSelf, TValue> over itself, so no
-// descriptor, converter or binder can be built for it.
+// marker, and none implements IValueObject<TSelf, TValue> over itself, so the registry calls none of them a value
+// object and no descriptor, converter or binder can be built for it.
 
 /// <summary>
 /// A struct carrying only the non-generic marker.
