@@ -154,6 +154,18 @@ public class AnyEntityIdTests
         JsonSerializer.Deserialize<AnyEntityId?>("null").Should().BeNull();
     }
 
+    /// <summary>
+    /// ASP.NET Core turns a <see cref="JsonException"/> from a request body into a 400 and lets anything else
+    /// through as a 500, so a key no type claims has to be reported the way a value no type claims is.
+    /// </summary>
+    [Fact]
+    public void A_dictionary_key_no_type_claims_is_refused_as_JSON()
+    {
+        var act = () => JsonSerializer.Deserialize<Dictionary<AnyEntityId, int>>("""{"zzz_nope":1}""");
+
+        act.Should().Throw<JsonException>().WithMessage("*'zzz_nope' is not an identifier of any registered type*");
+    }
+
     [Fact]
     public void It_converts_through_the_type_descriptor_for_model_binding()
     {
