@@ -135,6 +135,26 @@ public sealed class KnownValueNameTests
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
+    [Fact]
+    public void A_known_value_without_a_name_is_reported_under_a_question_mark()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>]
+            [KnownValue(null, "FR")]
+            public readonly partial struct Country;
+            """);
+
+        var diagnostic = run.Diagnostics.Should().ContainSingle().Subject;
+        diagnostic.Id.Should().Be("VO0006");
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+        run.Locate(diagnostic).Should().Be(("Country", "public readonly partial struct Country;"));
+        diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
+            "'?' is not usable as the name of a generated member on 'Country'");
+        run.CompilationDiagnostics.Should().OnlyContain(
+            compiled => compiled.Id == "CS8625",
+            "the null literal is the author's to answer for, and nothing generated may add to it");
+    }
+
     /// <summary>
     /// Asserts that a known value of that name is reported, on the declaration, while a second one is generated
     /// and the generated code compiles.

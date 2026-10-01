@@ -146,6 +146,48 @@ public sealed class EmissionTests
     }
 
     /// <summary>
+    /// The generated code reopens each containing type with the keyword it was declared with: a record struct
+    /// reopened as a struct, or a record as a class, is a different declaration the compiler refuses.
+    /// </summary>
+    [Theory]
+    [InlineData("public partial record struct Outer", "partial record struct Outer")]
+    [InlineData("public partial record Outer", "partial record Outer")]
+    [InlineData("public readonly partial struct Outer", "partial struct Outer")]
+    [InlineData("public static partial class Outer", "partial class Outer")]
+    public void A_nested_value_object_reopens_its_container_as_declared(string container, string reopening)
+    {
+        var run = GeneratorHarness.Run($$"""
+            {{container}}
+            {
+                [ValueObject<string>]
+                public readonly partial struct Code;
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Split('\n').Select(line => line.Trim()).Should().Contain(reopening);
+    }
+
+    /// <summary>
+    /// A combining mark is part of an identifier but no letter or digit, so it has no place in the name of the
+    /// generated file and is replaced there, while the code keeps the name as declared.
+    /// </summary>
+    [Fact]
+    public void A_name_holding_a_character_outside_the_file_name_alphabet_gets_a_hint_name_without_it()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>]
+            public readonly partial struct Cafe\u0301Code;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo("Test.Cafe_Code.g.cs", "ValueObjectRegistration.g.cs");
+        run.SingleValueObject.Should().Contain("partial struct Cafe\u0301Code : ");
+        run.CompilationDiagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// A keyword is a legal name for a type or a namespace once escaped, so the generated code has to write it
     /// escaped wherever it names one: the namespace, the containing types, the value object, its constructor, and
     /// the documentation references, which only a project producing its documentation file resolves.
