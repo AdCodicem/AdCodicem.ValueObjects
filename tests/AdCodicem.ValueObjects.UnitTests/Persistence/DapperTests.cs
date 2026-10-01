@@ -224,6 +224,31 @@ public class DapperTests
     }
 
     /// <summary>
+    /// The reverse of text kept for a number: a legacy schema may keep the digits of a reference in a numeric column.
+    /// The number becomes text, which no value object wrote either, so it is normalized and validated through
+    /// <c>TryCreate</c>.
+    /// </summary>
+    [Fact]
+    public void A_value_converted_into_a_string_value_object_is_validated()
+    {
+        Read(typeof(Ordering.OrderReference), 12345L).Should().Be(Ordering.OrderReference.Create("12345"));
+        Read(typeof(Ordering.OrderReference), 12.5m).Should().Be(Ordering.OrderReference.Create("12.5"));
+    }
+
+    [Theory]
+    [InlineData(typeof(Iban), 7630006000L, "The value read is not a valid Iban: *")]
+    [InlineData(typeof(Ordering.OrderReference), 12, "The value read is not a valid OrderReference: *at least 3*")]
+    public void A_value_converted_into_a_string_value_object_it_refuses_is_a_DataException_carrying_the_rule(
+        Type type,
+        object cell,
+        string message)
+    {
+        var act = () => Read(type, cell);
+
+        act.Should().Throw<DataException>().WithMessage(message);
+    }
+
+    /// <summary>
     /// Dapper checks for DBNull before it hands a column to the handler of a typed member, and the readers it
     /// drives return DBNull rather than null, so only a direct call shows that null is refused like DBNull.
     /// </summary>

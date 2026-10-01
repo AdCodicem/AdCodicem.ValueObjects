@@ -12,9 +12,11 @@ namespace AdCodicem.ValueObjects.Dapper;
 /// <remarks>
 /// <para>
 /// Reading uses the trusted factory, on the same reasoning as the Entity Framework Core converter: the rows come
-/// from a database this application wrote through the validating factory, and read paths are hot. Text read into
-/// a value object whose underlying type is not <see cref="string"/> is the exception: it is parsed, and so
-/// validated, the way the value object parses text.
+/// from a database this application wrote through the validating factory, and read paths are hot. A column holding
+/// text where the underlying type is not text, or the reverse, is the exception: the value object did not write it.
+/// Text read into a value object whose underlying type is not <see cref="string"/> is parsed, and so validated, the
+/// way the value object parses text. Anything else read into a value object over <see cref="string"/> - a number
+/// from a numeric column - is converted to text, then validated through <c>TryCreate</c>.
 /// </para>
 /// <para>
 /// A SQL <c>NULL</c> reads as <see langword="null"/> into an optional value object, <c>TSelf?</c>, and is refused
@@ -41,8 +43,9 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
 
     /// <inheritdoc />
     /// <exception cref="DataException">
-    /// <paramref name="value"/> is a SQL <c>NULL</c>, which a value object cannot hold, text the value object refuses,
-    /// or a value that cannot be converted to <typeparamref name="TValue"/>.
+    /// <paramref name="value"/> is a SQL <c>NULL</c>, which a value object cannot hold, a value that cannot be
+    /// converted to <typeparamref name="TValue"/>, or text, or a value converted to text, that the value object
+    /// refuses.
     /// </exception>
     public override TSelf Parse(object value)
     {
@@ -64,11 +67,29 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
         {
             return TSelf.TryParse(text, CultureInfo.InvariantCulture, out var parsed, out var validation)
                 ? parsed
-                : throw new DataException($"The value read is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}");
+                : throw Refused(validation);
         }
 
-        return TSelf.CreateUnchecked(Convert(value));
+        var converted = Convert(value);
+
+        // The reverse case, a number kept where text belongs, holds text no value object wrote either.
+        if (typeof(TValue) == typeof(string))
+        {
+            return TSelf.TryCreate(converted, out var created, out var validation)
+                ? created
+                : throw Refused(validation);
+        }
+
+        return TSelf.CreateUnchecked(converted);
     }
+
+    /// <summary>
+    /// Reports a value the value object refuses, with the rule that refused it.
+    /// </summary>
+    /// <param name="validation">The refusal.</param>
+    /// <returns>The exception to throw.</returns>
+    private static DataException Refused(ValidationResult validation)
+        => new($"The value read is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}");
 
     /// <summary>
     /// Converts what the provider returned into the underlying type, when it returned another type.
