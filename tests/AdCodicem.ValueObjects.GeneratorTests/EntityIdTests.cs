@@ -270,6 +270,28 @@ public sealed class EntityIdTests
         run.SingleValueObject.Should().Contain("return ValidateValue(in value);");
     }
 
+    /// <summary>
+    /// <c>AllowDefault</c> speaks to the analyzer alone, as it does on <c>[ValueObject&lt;T&gt;]</c>: the identifier
+    /// generated with it is the one generated without it.
+    /// </summary>
+    [Fact]
+    public void AllowDefault_changes_nothing_the_generator_writes_for_an_identifier()
+    {
+        var plain = GeneratorHarness.Run("""
+            [EntityId("acc")]
+            public readonly partial struct AccountId;
+            """);
+
+        var allowingDefault = GeneratorHarness.Run("""
+            [EntityId("acc", AllowDefault = true)]
+            public readonly partial struct AccountId;
+            """);
+
+        allowingDefault.Diagnostics.Should().BeEmpty();
+        allowingDefault.CompilationDiagnostics.Should().BeEmpty();
+        allowingDefault.Files.Should().Equal(plain.Files);
+    }
+
     [Fact]
     public void Both_annotations_on_one_type_are_reported_once()
     {
