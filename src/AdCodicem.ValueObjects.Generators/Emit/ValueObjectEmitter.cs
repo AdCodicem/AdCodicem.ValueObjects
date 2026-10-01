@@ -405,9 +405,13 @@ internal static class ValueObjectEmitter
             writer.Line();
         }
 
+        // NaN compares false with everything: written as `value < minimum`, a bound would let it through, so a
+        // floating-point bound asks whether the value is inside it instead.
+        var floating = underlying.Kind is UnderlyingKind.Double or UnderlyingKind.Single;
+
         if (underlying.SupportsBounds && model.MinimumLiteral is not null)
         {
-            writer.Open($"if (value < {model.MinimumLiteral})");
+            writer.Open(floating ? $"if (!(value >= {model.MinimumLiteral}))" : $"if (value < {model.MinimumLiteral})");
             writer.Line($"return {ValidationResult}.OutOfRange(\"The value must be greater than or equal to {Xml(model.MinimumText!)}.\");");
             writer.Close();
             writer.Line();
@@ -415,7 +419,7 @@ internal static class ValueObjectEmitter
 
         if (underlying.SupportsBounds && model.MaximumLiteral is not null)
         {
-            writer.Open($"if (value > {model.MaximumLiteral})");
+            writer.Open(floating ? $"if (!(value <= {model.MaximumLiteral}))" : $"if (value > {model.MaximumLiteral})");
             writer.Line($"return {ValidationResult}.OutOfRange(\"The value must be less than or equal to {Xml(model.MaximumText!)}.\");");
             writer.Close();
             writer.Line();
