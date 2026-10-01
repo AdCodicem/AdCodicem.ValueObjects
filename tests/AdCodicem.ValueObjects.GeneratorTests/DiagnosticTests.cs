@@ -94,6 +94,10 @@ public sealed class DiagnosticTests
     [InlineData("long", "-9223372036854775809")]
     [InlineData("ulong", "-1")]
     [InlineData("ulong", "18446744073709551616")]
+    [InlineData("Int128", "170141183460469231731687303715884105728")]
+    [InlineData("Int128", "-170141183460469231731687303715884105729")]
+    [InlineData("UInt128", "-1")]
+    [InlineData("UInt128", "340282366920938463463374607431768211456")]
     public void A_bound_outside_the_range_of_its_underlying_type_is_reported(string underlying, string bound)
     {
         var run = GeneratorHarness.Run($$"""
@@ -112,6 +116,7 @@ public sealed class DiagnosticTests
     [InlineData("uint", "-1")]
     [InlineData("long", "9223372036854775808")]
     [InlineData("ulong", "-1")]
+    [InlineData("UInt128", "-1")]
     public void A_known_value_outside_the_range_of_its_underlying_type_is_reported(string underlying, string value)
     {
         var run = GeneratorHarness.Run($$"""
