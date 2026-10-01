@@ -262,6 +262,7 @@ without the package, the attribute does not exist.
 | `VO0016` | Error | Two types in the compilation declare the same prefix. |
 | `VO0017` | Error | An option that `[EntityId]` derives or forbids was set by hand. |
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
+| `VO0020` | Error | `Granularity` holds a value `IdGranularity` does not define. |
 
 Cross-assembly prefix collisions are beyond a generator's reach and surface at start-up, when the second
 registration for a prefix is refused.
