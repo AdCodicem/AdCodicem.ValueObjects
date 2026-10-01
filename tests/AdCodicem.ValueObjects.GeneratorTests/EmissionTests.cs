@@ -218,6 +218,35 @@ public sealed class EmissionTests
         run.SingleValueObject.Should().Contain(literal);
     }
 
+    /// <summary>
+    /// The ticks a date and time bound compiles to are those written, whatever the time zone of the machine
+    /// running the compiler.
+    /// </summary>
+    [Theory]
+    [InlineData(
+        "DateTime",
+        "2020-01-01T08:30:00",
+        "new global::System.DateTime(637134642000000000L, global::System.DateTimeKind.Unspecified)")]
+    [InlineData(
+        "DateTimeOffset",
+        "2020-01-01T00:00:00+02:00",
+        "new global::System.DateTimeOffset(637134336000000000L, new global::System.TimeSpan(72000000000L))")]
+    [InlineData(
+        "DateTimeOffset",
+        "2020-01-01T00:00:00Z",
+        "new global::System.DateTimeOffset(637134336000000000L, new global::System.TimeSpan(0L))")]
+    public void A_date_and_time_bound_compiles_to_the_instant_written(string underlying, string bound, string literal)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>(Minimum = "{{bound}}")]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain(literal);
+    }
+
     [Theory]
     [InlineData("string")]
     [InlineData("int")]

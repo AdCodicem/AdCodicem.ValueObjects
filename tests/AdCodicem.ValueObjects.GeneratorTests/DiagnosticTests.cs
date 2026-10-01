@@ -132,6 +132,26 @@ public sealed class DiagnosticTests
         run.CompilationDiagnostics.Should().BeEmpty("a refused bound must not reach the generated code");
     }
 
+    /// <summary>
+    /// A bound must mean the same instant on every machine that compiles it. A DateTime reading with an offset
+    /// would be converted to the build machine's time zone, and a DateTimeOffset without one would take its offset.
+    /// </summary>
+    [Theory]
+    [InlineData("DateTime", "2020-01-01T00:00:00Z")]
+    [InlineData("DateTime", "2020-01-01T00:00:00+00:00")]
+    [InlineData("DateTime", "2020-01-01T00:00:00+02:00")]
+    [InlineData("DateTimeOffset", "2020-01-01")]
+    [InlineData("DateTimeOffset", "2020-01-01T00:00:00")]
+    public void A_date_and_time_bound_that_would_depend_on_the_build_machine_is_reported(string underlying, string bound)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>(Minimum = "{{bound}}")]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Ids.Should().Contain("VO0004");
+    }
+
     [Theory]
     [InlineData("double", "double.NaN")]
     [InlineData("double", "double.PositiveInfinity")]
