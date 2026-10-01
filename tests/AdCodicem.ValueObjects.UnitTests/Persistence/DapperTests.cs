@@ -56,6 +56,60 @@ public class DapperTests
     public static TheoryData<string> EveryMismatch => [.. Mismatches.Keys];
 
     [Fact]
+    public void Registering_the_handlers_makes_Dapper_handle_every_value_object_and_its_nullable()
+    {
+        SqlMapper.HasTypeHandler(typeof(Iban)).Should().BeTrue();
+        SqlMapper.HasTypeHandler(typeof(Iban?)).Should().BeTrue();
+        SqlMapper.HasTypeHandler(typeof(CustomerId)).Should().BeTrue();
+        SqlMapper.HasTypeHandler(typeof(AccountId)).Should().BeTrue("an entity identifier is a value object too");
+    }
+
+    /// <summary>
+    /// Start-up code may run twice in one process - two hosts under test, say - and Dapper's table is process-wide.
+    /// </summary>
+    [Fact]
+    public void Registering_the_handlers_again_changes_nothing()
+    {
+        ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);
+        ValueObjectDapper.AddValueObjectHandlers();
+
+        SqlMapper.HasTypeHandler(typeof(Iban)).Should().BeTrue();
+        Read(typeof(Iban), "FR7630006000011234567890189").Should().Be(Iban.Create("FR7630006000011234567890189"));
+    }
+
+    /// <summary>
+    /// A row is trusted as it is read: the value comes back as stored, neither normalized nor validated, as the
+    /// Entity Framework Core converter reads it.
+    /// </summary>
+    [Fact]
+    public void A_row_maps_its_columns_onto_value_object_members_as_stored()
+    {
+        using var table = new DataTable();
+        table.Columns.Add(nameof(Account.Iban), typeof(string));
+        table.Columns.Add(nameof(Account.Balance), typeof(decimal));
+        table.Columns.Add(nameof(Account.Closed), typeof(DateTime));
+        table.Rows.Add("FR7630006000011234567890189", 12.345m, DBNull.Value);
+
+        using var reader = table.CreateDataReader();
+        var account = reader.Parse<Account>().Single();
+
+        account.Iban.Should().Be(Iban.Create("FR7630006000011234567890189"));
+        account.Balance.Value.Should().Be(12.345m, "a value read as the underlying type is not normalized again");
+        account.Closed.Should().BeNull();
+    }
+
+    [Fact]
+    public void A_value_object_parameter_goes_out_as_its_underlying_value()
+    {
+        var handler = new ValueObjectTypeHandler<Amount, decimal>();
+        var parameter = Substitute.For<IDbDataParameter>();
+
+        handler.SetValue(parameter, Amount.Create(12.5m));
+
+        parameter.Value.Should().Be(12.50m);
+    }
+
+    [Fact]
     public void A_NULL_read_into_an_optional_value_object_is_null()
     {
         Read(typeof(Iban?), DBNull.Value).Should().BeNull();
@@ -161,5 +215,15 @@ public class DapperTests
         using var reader = table.CreateDataReader();
 
         return reader.Parse(type).Single();
+    }
+
+    /// <summary>A row of a table of accounts.</summary>
+    private sealed class Account
+    {
+        public Iban Iban { get; set; }
+
+        public Amount Balance { get; set; }
+
+        public RecordedAt? Closed { get; set; }
     }
 }
