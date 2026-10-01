@@ -53,8 +53,8 @@ internal static class LiteralFactory
             // The compiler may run on .NET Framework, as in Visual Studio, whose default form of a double keeps
             // 15 significant digits and of a float 7, and so names a neighbouring value. The round-trip form
             // names the value itself.
-            double real => real.ToString("R", CultureInfo.InvariantCulture),
-            float single => single.ToString("R", CultureInfo.InvariantCulture),
+            double real => RoundTrip(real),
+            float single => RoundTrip(single),
             _ => Convert.ToString(value, CultureInfo.InvariantCulture),
         };
 
@@ -149,24 +149,27 @@ internal static class LiteralFactory
                 // The form leaves out NaN and the infinities, which have no literal: written with its suffix, each
                 // would be an identifier the compiler cannot find. Text past double.MaxValue reads as an infinity
                 // on .NET and does not read at all on .NET Framework, where the compiler may run, so both results
-                // are checked, without a short circuit.
+                // are checked, without a short circuit. Text too small for the type reads as zero, which it does not
+                // name any more than the infinity names text too large, so only text written as zero may read so.
                 if (!IsNumber(text, exponent: true)
-                    || !(double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var dbl) & !double.IsInfinity(dbl)))
+                    || !(double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var dbl) & !double.IsInfinity(dbl))
+                    || (dbl == 0d && !IsWrittenAsZero(text)))
                 {
                     return false;
                 }
 
-                literal = dbl.ToString("R", CultureInfo.InvariantCulture) + "d";
+                literal = RoundTrip(dbl) + "d";
                 return true;
 
             case UnderlyingKind.Single:
                 if (!IsNumber(text, exponent: true)
-                    || !(float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var flt) & !float.IsInfinity(flt)))
+                    || !(float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var flt) & !float.IsInfinity(flt))
+                    || (flt == 0f && !IsWrittenAsZero(text)))
                 {
                     return false;
                 }
 
-                literal = flt.ToString("R", CultureInfo.InvariantCulture) + "f";
+                literal = RoundTrip(flt) + "f";
                 return true;
 
             case UnderlyingKind.DateOnly:
@@ -234,6 +237,73 @@ internal static class LiteralFactory
     /// <param name="value">Value to quote.</param>
     /// <returns>The literal expression.</returns>
     public static string Quote(string value) => $"\"{Escape(value)}\"";
+
+    /// <summary>
+    /// Writes a double in a form that reads back as the same value, whatever runtime the compiler runs on.
+    /// </summary>
+    /// <param name="value">A finite value.</param>
+    /// <returns>Its round-trip form, or seventeen significant digits where that form does not read back.</returns>
+    internal static string RoundTrip(double value)
+        => ReadsBack(value, value.ToString("R", CultureInfo.InvariantCulture));
+
+    /// <summary>
+    /// Writes a float in a form that reads back as the same value, whatever runtime the compiler runs on.
+    /// </summary>
+    /// <param name="value">A finite value.</param>
+    /// <returns>Its round-trip form, or nine significant digits where that form does not read back.</returns>
+    internal static string RoundTrip(float value)
+        => ReadsBack(value, value.ToString("R", CultureInfo.InvariantCulture));
+
+    /// <summary>
+    /// Keeps the text of a double when it reads back as the value, and writes seventeen significant digits otherwise.
+    /// </summary>
+    /// <remarks>
+    /// On .NET Framework, which the compiler runs on in Visual Studio, a value written in the round-trip form does
+    /// not always read back as itself in a 64-bit process, as its documentation warns: the text can name a
+    /// neighbouring value. Seventeen significant digits always name the value itself. On .NET the round-trip form is
+    /// exact, and is kept for being the shorter.
+    /// </remarks>
+    /// <param name="value">A finite value.</param>
+    /// <param name="text">Its text in the round-trip form.</param>
+    /// <returns>Text that reads back as <paramref name="value"/>.</returns>
+    internal static string ReadsBack(double value, string text)
+        => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var read) && read == value
+            ? text
+            : value.ToString("G17", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Keeps the text of a float when it reads back as the value, and writes nine significant digits otherwise, which
+    /// always name the value itself.
+    /// </summary>
+    /// <param name="value">A finite value.</param>
+    /// <param name="text">Its text in the round-trip form.</param>
+    /// <returns>Text that reads back as <paramref name="value"/>.</returns>
+    internal static string ReadsBack(float value, string text)
+        => float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var read) && read == value
+            ? text
+            : value.ToString("G9", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Whether every digit before the exponent is a zero: a number written as zero, rather than one too small for
+    /// its type, which reads as zero too.
+    /// </summary>
+    private static bool IsWrittenAsZero(string text)
+    {
+        foreach (var character in text)
+        {
+            if (character is 'e' or 'E')
+            {
+                break;
+            }
+
+            if (character is >= '1' and <= '9')
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private static bool HasSurroundingWhiteSpace(string text)
         => text.Length > 0 && (char.IsWhiteSpace(text[0]) || char.IsWhiteSpace(text[text.Length - 1]));
