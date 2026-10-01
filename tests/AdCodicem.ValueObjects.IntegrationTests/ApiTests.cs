@@ -119,12 +119,14 @@ public sealed class ApiTests(PostgreSqlFixture database) : IClassFixture<Postgre
     public async Task A_value_object_binds_from_the_query_string()
     {
         await CreateCustomerAsync("query.binding@example.com", "LU");
+        await CreateCustomerAsync("query.elsewhere@example.com", "BE");
 
         var response = await _client.GetAsync("/customers?country=lu", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         body.Should().Contain("query.binding@example.com");
+        body.Should().NotContain("query.elsewhere@example.com", "the country bound from the query string filters");
     }
 
     [Fact]
