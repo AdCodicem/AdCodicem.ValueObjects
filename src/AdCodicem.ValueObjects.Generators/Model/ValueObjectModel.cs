@@ -126,13 +126,4 @@ internal sealed record ValueObjectModel
         => UnderlyingType.TryResolve(UnderlyingFullName, out var underlying)
             ? underlying
             : throw new InvalidOperationException($"Unsupported underlying type '{UnderlyingFullName}'.");
-
-    /// <summary>Gets a value indicating whether the type declares constraints enforced by generated code.</summary>
-    public bool HasDeclarativeRules
-        => Pattern is not null
-           || MinLength >= 0
-           || MaxLength >= 0
-           || MinimumLiteral is not null
-           || MaximumLiteral is not null
-           || IsClosedValueSet;
 }
