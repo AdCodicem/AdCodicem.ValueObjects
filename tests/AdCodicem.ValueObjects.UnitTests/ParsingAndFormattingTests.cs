@@ -161,4 +161,27 @@ public class ParsingAndFormattingTests
 
         $"total: {amount}".Should().Be("total: 42.00");
     }
+
+    [Fact]
+    public void A_time_keeps_its_seconds_through_text()
+    {
+        var opening = OpeningTime.Create(new TimeOnly(9, 30, 15));
+
+        var text = opening.ToString(null, CultureInfo.InvariantCulture);
+
+        OpeningTime.Parse(text, CultureInfo.InvariantCulture).Should().Be(opening);
+    }
+
+    [Fact]
+    public void Dates_and_times_interpolate_in_the_form_ToString_writes()
+    {
+        var birthDate = BirthDate.Create(new DateOnly(1980, 5, 17));
+        var recorded = RecordedAt.Create(new DateTime(2024, 6, 1, 12, 30, 45, 123, DateTimeKind.Utc));
+        var occurred = OccurredAt.Create(new DateTimeOffset(2024, 6, 1, 12, 30, 45, 123, TimeSpan.FromHours(2)));
+
+        $"{birthDate}".Should().Be("1980-05-17");
+        $"{recorded}".Should().Be("2024-06-01T12:30:45.1230000Z");
+        $"{occurred}".Should().Be("2024-06-01T12:30:45.1230000+02:00");
+        recorded.ToString(null, CultureInfo.InvariantCulture).Should().Be(recorded.ToString());
+    }
 }

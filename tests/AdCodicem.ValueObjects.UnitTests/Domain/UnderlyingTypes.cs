@@ -12,3 +12,15 @@ public readonly partial struct Latitude;
 /// <summary>A ratio between zero and one.</summary>
 [ValueObject<float>(Arithmetic = true, Minimum = "0", Maximum = "1")]
 public readonly partial struct Ratio;
+
+/// <summary>The time a shop opens.</summary>
+[ValueObject<TimeOnly>(Minimum = "06:00", Maximum = "12:00")]
+public readonly partial struct OpeningTime;
+
+/// <summary>When a record was written.</summary>
+[ValueObject<DateTime>(Minimum = "2000-01-01", Maximum = "2099-12-31")]
+public readonly partial struct RecordedAt;
+
+/// <summary>When an event occurred, with the offset it occurred at.</summary>
+[ValueObject<DateTimeOffset>(Minimum = "2000-01-01T00:00:00+00:00")]
+public readonly partial struct OccurredAt;
