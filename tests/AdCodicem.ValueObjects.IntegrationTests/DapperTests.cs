@@ -112,6 +112,34 @@ public abstract class DapperTests<TFixture>(TFixture fixture) : IClassFixture<TF
         await required.Should().ThrowAsync<DataException>().WithMessage("*NULL*Iban*");
     }
 
+    /// <summary>
+    /// For a mapped member, Dapper checks for a NULL before it calls the handler, and never calls it: the member
+    /// keeps the uninitialized value object, and nothing throws.
+    /// </summary>
+    [Fact]
+    public async Task A_NULL_column_leaves_a_required_member_uninitialized()
+    {
+        var customer = NewCustomer("dapper.member@example.com");
+
+        await using (var write = fixture.CreateContext())
+        {
+            write.Customers.Add(customer);
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        // The customer holds no account, so the join finds none and the account's columns are NULL.
+        var sql = $"SELECT a.{Q("Iban")}, c.{Q("Id")} AS {Q("CustomerId")}, a.{Q("Balance")} "
+                  + $"FROM {Q("customers")} c LEFT JOIN {Q("accounts")} a ON a.{Q("CustomerId")} = c.{Q("Id")} "
+                  + $"WHERE c.{Q("Id")} = @id";
+
+        await using var connection = fixture.CreateConnection();
+        var account = await connection.QuerySingleAsync<BankAccount>(Command(sql, new { id = customer.Id }));
+
+        account.Iban.IsDefault.Should().BeTrue();
+        account.Balance.IsDefault.Should().BeTrue();
+        account.CustomerId.Should().Be(customer.Id);
+    }
+
     [Fact]
     public async Task A_guid_value_object_returned_as_text_is_parsed_and_validated()
     {

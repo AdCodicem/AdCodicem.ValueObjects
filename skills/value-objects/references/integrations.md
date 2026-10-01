@@ -123,7 +123,10 @@ ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);   // once, at s
 Dapper keeps handlers in a process-wide table. Without this, every query touching a value object needs an
 explicit projection.
 
-- Read a nullable column into `Iban?`: `NULL` gives `null`. Read into `Iban`, it throws `DataException`.
+- Read a nullable column into `Iban?`: `NULL` gives `null`. A single-column query into `Iban` throws
+  `DataException`, but Dapper never calls the handler for a `NULL` mapped to a member or a constructor parameter:
+  an `Iban` member is left uninitialized (`IsDefault`), silently. Declare `Iban?` for every column that can be
+  `NULL`, outer joins included.
 - A column the provider returns as the underlying type, or as its date and time counterpart (`DateTime` for a
   `date`, `TimeSpan` for a `time`, a UTC `DateTime` for a `timestamptz`), is trusted, like the EF Core read path.
 - Text read into a non-string value object is parsed and validated; a refusal throws `DataException` carrying the

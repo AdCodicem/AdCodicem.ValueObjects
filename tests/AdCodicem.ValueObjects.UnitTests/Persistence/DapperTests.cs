@@ -125,6 +125,34 @@ public class DapperTests
     }
 
     /// <summary>
+    /// Dapper checks for a NULL before it hands a column to the handler of a mapped member or of a constructor
+    /// parameter, and never calls it: a required value object is left uninitialized, as a required <c>int</c> is
+    /// left at zero, and only a single-column query reaches the refusal above. A nullable column belongs in an
+    /// optional member.
+    /// </summary>
+    [Fact]
+    public void A_NULL_column_leaves_a_required_member_or_constructor_parameter_uninitialized()
+    {
+        using var table = new DataTable();
+        table.Columns.Add(nameof(Account.Iban), typeof(string));
+        table.Columns.Add(nameof(Account.Balance), typeof(decimal));
+        table.Columns.Add(nameof(Account.Closed), typeof(DateTime));
+        table.Rows.Add(DBNull.Value, DBNull.Value, DBNull.Value);
+
+        using var members = table.CreateDataReader();
+        var account = members.Parse<Account>().Single();
+        using var parameters = table.CreateDataReader();
+        var positional = parameters.Parse<PositionalAccount>().Single();
+
+        account.Iban.IsDefault.Should().BeTrue();
+        account.Balance.IsDefault.Should().BeTrue();
+        account.Closed.Should().BeNull();
+        positional.Iban.IsDefault.Should().BeTrue();
+        positional.Balance.IsDefault.Should().BeTrue();
+        positional.Closed.Should().BeNull();
+    }
+
+    /// <summary>
     /// What the provider returns as another type than the underlying one is converted, and trusted as a value of
     /// the underlying type would be.
     /// </summary>
@@ -226,4 +254,10 @@ public class DapperTests
 
         public RecordedAt? Closed { get; set; }
     }
+
+    /// <summary>A row of a table of accounts, mapped through its constructor.</summary>
+    /// <param name="Iban">Account number.</param>
+    /// <param name="Balance">Current balance.</param>
+    /// <param name="Closed">When the account was closed, if it was.</param>
+    private sealed record PositionalAccount(Iban Iban, Amount Balance, RecordedAt? Closed);
 }
