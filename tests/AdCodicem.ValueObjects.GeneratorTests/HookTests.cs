@@ -247,4 +247,37 @@ public sealed class HookTests
 
         diagnostics.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// The analyzer ships inside the package, but nothing stops a project from loading it without the contracts:
+    /// a member shaped like a hook is then just a member, since no type can be a value object.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_says_nothing_where_the_library_is_not_referenced()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>(
+            """
+            namespace Plain;
+
+            public readonly struct Point
+            {
+                public static int NormalizeValue(int value) => value;
+            }
+            """,
+            GeneratorHarness.FrameworkReferences);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The compiler never hands an analyzer a null context, so the guard is only reached by a direct call, which
+    /// it tolerates.
+    /// </summary>
+    [Fact]
+    public void The_analyzer_initialized_without_a_context_does_nothing()
+    {
+        var analyzer = new ValueObjectHookAnalyzer();
+
+        analyzer.Invoking(target => target.Initialize(null!)).Should().NotThrow();
+    }
 }
