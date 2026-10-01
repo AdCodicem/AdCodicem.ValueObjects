@@ -1076,8 +1076,9 @@ internal static class ValueObjectEmitter
     /// </summary>
     /// <remarks>
     /// A line break would end the comment and leave the rest of the text as code, so every character C# ends a
-    /// line at is folded into a space, a CR LF pair into one. So are the other control characters, which XML
-    /// cannot hold and which a project generating its documentation file would report as malformed.
+    /// line at is folded into a space, a CR LF pair into one. So are the other characters XML cannot hold, which a
+    /// project generating its documentation file would report as malformed: the other control characters,
+    /// U+FFFE, U+FFFF, and half of a surrogate pair. A whole pair stands for one character and is kept.
     /// </remarks>
     /// <param name="text">Text written by the author.</param>
     /// <returns>The text, escaped and on one line.</returns>
@@ -1101,11 +1102,14 @@ internal static class ValueObjectEmitter
                 case '\r' when i + 1 < text.Length && text[i + 1] == '\n':
                     // The line feed that follows becomes the space.
                     break;
-                case '\u0085' or '\u2028' or '\u2029':
+                case '\u0085' or '\u2028' or '\u2029' or '\uFFFE' or '\uFFFF':
                     builder.Append(' ');
                     break;
+                case >= '\uD800' and <= '\uDBFF' when i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]):
+                    builder.Append(character).Append(text[++i]);
+                    break;
                 default:
-                    builder.Append(character < ' ' && character != '\t' ? ' ' : character);
+                    builder.Append((character < ' ' && character != '\t') || char.IsSurrogate(character) ? ' ' : character);
                     break;
             }
         }
