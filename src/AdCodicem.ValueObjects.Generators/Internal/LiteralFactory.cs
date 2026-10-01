@@ -9,9 +9,18 @@ namespace AdCodicem.ValueObjects.Generators.Internal;
 /// Turns attribute arguments into C# literal expressions of the underlying type.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Attribute arguments can only carry a handful of constant types, so bounds and known values of types such as
 /// <c>Guid</c>, <c>decimal</c> or <c>DateOnly</c> are written as text. They are parsed here, at compile time,
 /// which means a malformed bound is a build error rather than a start-up exception.
+/// </para>
+/// <para>
+/// Each type is read in one canonical form, the one <see cref="UnderlyingType.LiteralForm"/> describes, and in no
+/// other: no white space around it, no culture, no time zone, and nothing a parser would fill in from the build
+/// machine, such as today's date for a time written alone. The same text therefore compiles to the same literal
+/// on every machine. A <c>string</c>, a <c>Guid</c> and a <c>bool</c> keep every form they read, short of the white
+/// space around it.
+/// </para>
 /// </remarks>
 internal static class LiteralFactory
 {
@@ -54,6 +63,7 @@ internal static class LiteralFactory
             return false;
         }
 
+        var position = 0;
         switch (underlying.Kind)
         {
             case UnderlyingKind.String:
@@ -61,7 +71,8 @@ internal static class LiteralFactory
                 return true;
 
             case UnderlyingKind.Guid:
-                if (!Guid.TryParse(text, out var guid))
+                // Every form Guid reads is kept, but not the white space it would trim.
+                if (HasSurroundingWhiteSpace(text) || !Guid.TryParse(text, out var guid))
                 {
                     return false;
                 }
@@ -70,13 +81,20 @@ internal static class LiteralFactory
                 return true;
 
             case UnderlyingKind.Boolean:
-                if (!bool.TryParse(text, out var boolean))
+                // Read in any case, as bool reads it, but without the white space and the trailing nulls it would trim.
+                if (string.Equals(text, bool.TrueString, StringComparison.OrdinalIgnoreCase))
                 {
-                    return false;
+                    literal = "true";
+                    return true;
                 }
 
-                literal = boolean ? "true" : "false";
-                return true;
+                if (string.Equals(text, bool.FalseString, StringComparison.OrdinalIgnoreCase))
+                {
+                    literal = "false";
+                    return true;
+                }
+
+                return false;
 
             case UnderlyingKind.Char:
                 if (text.Length != 1)
@@ -118,7 +136,8 @@ internal static class LiteralFactory
                 return TryInteger128(text, underlying, BigInteger.Zero, UInt128Maximum, out literal);
 
             case UnderlyingKind.Decimal:
-                if (!decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var dec))
+                if (!IsNumber(text, exponent: false)
+                    || !decimal.TryParse(text, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var dec))
                 {
                     return false;
                 }
@@ -127,11 +146,12 @@ internal static class LiteralFactory
                 return true;
 
             case UnderlyingKind.Double:
-                // NaN and the infinities parse, and so does text past double.MaxValue, as an infinity. None of
-                // them has a literal: written with its suffix, each would be an identifier the compiler cannot find.
-                if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var dbl)
-                    || double.IsNaN(dbl)
-                    || double.IsInfinity(dbl))
+                // The form leaves out NaN and the infinities, which have no literal: written with its suffix, each
+                // would be an identifier the compiler cannot find. Text past double.MaxValue reads as an infinity
+                // on .NET and does not read at all on .NET Framework, where the compiler may run, so both results
+                // are checked, without a short circuit.
+                if (!IsNumber(text, exponent: true)
+                    || !(double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var dbl) & !double.IsInfinity(dbl)))
                 {
                     return false;
                 }
@@ -140,9 +160,8 @@ internal static class LiteralFactory
                 return true;
 
             case UnderlyingKind.Single:
-                if (!float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var flt)
-                    || float.IsNaN(flt)
-                    || float.IsInfinity(flt))
+                if (!IsNumber(text, exponent: true)
+                    || !(float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var flt) & !float.IsInfinity(flt)))
                 {
                     return false;
                 }
@@ -151,53 +170,57 @@ internal static class LiteralFactory
                 return true;
 
             case UnderlyingKind.DateOnly:
-                if (!DateTime.TryParseExact(text, ["yyyy-MM-dd"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateOnly))
+                if (!TryReadDate(text, ref position, out var date) || position != text.Length)
                 {
                     return false;
                 }
 
-                literal = $"new global::System.DateOnly({dateOnly.Year}, {dateOnly.Month}, {dateOnly.Day})";
+                literal = $"new global::System.DateOnly({date.Year}, {date.Month}, {date.Day})";
                 return true;
 
             case UnderlyingKind.TimeOnly:
-                if (!TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out var timeOnly) || timeOnly < TimeSpan.Zero || timeOnly.Days > 0)
+                if (!TryReadTimeOfDay(text, ref position, secondsRequired: false, out var timeOfDay) || position != text.Length)
                 {
                     return false;
                 }
 
-                literal = $"new global::System.TimeOnly({timeOnly.Ticks}L)";
+                literal = $"new global::System.TimeOnly({timeOfDay}L)";
                 return true;
 
             case UnderlyingKind.DateTime:
                 // A DateTime bound is a reading of the clock. Written with an offset or Z, it would have to be
-                // converted to some time zone, and the only one at hand is the build machine's.
-                if (!TryParseDateTime(text, out var dateTime) || dateTime.Kind != DateTimeKind.Unspecified)
+                // converted to some time zone, and the only one at hand is the build machine's: an offset is text
+                // past the end of the form.
+                if (!TryReadDateAndTime(text, ref position, timeRequired: false, out var clock) || position != text.Length)
                 {
                     return false;
                 }
 
-                literal = $"new global::System.DateTime({dateTime.Ticks}L, global::System.DateTimeKind.Unspecified)";
+                literal = $"new global::System.DateTime({clock}L, global::System.DateTimeKind.Unspecified)";
                 return true;
 
             case UnderlyingKind.DateTimeOffset:
-                // Without an offset, the text would take the offset of the build machine.
-                if (!TryParseDateTime(text, out var instant)
-                    || instant.Kind != DateTimeKind.Utc
-                    || !DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateTimeOffset))
+                // Without an offset, the text would take the offset of the build machine. The instant the clock
+                // reading and the offset name together must itself be a DateTime.
+                if (!TryReadDateAndTime(text, ref position, timeRequired: true, out var local)
+                    || !TryReadOffset(text, ref position, out var offset)
+                    || position != text.Length
+                    || local - offset < DateTime.MinValue.Ticks
+                    || local - offset > DateTime.MaxValue.Ticks)
                 {
                     return false;
                 }
 
-                literal = $"new global::System.DateTimeOffset({dateTimeOffset.Ticks}L, new global::System.TimeSpan({dateTimeOffset.Offset.Ticks}L))";
+                literal = $"new global::System.DateTimeOffset({local}L, new global::System.TimeSpan({offset}L))";
                 return true;
 
             case UnderlyingKind.TimeSpan:
-                if (!TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out var timeSpan))
+                if (!TryReadTimeSpan(text, out var duration))
                 {
                     return false;
                 }
 
-                literal = $"new global::System.TimeSpan({timeSpan.Ticks}L)";
+                literal = $"new global::System.TimeSpan({duration}L)";
                 return true;
 
             default:
@@ -212,16 +235,262 @@ internal static class LiteralFactory
     /// <returns>The literal expression.</returns>
     public static string Quote(string value) => $"\"{Escape(value)}\"";
 
+    private static bool HasSurroundingWhiteSpace(string text)
+        => text.Length > 0 && (char.IsWhiteSpace(text[0]) || char.IsWhiteSpace(text[text.Length - 1]));
+
     /// <summary>
-    /// Reads a date and time without involving the time zone of the machine running the compiler.
+    /// Whether the text is an integer written as digits, with a leading <c>-</c> when the type is signed.
     /// </summary>
-    /// <remarks>
-    /// A text that names its offset — an explicit one, <c>Z</c> or <c>GMT</c> — is converted to UTC by that
-    /// offset alone and comes back with <see cref="DateTimeKind.Utc"/>. Any other text comes back as written,
-    /// with <see cref="DateTimeKind.Unspecified"/>. The kind therefore says whether the text carried an offset.
-    /// </remarks>
-    private static bool TryParseDateTime(string text, out DateTime value)
-        => DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out value);
+    private static bool IsInteger(string text, bool signed)
+    {
+        var position = 0;
+        if (signed)
+        {
+            _ = TryRead(text, ref position, '-');
+        }
+
+        return SkipDigits(text, ref position) && position == text.Length;
+    }
+
+    /// <summary>
+    /// Whether the text is a number written as digits, with an optional leading <c>-</c>, an optional fraction
+    /// after a <c>.</c> and, when the type takes one, an optional exponent.
+    /// </summary>
+    private static bool IsNumber(string text, bool exponent)
+    {
+        var position = 0;
+        _ = TryRead(text, ref position, '-');
+        if (!SkipDigits(text, ref position) || (TryRead(text, ref position, '.') && !SkipDigits(text, ref position)))
+        {
+            return false;
+        }
+
+        if (exponent && (TryRead(text, ref position, 'e') || TryRead(text, ref position, 'E')))
+        {
+            _ = TryRead(text, ref position, '+') || TryRead(text, ref position, '-');
+            if (!SkipDigits(text, ref position))
+            {
+                return false;
+            }
+        }
+
+        return position == text.Length;
+    }
+
+    /// <summary>
+    /// Reads <c>yyyy-MM-dd</c>, a date that exists.
+    /// </summary>
+    private static bool TryReadDate(string text, ref int position, out DateTime date)
+    {
+        date = default;
+        if (!TryReadNumber(text, ref position, 4, 9999, out var year)
+            || !TryRead(text, ref position, '-')
+            || !TryReadNumber(text, ref position, 2, 12, out var month)
+            || !TryRead(text, ref position, '-')
+            || !TryReadNumber(text, ref position, 2, 31, out var day)
+            || year == 0
+            || month == 0
+            || day == 0
+            || day > DateTime.DaysInMonth(year, month))
+        {
+            return false;
+        }
+
+        date = new DateTime(year, month, day);
+        return true;
+    }
+
+    /// <summary>
+    /// Reads <c>HH:mm</c>, <c>HH:mm:ss</c> or <c>HH:mm:ss.f</c> with one to seven digits of fraction, as ticks.
+    /// </summary>
+    private static bool TryReadTimeOfDay(string text, ref int position, bool secondsRequired, out long ticks)
+    {
+        ticks = 0;
+        if (!TryReadNumber(text, ref position, 2, 23, out var hours)
+            || !TryRead(text, ref position, ':')
+            || !TryReadNumber(text, ref position, 2, 59, out var minutes))
+        {
+            return false;
+        }
+
+        ticks = (hours * TimeSpan.TicksPerHour) + (minutes * TimeSpan.TicksPerMinute);
+        if (!TryRead(text, ref position, ':'))
+        {
+            return !secondsRequired;
+        }
+
+        if (!TryReadNumber(text, ref position, 2, 59, out var seconds))
+        {
+            return false;
+        }
+
+        ticks += seconds * TimeSpan.TicksPerSecond;
+        if (!TryRead(text, ref position, '.'))
+        {
+            return true;
+        }
+
+        // Seven digits are a tick each; an eighth is left unread, past the end of the form.
+        var start = position;
+        var fraction = 0L;
+        while (position < text.Length && position - start < 7 && IsDigit(text[position]))
+        {
+            fraction = (fraction * 10) + (text[position++] - '0');
+        }
+
+        for (var digits = position - start; digits < 7; digits++)
+        {
+            fraction *= 10;
+        }
+
+        ticks += fraction;
+        return position > start;
+    }
+
+    /// <summary>
+    /// Reads <c>yyyy-MM-dd</c>, followed by <c>T</c> and a time of day when one is written or required, as the
+    /// ticks of that clock reading.
+    /// </summary>
+    private static bool TryReadDateAndTime(string text, ref int position, bool timeRequired, out long ticks)
+    {
+        ticks = 0;
+        if (!TryReadDate(text, ref position, out var date))
+        {
+            return false;
+        }
+
+        if (!TryRead(text, ref position, 'T'))
+        {
+            ticks = date.Ticks;
+            return !timeRequired;
+        }
+
+        if (!TryReadTimeOfDay(text, ref position, secondsRequired: false, out var time))
+        {
+            return false;
+        }
+
+        ticks = date.Ticks + time;
+        return true;
+    }
+
+    /// <summary>
+    /// Reads <c>Z</c>, <c>+HH:mm</c> or <c>-HH:mm</c>, at most fourteen hours either way, as ticks.
+    /// </summary>
+    private static bool TryReadOffset(string text, ref int position, out long ticks)
+    {
+        ticks = 0;
+        if (TryRead(text, ref position, 'Z'))
+        {
+            return true;
+        }
+
+        var negative = TryRead(text, ref position, '-');
+        if ((!negative && !TryRead(text, ref position, '+'))
+            || !TryReadNumber(text, ref position, 2, 14, out var hours)
+            || !TryRead(text, ref position, ':')
+            || !TryReadNumber(text, ref position, 2, 59, out var minutes)
+            || (hours * 60) + minutes > 14 * 60)
+        {
+            return false;
+        }
+
+        ticks = (hours * TimeSpan.TicksPerHour) + (minutes * TimeSpan.TicksPerMinute);
+        ticks = negative ? -ticks : ticks;
+        return true;
+    }
+
+    /// <summary>
+    /// Reads the invariant constant form <c>[-][d.]hh:mm:ss[.fffffff]</c> of a duration, as ticks.
+    /// </summary>
+    private static bool TryReadTimeSpan(string text, out long ticks)
+    {
+        ticks = 0;
+        var position = 0;
+        var negative = TryRead(text, ref position, '-');
+
+        // Digits followed by '.' are the days; followed by ':' they are the hours, read with the time of day.
+        var start = position;
+        var days = BigInteger.Zero;
+        if (SkipDigits(text, ref position) && TryRead(text, ref position, '.'))
+        {
+            days = BigInteger.Parse(text.Substring(start, position - 1 - start), NumberStyles.None, CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            position = start;
+        }
+
+        if (!TryReadTimeOfDay(text, ref position, secondsRequired: true, out var time) || position != text.Length)
+        {
+            return false;
+        }
+
+        var total = (days * TimeSpan.TicksPerDay) + time;
+        total = negative ? -total : total;
+        if (total < long.MinValue || total > long.MaxValue)
+        {
+            return false;
+        }
+
+        ticks = (long)total;
+        return true;
+    }
+
+    /// <summary>
+    /// Reads exactly <paramref name="digits"/> decimal digits, holding a number no greater than
+    /// <paramref name="maximum"/>.
+    /// </summary>
+    private static bool TryReadNumber(string text, ref int position, int digits, int maximum, out int value)
+    {
+        value = 0;
+        if (text.Length - position < digits)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < digits; i++)
+        {
+            var character = text[position + i];
+            if (!IsDigit(character))
+            {
+                return false;
+            }
+
+            value = (value * 10) + (character - '0');
+        }
+
+        position += digits;
+        return value <= maximum;
+    }
+
+    private static bool TryRead(string text, ref int position, char expected)
+    {
+        if (position < text.Length && text[position] == expected)
+        {
+            position++;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Skips a run of decimal digits, reporting whether there was at least one.
+    /// </summary>
+    private static bool SkipDigits(string text, ref int position)
+    {
+        var start = position;
+        while (position < text.Length && IsDigit(text[position]))
+        {
+            position++;
+        }
+
+        return position > start;
+    }
+
+    // Only ASCII digits: char.IsDigit also accepts the digits of every other script.
+    private static bool IsDigit(char character) => character is >= '0' and <= '9';
 
     /// <summary>
     /// Builds the parse expression of a 128-bit integer, which C# has no literal for, refusing a value outside
@@ -254,8 +523,8 @@ internal static class LiteralFactory
     /// <remarks>
     /// Parsing as some wider integer is not enough: <c>"300"</c> for a <c>byte</c> or <c>"-1"</c> for a
     /// <c>ulong</c> would become a literal the compiler rejects, inside a file the author cannot edit. The
-    /// literal is written from the parsed number rather than from the text, so a sign or a leading zero the
-    /// author wrote cannot change how the compiler reads it either.
+    /// literal is written from the parsed number rather than from the text, so a leading zero the author wrote
+    /// cannot change how the compiler reads it either.
     /// </remarks>
     private static bool TryInteger(
         string text,
@@ -266,9 +535,13 @@ internal static class LiteralFactory
         out string literal)
     {
         literal = string.Empty;
-        if (!BigInteger.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)
-            || number < minimum
-            || number > maximum)
+        if (!IsInteger(text, signed: minimum < 0))
+        {
+            return false;
+        }
+
+        var number = BigInteger.Parse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
+        if (number < minimum || number > maximum)
         {
             return false;
         }

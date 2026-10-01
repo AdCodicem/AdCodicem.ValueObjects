@@ -263,8 +263,8 @@ public sealed class EmissionTests
         "0",
         "340282366920938463463374607431768211455",
         "global::System.UInt128.Parse(\"340282366920938463463374607431768211455\", global::System.Globalization.CultureInfo.InvariantCulture)")]
-    [InlineData("ulong", "-0", "1", "(value < 0UL)")]
-    [InlineData("int", " +7 ", "8", "(int)(7)")]
+    [InlineData("long", "-0", "1", "(value < 0L)")]
+    [InlineData("int", "007", "8", "(int)(7)")]
     public void An_integer_bound_at_the_extremes_of_its_type_compiles(
         string underlying,
         string minimum,
@@ -425,7 +425,7 @@ public sealed class EmissionTests
             [ValueObject<char>(Minimum = "<")]
             public readonly partial struct Angled;
 
-            [ValueObject<int>(Minimum = "1\n")]
+            [ValueObject<char>(Minimum = "\n")]
             public readonly partial struct Spaced;
             """);
 
@@ -438,7 +438,7 @@ public sealed class EmissionTests
             .Contain("""OutOfRange("The value must be greater than or equal to \".")""")
             .And.Contain("""OutOfRange("The value must be less than or equal to \\.")""");
         Generated("Angled").Should().Contain("""OutOfRange("The value must be greater than or equal to <.")""");
-        Generated("Spaced").Should().Contain("""OutOfRange("The value must be greater than or equal to 1\n.")""");
+        Generated("Spaced").Should().Contain("""OutOfRange("The value must be greater than or equal to \n.")""");
     }
 
     [Fact]
