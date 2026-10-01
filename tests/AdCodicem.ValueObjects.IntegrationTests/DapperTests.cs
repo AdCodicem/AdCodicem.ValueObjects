@@ -202,6 +202,24 @@ public abstract class DapperTests<TFixture>(TFixture fixture) : IClassFixture<TF
         received.Value.Offset.Should().Be(TimeSpan.Zero);
     }
 
+    /// <summary>
+    /// SQL Server returns a <c>datetime2</c>, and Npgsql a <c>timestamp</c>, as a DateTime that names no zone: no
+    /// offset can be taken from it without guessing one, and the handler refuses it.
+    /// </summary>
+    [Fact]
+    public async Task An_instant_without_a_zone_is_refused_for_a_DateTimeOffset_value_object()
+    {
+        var sql = fixture.ProviderName == "PostgreSql"
+            ? "SELECT CAST('2024-05-17T10:00:00' AS timestamp)"
+            : "SELECT CAST('2024-05-17T10:00:00' AS datetime2)";
+
+        await using var connection = fixture.CreateConnection();
+        var read = () => connection.QuerySingleAsync<ReceivedAt>(Command(sql));
+
+        await read.Should().ThrowAsync<DataException>()
+            .WithMessage("The DateTime read names no zone*ReceivedAt, a value object over DateTimeOffset.");
+    }
+
     private static Customer NewCustomer(string email) => new()
     {
         Id = CustomerId.New(),

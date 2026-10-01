@@ -33,8 +33,10 @@ A column the provider returns as the underlying type is read with `CreateUncheck
 [Entity Framework Core](ef-core.md#validation-on-read) read path: this application validated the value when it wrote
 it. Some providers return another type of the date and time family than the underlying one, and those are converted
 first: SQL Server returns a `DateTime` for a `date` column and a `TimeSpan` for a `time` column, Npgsql a `DateOnly`
-and a `TimeOnly` for them, and a UTC `DateTime` for a `timestamptz`. A `DateTime` that says nothing of its zone
-cannot become a `DateTimeOffset`, and is refused.
+and a `TimeOnly` for them, and a UTC `DateTime` for a `timestamptz`. A `DateTime` that says nothing of its zone — a
+SQL Server `datetime2`, a PostgreSQL `timestamp` — cannot become a `DateTimeOffset`, and is refused. So is any value
+the handler cannot convert to the underlying type, another type or one out of its range: each throws a
+`DataException` naming the type the provider returned and the value object it was read into.
 
 Text read into a value object whose underlying type is not `string` — a Guid or a number kept in a text column — is
 the exception: it is parsed the way the value object parses text, so it is normalized and validated. Text the value
