@@ -691,7 +691,9 @@ internal static class ValueObjectEmitter
         writer.Line("/// <inheritdoc />");
         writer.Open("public bool TryFormat(global::System.Span<char> destination, out int charsWritten, global::System.ReadOnlySpan<char> format, global::System.IFormatProvider? provider)");
 
-        if (model.HasTryFormatHook)
+        // The string formatter takes precedence when both hooks are declared, here as in ToString above, or
+        // interpolation and ToString(format, provider) would write two different texts.
+        if (model.HasTryFormatHook && !model.HasFormatHook)
         {
             writer.Line("var current = Value;");
             writer.Line($"return TryFormatValue(in current, destination, out charsWritten, format, provider ?? {Invariant});");
