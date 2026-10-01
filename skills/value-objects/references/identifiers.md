@@ -42,8 +42,9 @@ Choose `Granularity` from the insert rate of the table, aiming for roughly 10⁴
 taste. It leaks the creation time at exactly that granularity and nothing finer; the random part keeps its full
 80 bits either way, so the identifier never becomes guessable.
 
-An identifier owns its own normalization: declaring a normalizer hook on one is `VO0017`. Both `[EntityId]` and
-`[ValueObject<T>]` on the same type is `VO0018`.
+An identifier owns its own normalization: declaring a normalizer hook on one is `VO0017`. A validator or a
+formatter is declared through its interface, as on any value object; written without it, it never runs and is
+`VO0011`. Both `[EntityId]` and `[ValueObject<T>]` on the same type is `VO0018`.
 
 `default(AccountId)` and `new AccountId()` are build error `VO0010`, as for any value object: the instance they
 produce has an empty `Value` and never went through validation. Mint with `New()`, read with `Parse` or
