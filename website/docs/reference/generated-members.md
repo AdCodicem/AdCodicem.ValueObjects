@@ -46,10 +46,10 @@ The constructor is private: every public way in goes through `Create`, `TryCreat
 
 | Member | |
 | --- | --- |
-| `static TSelf Parse(string s)`, `Parse(string s, IFormatProvider? provider)`, `Parse(ReadOnlySpan<char> s, IFormatProvider? provider)` | Parses the underlying value from text, then as `Create`. |
+| `static TSelf Parse(string s)`, `Parse(string s, IFormatProvider? provider)`, `Parse(ReadOnlySpan<char> s, IFormatProvider? provider)` | Parses the underlying value from text, then as `Create`. A rejection throws `ValueObjectException` with the code the four-argument `TryParse` reports. |
 | `static bool TryParse(…, out TSelf result)` | For `string` and `ReadOnlySpan<char>`, with or without a provider. |
 | `static bool TryParse(ReadOnlySpan<char> s, IFormatProvider? provider, out TSelf result, out ValidationResult validation)` | And with the rule that fired; a `string` converts to the span implicitly. |
-| `string ToString()`, `ToString(string? format, IFormatProvider? provider)` | The underlying value, or the named [formats](../how-to/formatting.md) of a formatter hook. |
+| `string ToString()`, `ToString(string? format, IFormatProvider? provider)` | The underlying value or, with a [formatter hook](../how-to/formatting.md), what the hook writes: its default format for `ToString()`, its named formats otherwise. |
 | `bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` | Formats without allocating. |
 
 Text that does not even have the shape of the underlying type is rejected with `value_object.not_parsable`,

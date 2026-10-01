@@ -52,10 +52,10 @@ Thrown by `Create`, by `Parse`, and by an explicit conversion, when the value is
 
 | Member | |
 | --- | --- |
-| `ErrorCode` | The code of the violated rule, the same `TryCreate` would have reported. |
+| `ErrorCode` | The code of the violated rule, the same `TryCreate`, or for `Parse` the four-argument `TryParse`, would have reported. `Parse` throws `value_object.not_parsable` only for text that is not of the underlying type at all. |
 | `ValueObjectType` | The value object that refused the value. |
 | `AttemptedValue` | The value as it was passed in, before normalization. |
-| `Message` | The message of the violated rule. |
+| `Message` | The message of the violated rule, after the text and the type for `Parse`. |
 
 Every integration on a boundary — JSON, model binding, EF Core, Dapper — uses `TryCreate` instead, so the
 exception is reserved for code that treats a rejected value as a bug.

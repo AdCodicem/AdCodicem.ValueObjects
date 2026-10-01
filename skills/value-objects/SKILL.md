@@ -107,7 +107,8 @@ Contract of the hooks:
 - **Validation returns, it does not throw.** `ValidationResult.Success`, or `Failure(code, message)` /
   `Required` / `InvalidFormat` / `OutOfRange` / `TooLong` / `TooShort`. Validation is fail-fast: the first
   violated rule wins, declared rules run before the hook.
-- **Formatting takes over entirely** when declared, default format included.
+- **Formatting takes over entirely** when declared, default format included: `ToString()` goes through the hook.
+  With both formatter hooks, `FormatValue` answers everywhere.
 
 ## What is generated — never write it yourself
 
