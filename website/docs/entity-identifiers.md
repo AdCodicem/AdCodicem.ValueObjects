@@ -274,6 +274,7 @@ without the package, the attribute does not exist.
 | `VO0016` | Error | Two types in the compilation declare the same prefix. |
 | `VO0017` | Error | A normalization hook on an identifier, which normalizes its own format and would never call it. |
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
+| `VO0019` | Error | The generated code cannot reopen, reach or name the identifier: it is generic, nested in a generic type or an interface, `private`, `protected` or `file`-local, or named after a member the generator writes. |
 | `VO0020` | Error | `Granularity` holds a value `IdGranularity` does not define. |
 
 Cross-assembly prefix collisions are beyond a generator's reach and surface at start-up, when the second
