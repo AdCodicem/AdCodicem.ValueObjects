@@ -22,7 +22,9 @@ JsonSerializer.Serialize(new { iban = Iban.Create("FR7630006000011234567890189")
 
 Reading goes through `TryCreate`, so an incoming value is normalized and validated like any other. A rejected
 value, or a token of the wrong kind, throws a `JsonException` naming the type and the reason. A value object
-also works as a dictionary key.
+also works as a dictionary key. The key carries the underlying value too, in the form the value travels in, whatever a
+formatting hook writes, and it is read back the same way and validated like a value: a key the value object rejects
+throws a `JsonException` as well.
 
 ## System.Text.Json, source-generated
 
