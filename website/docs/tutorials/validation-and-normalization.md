@@ -24,9 +24,10 @@ public readonly partial struct ProductCode;
 sizes the EF Core column and `MaxLength`, `MinLength` and `Pattern` all appear in the OpenAPI schema, so the
 rule is stated once for every boundary.
 
-Numbers, dates and times take bounds instead. They are written as invariant-culture text, so a `decimal` or a
-`DateOnly` keeps its full precision, and they are parsed at compile time — a bound that does not parse is
-`VO0004`:
+Numbers, dates and times take bounds instead. They are written as text, in the one form the
+[authoring reference](../authoring-guide.md#bounds-and-known-values-written-as-text) gives for each type, so a
+`decimal` or a `DateOnly` keeps its full precision, and they are parsed at compile time — a bound written any
+other way is `VO0004`:
 
 ```csharp
 [ValueObject<int>(Minimum = "1", Maximum = "999")]

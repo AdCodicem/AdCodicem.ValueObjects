@@ -18,7 +18,7 @@ JSON strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`,
 | --- | --- | --- | --- |
 | `Pattern` | `string?` | none | Regular expression the **normalized** value must match. Also the OpenAPI `pattern`. Invalid → `VO0014`. |
 | `MinLength`, `MaxLength` | `int` | `-1`, unconstrained | `string` only (`VO0008` otherwise). Validation, OpenAPI `minLength` / `maxLength`, and the EF Core column size. |
-| `Minimum`, `Maximum` | `string?` | none | Inclusive bounds in **invariant-culture text**, so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Parsed at compile time; unparsable, or outside the type → `VO0004`. A `DateTime` bound carries no offset and a `DateTimeOffset` bound always does ([why](./reference/diagnostics.md#date-and-time-bounds)). Also OpenAPI `minimum` / `maximum`. |
+| `Minimum`, `Maximum` | `string?` | none | Inclusive bounds written as **text**, in the [one form of the underlying type](#bounds-and-known-values-written-as-text), so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Numbers, `char`, dates, times and durations only: a bound on `string`, `Guid` or `bool` → `VO0004`. Parsed at compile time; any other text, or a value outside the type → `VO0004`. Also OpenAPI `minimum` / `maximum`. |
 | `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering and hashing together. A value the enum does not define → `VO0020`. |
 | `ValueSet` | `ValueSetKind` | `Open` | `Closed` accepts only the declared `[KnownValue]`s, through a frozen lookup, and becomes the schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. A value the enum does not define → `VO0020`. |
 | `Arithmetic` | `bool` | `false` | Numeric types only (`VO0007` otherwise). Operators and generic math; every result is validated again. |
@@ -33,6 +33,40 @@ JSON strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`,
 Declared rules run before any hook, so a validator only ever sees values that already satisfy them.
 [Validation and normalization](./tutorials/validation-and-normalization.md#the-order-things-run-in) gives the
 exact order.
+
+## Bounds and known values written as text
+
+An attribute argument can only be a constant of a few types, so `Minimum`, `Maximum` and the known value of a
+`Guid`, a `decimal` or a date are written as text and read at compile time. Each underlying type reads **one
+form**, and no other: no culture, no time zone, no white space around the value. The same declaration then
+compiles to the same value on every machine. Any other text is `VO0004` for a bound and `VO0013` for a known
+value, and the message names the form the type expects.
+
+| Underlying type | Form | Example |
+| --- | --- | --- |
+| `sbyte`, `short`, `int`, `long`, `Int128` | Digits, with `-` in front when negative. | `"-42"` |
+| `byte`, `ushort`, `uint`, `ulong`, `UInt128` | Digits alone. | `"42"` |
+| `decimal` | Digits, an optional `-` in front, an optional fraction after `.`. No exponent. | `"-19.99"` |
+| `double`, `float` | As `decimal`, plus an optional exponent: `e` or `E`, an optional sign, digits. A finite value. | `"9.1e-31"` |
+| `char` | Exactly one character. | `"A"` |
+| `DateOnly` | `yyyy-MM-dd` | `"2024-01-31"` |
+| `TimeOnly` | `HH:mm`, `HH:mm:ss` or `HH:mm:ss.fffffff`, with one to seven digits of fraction. | `"08:30"` |
+| `DateTime` | `yyyy-MM-dd`, or `yyyy-MM-ddTHH:mm` with optional seconds and fraction. Never an offset or `Z`. | `"2024-01-31T08:30"` |
+| `DateTimeOffset` | `yyyy-MM-ddTHH:mm` with optional seconds and fraction, then `Z`, `+HH:mm` or `-HH:mm`, always. | `"2024-01-31T08:30+01:00"` |
+| `TimeSpan` | `[-][d.]hh:mm:ss[.fffffff]`, the invariant constant format `"c"`. | `"1.12:00:00"` |
+| `string` | Any text. Known values only. | `"FR"` |
+| `Guid` | Any form `Guid.Parse` reads. Known values only. | `"6f9619ff-8b86-d011-b42d-00c04fc964ff"` |
+| `bool` | `true` or `false`, in any case. Known values only. | `"true"` |
+
+The value must also exist in the type: `"300"` is no `byte`, `"2023-02-29"` no date, `"25:00"` no time of day.
+A time of day written alone is neither a `DateTime` nor a `DateTimeOffset`, since it would take the date of the
+day the project is built; [date and time bounds](./reference/diagnostics.md#date-and-time-bounds) explains the
+rest. A `string`, a `Guid` and a `bool` have no order, and take no bound.
+
+A known value may also be a C# constant, such as `200`, `0.5`, `'A'` or `true`. It is held to the same form
+through its invariant text, a `double` or a `float` in its round-trip form, so `[KnownValue("Ok", 200)]` suits a
+`short` and `[KnownValue("Half", 0.5)]` a `decimal`. A `typeof(...)`, an enum member, an array and `null` are not
+values, and are `VO0013`.
 
 ## Hooks
 
