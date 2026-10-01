@@ -734,14 +734,19 @@ internal static class ValueObjectEmitter
 
     private static void EmitParsing(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value, string self)
     {
+        // The exception carries the rule that rejected the text, as TryParse reports it: a closed set refusing a
+        // value says not_a_known_value, and not_parsable is left to text that is not of the underlying type at all.
         writer.Line("/// <inheritdoc />");
         writer.Open($"public static {self} Parse(global::System.ReadOnlySpan<char> s, global::System.IFormatProvider? provider)");
-        writer.Open("if (TryParse(s, provider, out var result))");
+        writer.Open("if (TryParse(s, provider, out var result, out var validation))");
         writer.Line("return result;");
         writer.Close();
         writer.Line();
         writer.Line($"throw new {Abstractions}.ValueObjectException(");
-        writer.Line($"    $\"'{{s.ToString()}}' is not a valid {model.TypeName}.\", typeof({self}), {ErrorCodes}.NotParsable, s.ToString());");
+        writer.Line($"    $\"'{{s.ToString()}}' is not a valid {model.TypeName}: {{validation.ErrorMessage}}\",");
+        writer.Line($"    typeof({self}),");
+        writer.Line("    validation.ErrorCode,");
+        writer.Line("    s.ToString());");
         writer.Close();
         writer.Line();
 
