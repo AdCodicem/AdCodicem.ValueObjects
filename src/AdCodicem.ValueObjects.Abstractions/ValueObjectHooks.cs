@@ -77,9 +77,18 @@ public interface IValueObjectValidator<TValue>
 /// </summary>
 /// <typeparam name="TValue">Underlying value type.</typeparam>
 /// <remarks>
+/// <para>
 /// Implementing this takes over formatting entirely, including the default format, so it must handle an empty
 /// or <see langword="null"/> format specifier. It is what gives a value object named formats: an IBAN printed
 /// in groups of four, or masked down to its last four characters.
+/// </para>
+/// <para>
+/// The generated <c>ToString(format, provider)</c> calls it with a stack buffer, then with a pooled buffer twice as
+/// large each time it returns <see langword="false"/>, up to 1,048,576 characters, past which it throws a
+/// <see cref="FormatException"/>. A format the rule does not support is therefore refused by throwing that
+/// exception, not by returning <see langword="false"/>. On a <see cref="string"/> value object, text equal to the
+/// value returns the string the value object holds, so formatting a value unchanged allocates nothing.
+/// </para>
 /// </remarks>
 public interface IValueObjectFormatter<TValue>
 {
