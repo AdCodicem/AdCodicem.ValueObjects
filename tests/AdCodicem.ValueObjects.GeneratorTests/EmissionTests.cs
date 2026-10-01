@@ -161,6 +161,36 @@ public sealed class EmissionTests
         with.SingleValueObject.Should().Contain("explicit operator global::Test.Code");
     }
 
+    /// <summary>
+    /// The complement of the range diagnostics: the extremes of every integer type are bounds like any other.
+    /// </summary>
+    [Theory]
+    [InlineData("sbyte", "-128", "127", "(sbyte)(127)")]
+    [InlineData("byte", "0", "255", "(byte)(255)")]
+    [InlineData("short", "-32768", "32767", "(short)(-32768)")]
+    [InlineData("ushort", "0", "65535", "(ushort)(65535)")]
+    [InlineData("int", "-2147483648", "2147483647", "(int)(-2147483648)")]
+    [InlineData("uint", "0", "4294967295", "4294967295U")]
+    [InlineData("long", "-9223372036854775808", "9223372036854775807", "-9223372036854775808L")]
+    [InlineData("ulong", "0", "18446744073709551615", "18446744073709551615UL")]
+    [InlineData("ulong", "-0", "1", "(value < 0UL)")]
+    [InlineData("int", " +7 ", "8", "(int)(7)")]
+    public void An_integer_bound_at_the_extremes_of_its_type_compiles(
+        string underlying,
+        string minimum,
+        string maximum,
+        string literal)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>(Minimum = "{{minimum}}", Maximum = "{{maximum}}")]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain(literal);
+    }
+
     [Theory]
     [InlineData("string")]
     [InlineData("int")]
