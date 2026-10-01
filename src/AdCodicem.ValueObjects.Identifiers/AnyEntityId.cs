@@ -34,6 +34,9 @@ public readonly struct AnyEntityId : IEquatable<AnyEntityId>, ISpanParsable<AnyE
     /// <summary>
     /// Gets the canonical text of the identifier.
     /// </summary>
+    /// <remarks>
+    /// The identifier's own <c>Value</c>, which a formatting hook declared on the identifier type never changes.
+    /// </remarks>
     public string Value => _value ?? string.Empty;
 
     /// <summary>
@@ -121,7 +124,9 @@ public readonly struct AnyEntityId : IEquatable<AnyEntityId>, ISpanParsable<AnyE
             return false;
         }
 
-        result = new AnyEntityId(parsed.ToString()!, descriptor);
+        // The value, not ToString(): a formatting hook decides how the identifier reads, and may not write text that
+        // parses back.
+        result = new AnyEntityId(((IEntityId)parsed).Value, descriptor);
         return true;
     }
 

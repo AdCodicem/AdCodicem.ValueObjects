@@ -10,7 +10,7 @@ namespace AdCodicem.ValueObjects.UnitTests.Identifiers;
 /// <summary>
 /// The registry and the polymorphic type, exercised against the real generated identifiers of this assembly.
 /// </summary>
-public class AnyEntityIdTests
+public partial class AnyEntityIdTests
 {
     [Fact]
     public void The_generated_registration_publishes_every_prefix()
@@ -139,15 +139,16 @@ public class AnyEntityIdTests
     }
 
     /// <summary>
-    /// The text is taken from the identifier the type built, and a hand-written type may hand back none. Such an
-    /// identifier is resolved, so not the default, and converts to nothing rather than to an empty identifier.
+    /// The text is taken from the value of the identifier the type built, and a hand-written type may hand back none.
+    /// Such an identifier is resolved, so not the default, and converts to nothing rather than to an empty identifier.
     /// </summary>
     [Fact]
-    public void An_identifier_whose_type_gives_back_no_text_converts_to_nothing()
+    public void An_identifier_whose_type_gives_back_no_value_converts_to_nothing()
     {
         EntityIdRegistry.Register<HandWrittenId<BlankProfile>>();
+        var text = EntityIdFormat.Create(BlankProfile.Prefix, IdGranularity.Hour, TimeProvider.System, IdEntropySource.System);
 
-        var any = AnyEntityId.Parse(HandWrittenId<BlankProfile>.New().Value);
+        var any = AnyEntityId.Parse(text);
 
         any.IsDefault.Should().BeFalse();
         any.Value.Should().BeEmpty();
@@ -270,6 +271,25 @@ public class AnyEntityIdTests
 
         json.Should().Be($"\"{any.Value}\"");
         JsonSerializer.Deserialize<AnyEntityId>(json).Should().Be(any);
+    }
+
+    /// <summary>
+    /// A formatting hook decides how an identifier reads in a log, not what it is: the polymorphic reference keeps
+    /// the text that parses back, and hands back the identifier it was parsed from.
+    /// </summary>
+    [Fact]
+    public void An_identifier_whose_formatting_hook_shortens_it_keeps_its_canonical_text()
+    {
+        var key = ApiKeyId.New();
+        key.ToString().Should().NotBe(key.Value, "the hook shortens it");
+
+        var any = AnyEntityId.Parse(key.Value);
+
+        any.Value.Should().Be(key.Value);
+        any.TryConvertTo<ApiKeyId>(out var typed).Should().BeTrue();
+        typed.Should().Be(key);
+        any.ToValueObject().Should().Be(key);
+        JsonSerializer.Serialize(any).Should().Be($"\"{key.Value}\"");
     }
 
     [Fact]
@@ -432,5 +452,16 @@ public class AnyEntityIdTests
     private sealed class WebhookOptions
     {
         public AnyEntityId Target { get; set; }
+    }
+
+    /// <summary>
+    /// The identifier of an API key, which no other test uses. Its formatting hook writes the prefix and the last
+    /// four characters, as a log would show a credential, unless a format asks for the whole text.
+    /// </summary>
+    [EntityId("key")]
+    public readonly partial struct ApiKeyId : IValueObjectStringFormatter<string>
+    {
+        public static string FormatValue(in string value, ReadOnlySpan<char> format, IFormatProvider? provider)
+            => format.IsEmpty && value.Length > 4 ? string.Concat("key_\u2026", value.AsSpan(value.Length - 4)) : value;
     }
 }

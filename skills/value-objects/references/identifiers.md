@@ -96,8 +96,8 @@ if (AnyEntityId.TryParse(text, provider: null, out var any) && any.TryConvertTo<
 It parses whichever registered prefix arrives. It implements neither `IValueObject` nor `IEntityId`, which is
 what keeps it out of the EF Core convention: a polymorphic column cannot be mapped by accident.
 
-In JSON it is the bare text. A JSON `null` throws a `JsonException`: declare `AnyEntityId?` for a reference that
-may be absent.
+Its `Value` is the identifier's own value, never what a formatting hook writes. In JSON it is that bare text. A
+JSON `null` throws a `JsonException`: declare `AnyEntityId?` for a reference that may be absent.
 
 ## Deterministic tests
 
