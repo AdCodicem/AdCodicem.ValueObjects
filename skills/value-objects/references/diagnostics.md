@@ -42,8 +42,8 @@ actually generated, and what does it call?".
 ## Errors at run time rather than at compile time
 
 - `ValueObjectException` — thrown by `Create`, by `Parse`, and by an explicit conversion, carrying the error
-  code and message of the violated rule. Use `TryCreate` / `TryParse` at a boundary; let `Create` throw in
-  domain code where a rejected value is a bug.
+  code and message of the violated rule: from `Parse`, the code the four-argument `TryParse` reports. Use
+  `TryCreate` / `TryParse` at a boundary; let `Create` throw in domain code where a rejected value is a bug.
 - `IsDefault` returning `true` — an instance that never went through validation crossed a boundary the
   analyzer cannot see (deserialization of a struct by another library, reflection, a default array element).
   Guard with `FluentValidation`'s `NotDefault`, or check it where the value enters.

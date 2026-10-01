@@ -163,10 +163,11 @@ public readonly partial struct Bban : IValueObjectFormatter<string>
 ```
 
 Declaring the hook takes over formatting **entirely**, including the empty and `null` format specifier, so
-handle the default case. Return `false` when the destination is too small — that is the framework contract, and
-the generated `ToString(format, provider)` grows a buffer and retries. Prefer `IValueObjectFormatter<TValue>`,
+handle the default case: `ToString()` and `$"{bban}"` write what the hook writes for it. Return `false` when the
+destination is too small — that is the framework contract, and the generated `ToString(format, provider)` grows a
+buffer and retries, then writes the plain value if the hook still refuses. Prefer `IValueObjectFormatter<TValue>`,
 which formats without allocating; `IValueObjectStringFormatter<TValue>` exists for rules whose output is
-naturally a `string`, and wins when both are declared.
+naturally a `string`, and wins everywhere when both are declared.
 
 ## Domain members you *should* add
 
