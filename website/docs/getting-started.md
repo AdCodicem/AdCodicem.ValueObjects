@@ -70,7 +70,7 @@ assign. So an `EmailAddress` that exists is normalized and valid; no code that r
 again.
 
 `Create` throws, and suits domain code where a rejected value is a bug. `TryCreate` returns the reason instead of
-throwing, and is what every integration uses at a boundary.
+throwing; the integrations go through it, or through `TryParse`, wherever outside input arrives.
 
 ## What the generator wrote
 
