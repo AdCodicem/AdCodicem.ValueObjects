@@ -80,7 +80,8 @@ public interface IValueObjectValidator<TValue>
 /// <para>
 /// Implementing this takes over formatting entirely, including the default format, so it must handle an empty
 /// or <see langword="null"/> format specifier. It is what gives a value object named formats: an IBAN printed
-/// in groups of four, or masked down to its last four characters.
+/// in groups of four, or masked down to its last four characters. A type that also implements
+/// <see cref="IValueObjectStringFormatter{TValue}"/> never calls this one: the string formatter answers everywhere.
 /// </para>
 /// <para>
 /// The generated <c>ToString(format, provider)</c> calls it with a stack buffer, then with a pooled buffer twice as

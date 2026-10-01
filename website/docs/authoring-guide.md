@@ -49,7 +49,10 @@ rule written without its interface — the one mistake the compiler cannot catch
 | `IValueObjectStringFormatter<TValue>` | `static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 
 `NormalizeValue` must be idempotent and must not reject: an unnormalizable value is rejected by
-`ValidateValue`. `TryFormatValue`, when present, takes over formatting entirely, including the default format.
+`ValidateValue`. A formatting hook, when present, takes over formatting entirely, including the default format:
+`ToString()`, `ToString(format, provider)`, `TryFormat` and interpolation all write what it writes. When a type
+declares both, `FormatValue` answers everywhere and `TryFormatValue` is never called. Formatting stops at text for
+people: JSON, dictionary keys included, and the database carry the underlying value.
 
 Adding `IValueObjectSpanNormalizer` alongside `IValueObjectNormalizer<string>` lets parsing and JSON reading
 normalize straight from the text, so ingesting a value allocates the normalized string and nothing else. It
