@@ -53,7 +53,10 @@ public sealed class ImportAccountRequestValidator : AbstractValidator<ImportAcco
     /// </summary>
     public ImportAccountRequestValidator()
     {
+        // Empty text fails NotEmpty, and the value object's own rule as well: stopping at the first failure reports
+        // the member once.
         RuleFor(request => request.Iban)
+            .Cascade(CascadeMode.Stop)
             .NotEmpty()
             .MustParseAs(typeof(Iban));
     }

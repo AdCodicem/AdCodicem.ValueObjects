@@ -24,7 +24,8 @@ public static class ValueObjectRuleBuilderExtensions
     /// <remarks>
     /// <para>
     /// A <see langword="null"/> passes: whether the member is required is <c>NotNull</c>'s or <c>NotEmpty</c>'s to
-    /// say, as everywhere in FluentValidation. Empty text does not, and fails with the value object's own code.
+    /// say, as everywhere in FluentValidation. Empty text is the value object's to judge, as any text is: a string
+    /// value object refuses it as required unless it allows empty text, and one over another type cannot parse it.
     /// </para>
     /// <para>
     /// The value object type is passed as a <see cref="Type"/> rather than a type argument so that

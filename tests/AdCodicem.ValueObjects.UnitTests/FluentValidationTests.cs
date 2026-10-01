@@ -60,6 +60,47 @@ public class FluentValidationTests
         failure.ErrorMessage.Should().Be(message);
     }
 
+    /// <summary>
+    /// Empty text is the value object's to judge, as any text is: a string value object refuses it as required
+    /// unless it allows empty text, and one over another type cannot parse it.
+    /// </summary>
+    /// <param name="type">The value object the text must parse into.</param>
+    /// <param name="code">The code empty text fails with, or <see langword="null"/> when it passes.</param>
+    [Theory]
+    [InlineData(typeof(Iban), ValueObjectErrorCodes.Required)]
+    [InlineData(typeof(CustomerId), ValueObjectErrorCodes.NotParsable)]
+    [InlineData(typeof(Label), null)]
+    public void Empty_text_fails_MustParseAs_as_the_value_object_refuses_it(Type type, string? code)
+    {
+        var validator = new InlineValidator<ImportCommand> { v => v.RuleFor(x => x.Iban).MustParseAs(type) };
+
+        var errors = validator.Validate(new ImportCommand(string.Empty)).Errors;
+
+        errors.Select(failure => failure.ErrorCode).Should().Equal(code is null ? [] : [code]);
+    }
+
+    /// <summary>
+    /// Empty text fails NotEmpty and the value object's own rule, and both are reported under the member unless the
+    /// rule chain stops at its first failure.
+    /// </summary>
+    [Fact]
+    public void A_rule_chain_that_stops_at_its_first_failure_reports_empty_text_once()
+    {
+        var both = new InlineValidator<ImportCommand>
+        {
+            v => v.RuleFor(x => x.Iban).NotEmpty().MustParseAs(typeof(Iban)),
+        };
+        var stopped = new InlineValidator<ImportCommand>
+        {
+            v => v.RuleFor(x => x.Iban).Cascade(CascadeMode.Stop).NotEmpty().MustParseAs(typeof(Iban)),
+        };
+
+        both.Validate(new ImportCommand(string.Empty)).Errors.Select(failure => failure.ErrorCode)
+            .Should().Equal("NotEmptyValidator", ValueObjectErrorCodes.Required);
+        stopped.Validate(new ImportCommand(string.Empty)).Errors.Select(failure => failure.ErrorCode)
+            .Should().Equal("NotEmptyValidator");
+    }
+
     [Fact]
     public void MustParseAs_refuses_a_type_that_is_not_a_value_object_when_the_rule_is_built()
     {

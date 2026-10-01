@@ -80,5 +80,9 @@ return result.IsValid
         });
 ```
 
-A member can fail more than one rule — empty text fails both `NotEmpty()` and `MustParseAs` — so the failures are
-grouped by member, and each member reports the code of the first rule it failed.
+The validator of the [FluentValidation](./fluentvalidation.md#text-that-must-become-a-value-object) guide stops each
+member at its first failure with `Cascade(CascadeMode.Stop)`, so a member is reported once: empty text fails
+`NotEmpty()` and never reaches `MustParseAs`, and `errors` holds one message for it. A validator that does not stop,
+or that states several rules for one member, can fail a member more than once, which is why the failures are
+grouped by member: each member reports the code of the first rule it failed, and the dictionary never meets the same
+member twice.
