@@ -42,13 +42,23 @@ object refuses throws a `DataException` carrying the rule's message.
 
 ## NULL
 
-A `NULL` column reads as `null` into an optional value object, `Iban?`. Read into the value object itself, it
-throws a `DataException`, as Dapper does for an `int`:
+A `NULL` column reads as `null` into an optional value object, `Iban?`, whether it is the result of a single-column
+query or a member of a mapped type:
 
 ```csharp skip
 var iban = await connection.QuerySingleAsync<Iban?>(
     "SELECT a.iban FROM customers c LEFT JOIN accounts a ON a.customer_id = c.id WHERE c.id = @id",
     new { id });   // null when the customer has no account
 ```
+
+Read into the value object itself, what happens depends on where it lands, as it does for an `int`:
+
+- In a single-column query — `QuerySingleAsync<Iban>` — it throws a `DataException`.
+- In a member of a mapped type, or a parameter of the constructor Dapper maps it through, Dapper checks for `NULL`
+  before it calls the handler, and never calls it. The member is left as an uninitialized value object —
+  `IsDefault` is `true`, and no rule ever ran — and nothing throws.
+
+So a nullable column belongs in a nullable member: declare `Iban?` wherever the query can return `NULL`, an outer
+join included.
 
 An optional value object holding nothing goes out as a `NULL` parameter.

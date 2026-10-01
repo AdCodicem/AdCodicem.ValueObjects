@@ -18,9 +18,14 @@ namespace AdCodicem.ValueObjects.Dapper;
 /// </para>
 /// <para>
 /// A SQL <c>NULL</c> reads as <see langword="null"/> into an optional value object, <c>TSelf?</c>, and is refused
-/// with a <see cref="DataException"/> for a required one, as Dapper refuses it for an <see cref="int"/>. The handler
-/// implements <see cref="SqlMapper.ITypeHandler"/> itself for that, since
+/// with a <see cref="DataException"/> for a required one in a single-column query, as Dapper refuses it for an
+/// <see cref="int"/>. The handler implements <see cref="SqlMapper.ITypeHandler"/> itself for that, since
 /// <see cref="SqlMapper.TypeHandler{T}.Parse(object)"/> cannot return <see langword="null"/> for a struct.
+/// </para>
+/// <para>
+/// For a member of a mapped type, or a parameter of the constructor it is mapped through, Dapper checks for a
+/// <c>NULL</c> before it calls the handler, and never calls it: a required value object is left uninitialized,
+/// <c>default(TSelf)</c>, and nothing throws. A column that can be <c>NULL</c> belongs in a <c>TSelf?</c> member.
 /// </para>
 /// </remarks>
 public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandler<TSelf>, SqlMapper.ITypeHandler
