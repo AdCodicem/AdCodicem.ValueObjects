@@ -19,6 +19,7 @@ public sealed class ValueObjectModelTests
         {
             Namespace = string.Empty,
             TypeName = "Address",
+            Identifier = "Address",
             QualifiedName = "global::Address",
             ContainingTypes = EquatableArray<string>.Empty,
             Kind = UnderlyingKind.String,

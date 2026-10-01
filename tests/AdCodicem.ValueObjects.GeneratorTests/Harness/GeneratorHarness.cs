@@ -26,12 +26,18 @@ public static class GeneratorHarness
     /// Compiles source, runs the generator, and reports what came out.
     /// </summary>
     /// <param name="source">Source to compile. A namespace and usings are added if absent.</param>
+    /// <param name="documentationMode">
+    /// How documentation comments are processed, in the source and in the generated files alike.
+    /// <see cref="DocumentationMode.Diagnose"/> is what a project producing its documentation file compiles with,
+    /// and the only mode that reports a malformed comment or a broken <c>cref</c>.
+    /// </param>
     /// <returns>The generated sources and every diagnostic produced.</returns>
-    public static GeneratorRun Run(string source)
+    public static GeneratorRun Run(string source, DocumentationMode documentationMode = DocumentationMode.Parse)
     {
-        var compilation = Compile(source);
+        var parseOptions = ParseOptions.WithDocumentationMode(documentationMode);
+        var compilation = Compile(source, parseOptions);
         var driver = CSharpGeneratorDriver
-            .Create([new ValueObjectGenerator().AsSourceGenerator()], parseOptions: ParseOptions, driverOptions: DriverOptions)
+            .Create([new ValueObjectGenerator().AsSourceGenerator()], parseOptions: parseOptions, driverOptions: DriverOptions)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics);
 
         var result = driver.GetRunResult().Results.Single();
@@ -100,10 +106,10 @@ public static class GeneratorHarness
     private static readonly GeneratorDriverOptions DriverOptions =
         new(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true);
 
-    private static CSharpCompilation Compile(string source)
+    private static CSharpCompilation Compile(string source, CSharpParseOptions? parseOptions = null)
         => CSharpCompilation.Create(
             "GeneratorTests",
-            [CSharpSyntaxTree.ParseText(Wrap(source), ParseOptions)],
+            [CSharpSyntaxTree.ParseText(Wrap(source), parseOptions ?? ParseOptions)],
             References,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
 

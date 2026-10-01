@@ -32,10 +32,14 @@ internal readonly record struct EntityIdProfile(string Prefix, string Granularit
 /// </remarks>
 internal sealed record ValueObjectModel
 {
+    /// <summary>Gets the namespace of the declared type as C# code writes it, or empty for the global namespace.</summary>
     public required string Namespace { get; init; }
 
-    /// <summary>Gets the simple name of the declared type.</summary>
+    /// <summary>Gets the simple name of the declared type, as messages quote it.</summary>
     public required string TypeName { get; init; }
+
+    /// <summary>Gets the simple name of the declared type as C# code writes it, escaped when it is a keyword.</summary>
+    public required string Identifier { get; init; }
 
     /// <summary>Gets the globally qualified name of the declared type.</summary>
     public required string QualifiedName { get; init; }
