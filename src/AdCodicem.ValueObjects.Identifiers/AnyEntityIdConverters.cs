@@ -89,13 +89,14 @@ public sealed class AnyEntityIdTypeConverter : TypeConverter
         => destinationType == typeof(string) || base.CanConvertTo(context, destinationType);
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Anything but text, <see langword="null"/> included, goes to the base class, which throws
+    /// <see cref="NotSupportedException"/>, as the converter of a generated identifier does.
+    /// </remarks>
     public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
-        => value switch
-        {
-            null => default(AnyEntityId),
-            string text => AnyEntityId.Parse(text, CultureInfo.InvariantCulture),
-            _ => base.ConvertFrom(context, culture, value),
-        };
+        => value is string text
+            ? AnyEntityId.Parse(text, CultureInfo.InvariantCulture)
+            : base.ConvertFrom(context, culture, value);
 
     /// <inheritdoc />
     public override object? ConvertTo(
