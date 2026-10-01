@@ -20,13 +20,45 @@ public class ParsingAndFormattingTests
         Iban.Parse(text, CultureInfo.InvariantCulture).Value.Should().Be("DE89370400440532013000");
     }
 
-    [Fact]
-    public void Parse_reports_the_offending_text()
+    /// <summary>
+    /// Parse throws with the rule TryParse reports, so a caller catching the exception can act on the same code a
+    /// caller of TryParse gets.
+    /// </summary>
+    [Theory]
+    [InlineData("not-an-iban", ValueObjectErrorCodes.TooShort)] // nine characters once the dashes are stripped
+    [InlineData("1R7630006000011234567890189", ValueObjectErrorCodes.InvalidFormat)] // the declared pattern
+    [InlineData("FR7630006000011234567890188", ValueObjectErrorCodes.InvalidFormat)] // the check digits of the hook
+    [InlineData("", ValueObjectErrorCodes.Required)]
+    public void Parse_reports_the_offending_text_and_the_rule_it_broke(string text, string expectedErrorCode)
     {
-        var act = () => Iban.Parse("not-an-iban");
+        Iban.TryParse(text, CultureInfo.InvariantCulture, out _, out var validation).Should().BeFalse();
 
-        act.Should().Throw<ValueObjectException>()
-            .Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        var exception = FluentActions.Invoking(() => Iban.Parse(text)).Should().Throw<ValueObjectException>().Which;
+
+        exception.ErrorCode.Should().Be(expectedErrorCode).And.Be(validation.ErrorCode);
+        exception.Message.Should().Be($"'{text}' is not a valid Iban: {validation.ErrorMessage}");
+        exception.AttemptedValue.Should().Be(text);
+        exception.ValueObjectType.Should().Be<Iban>();
+    }
+
+    [Theory]
+    [InlineData("not-a-number", ValueObjectErrorCodes.NotParsable)]
+    [InlineData("-5", ValueObjectErrorCodes.OutOfRange)]
+    public void Parse_reports_not_parsable_only_for_text_that_is_not_of_the_underlying_type(
+        string text,
+        string expectedErrorCode)
+    {
+        FluentActions.Invoking(() => Amount.Parse(text, CultureInfo.InvariantCulture))
+            .Should().Throw<ValueObjectException>()
+            .Which.ErrorCode.Should().Be(expectedErrorCode);
+    }
+
+    [Fact]
+    public void Parse_reports_a_value_outside_a_closed_set_as_such()
+    {
+        FluentActions.Invoking(() => CountryCode.Parse("zz"))
+            .Should().Throw<ValueObjectException>()
+            .Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotAKnownValue);
     }
 
     [Theory]

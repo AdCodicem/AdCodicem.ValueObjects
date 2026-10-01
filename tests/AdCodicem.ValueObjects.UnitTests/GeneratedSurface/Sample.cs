@@ -141,8 +141,9 @@ public class Sample<TSelf, TValue> : Sample
         TryParseThroughIParsable<TSelf>(null, out _).Should().BeFalse("null is no text, whatever the provider");
         tryParseText(Refused, out _).Should().BeFalse("'{0}' is refused", Refused);
         tryParseSpan(Refused, out _).Should().BeFalse("'{0}' is refused as a span too", Refused);
+        TSelf.TryParse(Refused, null, out _, out var refusal).Should().BeFalse("'{0}' is refused with its rule", Refused);
         FluentActions.Invoking(() => parse(Refused))
-            .Should().Throw<ValueObjectException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+            .Should().Throw<ValueObjectException>().Which.ErrorCode.Should().Be(refusal.ErrorCode);
         FluentActions.Invoking(() => ParseThroughIParsable<TSelf>(Refused)).Should().Throw<ValueObjectException>();
 
         if (typeof(TValue) != typeof(string))
