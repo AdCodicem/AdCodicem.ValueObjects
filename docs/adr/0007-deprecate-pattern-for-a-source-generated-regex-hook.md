@@ -22,18 +22,19 @@ and `RegexOptions.Compiled`.
 expression. A consumer publishing with native AOT pays for that on every value validated, and has no way to
 choose otherwise.
 
-`PatternBenchmarks` measured the option against the same expression as a `[GeneratedRegex]` the consumer writes:
+`PatternBenchmarks` measured the option against the same expression as a `[GeneratedRegex]` the consumer writes
+(one run each, recorded in `benchmarks/README.md` under "Checking a pattern"):
 
 | Measured | `Pattern` option | `[GeneratedRegex]` |
 | --- | --- | --- |
-| IBAN, validated through `TryCreate` under native AOT | 307–313 ns | 223–230 ns |
-| Five-digit postal code, validated through `TryCreate` under native AOT | 79–80 ns | 39 ns |
-| The regex engine alone, IBAN shape, under native AOT | 133–136 ns | 65–66 ns |
+| IBAN, validated through `TryCreate` under native AOT | 290.5 ns | 213.3 ns |
+| Five-digit postal code, validated through `TryCreate` under native AOT | 72.4 ns | 37.2 ns |
+| The regex engine alone, IBAN shape, under native AOT | 123.6 ns | 62.0 ns |
 
-Under the JIT, where `RegexOptions.Compiled` does apply, the source-generated expression gains only 6 to 10 ns. A
-shape checked by hand in `IValueObjectValidator<string>` is 2 to 25 times faster than either regular expression,
-so the option was never the fastest way to check a shape; it is the declarative one, and the one that reaches the
-schema.
+Under the JIT, where `RegexOptions.Compiled` does apply, the source-generated expression gains only 7 to 9 ns. A
+shape checked by hand in `IValueObjectValidator<string>` is 1.6 to 12 times as fast as the source-generated
+expression, so a regular expression was never the fastest way to check a shape; it is the declarative one, and
+the one that reaches the schema.
 
 The regex source generator does see code a person wrote. A `[GeneratedRegex]` partial property on the value object
 itself compiles at build time, under the JIT and native AOT alike. What it loses is the declaration in one place:
