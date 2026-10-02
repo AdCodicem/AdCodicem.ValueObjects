@@ -139,6 +139,8 @@ explicit projection. It never replaces a handler already in Dapper's table, and 
 - Text read into a non-string value object is parsed and validated, and a number or a `Guid` read into a string
   value object is turned into text (a `Guid` in its lowercase `D` form) and validated through `TryCreate`; a refusal
   throws `DataException` carrying the rule.
+- A string parameter declares its column as the EF Core conventions map it: an `[EntityId]` as `char(n)`
+  non-Unicode, a value object with `MaxLength` as Unicode text of that length. SQL Server keeps its index seek.
 - A value object over `Int128` or `UInt128` gets no handler: no provider carries either type. Register a
   `SqlMapper.TypeHandler<T>` of your own that converts to the column you chose.
 

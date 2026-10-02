@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using AdCodicem.ValueObjects.Metadata;
 using Dapper;
 
 namespace AdCodicem.ValueObjects.Dapper;
@@ -20,6 +21,13 @@ namespace AdCodicem.ValueObjects.Dapper;
 /// text, then validated through <c>TryCreate</c>.
 /// </para>
 /// <para>
+/// A parameter declares the column a value object over <see cref="string"/> is mapped to when the value object says
+/// more than its underlying type, as the Entity Framework Core conventions map it: an entity identifier as fixed-length,
+/// non-Unicode text of its exact length, a value object declaring a maximum length as Unicode text of that length.
+/// SQL Server then compares the parameter with the column as it is, with no implicit conversion of the column to cost
+/// an index seek. The size is never smaller than the value, which both SqlClient and Npgsql would otherwise truncate.
+/// </para>
+/// <para>
 /// A SQL <c>NULL</c> reads as <see langword="null"/> into an optional value object, <c>TSelf?</c>, and is refused
 /// with a <see cref="DataException"/> for a required one in a single-column query, as Dapper refuses it for an
 /// <see cref="int"/>. The handler implements <see cref="SqlMapper.ITypeHandler"/> itself for that, since
@@ -34,12 +42,23 @@ namespace AdCodicem.ValueObjects.Dapper;
 public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandler<TSelf>, SqlMapper.ITypeHandler
     where TSelf : struct, IValueObject<TSelf, TValue>
 {
+    /// <summary>
+    /// Full name of the interface every entity identifier implements, in a package this one does not reference.
+    /// </summary>
+    private const string EntityIdInterface = "AdCodicem.ValueObjects.Identifiers.IEntityId`1";
+
+    /// <summary>
+    /// The column type a parameter declares, and its length, or <see langword="null"/> to leave both to the provider.
+    /// </summary>
+    private static readonly (DbType Type, int Length)? Column = DeclaredColumn();
+
     /// <inheritdoc />
     public override void SetValue(IDbDataParameter parameter, TSelf value)
     {
         ArgumentNullException.ThrowIfNull(parameter);
 
         parameter.Value = value.Value;
+        Declare(parameter, value.Value is string text ? text.Length : 0);
     }
 
     /// <inheritdoc />
@@ -82,6 +101,46 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
         }
 
         return TSelf.CreateUnchecked(converted);
+    }
+
+    /// <summary>
+    /// Declares the column type of a parameter, when the value object says more than its underlying type.
+    /// </summary>
+    /// <param name="parameter">Parameter carrying the value object.</param>
+    /// <param name="length">Length of the text it carries.</param>
+    /// <remarks>
+    /// A value this application read without validating it may be longer than the value object allows, and the size
+    /// grows to carry it whole: providers truncate a value longer than the size of its parameter, silently.
+    /// </remarks>
+    private static void Declare(IDbDataParameter parameter, int length)
+    {
+        if (Column is { } column)
+        {
+            parameter.DbType = column.Type;
+            parameter.Size = Math.Max(column.Length, length);
+        }
+    }
+
+    /// <summary>
+    /// Works out the column type a parameter declares, as the Entity Framework Core conventions map the value object.
+    /// </summary>
+    /// <returns>The column type and its length, or <see langword="null"/> when the underlying type says it all.</returns>
+    /// <remarks>
+    /// Only an entity identifier is known to be ASCII. Declaring any other text non-Unicode would let SQL Server
+    /// replace the characters its code page lacks.
+    /// </remarks>
+    private static (DbType Type, int Length)? DeclaredColumn()
+    {
+        if (typeof(TValue) != typeof(string)
+            || !ValueObjectRegistry.TryGet(typeof(TSelf), out var descriptor)
+            || descriptor.Schema.MaxLength is not { } maxLength)
+        {
+            return null;
+        }
+
+        return typeof(TSelf).GetInterface(EntityIdInterface) is not null
+            ? (DbType.AnsiStringFixedLength, maxLength)
+            : (DbType.String, maxLength);
     }
 
     /// <summary>
@@ -168,6 +227,7 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
         if (value is DBNull)
         {
             parameter.Value = value;
+            Declare(parameter, 0);
             return;
         }
 
