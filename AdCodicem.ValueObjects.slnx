@@ -25,6 +25,7 @@
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/AdCodicem.ValueObjects.Benchmarks/AdCodicem.ValueObjects.Benchmarks.csproj" />
+    <Project Path="benchmarks/AdCodicem.ValueObjects.Benchmarks.FirstCall/AdCodicem.ValueObjects.Benchmarks.FirstCall.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/AdCodicem.ValueObjects.Sample.Api/AdCodicem.ValueObjects.Sample.Api.csproj" />
