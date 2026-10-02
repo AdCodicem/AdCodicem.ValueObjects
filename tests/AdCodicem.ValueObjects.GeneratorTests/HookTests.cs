@@ -414,6 +414,98 @@ public sealed class HookTests
     }
 
     /// <summary>
+    /// The pattern hook is a property. Written without its interface, the regular expression is never matched, and
+    /// the report is made once, on the declaration the author wrote, not on the half the regex generator writes.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_reports_a_pattern_written_without_its_interface()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>("""
+            [ValueObject<string>]
+            public readonly partial struct Code
+            {
+                [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+                public static partial Regex Pattern { get; }
+            }
+            """);
+
+        diagnostics.Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture)).Should().Equal(
+            Undeclared("Pattern", "Code", "IValueObjectPatternValidator"));
+    }
+
+    /// <summary>
+    /// What is not the pattern hook is left alone: one declared with its interface; one on a type whose own hook
+    /// already runs it, the way a source-generated regular expression was used before the pattern hook existed, be it
+    /// a validator or a normalizer; one that is not public, which could not implement the hook anyway; one that is not
+    /// a regular expression, or not static; and one on a type that is not a string, which takes no pattern.
+    /// </summary>
+    [Theory]
+    [InlineData("""
+        [ValueObject<string>]
+        public readonly partial struct Code : IValueObjectPatternValidator
+        {
+            [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+            public static partial Regex Pattern { get; }
+        }
+        """)]
+    [InlineData("""
+        [ValueObject<string>]
+        public readonly partial struct Code : IValueObjectValidator<string>
+        {
+            [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+            private static partial Regex Pattern { get; }
+
+            public static ValidationResult ValidateValue(in string value)
+                => Pattern.IsMatch(value) ? ValidationResult.Success : ValidationResult.InvalidFormat("Not a code.");
+        }
+        """)]
+    [InlineData("""
+        [ValueObject<string>]
+        public readonly partial struct Phone : IValueObjectNormalizer<string>
+        {
+            [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+            public static partial Regex Pattern { get; }
+
+            public static string NormalizeValue(string value) => Pattern.Replace(value, "");
+        }
+        """)]
+    [InlineData("""
+        [ValueObject<string>]
+        public readonly partial struct Code
+        {
+            [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+            private static partial Regex Pattern { get; }
+        }
+        """)]
+    [InlineData("""
+        [ValueObject<string>]
+        public readonly partial struct Code
+        {
+            public static string Pattern => "^[A-Z]+$";
+        }
+        """)]
+    [InlineData("""
+        [ValueObject<string>]
+        public readonly partial struct Code
+        {
+            public Regex Pattern => new("^[A-Z]+$");
+        }
+        """)]
+    [InlineData("""
+        [ValueObject<int>]
+        public readonly partial struct Floor
+        {
+            public static Regex Pattern { get; } = new("^[0-9]+$");
+        }
+        """)]
+    public async Task The_analyzer_leaves_alone_what_is_not_the_pattern_hook(string source)
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>(source);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// The compiler never hands an analyzer a null context, so the guard is only reached by a direct call, which
     /// it tolerates.
     /// </summary>
