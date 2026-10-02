@@ -104,6 +104,24 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
     }
 
     /// <summary>
+    /// An example is declared as text, and published as the type writes it: a client or a mock server checking the
+    /// example against the schema finds a number where the schema says number, and a boolean where it says boolean.
+    /// </summary>
+    [Fact]
+    public void An_example_is_published_as_the_type_writes_it()
+    {
+        var amount = document.Schema(nameof(Amount)).GetProperty("examples").EnumerateArray().Single();
+        var port = document.Schema(nameof(Port)).GetProperty("examples").EnumerateArray().Single();
+        var consent = document.Schema(nameof(Consent)).GetProperty("examples").EnumerateArray().Single();
+
+        amount.ValueKind.Should().Be(JsonValueKind.Number);
+        amount.GetRawText().Should().Be("1250.00");
+        port.ValueKind.Should().Be(JsonValueKind.Number);
+        port.GetUInt16().Should().Be(8080);
+        consent.ValueKind.Should().Be(JsonValueKind.True);
+    }
+
+    /// <summary>
     /// The type's XML summary describes it unless the declaration says otherwise; what the declaration says wins.
     /// </summary>
     [Fact]
