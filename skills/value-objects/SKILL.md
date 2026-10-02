@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation and OpenAPI integrations. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0026 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation and OpenAPI integrations. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0030 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -51,14 +51,17 @@ Non-negotiable, each one a diagnostic if you get it wrong:
 A rule stated on `[ValueObject<T>]` validates the value, sizes the EF Core column and becomes the OpenAPI
 schema keyword. A rule buried in code does only the first. Never restate a declared rule in a hook.
 
-A pattern is the one exception: it is declared through the `IValueObjectPatternValidator` hook, never through
-the deprecated `Pattern` option (`VO0021`), and the text of its `[GeneratedRegex]` still becomes the OpenAPI
-`pattern`. It is a declared rule all the same: written once, never restated in `ValidateValue`.
+A pattern and bounds are the exceptions. A pattern is declared through the `IValueObjectPatternValidator` hook,
+never through the deprecated `Pattern` option (`VO0021`), and the text of its `[GeneratedRegex]` still becomes the
+OpenAPI `pattern`. Bounds are declared through `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>`, as values of
+the underlying type the compiler checks, never through the deprecated `Minimum`/`Maximum` text options (`VO0028`),
+and still become the OpenAPI bounds. Each is a declared rule all the same: written once, never restated in
+`ValidateValue`.
 
 | Option | Effect |
 | --- | --- |
 | `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI `minLength`/`maxLength`. |
-| `Minimum`, `Maximum` | Inclusive bounds on numbers, `char`, dates, times and durations, written as **text** in the one form of the type (`references/authoring.md`), parsed at compile time. |
+| `Minimum`, `Maximum` | **Deprecated** (`VO0028`): implement `IValueObjectMinimum<T>` / `IValueObjectMaximum<T>` instead. |
 | `Comparison` | Equality, ordering and hashing for `string` value objects. `Ordinal` by default. |
 | `ValueSet = ValueSetKind.Closed` + `[KnownValue]` | Reference-data codes: frozen membership lookup, named constants, schema `enum`. |
 | `Arithmetic = true` | Operators and generic math on a numeric type. Every result is re-validated. |
@@ -78,6 +81,7 @@ does not look at member names, and `VO0011` is only a warning.
 | `IValueObjectNormalizer<TValue>` | `public static TValue NormalizeValue(TValue value)` |
 | `IValueObjectSpanNormalizer` | `public static string NormalizeValue(ReadOnlySpan<char> value)` — `string` only, alongside the above |
 | `IValueObjectPatternValidator` | `[GeneratedRegex("…", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }` — `string` only; runs after `MinLength`/`MaxLength`, rejects as `value_object.invalid_format`, and its text is the OpenAPI `pattern` |
+| `IValueObjectMinimum<TValue>`, `IValueObjectMaximum<TValue>` | `public static TValue Minimum => …;`, `public static TValue Maximum => …;` — numbers, `char`, dates, times and durations; inclusive, checked before `ValidateValue`, rejected as `value_object.out_of_range`, and published as the OpenAPI bounds |
 | `IValueObjectValidator<TValue>` | `public static ValidationResult ValidateValue(in TValue value)` |
 | `IValueObjectFormatter<TValue>` | `public static bool TryFormatValue(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 | `IValueObjectStringFormatter<TValue>` | `public static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
@@ -132,6 +136,11 @@ Contract of the hooks:
   expected format." Its text, read off `[GeneratedRegex]` at compile time, is the OpenAPI `pattern`, which
   carries no `RegexOptions`: write case insensitivity into the pattern itself, `[A-Za-z]` (`VO0025`). Always
   set `matchTimeoutMilliseconds` (`VO0026`).
+- **A bound is a constant**, an expression-bodied property (`=> …`, never `{ get; } = …`): the check reads it each
+  time and the schema once, as the assembly loads. A bound relative to the clock ("not in the future") is a rule,
+  written in `ValidateValue` against a `TimeProvider` a test can fix. Over a
+  type that takes no bound (`string`, `Guid`, `bool`, an `[EntityId]`) or over another type than the underlying
+  one, the hook is `VO0030`.
 - **Formatting takes over entirely** when declared, default format included: `ToString()` goes through the hook.
   With both formatter hooks, `FormatValue` answers everywhere.
 
@@ -161,6 +170,10 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   Never keep both: that is `VO0022`.
 - A `static Regex Pattern` without `IValueObjectPatternValidator` — `VO0011`. It never runs as the declared
   pattern and never reaches the schema.
+- `Minimum = "..."` or `Maximum = "..."` on `[ValueObject<T>]` — deprecated (`VO0028`) and removed in the next
+  major: the compiler cannot check text. Declare `public static T Minimum => …;` through `IValueObjectMinimum<T>`
+  (and `Maximum` through `IValueObjectMaximum<T>`). Never keep both: that is `VO0029`. A `Minimum` or `Maximum`
+  written without its interface never runs: `VO0011`.
 - `CreateUnchecked` on input from outside the application. It validates nothing; it is for the EF read path.
 - A separate FluentValidation rule restating length or pattern — defer to the value object
   (`MustParseAs`, `MustSatisfy`).
@@ -204,6 +217,6 @@ it for every value object, then test only the domain behaviour that is actually 
 | `references/authoring.md` | Every attribute option, closed value sets, arithmetic, formats, span normalization. |
 | `references/integrations.md` | ASP.NET Core, EF Core, JSON, Dapper, FluentValidation, OpenAPI, Newtonsoft. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, `AnyEntityId`, deterministic tests. |
-| `references/diagnostics.md` | `VO0001`–`VO0026`, with the fix for each. |
+| `references/diagnostics.md` | `VO0001`–`VO0030`, with the fix for each. |
 
 Published documentation: <https://adcodicem.github.io/AdCodicem.ValueObjects/>

@@ -2,6 +2,8 @@ using System.Text.RegularExpressions;
 
 namespace AdCodicem.ValueObjects.UnitTests.Domain;
 
+#pragma warning disable VO0028 // The deprecated Minimum and Maximum options are what these types hold the generated code to.
+
 /// <summary>
 /// An email address, normalized to lower case.
 /// </summary>

@@ -252,7 +252,7 @@ public static class ValueObjectRegistry
     [RequiresUnreferencedCode("Reads the value object interfaces and annotations of the type.")]
     private static ValueObjectDescriptor BuildByReflection(Type valueObjectType, Type valueType)
     {
-        var schema = ReadSchema(valueObjectType);
+        var schema = ReadSchema(valueObjectType, valueType);
         if (!schema.KnownValues.IsDefaultOrEmpty)
         {
             var normalize = typeof(ValueObjectRegistry)
@@ -311,21 +311,34 @@ public static class ValueObjectRegistry
     /// </summary>
     private const string PatternOption = "Pattern";
 
-    [RequiresDynamicCode("Instantiates the generic reader of IValueObjectPatternValidator for the type.")]
+    /// <summary>
+    /// The names of the deprecated <c>Minimum</c> and <c>Maximum</c> options, read by name for the reason
+    /// <see cref="PatternOption"/> is: naming the obsolete properties would report <c>VO0028</c> here.
+    /// </summary>
+    private const string MinimumOption = "Minimum";
+
+    /// <inheritdoc cref="MinimumOption"/>
+    private const string MaximumOption = "Maximum";
+
+    [RequiresDynamicCode("Instantiates the generic readers of the hooks for the type.")]
     [RequiresUnreferencedCode("Reads the annotations of the value object type.")]
-    private static ValueObjectSchema ReadSchema(Type valueObjectType)
+    private static ValueObjectSchema ReadSchema(Type valueObjectType, Type valueType)
     {
         var attribute = valueObjectType
             .GetCustomAttributes(inherit: false)
             .FirstOrDefault(candidate => candidate.GetType().IsGenericType
                                          && candidate.GetType().GetGenericTypeDefinition() == typeof(ValueObjectAttribute<>));
 
-        // The pattern hook describes a type with no annotation as well: it is an interface the type implements.
+        // The hooks describe a type with no annotation as well: each is an interface the type implements.
         var hookPattern = ReadPatternHook(valueObjectType);
+        var hookMinimum = ReadBoundHook(valueObjectType, valueType, typeof(IValueObjectMinimum<>), nameof(ValueObjectBound.Minimum));
+        var hookMaximum = ReadBoundHook(valueObjectType, valueType, typeof(IValueObjectMaximum<>), nameof(ValueObjectBound.Maximum));
 
         if (attribute is null)
         {
-            return hookPattern is null ? ValueObjectSchema.Unconstrained : new ValueObjectSchema { Pattern = hookPattern };
+            return hookPattern is null && hookMinimum is null && hookMaximum is null
+                ? ValueObjectSchema.Unconstrained
+                : new ValueObjectSchema { Pattern = hookPattern, Minimum = hookMinimum, Maximum = hookMaximum };
         }
 
         var knownValues = valueObjectType
@@ -340,8 +353,8 @@ public static class ValueObjectRegistry
             Pattern = hookPattern ?? ReadString(type, attribute, PatternOption),
             MinLength = NormalizeLength(ReadInt32(type, attribute, nameof(ValueObjectAttribute<object>.MinLength))),
             MaxLength = NormalizeLength(ReadInt32(type, attribute, nameof(ValueObjectAttribute<object>.MaxLength))),
-            Minimum = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.Minimum)),
-            Maximum = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.Maximum)),
+            Minimum = hookMinimum ?? ReadString(type, attribute, MinimumOption),
+            Maximum = hookMaximum ?? ReadString(type, attribute, MaximumOption),
             Format = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.SchemaFormat)),
             Description = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.Description)),
             Example = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.Example)),
@@ -373,6 +386,36 @@ public static class ValueObjectRegistry
                 .MakeGenericMethod(valueObjectType)
                 .Invoke(null, null)?
                 .ToString()
+            : null;
+
+    /// <summary>
+    /// Reads a bound a type declares through <see cref="IValueObjectMinimum{TValue}"/> or
+    /// <see cref="IValueObjectMaximum{TValue}"/>, as text, or <see langword="null"/> when it implements neither.
+    /// </summary>
+    /// <param name="valueObjectType">The value object.</param>
+    /// <param name="valueType">Its underlying type, the one a hook bounds it with.</param>
+    /// <param name="hook">The generic definition of the hook.</param>
+    /// <param name="bridge">The member of <see cref="ValueObjectBound"/> that reads the hook.</param>
+    /// <returns>The bound, in the form <see cref="ValueObjectBound.Text{TValue}"/> writes it.</returns>
+    /// <remarks>
+    /// As for the pattern, the bound is read through <see cref="ValueObjectBound"/> closed over the type, which reaches
+    /// an explicit implementation too.
+    /// </remarks>
+    [RequiresDynamicCode("Instantiates the generic reader of the bound for the type.")]
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2060:MakeGenericMethod",
+        Justification = "ValueObjectBound has no requirement on its type parameters beyond the interface the check above proves.")]
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2055:MakeGenericType",
+        Justification = "The hook interfaces have no requirement on their type parameter.")]
+    private static string? ReadBoundHook(Type valueObjectType, Type valueType, Type hook, string bridge)
+        => hook.MakeGenericType(valueType).IsAssignableFrom(valueObjectType)
+            ? ValueObjectBound.Text(typeof(ValueObjectBound)
+                .GetMethod(bridge, BindingFlags.Public | BindingFlags.Static)!
+                .MakeGenericMethod(valueObjectType, valueType)
+                .Invoke(null, null))
             : null;
 
     [RequiresUnreferencedCode("Reads a property of the value object annotation.")]

@@ -310,6 +310,7 @@ public sealed class LiteralFormTests
         string literal)
     {
         var run = GeneratorHarness.Run($$"""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<{{underlying}}>(Minimum = {{Quote(text)}})]
             public readonly partial struct Wrapper;
             """);
@@ -343,6 +344,7 @@ public sealed class LiteralFormTests
     public void A_bound_outside_the_form_of_its_type_is_reported_with_that_form(string underlying, string text)
     {
         var run = GeneratorHarness.Run($$"""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<{{underlying}}>(Maximum = {{Quote(text)}})]
             public readonly partial struct Wrapper;
             """);

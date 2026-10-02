@@ -132,9 +132,27 @@ public class CreationTests
         // would let NaN through as a valid latitude.
         Latitude.TryCreate(double.NaN, out _, out var latitude).Should().BeFalse();
         Ratio.TryCreate(float.NaN, out _, out var ratio).Should().BeFalse();
+        Tolerance.TryCreate(double.NaN, out _, out var tolerance).Should().BeFalse("an upper bound alone refuses NaN too");
 
         latitude.ErrorCode.Should().Be(ValueObjectErrorCodes.OutOfRange);
         ratio.ErrorCode.Should().Be(ValueObjectErrorCodes.OutOfRange);
+        tolerance.ErrorCode.Should().Be(ValueObjectErrorCodes.OutOfRange);
+    }
+
+    /// <summary>
+    /// A bound is read where it is checked, never kept from a first read: an instance the type creates while it
+    /// initializes, before an initialized bound is assigned, is checked against its default, and every value after it
+    /// against the bound itself, which the schema publishes.
+    /// </summary>
+    [Fact]
+    public void A_bound_read_while_its_type_initializes_does_not_stick()
+    {
+        EffectiveDate.LedgerStart.Value.Should().Be(new DateOnly(2000, 1, 1));
+
+        EffectiveDate.TryCreate(new DateOnly(1999, 12, 31), out _, out var validation).Should().BeFalse();
+
+        validation.ErrorMessage.Should().Be("The value must be greater than or equal to 2000-01-01.");
+        EffectiveDate.Schema.Minimum.Should().Be("2000-01-01");
     }
 
     [Fact]

@@ -153,8 +153,9 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
 ### Hooks are interfaces
 
 A value object declares a rule by implementing `IValueObjectNormalizer<T>`, `IValueObjectSpanNormalizer`,
-`IValueObjectPatternValidator`, `IValueObjectValidator<T>`, `IValueObjectFormatter<T>` or
-`IValueObjectStringFormatter<T>` (`src/AdCodicem.ValueObjects.Abstractions/ValueObjectHooks.cs`). The compiler
+`IValueObjectPatternValidator`, `IValueObjectValidator<T>`, `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>`,
+`IValueObjectFormatter<T>` or `IValueObjectStringFormatter<T>`
+(`src/AdCodicem.ValueObjects.Abstractions/ValueObjectHooks.cs`). The compiler
 then checks the signature. The rules are public because a static abstract interface member cannot be anything
 else; `Normalize` remains the member callers use, guarding null before deferring to `NormalizeValue`. `VO0011`
 reports the one mistake left: a rule written without its interface. For a `static Regex Pattern` it reports a
@@ -166,6 +167,17 @@ supplies the body. It applies to string value objects only (`VO0023`), never to 
 replaces the deprecated `Pattern` option (`VO0021`); declaring both is `VO0022`, and the hook wins. The generator
 reads the pattern text off the attribute for the schema, so `VO0025` warns on a `RegexOptions` that text cannot
 carry, and `VO0026` on a missing `matchTimeoutMilliseconds`.
+
+`IValueObjectMinimum<T>` and `IValueObjectMaximum<T>` replace the deprecated `Minimum` and `Maximum` options
+(`VO0028`), whose bound is text read under one grammar per type; declaring an option and its hook is `VO0029`, and
+the hook wins. The generated code reads a bound through `ValueObjectBound`, a bridge that reaches it however the
+type implements it and that keeps nothing: a copy taken while the type initializes would keep the default for good.
+The schema publishes it through `ValueObjectBound.Text`, which the schema transformer re-writes in the converter's
+form. A hook over a type that takes no bound, or over another type than the underlying one, is `VO0030`. `VO0011`
+reports a public static `Minimum` or `Maximum` property of the underlying type without its interface, and stays
+quiet on a field, which could not implement it, on a type that implements `IValueObjectValidator<T>` or
+`IValueObjectNormalizer<T>`, which may already check it or clamp to it, and on a type still setting the option.
+`docs/adr/0008-deprecate-text-bounds-for-typed-bound-hooks.md` records why a bound is a constant that nothing caches.
 
 ## Constraints that will bite you
 
@@ -193,9 +205,10 @@ These are all load-bearing, and each cost real debugging time:
 - **The syntax predicate admits any `TypeDeclarationSyntax`**, not just structs, so a value object written as a
   class or a record struct reaches `VO0002` instead of silently generating nothing.
 - **Analyzer release tracking** (`AnalyzerReleases.Shipped.md` / `.Unshipped.md`) must list every diagnostic, or
-  RS2008 fails the build. `VO0021` is the exception: it is the `DiagnosticId` of the `[Obsolete]` on `Pattern`,
-  which the compiler reports, so no descriptor declares it and it has to be documented by hand. A test that
-  exercises the deprecated option disables it on the spot, `#pragma warning disable VO0021` with a comment.
+  RS2008 fails the build. `VO0021` and `VO0028` are the exceptions: they are the `DiagnosticId` of the `[Obsolete]`
+  on `Pattern`, and on `Minimum` and `Maximum`, which the compiler reports, so no descriptor declares them and they
+  have to be documented by hand. A test that exercises a deprecated option disables its diagnostic on the spot,
+  `#pragma warning disable VO0021` or `VO0028` with a comment.
 - **Every action in `.github/workflows` is pinned to a commit SHA**, with the release as a same-line comment
   (`uses: actions/checkout@3d3c42e... # v7.0.1`). Dependabot reads that comment to derive the semver bump, so a
   pin without one falls out of the `actions` group and may auto-merge as a non-major. Three of the eighteen

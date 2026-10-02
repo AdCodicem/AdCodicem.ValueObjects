@@ -176,6 +176,7 @@ public partial class SchemaTransformerTests
             TestContext.Current.CancellationToken);
 
         schema.Type.Should().Be(JsonSchemaType.Integer);
+        schema.Minimum.Should().Be("1", "the registry reads the bound off the hook the type implements");
     }
 
     /// <summary>
@@ -299,13 +300,18 @@ public partial class SchemaTransformerTests
     public readonly partial struct Gauge;
 
     /// <summary>A depth, never negative, so it holds positive infinity and no other literal.</summary>
-    [ValueObject<double>(Minimum = "0")]
-    public readonly partial struct Depth;
+    [ValueObject<double>]
+    public readonly partial struct Depth : IValueObjectMinimum<double>
+    {
+        public static double Minimum => 0;
+    }
 
     /// <summary>A billing month, held as its first day, whose upper bound falls in the middle of a month.</summary>
-    [ValueObject<DateOnly>(Maximum = "2030-06-15")]
-    public readonly partial struct BillingMonth : IValueObjectNormalizer<DateOnly>
+    [ValueObject<DateOnly>]
+    public readonly partial struct BillingMonth : IValueObjectNormalizer<DateOnly>, IValueObjectMaximum<DateOnly>
     {
+        public static DateOnly Maximum => new(2030, 6, 15);
+
         public static DateOnly NormalizeValue(DateOnly value) => new(value.Year, value.Month, 1);
     }
 
@@ -318,8 +324,11 @@ public partial class SchemaTransformerTests
     public readonly partial struct Moment;
 
     /// <summary>A socket's port, never zero.</summary>
-    [ValueObject<ushort>(Example = "8080", Minimum = "1")]
-    public readonly partial struct Socket;
+    [ValueObject<ushort>(Example = "8080")]
+    public readonly partial struct Socket : IValueObjectMinimum<ushort>
+    {
+        public static ushort Minimum => 1;
+    }
 
     /// <summary>A tier, one of two numbers.</summary>
     [ValueObject<int>(ValueSet = ValueSetKind.Closed)]

@@ -74,6 +74,12 @@ internal sealed record ValueObjectModel
     /// </summary>
     public bool HasPatternHook { get; init; }
 
+    /// <summary>Gets a value indicating whether the type declares its lower bound through <c>IValueObjectMinimum&lt;T&gt;</c>.</summary>
+    public bool HasMinimumHook { get; init; }
+
+    /// <summary>Gets a value indicating whether the type declares its upper bound through <c>IValueObjectMaximum&lt;T&gt;</c>.</summary>
+    public bool HasMaximumHook { get; init; }
+
     /// <summary>
     /// Gets the text of the hook's pattern, read off its <c>[GeneratedRegex]</c> attribute, for the schema. Null
     /// when the property carries none, and the schema then asks the regular expression for its text at run time.

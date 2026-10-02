@@ -3,79 +3,154 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain;
 // One value object for each underlying type the rest of the domain does not use, and for each option or hook it
 // does not declare, so that the code the generator emits for each of the 22 underlying types runs at least once
 // rather than only compiling (docs/adr/0006-coverage-is-a-signal-not-a-goal.md). The bounds and options are
-// chosen to reach the emitted branches; the names only keep the tests readable.
+// chosen to reach the emitted branches; the names only keep the tests readable. Every bound here is declared through
+// IValueObjectMinimum<T> or IValueObjectMaximum<T>; the rest of the domain keeps the deprecated text options, the
+// witnesses of the code they generate until they are removed.
 
 /// <summary>Whether a customer agreed to be contacted.</summary>
 [ValueObject<bool>(Example = "true")]
 public readonly partial struct Consent;
 
 /// <summary>A school grade, from A to F.</summary>
-[ValueObject<char>(Minimum = "A", Maximum = "F")]
-public readonly partial struct Grade : IValueObjectNormalizer<char>
+[ValueObject<char>]
+public readonly partial struct Grade : IValueObjectNormalizer<char>, IValueObjectMinimum<char>, IValueObjectMaximum<char>
 {
+    public static char Minimum => 'A';
+
+    public static char Maximum => 'F';
+
     public static char NormalizeValue(char value) => char.ToUpperInvariant(value);
 }
 
 /// <summary>A thermostat adjustment, in degrees.</summary>
-[ValueObject<sbyte>(Arithmetic = true, Minimum = "-10", Maximum = "10")]
-public readonly partial struct Adjustment;
+[ValueObject<sbyte>(Arithmetic = true)]
+public readonly partial struct Adjustment : IValueObjectMinimum<sbyte>, IValueObjectMaximum<sbyte>
+{
+    public static sbyte Minimum => -10;
+
+    public static sbyte Maximum => 10;
+}
 
 /// <summary>A score out of a hundred.</summary>
-[ValueObject<byte>(Arithmetic = true, Maximum = "100")]
-public readonly partial struct Score;
+[ValueObject<byte>(Arithmetic = true)]
+public readonly partial struct Score : IValueObjectMaximum<byte>
+{
+    public static byte Maximum => 100;
+}
 
 /// <summary>A TCP port.</summary>
-[ValueObject<ushort>(Arithmetic = true, Minimum = "1", Example = "8080")]
-public readonly partial struct Port;
+[ValueObject<ushort>(Arithmetic = true, Example = "8080")]
+public readonly partial struct Port : IValueObjectMinimum<ushort>
+{
+    public static ushort Minimum => 1;
+}
 
 /// <summary>A page number, counted from one, with the first page named in an open value set.</summary>
-[ValueObject<int>(Arithmetic = true, Minimum = "1")]
+[ValueObject<int>(Arithmetic = true)]
 [KnownValue("First", 1, Description = "The first page.")]
-public readonly partial struct PageNumber;
+public readonly partial struct PageNumber : IValueObjectMinimum<int>
+{
+    // An auto-property, unlike the others: its initializer runs before the known value it bounds is created.
+    public static int Minimum { get; } = 1;
+}
 
 /// <summary>A sequence number, which starts at zero.</summary>
 [ValueObject<uint>(Arithmetic = true, AllowDefault = true, ExplicitConversionFromValue = true)]
 public readonly partial struct SequenceNumber;
 
 /// <summary>The size of a file, in bytes.</summary>
-[ValueObject<long>(Arithmetic = true, Minimum = "0")]
-public readonly partial struct FileSize;
+[ValueObject<long>(Arithmetic = true)]
+public readonly partial struct FileSize : IValueObjectMinimum<long>
+{
+    public static long Minimum => 0;
+}
 
 /// <summary>A count of bytes transferred.</summary>
 [ValueObject<ulong>(Arithmetic = true, ImplicitConversionToValue = true)]
 public readonly partial struct ByteCount;
 
 /// <summary>A balance in the smallest unit of a currency, wider than 64 bits.</summary>
-[ValueObject<Int128>(Arithmetic = true, Minimum = "-1000000000000000000000", Maximum = "1000000000000000000000")]
-public readonly partial struct LedgerBalance;
+[ValueObject<Int128>(Arithmetic = true)]
+public readonly partial struct LedgerBalance : IValueObjectMinimum<Int128>, IValueObjectMaximum<Int128>
+{
+    public static Int128 Minimum => -Maximum;
+
+    public static Int128 Maximum => Int128.Parse("1000000000000000000000", System.Globalization.CultureInfo.InvariantCulture);
+}
 
 /// <summary>The fingerprint of a document's content.</summary>
 [ValueObject<UInt128>(Arithmetic = true)]
 public readonly partial struct Fingerprint;
 
 /// <summary>A latitude, in degrees.</summary>
-[ValueObject<double>(Arithmetic = true, Minimum = "-90", Maximum = "90")]
-public readonly partial struct Latitude;
+[ValueObject<double>(Arithmetic = true)]
+public readonly partial struct Latitude : IValueObjectMinimum<double>, IValueObjectMaximum<double>
+{
+    public static double Minimum => -90;
+
+    public static double Maximum => 90;
+}
 
 /// <summary>A ratio between zero and one.</summary>
-[ValueObject<float>(Arithmetic = true, Minimum = "0", Maximum = "1")]
-public readonly partial struct Ratio;
+[ValueObject<float>(Arithmetic = true)]
+public readonly partial struct Ratio : IValueObjectMinimum<float>, IValueObjectMaximum<float>
+{
+    public static float Minimum => 0;
+
+    public static float Maximum => 1;
+}
 
 /// <summary>The time a shop opens.</summary>
-[ValueObject<TimeOnly>(Minimum = "06:00", Maximum = "12:00")]
-public readonly partial struct OpeningTime;
+[ValueObject<TimeOnly>]
+public readonly partial struct OpeningTime : IValueObjectMinimum<TimeOnly>, IValueObjectMaximum<TimeOnly>
+{
+    public static TimeOnly Minimum => new(6, 0);
+
+    public static TimeOnly Maximum => new(12, 0);
+}
 
 /// <summary>When a record was written.</summary>
-[ValueObject<DateTime>(Minimum = "2000-01-01", Maximum = "2099-12-31")]
-public readonly partial struct RecordedAt;
+[ValueObject<DateTime>]
+public readonly partial struct RecordedAt : IValueObjectMinimum<DateTime>, IValueObjectMaximum<DateTime>
+{
+    public static DateTime Minimum => new(2000, 1, 1);
+
+    public static DateTime Maximum => new(2099, 12, 31);
+}
 
 /// <summary>When an event occurred, with the offset it occurred at.</summary>
-[ValueObject<DateTimeOffset>(Minimum = "2000-01-01T00:00:00+00:00")]
-public readonly partial struct OccurredAt;
+[ValueObject<DateTimeOffset>]
+public readonly partial struct OccurredAt : IValueObjectMinimum<DateTimeOffset>
+{
+    public static DateTimeOffset Minimum => new(2000, 1, 1, 0, 0, 0, TimeSpan.Zero);
+}
 
 /// <summary>How long a task took.</summary>
-[ValueObject<TimeSpan>(Minimum = "00:00:00", Maximum = "1.00:00:00")]
-public readonly partial struct Duration;
+[ValueObject<TimeSpan>]
+public readonly partial struct Duration : IValueObjectMinimum<TimeSpan>, IValueObjectMaximum<TimeSpan>
+{
+    public static TimeSpan Minimum => TimeSpan.Zero;
+
+    public static TimeSpan Maximum => TimeSpan.FromDays(1);
+}
+
+/// <summary>The day a contract takes effect, never before the first day the ledger covers.</summary>
+[ValueObject<DateOnly>]
+public readonly partial struct EffectiveDate : IValueObjectMinimum<DateOnly>
+{
+    // Created while the type initializes, before the bound below is assigned, so checked against its default: a bound
+    // kept from that first read would let every earlier day through for good.
+    public static readonly EffectiveDate LedgerStart = Create(new DateOnly(2000, 1, 1));
+
+    public static DateOnly Minimum { get; } = new(2000, 1, 1);
+}
+
+/// <summary>A measuring tolerance, as a fraction no larger than one.</summary>
+[ValueObject<double>]
+public readonly partial struct Tolerance : IValueObjectMaximum<double>
+{
+    public static double Maximum => 1;
+}
 
 /// <summary>An international phone number, printed in groups by its own formatter.</summary>
 /// <remarks>

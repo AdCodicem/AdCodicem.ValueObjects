@@ -385,12 +385,22 @@ internal static class ValueObjectEmitter
             properties.Add($"MaxLength = {model.MaxLength},");
         }
 
-        if (model.MinimumText is not null)
+        // A hook is read when the type initializes, through the bridge, and written in the one form a bound of its type
+        // takes, which the OpenAPI transformer reads back as it reads a text bound.
+        if (model.HasMinimumHook)
+        {
+            properties.Add($"Minimum = {Abstractions}.ValueObjectBound.Text({BoundOf(model, "Minimum")}),");
+        }
+        else if (model.MinimumText is not null)
         {
             properties.Add($"Minimum = {LiteralFactory.Quote(model.MinimumText)},");
         }
 
-        if (model.MaximumText is not null)
+        if (model.HasMaximumHook)
+        {
+            properties.Add($"Maximum = {Abstractions}.ValueObjectBound.Text({BoundOf(model, "Maximum")}),");
+        }
+        else if (model.MaximumText is not null)
         {
             properties.Add($"Maximum = {LiteralFactory.Quote(model.MaximumText)},");
         }
@@ -618,7 +628,17 @@ internal static class ValueObjectEmitter
         // floating-point bound asks whether the value is inside it instead.
         var floating = underlying.Kind is UnderlyingKind.Double or UnderlyingKind.Single;
 
-        if (underlying.SupportsBounds && model.MinimumLiteral is not null)
+        if (underlying.SupportsBounds && model.HasMinimumHook)
+        {
+            // Read through the bridge, which reaches an explicit implementation too and which the JIT folds into a
+            // constant; the message quotes the bound only on the rejection path.
+            var minimum = BoundOf(model, "Minimum");
+            writer.Open(floating ? $"if (!(value >= {minimum}))" : $"if (value < {minimum})");
+            writer.Line($"return {ValidationResult}.OutOfRange(\"The value must be greater than or equal to \" + {Abstractions}.ValueObjectBound.Text({minimum}) + \".\");");
+            writer.Close();
+            writer.Line();
+        }
+        else if (underlying.SupportsBounds && model.MinimumLiteral is not null)
         {
             writer.Open(floating ? $"if (!(value >= {model.MinimumLiteral}))" : $"if (value < {model.MinimumLiteral})");
             writer.Line($"return {ValidationResult}.OutOfRange({LiteralFactory.Quote($"The value must be greater than or equal to {model.MinimumText}.")});");
@@ -626,7 +646,15 @@ internal static class ValueObjectEmitter
             writer.Line();
         }
 
-        if (underlying.SupportsBounds && model.MaximumLiteral is not null)
+        if (underlying.SupportsBounds && model.HasMaximumHook)
+        {
+            var maximum = BoundOf(model, "Maximum");
+            writer.Open(floating ? $"if (!(value <= {maximum}))" : $"if (value > {maximum})");
+            writer.Line($"return {ValidationResult}.OutOfRange(\"The value must be less than or equal to \" + {Abstractions}.ValueObjectBound.Text({maximum}) + \".\");");
+            writer.Close();
+            writer.Line();
+        }
+        else if (underlying.SupportsBounds && model.MaximumLiteral is not null)
         {
             writer.Open(floating ? $"if (!(value <= {model.MaximumLiteral}))" : $"if (value > {model.MaximumLiteral})");
             writer.Line($"return {ValidationResult}.OutOfRange({LiteralFactory.Quote($"The value must be less than or equal to {model.MaximumText}.")});");
@@ -1065,6 +1093,15 @@ internal static class ValueObjectEmitter
         writer.Line($"public static bool TryParse(global::System.ReadOnlySpan<char> s, out {self} result) => TryParse(s, null, out result);");
         writer.Line();
     }
+
+    /// <summary>
+    /// Writes the expression reading a bound a value object declares through a hook.
+    /// </summary>
+    /// <param name="model">The value object.</param>
+    /// <param name="bound"><c>Minimum</c> or <c>Maximum</c>.</param>
+    /// <returns>The expression.</returns>
+    private static string BoundOf(ValueObjectModel model, string bound)
+        => $"{Abstractions}.ValueObjectBound.{bound}<{model.QualifiedName}, {model.UnderlyingFullName}>()";
 
     /// <summary>
     /// Gets the call parsing the text <c>s</c> into the underlying value, in the form ToString writes it.

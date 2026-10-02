@@ -19,9 +19,9 @@ JSON the same way.
 
 This is the common case, and the one the library exists for.
 
-1. **Declare the type**, moving the rules scattered through validators and controllers onto it: lengths and
-   bounds on the attribute, a pattern in `IValueObjectPatternValidator`, the rest in `ValidateValue`, any trimming
-   or upper-casing in `NormalizeValue`.
+1. **Declare the type**, moving the rules scattered through validators and controllers onto it: lengths on
+   the attribute, bounds in `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>`, a pattern in
+   `IValueObjectPatternValidator`, the rest in `ValidateValue`, any trimming or upper-casing in `NormalizeValue`.
 2. **Change the entity and the contracts**, property by property. JSON bodies, route segments and query strings
    keep the same shape.
 3. **Map it in EF Core** with `ConfigureValueObjects`. Then read the next migration carefully: a `MaxLength` on the

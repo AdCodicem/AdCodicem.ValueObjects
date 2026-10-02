@@ -2,6 +2,8 @@ using System.Globalization;
 
 namespace AdCodicem.ValueObjects.UnitTests.Domain;
 
+#pragma warning disable VO0028 // The deprecated Minimum and Maximum options are what these types hold the generated code to.
+
 // Value objects whose formatting hook writes, by default, something other than the bare value, so that a test can
 // tell which member answered: the hook, or the underlying value.
 

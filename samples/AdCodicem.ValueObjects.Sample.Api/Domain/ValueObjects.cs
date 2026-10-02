@@ -96,9 +96,12 @@ public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObje
 /// <summary>
 /// A monetary amount in euros, never negative, always carrying two decimals.
 /// </summary>
-[ValueObject<decimal>(Arithmetic = true, Minimum = "0", Example = "1250.00")]
-public readonly partial struct Amount : IValueObjectNormalizer<decimal>
+[ValueObject<decimal>(Arithmetic = true, Example = "1250.00")]
+public readonly partial struct Amount : IValueObjectNormalizer<decimal>, IValueObjectMinimum<decimal>
 {
+    /// <summary>Gets the smallest amount: an amount is never negative.</summary>
+    public static decimal Minimum => 0m;
+
     public static decimal NormalizeValue(decimal value) => decimal.Round(value, 2, MidpointRounding.ToEven) + 0.00m;
 }
 

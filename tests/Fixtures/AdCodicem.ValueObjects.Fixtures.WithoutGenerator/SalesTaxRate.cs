@@ -8,15 +8,20 @@ namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 /// written as text.
 /// </summary>
 /// <remarks>
-/// Its last known value is text no decimal parses. Where no generator runs, nothing checks the annotation when the type
+/// It declares its bounds through the hooks, which the registry reads back from the interfaces. Its last known value
+/// is text no decimal parses. Where no generator runs, nothing checks the annotation when the type
 /// compiles, and the registry has to describe such a value as it was written.
 /// </remarks>
 [ValueObject<decimal>]
 [KnownValue("Standard", "20.0")]
 [KnownValue("Reduced", "5.50")]
 [KnownValue("Unreadable", "twenty")]
-public readonly struct SalesTaxRate : IValueObject<SalesTaxRate, decimal>
+public readonly struct SalesTaxRate : IValueObject<SalesTaxRate, decimal>, IValueObjectMinimum<decimal>, IValueObjectMaximum<decimal>
 {
+    public static decimal Minimum => 0m;
+
+    public static decimal Maximum => 100m;
+
     private readonly decimal _value;
 
     private SalesTaxRate(decimal value) => _value = value;
@@ -28,7 +33,7 @@ public readonly struct SalesTaxRate : IValueObject<SalesTaxRate, decimal>
     public static decimal Normalize(decimal value) => decimal.Round(value, 1);
 
     public static ValidationResult Validate(in decimal value)
-        => value is >= 0m and <= 100m ? ValidationResult.Success : ValidationResult.OutOfRange("From 0 to 100.");
+        => value >= Minimum && value <= Maximum ? ValidationResult.Success : ValidationResult.OutOfRange("From 0 to 100.");
 
     public static SalesTaxRate Create(decimal value)
     {

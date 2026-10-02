@@ -18,7 +18,7 @@ JSON strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`,
 | --- | --- | --- | --- |
 | `Pattern` | `string?` | none | **Deprecated** (`VO0021`), and removed in the next major version: implement [`IValueObjectPatternValidator`](#a-pattern) instead. Regular expression the **normalized** value must match, built at run time. Also the OpenAPI `pattern`. Read as written, white space included; an empty one is absent. Invalid → `VO0014`. |
 | `MinLength`, `MaxLength` | `int` | `-1`, unconstrained | `string` only (`VO0008` otherwise). Validation, OpenAPI `minLength` / `maxLength`, and the EF Core column size. |
-| `Minimum`, `Maximum` | `string?` | none | Inclusive bounds written as **text**, in the [one form of the underlying type](#bounds-and-known-values-written-as-text), so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Numbers, `char`, dates, times and durations only: a bound on `string`, `Guid` or `bool` → `VO0004`. Parsed at compile time; any other text, or a value outside the type → `VO0004`. Also OpenAPI `minimum` / `maximum`, or `x-minimum` / `x-maximum` and a sentence of the description for a value written as a JSON string. |
+| `Minimum`, `Maximum` | `string?` | none | **Deprecated** (`VO0028`), and removed in the next major version: implement [`IValueObjectMinimum<T>` and `IValueObjectMaximum<T>`](#bounds) instead. Inclusive bounds written as **text**, in the [one form of the underlying type](#bounds-and-known-values-written-as-text), so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Numbers, `char`, dates, times and durations only: a bound on `string`, `Guid` or `bool` → `VO0004`. Parsed at compile time; any other text, or a value outside the type → `VO0004`. Also OpenAPI `minimum` / `maximum`, or `x-minimum` / `x-maximum` and a sentence of the description for a value written as a JSON string. |
 | `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering and hashing together. A value the enum does not define → `VO0020`. |
 | `ValueSet` | `ValueSetKind` | `Open` | `Closed` accepts only the declared `[KnownValue]`s, through a frozen lookup, and becomes the schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. A value the enum does not define → `VO0020`. |
 | `Arithmetic` | `bool` | `false` | Numeric types only (`VO0007` otherwise). Operators and generic math; every result is validated again. |
@@ -37,8 +37,8 @@ exact order.
 
 ## Bounds and known values written as text
 
-An attribute argument can only be a constant of a few types, so `Minimum`, `Maximum` and the known value of a
-`Guid`, a `decimal` or a date are written as text and read at compile time. Each underlying type reads **one
+An attribute argument can only be a constant of a few types, so the deprecated `Minimum` and `Maximum` options and
+the known value of a `Guid`, a `decimal` or a date are written as text and read at compile time. Each underlying type reads **one
 form**, and no other: no culture, no time zone, no white space around the value. The same declaration then
 compiles to the same value on every machine. Any other text is `VO0004` for a bound and `VO0013` for a known
 value, and the message names the form the type expects.
@@ -82,6 +82,8 @@ rule written without its interface — the one mistake the compiler cannot catch
 | `IValueObjectSpanNormalizer` | `static string NormalizeValue(ReadOnlySpan<char> value)` — string value objects only |
 | `IValueObjectPatternValidator` | `static Regex Pattern { get; }`, written as a `[GeneratedRegex]` partial property — string value objects only |
 | `IValueObjectValidator<TValue>` | `static ValidationResult ValidateValue(in TValue value)` |
+| `IValueObjectMinimum<TValue>` | `static TValue Minimum { get; }` — numbers, `char`, dates, times and durations |
+| `IValueObjectMaximum<TValue>` | `static TValue Maximum { get; }` — numbers, `char`, dates, times and durations |
 | `IValueObjectFormatter<TValue>` | `static bool TryFormatValue(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 | `IValueObjectStringFormatter<TValue>` | `static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 
@@ -158,9 +160,57 @@ AOT cannot compile a regular expression at run time and interprets it instead. D
 option used, so behaviour does not change. [Moving off `Pattern`](./reference/diagnostics.md#moving-off-pattern)
 shows the change.
 
+### Bounds
+
+`IValueObjectMinimum<TValue>` and `IValueObjectMaximum<TValue>` declare the inclusive bounds of a value object as
+values of its underlying type, so the compiler checks their type and any expression of that type can build them:
+
+```csharp
+[ValueObject<DateOnly>]
+public readonly partial struct BirthDate : IValueObjectMinimum<DateOnly>, IValueObjectMaximum<DateOnly>
+{
+    public static DateOnly Minimum => new(1900, 1, 1);
+
+    public static DateOnly Maximum => new(2100, 12, 31);
+}
+```
+
+The bounds run on the normalized value, after the pattern and before the known values and `ValidateValue`. A
+value outside them is rejected as `value_object.out_of_range`, with the message "The value must be greater than
+or equal to 1900-01-01." A `double` or a `float` bound also rejects `NaN`, which compares false with everything.
+The rule is declared once: the bounds are the OpenAPI `minimum` and `maximum`, or, for a type JSON writes as a
+string, the `x-minimum` and `x-maximum` extensions and a sentence of the description, written as the JSON
+converter writes the type.
+
+A bound is a constant. The check reads it each time it runs, which costs nothing for a constant, folded into the
+comparison by the JIT, and the schema reads it once, when the type initializes, which the generated registration
+does as the assembly loads. A bound that changed would therefore be checked against a value the schema does not
+publish, and a bound must neither throw nor read the state of the application. A bound relative to the clock, such
+as "not in the future" or "within 90 days", is a rule rather than a bound: implement it in
+`IValueObjectValidator<T>`.
+
+Write a bound as an expression-bodied property, as above. An initialized property, `{ get; } = ...`, is assigned
+with the type's other static fields, in the order they are declared, so an instance a static field declared before
+it creates, `public static readonly BirthDate Earliest = Create(new(1900, 1, 1));`, would be checked against the
+default of the type.
+
+The message quotes the bound in one invariant form per type: as written for an integer, a `decimal`, a `char`, a
+`DateOnly` or a `TimeSpan`, and in its round-trip form for a real (`1E-05`), a time (`06:00:00.0000000`) or a date
+and time, a `DateTime` without its kind, since the check compares clock readings.
+
+The hooks apply to numbers, `char`, dates, times and durations, and over the underlying type itself. Over a
+`string`, a `Guid`, a `bool` or an `[EntityId]`, or over another type, `IValueObjectMinimum<int>` on a
+`[ValueObject<long>]`, they are `VO0030`. A public static `Minimum` or `Maximum` of the underlying type written
+without its interface is `VO0011`, unless the type implements `IValueObjectValidator<T>`, which may already check
+it.
+
+The hooks replace the `Minimum` and `Maximum` options, whose bound is text read under a grammar of its own for each
+type. Declaring an option and its hook on one type is `VO0029`, and the hook wins.
+[Moving off `Minimum` and `Maximum`](./reference/diagnostics.md#moving-off-minimum-and-maximum) shows the change.
+
 ## Diagnostics
 
-The generator and the analyzers report `VO0001` to `VO0026`. [Diagnostics](./reference/diagnostics.md) lists
+The generator and the analyzers report `VO0001` to `VO0030`. [Diagnostics](./reference/diagnostics.md) lists
 each one with its fix.
 
 Next: [Generated members](./reference/generated-members.md), for what the generator writes from all of this.

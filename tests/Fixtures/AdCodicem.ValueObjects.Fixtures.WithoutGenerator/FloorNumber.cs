@@ -8,10 +8,13 @@ namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 /// </summary>
 /// <remarks>
 /// It carries the consumer's own generic attribute ahead of its annotation, and <see cref="LightColor"/> after it,
-/// so the registry looks past one whatever order the attributes are read back in.
+/// so the registry looks past one whatever order the attributes are read back in. It keeps the deprecated Minimum and
+/// Maximum options, the only witness that the registry still reads them back, until they are removed.
 /// </remarks>
 [Reviewed<FloorNumber>]
+#pragma warning disable VO0028 // The deprecated options are what this fixture holds the registry to.
 [ValueObject<int>(Minimum = "1", Maximum = "10")]
+#pragma warning restore VO0028
 public readonly struct FloorNumber : IValueObject<FloorNumber, int>
 {
     private readonly int _value;

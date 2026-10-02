@@ -278,6 +278,7 @@ without the package, the attribute does not exist.
 | `VO0020` | Error | `Granularity` holds a value `IdGranularity` does not define. |
 | `VO0024` | Error | `IValueObjectPatternValidator` on an identifier, which validates its format itself and publishes its own OpenAPI pattern. |
 | `VO0027` | Error | `[KnownValue]` on an identifier, which generates no known values: declare a well-known identifier as a static property that parses it. |
+| `VO0030` | Error | `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` on an identifier, which is text and takes no bound. |
 
 Cross-assembly prefix collisions are beyond a generator's reach and surface at start-up, when the second
 registration for a prefix is refused.

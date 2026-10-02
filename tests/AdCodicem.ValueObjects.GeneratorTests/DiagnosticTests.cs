@@ -90,6 +90,7 @@ public sealed class DiagnosticTests
     public void A_bound_that_does_not_parse_is_reported()
     {
         var run = GeneratorHarness.Run("""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<int>(Minimum = "not a number")]
             public readonly partial struct Count;
             """);
@@ -109,6 +110,7 @@ public sealed class DiagnosticTests
     public void A_bound_on_a_type_that_takes_none_is_reported(string underlying, string bound, string text, string reason)
     {
         var run = GeneratorHarness.Run($$"""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<{{underlying}}>({{bound}} = "{{text}}")]
             public readonly partial struct Wrapper;
             """);
@@ -145,6 +147,7 @@ public sealed class DiagnosticTests
     public void A_bound_outside_the_range_of_its_underlying_type_is_reported(string underlying, string bound)
     {
         var run = GeneratorHarness.Run($$"""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<{{underlying}}>(Maximum = "{{bound}}")]
             public readonly partial struct Wrapper;
             """);
@@ -168,6 +171,7 @@ public sealed class DiagnosticTests
     public void A_floating_point_bound_that_is_not_a_finite_number_is_reported(string underlying, string bound)
     {
         var run = GeneratorHarness.Run($$"""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<{{underlying}}>(Minimum = "{{bound}}")]
             public readonly partial struct Wrapper;
             """);
@@ -189,6 +193,7 @@ public sealed class DiagnosticTests
     public void A_date_and_time_bound_that_would_depend_on_the_build_machine_is_reported(string underlying, string bound)
     {
         var run = GeneratorHarness.Run($$"""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<{{underlying}}>(Minimum = "{{bound}}")]
             public readonly partial struct Wrapper;
             """);
