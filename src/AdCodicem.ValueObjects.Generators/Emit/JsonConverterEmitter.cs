@@ -13,6 +13,16 @@ namespace AdCodicem.ValueObjects.Generators.Emit;
 /// work inside a <c>JsonSerializerContext</c>, which is what keeps the whole chain compatible with native AOT.
 /// </para>
 /// <para>
+/// A value object over a number honours <c>JsonNumberHandling</c> as the built-in converter of its underlying type
+/// does, since System.Text.Json leaves the number handling of a custom converter to the converter: it reads a number
+/// written as text under <c>AllowReadingFromString</c>, writes one as text under <c>WriteAsString</c>, and, over a
+/// <see cref="double"/> or a <see cref="float"/>, writes <c>NaN</c> and the infinities as text under
+/// <c>AllowNamedFloatingPointLiterals</c> and reads them under either reading option. Text is read as
+/// System.Text.Json reads it, unescaped and parsed whole by <c>Utf8Parser</c>, with no white space, no group separator
+/// and no culture, and written as a string value, which an indented writer lays out as it lays out any other. A value
+/// object crosses the boundary exactly as its underlying type does.
+/// </para>
+/// <para>
 /// <c>null</c> needs no case of its own. System.Text.Json hands a null token to the converter of a value type, and
 /// the generated <c>Read</c> refuses it from its default arm with a <c>JsonException</c>; for an optional value
 /// object, the nullable wrapper System.Text.Json puts around the converter answers the null itself.
@@ -25,11 +35,15 @@ internal static class JsonConverterEmitter
     private const string Writer = Json + ".Utf8JsonWriter";
     private const string Options = Json + ".JsonSerializerOptions";
     private const string TokenType = Json + ".JsonTokenType";
+    private const string Handling = Json + ".Serialization.JsonNumberHandling";
     private const string JsonException = Json + ".JsonException";
     private const string Invariant = "global::System.Globalization.CultureInfo.InvariantCulture";
 
     /// <summary>Characters the read path is willing to put on the stack before falling back to a string.</summary>
     private const int StackBufferSize = 512;
+
+    /// <summary>Bytes the read path puts on the stack for a number written as text, far more than any number takes.</summary>
+    private const int QuotedNumberBufferSize = 128;
 
     public static void Emit(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value, string self)
     {
@@ -37,7 +51,7 @@ internal static class JsonConverterEmitter
         writer.Open($"public sealed class ValueJsonConverter : {Json}.Serialization.JsonConverter<{self}>");
 
         EmitRead(writer, model, underlying, value, self);
-        EmitWrite(writer, underlying, self);
+        EmitWrite(writer, underlying, value, self);
         EmitPropertyName(writer, model, underlying, self);
         EmitHelpers(writer, underlying, value);
 
@@ -82,15 +96,44 @@ internal static class JsonConverterEmitter
             writer.Line($"case {TokenType}.False:");
             writer.Indent().Line($"raw = {underlying.JsonReadExpression};").Line("break;").Unindent();
         }
+        else if (underlying.IsJsonNumber && IsFloatingPoint(underlying))
+        {
+            writer.Line($"case {TokenType}.Number:");
+            writer.Indent().Line($"raw = {underlying.JsonReadExpression};").Line("break;").Unindent();
+            writer.Line();
+            writer.Line("// Honour JsonNumberHandling as the built-in converter of the underlying type does: either option reads NaN");
+            writer.Line("// and the infinities, spelled exactly so, and AllowReadingFromString a finite number written as text.");
+            writer.Line($"case {TokenType}.String when (options.NumberHandling & ({Handling}.AllowReadingFromString | {Handling}.AllowNamedFloatingPointLiterals)) != 0:");
+            writer.Indent();
+            writer.Open("if (reader.ValueTextEquals(\"NaN\"))");
+            writer.Line($"raw = {value}.NaN;");
+            writer.Close();
+            writer.Open("else if (reader.ValueTextEquals(\"Infinity\"))");
+            writer.Line($"raw = {value}.PositiveInfinity;");
+            writer.Close();
+            writer.Open("else if (reader.ValueTextEquals(\"-Infinity\"))");
+            writer.Line($"raw = {value}.NegativeInfinity;");
+            writer.Close();
+            writer.Line("// The parser reads an overflow as an infinity, which System.Text.Json refuses.");
+            writer.Open(
+                $"else if ((options.NumberHandling & {Handling}.AllowReadingFromString) == 0\n"
+                + "    || !TryReadQuoted(ref reader, out raw)\n"
+                + $"    || !{value}.IsFinite(raw))");
+            writer.Line($"throw new {JsonException}($\"The value could not be read as {model.TypeName}.\");");
+            writer.Close();
+            writer.Line();
+            writer.Line("break;");
+            writer.Unindent();
+        }
         else if (underlying.IsJsonNumber)
         {
             writer.Line($"case {TokenType}.Number:");
             writer.Indent().Line($"raw = {underlying.JsonReadExpression};").Line("break;").Unindent();
             writer.Line();
             writer.Line($"// Honour JsonNumberHandling.AllowReadingFromString, which many APIs turn on for interop.");
-            writer.Line($"case {TokenType}.String when (options.NumberHandling & {Json}.Serialization.JsonNumberHandling.AllowReadingFromString) != 0:");
+            writer.Line($"case {TokenType}.String when (options.NumberHandling & {Handling}.AllowReadingFromString) != 0:");
             writer.Indent();
-            writer.Open($"if (!global::AdCodicem.ValueObjects.UnderlyingValue.TryParse<{value}>(reader.GetString(), {Invariant}, out raw))");
+            writer.Open("if (!TryReadQuoted(ref reader, out raw))");
             writer.Line($"throw new {JsonException}($\"The value could not be read as {model.TypeName}.\");");
             writer.Close();
             writer.Line();
@@ -121,10 +164,49 @@ internal static class JsonConverterEmitter
         writer.Line();
     }
 
-    private static void EmitWrite(CodeWriter writer, UnderlyingType underlying, string self)
+    private static void EmitWrite(CodeWriter writer, UnderlyingType underlying, string value, string self)
     {
         writer.Line("/// <inheritdoc />");
         writer.Open($"public override void Write({Writer} writer, {self} value, {Options} options)");
+
+        if (underlying.IsJsonNumber)
+        {
+            // Honour JsonNumberHandling as the built-in converter of the underlying type does: every number as text
+            // under WriteAsString, and NaN or an infinity as text under AllowNamedFloatingPointLiterals, in the
+            // invariant form the reader above accepts back, as a string value, so that an indented writer lays it out.
+            var condition = $"(options.NumberHandling & {Handling}.WriteAsString) != 0";
+            if (IsFloatingPoint(underlying))
+            {
+                condition += $" || ((options.NumberHandling & {Handling}.AllowNamedFloatingPointLiterals) != 0 && !{value}.IsFinite(value.Value))";
+            }
+
+            writer.Open($"if ({condition})");
+            writer.Line($"global::System.Span<char> buffer = stackalloc char[{underlying.FormatBufferSize}];");
+            writer.Line($"{value} number = value.Value;");
+            writer.Line($"global::AdCodicem.ValueObjects.UnderlyingValue.TryFormat(in number, buffer, out int length, default, {Invariant});");
+            if (IsFloatingPoint(underlying))
+            {
+                // The built-in converter writes the + of an exponent as is, where the default encoder would escape it.
+                writer.Line("global::System.ReadOnlySpan<char> text = buffer[..length];");
+                writer.Open("if (global::System.MemoryExtensions.Contains(text, '+'))");
+                writer.Line(
+                    $"writer.WriteStringValue({Json}.JsonEncodedText.Encode(text, "
+                    + "global::System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping));");
+                writer.Close();
+                writer.Open("else");
+                writer.Line("writer.WriteStringValue(text);");
+                writer.Close();
+            }
+            else
+            {
+                writer.Line("writer.WriteStringValue(buffer[..length]);");
+            }
+
+            writer.Line();
+            writer.Line("return;");
+            writer.Close();
+            writer.Line();
+        }
 
         switch (underlying.Kind)
         {
@@ -237,7 +319,25 @@ internal static class JsonConverterEmitter
             default:
                 break;
         }
+
+        if (underlying.IsJsonNumber)
+        {
+            // System.Text.Json reads a number written as text through Utf8Parser, from the unescaped text, which it
+            // has to consume whole: no white space, no group separator, no culture. Text too long for the stack can
+            // still be a number, padded with zeros, so the buffer then comes from the heap.
+            writer.Line("/// <summary>Reads a number written as a JSON string, as System.Text.Json reads one.</summary>");
+            writer.Open($"private static bool TryReadQuoted(ref {Reader} reader, out {value} value)");
+            writer.Line("int length = reader.HasValueSequence ? checked((int)reader.ValueSequence.Length) : reader.ValueSpan.Length;");
+            writer.Line($"global::System.Span<byte> text = length <= {QuotedNumberBufferSize} ? stackalloc byte[{QuotedNumberBufferSize}] : new byte[length];");
+            writer.Line("int written = reader.CopyString(text);");
+            writer.Line("return global::System.Buffers.Text.Utf8Parser.TryParse(text[..written], out value, out int consumed) && consumed == written;");
+            writer.Close();
+            writer.Line();
+        }
     }
+
+    private static bool IsFloatingPoint(UnderlyingType underlying)
+        => underlying.Kind is UnderlyingKind.Double or UnderlyingKind.Single;
 
     private static string HelperName(UnderlyingType underlying) => underlying.Kind switch
     {

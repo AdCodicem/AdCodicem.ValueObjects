@@ -63,11 +63,35 @@ would ignore them. Its bounds go to `x-minimum` and `x-maximum` instead, in the 
 that read extensions, and to a sentence after the description, `Between 1900-01-01 and 2100-12-31, inclusive.`, for
 the people reading the document.
 
-A known value is written by the type's converter, as the type holds it once normalized. A value object written by
-hand where no generator runs is described from its annotation instead, as the registry describes it by reflection the
-first time it meets the type, registered or not: each known value
-goes through the type too, normalized, or parsed when the attribute had to take it as text — a decimal, a `Guid`, a
-date — and only one the type cannot parse is listed as written. Its description is the annotation's `Description`
-alone: the XML summary a generated value object falls back on is not there to read at run time.
+A bound is published as it is declared and enforced, never normalized as an input would be: the check compares the
+normalized value with the bound itself. An example is an input, parsed and normalized as the type parses text, then
+written by the type's converter; one the type refuses, or one its converter cannot write, such as `NaN` without the
+named literals, is published as it was declared rather than failing the document. A known value is written by the
+type's converter, as the type holds it once normalized.
 
 The transformer targets the built-in OpenAPI stack. Swashbuckle is not supported.
+
+## Numbers written as text
+
+A value object over a number follows `JsonSerializerOptions.NumberHandling` as its underlying type does, and is
+documented as System.Text.Json documents that type under the same options. ASP.NET Core reads numbers written as
+text by default (`AllowReadingFromString`), so a number is documented as `[integer, string]` or `[number, string]`
+with the pattern a number written as text is held to, as a bare `int` property of the same document is:
+
+- under `AllowReadingFromString` alone, the value is still written as a number, which `minimum` and `maximum`
+  describe;
+- under `WriteAsString`, it goes out as a string, its example and known values with it, and its bounds are also
+  stated as `x-minimum`, `x-maximum` and a sentence, as for any value written as a string;
+- over a `double` or a `float`, under `AllowNamedFloatingPointLiterals`, it is the number or one of `"NaN"`,
+  `"Infinity"` and `"-Infinity"` (`anyOf`), listing only the literals its bounds let through: a bound refuses `NaN`,
+  and the infinity on its side.
+
+## Value objects written by hand
+
+A value object written by hand where no generator runs is described from its annotation, as the registry describes
+it by reflection the first time it meets the type, unless it was registered with a schema of its own, which is
+published as it was built. Read from the annotation, each known value goes through the type too, normalized, or
+parsed when the attribute had to take it as text — a decimal, a `Guid`, a date — and only one the type cannot parse
+is listed as written; a known value of another type in a schema built by hand is listed as its text. Its description
+is the annotation's `Description` alone: the XML summary a generated value object falls back on is not there to read
+at run time.

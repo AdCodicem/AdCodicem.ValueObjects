@@ -37,7 +37,11 @@ public partial class ApiJsonContext : JsonSerializerContext;
 var options = new JsonSerializerOptions().AddValueObjects();
 ```
 
-`Int128` and `UInt128` value objects travel as JSON **strings**, because JSON numbers cannot carry them.
+`Int128` and `UInt128` value objects travel as JSON **strings**, because JSON numbers cannot carry them. A numeric
+value object follows `JsonSerializerOptions.NumberHandling` as its underlying type does: `AllowReadingFromString`,
+`WriteAsString`, and `AllowNamedFloatingPointLiterals` for `NaN` and the infinities of a `double` or `float`. The
+OpenAPI schema follows the same options: a number that may be read or written as text is `[integer|number, string]`
+with a numeric `pattern`, as ASP.NET Core documents a bare number under its defaults.
 
 Newtonsoft.Json: add `ValueObjectConverter` from `AdCodicem.ValueObjects.NewtonsoftJson`. It applies the
 System.Text.Json rules and writes the same values, in the same text but for a whole `decimal`, `double` or `float`,
