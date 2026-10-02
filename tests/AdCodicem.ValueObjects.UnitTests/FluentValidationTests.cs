@@ -61,6 +61,94 @@ public class FluentValidationTests
     }
 
     /// <summary>
+    /// FluentValidation fixes a rule's error code when the rule is built, while each rule of a value object has its
+    /// own. The value object's code and message are the default, and the options chained on the rule win over them, as
+    /// on any rule. The value object's message stays at hand as <c>{Reason}</c>.
+    /// </summary>
+    [Fact]
+    public void Options_chained_on_MustParseAs_replace_the_code_and_the_message_of_the_value_object()
+    {
+        var validator = new InlineValidator<ImportCommand>
+        {
+            v => v.RuleFor(x => x.Iban)
+                .MustParseAs(typeof(Iban))
+                .WithErrorCode("iban")
+                .WithMessage("{PropertyName} '{PropertyValue}' at {PropertyPath}: {Reason}")
+                .WithName("Account")
+                .WithSeverity(Severity.Warning)
+                .WithState(_ => 42),
+        };
+
+        var failure = validator.Validate(new ImportCommand("FR7630006000011234567890188")).Errors
+            .Should().ContainSingle().Which;
+
+        failure.PropertyName.Should().Be(nameof(ImportCommand.Iban));
+        failure.ErrorCode.Should().Be("iban");
+        failure.ErrorMessage.Should().Be(
+            "Account 'FR7630006000011234567890188' at Iban: The IBAN check digits are incorrect.");
+        failure.Severity.Should().Be(Severity.Warning);
+        failure.CustomState.Should().Be(42);
+        failure.AttemptedValue.Should().Be("FR7630006000011234567890188");
+    }
+
+    /// <summary>
+    /// A child validator run for each element of a collection is handed the index of the element, which a message
+    /// chained on the rule can quote, as on any rule.
+    /// </summary>
+    [Fact]
+    public void A_message_chained_on_MustParseAs_quotes_the_index_of_the_collection_element()
+    {
+        var line = new InlineValidator<ImportCommand>
+        {
+            v => v.RuleFor(x => x.Iban).MustParseAs(typeof(Iban)).WithMessage("line {CollectionIndex}: {Reason}"),
+        };
+        var batch = new InlineValidator<ImportBatch> { v => v.RuleForEach(x => x.Lines).SetValidator(line) };
+
+        var failure = batch.Validate(new ImportBatch([new("DE89370400440532013000"), new("FR7630006000011234567890188")]))
+            .Errors.Should().ContainSingle().Which;
+
+        failure.ErrorMessage.Should().Be("line 1: The IBAN check digits are incorrect.");
+        failure.ErrorCode.Should().Be(ValueObjectErrorCodes.InvalidFormat);
+    }
+
+    /// <summary>A message chained alone replaces the message, and the failure keeps the code of the rule it breaks.</summary>
+    [Fact]
+    public void A_message_chained_on_MustParseAs_keeps_the_code_of_the_rule_the_value_breaks()
+    {
+        var validator = new InlineValidator<ImportCommand>
+        {
+            v => v.RuleFor(x => x.Iban).MustParseAs(typeof(Iban)).WithMessage("Not an account number."),
+        };
+
+        var failure = validator.Validate(new ImportCommand("FR7630006000011234567890188")).Errors
+            .Should().ContainSingle().Which;
+
+        failure.ErrorCode.Should().Be(ValueObjectErrorCodes.InvalidFormat);
+        failure.ErrorMessage.Should().Be("Not an account number.");
+        failure.Severity.Should().Be(Severity.Error);
+        failure.CustomState.Should().BeNull();
+    }
+
+    [Fact]
+    public void Options_chained_on_MustSatisfy_replace_the_code_and_the_message_of_the_value_object()
+    {
+        var validator = new InlineValidator<Transfer>
+        {
+            v => v.RuleFor(x => x.Amount)
+                .MustSatisfy<Transfer, Amount, decimal>()
+                .WithErrorCode("amount")
+                .WithMessage("{PropertyName}: {Reason}"),
+        };
+
+        var failure = validator.Validate(new Transfer(-1m, Iban.Create("FR7630006000011234567890189"))).Errors
+            .Should().ContainSingle().Which;
+
+        failure.ErrorCode.Should().Be("amount");
+        failure.ErrorMessage.Should().Be("Amount: The value must be greater than or equal to 0.");
+        failure.AttemptedValue.Should().Be(-1m);
+    }
+
+    /// <summary>
     /// Empty text is the value object's to judge, as any text is: a string value object refuses it as required
     /// unless it allows empty text, and one over another type cannot parse it.
     /// </summary>
@@ -152,6 +240,10 @@ public class FluentValidationTests
     /// <summary>A command carrying raw text, as an inbound message from another system would.</summary>
     /// <param name="Iban">The account number, as text.</param>
     public sealed record ImportCommand(string? Iban);
+
+    /// <summary>Commands imported together.</summary>
+    /// <param name="Lines">The commands.</param>
+    public sealed record ImportBatch(IReadOnlyList<ImportCommand> Lines);
 
     /// <summary>A command carrying a raw amount and a value object.</summary>
     /// <param name="Amount">The amount, as its underlying value.</param>

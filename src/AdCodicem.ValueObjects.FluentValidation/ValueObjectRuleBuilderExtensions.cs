@@ -1,6 +1,8 @@
 using System.Globalization;
 using AdCodicem.ValueObjects.Metadata;
 using FluentValidation;
+using FluentValidation.Internal;
+using FluentValidation.Results;
 
 namespace AdCodicem.ValueObjects.FluentValidation;
 
@@ -8,12 +10,34 @@ namespace AdCodicem.ValueObjects.FluentValidation;
 /// FluentValidation rules built on the rules a value object already enforces.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The point is to state a rule once. A command carrying a raw <c>string</c> for an IBAN should not restate the
 /// length, the pattern and the check-digit rule in its validator: it should defer to the value object that owns
 /// them, and report the same stable error code the rest of the system uses.
+/// </para>
+/// <para>
+/// A failure of <see cref="MustParseAs{T}"/> or <see cref="MustSatisfy{T, TSelf, TValue}"/> carries, by default, the
+/// code and the message of the value object's rule that refused the value. The options chained on either replace
+/// them as they would on any rule: <c>WithErrorCode</c>, <c>WithMessage</c>, <c>WithSeverity</c>, <c>WithState</c>
+/// and <c>WithName</c>. A message template can quote the value object's own message as <c>{Reason}</c>, besides the
+/// usual <c>{PropertyName}</c>, <c>{PropertyValue}</c>, <c>{PropertyPath}</c> and, in a child validator run for each
+/// element of a collection, <c>{CollectionIndex}</c>. The global options apply as well: the default severity, and the
+/// <c>OnFailureCreated</c> callback.
+/// </para>
 /// </remarks>
 public static class ValueObjectRuleBuilderExtensions
 {
+    /// <summary>
+    /// The message a failure carries unless one is chained: the message of the value object's rule.
+    /// </summary>
+    private const string ReasonTemplate = "{Reason}";
+
+    /// <summary>
+    /// The key under which FluentValidation hands a child validator, run for each element of a collection, the index of
+    /// the element.
+    /// </summary>
+    private const string CollectionIndexKey = "__FV_CollectionIndex";
+
     /// <summary>
     /// Requires the text to be acceptable to a value object type.
     /// </summary>
@@ -41,6 +65,7 @@ public static class ValueObjectRuleBuilderExtensions
         ArgumentNullException.ThrowIfNull(valueObjectType);
 
         var descriptor = Resolve(valueObjectType);
+        var options = new ChainedOptions<T, string?>();
 
         return ruleBuilder
             .Must((instance, value, context) =>
@@ -50,11 +75,12 @@ public static class ValueObjectRuleBuilderExtensions
                     return true;
                 }
 
-                context.MessageFormatter.AppendArgument("Reason", validation.ErrorMessage);
-                context.AddFailure(BuildFailure(context.PropertyPath, validation));
+                options.Report(context, value, validation);
 
-                return true; // The failure is already reported, with its code attached.
-            });
+                return true; // The failure is already reported, with the code of the rule it breaks.
+            })
+            .WithMessage(ReasonTemplate)
+            .Configure(options.Capture);
     }
 
     /// <summary>
@@ -74,6 +100,8 @@ public static class ValueObjectRuleBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(ruleBuilder);
 
+        var options = new ChainedOptions<T, TValue>();
+
         return ruleBuilder
             .Must((instance, value, context) =>
             {
@@ -89,10 +117,12 @@ public static class ValueObjectRuleBuilderExtensions
                     return true;
                 }
 
-                context.AddFailure(BuildFailure(context.PropertyPath, validation));
+                options.Report(context, value, validation);
 
-                return true; // The failure is already reported, with its code attached.
-            });
+                return true; // The failure is already reported, with the code of the rule it breaks.
+            })
+            .WithMessage(ReasonTemplate)
+            .Configure(options.Capture);
     }
 
     /// <summary>
@@ -118,11 +148,6 @@ public static class ValueObjectRuleBuilderExtensions
             .WithMessage("'{PropertyName}' is required.");
     }
 
-    private static global::FluentValidation.Results.ValidationFailure BuildFailure(string propertyPath, ValidationResult validation)
-        => new(propertyPath, validation.ErrorMessage)
-        {
-            ErrorCode = validation.ErrorCode,
-        };
 
     private static ValueObjectDescriptor Resolve(Type valueObjectType)
     {
@@ -134,5 +159,82 @@ public static class ValueObjectRuleBuilderExtensions
 #pragma warning restore IL2026, IL3050
 
         throw new ArgumentException($"'{valueObjectType.Name}' is not a value object.", nameof(valueObjectType));
+    }
+
+    /// <summary>
+    /// Reports a refusal with the options chained on the rule, falling back on the value object's code and message.
+    /// </summary>
+    /// <typeparam name="T">Validated object.</typeparam>
+    /// <typeparam name="TProperty">Validated member.</typeparam>
+    /// <remarks>
+    /// <para>
+    /// FluentValidation gives a rule one error code, fixed when the rule is built, while each rule of a value object
+    /// has its own. The failure is therefore built here, as FluentValidation builds it from the rule: the code
+    /// chained with <c>WithErrorCode</c> when there is one, else the value object's; the message template of the rule,
+    /// <c>{Reason}</c> unless another is chained, formatted with the placeholders FluentValidation prepares for any
+    /// failure, the index of a collection element included; the severity chained, else the global one; the state
+    /// chained, if any; and the global <c>OnFailureCreated</c> callback last. A message builder set on the rule through
+    /// <c>Configure</c> is the one thing left out: FluentValidation lets it be set, but not read back.
+    /// </para>
+    /// <para>
+    /// The rule is built once and validated concurrently, so the component is only read here, never written.
+    /// </para>
+    /// </remarks>
+    private sealed class ChainedOptions<T, TProperty>
+    {
+        private IValidationRule<T, TProperty>? _rule;
+
+        private RuleComponent<T, TProperty>? _component;
+
+        /// <summary>
+        /// Captures the rule and the component holding the options chained on it, once, when the rule is built.
+        /// </summary>
+        /// <param name="rule">The rule.</param>
+        public void Capture(IValidationRule<T, TProperty> rule)
+        {
+            _rule = rule;
+            _component = (RuleComponent<T, TProperty>)rule.Current;
+        }
+
+        /// <summary>
+        /// Reports the refusal of a value.
+        /// </summary>
+        /// <param name="context">Validation context.</param>
+        /// <param name="value">The value refused.</param>
+        /// <param name="validation">Why the value object refused it.</param>
+        public void Report(ValidationContext<T> context, TProperty value, ValidationResult validation)
+        {
+            var rule = _rule!;
+            var component = _component!;
+
+            var formatter = context.MessageFormatter
+                .AppendPropertyName(context.DisplayName)
+                .AppendPropertyValue(value)
+                .AppendArgument("PropertyPath", context.PropertyPath)
+                .AppendArgument("Reason", validation.ErrorMessage);
+
+            // A child validator run for each element of a collection is handed the index of the element.
+            if (context.RootContextData.TryGetValue(CollectionIndexKey, out var index)
+                && !formatter.PlaceholderValues.ContainsKey("CollectionIndex"))
+            {
+                formatter.AppendArgument("CollectionIndex", index);
+            }
+
+            var failure = new ValidationFailure(context.PropertyPath, component.GetErrorMessage(context, value), value)
+            {
+                ErrorCode = component.ErrorCode ?? validation.ErrorCode,
+                FormattedMessagePlaceholderValues = new(formatter.PlaceholderValues),
+                Severity = component.SeverityProvider is { } severity ? severity(context, value) : ValidatorOptions.Global.Severity,
+            };
+
+            if (component.CustomStateProvider is { } state)
+            {
+                failure.CustomState = state(context, value);
+            }
+
+            context.AddFailure(ValidatorOptions.Global.OnFailureCreated is { } created
+                ? created(failure, context, value, rule, component)
+                : failure);
+        }
     }
 }

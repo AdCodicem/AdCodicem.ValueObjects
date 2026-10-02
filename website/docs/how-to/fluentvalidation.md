@@ -51,6 +51,27 @@ So with `NotEmpty()` chained before it, empty text fails both rules, and would b
 The type is passed as a `Type` rather than a type argument so the rule stays readable: C# cannot infer one type
 argument while another is given explicitly.
 
+## Your own code, message or severity
+
+By default a failure carries the code and the message of the value object's rule that refused the value. The options
+chained on the rule replace them, as they would on any rule:
+
+```csharp skip
+RuleFor(request => request.Iban)
+    .MustParseAs(typeof(Iban))
+    .WithErrorCode("account.invalid")
+    .WithMessage("{PropertyName} is not an account number: {Reason}")
+    .WithSeverity(Severity.Warning);
+```
+
+`{Reason}` is the value object's own message — `The IBAN check digits are incorrect.` — beside the usual
+`{PropertyName}`, `{PropertyValue}` and `{PropertyPath}`, and `{CollectionIndex}` in a child validator run for each
+element of a collection. A message chained alone keeps the value object's code, so a client still branches on
+`value_object.invalid_format` while a person reads your wording. `WithName` and `WithState` apply too, and so do the
+same options on `MustSatisfy`. So do the global options: `ValidatorOptions.Global.Severity` when no severity is
+chained, and `ValidatorOptions.Global.OnFailureCreated`. A message builder set on the rule through `Configure` is not
+applied, since FluentValidation does not let it be read back.
+
 ## An underlying value, without building the value object
 
 ```csharp skip

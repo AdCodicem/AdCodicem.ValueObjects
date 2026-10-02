@@ -160,7 +160,8 @@ RuleFor(x => x.Iban).Cascade(CascadeMode.Stop).NotEmpty().MustParseAs(typeof(Iba
 ```
 
 Each failure carries the value object's own stable error code, so the API answers with the same vocabulary
-everywhere. `MustParseAs` and `MustSatisfy` let `null` through: chain `NotEmpty()` when the member is required.
+everywhere. Options chained on `MustParseAs` or `MustSatisfy` (`WithErrorCode`, `WithMessage`, `WithSeverity`,
+`WithState`, `WithName`) replace the value object's code or message; `{Reason}` quotes the value object's message. `MustParseAs` and `MustSatisfy` let `null` through: chain `NotEmpty()` when the member is required.
 Empty text reaching `MustParseAs` is the value object's to judge: `value_object.required` for a string value object,
 `value_object.not_parsable` for one over another type, and a pass for one declaring `AllowEmpty = true`.
 
