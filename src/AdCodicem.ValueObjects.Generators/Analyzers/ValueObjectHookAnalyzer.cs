@@ -20,6 +20,13 @@ namespace AdCodicem.ValueObjects.Generators.Analyzers;
 /// same rule. It never calls a normalizer, since it normalizes its own format: a normalizer on one is
 /// <c>VO0017</c>'s to report, and is left to it.
 /// </para>
+/// <para>
+/// The pattern hook is a property, not a method: a public static <c>Regex Pattern</c> on a string value object that
+/// does not implement <c>IValueObjectPatternValidator</c>. One that is not public is left alone, since it could not
+/// implement the hook, and so is one on a type implementing another hook, which may run it itself: a validator or a
+/// normalizer calling a source-generated regular expression of its own was the way to get one before the pattern
+/// hook existed. An identifier takes no pattern at all.
+/// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
@@ -27,6 +34,8 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
     private const string ValueObjectAttributeName = "AdCodicem.ValueObjects.Annotations.ValueObjectAttribute`1";
     private const string EntityIdAttributeName = "AdCodicem.ValueObjects.Identifiers.EntityIdAttribute";
     private const string HookNamespace = "AdCodicem.ValueObjects";
+    private const string RegexTypeName = "System.Text.RegularExpressions.Regex";
+    private const string PatternHook = "IValueObjectPatternValidator";
 
     /// <summary>
     /// Reports a hook-shaped member on a value object that declares no matching hook interface.
@@ -102,7 +111,61 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
             compilationContext.RegisterSymbolAction(
                 symbolContext => Analyze(symbolContext, valueObjectAttribute, entityIdAttribute),
                 SymbolKind.Method);
+
+            // Read from the type rather than from the property: a [GeneratedRegex] property is partial, and the half
+            // a property action is handed is the one the regex generator wrote, in generated code this analyzer skips.
+            var regex = compilationContext.Compilation.GetTypeByMetadataName(RegexTypeName);
+            if (regex is not null)
+            {
+                compilationContext.RegisterSymbolAction(
+                    symbolContext => AnalyzePattern(symbolContext, valueObjectAttribute, regex),
+                    SymbolKind.NamedType);
+            }
         });
+    }
+
+    private static void AnalyzePattern(SymbolAnalysisContext context, INamedTypeSymbol valueObjectAttribute, INamedTypeSymbol regex)
+    {
+        if (context.Symbol is not INamedTypeSymbol { TypeKind: TypeKind.Struct } containingType)
+        {
+            return;
+        }
+
+        var property = containingType.GetMembers("Pattern").OfType<IPropertySymbol>().FirstOrDefault(candidate =>
+            candidate.IsStatic
+            && candidate.DeclaredAccessibility == Accessibility.Public
+            && SymbolEqualityComparer.Default.Equals(candidate.Type, regex)
+            && candidate.DeclaringSyntaxReferences.Length > 0);
+        if (property is null)
+        {
+            return;
+        }
+
+        // A pattern only applies to a string, so on another type the advice to declare the interface would only
+        // lead to VO0023.
+        var attribute = containingType.GetAttributes().FirstOrDefault(candidate =>
+            SymbolEqualityComparer.Default.Equals(candidate.AttributeClass?.OriginalDefinition, valueObjectAttribute));
+        if (attribute?.AttributeClass?.TypeArguments.FirstOrDefault()?.SpecialType != SpecialType.System_String)
+        {
+            return;
+        }
+
+        var declared = containingType.AllInterfaces.Any(candidate =>
+            candidate.ContainingNamespace.ToDisplayString() == HookNamespace
+            && candidate.MetadataName.StartsWith("IValueObject", StringComparison.Ordinal)
+            && (candidate.MetadataName == PatternHook || Declared.Values.Any(names => names.Contains(candidate.MetadataName, StringComparer.Ordinal))));
+
+        if (declared)
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(
+            UndeclaredHook,
+            property.Locations[0],
+            property.Name,
+            containingType.Name,
+            PatternHook));
     }
 
     private static void Analyze(
