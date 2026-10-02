@@ -605,6 +605,188 @@ public sealed class EmissionTests
         run.SingleValueObject.Should().Contain("Description = \"An order reference.\",");
     }
 
+    /// <summary>
+    /// A summary is XML, and the schema's description is text for people: a reference reads as the name it refers to,
+    /// a keyword as itself, and any other element as its text, whether the compiler resolved the references or the
+    /// trivia holds them as written.
+    /// </summary>
+    /// <param name="mode">How the project compiles its documentation comments.</param>
+    [Theory]
+    [InlineData(DocumentationMode.Parse)]
+    [InlineData(DocumentationMode.Diagnose)]
+    [InlineData(DocumentationMode.None)]
+    public void A_summary_is_published_as_the_text_it_reads_as(DocumentationMode mode)
+    {
+        var run = GeneratorHarness.Run(
+            """
+            /// <summary>
+            /// The reference of an <see cref="Order"/>, printed by <see cref="Printer.Print(string)"/> as
+            /// <c>ORD-</c>digits, never <see langword="null"/>: see <see href="https://example.com/orders">the
+            /// rules</see>, a <see cref="System.Collections.Generic.List{T}"/> and its
+            /// <typeparamref name="T"/> &amp; <paramref name="value"/>.
+            /// <para>Case-insensitive.</para>
+            /// </summary>
+            [ValueObject<string>]
+            public readonly partial struct OrderReference;
+
+            public sealed class Order;
+
+            public static class Printer
+            {
+                public static void Print(string value) { }
+            }
+            """,
+            mode);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain(
+            "Description = \"The reference of an Order, printed by Print as ORD-digits, never null: see the rules, a List "
+            + "and its T & value. Case-insensitive.\",");
+    }
+
+    /// <summary>
+    /// A reference reads as what it refers to, the same whether the project produces its documentation file, and the
+    /// compiler resolves the reference, or not: a member of a generic type as the member, a special type as its
+    /// keyword, a constructor as its type, an operator and an indexer as they are written, a reference with no text as
+    /// what it refers to, a link with no text as its address.
+    /// </summary>
+    /// <param name="mode">How the project compiles its documentation comments.</param>
+    [Theory]
+    [InlineData(DocumentationMode.Diagnose)]
+    [InlineData(DocumentationMode.Parse)]
+    [InlineData(DocumentationMode.None)]
+    public void A_reference_in_a_summary_reads_as_what_it_refers_to(DocumentationMode mode)
+    {
+        var run = GeneratorHarness.Run(
+            """
+            /// <summary>
+            /// Counted as <see cref="System.Collections.Generic.List{T}.Count"/> and <see cref="Holder{T}.Inner"/>, in a
+            /// <see cref="string"/> of <see cref="int"/> digits, built by <see cref="Ledger.Ledger(string)"/> and
+            /// <see cref="Ledger.operator +(Ledger, Ledger)"/>, read by <see cref="Ledger.this[int]"/>, turned into
+            /// <see cref="Ledger.implicit operator int(Ledger)"/>; see <see cref="Ledger"></see>,
+            /// <seealso cref="Ledger">the ledger</seealso>, <see href="https://example.com/ledger"/> and
+            /// <see href="https://example.com/rules"></see>; also <see cref="Ledger.this[string[]]"/>,
+            /// <see cref="Ledger.explicit operator string(Ledger)"/> and <see cref="global::System.Object"/>.
+            /// </summary>
+            [ValueObject<string>]
+            public readonly partial struct Entry;
+
+            public sealed class Holder<T>
+            {
+                public sealed class Inner;
+            }
+
+            public sealed class Ledger
+            {
+                public Ledger(string name) { }
+
+                public int this[int index] => index;
+
+                public static Ledger operator +(Ledger left, Ledger right) => left;
+
+                public static implicit operator int(Ledger ledger) => 0;
+
+                public int this[string[] keys] => keys.Length;
+
+                public static explicit operator string(Ledger ledger) => string.Empty;
+            }
+            """,
+            mode);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain(
+            "Description = \"Counted as Count and Inner, in a string of int digits, built by Ledger and operator +, read by "
+            + "this[int], turned into implicit operator int; see Ledger, the ledger, https://example.com/ledger and "
+            + "https://example.com/rules; also this[string[]], explicit operator string and object.\",");
+    }
+
+    /// <summary>
+    /// A block of a summary - a line break, a list and its parts, code - separates the words around it.
+    /// </summary>
+    [Fact]
+    public void A_block_of_a_summary_separates_words()
+    {
+        var run = GeneratorHarness.Run(
+            """
+            /// <summary>
+            /// One<br/>two<list type="bullet"><listheader><term>head</term></listheader><item><term>three</term><description>four</description></item></list><code>five</code>six.
+            /// </summary>
+            [ValueObject<string>]
+            public readonly partial struct Blocks;
+            """,
+            DocumentationMode.Diagnose);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("Description = \"One two head three four five six.\",");
+    }
+
+    /// <summary>
+    /// The compiler reads a <c>/** */</c> comment as documentation as it reads <c>///</c> lines, and so does the
+    /// generator when the project produces no documentation file, with the asterisks starting its lines left out.
+    /// </summary>
+    /// <param name="mode">How the project compiles its documentation comments.</param>
+    [Theory]
+    [InlineData(DocumentationMode.Parse)]
+    [InlineData(DocumentationMode.None)]
+    public void A_delimited_documentation_comment_gives_its_summary(DocumentationMode mode)
+    {
+        var run = GeneratorHarness.Run(
+            """
+            /**
+             * <summary>An order reference,
+             * as printed on the invoice.</summary>
+             */
+            [ValueObject<string>]
+            public readonly partial struct OrderReference;
+
+            /** <summary>A single-line one.</summary> */
+            [ValueObject<string>]
+            public readonly partial struct InvoiceNumber;
+
+            /* <summary>An ordinary comment, which documents nothing.</summary> */
+            [ValueObject<string>]
+            public readonly partial struct CreditNote;
+
+            /*** <summary>A banner, which the compiler does not read either.</summary> ***/
+            [ValueObject<string>]
+            public readonly partial struct Banner;
+
+            /**/
+            //// <summary>A comment out of four slashes, which documents nothing.</summary>
+            [ValueObject<string>]
+            public readonly partial struct Quiet;
+            """,
+            mode);
+
+        run.Diagnostics.Should().BeEmpty();
+        Generated("OrderReference").Should().Contain("Description = \"An order reference, as printed on the invoice.\",");
+        Generated("InvoiceNumber").Should().Contain("Description = \"A single-line one.\",");
+        Generated("CreditNote").Should().NotContain("Description =");
+        Generated("Banner").Should().NotContain("Description =");
+        Generated("Quiet").Should().NotContain("Description =");
+
+        string Generated(string name) => run.Files.Single(file => file.HintName == HintNames.For($"Test.{name}")).Text;
+    }
+
+    /// <summary>
+    /// Trivia a project producing no documentation file never has checked may hold a summary that is no XML. It loses
+    /// its tags rather than its description.
+    /// </summary>
+    [Fact]
+    public void A_summary_that_is_no_XML_loses_its_tags()
+    {
+        var run = GeneratorHarness.Run(
+            """
+            /// <summary>An <b>order</i> reference &amp; more.</summary>
+            [ValueObject<string>]
+            public readonly partial struct OrderReference;
+            """,
+            DocumentationMode.None);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("Description = \"An order reference & more.\",");
+    }
+
     [Theory]
     [InlineData("/// <remarks>Only remarks.</remarks>", DocumentationMode.Parse)]
     [InlineData("/// <remarks>Only remarks.</remarks>", DocumentationMode.None)]
