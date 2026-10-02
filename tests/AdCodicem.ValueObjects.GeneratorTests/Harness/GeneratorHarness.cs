@@ -48,17 +48,23 @@ public static class GeneratorHarness
         var parseOptions = ParseOptions.WithDocumentationMode(documentationMode);
         var compilation = Compile(source, parseOptions, referenceJsonPackage ? WithJsonPackage : References);
         var driver = CSharpGeneratorDriver
-            .Create([new ValueObjectGenerator().AsSourceGenerator()], parseOptions: parseOptions, driverOptions: DriverOptions)
-            .RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics);
+            .Create(Generators, parseOptions: parseOptions, driverOptions: DriverOptions)
+            .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
 
-        var result = driver.GetRunResult().Results.Single();
+        var results = driver.GetRunResult().Results;
+        var result = results.Single(run => run.Generator.GetGeneratorType() == typeof(ValueObjectGenerator));
+
+        // What the regex generator reports, an invalid pattern first among it, fails a snippet as a compiler error
+        // would: the generated files and diagnostics this run exposes stay those of the generator under test.
+        var others = results.Where(run => run.Generator.GetGeneratorType() != typeof(ValueObjectGenerator))
+            .SelectMany(run => run.Diagnostics);
 
         return new GeneratorRun(
             [.. result.GeneratedSources.Select(generated => new GeneratedFile(
                 generated.HintName,
                 generated.SourceText.ToString()))],
-            [.. generatorDiagnostics],
-            [.. output.GetDiagnostics().Where(IsRelevant)],
+            [.. result.Diagnostics],
+            [.. output.GetDiagnostics().Concat(others).Where(IsRelevant)],
             driver,
             compilation.SyntaxTrees.Single().GetText(TestContext.Current.CancellationToken));
     }
@@ -88,7 +94,7 @@ public static class GeneratorHarness
     {
         var compilation = Compile(source, references: references);
         var updated = CSharpGeneratorDriver
-            .Create([new ValueObjectGenerator().AsSourceGenerator()], parseOptions: ParseOptions)
+            .Create(Generators, parseOptions: ParseOptions)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
 
         _ = updated;
@@ -109,7 +115,7 @@ public static class GeneratorHarness
     public static byte[] Emit(string source, string assemblyName, ImmutableArray<MetadataReference>? references = null)
     {
         CSharpGeneratorDriver
-            .Create([new ValueObjectGenerator().AsSourceGenerator()], parseOptions: ParseOptions)
+            .Create(Generators, parseOptions: ParseOptions)
             .RunGeneratorsAndUpdateCompilation(Compile(source, references: references, assemblyName: assemblyName), out var output, out _);
 
         using var image = new MemoryStream();
@@ -150,6 +156,26 @@ public static class GeneratorHarness
     private static readonly CSharpParseOptions ParseOptions =
         new(LanguageVersion.Preview);
 
+    /// <summary>
+    /// The generator under test, and the framework's regex generator a consumer's compilation runs beside it.
+    /// </summary>
+    /// <remarks>
+    /// A value object implements <c>IValueObjectPatternValidator</c> with a <c>[GeneratedRegex]</c> partial property,
+    /// which only compiles once the regex generator has written its other half. Without it every such snippet fails
+    /// with CS9248, so a failure to load it fails here, loudly, rather than as that.
+    /// </remarks>
+    private static readonly ImmutableArray<ISourceGenerator> Generators =
+        [new ValueObjectGenerator().AsSourceGenerator(), LoadRegexGenerator()];
+
+    private static ISourceGenerator LoadRegexGenerator()
+    {
+        // Copied next to the tests by the CopyRegexGenerator target, from the targeting pack the SDK resolved.
+        var path = Path.Combine(AppContext.BaseDirectory, "regex-generator", "System.Text.RegularExpressions.Generator.dll");
+        var type = Assembly.LoadFrom(path).GetType("System.Text.RegularExpressions.Generator.RegexGenerator", throwOnError: true)!;
+
+        return ((IIncrementalGenerator)Activator.CreateInstance(type, nonPublic: true)!).AsSourceGenerator();
+    }
+
     private static readonly GeneratorDriverOptions DriverOptions =
         new(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true);
 
@@ -169,6 +195,7 @@ public static class GeneratorHarness
             ? source
             : $"""
                using System;
+               using System.Text.RegularExpressions;
                using AdCodicem.ValueObjects;
                using AdCodicem.ValueObjects.Annotations;
                using AdCodicem.ValueObjects.Identifiers;

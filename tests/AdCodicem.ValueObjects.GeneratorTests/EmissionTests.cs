@@ -705,6 +705,25 @@ public sealed class EmissionTests
     }
 
     /// <summary>
+    /// A consumer's compilation runs the framework's regex generator beside this one, and so does the harness: a
+    /// <c>[GeneratedRegex]</c> partial property gets its other half written, as it would in a real project.
+    /// </summary>
+    [Fact]
+    public void A_snippet_compiles_a_source_generated_regex_as_a_consumer_project_does()
+    {
+        var run = GeneratorHarness.Run("""
+            public static partial class Shapes
+            {
+                [GeneratedRegex("^[A-Z]{3}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+                public static partial Regex Currency { get; }
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty("the regex generator writes the other half of the property");
+    }
+
+    /// <summary>
     /// Static initializers run in declaration order, and a named constant goes through <c>Create</c>, and so through
     /// the compiled pattern, while it is created. The pattern therefore has to be declared first, or the type
     /// initializer meets a null field and the module initializer takes the whole assembly down with it.
