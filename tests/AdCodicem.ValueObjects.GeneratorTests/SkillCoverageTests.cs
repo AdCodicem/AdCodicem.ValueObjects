@@ -143,19 +143,25 @@ public sealed class SkillCoverageTests
             .Distinct(StringComparer.Ordinal)
             .OrderBy(name => name, StringComparer.Ordinal);
 
+    /// <summary>
+    /// The members a consumer reads or writes by name: the static abstract methods, and the properties, static or
+    /// not. The accessor behind a property is a method too, and it is skipped: a consumer writes
+    /// <c>Pattern</c>, never <c>get_Pattern</c>.
+    /// </summary>
     private static IEnumerable<string> StaticAbstractMembers(Type contract)
         => contract
             .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
-            .Where(method => method.IsAbstract)
+            .Where(method => method is { IsAbstract: true, IsSpecialName: false })
             .Select(method => method.Name)
-            .Concat(contract.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Concat(contract.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
                 .Select(property => property.Name))
             .Distinct(StringComparer.Ordinal)
             .OrderBy(name => name, StringComparer.Ordinal);
 
     /// <summary>
     /// Reads the diagnostic identifiers out of the generator: the descriptors it reports while generating, plus
-    /// the ones its analyzers support. <c>DiagnosticDescriptors</c> is internal to the generator, so this goes
+    /// the ones its analyzers support, plus the ones the compiler reports for an obsolete member of the contracts,
+    /// which no descriptor declares. <c>DiagnosticDescriptors</c> is internal to the generator, so this goes
     /// through reflection rather than adding an <c>InternalsVisibleTo</c> for the sake of a test.
     /// </summary>
     private static IReadOnlyList<string> Diagnostics()
@@ -172,7 +178,13 @@ public sealed class SkillCoverageTests
             .SelectMany(analyzer => analyzer.SupportedDiagnostics)
             .Select(descriptor => descriptor.Id);
 
-        return [.. descriptors.Concat(analyzers).Distinct(StringComparer.Ordinal).OrderBy(id => id, StringComparer.Ordinal)];
+        const BindingFlags Declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        var obsolete = typeof(IValueObject).Assembly.GetExportedTypes()
+            .SelectMany(type => type.GetMembers(Declared).Append(type))
+            .Select(member => member.GetCustomAttribute<ObsoleteAttribute>()?.DiagnosticId)
+            .OfType<string>();
+
+        return [.. descriptors.Concat(analyzers).Concat(obsolete).Distinct(StringComparer.Ordinal).OrderBy(id => id, StringComparer.Ordinal)];
     }
 
     /// <summary>Every skill file, concatenated: a surface may be documented in any of them.</summary>
