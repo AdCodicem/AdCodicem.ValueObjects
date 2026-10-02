@@ -169,6 +169,71 @@ public class DapperTests
         parameter.Value.Should().Be(12.50m);
     }
 
+    /// <summary>
+    /// The EF Core conventions map an identifier to fixed-length, non-Unicode text of its exact length, and a value
+    /// object declaring a maximum length to Unicode text of that length. A parameter declaring the same type is
+    /// compared with the column as it is, and SQL Server keeps its index seek.
+    /// </summary>
+    [Fact]
+    public void A_text_parameter_declares_the_column_the_conventions_map_the_value_object_to()
+    {
+        var identifier = Substitute.For<IDbDataParameter>();
+        var iban = Substitute.For<IDbDataParameter>();
+
+        new ValueObjectTypeHandler<AccountId, string>().SetValue(identifier, AccountId.New());
+        new ValueObjectTypeHandler<Iban, string>().SetValue(iban, Iban.Create("FR7630006000011234567890189"));
+
+        identifier.DbType.Should().Be(DbType.AnsiStringFixedLength);
+        identifier.Size.Should().Be(AccountId.Length);
+        iban.DbType.Should().Be(DbType.String);
+        iban.Size.Should().Be(34);
+    }
+
+    /// <summary>
+    /// A value object saying no more than its underlying type leaves the parameter's type and size to the provider.
+    /// </summary>
+    [Fact]
+    public void A_parameter_the_value_object_says_nothing_more_about_is_left_to_the_provider()
+    {
+        var amount = Substitute.For<IDbDataParameter>();
+        var phone = Substitute.For<IDbDataParameter>();
+
+        new ValueObjectTypeHandler<Amount, decimal>().SetValue(amount, Amount.Create(12.5m));
+        new ValueObjectTypeHandler<PhoneNumber, string>().SetValue(phone, PhoneNumber.Create("+33123456789"));
+
+        amount.DidNotReceive().DbType = Arg.Any<DbType>();
+        amount.DidNotReceive().Size = Arg.Any<int>();
+        phone.DidNotReceive().DbType = Arg.Any<DbType>();
+        phone.DidNotReceive().Size = Arg.Any<int>();
+    }
+
+    /// <summary>
+    /// A row read without validation may hold a value longer than the value object allows, and both SqlClient and
+    /// Npgsql truncate a value longer than the size of its parameter, silently: the size grows to carry it whole.
+    /// </summary>
+    [Fact]
+    public void A_parameter_is_never_sized_below_the_value_it_carries()
+    {
+        var parameter = Substitute.For<IDbDataParameter>();
+
+        new ValueObjectTypeHandler<Iban, string>().SetValue(parameter, Iban.CreateUnchecked(new string('X', 40)));
+
+        parameter.Size.Should().Be(40);
+    }
+
+    [Fact]
+    public void An_optional_identifier_holding_nothing_declares_its_column_too()
+    {
+        SqlMapper.ITypeHandler handler = new ValueObjectTypeHandler<AccountId, string>();
+        var parameter = Substitute.For<IDbDataParameter>();
+
+        handler.SetValue(parameter, DBNull.Value);
+
+        parameter.Value.Should().Be(DBNull.Value);
+        parameter.DbType.Should().Be(DbType.AnsiStringFixedLength);
+        parameter.Size.Should().Be(AccountId.Length);
+    }
+
     [Fact]
     public void A_NULL_read_into_an_optional_value_object_is_null()
     {

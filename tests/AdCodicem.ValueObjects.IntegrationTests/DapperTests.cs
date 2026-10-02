@@ -89,6 +89,41 @@ public abstract class DapperTests<TFixture>(TFixture fixture) : IClassFixture<TF
         single.Should().Be(iban);
     }
 
+    /// <summary>
+    /// An identifier parameter declares the fixed-length, non-Unicode column the convention gave the identifier, so
+    /// SQL Server compares it with the column as it is. Npgsql sends every string as text, whatever it declares.
+    /// </summary>
+    [Fact]
+    public async Task An_identifier_parameter_declares_the_column_of_the_identifier_and_finds_its_row()
+    {
+        var payment = new Payment
+        {
+            Id = PaymentId.New(),
+            Account = Iban.Create("FR7630006000011234567890189"),
+            Amount = Amount.Create(42m),
+        };
+
+        await using (var write = fixture.CreateContext())
+        {
+            write.Payments.Add(payment);
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var declared = fixture.ProviderName == "PostgreSql"
+            ? "SELECT pg_typeof(@id)::text"
+            : "SELECT CAST(SQL_VARIANT_PROPERTY(@id, 'BaseType') AS varchar(16)) "
+              + "+ '(' + CAST(SQL_VARIANT_PROPERTY(@id, 'MaxLength') AS varchar(8)) + ')'";
+
+        await using var connection = fixture.CreateConnection();
+        var type = await connection.QuerySingleAsync<string>(Command(declared, new { id = payment.Id }));
+        var found = await connection.QuerySingleAsync<PaymentId>(Command(
+            $"SELECT {Q("Id")} FROM {Q("payments")} WHERE {Q("Id")} = @id",
+            new { id = payment.Id }));
+
+        type.Should().Be(fixture.ProviderName == "PostgreSql" ? "text" : $"char({PaymentId.Length})");
+        found.Should().Be(payment.Id);
+    }
+
     [Fact]
     public async Task A_NULL_column_reads_as_no_value_object_and_is_refused_for_a_required_one()
     {

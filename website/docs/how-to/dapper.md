@@ -30,6 +30,24 @@ Dapper already has a handler for keeps it, including one the application registe
 from Dapper's own table, so after `SqlMapper.ResetTypeHandlers()` — between tests, say — calling it again registers
 every handler anew.
 
+## Parameters
+
+A value object goes out as its underlying value. One over `string` that says more than its type also declares the
+column the [Entity Framework Core](ef-core.md) conventions map it to:
+
+- an [entity identifier](../entity-identifiers.md) as fixed-length, non-Unicode text of its exact length, the
+  `char(n)` of `ConfigureEntityIds`;
+- a value object declaring `MaxLength` as Unicode text of that length, `nvarchar(34)` for an IBAN on SQL Server.
+
+Left to itself, SqlClient sends a string as `nvarchar` of the value's own length, which also caches one plan per
+length, and SQL Server converts a `char` or `varchar` column to compare it with one, which costs the index seek of a
+query filtering on an identifier. Npgsql sends every string as `text` whatever it declares, and PostgreSQL compares a
+`character(n)` column with `text` by converting the column, which costs its index the same way: cast the parameter in
+the query, `WHERE id = @id::bpchar` or `WHERE id = CAST(@id AS character(25))`. Only an identifier is known to be
+ASCII, so no other value object goes out as non-Unicode text, which would lose the characters the column's code page
+lacks. A value longer than the declared length, which a row read without validation can hold, gets a parameter as
+long as itself: both providers would otherwise cut it short, silently.
+
 ## What a read trusts
 
 A column the provider returns as the underlying type is read with `CreateUnchecked`, on the same reasoning as the
