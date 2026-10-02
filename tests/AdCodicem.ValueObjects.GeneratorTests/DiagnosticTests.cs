@@ -1,4 +1,5 @@
 using System.Globalization;
+using AdCodicem.ValueObjects.Generators.Internal;
 using Microsoft.CodeAnalysis;
 
 namespace AdCodicem.ValueObjects.GeneratorTests;
@@ -374,7 +375,7 @@ public sealed class DiagnosticTests
             $"'Code' {reason}, which the generator does not support. Declare it without type parameters, either at "
             + "namespace level or nested in non-generic classes, structs and records.");
 
-        run.Files.Select(file => file.HintName).Should().BeEquivalentTo("Test.Other.g.cs", "ValueObjectRegistration.g.cs");
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo(HintNames.For("Test.Other"), "ValueObjectRegistration.g.cs");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
@@ -482,7 +483,7 @@ public sealed class DiagnosticTests
         diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
             $"'Code' {reason}, which the generator does not support. {remedy}");
 
-        run.Files.Select(file => file.HintName).Should().BeEquivalentTo("Test.Other.g.cs", "ValueObjectRegistration.g.cs");
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo(HintNames.For("Test.Other"), "ValueObjectRegistration.g.cs");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
@@ -504,7 +505,7 @@ public sealed class DiagnosticTests
             """);
 
         run.Diagnostics.Should().BeEmpty();
-        run.Files.Select(file => file.HintName).Should().BeEquivalentTo("Test.Outer.Code.g.cs", "ValueObjectRegistration.g.cs");
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo(HintNames.For("Test.Outer.Code"), "ValueObjectRegistration.g.cs");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
@@ -540,7 +541,7 @@ public sealed class DiagnosticTests
         diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
             $"'Code' sets {option} to {value}, which '{enumName}' does not define. Use one of its named members.");
 
-        run.Files.Select(file => file.HintName).Should().BeEquivalentTo("Test.Other.g.cs", "ValueObjectRegistration.g.cs");
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo(HintNames.For("Test.Other"), "ValueObjectRegistration.g.cs");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
@@ -592,7 +593,7 @@ public sealed class DiagnosticTests
 
         run.Ids.Should().Equal("VO0013");
         run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Contain("{1, 2}");
-        run.Files.Select(file => file.HintName).Should().Contain(["Test.Level.g.cs", "Test.Code.g.cs"]);
+        run.Files.Select(file => file.HintName).Should().Contain([HintNames.For("Test.Level"), HintNames.For("Test.Code")]);
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 

@@ -1,4 +1,5 @@
 using System.Text;
+using AdCodicem.ValueObjects.Generators.Internal;
 using AdCodicem.ValueObjects.Generators.Model;
 using Microsoft.CodeAnalysis;
 
@@ -172,8 +173,37 @@ public sealed class EmissionTests
     }
 
     /// <summary>
+    /// Roslyn compares hint names ignoring case, and a second file under a name already added throws, after which the
+    /// generator contributes nothing to the compilation, for any value object. Types whose names differ by case only,
+    /// or by a character no file name holds, each get a file of their own.
+    /// </summary>
+    [Fact]
+    public void Types_whose_names_read_the_same_in_a_file_name_each_get_a_file_of_their_own()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>]
+            public readonly partial struct Code;
+
+            [ValueObject<int>]
+            public readonly partial struct CODE;
+
+            [ValueObject<int>]
+            public readonly partial struct @event;
+
+            [ValueObject<int>]
+            public readonly partial struct _event;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).Should().BeEmpty();
+        run.Files.Should().HaveCount(5);
+        run.Files.Select(file => file.HintName.ToUpperInvariant()).Should().OnlyHaveUniqueItems();
+    }
+
+    /// <summary>
     /// A combining mark is part of an identifier but no letter or digit, so it has no place in the name of the
-    /// generated file and is replaced there, while the code keeps the name as declared.
+    /// generated file and is replaced there, while the code keeps the name as declared. The hash that follows is the
+    /// exact name's.
     /// </summary>
     [Fact]
     public void A_name_holding_a_character_outside_the_file_name_alphabet_gets_a_hint_name_without_it()
@@ -184,7 +214,8 @@ public sealed class EmissionTests
             """);
 
         run.Diagnostics.Should().BeEmpty();
-        run.Files.Select(file => file.HintName).Should().BeEquivalentTo("Test.Cafe_Code.g.cs", "ValueObjectRegistration.g.cs");
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo(HintNames.For("Test.Cafe\u0301Code"), "ValueObjectRegistration.g.cs");
+        run.Files.Should().Contain(file => file.HintName.StartsWith("Test.Cafe_Code.", StringComparison.Ordinal));
         run.SingleValueObject.Should().Contain("partial struct Cafe\u0301Code : ");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
@@ -476,7 +507,7 @@ public sealed class EmissionTests
         run.Diagnostics.Should().BeEmpty();
         run.CompilationDiagnostics.Should().BeEmpty();
 
-        string Generated(string name) => run.Files.Single(file => file.HintName == $"Test.{name}.g.cs").Text;
+        string Generated(string name) => run.Files.Single(file => file.HintName == HintNames.For($"Test.{name}")).Text;
 
         Generated("Quoted").Should()
             .Contain("""OutOfRange("The value must be greater than or equal to \".")""")
@@ -503,7 +534,7 @@ public sealed class EmissionTests
         run.Diagnostics.Should().BeEmpty();
         run.CompilationDiagnostics.Should().BeEmpty();
         run.Files.Select(file => file.HintName)
-            .Should().BeEquivalentTo("GlobalCode.g.cs", "GlobalId.g.cs", "ValueObjectRegistration.g.cs");
+            .Should().BeEquivalentTo(HintNames.For("GlobalCode"), HintNames.For("GlobalId"), "ValueObjectRegistration.g.cs");
         run.Files.Where(file => file.HintName != "ValueObjectRegistration.g.cs")
             .Should().AllSatisfy(file => file.Text.Should().NotContain("namespace "));
     }
