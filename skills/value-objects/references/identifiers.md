@@ -84,7 +84,9 @@ key is clustered by default, and `IsClustered(false)` confines index churn to th
 whole row.
 
 Use `ConfigureEntityIds` **in addition to** `ConfigureValueObjects`: the identifier convention is the one that
-produces the narrow fixed-width column.
+produces the narrow fixed-width column. It also sets the identifiers' converter, so a context reading strictly passes
+`strict: true` to both: `ConfigureEntityIds(collation, strict: true, assemblies)`, or
+`HasEntityIdConversion(collation, strict: true)` for one property.
 
 ## `AnyEntityId`, for webhooks, deep links and audit trails
 

@@ -18,7 +18,9 @@ namespace AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
 /// </para>
 /// <para>
 /// It also applies the conversion itself, so a model holding nothing but identifiers needs this call alone.
-/// Calling both is fine: the second call configures the same properties the same way.
+/// Calling both is fine, given the same strictness: whichever call runs last sets the converter of the identifiers,
+/// so a context reading through <c>ConfigureValueObjects(strict: true)</c> passes <c>strict: true</c> here too, or its
+/// identifiers are read without validation.
 /// </para>
 /// <para>
 /// What it deliberately does not do is decide the physical layout of your tables. On SQL Server a primary key
@@ -42,7 +44,23 @@ public static class EntityIdConventionExtensions
     public static ModelConfigurationBuilder ConfigureEntityIds(
         this ModelConfigurationBuilder builder,
         params Assembly[] assemblies)
-        => builder.ConfigureEntityIds(collation: null, assemblies);
+        => builder.ConfigureEntityIds(collation: null, strict: false, assemblies);
+
+    /// <summary>
+    /// Maps every registered entity identifier to a fixed-width column, optionally validating what is read.
+    /// </summary>
+    /// <param name="builder">Model configuration builder, from <c>DbContext.ConfigureConventions</c>.</param>
+    /// <param name="strict">
+    /// When <see langword="true"/>, identifiers read from the database are normalized and validated again, as
+    /// <c>ConfigureValueObjects(strict: true)</c> does for the other value objects.
+    /// </param>
+    /// <param name="assemblies">Assemblies declaring the identifiers.</param>
+    /// <returns>The same builder, so calls can be chained.</returns>
+    public static ModelConfigurationBuilder ConfigureEntityIds(
+        this ModelConfigurationBuilder builder,
+        bool strict,
+        params Assembly[] assemblies)
+        => builder.ConfigureEntityIds(collation: null, strict, assemblies);
 
     /// <summary>
     /// Maps every registered entity identifier to a fixed-width column with an explicit collation.
@@ -64,6 +82,29 @@ public static class EntityIdConventionExtensions
         this ModelConfigurationBuilder builder,
         string? collation,
         params Assembly[] assemblies)
+        => builder.ConfigureEntityIds(collation, strict: false, assemblies);
+
+    /// <summary>
+    /// Maps every registered entity identifier to a fixed-width column with an explicit collation, optionally
+    /// validating what is read.
+    /// </summary>
+    /// <param name="builder">Model configuration builder, from <c>DbContext.ConfigureConventions</c>.</param>
+    /// <param name="collation">
+    /// Collation for the identifier columns, or <see langword="null"/> to leave the database default in place.
+    /// <see cref="IdCollations"/> names the binary one per provider.
+    /// </param>
+    /// <param name="strict">
+    /// When <see langword="true"/>, identifiers read from the database are normalized and validated again, as
+    /// <c>ConfigureValueObjects(strict: true)</c> does for the other value objects. A value the identifier refuses
+    /// fails the query with a <see cref="ValueObjectException"/>.
+    /// </param>
+    /// <param name="assemblies">Assemblies declaring the identifiers.</param>
+    /// <returns>The same builder, so calls can be chained.</returns>
+    public static ModelConfigurationBuilder ConfigureEntityIds(
+        this ModelConfigurationBuilder builder,
+        string? collation,
+        bool strict,
+        params Assembly[] assemblies)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(assemblies);
@@ -80,7 +121,8 @@ public static class EntityIdConventionExtensions
             var properties = builder.Properties(descriptor.ValueObjectType);
 
             properties.HaveConversion(
-                typeof(ValueObjectConverter<,>).MakeGenericType(descriptor.ValueObjectType, typeof(string)),
+                (strict ? typeof(StrictValueObjectConverter<,>) : typeof(ValueObjectConverter<,>))
+                    .MakeGenericType(descriptor.ValueObjectType, typeof(string)),
                 typeof(ValueObjectComparer<>).MakeGenericType(descriptor.ValueObjectType));
 
             Size(properties, descriptor.Length, collation);
@@ -97,14 +139,43 @@ public static class EntityIdConventionExtensions
     /// <param name="collation">Collation for the column, or <see langword="null"/> for the database default.</param>
     /// <returns>The same builder, so calls can be chained.</returns>
     /// <remarks>Use this for a property that needs to depart from the convention; otherwise prefer the convention.</remarks>
-    public static PropertyBuilder<TId> HasEntityIdConversion<TId>(
-        this PropertyBuilder<TId> builder,
-        string? collation = null)
+    public static PropertyBuilder<TId> HasEntityIdConversion<TId>(this PropertyBuilder<TId> builder, string? collation = null)
+        where TId : struct, IEntityId<TId>
+        => HasEntityIdConversion(builder, collation, strict: false);
+
+    /// <summary>
+    /// Maps a single property holding an entity identifier, validating what is read from the database or not.
+    /// </summary>
+    /// <typeparam name="TId">Identifier type.</typeparam>
+    /// <param name="builder">Property builder.</param>
+    /// <param name="strict">When <see langword="true"/>, identifiers read from the database are validated again.</param>
+    /// <returns>The same builder, so calls can be chained.</returns>
+    /// <remarks>Use this for a property that needs to depart from the convention; otherwise prefer the convention.</remarks>
+    public static PropertyBuilder<TId> HasEntityIdConversion<TId>(this PropertyBuilder<TId> builder, bool strict)
+        where TId : struct, IEntityId<TId>
+        => HasEntityIdConversion(builder, collation: null, strict);
+
+    /// <summary>
+    /// Maps a single property holding an entity identifier, with a collation, validating what is read from the
+    /// database or not.
+    /// </summary>
+    /// <typeparam name="TId">Identifier type.</typeparam>
+    /// <param name="builder">Property builder.</param>
+    /// <param name="collation">Collation for the column, or <see langword="null"/> for the database default.</param>
+    /// <param name="strict">When <see langword="true"/>, identifiers read from the database are validated again.</param>
+    /// <returns>The same builder, so calls can be chained.</returns>
+    /// <remarks>
+    /// Use this for a property that needs to depart from the convention; otherwise prefer the convention. Pass the same
+    /// <paramref name="strict"/> as to the convention, which a property configured here otherwise departs from.
+    /// </remarks>
+    public static PropertyBuilder<TId> HasEntityIdConversion<TId>(this PropertyBuilder<TId> builder, string? collation, bool strict)
         where TId : struct, IEntityId<TId>
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.HasConversion(new ValueObjectConverter<TId, string>(), new ValueObjectComparer<TId>());
+        builder.HasConversion(
+            strict ? new StrictValueObjectConverter<TId, string>() : new ValueObjectConverter<TId, string>(),
+            new ValueObjectComparer<TId>());
         builder.HasMaxLength(TId.Length);
         builder.IsFixedLength();
         builder.IsUnicode(false);
