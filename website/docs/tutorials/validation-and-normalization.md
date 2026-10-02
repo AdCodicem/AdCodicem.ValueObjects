@@ -12,26 +12,49 @@ two types, one step at a time, and ends with the order in which they run.
 
 ## Rules that need no code
 
-Most rules are shapes: a length, a pattern, a range. Those are declared on the attribute.
+Most rules are shapes: a length, a range. Those are declared on the attribute.
 
 ```csharp
-[ValueObject<string>(MinLength = 8, MaxLength = 8, Pattern = "^[A-Z]{3}-[0-9]{4}$")]
+[ValueObject<string>(MinLength = 8, MaxLength = 8)]
 public readonly partial struct ProductCode;
 ```
 
-`ProductCode.TryCreate("ABC-1234", out _)` succeeds, while `"ABC-12"` fails with `value_object.too_short` and
-`"abc-1234"` with `value_object.invalid_format`. A declared rule does more than validate: `MaxLength` also
-sizes the EF Core column and `MaxLength`, `MinLength` and `Pattern` all appear in the OpenAPI schema, so the
-rule is stated once for every boundary.
+`ProductCode.TryCreate("ABC-1234", out _)` succeeds, while `"ABC-12"` fails with `value_object.too_short`. A
+declared rule does more than validate: `MaxLength` also sizes the EF Core column, and `MinLength` and
+`MaxLength` both appear in the OpenAPI schema, so the rule is stated once for every boundary.
 
-Numbers, dates and times take bounds instead. They are written as invariant-culture text, so a `decimal` or a
-`DateOnly` keeps its full precision, and they are parsed at compile time — a bound that does not parse is
-`VO0004`:
+Numbers, dates and times take bounds instead. They are written as text, in the one form the
+[authoring reference](../authoring-guide.md#bounds-and-known-values-written-as-text) gives for each type, so a
+`decimal` or a `DateOnly` keeps its full precision, and they are parsed at compile time — a bound written any
+other way is `VO0004`:
 
 ```csharp
 [ValueObject<int>(Minimum = "1", Maximum = "999")]
 public readonly partial struct Quantity;
 ```
+
+## A pattern
+
+A format is a shape too, but a regular expression is compiled by the .NET regex source generator, which only
+reads code a person wrote: the value object generator cannot write it for you. A pattern is therefore declared
+through `IValueObjectPatternValidator`, as a `[GeneratedRegex]` property named `Pattern`:
+
+```csharp
+[ValueObject<string>(MinLength = 8, MaxLength = 8)]
+public readonly partial struct ProductCode : IValueObjectPatternValidator
+{
+    [GeneratedRegex("^[A-Z]{3}-[0-9]{4}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+}
+```
+
+Now `"abc-1234"` fails with `value_object.invalid_format`. The file needs `using System.Text.RegularExpressions;`,
+which is not among the implicit usings. The rule is still stated once: the value object generator reads the
+pattern's text off `[GeneratedRegex]` when the type compiles, and the OpenAPI schema publishes it beside the
+lengths. Keep both arguments: `CultureInvariant` makes the match independent of the culture, and without
+`matchTimeoutMilliseconds` a pathological input could hold a thread, which `VO0026` reports. The
+[authoring reference](../authoring-guide.md#a-pattern) covers the rest. The `Pattern` option of
+`[ValueObject<T>]` once did this job; it builds its regular expression at run time, and is deprecated (`VO0021`).
 
 ## Normalizing what comes in
 
@@ -39,10 +62,13 @@ public readonly partial struct Quantity;
 spellings as different values would be worse. Normalization brings every spelling to one:
 
 ```csharp
-[ValueObject<string>(MinLength = 8, MaxLength = 8, Pattern = "^[A-Z]{3}-[0-9]{4}$")]
-public readonly partial struct ProductCode : IValueObjectNormalizer<string>
+[ValueObject<string>(MinLength = 8, MaxLength = 8)]
+public readonly partial struct ProductCode : IValueObjectNormalizer<string>, IValueObjectPatternValidator
 {
     public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
+
+    [GeneratedRegex("^[A-Z]{3}-[0-9]{4}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
 }
 ```
 
@@ -91,7 +117,7 @@ stops at the first rule that fails:
 2. `null` is rejected with `value_object.required`, and so is an empty string unless `AllowEmpty = true` — which
    includes a string that normalization emptied, such as `"   "` after a `Trim`.
 3. `MinLength`, then `MaxLength`.
-4. `Pattern`.
+4. The pattern of `IValueObjectPatternValidator`, or of the deprecated `Pattern` option.
 5. `Minimum`, then `Maximum`.
 6. Membership of a closed set of [known values](./known-values.md).
 7. `ValidateValue`, if the type declares it.
@@ -106,6 +132,7 @@ Because validation is fail-fast, a rejection carries exactly one reason: the fir
 
 A hook is found through its interface, not its name. Write `NormalizeValue` without declaring
 `IValueObjectNormalizer<string>` and the code compiles, but the generator never calls it. The `VO0011` warning
-reports exactly that mistake.
+reports exactly that mistake. It reports a public static `Regex Pattern` written without
+`IValueObjectPatternValidator` too, unless the type implements another hook, which may run it itself.
 
 Next: [Known values](./known-values.md), for types whose accepted values are a fixed list.

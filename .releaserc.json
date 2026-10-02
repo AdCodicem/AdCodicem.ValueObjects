@@ -5,7 +5,11 @@
     [
       "@semantic-release/commit-analyzer",
       {
-        "preset": "conventionalcommits"
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          { "type": "build", "scope": "pack", "release": "patch" },
+          { "type": "docs", "scope": "readme", "release": "patch" }
+        ]
       }
     ],
     [
@@ -17,6 +21,7 @@
             { "type": "feat", "section": "Features" },
             { "type": "fix", "section": "Bug fixes" },
             { "type": "perf", "section": "Performance" },
+            { "type": "build", "scope": "pack", "section": "Packaging" },
             { "type": "docs", "section": "Documentation", "hidden": false },
             { "type": "refactor", "section": "Refactoring", "hidden": false },
             { "type": "test", "hidden": true },
@@ -59,7 +64,9 @@
         "assets": [
           { "path": "artifacts/packages/*.nupkg" },
           { "path": "artifacts/packages/*.snupkg" }
-        ]
+        ],
+        "draftRelease": true,
+        "successComment": ":tada: This ${issue.pull_request ? 'PR is included' : 'issue has been resolved'} in version ${nextRelease.version} :tada:\n\nThe release is available on [GitHub release](https://github.com/AdCodicem/AdCodicem.ValueObjects/releases/tag/${nextRelease.gitTag})\n\nYour **[semantic-release](https://github.com/semantic-release/semantic-release)** bot :package::rocket:"
       }
     ]
   ]

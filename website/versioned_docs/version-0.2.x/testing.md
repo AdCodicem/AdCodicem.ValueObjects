@@ -1,10 +1,14 @@
 ---
-title: Testing
-sidebar_label: Testing
+title: How the Library Is Tested
+sidebar_label: How the library is tested
 slug: /testing
+description: The three test suites behind AdCodicem.ValueObjects — generated behaviour, the generator itself, real databases — and the two paths bugs hide in.
 ---
 
-# Testing
+# How the library is tested
+
+To test your own value objects, see [Test your value objects](./how-to/test-value-objects.md). This page is
+about the library's own suites.
 
 Three suites, each with a distinct job:
 
@@ -20,8 +24,8 @@ Three suites, each with a distinct job:
   objects reach the column types they claim, plus the API surface end to end. These need a Docker daemon:
   Testcontainers starts both engines for the run.
 
-`AdCodicem.ValueObjects.Testing` ships the contract kit (`ValueObjectContract`) introduced in
-[Getting Started](./getting-started.md#testing-your-own-value-objects); the unit tests use it on every sample
+`AdCodicem.ValueObjects.Testing` ships the contract kit (`ValueObjectContract`) described in
+[Test your value objects](./how-to/test-value-objects.md); the unit tests use it on every sample
 value object in the repository, so the framework's own test suite is a live example of how a consumer would use
 it.
 

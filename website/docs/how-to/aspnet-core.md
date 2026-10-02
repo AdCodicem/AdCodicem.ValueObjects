@@ -74,7 +74,15 @@ return result.IsValid
         result.ToDictionary(),
         extensions: new Dictionary<string, object?>
         {
-            [ValueObjectProblemDetails.ExtensionName] =
-                result.Errors.ToDictionary(failure => failure.PropertyName, failure => failure.ErrorCode),
+            [ValueObjectProblemDetails.ExtensionName] = result.Errors
+                .GroupBy(failure => failure.PropertyName)
+                .ToDictionary(member => member.Key, member => member.First().ErrorCode),
         });
 ```
+
+The validator of the [FluentValidation](./fluentvalidation.md#text-that-must-become-a-value-object) guide stops each
+member at its first failure with `Cascade(CascadeMode.Stop)`, so a member is reported once: empty text fails
+`NotEmpty()` and never reaches `MustParseAs`, and `errors` holds one message for it. A validator that does not stop,
+or that states several rules for one member, can fail a member more than once, which is why the failures are
+grouped by member: each member reports the code of the first rule it failed, and the dictionary never meets the same
+member twice.

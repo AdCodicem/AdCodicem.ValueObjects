@@ -45,8 +45,16 @@ carry no network or process boundary of their own, so the interesting reports
 tend to be:
 
 - A generated member that parses attacker-controlled input unsafely — the
-  `Parse` / `TryParse` surface, the `Pattern` regex (including a pattern that
-  makes catastrophic backtracking reachable), or the span-based normalizers.
+  `Parse` / `TryParse` surface, the regex of the deprecated `Pattern` option
+  (including a pattern that makes catastrophic backtracking reachable), or the
+  span-based normalizers.
+
+  A pattern declared through `IValueObjectPatternValidator` is a
+  `[GeneratedRegex]` the consumer writes, so its match timeout is the
+  consumer's to set: the `Pattern` option fixed one second, the hook fixes
+  nothing. `VO0026` warns on a `[GeneratedRegex]` without
+  `matchTimeoutMilliseconds`. A consumer's pattern that backtracks with no
+  timeout is therefore not a finding in this repository.
 - A validation rule that can be bypassed, letting a value object hold a value
   its declaration forbids. `CreateUnchecked` is deliberately unchecked and
   documented as such, so its use by a consumer is not in itself a finding.

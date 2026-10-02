@@ -2,11 +2,12 @@
 title: Benchmarks
 sidebar_label: Benchmarks
 slug: /benchmarks
+description: The measurements behind the design — struct against class wrappers, collections, and the cost of validating at the boundary — with allocations to the byte.
 ---
 
 # Benchmarks
 
-The measurements behind the design decisions on the previous page. Absolute timings move a lot between runs on
+The measurements behind the [design decisions](./design-decisions.md). Absolute timings move a lot between runs on
 any one machine — the same unchanged code measured 248 ns in one run and 152 ns in another — so read the
 ratios, not the nanoseconds. Allocation figures are deterministic and comparable across runs.
 

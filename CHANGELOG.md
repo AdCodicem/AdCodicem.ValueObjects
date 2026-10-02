@@ -1,3 +1,18 @@
+## [0.2.1](https://github.com/AdCodicem/AdCodicem.ValueObjects/compare/v0.2.0...v0.2.1) (2026-09-30)
+
+### Packaging
+
+* **pack:** point each package's release notes back to GitHub ([0e1e4d2](https://github.com/AdCodicem/AdCodicem.ValueObjects/commit/0e1e4d281be10a64774c3d03d7379c2e1e15e2b3))
+* **pack:** point packages at the documentation site and name primitive obsession ([13d0fdb](https://github.com/AdCodicem/AdCodicem.ValueObjects/commit/13d0fdbedcbfde02e573eb525fcac3e7b272e7e7))
+
+### Documentation
+
+* count twelve packages, not ten ([9baec02](https://github.com/AdCodicem/AdCodicem.ValueObjects/commit/9baec02870451d6e5942c5b28d07dbfee61801b4))
+* lead with primitive obsession, and an example that compiles as it stands ([3deb6b9](https://github.com/AdCodicem/AdCodicem.ValueObjects/commit/3deb6b9a5344eae69139b78fccb1e66afa85bb8d))
+* **site:** organize the documentation into tutorials, how-to guides, reference and explanation ([2f45c2c](https://github.com/AdCodicem/AdCodicem.ValueObjects/commit/2f45c2ce0eecdffe379dd92185dd3bac50f0b422))
+* **site:** publish llms.txt and llms-full.txt ([4dee843](https://github.com/AdCodicem/AdCodicem.ValueObjects/commit/4dee8433f6574e1a4b4f70760a01ca668d0e5a9a))
+* **site:** stop stripping HTML comments from llms-full.txt ([6ddca62](https://github.com/AdCodicem/AdCodicem.ValueObjects/commit/6ddca627dbfcd4d94b0a01065da3fb258a6f64e4))
+
 ## [0.2.0](https://github.com/AdCodicem/AdCodicem.ValueObjects/compare/v0.1.0...v0.2.0) (2026-09-24)
 
 ### Features

@@ -1,42 +1,107 @@
 ---
 title: Getting Started
-sidebar_label: Getting Started
+sidebar_label: Getting started
 slug: /getting-started
+description: Install AdCodicem.ValueObjects, declare a first value object, and see what the source generator writes for it.
 ---
 
 # Getting started
+
+This tutorial installs the package, declares a first value object, and looks at what the generator writes for
+it. It needs the .NET 10 SDK and takes a few minutes.
+
+## Install the package
 
 ```bash
 dotnet add package AdCodicem.ValueObjects
 ```
 
-Then wire up whichever boundaries you have:
+That one package holds the contracts, the source generator and the analyzers. The integrations — EF Core,
+ASP.NET Core, OpenAPI, source-generated JSON and the others — are separate packages, added when you reach that
+boundary; [Packages](./packages.md) lists them.
 
-```csharp skip
-builder.Services.AddControllers().AddValueObjects();
-builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetails());
-builder.Services.AddOpenApi(o => o.AddValueObjects());
+## Declare a value object
 
-protected override void ConfigureConventions(ModelConfigurationBuilder builder)
-    => builder.ConfigureValueObjects(typeof(Iban).Assembly);
-```
+An email address makes a good first candidate: it has a format, it should not care how the user typed it, and
+it is routinely passed around as a bare `string`.
 
-Minimal APIs need nothing extra: a generated value object implements `IParsable<T>`, which is exactly what
-minimal API parameter binding looks for.
+```csharp
+using AdCodicem.ValueObjects;
+using AdCodicem.ValueObjects.Annotations;
 
-## Testing your own value objects
+namespace Shop;
 
-`AdCodicem.ValueObjects.Testing` ships a contract kit that derives a dozen checks from a short declaration:
-
-```csharp skip
-public sealed class IbanContract : ValueObjectContract<Iban, string>
+[ValueObject<string>(MaxLength = 254, Pattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
+public readonly partial struct EmailAddress : IValueObjectNormalizer<string>
 {
-    protected override IEnumerable<string> AcceptedValues => ["FR7630006000011234567890189"];
-    protected override IEnumerable<string> RejectedValues => ["", "not-an-iban"];
+    public static string NormalizeValue(string value) => value.Trim().ToLowerInvariant();
 }
 ```
 
-Normalization settles, equality and ordering agree, text and JSON round-trip, rejected values are rejected the
-same way by every entry point.
+Three things make it a value object:
 
-Next: [Packages](./packages.md), for which package covers which boundary.
+- **`readonly partial struct`.** `partial`, because the generator adds the implementation to the same type. A
+  `readonly struct`, because a value object is a value: [Design decisions](./design-decisions.md) explains why
+  neither a class nor a `record struct` is accepted.
+- **`[ValueObject<string>]`** names the underlying type and declares the rules that need no code — here a maximum
+  length and a pattern.
+- **`IValueObjectNormalizer<string>`** declares a rule that does need code. The interface is how the generator
+  finds `NormalizeValue`, and how the compiler checks its signature.
+
+The two namespaces are the only ones a declaration needs: `AdCodicem.ValueObjects` for the contracts and hook
+interfaces, `AdCodicem.ValueObjects.Annotations` for the attributes. Most projects add them as global usings.
+
+## Use it
+
+```csharp skip
+var email = EmailAddress.Create("  Ada@Example.COM ");
+email.Value                     // "ada@example.com"
+
+EmailAddress.TryCreate("not an email", out _, out var validation)   // false, and nothing thrown
+validation.ErrorCode            // "value_object.invalid_format"
+validation.ErrorMessage         // "The value does not match the expected format."
+
+EmailAddress.Create("not an email");   // throws ValueObjectException, carrying the same code
+```
+
+Every way in — `Create`, `TryCreate`, `Parse`, `TryParse`, JSON deserialization, model binding — runs the same
+steps in the same order: **normalize**, check the declared rules, run your own validator if there is one, then
+assign. So an `EmailAddress` that exists is normalized and valid; no code that receives one has to check it
+again.
+
+`Create` throws, and suits domain code where a rejected value is a bug. `TryCreate` returns the reason instead of
+throwing, and is what every integration uses at a boundary.
+
+## What the generator wrote
+
+Nothing else is needed. From that declaration the generator produced:
+
+- `Value`, `Create`, `TryCreate` and `CreateUnchecked`;
+- `Normalize` and `Validate`, which run your rules and the declared ones;
+- `Parse` and `TryParse` from a `string` or a span, and `ToString` / `TryFormat`;
+- equality, hashing and ordering, with their operators;
+- a `System.Text.Json` converter and a `TypeConverter`, so the value travels as a bare JSON string;
+- a registration that makes the type discoverable at run time.
+
+[Generated members](./reference/generated-members.md) lists them precisely. To read the code itself, set
+`<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>` in the project: the files land under
+`obj/…/generated/AdCodicem.ValueObjects.Generators/`.
+
+## `default` is a build error
+
+A struct can always be brought into existence without its constructor, which would skip every rule:
+
+```csharp skip
+EmailAddress missing = default;         // error VO0010
+var alsoMissing = new EmailAddress();   // error VO0010
+```
+
+The `VO0010` analyzer makes both a build error. Absence is expressed the usual way, with `EmailAddress?`.
+
+## Next steps
+
+- [Validation and normalization](./tutorials/validation-and-normalization.md) — the declared rules and the hooks,
+  in the order they run.
+- [From request to database](./tutorials/request-to-database.md) — the same types through ASP.NET Core, the
+  OpenAPI document and EF Core.
+- [Primitive obsession](./explanation/primitive-obsession.md) — the problem all of this answers.

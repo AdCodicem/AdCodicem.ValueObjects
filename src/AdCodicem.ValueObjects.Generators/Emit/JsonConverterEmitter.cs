@@ -13,8 +13,9 @@ namespace AdCodicem.ValueObjects.Generators.Emit;
 /// work inside a <c>JsonSerializerContext</c>, which is what keeps the whole chain compatible with native AOT.
 /// </para>
 /// <para>
-/// <c>null</c> is deliberately not handled: System.Text.Json rejects a null token for a non-nullable struct
-/// before the converter is reached, and routes it to the nullable wrapper for an optional value object.
+/// <c>null</c> needs no case of its own. System.Text.Json hands a null token to the converter of a value type, and
+/// the generated <c>Read</c> refuses it from its default arm with a <c>JsonException</c>; for an optional value
+/// object, the nullable wrapper System.Text.Json puts around the converter answers the null itself.
 /// </para>
 /// </remarks>
 internal static class JsonConverterEmitter
@@ -32,7 +33,7 @@ internal static class JsonConverterEmitter
 
     public static void Emit(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value, string self)
     {
-        writer.Line($"/// <summary>Serializes <see cref=\"{model.TypeName}\"/> as its bare underlying value.</summary>");
+        writer.Line($"/// <summary>Serializes <see cref=\"{model.Identifier}\"/> as its bare underlying value.</summary>");
         writer.Open($"public sealed class ValueJsonConverter : {Json}.Serialization.JsonConverter<{self}>");
 
         EmitRead(writer, model, underlying, value, self);
@@ -175,22 +176,34 @@ internal static class JsonConverterEmitter
         writer.Close();
         writer.Line();
 
+        // A key carries the underlying value, in the form the JSON value is written in, as Write does. Formatting
+        // the value object instead would hand the key to a formatting hook, whose text TryParse cannot read back.
         writer.Line("/// <inheritdoc />");
         writer.Open($"public override void WriteAsPropertyName({Writer} writer, {self} value, {Options} options)");
 
-        if (underlying.IsString)
+        switch (underlying.Kind)
         {
-            writer.Line("writer.WritePropertyName(value.Value);");
-        }
-        else
-        {
-            writer.Line($"global::System.Span<char> buffer = stackalloc char[{underlying.FormatBufferSize}];");
-            writer.Open($"if (value.TryFormat(buffer, out var written, {FormatArgument(underlying)}, {Invariant}))");
-            writer.Line("writer.WritePropertyName(buffer[..written]);");
-            writer.Close();
-            writer.Open("else");
-            writer.Line("writer.WritePropertyName(value.ToString());");
-            writer.Close();
+            case UnderlyingKind.String:
+                writer.Line("writer.WritePropertyName(value.Value);");
+                break;
+
+            case UnderlyingKind.Boolean:
+                writer.Line($"writer.WritePropertyName(value.Value.ToString({Invariant}));");
+                break;
+
+            case UnderlyingKind.Char:
+                writer.Line("global::System.Span<char> buffer = stackalloc char[1];");
+                writer.Line("buffer[0] = value.Value;");
+                writer.Line("writer.WritePropertyName(buffer);");
+                break;
+
+            default:
+                // The buffer holds the longest text of the type in its round-trip form, as in Write.
+                writer.Line($"global::System.Span<char> buffer = stackalloc char[{underlying.FormatBufferSize}];");
+                writer.Line("var current = value.Value;");
+                writer.Line($"global::AdCodicem.ValueObjects.UnderlyingValue.TryFormat(in current, buffer, out var written, {FormatArgument(underlying)}, {Invariant});");
+                writer.Line("writer.WritePropertyName(buffer[..written]);");
+                break;
         }
 
         writer.Close();

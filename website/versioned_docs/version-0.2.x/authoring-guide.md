@@ -1,7 +1,8 @@
 ---
-title: Authoring Guide
-sidebar_label: Authoring Guide
+title: Authoring Reference
+sidebar_label: Authoring reference
 slug: /authoring-guide
+description: The supported underlying types, every option of [ValueObject<T>] with its default, and the hook interfaces a value object implements.
 ---
 
 # Authoring reference
@@ -13,15 +14,25 @@ JSON strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`,
 
 ## Declarative options on `[ValueObject<T>]`
 
-| Option | Effect |
-| --- | --- |
-| `Pattern`, `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI schema. |
-| `Minimum`, `Maximum` | Written in invariant culture, parsed at compile time. |
-| `Comparison` | Equality, ordering and hashing for string value objects. Ordinal by default. |
-| `ValueSet = Closed` + `[KnownValue]` | Reference-data codes with a frozen lookup and a schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. |
-| `Arithmetic` | Operators and generic math for numeric value objects. Every result is re-validated. |
-| `ImplicitConversionToValue`, `ExplicitConversionFromValue` | Conversions, opt-in per type. |
-| `AllowEmpty`, `AllowDefault` | Loosen the two defaults that exist to catch mistakes. |
+| Option | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `Pattern` | `string?` | none | Regular expression the **normalized** value must match. Also the OpenAPI `pattern`. Invalid → `VO0014`. |
+| `MinLength`, `MaxLength` | `int` | `-1`, unconstrained | `string` only (`VO0008` otherwise). Validation, OpenAPI `minLength` / `maxLength`, and the EF Core column size. |
+| `Minimum`, `Maximum` | `string?` | none | Inclusive bounds in **invariant-culture text**, so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Parsed at compile time; unparsable → `VO0004`. Also OpenAPI `minimum` / `maximum`. |
+| `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering and hashing together. |
+| `ValueSet` | `ValueSetKind` | `Open` | `Closed` accepts only the declared `[KnownValue]`s, through a frozen lookup, and becomes the schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. |
+| `Arithmetic` | `bool` | `false` | Numeric types only (`VO0007` otherwise). Operators and generic math; every result is validated again. |
+| `ImplicitConversionToValue` | `bool` | `false` | `string s = iban;` |
+| `ExplicitConversionFromValue` | `bool` | `false` | `(Iban)text`, validating like `Create`. |
+| `AllowEmpty` | `bool` | `false` | `string` only. Accepts `""`; `null` is still rejected, since absence is `T?`. |
+| `AllowDefault` | `bool` | `false` | Silences `VO0010`, for a type whose zero state is meaningful. |
+| `SchemaFormat` | `string?` | the natural format of the type | OpenAPI `format`: `uuid`, `date`, `int64`, or your own such as `iban` or `email`. |
+| `Example` | `string?` | none | OpenAPI example. |
+| `Description` | `string?` | the type's XML `<summary>` | OpenAPI description. |
+
+Declared rules run before any hook, so a validator only ever sees values that already satisfy them.
+[Validation and normalization](./tutorials/validation-and-normalization.md#the-order-things-run-in) gives the
+exact order.
 
 ## Hooks
 
@@ -64,24 +75,7 @@ member callers use: it guards against a null underlying value and then defers to
 
 ## Diagnostics
 
-| Id | Severity | Meaning |
-| --- | --- | --- |
-| `VO0001` | Error | The type is not `partial`. |
-| `VO0002` | Error | The type is not a `readonly struct`, or is a record. |
-| `VO0003` | Error | Unsupported underlying type. |
-| `VO0004` | Error | A bound could not be parsed. |
-| `VO0005` | Error | A closed value set declares no value. |
-| `VO0006` | Error | A known value has an unusable name. |
-| `VO0007` | Error | Arithmetic requested on a non-numeric type. |
-| `VO0008` | Warning | Length constraints on a non-string type. |
-| `VO0009` | Error | A containing type is not `partial`. |
-| `VO0010` | Error | An uninitialized value object. |
-| `VO0011` | Warning | A rule written without declaring its hook interface, so the generator will never call it. |
-| `VO0013` | Error | A known value could not be converted. |
-| `VO0014` | Error | An invalid regular expression. |
-| `VO0015` | Error | A malformed entity identifier prefix. |
-| `VO0016` | Error | Two types claiming the same prefix. |
-| `VO0017` | Error | A normalization hook on an entity identifier, which owns its own. |
-| `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
+The generator and the analyzers report `VO0001` to `VO0018`. [Diagnostics](./reference/diagnostics.md) lists
+each one with its fix.
 
-Next: [Design Decisions](./design-decisions.md), for the reasoning behind the shape of this surface.
+Next: [Generated members](./reference/generated-members.md), for what the generator writes from all of this.

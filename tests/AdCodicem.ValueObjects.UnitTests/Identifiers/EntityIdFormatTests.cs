@@ -257,6 +257,81 @@ public class EntityIdFormatTests
         act.Should().Throw<ArgumentException>();
     }
 
+    [Fact]
+    public void An_undeclared_granularity_is_refused()
+    {
+        var act = () => EntityIdFormat.TimestampLength((IdGranularity)3);
+
+        act.Should().Throw<ArgumentOutOfRangeException>().Which.ParamName.Should().Be("granularity");
+    }
+
+    [Fact]
+    public void Write_refuses_a_destination_shorter_than_the_identifier()
+    {
+        // An hourly "acc" identifier is 25 characters long.
+        var act = () => EntityIdFormat.Write(Prefix, IdGranularity.Hour, DateTimeOffset.UnixEpoch, new byte[16], new char[24]);
+
+        act.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("destination");
+    }
+
+    [Fact]
+    public void Write_refuses_less_entropy_than_the_random_part_needs()
+    {
+        var act = () => EntityIdFormat.Write(Prefix, IdGranularity.Hour, DateTimeOffset.UnixEpoch, new byte[15], new char[40]);
+
+        act.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("entropy");
+    }
+
+    /// <summary>
+    /// Normalization folds whatever carries the prefix, however long, and leaves the length to validation: nothing
+    /// is dropped on the way.
+    /// </summary>
+    [Fact]
+    public void A_candidate_longer_than_any_identifier_is_folded_then_refused_for_its_length()
+    {
+        var candidate = "ACC_" + new string('O', 50);
+
+        EntityIdFormat.Normalize(candidate, Prefix).Should().Be("acc_" + new string('0', 50));
+        AccountId.TryCreate(candidate, out _, out var validation).Should().BeFalse();
+        validation.ErrorCode.Should().Be(IdentifierErrorCodes.InvalidLength);
+    }
+
+    [Theory]
+    [InlineData("acc2", null)]
+    [InlineData("aB", "outside")]
+    [InlineData("a{", "outside")]
+    [InlineData("a-", "outside")]
+    [InlineData("abcdefghi", "segment is longer than 8")]
+    [InlineData("sk_abcdefghi", "segment is longer than 8")]
+    public void A_prefix_is_held_to_its_alphabet_and_to_the_length_of_each_segment(string prefix, string? broken)
+    {
+        EntityIdPrefix.IsValid(prefix, out var error).Should().Be(broken is null);
+
+        if (broken is null)
+        {
+            error.Should().BeNull();
+        }
+        else
+        {
+            error.Should().Contain(broken);
+        }
+    }
+
+    /// <summary>
+    /// An example is published as a valid identifier of its type, so it holds to the prefix rules Create holds to:
+    /// a malformed prefix gave an "example" Create refuses, and one past 16 characters overflowed the buffer under
+    /// the name of a parameter Example does not have.
+    /// </summary>
+    [Theory]
+    [InlineData("Acc")]
+    [InlineData("abcdefgh_abcdefgh")]
+    public void Example_refuses_a_prefix_Create_would_refuse(string prefix)
+    {
+        var act = () => EntityIdFormat.Example(prefix, IdGranularity.Minute);
+
+        act.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("prefix");
+    }
+
     private sealed class FakeTimeProvider : TimeProvider
     {
         private readonly DateTimeOffset _now;

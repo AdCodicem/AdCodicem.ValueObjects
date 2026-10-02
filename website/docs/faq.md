@@ -69,8 +69,9 @@ lists what to expect.
 
 ### How do I represent a missing value?
 
-With `T?`. `default(T)` and `new T()` are build errors (`VO0010`), because an uninitialized struct would skip
-every rule. A type whose zero value is genuinely meaningful can opt out with `AllowDefault = true`.
+With `T?`. `default(T)` and `new T()` are build errors (`VO0010`), entity identifiers included, because an
+uninitialized struct would skip every rule. A type whose zero value is genuinely meaningful can opt out with
+`AllowDefault = true`, on `[ValueObject<T>]` as on `[EntityId]`.
 
 ### Can I throw my own exception type?
 
@@ -113,3 +114,13 @@ Not in the generated code, and not to find value objects: a generated module ini
 at start-up. The contracts, the generated code, the JSON package, FluentValidation and identifiers are marked
 AOT-compatible and built with the trimming and AOT analyzers on. The EF Core, ASP.NET Core, OpenAPI, Dapper and
 Newtonsoft.Json integrations are not, because the frameworks they plug into are not.
+
+### Does a pattern run compiled under native AOT?
+
+Through `IValueObjectPatternValidator`, yes. Its `Pattern` is a `[GeneratedRegex]` property you write, which the
+regex source generator turns into code at build time, so it runs the same under native AOT as under the JIT and
+costs nothing until it first runs. The deprecated `Pattern` option of `[ValueObject<T>]` does not: it builds its
+`Regex` at start-up with `RegexOptions.Compiled`, which native AOT cannot honour, so there the expression is
+interpreted. The option is reported as `VO0021` and removed in the next major version;
+[Diagnostics](./reference/diagnostics.md#moving-off-pattern) shows the change. [Benchmarks](./benchmarks.md)
+has the measurements.

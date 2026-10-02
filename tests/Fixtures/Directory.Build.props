@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    Assemblies the unit suite loads to reach what its own assembly cannot, because the generator runs on that one and
+    its module initializer has always run by the time a test does. They are neither test projects nor packages, so
+    they skip tests/Directory.Build.props and import the repository's settings directly.
+  -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../../'))" />
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>

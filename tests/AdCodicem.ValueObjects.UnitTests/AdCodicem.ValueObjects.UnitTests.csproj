@@ -6,6 +6,10 @@
     <!-- Generated sources land on disk so they can be read, diffed and reviewed like any other code. -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
+
+    <!-- Microsoft.AspNetCore.OpenApi's generator reaches this project through the OpenApi project and intercepts
+         AddOpenApi; the package's build targets, which allow its interceptors, come only with a direct reference. -->
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,9 +17,25 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Testing\AdCodicem.ValueObjects.Testing.csproj" />
+    <!-- The integrations, whose behaviour is tested here directly; the integration suite keeps what only a real
+         database or a real HTTP pipeline can confirm (docs/adr/0006-coverage-is-a-signal-not-a-goal.md). -->
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore\AdCodicem.ValueObjects.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Dapper\AdCodicem.ValueObjects.Dapper.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.NewtonsoftJson\AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.OpenApi\AdCodicem.ValueObjects.OpenApi.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Value objects this assembly cannot hold: one in a module no test has touched yet, and hand-written ones
+         annotated where the generator does not run (tests/Fixtures/Directory.Build.props). -->
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Untouched\AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutGenerator\AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,6 +43,12 @@
          FsCheck.Xunit, whose xunit.extensibility.execution [2.4.1, 3.0.0) dependency conflicts with
          xunit.v3; the properties run from plain [Fact]s through Check(Config) instead. -->
     <PackageReference Include="FsCheck" />
+    <!-- A provider, so that a DbContext can build the model the Entity Framework Core conventions shape; building it
+         opens no connection. Round trips through a real engine stay in the integration suite. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <!-- An in-memory server, so that the ASP.NET Core and OpenAPI integrations are driven by real requests without
+         a socket. The sample's end-to-end flows stay in the integration suite. -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
   </ItemGroup>
 
   <ItemGroup>
