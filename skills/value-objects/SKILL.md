@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation and OpenAPI integrations. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0020 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation and OpenAPI integrations. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0026 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -21,9 +21,14 @@ dotnet add package AdCodicem.ValueObjects
 ## The shape
 
 ```csharp
-[ValueObject<string>(MaxLength = 254, Pattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$", SchemaFormat = "email")]
-public readonly partial struct EmailAddress : IValueObjectNormalizer<string>
+using System.Text.RegularExpressions;
+
+[ValueObject<string>(MaxLength = 254, SchemaFormat = "email")]
+public readonly partial struct EmailAddress : IValueObjectNormalizer<string>, IValueObjectPatternValidator
 {
+    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+
     public static string NormalizeValue(string value) => value.Trim().ToLowerInvariant();
 }
 ```
@@ -39,15 +44,20 @@ Non-negotiable, each one a diagnostic if you get it wrong:
   `UInt128` included), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `DateTimeOffset`,
   `TimeSpan` (`VO0003`).
 - The attribute lives in `AdCodicem.ValueObjects.Annotations`, the hook interfaces in `AdCodicem.ValueObjects`.
+  `[GeneratedRegex]` and `Regex` need `using System.Text.RegularExpressions;`, which no implicit using brings in.
 
 ## Declare rules on the attribute first
 
 A rule stated on `[ValueObject<T>]` validates the value, sizes the EF Core column and becomes the OpenAPI
 schema keyword. A rule buried in code does only the first. Never restate a declared rule in a hook.
 
+A pattern is the one exception: it is declared through the `IValueObjectPatternValidator` hook, never through
+the deprecated `Pattern` option (`VO0021`), and the text of its `[GeneratedRegex]` still becomes the OpenAPI
+`pattern`. It is a declared rule all the same: written once, never restated in `ValidateValue`.
+
 | Option | Effect |
 | --- | --- |
-| `Pattern`, `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI `pattern`/`minLength`/`maxLength`. |
+| `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI `minLength`/`maxLength`. |
 | `Minimum`, `Maximum` | Inclusive bounds on numbers, `char`, dates, times and durations, written as **text** in the one form of the type (`references/authoring.md`), parsed at compile time. |
 | `Comparison` | Equality, ordering and hashing for `string` value objects. `Ordinal` by default. |
 | `ValueSet = ValueSetKind.Closed` + `[KnownValue]` | Reference-data codes: frozen membership lookup, named constants, schema `enum`. |
@@ -72,12 +82,19 @@ does not look at member names, and `VO0011` is only a warning.
 | `IValueObjectFormatter<TValue>` | `public static bool TryFormatValue(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 | `IValueObjectStringFormatter<TValue>` | `public static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 
-Hook members are `public static` — a static abstract interface member cannot be anything else.
+Hook members are `public static` — a static abstract interface member cannot be anything else. `Pattern` is
+also `partial`: the regex source generator writes its body.
 
 ```csharp
-[ValueObject<string>(MinLength = 15, MaxLength = 34, Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$")]
-public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectValidator<string>
+using System.Text.RegularExpressions;
+
+[ValueObject<string>(MinLength = 15, MaxLength = 34)]
+public readonly partial struct Iban
+    : IValueObjectNormalizer<string>, IValueObjectPatternValidator, IValueObjectValidator<string>
 {
+    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+
     public static string NormalizeValue(string value)
         => value.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
 
@@ -110,6 +127,11 @@ Contract of the hooks:
 - **Validation returns, it does not throw.** `ValidationResult.Success`, or `Failure(code, message)` /
   `Required` / `InvalidFormat` / `OutOfRange` / `TooLong` / `TooShort`. Validation is fail-fast: the first
   violated rule wins, declared rules run before the hook.
+- **The pattern runs in the declared rules' place.** After `MinLength`/`MaxLength`, before the known values and
+  `ValidateValue`; a value it does not match is `value_object.invalid_format`, "The value does not match the
+  expected format." Its text, read off `[GeneratedRegex]` at compile time, is the OpenAPI `pattern`, which
+  carries no `RegexOptions`: write case insensitivity into the pattern itself, `[A-Za-z]` (`VO0025`). Always
+  set `matchTimeoutMilliseconds` (`VO0026`).
 - **Formatting takes over entirely** when declared, default format included: `ToString()` goes through the hook.
   With both formatter hooks, `FormatValue` answers everywhere.
 
@@ -133,6 +155,12 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   validation. Construct through `Create`/`TryCreate`; express absence as `Iban?`, never as an empty or default
   instance. A test that needs one disables `VO0010` on that line with a comment saying why.
 - `NormalizeCore` / `ValidateCore` / `TryFormatCore` — the pre-interface names. They compile, they never run.
+- `Pattern = "..."` on `[ValueObject<T>]` — deprecated (`VO0021`, an error under `TreatWarningsAsErrors`) and
+  removed in the next major: it builds its `Regex` at run time, which native AOT interprets. Move the text to
+  the hook, with `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`; behaviour is unchanged.
+  Never keep both: that is `VO0022`.
+- A `static Regex Pattern` without `IValueObjectPatternValidator` — `VO0011`. It never runs as the declared
+  pattern and never reaches the schema.
 - `CreateUnchecked` on input from outside the application. It validates nothing; it is for the EF read path.
 - A separate FluentValidation rule restating length or pattern — defer to the value object
   (`MustParseAs`, `MustSatisfy`).
@@ -176,6 +204,6 @@ it for every value object, then test only the domain behaviour that is actually 
 | `references/authoring.md` | Every attribute option, closed value sets, arithmetic, formats, span normalization. |
 | `references/integrations.md` | ASP.NET Core, EF Core, JSON, Dapper, FluentValidation, OpenAPI, Newtonsoft. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, `AnyEntityId`, deterministic tests. |
-| `references/diagnostics.md` | `VO0001`–`VO0020`, with the fix for each. |
+| `references/diagnostics.md` | `VO0001`–`VO0026`, with the fix for each. |
 
 Published documentation: <https://adcodicem.github.io/AdCodicem.ValueObjects/>

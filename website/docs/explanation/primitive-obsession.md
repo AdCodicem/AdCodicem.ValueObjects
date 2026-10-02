@@ -52,7 +52,7 @@ carry the same rules to each boundary:
 | --- | --- |
 | Construction, parsing, deserialization, model binding | The generated `Validate`, always run after `Normalize` |
 | The database column | `MaxLength`, applied by the EF Core convention |
-| The OpenAPI document | `MaxLength`, `Pattern`, `Minimum`, known values, turned into schema keywords |
+| The OpenAPI document | `MaxLength`, `Minimum`, the pattern hook, known values, turned into schema keywords |
 | An API error response | The stable error code of the rule that was violated |
 
 On the wire nothing changes: an `Iban` is still a JSON string, a route segment and a query-string parameter,

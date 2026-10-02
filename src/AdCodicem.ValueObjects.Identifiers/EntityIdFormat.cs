@@ -11,9 +11,8 @@ namespace AdCodicem.ValueObjects.Identifiers;
 /// </para>
 /// <para>
 /// Validation is a span scan, not a regular expression. At fixed length over a fixed alphabet a scan is both
-/// faster and simpler, and it spares an entity identifier the compiled <c>Regex</c> that a
-/// <c>Pattern</c>-constrained value object has to pay for at start-up — source generators cannot feed
-/// <c>[GeneratedRegex]</c>, so that cost is unavoidable there and avoidable here.
+/// faster and simpler than any regular expression, a source-generated one included, and it spares an entity
+/// identifier the <c>Regex</c> the deprecated <c>Pattern</c> option compiles at start-up.
 /// </para>
 /// </remarks>
 public static class EntityIdFormat

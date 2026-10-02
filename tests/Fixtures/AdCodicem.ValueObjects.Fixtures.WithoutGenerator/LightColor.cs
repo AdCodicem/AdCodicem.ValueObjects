@@ -8,8 +8,10 @@ namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 /// </summary>
 /// <remarks>
 /// The rules are restated in the body because nothing generates them from the annotation here; the annotation is
-/// what a reflection-driven caller reads, and the body is what validates.
+/// what a reflection-driven caller reads, and the body is what validates. It keeps the deprecated Pattern option,
+/// the only witness that the registry still reads it back, until the option is removed.
 /// </remarks>
+#pragma warning disable VO0021 // The deprecated option is what this fixture holds the registry to.
 [ValueObject<string>(
     ValueSet = ValueSetKind.Closed,
     MaxLength = 6,
@@ -17,6 +19,7 @@ namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
     SchemaFormat = "color",
     Example = "red",
     Description = "The color of a traffic light.")]
+#pragma warning restore VO0021
 [KnownValue("Red", "red")]
 [KnownValue("Green", "green")]
 [Reviewed<LightColor>]

@@ -188,8 +188,8 @@ equality, ordering, the JSON converter, the `TypeConverter`, the registry entry 
 `MinLength`, `MaxLength` and the OpenAPI `pattern` are **derived** from the profile and flow into the EF Core
 column and the OpenAPI schema exactly as they do for any other value object — the rule is still declared once.
 The pattern is published as schema text but never compiled: at fixed length over a fixed alphabet, validation
-is a span scan, so an entity identifier costs no `Regex` at start-up, unlike a `Pattern`-constrained value
-object.
+is a span scan, so an entity identifier costs no `Regex` at start-up, unlike a value object constrained by the
+deprecated `Pattern` option.
 
 An identifier that skipped validation is refused at compile time, as any value object is: `default(AccountId)`
 and `new AccountId()` are `VO0010`, because the instance they produce has an empty `Value` and no prefix. One
@@ -276,6 +276,7 @@ without the package, the attribute does not exist.
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
 | `VO0019` | Error | The generated code cannot reopen, reach or name the identifier: it is generic, nested in a generic type or an interface, `private`, `protected` or `file`-local, or named after a member the generator writes. |
 | `VO0020` | Error | `Granularity` holds a value `IdGranularity` does not define. |
+| `VO0024` | Error | `IValueObjectPatternValidator` on an identifier, which validates its format itself and publishes its own OpenAPI pattern. |
 
 Cross-assembly prefix collisions are beyond a generator's reach and surface at start-up, when the second
 registration for a prefix is refused.

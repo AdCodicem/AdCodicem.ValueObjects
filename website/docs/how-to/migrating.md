@@ -20,7 +20,8 @@ JSON the same way.
 This is the common case, and the one the library exists for.
 
 1. **Declare the type**, moving the rules scattered through validators and controllers onto it: lengths and
-   patterns on the attribute, the rest in `ValidateValue`, any trimming or upper-casing in `NormalizeValue`.
+   bounds on the attribute, a pattern in `IValueObjectPatternValidator`, the rest in `ValidateValue`, any trimming
+   or upper-casing in `NormalizeValue`.
 2. **Change the entity and the contracts**, property by property. JSON bodies, route segments and query strings
    keep the same shape.
 3. **Map it in EF Core** with `ConfigureValueObjects`. Then read the next migration carefully: a `MaxLength` on the
@@ -57,7 +58,7 @@ Keep the rules, delete the plumbing.
 | `Conversions.DapperTypeHandler` | `ValueObjectDapper.AddValueObjectHandlers(assembly)`, once |
 | `Conversions.NewtonsoftJson` | `ValueObjectConverter` in the serializer settings |
 | `new VogenTypesFactory()` in the options of a source-generated context | `[JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]` |
-| A length or pattern check inside `Validate` | `MinLength`, `MaxLength`, `Pattern` on the attribute |
+| A length or pattern check inside `Validate` | `MinLength`, `MaxLength` on the attribute; a `[GeneratedRegex]` through `IValueObjectPatternValidator` |
 
 Side by side, a normalized and validated IBAN:
 
@@ -139,3 +140,33 @@ templates.
   `ConfigureConventions`. Both skip validation on read by default.
 - **Smart enums and unions stay where they are.** Only single-value value objects have an equivalent here; a
   closed set of codes can become a value object with [known values](../tutorials/known-values.md).
+
+## From the `Pattern` option of an earlier version
+
+The `Pattern` option of `[ValueObject<T>]` is deprecated and removed in the next major version. It builds its
+`Regex` at run time, which native AOT interprets, and the compiler reports each use as `VO0021`: a warning, so an
+error under `TreatWarningsAsErrors`. Move each pattern to `IValueObjectPatternValidator`, one type at a time.
+
+```csharp skip
+[ValueObject<string>(MinLength = 15, MaxLength = 34, Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$")]
+public readonly partial struct Iban;
+```
+
+becomes:
+
+```csharp
+using System.Text.RegularExpressions;
+
+[ValueObject<string>(MinLength = 15, MaxLength = 34)]
+public readonly partial struct Iban : IValueObjectPatternValidator
+{
+    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+}
+```
+
+Copy the expression as it was, and keep `RegexOptions.CultureInvariant` and the timeout of 1000 milliseconds:
+they are what the option used, so the type accepts and rejects the same values, with the same
+`value_object.invalid_format` and the same message, and its OpenAPI `pattern` is unchanged. The contract kit,
+pointed at the type with the values its tests already use, checks it. Leaving `Pattern = "..."` beside the hook
+is `VO0022`; [Diagnostics](../reference/diagnostics.md#moving-off-pattern) has the rest.

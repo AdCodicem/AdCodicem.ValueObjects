@@ -26,7 +26,7 @@ Every value object implements `IValueObject<TSelf, TValue>`, which brings:
 | --- | --- |
 | `TValue Value` | The underlying value, normalized and valid on any constructed instance. For a `string` value object, an uninitialized instance reads as `""`. |
 | `bool IsDefault` | `true` for an instance that was never constructed. The run-time guard where `VO0010` cannot see. |
-| `static ValueObjectSchema Schema` | The declared rules as data: lengths, pattern, bounds, format, known values, description. |
+| `static ValueObjectSchema Schema` | The declared rules as data: lengths, pattern, bounds, format, known values, description. On a type implementing `IValueObjectPatternValidator`, the pattern is the text of its `[GeneratedRegex]`, read when the type compiles. |
 
 ## Construction
 
@@ -37,7 +37,7 @@ Every value object implements `IValueObject<TSelf, TValue>`, which brings:
 | `static bool TryCreate(TValue value, out TSelf result, out ValidationResult validation)` | The same, with the rule that fired. |
 | `static TSelf CreateUnchecked(TValue value)` | Skips normalization and validation, for values the application produced itself. |
 | `static TValue Normalize(TValue value)` | Runs `NormalizeValue` if the type declares it; passes `null` through. |
-| `static ValidationResult Validate(in TValue value)` | The declared rules, then `ValidateValue` if the type declares it. |
+| `static ValidationResult Validate(in TValue value)` | The declared rules, including the `Pattern` of `IValueObjectPatternValidator`, then `ValidateValue` if the type declares it. |
 
 The constructor is private: every public way in goes through `Create`, `TryCreate`, `Parse`, `TryParse` or
 `CreateUnchecked`.

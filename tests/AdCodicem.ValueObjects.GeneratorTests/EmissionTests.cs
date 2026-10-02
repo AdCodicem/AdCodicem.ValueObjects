@@ -336,6 +336,7 @@ public sealed class EmissionTests
     public void A_unicode_line_terminator_in_author_text_is_escaped_in_every_literal()
     {
         var run = GeneratorHarness.Run("""
+            #pragma warning disable VO0021 // The deprecated option is what this test declares.
             [ValueObject<string>(Description = "One\u2028two", Example = "a\u0085b", Pattern = "^[^\u2029]+$")]
             [KnownValue("Separated", "a\u2028b\u2029c\u0085d")]
             public readonly partial struct Token;
@@ -370,6 +371,7 @@ public sealed class EmissionTests
     public void A_lone_surrogate_in_author_text_is_escaped_in_every_literal()
     {
         var run = GeneratorHarness.Run("""
+            #pragma warning disable VO0021 // The deprecated option is what this test declares.
             [ValueObject<string>(Description = "One\uD800", Example = "\uDC00b", Pattern = "^[^\uDBFF]+$")]
             [KnownValue("Broken", "a\uD800b\uDC00")]
             [KnownValue("Reversed", "\uDE00\uD83D")]
@@ -732,6 +734,7 @@ public sealed class EmissionTests
     public void The_compiled_pattern_is_declared_before_the_named_constants_that_go_through_it()
     {
         var run = GeneratorHarness.Run("""
+            #pragma warning disable VO0021 // The deprecated option is what this test declares.
             [ValueObject<string>(Pattern = "^[A-Z]{3}$")]
             [KnownValue("Euro", "EUR")]
             public readonly partial struct CurrencyCode;

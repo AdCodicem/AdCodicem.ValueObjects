@@ -47,8 +47,11 @@ looks the way it does — worth knowing if a compile error in generated code is 
 
 - **Source generators never observe each other's output.** The `[JsonConverter]` this generator writes is
   invisible to the System.Text.Json generator, which is the entire reason `AdCodicem.ValueObjects.Json` exists:
-  a hand-written converter factory the STJ generator *can* see. The same constraint is why `Pattern` compiles a
-  `Regex` at runtime rather than using `[GeneratedRegex]`.
+  a hand-written converter factory the STJ generator *can* see. The same constraint is why a pattern is a hook:
+  the regex generator only sees code a person wrote, so this generator cannot write a `[GeneratedRegex]` itself.
+  The consumer writes it instead, as the `Pattern` property of `IValueObjectPatternValidator`, and the generator
+  reads its text off the attribute for the schema. The `Pattern` option it replaces had to build its `Regex` at
+  run time, which native AOT interprets, and is deprecated.
 - **Generated code cannot rely on the consumer's usings.** Every type and extension method is fully qualified
   in emitted code. A consumer with `ImplicitUsings` disabled would otherwise get a compile error in code they
   cannot edit.

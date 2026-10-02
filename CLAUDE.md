@@ -142,18 +142,28 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   as a bug. `website/docs/reference/errors.md` names what each integration throws. Validation is fail-fast: the
   first violated rule wins.
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI
-  `maxLength`. Anything added to `[ValueObject<T>]` should feed all three.
+  `maxLength`. Anything added to `[ValueObject<T>]` should feed all three. A hook can feed the schema too: the
+  `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off the attribute at
+  compile time, becomes the OpenAPI `pattern`.
 - **`default(T)` is a build error** (`VO0010`). Tests that deliberately construct one need a targeted
   `#pragma warning disable VO0010` with a comment.
 
 ### Hooks are interfaces
 
 A value object declares a rule by implementing `IValueObjectNormalizer<T>`, `IValueObjectSpanNormalizer`,
-`IValueObjectValidator<T>`, `IValueObjectFormatter<T>` or `IValueObjectStringFormatter<T>`
-(`src/AdCodicem.ValueObjects.Abstractions/ValueObjectHooks.cs`). The compiler then checks the signature. The
-rules are public because a static abstract interface member cannot be anything else; `Normalize` remains the
-member callers use, guarding null before deferring to `NormalizeValue`. `VO0011` reports the one mistake left:
-a rule written without its interface.
+`IValueObjectPatternValidator`, `IValueObjectValidator<T>`, `IValueObjectFormatter<T>` or
+`IValueObjectStringFormatter<T>` (`src/AdCodicem.ValueObjects.Abstractions/ValueObjectHooks.cs`). The compiler
+then checks the signature. The rules are public because a static abstract interface member cannot be anything
+else; `Normalize` remains the member callers use, guarding null before deferring to `NormalizeValue`. `VO0011`
+reports the one mistake left: a rule written without its interface. For a `static Regex Pattern` it reports a
+public one only, and stays quiet on a type that implements another hook, which may already run it.
+
+`IValueObjectPatternValidator` is the one hook whose member is half written by another generator: the consumer
+declares `[GeneratedRegex(...)] public static partial Regex Pattern { get; }` and the framework's regex generator
+supplies the body. It applies to string value objects only (`VO0023`), never to an `[EntityId]` (`VO0024`), and
+replaces the deprecated `Pattern` option (`VO0021`); declaring both is `VO0022`, and the hook wins. The generator
+reads the pattern text off the attribute for the schema, so `VO0025` warns on a `RegexOptions` that text cannot
+carry, and `VO0026` on a missing `matchTimeoutMilliseconds`.
 
 ## Constraints that will bite you
 
@@ -163,7 +173,10 @@ These are all load-bearing, and each cost real debugging time:
   invisible to the System.Text.Json generator, which is the entire reason `AdCodicem.ValueObjects.Json` exists:
   a hand-written `ValueObjectJsonConverterFactory` the STJ generator *can* see, named via
   `[JsonSourceGenerationOptions(Converters = ...)]`. The same constraint rules out `[GeneratedRegex]` in emitted
-  code, which is why `Pattern` compiles a `Regex` with `RegexOptions.Compiled`.
+  code, which is why the pattern is now a hook the consumer writes: `IValueObjectPatternValidator` takes a
+  `[GeneratedRegex]` partial property the regex generator *can* see. The `Pattern` option it replaces compiles a
+  `Regex` at run time with `RegexOptions.Compiled`, which native AOT interprets; it is deprecated (`VO0021`) and
+  goes at the next major. `docs/adr/0007-deprecate-pattern-for-a-source-generated-regex-hook.md` has the numbers.
 - **`static virtual` and `static abstract` interface members are reachable only through a type parameter**
   (CS8926, CS0103 for explicit implementations). Default implementations on `INumericValueObject` are therefore
   unusable directly; the generator emits concrete members, and `UnderlyingValue` holds constrained generic
@@ -178,7 +191,9 @@ These are all load-bearing, and each cost real debugging time:
 - **The syntax predicate admits any `TypeDeclarationSyntax`**, not just structs, so a value object written as a
   class or a record struct reaches `VO0002` instead of silently generating nothing.
 - **Analyzer release tracking** (`AnalyzerReleases.Shipped.md` / `.Unshipped.md`) must list every diagnostic, or
-  RS2008 fails the build.
+  RS2008 fails the build. `VO0021` is the exception: it is the `DiagnosticId` of the `[Obsolete]` on `Pattern`,
+  which the compiler reports, so no descriptor declares it and it has to be documented by hand. A test that
+  exercises the deprecated option disables it on the spot, `#pragma warning disable VO0021` with a comment.
 - **Every action in `.github/workflows` is pinned to a commit SHA**, with the release as a same-line comment
   (`uses: actions/checkout@3d3c42e... # v7.0.1`). Dependabot reads that comment to derive the semver bump, so a
   pin without one falls out of the `actions` group and may auto-merge as a non-major. Three of the eighteen
@@ -231,7 +246,10 @@ Three suites, each with a distinct job:
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
   `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Snippets compile **without** implicit usings, which
-  is what catches unqualified names in emitted code. The incrementality tests assert on
+  is what catches unqualified names in emitted code. The harness also runs the framework's regex generator beside
+  this one, so a snippet implementing `IValueObjectPatternValidator` compiles; the `CopyRegexGenerator` target in
+  the test project copies it from the targeting pack the SDK resolved, so the SDK decides its version, on a laptop
+  and in CI alike. The incrementality tests assert on
   `IncrementalStepRunReason`, the only way to notice caching regressions — losing them breaks nothing visible
   while making every IDE keystroke re-run the pipeline. `DocumentationSnippetTests` also runs the generator and
   both analyzers over every ```` ```csharp ```` block the repository publishes — `skills/value-objects/`,

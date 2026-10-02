@@ -20,7 +20,7 @@ Defined as constants on `ValueObjectErrorCodes`:
 | `value_object.required` | The value is `null`, or an empty string on a type without `AllowEmpty`. |
 | `value_object.too_short` | A string is shorter than `MinLength`. |
 | `value_object.too_long` | A string is longer than `MaxLength`. |
-| `value_object.invalid_format` | The value does not match `Pattern`; also the code of `ValidationResult.InvalidFormat`. |
+| `value_object.invalid_format` | The value does not match the `Pattern` of `IValueObjectPatternValidator`, or of the deprecated option of the same name; also the code of `ValidationResult.InvalidFormat`. |
 | `value_object.out_of_range` | The value is below `Minimum` or above `Maximum`; also the code of `ValidationResult.OutOfRange`. |
 | `value_object.not_a_known_value` | The value is not one of the known values of a closed set. |
 | `value_object.not_parsable` | The text does not even have the shape of the underlying type, so no rule of the type ran. |

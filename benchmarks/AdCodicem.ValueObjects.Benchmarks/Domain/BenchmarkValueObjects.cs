@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 
 namespace AdCodicem.ValueObjects.Benchmarks.Domain;
 
@@ -8,10 +9,13 @@ namespace AdCodicem.ValueObjects.Benchmarks.Domain;
 [ValueObject<string>(
     MinLength = 15,
     MaxLength = 34,
-    Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
     ImplicitConversionToValue = true)]
-public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectValidator<string>
+public readonly partial struct Iban
+    : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectPatternValidator, IValueObjectValidator<string>
 {
+    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+
     public static string NormalizeValue(string value) => Normalization.Strip(value.AsSpan());
 
     /// <summary>The span overload the generator routes parsing and JSON reading through.</summary>

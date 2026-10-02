@@ -219,6 +219,13 @@ public static class ValueObjectRegistry
         return (ValueObjectDescriptor)factory.Invoke(null, [ReadSchema(valueObjectType)])!;
     }
 
+    /// <summary>
+    /// The name of the deprecated <c>Pattern</c> option, read by name: naming the obsolete property would report
+    /// <c>VO0021</c> here, and once the property is removed the read finds nothing instead of failing to compile.
+    /// </summary>
+    private const string PatternOption = "Pattern";
+
+    [RequiresDynamicCode("Instantiates the generic reader of IValueObjectPatternValidator for the type.")]
     [RequiresUnreferencedCode("Reads the annotations of the value object type.")]
     private static ValueObjectSchema ReadSchema(Type valueObjectType)
     {
@@ -227,9 +234,12 @@ public static class ValueObjectRegistry
             .FirstOrDefault(candidate => candidate.GetType().IsGenericType
                                          && candidate.GetType().GetGenericTypeDefinition() == typeof(ValueObjectAttribute<>));
 
+        // The pattern hook describes a type with no annotation as well: it is an interface the type implements.
+        var hookPattern = ReadPatternHook(valueObjectType);
+
         if (attribute is null)
         {
-            return ValueObjectSchema.Unconstrained;
+            return hookPattern is null ? ValueObjectSchema.Unconstrained : new ValueObjectSchema { Pattern = hookPattern };
         }
 
         var knownValues = valueObjectType
@@ -241,7 +251,7 @@ public static class ValueObjectRegistry
 
         return new ValueObjectSchema
         {
-            Pattern = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.Pattern)),
+            Pattern = hookPattern ?? ReadString(type, attribute, PatternOption),
             MinLength = NormalizeLength(ReadInt32(type, attribute, nameof(ValueObjectAttribute<object>.MinLength))),
             MaxLength = NormalizeLength(ReadInt32(type, attribute, nameof(ValueObjectAttribute<object>.MaxLength))),
             Minimum = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.Minimum)),
@@ -255,6 +265,29 @@ public static class ValueObjectRegistry
 
         static int? NormalizeLength(int value) => value < 0 ? null : value;
     }
+
+    /// <summary>
+    /// Reads the text of the pattern a type declares through <see cref="IValueObjectPatternValidator"/>, or
+    /// <see langword="null"/> when it implements none.
+    /// </summary>
+    /// <remarks>
+    /// A static abstract member is reachable through a type parameter only, so the read goes through
+    /// <see cref="ValueObjectPattern.Of{TSelf}"/> closed over the type, as generated code does, rather than through a
+    /// property lookup that would miss an explicit implementation.
+    /// </remarks>
+    [RequiresDynamicCode("Instantiates ValueObjectPattern.Of for the type.")]
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2060:MakeGenericMethod",
+        Justification = "ValueObjectPattern.Of has no requirement on its type parameter beyond the interface the check above proves.")]
+    private static string? ReadPatternHook(Type valueObjectType)
+        => typeof(IValueObjectPatternValidator).IsAssignableFrom(valueObjectType)
+            ? typeof(ValueObjectPattern)
+                .GetMethod(nameof(ValueObjectPattern.Of), BindingFlags.Public | BindingFlags.Static)!
+                .MakeGenericMethod(valueObjectType)
+                .Invoke(null, null)?
+                .ToString()
+            : null;
 
     [RequiresUnreferencedCode("Reads a property of the value object annotation.")]
     private static string? ReadString(Type attributeType, object attribute, string propertyName)

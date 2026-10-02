@@ -4,7 +4,7 @@
 
 | Option | Type | Default | Effect |
 | --- | --- | --- | --- |
-| `Pattern` | `string?` | none | Regular expression the **normalized** value must match. Also the OpenAPI `pattern`. Malformed → `VO0014`. |
+| `Pattern` | `string?` | none | **Deprecated** (`VO0021`, removed in the next major): implement `IValueObjectPatternValidator` instead ([below](#pattern)). Regular expression the **normalized** value must match, built at run time, which native AOT interprets. Also the OpenAPI `pattern`. Malformed → `VO0014`; set beside the hook → `VO0022`. |
 | `MinLength` / `MaxLength` | `int` | `-1` (unconstrained) | `string` only (`VO0008` otherwise). Validation, OpenAPI `minLength`/`maxLength`, and the EF Core column size. |
 | `Minimum` / `Maximum` | `string?` | none | Inclusive bounds written as **text**, in the one form of the underlying type ([below](#bounds-and-known-values-written-as-text)), so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Numbers, `char`, dates, times and durations only: on `string`, `Guid` or `bool` → `VO0004`. Parsed at compile time; any other text, or a value outside the type → `VO0004`. |
 | `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering, hashing. Pick `OrdinalIgnoreCase` only when the value is not case-normalized, and make the database collation agree. A value the enum does not define → `VO0020`. |
@@ -19,6 +19,7 @@
 | `Description` | `string?` | XML `<summary>` of the type | OpenAPI description. |
 
 Declarative rules run **before** any hook, so a validator hook only ever sees values that already satisfy them.
+The [pattern](#pattern) is the one rule declared through a hook, and it runs among them, right after the lengths.
 
 ## Bounds and known values written as text
 
@@ -113,6 +114,56 @@ framework code that means something else.
 
 `ValidationResult` is a `readonly struct` whose success state is `default`: the happy path allocates nothing.
 Never throw from a validator — rejection is a return value.
+
+### Pattern
+
+```csharp
+using System.Text.RegularExpressions;
+
+[ValueObject<string>(MaxLength = 3)]
+public readonly partial struct CurrencyCode : IValueObjectNormalizer<string>, IValueObjectPatternValidator
+{
+    [GeneratedRegex("^[A-Z]{3}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+
+    public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
+}
+```
+
+A string value object declares its format through `IValueObjectPatternValidator`: a `public static partial`
+`Regex Pattern` marked `[GeneratedRegex]`, which the regex source generator compiles. That generator only sees
+code a person wrote, so the value object generator cannot write `[GeneratedRegex]` itself; the hook takes the one
+you write. `[GeneratedRegex]` and `Regex` need `using System.Text.RegularExpressions;`, which is not among the
+implicit usings.
+
+The pattern runs on the **normalized** value, after `MinLength` and `MaxLength`, before the known values and
+`ValidateValue`. A value it does not match is rejected as `value_object.invalid_format`, with "The value does not
+match the expected format." Its text, read off the `[GeneratedRegex]` attribute when the type compiles, is the
+OpenAPI `pattern`, so the rule is still declared once: never test it again in `ValidateValue`.
+
+- Always set `matchTimeoutMilliseconds`. Without it, a pathological input holds the thread for as long as the
+  match runs (`VO0026`, warning).
+- `RegexOptions` do not reach the OpenAPI `pattern`, which is the text alone. `IgnoreCase`, `Multiline`,
+  `Singleline` and `IgnorePatternWhitespace` would make clients check values differently from the type
+  (`VO0025`, warning): write the rule into the pattern, `[A-Za-z]` rather than `IgnoreCase`.
+- `string` only (`VO0023` on any other type), and never on an `[EntityId]`, which owns its format (`VO0024`).
+- A malformed regular expression is reported by the regex generator, not by `VO0014`.
+- A `static Regex Pattern` written without the interface never runs as the pattern: `VO0011`.
+
+Migrating from the deprecated `Pattern` option is mechanical. Remove `Pattern = "X"` and add the hook with the
+same text, `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`: those are the options and the
+timeout the option used, so behaviour is unchanged. Before:
+
+```csharp skip
+// Reported as VO0021, and removed in the next major.
+[ValueObject<string>(MaxLength = 3, Pattern = "^[A-Z]{3}$")]
+public readonly partial struct CurrencyCode : IValueObjectNormalizer<string>
+{
+    public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
+}
+```
+
+After: the `CurrencyCode` above. Keeping both is `VO0022`, and the hook wins until the option is removed.
 
 ## Closed value sets
 
