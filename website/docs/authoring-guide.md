@@ -16,7 +16,7 @@ JSON strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`,
 
 | Option | Type | Default | Effect |
 | --- | --- | --- | --- |
-| `Pattern` | `string?` | none | Regular expression the **normalized** value must match. Also the OpenAPI `pattern`. Invalid → `VO0014`. |
+| `Pattern` | `string?` | none | **Deprecated** (`VO0021`), and removed in the next major version: implement [`IValueObjectPatternValidator`](#a-pattern) instead. Regular expression the **normalized** value must match, built at run time. Also the OpenAPI `pattern`. Invalid → `VO0014`. |
 | `MinLength`, `MaxLength` | `int` | `-1`, unconstrained | `string` only (`VO0008` otherwise). Validation, OpenAPI `minLength` / `maxLength`, and the EF Core column size. |
 | `Minimum`, `Maximum` | `string?` | none | Inclusive bounds written as **text**, in the [one form of the underlying type](#bounds-and-known-values-written-as-text), so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Numbers, `char`, dates, times and durations only: a bound on `string`, `Guid` or `bool` → `VO0004`. Parsed at compile time; any other text, or a value outside the type → `VO0004`. Also OpenAPI `minimum` / `maximum`. |
 | `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering and hashing together. A value the enum does not define → `VO0020`. |
@@ -30,7 +30,8 @@ JSON strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`,
 | `Example` | `string?` | none | OpenAPI example. |
 | `Description` | `string?` | the type's XML `<summary>` | OpenAPI description. |
 
-Declared rules run before any hook, so a validator only ever sees values that already satisfy them.
+Declared rules, and then the pattern, run before `ValidateValue`, so a validator only ever sees values that
+already satisfy them.
 [Validation and normalization](./tutorials/validation-and-normalization.md#the-order-things-run-in) gives the
 exact order.
 
@@ -79,6 +80,7 @@ rule written without its interface — the one mistake the compiler cannot catch
 | --- | --- |
 | `IValueObjectNormalizer<TValue>` | `static TValue NormalizeValue(TValue value)` |
 | `IValueObjectSpanNormalizer` | `static string NormalizeValue(ReadOnlySpan<char> value)` — string value objects only |
+| `IValueObjectPatternValidator` | `static Regex Pattern { get; }`, written as a `[GeneratedRegex]` partial property — string value objects only |
 | `IValueObjectValidator<TValue>` | `static ValidationResult ValidateValue(in TValue value)` |
 | `IValueObjectFormatter<TValue>` | `static bool TryFormatValue(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 | `IValueObjectStringFormatter<TValue>` | `static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
@@ -111,9 +113,54 @@ public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObje
 The rules are public because a static interface member cannot be anything else. `Normalize` remains the
 member callers use: it guards against a null underlying value and then defers to `NormalizeValue`.
 
+### A pattern
+
+`IValueObjectPatternValidator` declares the regular expression a string value object must match. Its member is a
+`[GeneratedRegex]` partial property, which the .NET regex source generator compiles. The value object generator
+cannot write one itself, because a source generator never sees another's output, so the hook asks for the line
+of code a person writes:
+
+```csharp
+using System.Text.RegularExpressions;
+using AdCodicem.ValueObjects;
+using AdCodicem.ValueObjects.Annotations;
+
+namespace Catalog;
+
+[ValueObject<string>(MaxLength = 12)]
+public readonly partial struct Sku : IValueObjectNormalizer<string>, IValueObjectPatternValidator
+{
+    public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
+
+    [GeneratedRegex("^[A-Z]{3}-[0-9]{4,8}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+}
+```
+
+The pattern runs on the normalized value, after `MinLength` and `MaxLength` and before the known values and
+`ValidateValue`. A value it does not match is rejected as `value_object.invalid_format`, with the message "The
+value does not match the expected format." The rule is still declared once: the generator reads the pattern's
+text off the `[GeneratedRegex]` attribute when the type compiles, and publishes it as the OpenAPI `pattern`.
+
+That text carries no `RegexOptions`, so a client checking the schema would not apply them. `IgnoreCase`,
+`Multiline`, `Singleline` and `IgnorePatternWhitespace` are therefore `VO0025`, a warning: write the rule into
+the pattern itself, `[A-Za-z]` rather than `IgnoreCase`. Set a `matchTimeoutMilliseconds` as well, or `VO0026`
+warns that a pathological input could hold a request thread for as long as the match runs.
+
+The hook applies to `string` value objects only: on any other underlying type it is `VO0023`, and on an
+`[EntityId]`, which owns its format, `VO0024`. A public static `Regex Pattern` written without the interface is
+`VO0011`, unless the type implements another hook, which may already run it.
+
+The hook replaces the `Pattern` option, which builds its `Regex` at run time with `RegexOptions.Compiled`. Native
+AOT cannot compile a regular expression at run time and interprets it instead. Declaring both on one type is
+`VO0022`, and the hook wins. To migrate, move the option's text into a `[GeneratedRegex]` with
+`RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`: those are the options and the timeout the
+option used, so behaviour does not change. [Moving off `Pattern`](./reference/diagnostics.md#moving-off-pattern)
+shows the change.
+
 ## Diagnostics
 
-The generator and the analyzers report `VO0001` to `VO0020`. [Diagnostics](./reference/diagnostics.md) lists
+The generator and the analyzers report `VO0001` to `VO0026`. [Diagnostics](./reference/diagnostics.md) lists
 each one with its fix.
 
 Next: [Generated members](./reference/generated-members.md), for what the generator writes from all of this.

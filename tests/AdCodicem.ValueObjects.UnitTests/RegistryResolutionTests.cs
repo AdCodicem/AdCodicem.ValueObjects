@@ -104,6 +104,25 @@ public class RegistryResolutionTests
         floor.Schema.KnownValues.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A pattern declared through <see cref="IValueObjectPatternValidator"/> is an interface the type implements,
+    /// read through it whether the type carries an annotation, whose other rules are read too, or none at all.
+    /// </summary>
+    [Fact]
+    public void A_hand_written_value_object_publishes_the_pattern_of_its_hook()
+    {
+        ValueObjectRegistry.TryResolve(typeof(PostalCode), out var postal).Should().BeTrue();
+        ValueObjectRegistry.TryResolve(typeof(DepartmentCode), out var department).Should().BeTrue();
+
+        postal!.Schema.Pattern.Should().Be("^[0-9]{5}$");
+        postal.Schema.MaxLength.Should().Be(5, "the annotation is still read beside the hook");
+
+        department!.Schema.Pattern.Should().Be("^[0-9]{2}$");
+        department.Schema.MaxLength.Should().BeNull();
+        department.TryParse("7A", null, out _, out var rejected).Should().BeFalse();
+        rejected.ErrorCode.Should().Be(ValueObjectErrorCodes.InvalidFormat);
+    }
+
     [Fact]
     public void A_value_object_nothing_registered_still_reports_its_underlying_type()
     {

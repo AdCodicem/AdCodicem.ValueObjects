@@ -161,6 +161,8 @@ builder.Services.AddOpenApi(o => o.AddValueObjects());
 A value object is documented as its underlying type carrying the rules declared on it: `maxLength`, `pattern`,
 `minimum`, `format`, `enum` for a closed set, plus `Example` and `Description`. Nothing to restate in an
 annotation — and nothing to keep in sync, since the schema comes from the same declaration that validates.
+`pattern` is the text of the `[GeneratedRegex]` behind `IValueObjectPatternValidator`, read when the type
+compiles; its `RegexOptions` are not part of it (`VO0025`).
 
 ## Run-time lookup, when only a `Type` is known
 

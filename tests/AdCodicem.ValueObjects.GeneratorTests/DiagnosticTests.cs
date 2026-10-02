@@ -548,6 +548,7 @@ public sealed class DiagnosticTests
     public void Every_option_set_to_an_undefined_value_is_reported_along_with_the_other_mistakes()
     {
         var run = GeneratorHarness.Run("""
+            #pragma warning disable VO0021 // The deprecated option is what this test declares.
             [ValueObject<string>(Comparison = (StringComparison)42, ValueSet = (ValueSetKind)5, Pattern = "([unclosed")]
             public readonly partial struct Code;
             """);
@@ -628,6 +629,7 @@ public sealed class DiagnosticTests
     public void A_pattern_that_is_not_a_regular_expression_is_reported()
     {
         var run = GeneratorHarness.Run("""
+            #pragma warning disable VO0021 // The deprecated option is what this test declares.
             [ValueObject<string>(Pattern = "([unclosed")]
             public readonly partial struct Code;
             """);
@@ -663,10 +665,15 @@ public sealed class DiagnosticTests
     public void A_well_formed_value_object_reports_nothing()
     {
         var run = GeneratorHarness.Run("""
-            [ValueObject<string>(MinLength = 2, MaxLength = 8, Pattern = "^[A-Z]+$")]
-            public readonly partial struct Code;
+            [ValueObject<string>(MinLength = 2, MaxLength = 8)]
+            public readonly partial struct Code : IValueObjectPatternValidator
+            {
+                [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+                public static partial Regex Pattern { get; }
+            }
             """);
 
         run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
     }
 }

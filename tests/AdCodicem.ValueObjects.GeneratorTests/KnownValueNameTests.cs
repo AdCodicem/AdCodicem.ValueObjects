@@ -212,6 +212,7 @@ public sealed class KnownValueNameTests
     [Theory]
     [InlineData(
         """
+        #pragma warning disable VO0021 // The deprecated option is what this test declares.
         [ValueObject<string>(Pattern = "^[A-Z]+$", ValueSet = ValueSetKind.Closed, ImplicitConversionToValue = true, ExplicitConversionFromValue = true)]
         [KnownValue("Kept", "K")]
         public readonly partial struct Code : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectFormatter<string>

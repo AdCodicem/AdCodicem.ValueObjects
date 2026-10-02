@@ -31,6 +31,7 @@ Here the type costs one declaration. Its rules are written once and carried into
 binding and the OpenAPI document, so they cannot drift apart. This compiles as it stands:
 
 ```csharp
+using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects;
 using AdCodicem.ValueObjects.Annotations;
 
@@ -39,13 +40,17 @@ namespace Banking;
 [ValueObject<string>(
     MinLength = 15,
     MaxLength = 34,
-    Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
     SchemaFormat = "iban")]
-public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectValidator<string>
+public readonly partial struct Iban
+    : IValueObjectNormalizer<string>, IValueObjectPatternValidator, IValueObjectValidator<string>
 {
     // Runs first, on every way in: "fr76 3000 6000 …" and "FR7630006000…" are the same account.
     public static string NormalizeValue(string value)
         => value.Replace(" ", "").Replace("-", "").ToUpperInvariant();
+
+    // Runs once the declared length holds. Compiled at build time, and published as the OpenAPI pattern.
+    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
 
     // Runs once the declared length and pattern hold: the ISO 7064 MOD-97-10 check digits.
     public static ValidationResult ValidateValue(in string value)
@@ -127,8 +132,9 @@ same application wrote. `ConfigureValueObjects(strict: true)` turns that back on
 also writes to.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, and becomes the
-`maxLength` keyword of the OpenAPI schema. `[KnownValue]` entries become named constants, a frozen membership
-lookup, and the `enum` keyword of the schema.
+`maxLength` keyword of the OpenAPI schema. The `[GeneratedRegex]` behind `IValueObjectPatternValidator`
+validates the value, and its text becomes the `pattern` keyword. `[KnownValue]` entries become named constants,
+a frozen membership lookup, and the `enum` keyword of the schema.
 
 ## Compared with other libraries
 
@@ -185,7 +191,8 @@ strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `Dat
 
 | Option | Effect |
 | --- | --- |
-| `Pattern`, `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI schema. |
+| `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI schema. |
+| `Pattern` | Deprecated (`VO0021`): a regular expression built at run time, which native AOT interprets. Implement `IValueObjectPatternValidator` instead. Removed in the next major version. |
 | `Minimum`, `Maximum` | Inclusive bounds, written as text in the one form of the underlying type and read at compile time. Validation and OpenAPI schema. |
 | `Comparison` | Equality, ordering and hashing for string value objects. Ordinal by default. |
 | `ValueSet = Closed` + `[KnownValue]` | Reference-data codes with a frozen lookup and a schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. |
@@ -202,8 +209,8 @@ without an offset for a `DateTime` (`"2024-01-31T08:30"`); a date and a time fol
 for a `DateTimeOffset`; and `[-][d.]hh:mm:ss[.fffffff]` for a `TimeSpan`. No white space, no culture, no time zone:
 the same declaration compiles to the same bound on every machine. Any other text, or a value the type cannot hold,
 is `VO0004`, and the message names the form. A `string`, a `Guid` and a `bool` take no bound, which is `VO0004`
-too: constrain a string with `MinLength`, `MaxLength` or `Pattern`. A `[KnownValue]` written as text is read in
-the same form, and refused with `VO0013`.
+too: constrain a string with `MinLength`, `MaxLength` or `IValueObjectPatternValidator`. A `[KnownValue]` written
+as text is read in the same form, and refused with `VO0013`.
 
 ### Hooks
 
@@ -215,6 +222,7 @@ without its interface — the one mistake the compiler cannot catch.
 | --- | --- |
 | `IValueObjectNormalizer<TValue>` | `static TValue NormalizeValue(TValue value)` |
 | `IValueObjectSpanNormalizer` | `static string NormalizeValue(ReadOnlySpan<char> value)` — string value objects only |
+| `IValueObjectPatternValidator` | `static Regex Pattern { get; }`, written as a `[GeneratedRegex]` partial property — string value objects only |
 | `IValueObjectValidator<TValue>` | `static ValidationResult ValidateValue(in TValue value)` |
 | `IValueObjectFormatter<TValue>` | `static bool TryFormatValue(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 | `IValueObjectStringFormatter<TValue>` | `static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
@@ -244,6 +252,21 @@ public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObje
     }
 }
 ```
+
+`IValueObjectPatternValidator` takes a `[GeneratedRegex]` you write, as in the IBAN above, because the regex
+source generator compiles only code a person wrote: one source generator never sees another's output, so this
+one cannot write the attribute for you. The pattern runs after `MinLength` and `MaxLength`, before the known
+values and `ValidateValue`, and rejects a value as `value_object.invalid_format`. Its text, read off the attribute
+when the type compiles, is also the OpenAPI `pattern`. That text carries no `RegexOptions`, so `VO0025` warns on
+`IgnoreCase`, `Multiline`, `Singleline` and `IgnorePatternWhitespace`: write such a rule into the pattern itself.
+`VO0026` warns on a missing `matchTimeoutMilliseconds`. `Regex` lives in `System.Text.RegularExpressions`, which
+is not among the implicit usings.
+
+The hook replaces the `Pattern` option, which builds its regular expression at run time, where native AOT
+interprets it. The option is deprecated (`VO0021`) and removed in the next major version. To migrate, move the
+expression from `Pattern = "X"` into
+`[GeneratedRegex("X", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }`:
+those are the options and the timeout the option used, so behaviour does not change. Declaring both is `VO0022`.
 
 The rules are public because a static interface member cannot be anything else. `Normalize` remains the member
 callers use: it guards against a null underlying value and then defers to `NormalizeValue`.
@@ -334,13 +357,19 @@ an internal surrogate key alongside it.
 | `VO0010` | Error | An uninitialized value object. |
 | `VO0011` | Warning | A rule written without declaring its hook interface, so the generator will never call it. |
 | `VO0013` | Error | A known value is not written in the one form of its underlying type, names no value of it, or is no value at all: `null`, an array, a `typeof(...)`, an enum member. |
-| `VO0014` | Error | An invalid regular expression. |
+| `VO0014` | Error | An invalid regular expression in the deprecated `Pattern` option. The regex generator reports one in a `[GeneratedRegex]` itself. |
 | `VO0015` | Error | A malformed entity identifier prefix. |
 | `VO0016` | Error | Two types claiming the same prefix. |
 | `VO0017` | Error | A normalization hook on an entity identifier, which owns its own. |
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
 | `VO0019` | Error | The generated code cannot reopen, reach or name the type: it is generic or nested in a generic type or an interface; it, or a type around it, is `private`, `protected` or `file`-local; or it is named after a member the generator writes on it, or `var` or `_`. |
 | `VO0020` | Error | `Comparison`, `ValueSet` or `Granularity` holds a value its enum does not define. |
+| `VO0021` | Warning | The deprecated `Pattern` option of `[ValueObject<T>]`, reported by the compiler. Implement `IValueObjectPatternValidator` with `[GeneratedRegex("X", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }` and remove `Pattern = "X"`. The option builds its regular expression at run time, which native AOT interprets, and is removed in the next major. |
+| `VO0022` | Error | Both the `Pattern` option and `IValueObjectPatternValidator` on one type. The hook wins. |
+| `VO0023` | Error | `IValueObjectPatternValidator` on a value object whose underlying type is not `string`. |
+| `VO0024` | Error | `IValueObjectPatternValidator` on an `[EntityId]`, which validates and publishes its own format. |
+| `VO0025` | Warning | The `[GeneratedRegex]` behind `Pattern` sets `IgnoreCase`, `Multiline`, `Singleline` or `IgnorePatternWhitespace`, which the OpenAPI `pattern` cannot carry. |
+| `VO0026` | Warning | The `[GeneratedRegex]` behind `Pattern` sets no `matchTimeoutMilliseconds`. |
 
 ## Using it with an AI coding agent
 

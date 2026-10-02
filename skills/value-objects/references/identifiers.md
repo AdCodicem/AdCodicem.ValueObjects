@@ -44,7 +44,8 @@ taste. It leaks the creation time at exactly that granularity and nothing finer;
 
 An identifier owns its own normalization: declaring a normalizer hook on one is `VO0017`. A validator or a
 formatter is declared through its interface, as on any value object; written without it, it never runs and is
-`VO0011`. Both `[EntityId]` and `[ValueObject<T>]` on the same type is `VO0018`.
+`VO0011`. It also owns its format and publishes its own OpenAPI `pattern`, so `IValueObjectPatternValidator` on
+one is `VO0024`. Both `[EntityId]` and `[ValueObject<T>]` on the same type is `VO0018`.
 
 `default(AccountId)` and `new AccountId()` are build error `VO0010`, as for any value object: the instance they
 produce has an empty `Value` and never went through validation. Mint with `New()`, read with `Parse` or

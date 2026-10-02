@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace AdCodicem.ValueObjects.UnitTests.Domain;
 
 /// <summary>
@@ -6,12 +8,16 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain;
 [ValueObject<string>(
     MinLength = 15,
     MaxLength = 34,
-    Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
     SchemaFormat = "iban",
     Example = "FR7630006000011234567890189",
     ImplicitConversionToValue = true)]
-public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectValidator<string>, IValueObjectFormatter<string>
+public readonly partial struct Iban
+    : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectPatternValidator, IValueObjectValidator<string>, IValueObjectFormatter<string>
 {
+    /// <summary>Gets the shape of an IBAN: a country code, two check digits, then up to thirty characters.</summary>
+    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+
     /// <summary>The named formats accepted by <see cref="ToString(string?, IFormatProvider?)"/>.</summary>
     public static class Formats
     {

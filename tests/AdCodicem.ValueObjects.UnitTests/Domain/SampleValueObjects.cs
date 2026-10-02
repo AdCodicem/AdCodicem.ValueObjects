@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace AdCodicem.ValueObjects.UnitTests.Domain;
 
 /// <summary>
@@ -5,11 +7,14 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain;
 /// </summary>
 [ValueObject<string>(
     MaxLength = 254,
-    Pattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$",
     SchemaFormat = "email",
     Example = "ada@example.com")]
-public readonly partial struct EmailAddress : IValueObjectNormalizer<string>
+public readonly partial struct EmailAddress : IValueObjectNormalizer<string>, IValueObjectPatternValidator
 {
+    /// <summary>Gets the shape of an address: something, an at sign, and a domain with a dot in it.</summary>
+    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+
     /// <summary>Gets the domain part of the address.</summary>
     public ReadOnlySpan<char> Domain => Value.AsSpan()[(Value.IndexOf('@') + 1)..];
 
@@ -20,7 +25,13 @@ public readonly partial struct EmailAddress : IValueObjectNormalizer<string>
 /// An ISO 4217 currency code: a pattern and named constants on the same type, so that the constants are created
 /// through the pattern while the type initializes.
 /// </summary>
+/// <remarks>
+/// It keeps the deprecated Pattern option, whose compiled field is what the named constants once reached before it
+/// was assigned, until the option is removed.
+/// </remarks>
+#pragma warning disable VO0021 // The deprecated option is what this type holds the generated code to.
 [ValueObject<string>(Pattern = "^[A-Z]{3}$")]
+#pragma warning restore VO0021
 [KnownValue("Euro", "EUR")]
 [KnownValue("UsDollar", "USD")]
 public readonly partial struct CurrencyCode : IValueObjectNormalizer<string>

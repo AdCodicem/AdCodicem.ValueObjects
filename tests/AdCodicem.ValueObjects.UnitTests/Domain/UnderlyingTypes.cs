@@ -78,7 +78,13 @@ public readonly partial struct OccurredAt;
 public readonly partial struct Duration;
 
 /// <summary>An international phone number, printed in groups by its own formatter.</summary>
+/// <remarks>
+/// It keeps the deprecated Pattern option, the generated-code suite's witness that the option still validates and
+/// still describes the type, until the option is removed.
+/// </remarks>
+#pragma warning disable VO0021 // The deprecated option is what this type holds the generated code to.
 [ValueObject<string>(Pattern = @"^\+[0-9]{6,15}$")]
+#pragma warning restore VO0021
 public readonly partial struct PhoneNumber : IValueObjectStringFormatter<string>
 {
     /// <summary>The grouped format: the country part, then groups of three digits.</summary>

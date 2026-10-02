@@ -13,14 +13,15 @@ namespace AdCodicem.ValueObjects.Annotations;
 /// <para>
 /// The declaring type opts into a rule by implementing the interface that declares it, so the compiler checks
 /// its signature: <see cref="IValueObjectNormalizer{TValue}"/>, <see cref="IValueObjectSpanNormalizer"/>,
-/// <see cref="IValueObjectValidator{TValue}"/>, <see cref="IValueObjectFormatter{TValue}"/> and
-/// <see cref="IValueObjectStringFormatter{TValue}"/>. All are optional, and a rule written without its
-/// interface is reported as <c>VO0011</c> rather than silently ignored.
+/// <see cref="IValueObjectPatternValidator"/>, <see cref="IValueObjectValidator{TValue}"/>,
+/// <see cref="IValueObjectFormatter{TValue}"/> and <see cref="IValueObjectStringFormatter{TValue}"/>. All are
+/// optional, and a rule written without its interface is reported as <c>VO0011</c> rather than silently ignored.
 /// </para>
 /// <para>
-/// Declarative constraints set on this attribute (<see cref="Pattern"/>, <see cref="MinLength"/>,
-/// <see cref="Minimum"/>) are checked before any of those rules run, and also feed the generated OpenAPI
-/// schema, so a rule is stated once and enforced everywhere.
+/// Declarative constraints set on this attribute (<see cref="MinLength"/>, <see cref="MaxLength"/>,
+/// <see cref="Minimum"/>), like the pattern of <see cref="IValueObjectPatternValidator"/>, are checked before
+/// <see cref="IValueObjectValidator{TValue}"/> runs, and also feed the generated OpenAPI schema, so a rule is
+/// stated once and enforced everywhere.
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
@@ -82,13 +83,26 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     public bool AllowDefault { get; set; }
 
     /// <summary>
-    /// Gets or sets a regular expression the normalized value must match.
+    /// Gets or sets a regular expression the normalized value must match. Deprecated: implement
+    /// <see cref="IValueObjectPatternValidator"/> instead.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Compiled once into a static <c>Regex</c> with <c>RegexOptions.Compiled</c>: one source generator cannot
-    /// see another's output, so <c>[GeneratedRegex]</c> is not reachable from emitted code. Also emitted as the
+    /// see another's output, so <c>[GeneratedRegex]</c> is not reachable from emitted code. Native AOT cannot compile
+    /// a regular expression at run time and interprets it, about twice as slowly. Also emitted as the
     /// <c>pattern</c> keyword of the OpenAPI schema.
+    /// </para>
+    /// <para>
+    /// <see cref="IValueObjectPatternValidator"/> takes a <c>[GeneratedRegex]</c> the author writes, which the regex
+    /// generator compiles. Setting both is <c>VO0022</c>. This option is reported as <c>VO0021</c> and will be
+    /// removed in the next major version.
+    /// </para>
     /// </remarks>
+    [Obsolete(
+        "Implement IValueObjectPatternValidator with a [GeneratedRegex] partial property instead. Pattern compiles its "
+        + "regular expression at run time, which native AOT interprets, and will be removed in the next major version.",
+        DiagnosticId = "VO0021")]
     [StringSyntax(StringSyntaxAttribute.Regex)]
     public string? Pattern { get; set; }
 

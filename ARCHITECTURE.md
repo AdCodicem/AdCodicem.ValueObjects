@@ -76,7 +76,11 @@ actually fired. `DescriptorTests.cs` covers that surface.
   as a bug. The [error reference](website/docs/reference/errors.md) names what each integration throws. Validation
   is fail-fast: the first violated rule wins.
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column, and becomes the OpenAPI
-  `maxLength`. Anything added to `[ValueObject<T>]` should feed all three.
+  `maxLength`. Anything added to `[ValueObject<T>]` should feed all three. A hook can feed the schema too: the
+  `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off the attribute at
+  compile time, becomes the OpenAPI `pattern`. It replaces the deprecated `Pattern` option, which builds its
+  `Regex` at run time because one source generator cannot see another's output;
+  [ADR-0007](docs/adr/0007-deprecate-pattern-for-a-source-generated-regex-hook.md) records why.
 
 ## Testing
 
@@ -88,7 +92,9 @@ actually fired. `DescriptorTests.cs` covers that surface.
 
 `GeneratorTests` drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
 `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Its snippets compile **without** implicit usings,
-which is what catches unqualified names in emitted code. Its incrementality tests assert on
+which is what catches unqualified names in emitted code. The harness also runs the framework's regex generator,
+which the `CopyRegexGenerator` target copies from the targeting pack the SDK resolved, so a snippet implementing
+`IValueObjectPatternValidator` compiles. Its incrementality tests assert on
 `IncrementalStepRunReason` — the only way to notice a caching regression, which otherwise breaks nothing
 visible while making every IDE keystroke re-run the pipeline.
 
