@@ -596,8 +596,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// parameters, and reopens a containing type as a class, a struct or a record, which an interface is not. It
     /// reopens them in a file of its own, where a file-local type is another type, and registers the value object
     /// from a class of its own, which a private or a protected type, or one nested in such a type, is hidden from.
-    /// Inside the value object, its statements write <c>var</c> and the discard <c>_</c>, which a type of either
-    /// name, the value object or one around it, would capture.
+    /// Its statements name the type of every local and discard nothing, so no type named <c>var</c> or <c>_</c>
+    /// changes what they mean.
     /// </para>
     /// <para>
     /// What it wrote would not compile, in a file the author cannot edit, so the type is reported and left alone.
@@ -611,7 +611,6 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     {
         var (reason, remedy) = RefuseGenericContext(symbol)
             ?? RefuseHiddenContext(symbol)
-            ?? RefuseCapturingName(symbol)
             ?? default;
 
         if (reason is null)
@@ -687,28 +686,6 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
                     Describe(symbol, type, "file-local"),
                     "Declare it, and every type around it, without the file modifier: the generated code reopens them in "
                     + "a file of its own, where a file-local type is out of reach");
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Says why the statements the generator writes inside a type would not compile: the type, or one around it,
-    /// takes the name <c>var</c> or <c>_</c>, which they write, and which would then refer to that type.
-    /// </summary>
-    private static (string Reason, string Remedy)? RefuseCapturingName(INamedTypeSymbol symbol)
-    {
-        for (var type = symbol; type is not null; type = type.ContainingType)
-        {
-            if (type.Name is "var" or "_")
-            {
-                return (
-                    SymbolEqualityComparer.Default.Equals(type, symbol)
-                        ? $"takes the name {type.Name}"
-                        : $"is nested in the type '{type.Name}'",
-                    $"Rename the type '{type.Name}': the generated code writes {type.Name} in its statements, where it would "
-                    + "refer to that type instead");
             }
         }
 

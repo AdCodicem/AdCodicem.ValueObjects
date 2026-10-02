@@ -255,6 +255,27 @@ public sealed class EmissionTests
         generated.Should().Contain("cref=\"@event\"");
     }
 
+    /// <summary>
+    /// The generated code declares again the names of the value object and of the types around it. A lower-case one
+    /// draws CS8981 where the author declared it, which the author can silence there, and nowhere else.
+    /// </summary>
+    [Fact]
+    public void A_lower_case_name_is_reported_on_the_declaration_alone()
+    {
+        var run = GeneratorHarness.Run("""
+            public partial class ledger
+            {
+                [ValueObject<int>]
+                public readonly partial struct tally;
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().NotBeEmpty().And.OnlyContain(
+            diagnostic => diagnostic.Id == "CS8981" && diagnostic.Location.SourceTree!.FilePath.Length == 0,
+            "the generated declarations repeat the names, which the author answers for on their own");
+    }
+
     [Fact]
     public void Conversions_are_opt_in()
     {

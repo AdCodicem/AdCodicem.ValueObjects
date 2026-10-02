@@ -38,6 +38,7 @@ internal static class JsonConverterEmitter
     private const string Handling = Json + ".Serialization.JsonNumberHandling";
     private const string JsonException = Json + ".JsonException";
     private const string Invariant = "global::System.Globalization.CultureInfo.InvariantCulture";
+    private const string ValidationResult = "global::AdCodicem.ValueObjects.ValidationResult";
 
     /// <summary>Characters the read path is willing to put on the stack before falling back to a string.</summary>
     private const int StackBufferSize = 512;
@@ -70,14 +71,14 @@ internal static class JsonConverterEmitter
             // only allocation this read makes. CopyString unescapes, and a UTF-8 byte count is always an upper
             // bound on the char count, so the byte length is a safe size for the destination.
             writer.Open($"if (reader.TokenType == {TokenType}.String)");
-            writer.Line("var length = reader.HasValueSequence");
+            writer.Line("int length = reader.HasValueSequence");
             writer.Line("    ? checked((int)reader.ValueSequence.Length)");
             writer.Line("    : reader.ValueSpan.Length;");
             writer.Line();
             writer.Open($"if (length <= {StackBufferSize})");
             writer.Line($"global::System.Span<char> buffer = stackalloc char[{StackBufferSize}];");
-            writer.Line("var written = reader.CopyString(buffer);");
-            writer.Open($"if (!{self}.TryCreateFrom(buffer[..written], out var scoped, out var scopedValidation))");
+            writer.Line("int written = reader.CopyString(buffer);");
+            writer.Open($"if (!{self}.TryCreateFrom(buffer[..written], out {self} scoped, out {ValidationResult} scopedValidation))");
             writer.Line($"throw new {JsonException}($\"The value is not a valid {model.TypeName}: {{scopedValidation.ErrorMessage}}\");");
             writer.Close();
             writer.Line();
@@ -154,7 +155,7 @@ internal static class JsonConverterEmitter
         writer.Close();
         writer.Line();
 
-        writer.Open($"if (!{self}.TryCreate(raw, out var result, out var validation))");
+        writer.Open($"if (!{self}.TryCreate(raw, out {self} result, out {ValidationResult} validation))");
         writer.Line($"throw new {JsonException}($\"The value is not a valid {model.TypeName}: {{validation.ErrorMessage}}\");");
         writer.Close();
         writer.Line();
@@ -236,8 +237,8 @@ internal static class JsonConverterEmitter
             default:
                 // Formatted into a stack buffer, so a date or a 128-bit integer costs no intermediate string.
                 writer.Line($"global::System.Span<char> buffer = stackalloc char[{underlying.FormatBufferSize}];");
-                writer.Line("var current = value.Value;");
-                writer.Line($"global::AdCodicem.ValueObjects.UnderlyingValue.TryFormat(in current, buffer, out var written, {FormatArgument(underlying)}, {Invariant});");
+                writer.Line($"{value} current = value.Value;");
+                writer.Line($"global::AdCodicem.ValueObjects.UnderlyingValue.TryFormat(in current, buffer, out int written, {FormatArgument(underlying)}, {Invariant});");
                 writer.Line("writer.WriteStringValue(buffer[..written]);");
                 break;
         }
@@ -248,9 +249,11 @@ internal static class JsonConverterEmitter
 
     private static void EmitPropertyName(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string self)
     {
+        var value = underlying.FullName;
+
         writer.Line("/// <inheritdoc />");
         writer.Open($"public override {self} ReadAsPropertyName(ref {Reader} reader, global::System.Type typeToConvert, {Options} options)");
-        writer.Open($"if (!{self}.TryParse(reader.GetString(), {Invariant}, out var result, out var validation))");
+        writer.Open($"if (!{self}.TryParse(reader.GetString(), {Invariant}, out {self} result, out {ValidationResult} validation))");
         writer.Line($"throw new {JsonException}($\"The dictionary key is not a valid {model.TypeName}: {{validation.ErrorMessage}}\");");
         writer.Close();
         writer.Line();
@@ -282,8 +285,8 @@ internal static class JsonConverterEmitter
             default:
                 // The buffer holds the longest text of the type in its round-trip form, as in Write.
                 writer.Line($"global::System.Span<char> buffer = stackalloc char[{underlying.FormatBufferSize}];");
-                writer.Line("var current = value.Value;");
-                writer.Line($"global::AdCodicem.ValueObjects.UnderlyingValue.TryFormat(in current, buffer, out var written, {FormatArgument(underlying)}, {Invariant});");
+                writer.Line($"{value} current = value.Value;");
+                writer.Line($"global::AdCodicem.ValueObjects.UnderlyingValue.TryFormat(in current, buffer, out int written, {FormatArgument(underlying)}, {Invariant});");
                 writer.Line("writer.WritePropertyName(buffer[..written]);");
                 break;
         }
@@ -298,7 +301,7 @@ internal static class JsonConverterEmitter
         {
             case UnderlyingKind.Char:
                 writer.Open($"private static char ReadChar(ref {Reader} reader)");
-                writer.Line("var text = reader.GetString();");
+                writer.Line("string? text = reader.GetString();");
                 writer.Line($"return text is {{ Length: 1 }} ? text[0] : throw new {JsonException}(\"Expected a single character.\");");
                 writer.Close();
                 writer.Line();
@@ -307,7 +310,7 @@ internal static class JsonConverterEmitter
             case UnderlyingKind.DateOnly or UnderlyingKind.TimeOnly or UnderlyingKind.TimeSpan
                 or UnderlyingKind.Int128 or UnderlyingKind.UInt128:
                 writer.Open($"private static {value} {HelperName(underlying)}(ref {Reader} reader)");
-                writer.Open($"if (!global::AdCodicem.ValueObjects.UnderlyingValue.TryParse<{value}>(reader.GetString(), {Invariant}, out var parsed))");
+                writer.Open($"if (!global::AdCodicem.ValueObjects.UnderlyingValue.TryParse<{value}>(reader.GetString(), {Invariant}, out {value} parsed))");
                 writer.Line($"throw new {JsonException}(\"The value is not in the expected format.\");");
                 writer.Close();
                 writer.Line();

@@ -133,9 +133,9 @@ public sealed class HookTests
         run.CompilationDiagnostics.Should().BeEmpty();
         run.SingleValueObject.Should()
             .Contain("return FormatValue(in current, global::System.MemoryExtensions.AsSpan(format), formatProvider ?? ")
-            .And.Contain("var text = FormatValue(in current, format, provider ?? ")
+            .And.Contain("string text = FormatValue(in current, format, provider ?? ")
             .And.NotContain("UnderlyingValue.TryFormat(in current, destination,")
-            .And.Contain("UnderlyingValue.TryFormat(in current, buffer, out var written, default, ");
+            .And.Contain("UnderlyingValue.TryFormat(in current, buffer, out int written, default, ");
     }
 
     /// <summary>
@@ -231,7 +231,7 @@ public sealed class HookTests
         run.Diagnostics.Should().BeEmpty();
         run.CompilationDiagnostics.Should().BeEmpty();
         run.SingleValueObject.Should()
-            .Contain("var text = FormatValue(in current, format, provider ?? ")
+            .Contain("string text = FormatValue(in current, format, provider ?? ")
             .And.NotContain("TryFormatValue(");
     }
 
