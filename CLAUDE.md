@@ -133,7 +133,7 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   The exceptions are the EF Core and Dapper read paths, which use `CreateUnchecked` because they read values this
   same application already validated. `ConfigureValueObjects(strict: true)` turns validation back on for EF Core;
   Dapper validates only a column the value object cannot have written: text read into a value object over another
-  type, or a number read into one over `string`.
+  type, or a number or a `Guid` read into one over `string`.
 - **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on
   success. The integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a
   `JsonException` or `JsonSerializationException`, a model state error, a FluentValidation failure, a Dapper

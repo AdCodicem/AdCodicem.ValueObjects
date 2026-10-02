@@ -168,6 +168,25 @@ public abstract class DapperTests<TFixture>(TFixture fixture) : IClassFixture<TF
         await refused.Should().ThrowAsync<DataException>().WithMessage("The value read is not a valid Iban: *");
     }
 
+    /// <summary>
+    /// Both providers return a <c>uuid</c> or a <c>uniqueidentifier</c> as a Guid, which the handler writes as text
+    /// for a value object over a string, then validates: no value object wrote that text either.
+    /// </summary>
+    [Fact]
+    public async Task A_string_value_object_returned_as_a_Guid_is_formatted_and_validated()
+    {
+        var uuid = fixture.ProviderName == "PostgreSql" ? "uuid" : "uniqueidentifier";
+
+        await using var connection = fixture.CreateConnection();
+        var reference = await connection.QuerySingleAsync<TransferReference>(
+            Command($"SELECT CAST('0192F4A0-0000-7000-8000-000000000001' AS {uuid})"));
+        var refused = () => connection.QuerySingleAsync<Iban>(
+            Command($"SELECT CAST('0192f4a0-0000-7000-8000-000000000001' AS {uuid})"));
+
+        reference.Should().Be(TransferReference.Create("0192f4a0-0000-7000-8000-000000000001"));
+        await refused.Should().ThrowAsync<DataException>().WithMessage("The value read is not a valid Iban: *");
+    }
+
     [Fact]
     public async Task A_decimal_value_object_returned_as_a_float_is_converted()
     {

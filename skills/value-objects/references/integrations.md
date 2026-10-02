@@ -136,8 +136,9 @@ explicit projection. It never replaces a handler already in Dapper's table, and 
   `date`, `TimeSpan` for a `time`, a UTC `DateTime` for a `timestamptz`), is trusted, like the EF Core read path.
   A value it cannot convert — a `DateTime` of no zone into a `DateTimeOffset`, a number out of range — throws
   `DataException` naming the type read and the value object.
-- Text read into a non-string value object is parsed and validated, and a number read into a string value object
-  is turned into text and validated through `TryCreate`; a refusal throws `DataException` carrying the rule.
+- Text read into a non-string value object is parsed and validated, and a number or a `Guid` read into a string
+  value object is turned into text (a `Guid` in its lowercase `D` form) and validated through `TryCreate`; a refusal
+  throws `DataException` carrying the rule.
 - A value object over `Int128` or `UInt128` gets no handler: no provider carries either type. Register a
   `SqlMapper.TypeHandler<T>` of your own that converts to the column you chose.
 
