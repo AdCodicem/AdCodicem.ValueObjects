@@ -50,7 +50,7 @@ public readonly partial struct Bban : IValueObjectFormatter<string>
 ```csharp skip
 var bban = Bban.Create("30006000011234567890189");
 
-bban.ToString()                            // "30006000011234567890189"
+bban.ToString()                            // "30006000011234567890189", the hook's default format
 bban.ToString(Bban.Formats.Masked, null)   // "30*****************0189"
 $"{bban:M}"                                // the same, through ISpanFormattable, with no intermediate string
 ```
@@ -58,13 +58,20 @@ $"{bban:M}"                                // the same, through ISpanFormattable
 ## The rules of the hook
 
 - **It takes over formatting entirely**, including the empty and `null` format. Handle the default case —
-  here, anything but `M` writes the value as it is.
-- **Return `false` when the destination is too small.** The generated `ToString(format, provider)` grows its
-  buffer and calls again; that is the framework contract, not an error.
+  here, anything but `M` writes the value as it is. `ToString()`, `$"{bban}"` and `ToString(null, provider)` all
+  write what the hook writes for it.
+- **Return `false` when the destination is too small, and only then.** The generated `ToString(format, provider)`
+  calls again with a pooled buffer twice as large; that is the framework contract, not an error. A hook still
+  refusing a buffer of 1,048,576 characters is one that never succeeds, and `ToString` throws a `FormatException`
+  rather than write some other text in its place. Throw `FormatException` yourself for a format you do not support.
+- **Write a string value as it is, and nothing is allocated.** When the text the hook writes for a `string` value
+  object is the value it holds, as `Bban`'s default format is, `ToString` returns that string rather than a copy.
 - The `Formats` class is a convention, not a requirement: named constants spare callers a magic letter.
 
 `IValueObjectFormatter<TValue>` writes into a span and allocates nothing. For a rule whose output is naturally a
-`string`, `IValueObjectStringFormatter<TValue>` takes `FormatValue(in value, format, provider)` instead; when a type
-declares both, the string formatter wins.
+`string`, `IValueObjectStringFormatter<TValue>` takes `FormatValue(in value, format, provider)` instead, and costs
+that string: `TryFormat`, and so interpolation, copies it into the destination. When a type declares both, the
+string formatter wins, in `ToString` and in `TryFormat` alike, and the span formatter is never called.
 
-Formatting never affects the wire: JSON, the database and model binding always carry the underlying value.
+Formatting never affects the wire: JSON, a dictionary key included, the database and model binding always carry
+the underlying value.

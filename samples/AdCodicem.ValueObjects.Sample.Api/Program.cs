@@ -56,6 +56,9 @@ app.MapPost("/accounts/import", (ImportAccountRequest request, IValidator<Import
 {
     var result = validator.Validate(request);
 
+    // The validator stops each member at its first failure, so a member is reported once. One that does not, or
+    // that states several rules for one member, can fail a member more than once: the member then gets the code of
+    // its first failure.
     return result.IsValid
         ? Results.Accepted()
         : Results.ValidationProblem(
@@ -63,7 +66,8 @@ app.MapPost("/accounts/import", (ImportAccountRequest request, IValidator<Import
             extensions: new Dictionary<string, object?>
             {
                 [ValueObjectProblemDetails.ExtensionName] = result.Errors
-                    .ToDictionary(failure => failure.PropertyName, failure => failure.ErrorCode),
+                    .GroupBy(failure => failure.PropertyName)
+                    .ToDictionary(member => member.Key, member => member.First().ErrorCode),
             });
 });
 

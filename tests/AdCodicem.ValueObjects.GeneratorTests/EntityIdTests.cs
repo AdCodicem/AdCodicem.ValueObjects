@@ -120,6 +120,12 @@ public sealed class EntityIdTests
     [InlineData("acc__x")]
     [InlineData("verylongsegmentname")]
     [InlineData("aaaaaaaa_bbbbbbbb_cc")]
+    [InlineData("acc2")]
+    [InlineData("aCc")]
+    [InlineData("acé")]
+    [InlineData("customers")]
+    [InlineData("acc_customers")]
+    [InlineData("acc_12345678")]
     public void The_generator_and_the_runtime_agree_on_which_prefixes_are_valid(string prefix)
     {
         var run = GeneratorHarness.Run($$"""
@@ -133,18 +139,71 @@ public sealed class EntityIdTests
         acceptedByGenerator.Should().Be(acceptedByRuntime, "the prefix '{0}'", prefix);
     }
 
-    [Fact]
-    public void A_malformed_prefix_says_which_rule_it_broke()
+    [Theory]
+    [InlineData("", "it is empty")]
+    [InlineData("abcdefgh_abcdefgh", "longer than 16 characters")]
+    [InlineData("Acc", "lowercase letter")]
+    [InlineData("acc__x", "one of its segments is empty")]
+    [InlineData("aCc", "outside 'a'-'z'")]
+    [InlineData("acé", "outside 'a'-'z'")]
+    [InlineData("customers", "one of its segments is longer than 8 characters")]
+    [InlineData("acc_", "it ends with a separator")]
+    public void A_malformed_prefix_says_which_rule_it_broke(string prefix, string rule)
     {
-        var run = GeneratorHarness.Run("""
-            [EntityId("Acc")]
+        var run = GeneratorHarness.Run($$"""
+            [EntityId("{{prefix}}")]
             public readonly partial struct AccountId;
             """);
 
         run.Ids.Should().Contain("VO0015");
         run.Diagnostics.Single(d => d.Id == "VO0015")
             .GetMessage()
-            .Should().Contain("lowercase letter");
+            .Should().Contain(rule);
+    }
+
+    /// <summary>
+    /// A generator runs on the text as the author types it, so an annotation still missing its prefix, or naming a
+    /// null one, is reported as an empty prefix rather than taken down with the compiler's own error.
+    /// </summary>
+    [Theory]
+    [InlineData("[EntityId]")]
+    [InlineData("[EntityId(null)]")]
+    public void An_identifier_without_a_prefix_is_reported_as_empty(string annotation)
+    {
+        var run = GeneratorHarness.Run($$"""
+            {{annotation}}
+            public readonly partial struct AccountId;
+            """);
+
+        run.Diagnostics.Should().ContainSingle(d => d.Id == "VO0015")
+            .Which.GetMessage().Should().StartWith("The prefix '' declared on 'AccountId' is unusable because it is empty.");
+        run.Files.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void An_identifier_publishes_its_declared_description()
+    {
+        var run = GeneratorHarness.Run("""
+            /// <summary>From the summary.</summary>
+            [EntityId("acc", Description = "The public identifier of an account.")]
+            public readonly partial struct AccountId;
+            """);
+
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("Description = \"The public identifier of an account.\",");
+    }
+
+    [Fact]
+    public void An_identifier_publishes_its_summary_when_it_declares_no_description()
+    {
+        var run = GeneratorHarness.Run("""
+            /// <summary>The public identifier of an account.</summary>
+            [EntityId("acc")]
+            public readonly partial struct AccountId;
+            """);
+
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("Description = \"The public identifier of an account.\",");
     }
 
     [Fact]
@@ -211,6 +270,28 @@ public sealed class EntityIdTests
         run.SingleValueObject.Should().Contain("return ValidateValue(in value);");
     }
 
+    /// <summary>
+    /// <c>AllowDefault</c> speaks to the analyzer alone, as it does on <c>[ValueObject&lt;T&gt;]</c>: the identifier
+    /// generated with it is the one generated without it.
+    /// </summary>
+    [Fact]
+    public void AllowDefault_changes_nothing_the_generator_writes_for_an_identifier()
+    {
+        var plain = GeneratorHarness.Run("""
+            [EntityId("acc")]
+            public readonly partial struct AccountId;
+            """);
+
+        var allowingDefault = GeneratorHarness.Run("""
+            [EntityId("acc", AllowDefault = true)]
+            public readonly partial struct AccountId;
+            """);
+
+        allowingDefault.Diagnostics.Should().BeEmpty();
+        allowingDefault.CompilationDiagnostics.Should().BeEmpty();
+        allowingDefault.Files.Should().Equal(plain.Files);
+    }
+
     [Fact]
     public void Both_annotations_on_one_type_are_reported_once()
     {
@@ -229,6 +310,7 @@ public sealed class EntityIdTests
     [InlineData("public readonly struct AccountId;", "VO0001")]
     [InlineData("public readonly partial record struct AccountId;", "VO0002")]
     [InlineData("public readonly partial class AccountId;", "VO0002")]
+    [InlineData("public readonly ref partial struct AccountId;", "VO0002")]
     public void An_identifier_declared_wrongly_reaches_the_same_diagnostics_as_a_value_object(
         string declaration,
         string expected)

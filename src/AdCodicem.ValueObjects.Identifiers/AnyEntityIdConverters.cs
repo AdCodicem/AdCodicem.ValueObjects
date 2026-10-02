@@ -14,17 +14,17 @@ namespace AdCodicem.ValueObjects.Identifiers;
 /// wrong shape for the payloads this type exists to serve. Writing the text also makes the default OpenAPI
 /// schema a plain string, which is the representation chosen over a <c>oneOf</c> across every registered
 /// pattern: faithful, and unreadable past a handful of identifier types.
+/// <para>
+/// A JSON <c>null</c> is refused like any other token that is not a string, as it is by the converter of every
+/// generated identifier: an identifier that may be absent is declared <c>AnyEntityId?</c>, whose null never
+/// reaches this converter.
+/// </para>
 /// </remarks>
 public sealed class AnyEntityIdJsonConverter : JsonConverter<AnyEntityId>
 {
     /// <inheritdoc />
     public override AnyEntityId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        if (reader.TokenType == JsonTokenType.Null)
-        {
-            return default;
-        }
-
         if (reader.TokenType != JsonTokenType.String)
         {
             throw new JsonException($"Expected a string holding an entity identifier, found {reader.TokenType}.");
@@ -50,7 +50,16 @@ public sealed class AnyEntityIdJsonConverter : JsonConverter<AnyEntityId>
 
     /// <inheritdoc />
     public override AnyEntityId ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        => AnyEntityId.Parse(reader.GetString() ?? string.Empty, CultureInfo.InvariantCulture);
+    {
+        var text = reader.GetString();
+
+        if (!AnyEntityId.TryParse(text, CultureInfo.InvariantCulture, out var result))
+        {
+            throw new JsonException($"'{text}' is not an identifier of any registered type.");
+        }
+
+        return result;
+    }
 
     /// <inheritdoc />
     public override void WriteAsPropertyName(Utf8JsonWriter writer, AnyEntityId value, JsonSerializerOptions options)
@@ -80,13 +89,14 @@ public sealed class AnyEntityIdTypeConverter : TypeConverter
         => destinationType == typeof(string) || base.CanConvertTo(context, destinationType);
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Anything but text, <see langword="null"/> included, goes to the base class, which throws
+    /// <see cref="NotSupportedException"/>, as the converter of a generated identifier does.
+    /// </remarks>
     public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
-        => value switch
-        {
-            null => default(AnyEntityId),
-            string text => AnyEntityId.Parse(text, CultureInfo.InvariantCulture),
-            _ => base.ConvertFrom(context, culture, value),
-        };
+        => value is string text
+            ? AnyEntityId.Parse(text, CultureInfo.InvariantCulture)
+            : base.ConvertFrom(context, culture, value);
 
     /// <inheritdoc />
     public override object? ConvertTo(

@@ -4,8 +4,10 @@ namespace AdCodicem.ValueObjects;
 /// Thrown when a value object is constructed from a value that violates one of its rules.
 /// </summary>
 /// <remarks>
-/// Every integration on a hot path (JSON, model binding, EF Core, Dapper) uses the <c>TryCreate</c> family
-/// instead, so this exception is reserved for programmer errors and for the explicit <c>Create</c> entry point.
+/// The integrations that take outside input (JSON, model binding, FluentValidation, Dapper) use the
+/// <c>TryCreate</c> and <c>TryParse</c> family and report a refusal in their own terms. This exception comes from
+/// the explicit <c>Create</c> and <c>Parse</c> entry points and an explicit conversion, for code that treats a
+/// rejected value as a bug, and from a strict EF Core read, which goes through <c>Create</c> and fails the query.
 /// </remarks>
 [Serializable]
 public class ValueObjectException : Exception

@@ -79,6 +79,12 @@ jobs:
           files: '**/*.cobertura.xml'
           fail_ci_if_error: false
 
+      # An assembly no test loads is absent from the reports rather than at 0 %, and
+      # Codecov then leaves its lines out of the project's figure. After the upload,
+      # so that the report still arrives when this step fails.
+      - name: Every shipped assembly is measured
+        run: .github/scripts/coverage-modules.sh
+
       # Solution-wide --no-build trips NETSDK1085: the non-packable test/benchmark/sample
       # projects still resolve their ProjectReferences during Pack, which re-invokes Build
       # on the referenced library after it has already been packed.

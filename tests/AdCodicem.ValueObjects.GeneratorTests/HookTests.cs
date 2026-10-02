@@ -1,3 +1,6 @@
+using System.Globalization;
+using Microsoft.CodeAnalysis;
+
 namespace AdCodicem.ValueObjects.GeneratorTests;
 
 /// <summary>
@@ -110,6 +113,128 @@ public sealed class HookTests
         run.SingleValueObject.Should().Contain("TryFormatValue(in current,");
     }
 
+    /// <summary>
+    /// The hook answers every formatting member, and the JSON converter alone formats the underlying value itself,
+    /// for a dictionary key, which a formatting hook never writes.
+    /// </summary>
+    [Fact]
+    public void A_declared_string_formatter_takes_over_formatting()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>]
+            public readonly partial struct Floor : IValueObjectStringFormatter<int>
+            {
+                public static string FormatValue(in int value, ReadOnlySpan<char> format, IFormatProvider? provider)
+                    => "floor " + value.ToString(provider);
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should()
+            .Contain("return FormatValue(in current, global::System.MemoryExtensions.AsSpan(format), formatProvider ?? ")
+            .And.Contain("var text = FormatValue(in current, format, provider ?? ")
+            .And.NotContain("UnderlyingValue.TryFormat(in current, destination,")
+            .And.Contain("UnderlyingValue.TryFormat(in current, buffer, out var written, default, ");
+    }
+
+    /// <summary>
+    /// A formatting hook takes over the default format too, so ToString() goes through it. A hook that no buffer
+    /// satisfies, up to the bound, makes it throw rather than write the plain value, which is not what was asked for.
+    /// </summary>
+    [Fact]
+    public void With_a_formatting_hook_ToString_goes_through_it_and_never_writes_another_text()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>]
+            public readonly partial struct Celsius : IValueObjectFormatter<int>
+            {
+                public static bool TryFormatValue(
+                    in int value,
+                    Span<char> destination,
+                    out int charsWritten,
+                    ReadOnlySpan<char> format,
+                    IFormatProvider? provider)
+                    => destination.TryWrite(provider, $"{value} °C", out charsWritten);
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should()
+            .Contain("public override string ToString() => ToString(null, null);")
+            .And.Contain("global::System.Buffers.ArrayPool<char>.Shared.Rent(length)")
+            .And.Contain("throw new global::System.FormatException(")
+            .And.NotContain("Value.ToString(")
+            .And.NotContain(": ToString();");
+    }
+
+    /// <summary>
+    /// The retry loop of a span hook's <c>ToString</c> is written apart, where the JIT never inlines it, so that it does
+    /// not spend the inlining budget the hook on the common path needs.
+    /// </summary>
+    [Fact]
+    public void With_a_span_formatting_hook_the_retry_loop_is_kept_out_of_ToString()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>]
+            public readonly partial struct Label : IValueObjectFormatter<string>
+            {
+                public static bool TryFormatValue(
+                    in string value,
+                    Span<char> destination,
+                    out int charsWritten,
+                    ReadOnlySpan<char> format,
+                    IFormatProvider? provider)
+                    => destination.TryWrite(provider, $"{value}", out charsWritten);
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        var toString = run.SingleValueObject[
+            run.SingleValueObject.IndexOf("public string ToString(string? format", StringComparison.Ordinal)..];
+        var retry = toString[toString.IndexOf("private static string FormatWithPooledBuffer(", StringComparison.Ordinal)..];
+
+        toString[..^retry.Length].Should()
+            .Contain("return FormatWithPooledBuffer(current, format, provider, buffer.Length * 2);")
+            .And.Contain("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]")
+            .And.NotContain("ArrayPool");
+        retry.Should().Contain("global::System.Buffers.ArrayPool<char>.Shared.Rent(length)");
+    }
+
+    /// <summary>
+    /// The string formatter takes precedence when a type declares both hooks, in span formatting as in
+    /// <c>ToString</c>, so that interpolation and <c>ToString(format, provider)</c> write the same text.
+    /// </summary>
+    [Fact]
+    public void With_both_formatting_hooks_the_string_formatter_answers()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>]
+            public readonly partial struct Floor : IValueObjectFormatter<int>, IValueObjectStringFormatter<int>
+            {
+                public static string FormatValue(in int value, ReadOnlySpan<char> format, IFormatProvider? provider)
+                    => "floor " + value.ToString(provider);
+
+                public static bool TryFormatValue(
+                    in int value,
+                    Span<char> destination,
+                    out int charsWritten,
+                    ReadOnlySpan<char> format,
+                    IFormatProvider? provider)
+                    => value.TryFormat(destination, out charsWritten, format, provider);
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should()
+            .Contain("var text = FormatValue(in current, format, provider ?? ")
+            .And.NotContain("TryFormatValue(");
+    }
+
     [Fact]
     public void A_rule_written_without_its_interface_is_ignored_by_the_generator()
     {
@@ -167,4 +292,232 @@ public sealed class HookTests
 
         diagnostics.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// An identifier is generated like a string value object, and calls a validator or a formatter through its
+    /// interface only: written without it, the rule never runs, as on <c>[ValueObject&lt;T&gt;]</c>.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_reports_a_rule_an_entity_identifier_writes_without_its_interface()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>("""
+            [EntityId("acc")]
+            public readonly partial struct AccountId
+            {
+                public static ValidationResult ValidateValue(in string value) => ValidationResult.Success;
+
+                public static bool TryFormatValue(
+                    in string value,
+                    Span<char> destination,
+                    out int charsWritten,
+                    ReadOnlySpan<char> format,
+                    IFormatProvider? provider)
+                {
+                    charsWritten = 0;
+                    return false;
+                }
+
+                public static string FormatValue(in string value, ReadOnlySpan<char> format, IFormatProvider? provider)
+                    => value;
+
+                private static ValidationResult ValidateCore(string value) => ValidationResult.Success;
+            }
+            """);
+
+        diagnostics.Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture)).Should().BeEquivalentTo(
+            Undeclared("ValidateValue", "AccountId", "IValueObjectValidator<T>"),
+            Undeclared("TryFormatValue", "AccountId", "IValueObjectFormatter<T>"),
+            Undeclared("FormatValue", "AccountId", "IValueObjectStringFormatter<T>"),
+            Undeclared("ValidateCore", "AccountId", "IValueObjectValidator<T>"));
+        diagnostics.Should().OnlyContain(diagnostic => diagnostic.Id == "VO0011");
+    }
+
+    [Fact]
+    public async Task The_analyzer_says_nothing_when_an_entity_identifier_declares_the_interface()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>("""
+            [EntityId("acc")]
+            public readonly partial struct AccountId : IValueObjectValidator<string>
+            {
+                public static ValidationResult ValidateValue(in string value) => ValidationResult.Success;
+            }
+            """);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// An identifier normalizes its own format and never calls a normalizer, interface or not: one declared with its
+    /// interface is <c>VO0017</c>'s to report, and one without it would only be told to declare what VO0017 refuses.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_leaves_a_normalizer_on_an_entity_identifier_to_VO0017()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>("""
+            [EntityId("acc")]
+            public readonly partial struct AccountId
+            {
+                public static string NormalizeValue(string value) => value.Trim();
+
+                private static string NormalizeCore(string value) => value.Trim();
+            }
+            """);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A project using <c>[ValueObject&lt;T&gt;]</c> alone does not reference the identifiers package, so no type can
+    /// be an identifier there, and value objects are still held to their hooks.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_reports_a_value_object_where_the_identifiers_package_is_not_referenced()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>(
+            """
+            using AdCodicem.ValueObjects;
+            using AdCodicem.ValueObjects.Annotations;
+
+            namespace Plain;
+
+            [ValueObject<string>]
+            public readonly partial struct Code
+            {
+                public static ValidationResult ValidateValue(in string value) => ValidationResult.Success;
+            }
+            """,
+            GeneratorHarness.FrameworkReferences.Add(MetadataReference.CreateFromFile(typeof(IValueObject).Assembly.Location)));
+
+        diagnostics.Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture)).Should().Equal(
+            Undeclared("ValidateValue", "Code", "IValueObjectValidator<T>"));
+    }
+
+    /// <summary>
+    /// The analyzer ships inside the package, but nothing stops a project from loading it without the contracts:
+    /// a member shaped like a hook is then just a member, since no type can be a value object.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_says_nothing_where_the_library_is_not_referenced()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>(
+            """
+            namespace Plain;
+
+            public readonly struct Point
+            {
+                public static int NormalizeValue(int value) => value;
+            }
+            """,
+            GeneratorHarness.FrameworkReferences);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The pattern hook is a property. Written without its interface, the regular expression is never matched, and
+    /// the report is made once, on the declaration the author wrote, not on the half the regex generator writes.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_reports_a_pattern_written_without_its_interface()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>("""
+            [ValueObject<string>]
+            public readonly partial struct Code
+            {
+                [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+                public static partial Regex Pattern { get; }
+            }
+            """);
+
+        diagnostics.Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture)).Should().Equal(
+            Undeclared("Pattern", "Code", "IValueObjectPatternValidator"));
+    }
+
+    /// <summary>
+    /// What is not the pattern hook is left alone: one declared with its interface; one on a type whose own hook
+    /// already runs it, the way a source-generated regular expression was used before the pattern hook existed, be it
+    /// a validator or a normalizer; one that is not public, which could not implement the hook anyway; one that is not
+    /// a regular expression, or not static; and one on a type that is not a string, which takes no pattern.
+    /// </summary>
+    [Theory]
+    [InlineData("""
+        [ValueObject<string>]
+        public readonly partial struct Code : IValueObjectPatternValidator
+        {
+            [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+            public static partial Regex Pattern { get; }
+        }
+        """)]
+    [InlineData("""
+        [ValueObject<string>]
+        public readonly partial struct Code : IValueObjectValidator<string>
+        {
+            [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+            private static partial Regex Pattern { get; }
+
+            public static ValidationResult ValidateValue(in string value)
+                => Pattern.IsMatch(value) ? ValidationResult.Success : ValidationResult.InvalidFormat("Not a code.");
+        }
+        """)]
+    [InlineData("""
+        [ValueObject<string>]
+        public readonly partial struct Phone : IValueObjectNormalizer<string>
+        {
+            [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+            public static partial Regex Pattern { get; }
+
+            public static string NormalizeValue(string value) => Pattern.Replace(value, "");
+        }
+        """)]
+    [InlineData("""
+        [ValueObject<string>]
+        public readonly partial struct Code
+        {
+            [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+            private static partial Regex Pattern { get; }
+        }
+        """)]
+    [InlineData("""
+        [ValueObject<string>]
+        public readonly partial struct Code
+        {
+            public static string Pattern => "^[A-Z]+$";
+        }
+        """)]
+    [InlineData("""
+        [ValueObject<string>]
+        public readonly partial struct Code
+        {
+            public Regex Pattern => new("^[A-Z]+$");
+        }
+        """)]
+    [InlineData("""
+        [ValueObject<int>]
+        public readonly partial struct Floor
+        {
+            public static Regex Pattern { get; } = new("^[0-9]+$");
+        }
+        """)]
+    public async Task The_analyzer_leaves_alone_what_is_not_the_pattern_hook(string source)
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>(source);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The compiler never hands an analyzer a null context, so the guard is only reached by a direct call, which
+    /// it tolerates.
+    /// </summary>
+    [Fact]
+    public void The_analyzer_initialized_without_a_context_does_nothing()
+    {
+        var analyzer = new ValueObjectHookAnalyzer();
+
+        analyzer.Invoking(target => target.Initialize(null!)).Should().NotThrow();
+    }
+
+    private static string Undeclared(string member, string typeName, string hookInterface)
+        => $"'{member}' looks like a value object rule but '{typeName}' does not implement '{hookInterface}'. "
+            + "Declare the interface, or the rule will never run.";
 }

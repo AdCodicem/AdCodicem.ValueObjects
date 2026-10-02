@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       filter:
-        description: 'BenchmarkDotNet filter (e.g. *WrapperCost*, or * for all four suites)'
+        description: 'BenchmarkDotNet filter (e.g. *WrapperCost*, or * for all seven suites)'
         required: true
         default: '*WrapperCost*'
         type: choice
@@ -18,6 +18,9 @@ on:
           - '*Creation*'
           - '*Json*'
           - '*Collection*'
+          - '*Formatting*'
+          - '*Date*'
+          - '*Pattern*'
           - '*'
 
 permissions:

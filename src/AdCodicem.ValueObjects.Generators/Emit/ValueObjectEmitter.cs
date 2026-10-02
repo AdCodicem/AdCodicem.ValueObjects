@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using AdCodicem.ValueObjects.Generators.Internal;
 using AdCodicem.ValueObjects.Generators.Model;
 
@@ -18,6 +19,186 @@ internal static class ValueObjectEmitter
     private const string ErrorCodes = Abstractions + ".ValueObjectErrorCodes";
     private const string Inline = "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]";
     private const string Invariant = "global::System.Globalization.CultureInfo.InvariantCulture";
+
+    /// <summary>
+    /// The most characters a formatting hook is offered before <c>ToString</c> gives up on it: far more than the text
+    /// of any value object, and few enough that a hook which never succeeds costs a few megabytes, once.
+    /// </summary>
+    private const int MaxFormattedLength = 1 << 20;
+
+    /// <summary>
+    /// The member a span formatting hook's <c>ToString</c> hands its retry loop to, once the stack buffer is too small.
+    /// </summary>
+    private const string PooledFormatMethod = "FormatWithPooledBuffer";
+
+    /// <summary>The members written on every value object, by name.</summary>
+    private static readonly string[] CommonMembers =
+    [
+        "_value", "Value", "IsDefault", "KnownValues", "Schema", "Normalize", "Validate", "Create", "TryCreate",
+        "CreateUnchecked", "Equals", "GetHashCode", "CompareTo", "ToString", "TryFormat", "Parse", "TryParse",
+        "ValueJsonConverter", "ValueTypeConverter",
+    ];
+
+    /// <summary>The members arithmetic adds, by name.</summary>
+    private static readonly string[] ArithmeticMembers = ["Zero", "One", "IsZero", "Abs", "Min", "Max", "Sum"];
+
+    /// <summary>
+    /// The getters of the properties written on every value object. The compiler names a getter <c>get_</c>
+    /// followed by its property's name and reserves that name in the type, as it does a member's.
+    /// </summary>
+    private static readonly string[] CommonGetters = ["get_Value", "get_IsDefault", "get_KnownValues", "get_Schema"];
+
+    /// <summary>The getters of the properties arithmetic adds.</summary>
+    private static readonly string[] ArithmeticGetters = ["get_Zero", "get_One", "get_IsZero"];
+
+    /// <summary>
+    /// The metadata names of the operators written on every value object. The compiler reserves an operator's
+    /// metadata name in the type as it does any member's, so a property of that name would not compile.
+    /// </summary>
+    private static readonly string[] ComparisonOperators =
+    [
+        "op_Equality", "op_Inequality", "op_LessThan", "op_GreaterThan", "op_LessThanOrEqual", "op_GreaterThanOrEqual",
+    ];
+
+    /// <summary>The metadata names of the binary operators arithmetic adds.</summary>
+    private static readonly string[] ArithmeticOperators = ["op_Addition", "op_Subtraction", "op_Multiply", "op_Division"];
+
+    /// <summary>The members an entity identifier adds, by name, its getters included.</summary>
+    private static readonly string[] EntityIdMembers =
+        ["Prefix", "Granularity", "Length", "New", "get_Prefix", "get_Granularity", "get_Length"];
+
+    /// <summary>
+    /// Gets the names the members written on a value object take in its scope.
+    /// </summary>
+    /// <remarks>
+    /// The members written here, the metadata names of the operators and of the property getters written here: the
+    /// compiler reserves each of them in the type. The names follow the options because the members do:
+    /// <c>Zero</c> is only taken on a value object with arithmetic. They are listed beside the emitters so that a
+    /// member added here is added to them in the same change; <c>KnownValueNameTests</c> and <c>TypeNameTests</c>
+    /// read the generated code to check it.
+    /// </remarks>
+    /// <param name="underlying">The underlying type, whose sign decides whether a negation is written.</param>
+    /// <param name="arithmetic">Whether the arithmetic members are written.</param>
+    /// <param name="implicitConversion">Whether the implicit conversion to the underlying value is written.</param>
+    /// <param name="explicitConversion">Whether the explicit conversion from the underlying value is written.</param>
+    /// <param name="closedValueSet">Whether the membership lookup of a closed value set is written.</param>
+    /// <param name="pattern">Whether the compiled pattern is written.</param>
+    /// <param name="normalizesFromSpan">Whether the factory normalizing from a span is written.</param>
+    /// <param name="entityId">Whether the members of an entity identifier are written.</param>
+    /// <param name="formatsThroughSpanHook">
+    /// Whether <c>ToString</c> goes through a span formatting hook, which writes its retry loop as a member of its own.
+    /// </param>
+    /// <returns>The names, compared ordinally.</returns>
+    public static HashSet<string> MemberNames(
+        UnderlyingType underlying,
+        bool arithmetic,
+        bool implicitConversion,
+        bool explicitConversion,
+        bool closedValueSet,
+        bool pattern,
+        bool normalizesFromSpan,
+        bool entityId,
+        bool formatsThroughSpanHook)
+    {
+        var names = new HashSet<string>(CommonMembers, StringComparer.Ordinal);
+        names.UnionWith(CommonGetters);
+        names.UnionWith(ComparisonOperators);
+
+        if (arithmetic)
+        {
+            names.UnionWith(ArithmeticMembers);
+            names.UnionWith(ArithmeticGetters);
+            names.UnionWith(ArithmeticOperators);
+
+            if (underlying.IsSigned)
+            {
+                names.Add("op_UnaryNegation");
+            }
+        }
+
+        if (implicitConversion)
+        {
+            names.Add("op_Implicit");
+        }
+
+        if (explicitConversion)
+        {
+            names.Add("op_Explicit");
+        }
+
+        if (closedValueSet)
+        {
+            names.Add("KnownUnderlyingValues");
+        }
+
+        if (pattern)
+        {
+            names.Add("DeclaredPattern");
+        }
+
+        if (normalizesFromSpan)
+        {
+            names.Add("TryCreateFrom");
+        }
+
+        if (entityId)
+        {
+            names.UnionWith(EntityIdMembers);
+        }
+
+        if (formatsThroughSpanHook)
+        {
+            names.Add(PooledFormatMethod);
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// Gets the names a known value cannot take on a value object because the generated code uses them.
+    /// </summary>
+    /// <remarks>
+    /// A known value becomes a static property of the value object, so a name already taken there would not
+    /// compile, in a file the author cannot edit: the names of the members written here, the name of the type,
+    /// which its constructor takes, and the discard written as <c>out _</c>, which a member called <c>_</c> would
+    /// capture.
+    /// </remarks>
+    /// <param name="typeName">Name of the value object, which its constructor takes.</param>
+    /// <param name="underlying">The underlying type, whose sign decides whether a negation is written.</param>
+    /// <param name="arithmetic">Whether the arithmetic members are written.</param>
+    /// <param name="implicitConversion">Whether the implicit conversion to the underlying value is written.</param>
+    /// <param name="explicitConversion">Whether the explicit conversion from the underlying value is written.</param>
+    /// <param name="closedValueSet">Whether the membership lookup of a closed value set is written.</param>
+    /// <param name="pattern">Whether the compiled pattern is written.</param>
+    /// <param name="normalizesFromSpan">Whether the factory normalizing from a span is written.</param>
+    /// <param name="formatsThroughSpanHook">Whether <c>ToString</c> goes through a span formatting hook.</param>
+    /// <returns>The names taken, compared ordinally.</returns>
+    public static HashSet<string> TakenNames(
+        string typeName,
+        UnderlyingType underlying,
+        bool arithmetic,
+        bool implicitConversion,
+        bool explicitConversion,
+        bool closedValueSet,
+        bool pattern,
+        bool normalizesFromSpan,
+        bool formatsThroughSpanHook)
+    {
+        var names = MemberNames(
+            underlying,
+            arithmetic,
+            implicitConversion,
+            explicitConversion,
+            closedValueSet,
+            pattern,
+            normalizesFromSpan,
+            entityId: false,
+            formatsThroughSpanHook);
+        names.Add(typeName);
+        names.Add("_");
+
+        return names;
+    }
 
     public static string Emit(ValueObjectModel model)
     {
@@ -54,12 +235,14 @@ internal static class ValueObjectEmitter
             _ => $"{Abstractions}.IValueObject<{self}, {value}>",
         };
 
-        writer.Open($"partial struct {model.TypeName} : {contract}");
+        writer.Open($"partial struct {model.Identifier} : {contract}");
 
         EmitState(writer, model, value, self);
         EmitEntityIdMembers(writer, model, self);
 
-        // The named constants come before the schema so that the schema can publish their normalized values.
+        // The pattern comes before the named constants, which go through it while they are created, and the named
+        // constants come before the schema so that the schema can publish their normalized values.
+        EmitDeclaredPattern(writer, model);
         EmitKnownValues(writer, model, value, self);
         EmitSchema(writer, model, underlying);
         EmitNormalize(writer, model, value);
@@ -102,7 +285,7 @@ internal static class ValueObjectEmitter
 
         writer.Line("/// <summary>Wraps an already normalized and validated value.</summary>");
         writer.Line(Inline);
-        writer.Open($"private {model.TypeName}({value} value)");
+        writer.Open($"private {model.Identifier}({value} value)");
         writer.Line("_value = value;");
         writer.Close();
         writer.Line();
@@ -177,6 +360,14 @@ internal static class ValueObjectEmitter
         if (model.Pattern is not null)
         {
             properties.Add($"Pattern = {LiteralFactory.Quote(model.Pattern)},");
+        }
+        else if (model.HasPatternHook)
+        {
+            // The text the [GeneratedRegex] attribute holds, so that describing the type builds no regular expression.
+            // Without the attribute, the regular expression is asked for it, which builds it as the type initializes.
+            properties.Add(model.PatternHookText is not null
+                ? $"Pattern = {LiteralFactory.Quote(model.PatternHookText)},"
+                : $"Pattern = {Abstractions}.ValueObjectPattern.Of<{model.QualifiedName}>().ToString(),");
         }
         else if (model.IsEntityId)
         {
@@ -320,21 +511,35 @@ internal static class ValueObjectEmitter
         writer.Line();
     }
 
-    private static void EmitValidate(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value)
+    /// <summary>
+    /// Emits the compiled form of the <c>Pattern</c> option.
+    /// </summary>
+    /// <remarks>
+    /// Written before the named constants: static initializers run in declaration order, and each constant goes
+    /// through <c>Create</c>, and so through this field. Written after them, it was still null while they were
+    /// created, and the type initializer threw inside the module initializer, before any code of the assembly ran.
+    /// </remarks>
+    /// <param name="writer">Sink.</param>
+    /// <param name="model">Value object being emitted.</param>
+    private static void EmitDeclaredPattern(CodeWriter writer, ValueObjectModel model)
     {
-        if (model.Pattern is not null)
+        if (model.Pattern is null)
         {
-            // A generator cannot feed [GeneratedRegex], which only sees hand-written code, so the pattern is
-            // compiled once into a static field instead. A timeout keeps a pathological pattern from hanging
-            // a request thread.
-            writer.Line("/// <summary>The declared pattern, compiled once for the lifetime of the process.</summary>");
-            writer.Line("private static readonly global::System.Text.RegularExpressions.Regex DeclaredPattern = new(");
-            writer.Line($"    {LiteralFactory.Quote(model.Pattern)},");
-            writer.Line("    global::System.Text.RegularExpressions.RegexOptions.Compiled | global::System.Text.RegularExpressions.RegexOptions.CultureInvariant,");
-            writer.Line("    global::System.TimeSpan.FromSeconds(1));");
-            writer.Line();
+            return;
         }
 
+        // A generator cannot feed [GeneratedRegex], which only sees hand-written code, so the pattern is compiled
+        // once into a static field instead. A timeout keeps a pathological pattern from hanging a request thread.
+        writer.Line("/// <summary>The declared pattern, compiled once for the lifetime of the process.</summary>");
+        writer.Line("private static readonly global::System.Text.RegularExpressions.Regex DeclaredPattern = new(");
+        writer.Line($"    {LiteralFactory.Quote(model.Pattern)},");
+        writer.Line("    global::System.Text.RegularExpressions.RegexOptions.Compiled | global::System.Text.RegularExpressions.RegexOptions.CultureInvariant,");
+        writer.Line("    global::System.TimeSpan.FromSeconds(1));");
+        writer.Line();
+    }
+
+    private static void EmitValidate(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value)
+    {
         writer.Line("/// <inheritdoc />");
         writer.Open($"public static {ValidationResult} Validate(in {value} value)");
 
@@ -397,26 +602,35 @@ internal static class ValueObjectEmitter
             }
         }
 
-        if (model.Pattern is not null)
+        // The hook takes the option's place, with the same code and message, so moving from one to the other changes
+        // nothing a caller can observe.
+        if (model.Pattern is not null || model.HasPatternHook)
         {
-            writer.Open("if (!DeclaredPattern.IsMatch(value))");
+            // Through a type parameter, which reaches the pattern however the type implements it, explicitly included.
+            writer.Open(model.HasPatternHook
+                ? $"if (!{Abstractions}.ValueObjectPattern.Of<{model.QualifiedName}>().IsMatch(value))"
+                : "if (!DeclaredPattern.IsMatch(value))");
             writer.Line($"return {ValidationResult}.InvalidFormat(\"The value does not match the expected format.\");");
             writer.Close();
             writer.Line();
         }
 
+        // NaN compares false with everything: written as `value < minimum`, a bound would let it through, so a
+        // floating-point bound asks whether the value is inside it instead.
+        var floating = underlying.Kind is UnderlyingKind.Double or UnderlyingKind.Single;
+
         if (underlying.SupportsBounds && model.MinimumLiteral is not null)
         {
-            writer.Open($"if (value < {model.MinimumLiteral})");
-            writer.Line($"return {ValidationResult}.OutOfRange(\"The value must be greater than or equal to {Xml(model.MinimumText!)}.\");");
+            writer.Open(floating ? $"if (!(value >= {model.MinimumLiteral}))" : $"if (value < {model.MinimumLiteral})");
+            writer.Line($"return {ValidationResult}.OutOfRange({LiteralFactory.Quote($"The value must be greater than or equal to {model.MinimumText}.")});");
             writer.Close();
             writer.Line();
         }
 
         if (underlying.SupportsBounds && model.MaximumLiteral is not null)
         {
-            writer.Open($"if (value > {model.MaximumLiteral})");
-            writer.Line($"return {ValidationResult}.OutOfRange(\"The value must be less than or equal to {Xml(model.MaximumText!)}.\");");
+            writer.Open(floating ? $"if (!(value <= {model.MaximumLiteral}))" : $"if (value > {model.MaximumLiteral})");
+            writer.Line($"return {ValidationResult}.OutOfRange({LiteralFactory.Quote($"The value must be less than or equal to {model.MaximumText}.")});");
             writer.Close();
             writer.Line();
         }
@@ -553,21 +767,20 @@ internal static class ValueObjectEmitter
 
     private static void EmitFormatting(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value)
     {
-        writer.Line("/// <inheritdoc />");
-        if (underlying.IsString)
-        {
-            writer.Line("public override string ToString() => Value;");
-        }
-        else if (underlying.IsSpanFormattable)
-        {
-            var format = underlying.RoundTripFormat is null ? "null" : LiteralFactory.Quote(underlying.RoundTripFormat);
-            writer.Line($"public override string ToString() => Value.ToString({format}, {Invariant});");
-        }
-        else
-        {
-            writer.Line($"public override string ToString() => Value.ToString({Invariant});");
-        }
+        // The text of the underlying value, in the form Parse reads back.
+        var roundTrip = underlying.RoundTripFormat is null ? "null" : LiteralFactory.Quote(underlying.RoundTripFormat);
+        var plainText = underlying.IsString
+            ? "Value"
+            : underlying.IsSpanFormattable
+                ? $"Value.ToString({roundTrip}, {Invariant})"
+                : $"Value.ToString({Invariant})";
 
+        // A hook takes over formatting entirely, the default format included, so ToString() writes what
+        // interpolation and ToString(null, null) write.
+        writer.Line("/// <inheritdoc />");
+        writer.Line(model.HasFormatHook || model.HasTryFormatHook
+            ? "public override string ToString() => ToString(null, null);"
+            : $"public override string ToString() => {plainText};");
         writer.Line();
 
         writer.Line("/// <inheritdoc />");
@@ -580,20 +793,7 @@ internal static class ValueObjectEmitter
         }
         else if (model.HasTryFormatHook)
         {
-            writer.Open("public string ToString(string? format, global::System.IFormatProvider? formatProvider)");
-            writer.Line("var current = Value;");
-            writer.Line($"var provider = formatProvider ?? {Invariant};");
-            writer.Line($"global::System.Span<char> buffer = stackalloc char[{Math.Max(underlying.FormatBufferSize, 64)}];");
-            writer.Open("if (TryFormatValue(in current, buffer, out var written, global::System.MemoryExtensions.AsSpan(format), provider))");
-            writer.Line("return new string(buffer[..written]);");
-            writer.Close();
-            writer.Line();
-            writer.Line("// The stack buffer was too small for this format: give the hook a destination it cannot outgrow.");
-            writer.Line("var larger = new char[buffer.Length * 8];");
-            writer.Line("return TryFormatValue(in current, larger, out written, global::System.MemoryExtensions.AsSpan(format), provider)");
-            writer.Line("    ? new string(larger, 0, written)");
-            writer.Line("    : ToString();");
-            writer.Close();
+            EmitHookToString(writer, model, underlying);
         }
         else if (underlying.IsString)
         {
@@ -601,8 +801,13 @@ internal static class ValueObjectEmitter
         }
         else if (underlying.IsSpanFormattable)
         {
+            // The default format is the one ToString() uses, so that interpolation, a TypeConverter and a binder
+            // write what Parse reads back; left to the underlying type, a TimeOnly would drop its seconds.
+            var format = underlying.RoundTripFormat is null
+                ? "format"
+                : $"string.IsNullOrEmpty(format) ? {LiteralFactory.Quote(underlying.RoundTripFormat)} : format";
             writer.Line("public string ToString(string? format, global::System.IFormatProvider? formatProvider)");
-            writer.Line($"    => Value.ToString(format, formatProvider ?? {Invariant});");
+            writer.Line($"    => Value.ToString({format}, formatProvider ?? {Invariant});");
         }
         else
         {
@@ -615,19 +820,34 @@ internal static class ValueObjectEmitter
         writer.Line("/// <inheritdoc />");
         writer.Open("public bool TryFormat(global::System.Span<char> destination, out int charsWritten, global::System.ReadOnlySpan<char> format, global::System.IFormatProvider? provider)");
 
-        if (model.HasTryFormatHook)
+        // The string formatter takes precedence when both hooks are declared, here as in ToString above, or
+        // interpolation and ToString(format, provider) would write two different texts.
+        if (model.HasTryFormatHook && !model.HasFormatHook)
         {
             writer.Line("var current = Value;");
             writer.Line($"return TryFormatValue(in current, destination, out charsWritten, format, provider ?? {Invariant});");
         }
-        else if (underlying.IsSpanFormattable)
+        else if (underlying.IsSpanFormattable && !model.HasFormatHook)
         {
+            var format = underlying.RoundTripFormat is null
+                ? "format"
+                : $"format.IsEmpty ? global::System.MemoryExtensions.AsSpan({LiteralFactory.Quote(underlying.RoundTripFormat)}) : format";
             writer.Line("var current = Value;");
-            writer.Line($"return {Abstractions}.UnderlyingValue.TryFormat(in current, destination, out charsWritten, format, provider ?? {Invariant});");
+            writer.Line($"return {Abstractions}.UnderlyingValue.TryFormat(in current, destination, out charsWritten, {format}, provider ?? {Invariant});");
         }
         else
         {
-            writer.Line(underlying.IsString ? "var text = Value;" : $"var text = ToString(null, provider ?? {Invariant});");
+            if (model.HasFormatHook)
+            {
+                // Interpolation and every span-based writer come through here: the hook decides for them too.
+                writer.Line("var current = Value;");
+                writer.Line($"var text = FormatValue(in current, format, provider ?? {Invariant});");
+            }
+            else
+            {
+                writer.Line(underlying.IsString ? "var text = Value;" : $"var text = ToString(null, provider ?? {Invariant});");
+            }
+
             writer.Open("if (global::System.MemoryExtensions.AsSpan(text).TryCopyTo(destination))");
             writer.Line("charsWritten = text.Length;");
             writer.Line("return true;");
@@ -643,16 +863,95 @@ internal static class ValueObjectEmitter
         _ = value;
     }
 
+    /// <summary>
+    /// Emits <c>ToString(format, provider)</c> through a span formatting hook.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The hook writes into a stack buffer first, and into a pooled one twice as large each time it answers that the
+    /// destination is too small, as the framework contract has it. The growth stops at
+    /// <see cref="MaxFormattedLength"/> characters, which no text of a value object reaches: a hook still refusing
+    /// then is one that never succeeds, and an exception says so rather than looping or writing another text.
+    /// </para>
+    /// <para>
+    /// A string value object whose hook writes its value unchanged, as an IBAN's default format does, gets back the
+    /// string it already holds rather than a copy of it, so <c>ToString()</c> allocates nothing.
+    /// </para>
+    /// <para>
+    /// The retry loop is a member of its own that the JIT never inlines, <see cref="PooledFormatMethod"/>. Written
+    /// into <c>ToString</c>, it spent the JIT's inlining budget on a path that almost never runs. A small hook was
+    /// inlined in full anyway, but a larger one kept calls to what it calls in turn, which cost up to about 3 ns on
+    /// every <c>ToString</c>.
+    /// </para>
+    /// </remarks>
+    /// <param name="writer">Sink.</param>
+    /// <param name="model">Value object being emitted.</param>
+    /// <param name="underlying">Its underlying type.</param>
+    private static void EmitHookToString(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying)
+    {
+        void Return(string span)
+        {
+            if (!underlying.IsString)
+            {
+                writer.Line($"return new string({span});");
+                return;
+            }
+
+            writer.Line($"global::System.ReadOnlySpan<char> text = {span};");
+            writer.Line("return global::System.MemoryExtensions.SequenceEqual(text, global::System.MemoryExtensions.AsSpan(current))");
+            writer.Line("    ? current");
+            writer.Line("    : new string(text);");
+        }
+
+        writer.Open("public string ToString(string? format, global::System.IFormatProvider? formatProvider)");
+        writer.Line("var current = Value;");
+        writer.Line($"var provider = formatProvider ?? {Invariant};");
+        writer.Line($"global::System.Span<char> buffer = stackalloc char[{Math.Max(underlying.FormatBufferSize, 64)}];");
+        writer.Open("if (TryFormatValue(in current, buffer, out var written, global::System.MemoryExtensions.AsSpan(format), provider))");
+        Return("buffer[..written]");
+        writer.Close();
+        writer.Line();
+        writer.Line($"return {PooledFormatMethod}(current, format, provider, buffer.Length * 2);");
+        writer.Close();
+        writer.Line();
+
+        // Kept out of ToString, so that the JIT spends its inlining budget on the hook above, not on the retry.
+        writer.Line("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]");
+        writer.Open($"private static string {PooledFormatMethod}({underlying.FullName} current, string? format, global::System.IFormatProvider provider, int length)");
+        writer.Line("// The hook needs more room than the stack gives it: hand it a pooled buffer twice as large each time.");
+        writer.Open($"for (; length <= {MaxFormattedLength}; length *= 2)");
+        writer.Line("var rented = global::System.Buffers.ArrayPool<char>.Shared.Rent(length);");
+        writer.Open("try");
+        writer.Open("if (TryFormatValue(in current, rented, out var written, global::System.MemoryExtensions.AsSpan(format), provider))");
+        Return("new global::System.ReadOnlySpan<char>(rented, 0, written)");
+        writer.Close();
+        writer.Close();
+        writer.Open("finally");
+        writer.Line("global::System.Buffers.ArrayPool<char>.Shared.Return(rented);");
+        writer.Close();
+        writer.Close();
+        writer.Line();
+        writer.Line("throw new global::System.FormatException(");
+        writer.Line($"    $\"The formatting hook of {model.TypeName} wrote no text for the format '{{format}}' in {MaxFormattedLength} characters. \"");
+        writer.Line("    + \"TryFormatValue returns false only when the destination is too small.\");");
+        writer.Close();
+    }
+
     private static void EmitParsing(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value, string self)
     {
+        // The exception carries the rule that rejected the text, as TryParse reports it: a closed set refusing a
+        // value says not_a_known_value, and not_parsable is left to text that is not of the underlying type at all.
         writer.Line("/// <inheritdoc />");
         writer.Open($"public static {self} Parse(global::System.ReadOnlySpan<char> s, global::System.IFormatProvider? provider)");
-        writer.Open("if (TryParse(s, provider, out var result))");
+        writer.Open("if (TryParse(s, provider, out var result, out var validation))");
         writer.Line("return result;");
         writer.Close();
         writer.Line();
         writer.Line($"throw new {Abstractions}.ValueObjectException(");
-        writer.Line($"    $\"'{{s.ToString()}}' is not a valid {model.TypeName}.\", typeof({self}), {ErrorCodes}.NotParsable, s.ToString());");
+        writer.Line($"    $\"'{{s.ToString()}}' is not a valid {model.TypeName}: {{validation.ErrorMessage}}\",");
+        writer.Line($"    typeof({self}),");
+        writer.Line("    validation.ErrorCode,");
+        writer.Line("    s.ToString());");
         writer.Close();
         writer.Line();
 
@@ -695,7 +994,7 @@ internal static class ValueObjectEmitter
         }
         else
         {
-            writer.Open($"if ({Abstractions}.UnderlyingValue.TryParse<{value}>(s, provider ?? {Invariant}, out var raw))");
+            writer.Open($"if ({ParseUnderlying(underlying, value, "out var raw")})");
             writer.Line("return TryCreate(raw, out result);");
             writer.Close();
             writer.Line();
@@ -721,7 +1020,7 @@ internal static class ValueObjectEmitter
             {
                 UnderlyingKind.Char => "s.Length == 1",
                 UnderlyingKind.Boolean => "bool.TryParse(s, out raw)",
-                _ => $"{Abstractions}.UnderlyingValue.TryParse<{value}>(s, provider ?? {Invariant}, out raw)",
+                _ => ParseUnderlying(underlying, value, "out raw"),
             };
 
             writer.Line($"{value} raw = default;");
@@ -759,16 +1058,33 @@ internal static class ValueObjectEmitter
         writer.Close();
         writer.Line();
 
-        writer.Line("/// <inheritdoc cref=\"TryParse(string, global::System.IFormatProvider?, out " + model.TypeName + ")\" />");
+        writer.Line("/// <inheritdoc cref=\"TryParse(string, global::System.IFormatProvider?, out " + model.Identifier + ")\" />");
         writer.Line(Inline);
         writer.Line($"public static bool TryParse(string? s, out {self} result) => TryParse(s, null, out result);");
         writer.Line();
 
-        writer.Line("/// <inheritdoc cref=\"TryParse(string, global::System.IFormatProvider?, out " + model.TypeName + ")\" />");
+        writer.Line("/// <inheritdoc cref=\"TryParse(string, global::System.IFormatProvider?, out " + model.Identifier + ")\" />");
         writer.Line(Inline);
         writer.Line($"public static bool TryParse(global::System.ReadOnlySpan<char> s, out {self} result) => TryParse(s, null, out result);");
         writer.Line();
     }
+
+    /// <summary>
+    /// Gets the call parsing the text <c>s</c> into the underlying value, in the form ToString writes it.
+    /// </summary>
+    /// <remarks>
+    /// A <see cref="DateTime"/> is written in its round-trip form, which names its kind with a <c>Z</c> or an offset.
+    /// Read without <c>RoundtripKind</c>, that suffix turns the value into local time: a UTC value would come back
+    /// with another kind, and on a machine outside UTC with other ticks. Every other type reads its own form as is.
+    /// </remarks>
+    /// <param name="underlying">The underlying type, neither a string, a bool nor a char.</param>
+    /// <param name="value">Its qualified name.</param>
+    /// <param name="output">The out argument receiving the value.</param>
+    /// <returns>A boolean expression.</returns>
+    private static string ParseUnderlying(UnderlyingType underlying, string value, string output)
+        => underlying.Kind == UnderlyingKind.DateTime
+            ? $"global::System.DateTime.TryParse(s, provider ?? {Invariant}, global::System.Globalization.DateTimeStyles.RoundtripKind, {output})"
+            : $"{Abstractions}.UnderlyingValue.TryParse<{value}>(s, provider ?? {Invariant}, {output})";
 
     private static void EmitConversions(CodeWriter writer, ValueObjectModel model, string value, string self)
     {
@@ -905,6 +1221,49 @@ internal static class ValueObjectEmitter
         writer.Line();
     }
 
+    /// <summary>
+    /// Writes author text into a one-line XML documentation comment.
+    /// </summary>
+    /// <remarks>
+    /// A line break would end the comment and leave the rest of the text as code, so every character C# ends a
+    /// line at is folded into a space, a CR LF pair into one. So are the other characters XML cannot hold, which a
+    /// project generating its documentation file would report as malformed: the other control characters,
+    /// U+FFFE, U+FFFF, and half of a surrogate pair. A whole pair stands for one character and is kept.
+    /// </remarks>
+    /// <param name="text">Text written by the author.</param>
+    /// <returns>The text, escaped and on one line.</returns>
     internal static string Xml(string text)
-        => text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+    {
+        var builder = new StringBuilder(text.Length);
+        for (var i = 0; i < text.Length; i++)
+        {
+            var character = text[i];
+            switch (character)
+            {
+                case '&':
+                    builder.Append("&amp;");
+                    break;
+                case '<':
+                    builder.Append("&lt;");
+                    break;
+                case '>':
+                    builder.Append("&gt;");
+                    break;
+                case '\r' when i + 1 < text.Length && text[i + 1] == '\n':
+                    // The line feed that follows becomes the space.
+                    break;
+                case '\u0085' or '\u2028' or '\u2029' or '\uFFFE' or '\uFFFF':
+                    builder.Append(' ');
+                    break;
+                case >= '\uD800' and <= '\uDBFF' when i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]):
+                    builder.Append(character).Append(text[++i]);
+                    break;
+                default:
+                    builder.Append((character < ' ' && character != '\t') || char.IsSurrogate(character) ? ' ' : character);
+                    break;
+            }
+        }
+
+        return builder.ToString();
+    }
 }

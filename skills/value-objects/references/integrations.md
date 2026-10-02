@@ -26,7 +26,9 @@ Two cases need `AdCodicem.ValueObjects.Json`:
 
 ```csharp skip
 // 1. A source-generated serializer context. One source generator never sees another's output, so the STJ
-//    generator cannot see the emitted [JsonConverter]. Name the hand-written factory it *can* see.
+//    generator cannot see the emitted [JsonConverter]. Name the hand-written factory it *can* see, and reference
+//    AdCodicem.ValueObjects.Json from the assembly that DECLARES the value objects too: that reference is what
+//    makes the generator register each converter for the factory.
 [JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]
 [JsonSerializable(typeof(AccountResponse))]
 public partial class ApiJsonContext : JsonSerializerContext;
@@ -37,8 +39,26 @@ var options = new JsonSerializerOptions().AddValueObjects();
 
 `Int128` and `UInt128` value objects travel as JSON **strings**, because JSON numbers cannot carry them.
 
-Newtonsoft.Json: add `ValueObjectConverter` from `AdCodicem.ValueObjects.NewtonsoftJson` to
-`JsonSerializerSettings.Converters`.
+Newtonsoft.Json: add `ValueObjectConverter` from `AdCodicem.ValueObjects.NewtonsoftJson`. It applies the
+System.Text.Json rules and writes the same values, in the same text but for a whole `decimal`, `double` or `float`,
+which Newtonsoft.Json writes with a fraction (`1250.0` against `1250`); either serializer reads the other's text as
+the same value. It reads only the token kind it writes. Set `DateParseHandling.None`: under the default,
+Newtonsoft.Json turns date-like strings into `DateTime`, converted to local time when they carry an offset, and the
+converter refuses a date that lost its text or its offset — so a `DateTimeOffset` value object refuses any text with
+an offset, its own output (`+00:00` for UTC) included:
+
+```csharp skip
+var settings = new JsonSerializerSettings
+{
+    DateParseHandling = DateParseHandling.None,
+    Converters = { new ValueObjectConverter() },
+};
+```
+
+Add `FloatParseHandling.Decimal` only for `decimal` value objects with more than fifteen significant digits. It reads
+every number with a fraction or an exponent as a `decimal`, so a `double` or `float` value object beyond about
+7.9e28 makes the reader throw, and one small enough to need more than 28 decimal places loses the digits past them
+(all of them below about 1e-28, where it reads as zero).
 
 ## ASP.NET Core
 
@@ -66,8 +86,9 @@ return Results.ValidationProblem(
     result.ToDictionary(),
     extensions: new Dictionary<string, object?>
     {
-        [ValueObjectProblemDetails.ExtensionName] =
-            result.Errors.ToDictionary(failure => failure.PropertyName, failure => failure.ErrorCode),
+        [ValueObjectProblemDetails.ExtensionName] = result.Errors
+            .GroupBy(failure => failure.PropertyName)   // a member can fail more than one rule
+            .ToDictionary(member => member.Key, member => member.First().ErrorCode),
     });
 ```
 
@@ -102,6 +123,17 @@ ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);   // once, at s
 Dapper keeps handlers in a process-wide table. Without this, every query touching a value object needs an
 explicit projection.
 
+- Read a nullable column into `Iban?`: `NULL` gives `null`. A single-column query into `Iban` throws
+  `DataException`, but Dapper never calls the handler for a `NULL` mapped to a member or a constructor parameter:
+  an `Iban` member is left uninitialized (`IsDefault`), silently. Declare `Iban?` for every column that can be
+  `NULL`, outer joins included.
+- A column the provider returns as the underlying type, or as its date and time counterpart (`DateTime` for a
+  `date`, `TimeSpan` for a `time`, a UTC `DateTime` for a `timestamptz`), is trusted, like the EF Core read path.
+  A value it cannot convert — a `DateTime` of no zone into a `DateTimeOffset`, a number out of range — throws
+  `DataException` naming the type read and the value object.
+- Text read into a non-string value object is parsed and validated, and a number read into a string value object
+  is turned into text and validated through `TryCreate`; a refusal throws `DataException` carrying the rule.
+
 ## FluentValidation
 
 Defer to the rules the value object already owns instead of restating them:
@@ -110,10 +142,15 @@ Defer to the rules the value object already owns instead of restating them:
 RuleFor(x => x.Iban).MustParseAs(typeof(Iban));        // the member holds raw text
 RuleFor(x => x.Amount).MustSatisfy<Request, Amount, decimal>();  // raw underlying value, no instance built
 RuleFor(x => x.Account).NotDefault<Request, Iban, string>();     // catches an uninitialized instance
+
+// A required member: stop at the first failure, or empty text fails NotEmpty and the value object's rule both.
+RuleFor(x => x.Iban).Cascade(CascadeMode.Stop).NotEmpty().MustParseAs(typeof(Iban));
 ```
 
 Each failure carries the value object's own stable error code, so the API answers with the same vocabulary
-everywhere.
+everywhere. `MustParseAs` and `MustSatisfy` let `null` through: chain `NotEmpty()` when the member is required.
+Empty text reaching `MustParseAs` is the value object's to judge: `value_object.required` for a string value object,
+`value_object.not_parsable` for one over another type, and a pass for one declaring `AllowEmpty = true`.
 
 ## OpenAPI
 
@@ -124,6 +161,8 @@ builder.Services.AddOpenApi(o => o.AddValueObjects());
 A value object is documented as its underlying type carrying the rules declared on it: `maxLength`, `pattern`,
 `minimum`, `format`, `enum` for a closed set, plus `Example` and `Description`. Nothing to restate in an
 annotation — and nothing to keep in sync, since the schema comes from the same declaration that validates.
+`pattern` is the text of the `[GeneratedRegex]` behind `IValueObjectPatternValidator`, read when the type
+compiles; its `RegexOptions` are not part of it (`VO0025`).
 
 ## Run-time lookup, when only a `Type` is known
 
@@ -138,7 +177,9 @@ if (ValueObjectRegistry.TryGet(type, out var descriptor)
 Registration happens through a generated `[ModuleInitializer]`, so nothing needs registering by hand — but a
 module initializer only runs once its assembly is loaded, which is what `EnsureAssemblyRegistered(assembly)`
 forces (the EF Core and Dapper entry points already call it). `TryResolve` also unwraps `Nullable<T>`;
-`IsValueObject` and `GetUnderlyingType` answer the cheap questions.
+`IsValueObject` and `GetUnderlyingType` answer the cheap questions. A value object is a struct implementing
+`IValueObject<TSelf, TValue>` over itself: `IsValueObject` is `true`, and `GetUnderlyingType` other than `null`,
+exactly for what `TryResolve` describes, and every integration claims a type by that rule.
 
 This boxed path is for callers that only know a `Type` at run time. Domain code and the integrations above use
 the typed path — the static abstract members of `IValueObject<TSelf, TValue>` — which neither boxes nor

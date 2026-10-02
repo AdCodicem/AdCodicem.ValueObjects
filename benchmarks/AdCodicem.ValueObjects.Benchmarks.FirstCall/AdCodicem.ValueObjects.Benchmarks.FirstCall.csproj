@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Times the first call to a value object in a fresh process, which BenchmarkDotNet, measuring a warmed-up steady
+    state, does not. first-call.ps1 publishes it twice, for the JIT and for native AOT, and runs it once per sample.
+    It shares the benchmark project's domain rather than declaring one of its own, so both measure the same types.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AdCodicem.ValueObjects.Benchmarks.FirstCall</RootNamespace>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- Published for native AOT by first-call.ps1, so the analyzers the benchmark project turns off are back on. -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+
+    <!-- Set as a property of this project, not as -p:PublishAot, which would reach the netstandard2.0 generator too. -->
+    <PublishAot Condition="'$(FirstCallAot)' == 'true'">true</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AdCodicem.ValueObjects.Benchmarks\Domain\BenchmarkValueObjects.cs" Link="Domain\BenchmarkValueObjects.cs" />
+    <Compile Include="..\AdCodicem.ValueObjects.Benchmarks\Domain\PatternValueObjects.cs" Link="Domain\PatternValueObjects.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="AdCodicem.ValueObjects" />
+    <Using Include="AdCodicem.ValueObjects.Annotations" />
+  </ItemGroup>
+
+</Project>
