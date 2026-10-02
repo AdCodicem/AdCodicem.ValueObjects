@@ -265,6 +265,44 @@ public sealed class HookTests
         diagnostics.Select(diagnostic => diagnostic.Id).Should().Contain("VO0011");
     }
 
+    /// <summary>
+    /// Another assembly may define the annotations under the same full names, as a copy internal to it. The analyzer
+    /// still recognizes the annotation the type carries, on a value object as on an identifier, and a pattern beside it.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_reports_a_rule_when_another_assembly_defines_the_annotations_too()
+    {
+        var copy = GeneratorHarness.Emit(
+            UninitializedValueObjectTests.AnnotationCopies,
+            "Copies",
+            GeneratorHarness.FrameworkReferences);
+
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>(
+            """
+            [ValueObject<string>]
+            public readonly partial struct Code
+            {
+                public static string NormalizeValue(string value) => value.Trim();
+            }
+
+            [EntityId("acc")]
+            public readonly partial struct AccountId
+            {
+                public static ValidationResult ValidateValue(in string value) => ValidationResult.Success;
+            }
+
+            [ValueObject<string>]
+            public readonly partial struct Shape
+            {
+                public static Regex Pattern { get; } = new("^[A-Z]$");
+            }
+            """,
+            GeneratorHarness.LibraryReferences.Add(MetadataReference.CreateFromImage(copy)));
+
+        diagnostics.Select(diagnostic => (diagnostic.Id, diagnostic.GetMessage(CultureInfo.InvariantCulture).Split('\'')[1]))
+            .Should().BeEquivalentTo([("VO0011", "NormalizeValue"), ("VO0011", "ValidateValue"), ("VO0011", "Pattern")]);
+    }
+
     [Fact]
     public async Task The_analyzer_still_recognizes_the_names_hooks_used_to_carry()
     {

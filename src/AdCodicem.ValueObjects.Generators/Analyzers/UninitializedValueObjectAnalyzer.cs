@@ -86,15 +86,17 @@ public sealed class UninitializedValueObjectAnalyzer : DiagnosticAnalyzer
     /// Resolves the annotations the compilation can see. An identifier needs the identifiers package, which a
     /// project using only <c>[ValueObject&lt;T&gt;]</c> does not reference.
     /// </summary>
+    /// <remarks>
+    /// Every type of each name counts. <c>GetTypeByMetadataName</c> answers <see langword="null"/> when two referenced
+    /// assemblies define the same full name - a copy of the annotations, a mismatched package - while the generator,
+    /// which matches attributes by name, keeps generating for both.
+    /// </remarks>
     private static ImmutableArray<INamedTypeSymbol> Annotations(Compilation compilation)
     {
         var annotations = ImmutableArray.CreateBuilder<INamedTypeSymbol>(AnnotationNames.Length);
         foreach (var name in AnnotationNames)
         {
-            if (compilation.GetTypeByMetadataName(name) is { } annotation)
-            {
-                annotations.Add(annotation);
-            }
+            annotations.AddRange(compilation.GetTypesByMetadataName(name));
         }
 
         return annotations.ToImmutable();

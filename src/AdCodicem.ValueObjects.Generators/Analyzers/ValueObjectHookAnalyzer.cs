@@ -98,33 +98,40 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
 
         context.RegisterCompilationStartAction(static compilationContext =>
         {
-            var valueObjectAttribute = compilationContext.Compilation.GetTypeByMetadataName(ValueObjectAttributeName);
-            if (valueObjectAttribute is null)
+            // Every type of each name counts: GetTypeByMetadataName answers null when two referenced assemblies define
+            // the same full name - a copy of the annotations, a mismatched package - while the generator, which matches
+            // attributes by name, keeps generating for both.
+            var compilation = compilationContext.Compilation;
+            var valueObjectAttributes = compilation.GetTypesByMetadataName(ValueObjectAttributeName);
+            if (valueObjectAttributes.IsEmpty)
             {
                 return;
             }
 
             // An identifier needs the identifiers package, which a project using only [ValueObject<T>] does not
             // reference.
-            var entityIdAttribute = compilationContext.Compilation.GetTypeByMetadataName(EntityIdAttributeName);
+            var entityIdAttributes = compilation.GetTypesByMetadataName(EntityIdAttributeName);
 
             compilationContext.RegisterSymbolAction(
-                symbolContext => Analyze(symbolContext, valueObjectAttribute, entityIdAttribute),
+                symbolContext => Analyze(symbolContext, valueObjectAttributes, entityIdAttributes),
                 SymbolKind.Method);
 
             // Read from the type rather than from the property: a [GeneratedRegex] property is partial, and the half
             // a property action is handed is the one the regex generator wrote, in generated code this analyzer skips.
-            var regex = compilationContext.Compilation.GetTypeByMetadataName(RegexTypeName);
-            if (regex is not null)
+            var regexes = compilation.GetTypesByMetadataName(RegexTypeName);
+            if (!regexes.IsEmpty)
             {
                 compilationContext.RegisterSymbolAction(
-                    symbolContext => AnalyzePattern(symbolContext, valueObjectAttribute, regex),
+                    symbolContext => AnalyzePattern(symbolContext, valueObjectAttributes, regexes),
                     SymbolKind.NamedType);
             }
         });
     }
 
-    private static void AnalyzePattern(SymbolAnalysisContext context, INamedTypeSymbol valueObjectAttribute, INamedTypeSymbol regex)
+    private static void AnalyzePattern(
+        SymbolAnalysisContext context,
+        ImmutableArray<INamedTypeSymbol> valueObjectAttributes,
+        ImmutableArray<INamedTypeSymbol> regexes)
     {
         if (context.Symbol is not INamedTypeSymbol { TypeKind: TypeKind.Struct } containingType)
         {
@@ -134,7 +141,7 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
         var property = containingType.GetMembers("Pattern").OfType<IPropertySymbol>().FirstOrDefault(candidate =>
             candidate.IsStatic
             && candidate.DeclaredAccessibility == Accessibility.Public
-            && SymbolEqualityComparer.Default.Equals(candidate.Type, regex)
+            && regexes.Contains(candidate.Type, SymbolEqualityComparer.Default)
             && candidate.DeclaringSyntaxReferences.Length > 0);
         if (property is null)
         {
@@ -144,7 +151,8 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
         // A pattern only applies to a string, so on another type the advice to declare the interface would only
         // lead to VO0023.
         var attribute = containingType.GetAttributes().FirstOrDefault(candidate =>
-            SymbolEqualityComparer.Default.Equals(candidate.AttributeClass?.OriginalDefinition, valueObjectAttribute));
+            candidate.AttributeClass is { } attributeClass
+            && valueObjectAttributes.Contains(attributeClass.OriginalDefinition, SymbolEqualityComparer.Default));
         if (attribute?.AttributeClass?.TypeArguments.FirstOrDefault()?.SpecialType != SpecialType.System_String)
         {
             return;
@@ -170,8 +178,8 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
 
     private static void Analyze(
         SymbolAnalysisContext context,
-        INamedTypeSymbol valueObjectAttribute,
-        INamedTypeSymbol? entityIdAttribute)
+        ImmutableArray<INamedTypeSymbol> valueObjectAttributes,
+        ImmutableArray<INamedTypeSymbol> entityIdAttributes)
     {
         if (context.Symbol is not IMethodSymbol { IsStatic: true } method
             || method.ContainingType is not { TypeKind: TypeKind.Struct } containingType
@@ -180,8 +188,8 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var isEntityId = Carries(containingType, entityIdAttribute);
-        if ((!isEntityId && !Carries(containingType, valueObjectAttribute)) || method.DeclaringSyntaxReferences.Length == 0)
+        var isEntityId = Carries(containingType, entityIdAttributes);
+        if ((!isEntityId && !Carries(containingType, valueObjectAttributes)) || method.DeclaringSyntaxReferences.Length == 0)
         {
             return;
         }
@@ -210,7 +218,8 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
             expected));
     }
 
-    private static bool Carries(INamedTypeSymbol type, INamedTypeSymbol? attribute)
-        => attribute is not null && type.GetAttributes().Any(candidate =>
-            SymbolEqualityComparer.Default.Equals(candidate.AttributeClass?.OriginalDefinition, attribute));
+    private static bool Carries(INamedTypeSymbol type, ImmutableArray<INamedTypeSymbol> attributes)
+        => !attributes.IsEmpty && type.GetAttributes().Any(candidate =>
+            candidate.AttributeClass is { } attributeClass
+            && attributes.Contains(attributeClass.OriginalDefinition, SymbolEqualityComparer.Default));
 }
