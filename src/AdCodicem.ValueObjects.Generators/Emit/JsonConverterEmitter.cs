@@ -38,7 +38,7 @@ internal static class JsonConverterEmitter
 
         EmitRead(writer, model, underlying, value, self);
         EmitWrite(writer, underlying, self);
-        EmitPropertyName(writer, underlying, self);
+        EmitPropertyName(writer, model, underlying, self);
         EmitHelpers(writer, underlying, value);
 
         writer.Close();
@@ -164,12 +164,12 @@ internal static class JsonConverterEmitter
         writer.Line();
     }
 
-    private static void EmitPropertyName(CodeWriter writer, UnderlyingType underlying, string self)
+    private static void EmitPropertyName(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string self)
     {
         writer.Line("/// <inheritdoc />");
         writer.Open($"public override {self} ReadAsPropertyName(ref {Reader} reader, global::System.Type typeToConvert, {Options} options)");
-        writer.Open($"if (!{self}.TryParse(reader.GetString(), {Invariant}, out var result))");
-        writer.Line($"throw new {JsonException}(\"The dictionary key is not a valid value.\");");
+        writer.Open($"if (!{self}.TryParse(reader.GetString(), {Invariant}, out var result, out var validation))");
+        writer.Line($"throw new {JsonException}($\"The dictionary key is not a valid {model.TypeName}: {{validation.ErrorMessage}}\");");
         writer.Close();
         writer.Line();
         writer.Line("return result;");

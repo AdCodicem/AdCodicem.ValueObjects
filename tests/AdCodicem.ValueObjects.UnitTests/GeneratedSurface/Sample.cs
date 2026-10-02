@@ -128,7 +128,7 @@ public class Sample<TSelf, TValue> : Sample
 
         var refused = JsonSerializer.Serialize(new Dictionary<string, int> { [Refused] = 1 });
         FluentActions.Invoking(() => JsonSerializer.Deserialize<Dictionary<TSelf, int>>(refused))
-            .Should().Throw<JsonException>().WithMessage("*dictionary key*");
+            .Should().Throw<JsonException>().WithMessage($"The dictionary key is not a valid {typeof(TSelf).Name}: ?*");
     }
 
     public override void ParsesThroughEveryOverload()
