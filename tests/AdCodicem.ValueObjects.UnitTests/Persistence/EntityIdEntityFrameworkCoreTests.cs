@@ -70,6 +70,41 @@ public class EntityIdEntityFrameworkCoreTests
         eventId.GetCollation().Should().Be(IdCollations.SqlServer);
     }
 
+    /// <summary>
+    /// Whichever call runs last sets the converter of the identifiers, so a context reading strictly says so to both:
+    /// the identifiers are then validated on read like every other value object.
+    /// </summary>
+    [Fact]
+    public void Identifiers_mapped_by_a_strict_convention_validate_what_they_read()
+    {
+        var ledger = DesignTimeModel(new StrictContext()).FindEntityType(typeof(Ledger))!;
+
+        ledger.FindProperty(nameof(Ledger.Account))!.GetValueConverter()
+            .Should().BeOfType<StrictValueObjectConverter<AccountId, string>>();
+        ledger.FindProperty(nameof(Ledger.Event))!.GetValueConverter()
+            .Should().BeOfType<StrictValueObjectConverter<EventId, string>>();
+        ledger.FindProperty(nameof(Ledger.Account))!.IsFixedLength().Should().BeTrue();
+    }
+
+    [Fact]
+    public void An_identifier_mapped_one_by_one_can_validate_what_it_reads()
+    {
+        var builder = new ModelBuilder();
+        builder.Entity<Ledger>(ledger =>
+        {
+            ledger.Property(entity => entity.Account).HasEntityIdConversion(strict: true);
+            ledger.Property(entity => entity.Event).HasEntityIdConversion(IdCollations.SqlServer, strict: true);
+        });
+
+        var model = builder.Model.FindEntityType(typeof(Ledger))!;
+
+        model.FindProperty(nameof(Ledger.Account))!.GetValueConverter()
+            .Should().BeOfType<StrictValueObjectConverter<AccountId, string>>();
+        model.FindProperty(nameof(Ledger.Event))!.GetValueConverter()
+            .Should().BeOfType<StrictValueObjectConverter<EventId, string>>();
+        model.FindProperty(nameof(Ledger.Event))!.GetCollation().Should().Be(IdCollations.SqlServer);
+    }
+
     private static IModel DesignTimeModel(DbContext context)
     {
         using (context)
@@ -96,6 +131,20 @@ public class EntityIdEntityFrameworkCoreTests
 
         protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
             => configurationBuilder.ConfigureEntityIds(IdCollations.PostgreSql, typeof(AccountId).Assembly);
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.Entity<Ledger>();
+    }
+
+    /// <summary>A model validating what it reads, identifiers included.</summary>
+    private sealed class StrictContext : DbContext
+    {
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder.UseNpgsql("Host=unused");
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+            => configurationBuilder
+                .ConfigureValueObjects(strict: true, typeof(AccountId).Assembly)
+                .ConfigureEntityIds(strict: true, typeof(AccountId).Assembly);
 
         protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.Entity<Ledger>();
     }

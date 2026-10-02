@@ -1,4 +1,5 @@
 using AdCodicem.ValueObjects.EntityFrameworkCore;
+using AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
 using AdCodicem.ValueObjects.IntegrationTests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 
@@ -48,6 +49,42 @@ public abstract class StrictPersistenceTests<TFixture>(TFixture fixture) : IClas
         // Entity Framework Core may wrap what a converter throws while it materializes a row.
         var thrown = await read.Should().ThrowAsync<Exception>();
         Chain(thrown.Which).Should().ContainItemsAssignableTo<ValueObjectException>();
+    }
+
+    /// <summary>
+    /// An identifier is a value object too, mapped by a convention of its own. Told to be strict as well, that
+    /// convention refuses an identifier another writer stored with a check character that does not match, which the
+    /// default convention reads as it is.
+    /// </summary>
+    [Fact]
+    public async Task A_strict_context_refuses_an_identifier_the_domain_would_reject()
+    {
+        var minted = PaymentId.New().Value;
+        var corrupted = minted[..^1] + (minted[^1] == '0' ? '1' : '0');
+        var insert = $"INSERT INTO {Q("payments")} ({Q("Id")}, {Q("Account")}, {Q("Amount")}) VALUES ({{0}}, {{1}}, {{2}})";
+
+        await using (var write = fixture.CreateContext())
+        {
+            await write.Database.ExecuteSqlRawAsync(
+                insert,
+                [corrupted, "FR7630006000011234567890189", 1m],
+                TestContext.Current.CancellationToken);
+        }
+
+        await using var strict = CreateStrictContext();
+        var read = () => strict.Payments.SingleAsync(
+            payment => payment.Amount == Amount.Create(1m),
+            TestContext.Current.CancellationToken);
+
+        await using var lenient = fixture.CreateContext();
+        var trusted = await lenient.Payments
+            .Where(payment => payment.Amount == Amount.Create(1m))
+            .Select(payment => payment.Id)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        var thrown = await read.Should().ThrowAsync<Exception>();
+        Chain(thrown.Which).Should().ContainItemsAssignableTo<ValueObjectException>();
+        trusted.Select(id => id.Value).Should().Contain(corrupted, "the default convention trusts the column");
     }
 
     /// <summary>
@@ -145,16 +182,30 @@ public abstract class StrictPersistenceTests<TFixture>(TFixture fixture) : IClas
     {
         public DbSet<BankAccount> Accounts => Set<BankAccount>();
 
+        public DbSet<Payment> Payments => Set<Payment>();
+
+        // The identifiers' convention runs last and sets their converter, so it is told to be strict too.
         protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
-            => configurationBuilder.ConfigureValueObjects(strict: true, typeof(Iban).Assembly);
+            => configurationBuilder
+                .ConfigureValueObjects(strict: true, typeof(Iban).Assembly)
+                .ConfigureEntityIds(strict: true, typeof(PaymentId).Assembly);
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<BankAccount>(account =>
+        {
+            modelBuilder.Entity<BankAccount>(account =>
             {
                 account.ToTable("accounts");
                 account.HasKey(entity => entity.Iban);
                 account.Property(entity => entity.Balance).HasPrecision(18, 2);
             });
+
+            modelBuilder.Entity<Payment>(payment =>
+            {
+                payment.ToTable("payments");
+                payment.HasKey(entity => entity.Id);
+                payment.Property(entity => entity.Amount).HasPrecision(18, 2);
+            });
+        }
     }
 }
 

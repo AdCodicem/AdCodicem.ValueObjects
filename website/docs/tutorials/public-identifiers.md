@@ -79,6 +79,15 @@ normalization already made the values canonical:
 builder.ConfigureEntityIds(IdCollations.PostgreSql, typeof(AccountId).Assembly);   // or IdCollations.SqlServer
 ```
 
+The identifier convention also sets the converter of the identifiers, after the value object one. A context that
+[validates what it reads](../how-to/ef-core.md#validation-on-read) says so to both calls, or its identifiers are read
+without validation:
+
+```csharp skip
+builder.ConfigureValueObjects(strict: true, typeof(AccountId).Assembly);
+builder.ConfigureEntityIds(IdCollations.PostgreSql, strict: true, typeof(AccountId).Assembly);
+```
+
 ## Test with them
 
 `New()` reads an ambient clock and entropy source, so a test can pin both without injecting a factory into

@@ -93,4 +93,4 @@ database and the application will disagree about which values are equal.
 `[EntityId]` identifiers have a convention of their own, from
 `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore`, which maps them to fixed-width, non-Unicode columns.
 Call it in addition to `ConfigureValueObjects`; [Public identifiers](../tutorials/public-identifiers.md#store-it)
-shows how.
+shows how. It sets the converter of the identifiers too, so a strict context passes `strict: true` to both calls.
