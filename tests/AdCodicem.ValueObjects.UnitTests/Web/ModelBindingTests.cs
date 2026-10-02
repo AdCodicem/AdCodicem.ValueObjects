@@ -39,6 +39,8 @@ public sealed class ModelBindingTests : IAsyncLifetime
     [InlineData("/probe/country?country=lu", "LU")]
     [InlineData("/probe/country", "none")]
     [InlineData("/probe/country?country=", "none")]
+    [InlineData("/probe/country?country=%20", "none")]
+    [InlineData("/probe/country?country=%20%09", "none")]
     public async Task An_optional_value_object_binds_from_the_query_string_or_to_null(string url, string expected)
         => (await _client.GetStringAsync(url, TestContext.Current.CancellationToken)).Should().Be(expected);
 
@@ -54,12 +56,27 @@ public sealed class ModelBindingTests : IAsyncLifetime
     [InlineData("/probe/country?country=ZZ", "country", ValueObjectErrorCodes.NotAKnownValue)]
     [InlineData("/probe/customers/not-a-guid", "id", ValueObjectErrorCodes.NotParsable)]
     [InlineData("/probe/customers/00000000-0000-0000-0000-000000000000", "id", ValueObjectErrorCodes.Required)]
+    [InlineData("/probe/customers/%20", "id", ValueObjectErrorCodes.Required)]
+    [InlineData("/probe/counter?counter=", "counter", ValueObjectErrorCodes.Required)]
+    [InlineData("/probe/counter?counter=%20", "counter", ValueObjectErrorCodes.Required)]
     public async Task A_rejected_value_is_answered_with_the_code_of_the_rule_it_breaks(string url, string member, string code)
     {
         var problem = await GetProblemAsync(url);
 
         problem.GetProperty("errorCodes").GetProperty(member).GetString().Should().Be(code);
         problem.GetProperty("errors").GetProperty(member).GetArrayLength().Should().Be(1);
+    }
+
+    /// <summary>
+    /// Blank text binds an optional value object to null, but a value object that cannot be null would bind to its
+    /// default instance, which no rule has checked: it is refused as MVC refuses blank text for an int.
+    /// </summary>
+    [Fact]
+    public async Task Blank_text_for_a_value_object_that_cannot_be_null_is_refused_as_MVC_refuses_it()
+    {
+        var problem = await GetProblemAsync("/probe/customers/%20");
+
+        problem.GetProperty("errors").GetProperty("id")[0].GetString().Should().Be("The value ' ' is invalid.");
     }
 
     [Fact]

@@ -67,7 +67,9 @@ builder.Services.AddControllers().AddValueObjects();                            
 builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetails()); // error codes in 400s
 ```
 
-`AddValueObjects()` also exists on `MvcOptions` for an application that configures MVC directly.
+`AddValueObjects()` also exists on `MvcOptions` for an application that configures MVC directly. The binder treats
+white-space text as it treats empty text, as absent: `?country=%20` binds `CountryCode?` to `null`, while a value
+object that cannot be `null` is a 400 with `value_object.required`, as MVC answers blank text for an `int`.
 
 **Minimal APIs need nothing.** A generated value object implements `IParsable<T>` and `ISpanParsable<T>`, which
 is exactly what minimal API parameter binding looks for:

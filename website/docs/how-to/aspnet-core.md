@@ -33,7 +33,10 @@ for bodies. The binder is closed over each concrete type, so binding costs one `
 configures MVC directly can call `AddValueObjects()` on `MvcOptions` instead; that one adds the binder only.
 
 Nullable value objects bind as you would expect: `[FromQuery] CountryCode? country` is `null` when the parameter
-is absent, and a 400 when it is present and rejected.
+is absent, and a 400 when it is present and rejected. Empty or white-space text, `?country=` or `?country=%20`, binds
+as absent, as MVC binds an `int?` or a `Guid?`. A value object that cannot be `null`, a route segment such as
+`CustomerId id`, refuses blank text as MVC refuses it for an `int`: a 400 with "The value ' ' is invalid." and the
+code `value_object.required`, rather than an instance no rule has checked.
 
 ## Problem details carrying the rule
 
