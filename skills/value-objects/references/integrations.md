@@ -175,7 +175,9 @@ A value object is documented as its underlying type carrying the rules declared 
 `minimum`, `format`, `enum` for a closed set, plus `Example` and `Description`. Nothing to restate in an
 annotation — and nothing to keep in sync, since the schema comes from the same declaration that validates.
 `pattern` is the text of the `[GeneratedRegex]` behind `IValueObjectPatternValidator`, read when the type
-compiles; its `RegexOptions` are not part of it (`VO0025`).
+compiles; its `RegexOptions` are not part of it (`VO0025`). A value written as a JSON string (`Int128`, `UInt128`,
+`char`, dates, times) gets no inert `minimum`/`maximum`: its bounds go to `x-minimum`/`x-maximum` and a sentence of
+the description.
 
 ## Run-time lookup, when only a `Type` is known
 

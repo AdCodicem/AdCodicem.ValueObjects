@@ -63,14 +63,23 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
             schema.MaxLength = maxLength;
         }
 
-        if (declared.Minimum is { } minimum && FormatBound(minimum, descriptor.ValueType) is { } min)
+        var options = context.JsonTypeInfo.Options;
+        string? bounds = null;
+        if (schema.Type is JsonSchemaType.Integer or JsonSchemaType.Number)
         {
-            schema.Minimum = min;
-        }
+            if (declared.Minimum is { } minimum && FormatBound(minimum, descriptor.ValueType) is { } min)
+            {
+                schema.Minimum = min;
+            }
 
-        if (declared.Maximum is { } maximum && FormatBound(maximum, descriptor.ValueType) is { } max)
+            if (declared.Maximum is { } maximum && FormatBound(maximum, descriptor.ValueType) is { } max)
+            {
+                schema.Maximum = max;
+            }
+        }
+        else if (declared.Minimum is not null || declared.Maximum is not null)
         {
-            schema.Maximum = max;
+            bounds = DescribeBounds(schema, declared, descriptor, options);
         }
 
         if (!string.IsNullOrEmpty(declared.Description))
@@ -78,9 +87,14 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
             schema.Description = declared.Description;
         }
 
+        if (bounds is not null)
+        {
+            schema.Description = string.IsNullOrEmpty(schema.Description) ? bounds : $"{schema.Description}\n\n{bounds}";
+        }
+
         if (!string.IsNullOrEmpty(declared.Example))
         {
-            schema.Examples = [WriteExample(declared.Example, descriptor, context.JsonTypeInfo.Options)];
+            schema.Examples = [WriteText(declared.Example, descriptor, options)];
         }
 
         if (declared.IsClosedValueSet && !declared.KnownValues.IsEmpty)
@@ -93,21 +107,67 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     }
 
     /// <summary>
-    /// Writes the declared example as the type writes it in JSON.
+    /// Publishes the bounds of a value object written as a JSON string, which <c>minimum</c> and <c>maximum</c> cannot
+    /// carry.
     /// </summary>
-    /// <param name="example">The example, as declared: text.</param>
+    /// <param name="schema">The schema, of type <c>string</c>.</param>
+    /// <param name="declared">The declared rules.</param>
     /// <param name="descriptor">Descriptor of the value object.</param>
     /// <param name="options">The options the document describes the wire with.</param>
-    /// <returns>The example as JSON.</returns>
+    /// <returns>The sentence stating the bounds, for the description.</returns>
     /// <remarks>
-    /// The example is parsed the way the type parses text, then written by the type's own converter, so that a client
-    /// or a mock server checking it against the schema finds a number where the schema says number. An example the
-    /// type refuses, which nothing checks when the type compiles, is written as its text.
+    /// JSON Schema applies <c>minimum</c> and <c>maximum</c> to numbers only, so on a string, a 128-bit integer, a
+    /// character or a date, they would be in the document, enforced by the type, and ignored by every client. The bounds
+    /// go to <c>x-minimum</c> and <c>x-maximum</c> instead, in the form the type writes them, for tools that read
+    /// extensions, and to a sentence in the description, for people.
     /// </remarks>
-    private static JsonNode WriteExample(string example, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
-        => descriptor.TryParse(example, CultureInfo.InvariantCulture, out var parsed, out _)
+    private static string DescribeBounds(
+        OpenApiSchema schema,
+        ValueObjectSchema declared,
+        ValueObjectDescriptor descriptor,
+        JsonSerializerOptions options)
+    {
+        var minimum = declared.Minimum is { } low ? WriteText(low, descriptor, options) : null;
+        var maximum = declared.Maximum is { } high ? WriteText(high, descriptor, options) : null;
+
+        schema.Extensions ??= new Dictionary<string, IOpenApiExtension>();
+        if (minimum is not null)
+        {
+            schema.Extensions["x-minimum"] = new JsonNodeExtension(minimum);
+        }
+
+        if (maximum is not null)
+        {
+            schema.Extensions["x-maximum"] = new JsonNodeExtension(maximum);
+        }
+
+        return (minimum, maximum) switch
+        {
+            ({ } from, { } to) => $"Between {Quote(from)} and {Quote(to)}, inclusive.",
+            ({ } from, null) => $"At least {Quote(from)}.",
+            _ => $"At most {Quote(maximum!)}.",
+        };
+
+        static string Quote(JsonNode value)
+            => value is JsonValue text && text.TryGetValue<string>(out var written) ? written : value.ToJsonString();
+    }
+
+    /// <summary>
+    /// Writes text declared on the type, an example or a bound, as the type writes the value in JSON.
+    /// </summary>
+    /// <param name="text">The text, as declared.</param>
+    /// <param name="descriptor">Descriptor of the value object.</param>
+    /// <param name="options">The options the document describes the wire with.</param>
+    /// <returns>The value as JSON.</returns>
+    /// <remarks>
+    /// The text is parsed the way the type parses text, then written by the type's own converter, so that a client or
+    /// a mock server checking an example against the schema finds a number where the schema says number. Text the
+    /// type refuses, as an example nothing checks when the type compiles may be, is written as it was declared.
+    /// </remarks>
+    private static JsonNode WriteText(string text, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
+        => descriptor.TryParse(text, CultureInfo.InvariantCulture, out var parsed, out _)
             ? JsonSerializer.SerializeToNode(parsed, options.GetTypeInfo(descriptor.ValueObjectType))!
-            : JsonValue.Create(example);
+            : JsonValue.Create(text);
 
     /// <summary>
     /// Writes one known value of a closed set as the type writes it in JSON.
