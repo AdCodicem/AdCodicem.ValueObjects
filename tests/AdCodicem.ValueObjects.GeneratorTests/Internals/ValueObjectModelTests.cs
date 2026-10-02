@@ -22,6 +22,8 @@ public sealed class ValueObjectModelTests
             Identifier = "Address",
             QualifiedName = "global::Address",
             ContainingTypes = EquatableArray<string>.Empty,
+            CrefName = "Address",
+            OpenQualifiedName = "global::Address",
             Kind = UnderlyingKind.String,
             UnderlyingFullName = "global::System.Uri",
             HintName = "Address.g.cs",

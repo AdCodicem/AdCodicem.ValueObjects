@@ -274,7 +274,7 @@ without the package, the attribute does not exist.
 | `VO0016` | Error | Two types in the compilation declare the same prefix. |
 | `VO0017` | Error | A normalization hook on an identifier, which normalizes its own format and would never call it. |
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
-| `VO0019` | Error | The generated code cannot reopen, reach or name the identifier: it is generic, nested in a generic type or an interface, `private`, `protected` or `file`-local, or named after a member the generator writes. |
+| `VO0019` | Error | The generated code cannot reopen, reach or name the identifier: it is generic or nested in a generic type, since its prefix names one type and every construction would claim it; it is `file`-local, or `private` or `protected` inside a generic type; or it is named after a member the generator writes. |
 | `VO0020` | Error | `Granularity` holds a value `IdGranularity` does not define. |
 | `VO0024` | Error | `IValueObjectPatternValidator` on an identifier, which validates its format itself and publishes its own OpenAPI pattern. |
 | `VO0027` | Error | `[KnownValue]` on an identifier, which generates no known values: declare a well-known identifier as a static property that parses it. |

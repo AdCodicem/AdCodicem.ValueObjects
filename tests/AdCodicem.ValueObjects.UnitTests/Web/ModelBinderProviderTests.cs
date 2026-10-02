@@ -17,6 +17,9 @@ public class ModelBinderProviderTests
     [InlineData(typeof(CountryCode?), typeof(ValueObjectModelBinder<CountryCode, string>))]
     [InlineData(typeof(AccountId), typeof(ValueObjectModelBinder<AccountId, string>))]
     [InlineData(typeof(HandWrittenCounter), typeof(ValueObjectModelBinder<HandWrittenCounter, int>))]
+    [InlineData(typeof(Reference<PurchaseOrder>), typeof(ValueObjectModelBinder<Reference<PurchaseOrder>, string>))]
+    [InlineData(typeof(Catalog<string>.Stock?), typeof(ValueObjectModelBinder<Catalog<string>.Stock, int>))]
+    [InlineData(typeof(IShipping.Carrier), typeof(ValueObjectModelBinder<IShipping.Carrier, string>))]
     public void A_value_object_and_its_nullable_get_the_binder_closed_over_the_value_object(Type modelType, Type binderType)
         => GetBinder(modelType).Should().BeOfType(binderType);
 

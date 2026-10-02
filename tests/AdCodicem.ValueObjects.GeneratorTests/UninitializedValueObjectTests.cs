@@ -146,6 +146,38 @@ public sealed class UninitializedValueObjectTests
         diagnostics.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A construction of a generic value object, or of one nested in a generic type, carries the annotation of its
+    /// definition, and is no more validated by <c>default</c> than any other value object. A nullable one is still null.
+    /// </summary>
+    [Fact]
+    public async Task An_uninitialized_construction_of_a_generic_value_object_is_reported()
+    {
+        var diagnostics = await RunAsync("""
+            [ValueObject<string>]
+            public readonly partial struct Code<T>;
+
+            public partial class Outer<T>
+            {
+                [ValueObject<int>]
+                public readonly partial struct Count;
+            }
+
+            public static class Use
+            {
+                public static Code<int> Construction() => default(Code<int>);
+
+                public static Outer<string>.Count Nested() => new Outer<string>.Count();
+
+                public static Code<int>? Absent() => default(Code<int>?);
+            }
+            """);
+
+        Located(diagnostics).Should().Equal(
+            ("default(Code<int>)", "public static Code<int> Construction() => default(Code<int>);"),
+            ("new Outer<string>.Count()", "public static Outer<string>.Count Nested() => new Outer<string>.Count();"));
+    }
+
     [Fact]
     public async Task AllowDefault_silences_VO0010()
     {

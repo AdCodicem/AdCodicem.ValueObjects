@@ -68,7 +68,12 @@ before any rule of the type runs.
   its text.
 - `[DebuggerDisplay]`, showing the formatted value.
 - A registration in a generated `[ModuleInitializer]`, which makes the type available to
-  [`ValueObjectRegistry`](../how-to/runtime-lookup.md) without any code of yours.
+  [`ValueObjectRegistry`](../how-to/runtime-lookup.md) without any code of yours. A `private` or `protected` type is
+  registered through a step nested in the types around it, an `internal` class no code of yours needs to call.
+
+On a generic value object, an attribute cannot name a converter through a type parameter, so `[JsonConverter]` names
+`GenericValueObjectJsonConverterFactory` and `[TypeConverter]` names `GenericValueObjectTypeConverter`, which reach the
+construction they convert through its descriptor. The registration registers the generic definition.
 
 ## Added by options
 

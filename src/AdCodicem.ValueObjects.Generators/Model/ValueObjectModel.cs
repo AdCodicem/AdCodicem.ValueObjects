@@ -47,6 +47,50 @@ internal sealed record ValueObjectModel
     /// <summary>Gets the enclosing type declarations, outermost first, for a nested value object.</summary>
     public required EquatableArray<string> ContainingTypes { get; init; }
 
+    /// <summary>
+    /// Gets the type parameter list of the declared type as its declaration writes it, <c>&lt;T&gt;</c>, or empty.
+    /// </summary>
+    public string TypeParameters { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the name a <c>cref</c> written inside the declared type uses for it, <c>Code{T}</c> for a generic one.
+    /// </summary>
+    public required string CrefName { get; init; }
+
+    /// <summary>
+    /// Gets the globally qualified name of the declared type as <c>typeof</c> writes it unbound,
+    /// <c>global::Shop.Outer&lt;&gt;.Code</c>, or its qualified name when nothing around it is generic.
+    /// </summary>
+    public required string OpenQualifiedName { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the type, or a type around it, has type parameters: the generated code then
+    /// registers its generic definition, which the registry closes over each construction asked for.
+    /// </summary>
+    public bool IsGeneric { get; init; }
+
+    /// <summary>
+    /// Gets the globally qualified names of the types around the declared one that its registration goes through,
+    /// outermost first, or nothing when the registration reaches the type directly.
+    /// </summary>
+    /// <remarks>
+    /// A private or protected type is reachable only from the type declaring it. Each type on the route, from the one
+    /// declaring the outermost private or protected type to the one declaring the most deeply nested, receives a step of
+    /// the registration, which the assembly's registration calls on the first.
+    /// </remarks>
+    public EquatableArray<string> RegistrationRoute { get; init; } = EquatableArray<string>.Empty;
+
+    /// <summary>
+    /// Gets the position of the first type of <see cref="RegistrationRoute"/> among <see cref="ContainingTypes"/>.
+    /// </summary>
+    public int RegistrationRouteStart { get; init; }
+
+    /// <summary>
+    /// Gets the name of the class holding the registration step on each type of <see cref="RegistrationRoute"/>, which
+    /// the position of the type on the route completes.
+    /// </summary>
+    public string RegistrationStep { get; init; } = string.Empty;
+
     public required UnderlyingKind Kind { get; init; }
 
     public required string UnderlyingFullName { get; init; }

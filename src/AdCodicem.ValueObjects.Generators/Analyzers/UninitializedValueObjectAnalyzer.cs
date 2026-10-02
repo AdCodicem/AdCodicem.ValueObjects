@@ -123,8 +123,9 @@ public sealed class UninitializedValueObjectAnalyzer : DiagnosticAnalyzer
         ITypeSymbol? type,
         ImmutableArray<INamedTypeSymbol> annotations)
     {
-        // `default(Iban?)` is null, not an uninitialized value object, and is perfectly legitimate.
-        if (type is not INamedTypeSymbol named || named.IsGenericType)
+        // `default(Iban?)` is null, not an uninitialized value object, and is perfectly legitimate. A construction of a
+        // generic value object, `default(Code<Order>)`, carries the annotations of its definition and is reported.
+        if (type is not INamedTypeSymbol named || named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
         {
             return;
         }

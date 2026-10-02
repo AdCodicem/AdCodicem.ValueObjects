@@ -48,6 +48,27 @@ public class ContractKitTests
     }
 
     /// <summary>
+    /// A construction of a generic value object is never registered as such, and in a module nothing has used yet,
+    /// nothing resolved it either: the kit resolves it before checking it is discoverable.
+    /// </summary>
+    [Fact]
+    public void The_registry_checks_find_a_construction_from_a_module_nothing_has_used_yet()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "AdCodicem.ValueObjects.Fixtures.Untouched.dll");
+        var assembly = new AssemblyLoadContext("Another copy of the module nothing has used").LoadFromAssemblyPath(path);
+        var standing = assembly.GetType("AdCodicem.ValueObjects.Fixtures.Untouched.Standing`1", throwOnError: true)!
+            .MakeGenericType(typeof(string));
+        ValueObjectRegistry.TryGet(standing, out _).Should().BeFalse("nothing has used this copy of the assembly yet");
+
+        var contract = (IRegistryChecks)Activator.CreateInstance(typeof(RankContract<>).MakeGenericType(standing))!;
+        contract.The_type_is_discoverable_at_run_time();
+        contract.Declared_length_limits_hold_for_every_accepted_value();
+
+        ValueObjectRegistry.TryGet(standing, out var descriptor).Should().BeTrue();
+        descriptor!.Schema.Minimum.Should().Be("1", "the generated schema describes the construction");
+    }
+
+    /// <summary>
     /// Private, so the runner does not discover it: run whole, it would fail The_type_is_discoverable_at_run_time,
     /// which is exactly right for an unregistered type and not what this class is checking.
     /// </summary>

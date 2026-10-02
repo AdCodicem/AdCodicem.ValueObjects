@@ -155,6 +155,21 @@ public class CreationTests
         EffectiveDate.Schema.Minimum.Should().Be("2000-01-01");
     }
 
+    /// <summary>
+    /// A construction of a generic value object, which nothing registers when its assembly loads, initializes the first
+    /// time it is used, here by the check reading its upper bound: its schema publishes the bound itself, as the check
+    /// applies it, rather than a value read while that check was still under way.
+    /// </summary>
+    [Fact]
+    public void A_construction_first_used_through_creation_publishes_its_bounds()
+    {
+        Fixtures.Untouched.Standing<CreationTests>.TryCreate(5, out _).Should().BeTrue();
+        Fixtures.Untouched.Standing<CreationTests>.TryCreate(11, out _).Should().BeFalse();
+
+        Fixtures.Untouched.Standing<CreationTests>.Schema.Minimum.Should().Be("1");
+        Fixtures.Untouched.Standing<CreationTests>.Schema.Maximum.Should().Be("10");
+    }
+
     [Fact]
     public void A_decimal_value_object_normalizes_its_own_precision()
     {

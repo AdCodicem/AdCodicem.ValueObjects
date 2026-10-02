@@ -298,18 +298,11 @@ public sealed class DiagnosticTests
     }
 
     /// <summary>
-    /// The generated code reopens the value object and every type around it, which it cannot do for a type with
-    /// type parameters or for an interface: what it wrote would not compile, in a file the author cannot edit. The
-    /// declaration is reported instead, and nothing is generated for it, while the rest of the compilation still is.
+    /// The prefix of an entity identifier names one type. A generic identifier, or one nested in a generic type, would
+    /// claim it for every construction, so an identifier of one construction would parse as another. The declaration is
+    /// reported instead, and nothing is generated for it, while the rest of the compilation still is.
     /// </summary>
     [Theory]
-    [InlineData(
-        """
-        [ValueObject<string>]
-        public readonly partial struct Code<T>;
-        """,
-        "public readonly partial struct Code<T>;",
-        "is generic")]
     [InlineData(
         """
         [EntityId("acc")]
@@ -317,16 +310,6 @@ public sealed class DiagnosticTests
         """,
         "public readonly partial struct Code<TKey, TValue>;",
         "is generic")]
-    [InlineData(
-        """
-        public partial class Outer<T>
-        {
-            [ValueObject<string>]
-            public readonly partial struct Code;
-        }
-        """,
-        "public readonly partial struct Code;",
-        "is nested in the generic type 'Outer<T>'")]
     [InlineData(
         """
         public partial class Outer<T>
@@ -342,16 +325,6 @@ public sealed class DiagnosticTests
         "is nested in the generic type 'Outer<T>'")]
     [InlineData(
         """
-        public partial interface IOuter
-        {
-            [ValueObject<string>]
-            public readonly partial struct Code;
-        }
-        """,
-        "public readonly partial struct Code;",
-        "is nested in the interface 'IOuter'")]
-    [InlineData(
-        """
         public partial interface IOuter<T>
         {
             [EntityId("acc")]
@@ -359,11 +332,8 @@ public sealed class DiagnosticTests
         }
         """,
         "public readonly partial struct Code;",
-        "is nested in the interface 'IOuter<T>'")]
-    public void A_value_object_the_generated_code_cannot_reopen_is_reported_and_not_generated(
-        string declaration,
-        string line,
-        string reason)
+        "is nested in the generic type 'IOuter<T>'")]
+    public void A_generic_entity_identifier_is_reported_and_not_generated(string declaration, string line, string reason)
     {
         var run = GeneratorHarness.Run($"""
             {declaration}
@@ -377,76 +347,22 @@ public sealed class DiagnosticTests
         diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
         run.Locate(diagnostic).Should().Be(("Code", line));
         diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
-            $"'Code' {reason}, which the generator does not support. Declare it without type parameters, either at "
-            + "namespace level or nested in non-generic classes, structs and records.");
+            $"'Code' {reason}, which the generator does not support. Declare it without type parameters, outside any "
+            + "generic type: its prefix identifies one type, and every construction of a generic identifier would claim "
+            + "the same one.");
 
         run.Files.Select(file => file.HintName).Should().BeEquivalentTo(HintNames.For("Test.Other"), "ValueObjectRegistration.g.cs");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
     /// <summary>
-    /// The registration the generator writes for the assembly refers to every value object from a class of its own,
-    /// which a private or a protected type, or one nested in such a type, is hidden from. A file-local type is out of
-    /// reach of the generated file, which would reopen another type of the same name and leave the author's empty.
-    /// Each is reported, and nothing is generated for it, while the rest of the compilation still is.
+    /// A file-local type is out of reach of the generated file, which would reopen another type of the same name and
+    /// leave the author's empty. A private or protected type is reached through a step of the registration written on
+    /// each type around it, which the registration of the assembly can only call on a type it names without type
+    /// arguments: one inside a generic type is out of its reach. Each is reported, and nothing is generated for it, while
+    /// the rest of the compilation still is.
     /// </summary>
     [Theory]
-    [InlineData(
-        """
-        public partial class Outer
-        {
-            [ValueObject<string>]
-            private readonly partial struct Code;
-        }
-        """,
-        "private readonly partial struct Code;",
-        "is private")]
-    [InlineData(
-        """
-        public partial class Outer
-        {
-            [ValueObject<string>]
-            protected readonly partial struct Code;
-        }
-        """,
-        "protected readonly partial struct Code;",
-        "is protected")]
-    [InlineData(
-        """
-        public partial class Outer
-        {
-            [EntityId("acc")]
-            private protected readonly partial struct Code;
-        }
-        """,
-        "private protected readonly partial struct Code;",
-        "is private protected")]
-    [InlineData(
-        """
-        public partial class Outer
-        {
-            private partial class Inner
-            {
-                [ValueObject<string>]
-                public readonly partial struct Code;
-            }
-        }
-        """,
-        "public readonly partial struct Code;",
-        "is nested in the private type 'Inner'")]
-    [InlineData(
-        """
-        public partial class Outer
-        {
-            protected partial record Inner
-            {
-                [EntityId("acc")]
-                internal readonly partial struct Code;
-            }
-        }
-        """,
-        "internal readonly partial struct Code;",
-        "is nested in the protected type 'Inner'")]
     [InlineData(
         """
         [ValueObject<string>]
@@ -464,6 +380,39 @@ public sealed class DiagnosticTests
         """,
         "public readonly partial struct Code;",
         "is nested in the file-local type 'Outer'")]
+    [InlineData(
+        """
+        public partial class Outer<T>
+        {
+            [ValueObject<string>]
+            private readonly partial struct Code;
+        }
+        """,
+        "private readonly partial struct Code;",
+        "is private, inside the generic type 'Outer<T>'")]
+    [InlineData(
+        """
+        public partial class Outer<T>
+        {
+            protected partial record Inner
+            {
+                [ValueObject<int>]
+                internal readonly partial struct Code;
+            }
+        }
+        """,
+        "internal readonly partial struct Code;",
+        "is nested in the protected type 'Inner', inside the generic type 'Outer<T>'")]
+    [InlineData(
+        """
+        public partial class Outer<T>
+        {
+            [ValueObject<string>]
+            private protected readonly partial struct Code;
+        }
+        """,
+        "private protected readonly partial struct Code;",
+        "is private protected, inside the generic type 'Outer<T>'")]
     public void A_value_object_the_generated_code_cannot_reach_is_reported_and_not_generated(
         string declaration,
         string line,
@@ -483,8 +432,8 @@ public sealed class DiagnosticTests
         var remedy = reason.Contains("file-local", StringComparison.Ordinal)
             ? "Declare it, and every type around it, without the file modifier: the generated code reopens them in a "
               + "file of its own, where a file-local type is out of reach."
-            : "Declare it, and every type around it, internal or public: the registration the generator writes for the "
-              + "assembly refers to it from a class of its own.";
+            : "Declare the private or protected type internal or public, or move it out of the generic type: the "
+              + "registration reaches it from the type around it, which it cannot name without type arguments.";
         diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
             $"'Code' {reason}, which the generator does not support. {remedy}");
 

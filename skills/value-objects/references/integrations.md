@@ -134,6 +134,10 @@ Dapper keeps handlers in a process-wide table. Without this, every query touchin
 explicit projection. It never replaces a handler already in Dapper's table, and after
 `SqlMapper.ResetTypeHandlers()` it has to be called again.
 
+A construction of a generic value object gets a handler from it only if something resolved the construction first:
+Dapper looks one up by the exact type, ahead of any query. Register each construction a query uses, once, at start-up:
+`ValueObjectDapper.AddValueObjectHandler<Reference<PurchaseOrder>, string>();`.
+
 - Read a nullable column into `Iban?`: `NULL` gives `null`. A single-column query into `Iban` throws
   `DataException`, but Dapper never calls the handler for a `NULL` mapped to a member or a constructor parameter:
   an `Iban` member is left uninitialized (`IsDefault`), silently. Declare `Iban?` for every column that can be
@@ -195,7 +199,9 @@ if (ValueObjectRegistry.TryGet(type, out var descriptor)
 
 Registration happens through a generated `[ModuleInitializer]`, so nothing needs registering by hand — but a
 module initializer only runs once its assembly is loaded, which is what `EnsureAssemblyRegistered(assembly)`
-forces (the EF Core and Dapper entry points already call it). `TryResolve` also unwraps `Nullable<T>`;
+forces (the EF Core and Dapper entry points already call it). A generic value object registers its definition
+(`GetRegisteredGenericDefinitions()`), and `TryResolve` describes a construction, by reflection, once asked for it;
+`TryGet` finds it from then on. `TryResolve` also unwraps `Nullable<T>`;
 `IsValueObject` and `GetUnderlyingType` answer the cheap questions. A value object is a struct implementing
 `IValueObject<TSelf, TValue>` over itself: `IsValueObject` is `true`, and `GetUnderlyingType` other than `null`,
 exactly for what `TryResolve` describes, and every integration claims a type by that rule.

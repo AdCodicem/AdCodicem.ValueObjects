@@ -18,9 +18,10 @@ namespace AdCodicem.ValueObjects.Metadata;
 /// therefore usable under native AOT.
 /// </para>
 /// <para>
-/// <see cref="TryResolve"/> additionally falls back to reflection for hand-written value objects and for
-/// modules whose initializer has not run yet. It is annotated as requiring dynamic code, and its result is
-/// cached, so a given type pays that cost at most once.
+/// <see cref="TryResolve"/> additionally falls back to reflection for hand-written value objects, for modules whose
+/// initializer has not run yet, and for the constructions of a generic value object, whose generic definition is all
+/// the initializer can register. It is annotated as requiring dynamic code, and its result is cached, so a given type
+/// pays that cost at most once.
 /// </para>
 /// </remarks>
 public static class ValueObjectRegistry
@@ -28,6 +29,7 @@ public static class ValueObjectRegistry
     private static readonly ConcurrentDictionary<Type, ValueObjectDescriptor> Descriptors = new();
     private static readonly ConcurrentDictionary<Type, Type?> UnderlyingTypes = new();
     private static readonly ConcurrentDictionary<Assembly, bool> ScannedAssemblies = new();
+    private static readonly ConcurrentDictionary<Type, bool> GenericDefinitions = new();
 
     /// <summary>
     /// Registers a descriptor, replacing any previous registration for the same type.
@@ -60,7 +62,8 @@ public static class ValueObjectRegistry
     /// <param name="jsonConverter">The converter of the value object.</param>
     /// <remarks>
     /// A source-generated serializer context finds the converter through the descriptor, whatever the assembly declaring
-    /// the value object references.
+    /// the value object references. This is the registration native AOT asks of a construction of a generic value
+    /// object: <c>Register&lt;Code&lt;Order&gt;, string&gt;(Code&lt;Order&gt;.Schema, new Code&lt;Order&gt;.ValueJsonConverter())</c>.
     /// </remarks>
     public static void Register<TSelf, TValue>(ValueObjectSchema schema, JsonConverter<TSelf> jsonConverter)
         where TSelf : struct, IValueObject<TSelf, TValue>
@@ -90,10 +93,66 @@ public static class ValueObjectRegistry
     }
 
     /// <summary>
+    /// Registers the definition of a generic value object, whose constructions the registry describes on demand.
+    /// </summary>
+    /// <param name="definition">
+    /// The generic type definition, <c>typeof(Code&lt;&gt;)</c>, or that of a value object nested in a generic type,
+    /// <c>typeof(Outer&lt;&gt;.Code)</c>.
+    /// </param>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="definition"/> is not the generic type definition of a struct carrying the
+    /// <see cref="IValueObject"/> marker.
+    /// </exception>
+    /// <remarks>
+    /// <para>
+    /// The generated registration calls this for a generic value object, since it knows none of the constructions the
+    /// application will use. <see cref="TryResolve"/> then describes each construction it is asked for from the members
+    /// the generator wrote on it, its schema and its converter, and caches the descriptor.
+    /// </para>
+    /// <para>
+    /// That takes reflection and dynamic code. Under native AOT, register each construction a type-driven integration
+    /// needs instead, which takes neither:
+    /// <c>ValueObjectRegistry.Register&lt;Code&lt;Order&gt;, string&gt;(Code&lt;Order&gt;.Schema, new Code&lt;Order&gt;.ValueJsonConverter())</c>.
+    /// </para>
+    /// <para>
+    /// The definition is checked without reading its interfaces, which native AOT does not keep for a generic type
+    /// definition: this runs in the module initializer of every assembly declaring a generic value object, where a
+    /// failure would stop the application before it starts.
+    /// </para>
+    /// </remarks>
+    public static void RegisterGenericDefinition(Type definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        if (!definition.IsGenericTypeDefinition || !definition.IsValueType || !typeof(IValueObject).IsAssignableFrom(definition))
+        {
+            throw new ArgumentException(
+                $"'{definition}' is not the generic type definition of a value object struct.",
+                nameof(definition));
+        }
+
+        GenericDefinitions[definition] = true;
+    }
+
+    /// <summary>
     /// Gets the descriptors registered so far.
     /// </summary>
     /// <returns>A snapshot of the registered descriptors.</returns>
+    /// <remarks>
+    /// A generic value object appears through the constructions registered or resolved so far, never through its
+    /// definition, which <see cref="GetRegisteredGenericDefinitions"/> lists.
+    /// </remarks>
     public static IReadOnlyCollection<ValueObjectDescriptor> GetRegistered() => [.. Descriptors.Values];
+
+    /// <summary>
+    /// Gets the definitions of the generic value objects registered so far.
+    /// </summary>
+    /// <returns>A snapshot of the generic type definitions.</returns>
+    /// <remarks>
+    /// An integration configuring every value object up front, as the Entity Framework Core convention does, configures
+    /// these by their definition and closes each construction where it meets one.
+    /// </remarks>
+    public static IReadOnlyCollection<Type> GetRegisteredGenericDefinitions() => [.. GenericDefinitions.Keys];
 
     /// <summary>
     /// Looks up an already registered descriptor.
@@ -229,8 +288,10 @@ public static class ValueObjectRegistry
         Justification = "The interface list of a value object is preserved: the type is referenced by the caller and its IValueObject implementation is part of its public contract.")]
     private static bool TryGetSelfDescribedValueType(Type type, [NotNullWhen(true)] out Type? valueType)
     {
-        // The marker is a cheap filter for the many types a serializer asks about that are not value objects at all.
-        if (type.IsValueType && typeof(IValueObject).IsAssignableFrom(type))
+        // The marker is a cheap filter for the many types a serializer asks about that are not value objects at all. A
+        // type with type parameters left open, a generic definition first among them, is no value: no instance of it
+        // exists, and no descriptor can be built for it.
+        if (type.IsValueType && !type.ContainsGenericParameters && typeof(IValueObject).IsAssignableFrom(type))
         {
             foreach (var candidate in type.GetInterfaces())
             {
@@ -252,6 +313,13 @@ public static class ValueObjectRegistry
     [RequiresUnreferencedCode("Reads the value object interfaces and annotations of the type.")]
     private static ValueObjectDescriptor BuildByReflection(Type valueObjectType, Type valueType)
     {
+        if (valueObjectType.IsConstructedGenericType
+            && GenericDefinitions.ContainsKey(valueObjectType.GetGenericTypeDefinition())
+            && BuildConstruction(valueObjectType, valueType) is { } construction)
+        {
+            return construction;
+        }
+
         var schema = ReadSchema(valueObjectType, valueType);
         if (!schema.KnownValues.IsDefaultOrEmpty)
         {
@@ -268,6 +336,54 @@ public static class ValueObjectRegistry
 
         return (ValueObjectDescriptor)factory.Invoke(null, [schema])!;
     }
+
+    /// <summary>
+    /// Describes a construction of a generated generic value object from the members the generator wrote on it.
+    /// </summary>
+    /// <param name="valueObjectType">The construction, <c>Code&lt;Order&gt;</c>.</param>
+    /// <param name="valueType">Its underlying type.</param>
+    /// <returns>
+    /// The descriptor, carrying the generated schema and converter, or <see langword="null"/> when the type carries no
+    /// generated schema, as a definition registered by hand may not.
+    /// </returns>
+    /// <remarks>
+    /// The schema is the one the generated registration would have handed over, so the construction is described
+    /// exactly as a value object that is not generic is. The converter is nested in the generic type, and so is
+    /// generic itself: it is closed over the type arguments of the construction.
+    /// </remarks>
+    [RequiresDynamicCode("Closes the generated converter and ValueObjectDescriptor.For<,> over the construction.")]
+    [RequiresUnreferencedCode("Reads the generated members of the construction.")]
+    private static ValueObjectDescriptor? BuildConstruction(Type valueObjectType, Type valueType)
+    {
+        if (valueObjectType.GetProperty("Schema", BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
+            is not ValueObjectSchema schema)
+        {
+            return null;
+        }
+
+        var converterType = valueObjectType.GetNestedType("ValueJsonConverter", BindingFlags.Public)
+            ?.MakeGenericType(valueObjectType.GetGenericArguments());
+
+        return (ValueObjectDescriptor)typeof(ValueObjectRegistry)
+            .GetMethod(nameof(Construct), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(valueObjectType, valueType)
+            .Invoke(null, [schema, converterType])!;
+    }
+
+    /// <summary>
+    /// Builds the descriptor of a construction from its schema and the type of its converter.
+    /// </summary>
+    /// <typeparam name="TSelf">The construction.</typeparam>
+    /// <typeparam name="TValue">Its underlying type.</typeparam>
+    /// <param name="schema">Its generated schema.</param>
+    /// <param name="converterType">Its generated converter, closed over it, created the first time it is asked for.</param>
+    /// <returns>The descriptor.</returns>
+    [RequiresUnreferencedCode("Creates the generated converter of the construction by reflection.")]
+    private static ValueObjectDescriptor Construct<TSelf, TValue>(ValueObjectSchema schema, Type? converterType)
+        where TSelf : struct, IValueObject<TSelf, TValue>
+        => ValueObjectDescriptor.For<TSelf, TValue>(
+            schema,
+            converterType is null ? null : () => (JsonConverter<TSelf>)Activator.CreateInstance(converterType)!);
 
     /// <summary>
     /// Turns the known values an annotation declares into the values the type holds, as the generated schema

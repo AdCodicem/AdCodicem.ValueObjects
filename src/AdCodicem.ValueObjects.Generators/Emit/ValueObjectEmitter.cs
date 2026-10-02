@@ -219,10 +219,19 @@ internal static class ValueObjectEmitter
             closeCount++;
         }
 
+        var depth = 0;
         foreach (var containing in model.ContainingTypes)
         {
             writer.Open(containing);
             closeCount++;
+
+            var step = depth - model.RegistrationRouteStart;
+            if (step >= 0 && step < model.RegistrationRoute.Length)
+            {
+                RegistrationEmitter.EmitStep(writer, model, step);
+            }
+
+            depth++;
         }
 
         EmitTypeAttributes(writer, model);
@@ -234,7 +243,7 @@ internal static class ValueObjectEmitter
             _ => $"{Abstractions}.IValueObject<{self}, {value}>",
         };
 
-        writer.Open($"partial struct {model.Identifier} : {contract}");
+        writer.Open($"partial struct {model.Identifier}{model.TypeParameters} : {contract}");
 
         EmitState(writer, model, value, self);
         EmitEntityIdMembers(writer, model, self);
@@ -269,8 +278,20 @@ internal static class ValueObjectEmitter
 
     private static void EmitTypeAttributes(CodeWriter writer, ValueObjectModel model)
     {
-        writer.Line($"[global::System.Text.Json.Serialization.JsonConverter(typeof({model.QualifiedName}.ValueJsonConverter))]");
-        writer.Line($"[global::System.ComponentModel.TypeConverter(typeof({model.QualifiedName}.ValueTypeConverter))]");
+        // An attribute cannot name a type through a type parameter, and neither System.Text.Json nor TypeDescriptor
+        // closes an open generic converter: a generic value object names converters that close its own over the
+        // construction they are asked for.
+        if (model.IsGeneric)
+        {
+            writer.Line($"[global::System.Text.Json.Serialization.JsonConverter(typeof({Abstractions}.Metadata.GenericValueObjectJsonConverterFactory))]");
+            writer.Line($"[global::System.ComponentModel.TypeConverter(typeof({Abstractions}.Metadata.GenericValueObjectTypeConverter))]");
+        }
+        else
+        {
+            writer.Line($"[global::System.Text.Json.Serialization.JsonConverter(typeof({model.QualifiedName}.ValueJsonConverter))]");
+            writer.Line($"[global::System.ComponentModel.TypeConverter(typeof({model.QualifiedName}.ValueTypeConverter))]");
+        }
+
         writer.Line("[global::System.Diagnostics.DebuggerDisplay(\"{ToString(),nq}\")]");
     }
 
@@ -1083,12 +1104,12 @@ internal static class ValueObjectEmitter
         writer.Close();
         writer.Line();
 
-        writer.Line("/// <inheritdoc cref=\"TryParse(string, global::System.IFormatProvider?, out " + model.Identifier + ")\" />");
+        writer.Line("/// <inheritdoc cref=\"TryParse(string, global::System.IFormatProvider?, out " + model.CrefName + ")\" />");
         writer.Line(Inline);
         writer.Line($"public static bool TryParse(string? s, out {self} result) => TryParse(s, null, out result);");
         writer.Line();
 
-        writer.Line("/// <inheritdoc cref=\"TryParse(string, global::System.IFormatProvider?, out " + model.Identifier + ")\" />");
+        writer.Line("/// <inheritdoc cref=\"TryParse(string, global::System.IFormatProvider?, out " + model.CrefName + ")\" />");
         writer.Line(Inline);
         writer.Line($"public static bool TryParse(global::System.ReadOnlySpan<char> s, out {self} result) => TryParse(s, null, out result);");
         writer.Line();

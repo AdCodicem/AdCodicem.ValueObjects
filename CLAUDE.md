@@ -116,6 +116,20 @@ available without the consumer registering anything. Each descriptor carries the
 `ValueObjectJsonConverterFactory` hands to a source-generated serializer context, whatever the declaring assembly
 references.
 
+Two shapes cannot be registered from that class by a closed type. A `private` or `protected` value object is
+reachable only from the type declaring it, so the registration calls a step nested in the type declaring the
+outermost private or protected type, each step calls the next, and the last, nested in the type declaring the most
+deeply nested one, registers it (`ValueObjectModel.RegistrationRoute`). Each step is a static class of its own, named
+after its position on the route: a member of the author's type would run its static constructor from the module
+initializer, and one name for every position would be CS0108 where a type of the route derives from another.
+`RegisterGenericDefinition` reads nothing off the definition but its kind, since native AOT keeps no interface list
+for a generic type definition and it runs in the module initializer. A generic value object, or one nested in a generic type, has no
+construction the registration knows: it registers the generic definition (`RegisterGenericDefinition`), and
+`ValueObjectRegistry.TryResolve` describes each construction from its generated `Schema` and `ValueJsonConverter`,
+by reflection, the first time it is asked for it. The EF Core convention maps the definition and closes the converter
+per property; Dapper needs `AddValueObjectHandler<TSelf, TValue>()` per construction. Only `file`-local types, a
+private or protected type inside a generic one, and a generic `[EntityId]` stay refused (`VO0019`).
+
 ### Two ways to reach a value object — and why bugs hide in one of them
 
 - **Typed path.** The static abstract members of `IValueObject<TSelf, TValue>` (`Create`, `TryCreate`,
@@ -183,6 +197,12 @@ quiet on a field, which could not implement it, on a type that implements `IValu
 
 These are all load-bearing, and each cost real debugging time:
 
+- **An attribute cannot name a type through a type parameter**, and neither System.Text.Json nor `TypeDescriptor`
+  closes an open generic converter over the type it converts (STJ throws on `typeof(Code<>.ValueJsonConverter)`).
+  A generic value object's `[JsonConverter]` and `[TypeConverter]` therefore name `GenericValueObjectJsonConverterFactory`
+  and `GenericValueObjectTypeConverter`, in the contracts, which reach the construction through its descriptor: a
+  construction registered by hand, as native AOT asks, needs no reflection. The generated code also names the types around a value object through their type parameters from
+  inside it, which is why a nested type or type parameter of the same name in between is `VO0019`.
 - **Source generators never observe each other's output.** The `[JsonConverter]` this generator writes is
   invisible to the System.Text.Json generator, which is the entire reason `AdCodicem.ValueObjects.Json` exists:
   a hand-written `ValueObjectJsonConverterFactory` the STJ generator *can* see, named via
@@ -279,9 +299,11 @@ Three suites, each with a distinct job:
   objects reach the column types they claim, plus the API surface end to end.
 
 `AdCodicem.ValueObjects.Testing` ships a contract kit (`ValueObjectContract`) that consumers point at their own
-types; the unit tests use it on every generated value object of `Domain/` but two. `Floor` and `Celsius` cannot
+types; the unit tests use it on every generated value object of `Domain/` but four. `Floor` and `Celsius` cannot
 satisfy it: their formatting hooks write text such as `floor 3` or `21 °C`, which does not parse back, and the kit
-requires a text round trip. Add a contract with each value object added to `Domain/`.
+requires a text round trip. `Strongbox.Secret` and `Archive.Shelf` are private, and no public contract class can
+name them; `DeclarationContextTests` covers them instead, with the protected `StrongboxId`. Add a contract with each
+value object added to `Domain/`.
 
 **Coverage aims at 100 % of each pull request's patch, as Codecov counts it**
 (`docs/adr/0006-coverage-is-a-signal-not-a-goal.md`). `codecov.yml` is the floor, not the aim: 95 % of the lines a

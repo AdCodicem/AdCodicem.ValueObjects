@@ -606,6 +606,32 @@ public sealed class EmissionTests
         }
     }
 
+    /// <summary>
+    /// The package's own registry takes a converter of a type the registration can name, which neither a generic value
+    /// object, of which it knows no construction, nor a private one is: they reach an older package through no registry,
+    /// as they reached none before.
+    /// </summary>
+    [Fact]
+    public void A_generic_or_private_value_object_publishes_no_converter_to_the_package_registry()
+    {
+        var run = GeneratorHarness.Run(
+            """
+            [ValueObject<string>]
+            public readonly partial struct Code<T>;
+
+            public partial class Outer
+            {
+                [ValueObject<string>]
+                private readonly partial struct Hidden;
+            }
+            """,
+            referenceJsonPackage: true);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.Files.Single(file => file.HintName == "ValueObjectRegistration.g.cs").Text.Should().NotContain("ValueObjectJsonRegistry");
+    }
+
     [Fact]
     public void The_summary_of_a_value_object_becomes_its_schema_description()
     {

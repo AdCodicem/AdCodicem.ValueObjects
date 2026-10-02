@@ -1,5 +1,6 @@
 using System.Data;
 using AdCodicem.ValueObjects.Dapper;
+using AdCodicem.ValueObjects.Metadata;
 using Dapper;
 
 namespace AdCodicem.ValueObjects.UnitTests.Persistence;
@@ -76,6 +77,91 @@ public class DapperTests
     {
         SqlMapper.HasTypeHandler(typeof(LedgerBalance)).Should().BeFalse();
         SqlMapper.HasTypeHandler(typeof(Fingerprint)).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Dapper looks a handler up by the exact type, before any query, and the constructions of a generic value object
+    /// are only known to the application: it registers each one it stores, and its nullable form comes with it. The
+    /// constructions here are closed over types of this class, which nothing else in the process resolves, so the
+    /// registration is the only thing that can have handled them.
+    /// </summary>
+    [Fact]
+    public void A_construction_of_a_generic_value_object_is_handled_once_registered()
+    {
+        try
+        {
+            SqlMapper.AddTypeHandler(new FixedIbanHandler());
+            ValueObjectDapper.AddValueObjectHandlers();
+            SqlMapper.HasTypeHandler(typeof(Reference<Account>)).Should().BeFalse("nothing resolved the construction");
+
+            ValueObjectDapper.AddValueObjectHandler<Reference<Account>, string>();
+            ValueObjectDapper.AddValueObjectHandler<Reference<Account>, string>();
+            ValueObjectDapper.AddValueObjectHandler<Catalog<Account>.Stock, int>();
+            ValueObjectDapper.AddValueObjectHandler<Iban, string>();
+
+            SqlMapper.HasTypeHandler(typeof(Reference<Account>?)).Should().BeTrue();
+            Read(typeof(Reference<Account>), "PO-7").Should().Be(Reference<Account>.Create("PO-7"));
+            Read(typeof(Catalog<Account>.Stock?), 12).Should().Be(Catalog<Account>.Stock.Create(12));
+            SqlMapper.HasTypeHandler(typeof(Reference<DapperTests>)).Should().BeFalse("each construction is a type of its own");
+            Read(typeof(Iban), "anything").Should().Be(FixedIbanHandler.Iban, "a handler of the application's own stays");
+        }
+        finally
+        {
+            SqlMapper.ResetTypeHandlers();
+            ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);
+        }
+    }
+
+    /// <summary>
+    /// The registration reads what is handled from Dapper's own table, so a value object it meets for the first time,
+    /// here a construction resolved just now, keeps a handler the application registered for it, where remembering
+    /// what it had registered would have replaced it.
+    /// </summary>
+    [Fact]
+    public void Registering_the_handlers_keeps_a_handler_the_application_registered_for_a_type_met_for_the_first_time()
+    {
+        try
+        {
+            ValueObjectRegistry.TryResolve(typeof(Reference<PositionalAccount>), out _).Should().BeTrue();
+            SqlMapper.AddTypeHandler(new FixedReferenceHandler());
+
+            ValueObjectDapper.AddValueObjectHandlers();
+
+            Read(typeof(Reference<PositionalAccount>), "anything").Should().Be(FixedReferenceHandler.Reference);
+        }
+        finally
+        {
+            SqlMapper.ResetTypeHandlers();
+            ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);
+        }
+    }
+
+    /// <summary>
+    /// A construction declares the column of its parameter as the value object it is built from does, whatever resolved
+    /// it first: nothing else in the process resolves this one.
+    /// </summary>
+    [Fact]
+    public void A_construction_of_a_generic_value_object_declares_its_column()
+    {
+        ValueObjectRegistry.TryGet(typeof(Reference<FixedIbanHandler>), out _).Should().BeFalse();
+        var parameter = Substitute.For<IDbDataParameter>();
+
+        new ValueObjectTypeHandler<Reference<FixedIbanHandler>, string>().SetValue(parameter, Reference<FixedIbanHandler>.Create("po-7"));
+
+        parameter.DbType.Should().Be(DbType.String);
+        parameter.Size.Should().Be(12);
+    }
+
+    /// <summary>
+    /// Registering one value object is asking for it, so one no provider can carry is refused rather than skipped.
+    /// </summary>
+    [Fact]
+    public void Registering_a_128_bit_value_object_by_its_type_is_refused()
+    {
+        var register = ValueObjectDapper.AddValueObjectHandler<LedgerBalance, Int128>;
+
+        register.Should().Throw<NotSupportedException>().WithMessage("*LedgerBalance*Int128*handler of the application's own*");
+        SqlMapper.HasTypeHandler(typeof(LedgerBalance)).Should().BeFalse();
     }
 
     /// <summary>
@@ -454,6 +540,16 @@ public class DapperTests
         public override void SetValue(IDbDataParameter parameter, Iban value) => parameter.Value = value.Value;
 
         public override Iban Parse(object value) => Iban;
+    }
+
+    /// <summary>An application's own handler, which reads every cell as the same reference.</summary>
+    private sealed class FixedReferenceHandler : SqlMapper.TypeHandler<Reference<PositionalAccount>>
+    {
+        public static readonly Reference<PositionalAccount> Reference = Reference<PositionalAccount>.Create("FIXED");
+
+        public override void SetValue(IDbDataParameter parameter, Reference<PositionalAccount> value) => parameter.Value = value.Value;
+
+        public override Reference<PositionalAccount> Parse(object value) => Reference;
     }
 
     /// <summary>A row of a table of accounts, mapped through its constructor.</summary>

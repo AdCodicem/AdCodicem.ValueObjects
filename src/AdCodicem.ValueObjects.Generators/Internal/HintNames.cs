@@ -38,10 +38,18 @@ internal static class HintNames
 
         return builder
             .Append('.')
-            .Append(Fnv1a(qualifiedName).ToString("x16", CultureInfo.InvariantCulture))
+            .Append(Hash(qualifiedName))
             .Append(".g.cs")
             .ToString();
     }
+
+    /// <summary>
+    /// Gets the hash a hint name ends with, which also tells apart the members the registration of each type writes on
+    /// the types around it.
+    /// </summary>
+    /// <param name="qualifiedName">Qualified name of the type, without the <c>global::</c> alias.</param>
+    /// <returns>Sixteen lowercase hexadecimal digits.</returns>
+    public static string Hash(string qualifiedName) => Fnv1a(qualifiedName).ToString("x16", CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Hashes text with 64-bit FNV-1a over its UTF-16 code units, the same on every run and every machine.

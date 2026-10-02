@@ -64,12 +64,14 @@ internal static class RegistrationEmitter
 
         foreach (var model in models)
         {
-            writer.Line(
-                "global::AdCodicem.ValueObjects.Metadata.ValueObjectRegistry.Register"
-                + $"<{model.QualifiedName}, {model.UnderlyingFullName}>({model.QualifiedName}.Schema, static () => new {model.QualifiedName}.ValueJsonConverter());");
+            writer.Line(model.RegistrationRoute.IsEmpty
+                ? RegisterValueObject(model)
+                : $"{model.RegistrationRoute.First()}.{StepClass(model, 0)}.Register();");
         }
 
-        var identifiers = models.Where(static model => model.IsEntityId).ToImmutableArray();
+        var identifiers = models
+            .Where(static model => model.IsEntityId && model.RegistrationRoute.IsEmpty)
+            .ToImmutableArray();
         if (identifiers.Length > 0)
         {
             writer.Line();
@@ -77,13 +79,13 @@ internal static class RegistrationEmitter
             writer.Line("// resolve an identifier whose type is only known once the text arrives.");
             foreach (var model in identifiers)
             {
-                writer.Line(
-                    "global::AdCodicem.ValueObjects.Identifiers.EntityIdRegistry.Register"
-                    + $"<{model.QualifiedName}>();");
+                writer.Line(RegisterEntityId(model));
             }
         }
 
-        var legacy = legacyJsonRegistry ? models : [];
+        var legacy = legacyJsonRegistry
+            ? models.Where(static model => !model.IsGeneric && model.RegistrationRoute.IsEmpty).ToImmutableArray()
+            : [];
         if (legacy.Length > 0)
         {
             writer.Line();
@@ -102,4 +104,75 @@ internal static class RegistrationEmitter
 
         return writer.ToString();
     }
+
+    /// <summary>
+    /// Writes a step of the registration of a value object the registration of the assembly cannot see, as a class
+    /// nested in one type of its route.
+    /// </summary>
+    /// <param name="writer">Writer, inside the declaration of the type at <paramref name="depth"/> on the route.</param>
+    /// <param name="model">The value object.</param>
+    /// <param name="depth">Position of the type on the route, from zero for the first.</param>
+    /// <remarks>
+    /// <para>
+    /// A private or protected type is reachable only from the type declaring it, and from types nested in it. Each step
+    /// therefore calls the next one, nested in a type it can see, and the last, nested in the type declaring the most
+    /// deeply nested private or protected type, registers the value object.
+    /// </para>
+    /// <para>
+    /// The step is a class of its own rather than a member of the author's type: calling a static member of a type runs
+    /// its static constructor, which the registration must not do from the module initializer, and a class without
+    /// static state has no initializer of its own to run. Its name carries its position on the route, so that a type of
+    /// the route deriving from another one does not hide the step it inherits.
+    /// </para>
+    /// </remarks>
+    public static void EmitStep(CodeWriter writer, ValueObjectModel model, int depth)
+    {
+        var route = model.RegistrationRoute.ToArray();
+
+        writer.Line($"/// <summary>Registers <c>{model.TypeName}</c>, from a scope that can see it.</summary>");
+        writer.Line("[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+        writer.Open($"internal static class {StepClass(model, depth)}");
+        writer.Line("/// <summary>Runs the step.</summary>");
+        writer.Open("internal static void Register()");
+
+        if (depth + 1 < route.Length)
+        {
+            writer.Line($"{route[depth + 1]}.{StepClass(model, depth + 1)}.Register();");
+        }
+        else
+        {
+            writer.Line(RegisterValueObject(model));
+            if (model.IsEntityId)
+            {
+                writer.Line(RegisterEntityId(model));
+            }
+        }
+
+        writer.Close();
+        writer.Close();
+        writer.Line();
+    }
+
+    /// <summary>
+    /// Names the class holding the step of a value object's registration at a position on its route.
+    /// </summary>
+    private static string StepClass(ValueObjectModel model, int depth) => $"{model.RegistrationStep}_{depth}";
+
+    /// <summary>
+    /// Writes the statement registering a value object.
+    /// </summary>
+    /// <remarks>
+    /// The converter is handed over as a factory, so that registering every value object of the assembly builds none:
+    /// a converter is created the first time something asks the descriptor for it. A generic value object registers its
+    /// definition, since the registration knows none of its constructions; the registry closes it over each one it is
+    /// asked for.
+    /// </remarks>
+    private static string RegisterValueObject(ValueObjectModel model)
+        => model.IsGeneric
+            ? $"global::AdCodicem.ValueObjects.Metadata.ValueObjectRegistry.RegisterGenericDefinition(typeof({model.OpenQualifiedName}));"
+            : "global::AdCodicem.ValueObjects.Metadata.ValueObjectRegistry.Register"
+              + $"<{model.QualifiedName}, {model.UnderlyingFullName}>({model.QualifiedName}.Schema, static () => new {model.QualifiedName}.ValueJsonConverter());";
+
+    private static string RegisterEntityId(ValueObjectModel model)
+        => $"global::AdCodicem.ValueObjects.Identifiers.EntityIdRegistry.Register<{model.QualifiedName}>();";
 }

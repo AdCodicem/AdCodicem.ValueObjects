@@ -118,6 +118,10 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         ["op_False"] = "false",
     };
 
+    /// <summary>The base classes of the converters the generator nests in a value object, by metadata name.</summary>
+    private static readonly string[] ConverterBaseNames =
+        ["System.ComponentModel.TypeConverter", "System.Text.Json.Serialization.JsonConverter`1"];
+
     /// <summary>
     /// The members of <see cref="object"/> that no value object overrides and a static property would hide.
     /// </summary>
@@ -200,7 +204,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         }
 
         if (!ValidateDeclaration(symbol, declaration, location, diagnostics)
-            || !ValidateContext(symbol, location, diagnostics))
+            || !ValidateContext(symbol, context.SemanticModel.Compilation, entityId: false, location, diagnostics))
         {
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
@@ -344,6 +348,13 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             Identifier = symbol.ToDisplayString(IdentifierFormat),
             QualifiedName = symbol.ToDisplayString(QualifiedFormat),
             ContainingTypes = EquatableArray<string>.From(containingTypes),
+            TypeParameters = TypeParameterList(symbol),
+            CrefName = symbol.ToDisplayString(IdentifierFormat) + TypeParameterList(symbol, '{', '}'),
+            OpenQualifiedName = OpenName(symbol),
+            IsGeneric = Chain(symbol).Any(static type => type.Arity > 0),
+            RegistrationRoute = EquatableArray<string>.From(RegistrationRoute(symbol, out var routeStart)),
+            RegistrationRouteStart = routeStart,
+            RegistrationStep = "ValueObjectRegistration_" + HintNames.Hash(symbol.ToDisplayString(QualifiedFormat).Replace("global::", string.Empty)),
             Kind = underlying.Kind,
             UnderlyingFullName = underlying.FullName,
             HintName = BuildHintName(symbol),
@@ -408,7 +419,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         }
 
         if (!ValidateDeclaration(symbol, declaration, location, diagnostics)
-            || !ValidateContext(symbol, location, diagnostics))
+            || !ValidateContext(symbol, context.SemanticModel.Compilation, entityId: true, location, diagnostics))
         {
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
@@ -496,6 +507,13 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             Identifier = symbol.ToDisplayString(IdentifierFormat),
             QualifiedName = symbol.ToDisplayString(QualifiedFormat),
             ContainingTypes = EquatableArray<string>.From(containingTypes),
+            TypeParameters = TypeParameterList(symbol),
+            CrefName = symbol.ToDisplayString(IdentifierFormat) + TypeParameterList(symbol, '{', '}'),
+            OpenQualifiedName = OpenName(symbol),
+            IsGeneric = Chain(symbol).Any(static type => type.Arity > 0),
+            RegistrationRoute = EquatableArray<string>.From(RegistrationRoute(symbol, out var routeStart)),
+            RegistrationRouteStart = routeStart,
+            RegistrationStep = "ValueObjectRegistration_" + HintNames.Hash(symbol.ToDisplayString(QualifiedFormat).Replace("global::", string.Empty)),
             Kind = UnderlyingKind.String,
             UnderlyingFullName = UnderlyingType.String.FullName,
             HintName = BuildHintName(symbol),
@@ -614,25 +632,36 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The generated code reopens the value object and each type around it by name alone, which drops their type
-    /// parameters, and reopens a containing type as a class, a struct or a record, which an interface is not. It
-    /// reopens them in a file of its own, where a file-local type is another type, and registers the value object
-    /// from a class of its own, which a private or a protected type, or one nested in such a type, is hidden from.
-    /// Its statements name the type of every local and discard nothing, so no type named <c>var</c> or <c>_</c>
-    /// changes what they mean.
+    /// The generated code reopens the value object and each type around it, with their type parameters, in a file of
+    /// its own, where a file-local type is another type. It registers the value object from a class of its own, or,
+    /// for a private or a protected type, through a step written on each type around it down to the one that can see
+    /// it, which it can only call on a type it can name without type arguments. Its statements name the type of every
+    /// local and discard nothing, so no type named <c>var</c> or <c>_</c> changes what they mean, and it names the
+    /// type through its type parameters, which a nested type of the same name would hide.
     /// </para>
     /// <para>
-    /// What it wrote would not compile, in a file the author cannot edit, so the type is reported and left alone.
+    /// What it wrote would not compile, in a file the author cannot edit, so the type is reported and left alone. An
+    /// entity identifier is refused when generic as well: its prefix names one type, which every construction would
+    /// claim.
     /// </para>
     /// </remarks>
     /// <param name="symbol">Annotated type.</param>
+    /// <param name="compilation">The compilation, which holds the base classes of the generated converters.</param>
+    /// <param name="entityId">Whether the type is an entity identifier.</param>
     /// <param name="location">Where to report.</param>
     /// <param name="diagnostics">Sink.</param>
     /// <returns><see langword="false"/> when nothing must be generated for the type.</returns>
-    private static bool ValidateContext(INamedTypeSymbol symbol, Location location, List<DiagnosticInfo> diagnostics)
+    private static bool ValidateContext(
+        INamedTypeSymbol symbol,
+        Compilation compilation,
+        bool entityId,
+        Location location,
+        List<DiagnosticInfo> diagnostics)
     {
-        var (reason, remedy) = RefuseGenericContext(symbol)
-            ?? RefuseHiddenContext(symbol)
+        var (reason, remedy) = RefuseFileLocal(symbol)
+            ?? (entityId ? RefuseGenericIdentifier(symbol) : null)
+            ?? RefuseUnreachableRegistration(symbol)
+            ?? RefuseHiddenTypeParameter(symbol, compilation)
             ?? default;
 
         if (reason is null)
@@ -647,61 +676,12 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Says why the generated code cannot reopen a type with type parameters, or nested in a generic type or an
-    /// interface.
+    /// Says why the generated file cannot reopen a file-local type, or a type nested in one.
     /// </summary>
-    private static (string Reason, string Remedy)? RefuseGenericContext(INamedTypeSymbol symbol)
-    {
-        const string remedy = "Declare it without type parameters, either at namespace level or nested in non-generic "
-            + "classes, structs and records";
-
-        if (symbol.Arity > 0)
-        {
-            return ("is generic", remedy);
-        }
-
-        for (var containing = symbol.ContainingType; containing is not null; containing = containing.ContainingType)
-        {
-            var name = containing.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-
-            if (containing.TypeKind == TypeKind.Interface)
-            {
-                return ($"is nested in the interface '{name}'", remedy);
-            }
-
-            if (containing.Arity > 0)
-            {
-                return ($"is nested in the generic type '{name}'", remedy);
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Says why the generated code cannot reach a type, or a type around it: one private, protected or private
-    /// protected, which the registration cannot see, or a file-local one, which the generated file cannot reopen.
-    /// </summary>
-    private static (string Reason, string Remedy)? RefuseHiddenContext(INamedTypeSymbol symbol)
+    private static (string Reason, string Remedy)? RefuseFileLocal(INamedTypeSymbol symbol)
     {
         for (var type = symbol; type is not null; type = type.ContainingType)
         {
-            var hidden = type.DeclaredAccessibility switch
-            {
-                Accessibility.Private => "private",
-                Accessibility.Protected => "protected",
-                Accessibility.ProtectedAndInternal => "private protected",
-                _ => null,
-            };
-
-            if (hidden is not null)
-            {
-                return (
-                    Describe(symbol, type, hidden),
-                    "Declare it, and every type around it, internal or public: the registration the generator writes for "
-                    + "the assembly refers to it from a class of its own");
-            }
-
             if (type.IsFileLocal)
             {
                 return (
@@ -713,6 +693,225 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 
         return null;
     }
+
+    /// <summary>
+    /// Says why an entity identifier cannot be generic, or nested in a generic type.
+    /// </summary>
+    private static (string Reason, string Remedy)? RefuseGenericIdentifier(INamedTypeSymbol symbol)
+    {
+        const string remedy = "Declare it without type parameters, outside any generic type: its prefix identifies one "
+            + "type, and every construction of a generic identifier would claim the same one";
+
+        if (symbol.Arity > 0)
+        {
+            return ("is generic", remedy);
+        }
+
+        for (var containing = symbol.ContainingType; containing is not null; containing = containing.ContainingType)
+        {
+            if (containing.Arity > 0)
+            {
+                return (
+                    $"is nested in the generic type '{containing.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}'",
+                    remedy);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Says why the registration cannot reach a private or protected type nested in a generic one.
+    /// </summary>
+    /// <remarks>
+    /// A private or protected type is reachable only from the type declaring it, so its registration is a step
+    /// written on each type around it. A step on a generic type can only be called on a construction of it, which the
+    /// registration of the assembly does not know.
+    /// </remarks>
+    private static (string Reason, string Remedy)? RefuseUnreachableRegistration(INamedTypeSymbol symbol)
+    {
+        var chain = Chain(symbol);
+        var deepest = chain.FindLastIndex(IsHidden);
+        if (deepest < 0)
+        {
+            return null;
+        }
+
+        var generic = chain.Take(deepest).FirstOrDefault(static type => type.Arity > 0);
+        if (generic is null)
+        {
+            return null;
+        }
+
+        return (
+            $"{Describe(symbol, chain[deepest], Modifier(chain[deepest]))}, inside the generic type "
+            + $"'{generic.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}'",
+            "Declare the private or protected type internal or public, or move it out of the generic type: the registration "
+            + "reaches it from the type around it, which it cannot name without type arguments");
+    }
+
+    /// <summary>
+    /// Says why the generated code cannot name a type parameter of the value object or of a type around it.
+    /// </summary>
+    /// <remarks>
+    /// The generated code names the value object through the type parameters of the types around it,
+    /// <c>Outer&lt;T&gt;.Code</c>, and through its own, from inside it and from inside the converters it nests in it. A
+    /// type between the two, declared or inherited, or a type parameter of the same name on a type between, would take
+    /// the name, and the generated code would name another type. Inside the converters, the nested types of their base
+    /// classes, such as <c>TypeConverter.StandardValuesCollection</c>, are in scope as well.
+    /// </remarks>
+    private static (string Reason, string Remedy)? RefuseHiddenTypeParameter(INamedTypeSymbol symbol, Compilation compilation)
+    {
+        var chain = Chain(symbol);
+        var converterBases = ConverterBaseNames
+            .Select(compilation.GetTypeByMetadataName)
+            .OfType<INamedTypeSymbol>()
+            .ToList();
+
+        for (var owner = 0; owner < chain.Count; owner++)
+        {
+            foreach (var parameter in chain[owner].TypeParameters)
+            {
+                var hider = HiderOf(parameter.Name, chain, owner, converterBases);
+                if (hider is not null)
+                {
+                    return (
+                        $"names the type parameter '{parameter.Name}' of "
+                        + $"'{chain[owner].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}', which "
+                        + $"{hider} hides",
+                        "Rename the type parameter: the generated code names the types around the value object through "
+                        + "their type parameters, from inside it");
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Describes what takes the name of a type parameter in the scopes the generated code names it from, if anything does.
+    /// </summary>
+    private static string? HiderOf(string name, List<INamedTypeSymbol> chain, int owner, List<INamedTypeSymbol> converterBases)
+    {
+        for (var inner = owner + 1; inner < chain.Count; inner++)
+        {
+            var type = chain[inner];
+            if (type.TypeParameters.Any(other => other.Name == name))
+            {
+                return $"the type parameter of '{type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}'";
+            }
+
+            if (NestedType(type, name) is { } nested)
+            {
+                return $"the type '{nested.ContainingType.Name}.{name}'";
+            }
+        }
+
+        if (name is "ValueJsonConverter" or "ValueTypeConverter")
+        {
+            return $"the type '{chain[chain.Count - 1].Name}.{name}'";
+        }
+
+        return converterBases.Select(converter => NestedType(converter, name)).FirstOrDefault(nested => nested is not null) is { } inherited
+            ? $"the type '{inherited.ContainingType.Name}.{name}', which a generated converter inherits,"
+            : null;
+    }
+
+    /// <summary>
+    /// Finds the nested type a simple name binds to inside a type: one it declares, or one it inherits from its base
+    /// classes, or from its base interfaces when it is an interface, without type parameters of its own.
+    /// </summary>
+    private static INamedTypeSymbol? NestedType(INamedTypeSymbol type, string name)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            var own = SymbolEqualityComparer.Default.Equals(current, type);
+            var found = current.GetTypeMembers(name)
+                .FirstOrDefault(nested => nested.Arity == 0 && (own || nested.DeclaredAccessibility != Accessibility.Private));
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return type.TypeKind != TypeKind.Interface
+            ? null
+            : type.AllInterfaces
+                .SelectMany(baseInterface => baseInterface.GetTypeMembers(name))
+                .FirstOrDefault(nested => nested.Arity == 0 && nested.DeclaredAccessibility != Accessibility.Private);
+    }
+
+    /// <summary>
+    /// Gets a type and every type around it, outermost first.
+    /// </summary>
+    private static List<INamedTypeSymbol> Chain(INamedTypeSymbol symbol)
+    {
+        var chain = new List<INamedTypeSymbol>();
+        for (var type = symbol; type is not null; type = type.ContainingType)
+        {
+            chain.Insert(0, type);
+        }
+
+        return chain;
+    }
+
+    /// <summary>
+    /// Tells whether a type is reachable only from the type declaring it, or from types deriving from it.
+    /// </summary>
+    private static bool IsHidden(INamedTypeSymbol type)
+        => type.DeclaredAccessibility is Accessibility.Private or Accessibility.Protected or Accessibility.ProtectedAndInternal;
+
+    private static string Modifier(INamedTypeSymbol type) => type.DeclaredAccessibility switch
+    {
+        Accessibility.Private => "private",
+        Accessibility.Protected => "protected",
+        _ => "private protected",
+    };
+
+    /// <summary>
+    /// Gets the types around a value object that its registration goes through, outermost first, or none when the
+    /// registration of the assembly reaches it directly.
+    /// </summary>
+    /// <param name="symbol">The value object.</param>
+    /// <param name="start">Position of the first type of the route among the types around the value object, outermost at 0.</param>
+    /// <returns>
+    /// The type declaring the outermost private or protected type, which the registration of the assembly still reaches,
+    /// then every type down to the one declaring the most deeply nested private or protected type.
+    /// </returns>
+    private static List<string> RegistrationRoute(INamedTypeSymbol symbol, out int start)
+    {
+        var chain = Chain(symbol);
+        var first = chain.FindIndex(IsHidden);
+        var deepest = chain.FindLastIndex(IsHidden);
+
+        // A top-level type is never private or protected, so a hidden type always has a type around it.
+        start = Math.Max(first - 1, 0);
+        return first <= 0
+            ? []
+            : [.. chain.Skip(start).Take(deepest - start).Select(static type => type.ToDisplayString(QualifiedFormat))];
+    }
+
+    /// <summary>
+    /// Writes a type the way <c>typeof</c> names it unbound, every type parameter left out: <c>global::Shop.Outer&lt;&gt;.Code&lt;,&gt;</c>.
+    /// </summary>
+    private static string OpenName(INamedTypeSymbol symbol)
+    {
+        var names = Chain(symbol).Select(static type => type.ToDisplayString(IdentifierFormat)
+            + (type.Arity > 0 ? $"<{new string(',', type.Arity - 1)}>" : string.Empty));
+        var prefix = symbol.ContainingNamespace.IsGlobalNamespace
+            ? "global::"
+            : $"global::{symbol.ContainingNamespace.ToDisplayString(NamespaceFormat)}.";
+
+        return prefix + string.Join(".", names);
+    }
+
+    /// <summary>
+    /// Gets the type parameter list of a type, written as its declaration writes it.
+    /// </summary>
+    private static string TypeParameterList(INamedTypeSymbol symbol, char open = '<', char close = '>')
+        => symbol.Arity == 0
+            ? string.Empty
+            : open + string.Join(", ", symbol.TypeParameters.Select(static parameter => parameter.ToDisplayString(IdentifierFormat))) + close;
 
     /// <summary>
     /// Describes a value object as hidden by its own declaration or by that of a type around it.
@@ -740,7 +939,22 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         Location location,
         List<DiagnosticInfo> diagnostics)
     {
-        if (!members.Contains(symbol.Name))
+        if (members.Contains(symbol.Name))
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.UnsupportedDeclaration,
+                location,
+                symbol.Name,
+                "takes the name of a member the generated code writes on it",
+                "Rename it: C# does not let a member take the name of the type that declares it"));
+
+            return false;
+        }
+
+        // A type parameter shares the declaration space of the type's members, so a member of its name would not
+        // compile either.
+        var parameter = symbol.TypeParameters.FirstOrDefault(candidate => members.Contains(candidate.Name));
+        if (parameter is null)
         {
             return true;
         }
@@ -749,8 +963,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             DiagnosticDescriptors.UnsupportedDeclaration,
             location,
             symbol.Name,
-            "takes the name of a member the generated code writes on it",
-            "Rename it: C# does not let a member take the name of the type that declares it"));
+            $"has a type parameter, '{parameter.Name}', named after a member the generated code writes on it",
+            "Rename the type parameter: C# does not let a member take the name of a type parameter of its type"));
 
         return false;
     }
@@ -773,7 +987,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
                     DiagnosticDescriptors.ContainingTypeMustBePartial, location, symbol.Name, containing.Name));
             }
 
-            containingTypes.Insert(0, $"{DeclarationKeyword(containing)} {containing.ToDisplayString(IdentifierFormat)}");
+            containingTypes.Insert(0, $"{DeclarationKeyword(containing)} {containing.ToDisplayString(IdentifierFormat)}{TypeParameterList(containing)}");
         }
 
         return containingTypes;
@@ -916,6 +1130,13 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         if (SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None)
         {
             return "it is a C# keyword";
+        }
+
+        if (symbol.TypeParameters.Any(parameter => parameter.Name == name || parameter.Name == $"get_{name}"))
+        {
+            return symbol.TypeParameters.Any(parameter => parameter.Name == name)
+                ? "a type parameter of the type already takes that name"
+                : $"a type parameter of the type already takes the name get_{name}, which the property's getter would take";
         }
 
         if (generated.Contains(name!))
@@ -1171,6 +1392,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         { IsRecord: true, TypeKind: TypeKind.Struct } => "partial record struct",
         { IsRecord: true } => "partial record",
         { TypeKind: TypeKind.Struct } => "partial struct",
+        { TypeKind: TypeKind.Interface } => "partial interface",
         _ => "partial class",
     };
 

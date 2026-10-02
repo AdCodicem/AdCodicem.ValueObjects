@@ -50,6 +50,12 @@ value objects needs only `AdCodicem.ValueObjects`, the contracts and the generat
 context all the same, with nothing built by reflection, which trimming and native AOT would not support. Only a value object written by hand has no generated
 converter, and gets a general-purpose one from the factory instead.
 
+A construction of a generic value object, `Reference<PurchaseOrder>`, is serialized as any other value object, by
+either serializer. Its registration registers the generic definition alone, though, so the factory finds the generated
+converter of the construction by reflection, the first time it meets it. Under native AOT, register the constructions
+the context serializes, as [Where a value object can be declared](../authoring-guide.md#where-a-value-object-can-be-declared)
+shows.
+
 ## Explicit options
 
 The same package adds `AddValueObjects()` to `JsonSerializerOptions`, for a composition root that prefers to say
