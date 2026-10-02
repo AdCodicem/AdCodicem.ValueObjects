@@ -244,7 +244,9 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             maxLength = -1;
         }
 
-        var pattern = GetString(arguments, "Pattern");
+        // Unlike a description, a pattern means what its white space says: " " matches any text holding a space. Only
+        // an empty pattern is absent, since it matches every text and checks nothing.
+        var pattern = GetText(arguments, "Pattern") is { Length: > 0 } declaredPattern ? declaredPattern : null;
         if (pattern is not null && !IsValidRegex(pattern, out var regexError))
         {
             diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.InvalidPattern, location, symbol.Name, regexError));

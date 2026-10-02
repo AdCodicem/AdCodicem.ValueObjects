@@ -835,6 +835,30 @@ public sealed class EmissionTests
         run.SingleValueObject.Should().NotContain("Description =").And.NotContain("Example =").And.NotContain("Format =");
     }
 
+    /// <summary>
+    /// A blank pattern is no blank text option: <c>" "</c> is a regular expression, matching any text that holds a
+    /// space, and it validates and is published as written. An empty one matches everything, and is absent.
+    /// </summary>
+    [Fact]
+    public void A_blank_pattern_is_kept_as_written_and_an_empty_one_is_absent()
+    {
+        var run = GeneratorHarness.Run("""
+            #pragma warning disable VO0021 // The deprecated option is what this test declares.
+            [ValueObject<string>(Pattern = " ")]
+            public readonly partial struct Spaced;
+
+            [ValueObject<string>(Pattern = "")]
+            public readonly partial struct Unchecked;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        Generated("Spaced").Should().Contain("Pattern = \" \",").And.Contain("DeclaredPattern.IsMatch(value)");
+        Generated("Unchecked").Should().NotContain("Pattern =").And.NotContain("DeclaredPattern");
+
+        string Generated(string name) => run.Files.Single(file => file.HintName == HintNames.For($"Test.{name}")).Text;
+    }
+
     /// <summary>The supported underlying types, by the name the diagnostics give them.</summary>
     public static TheoryData<string> SupportedUnderlyingTypes => [.. UnderlyingType.SupportedNames];
 
