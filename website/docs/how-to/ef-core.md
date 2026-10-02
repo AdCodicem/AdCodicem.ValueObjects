@@ -42,7 +42,12 @@ For a table another system also writes to, turn validation back on:
 builder.ConfigureValueObjects(strict: true, typeof(Iban).Assembly);
 ```
 
-It then costs one normalization and validation per materialized value.
+It then costs one normalization and validation per materialized value. A value the domain would refuse fails
+the query with the value object's `ValueObjectException`; one it would only normalize comes back normalized.
+On a key, that has a consequence: a row stored as `fr76 3000 …` is tracked under `FR763000…`, which is not the key
+the table holds. An update or a delete of that row through the strict context matches no row, and `SaveChanges`
+throws a `DbUpdateConcurrencyException`, as it does for a row another writer deleted. Normalize such keys in the
+table before relying on strict reads to write them back.
 
 ## One property, differently
 

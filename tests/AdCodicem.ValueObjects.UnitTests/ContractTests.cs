@@ -3,8 +3,9 @@ using AdCodicem.ValueObjects.Testing;
 namespace AdCodicem.ValueObjects.UnitTests;
 
 /// <summary>
-/// Every value object of this assembly is put through the shipped contract kit. This is what a consumer writes
-/// for their own types: a handful of accepted and rejected values, and the rest is checked for them.
+/// Every generated value object of the domain is put through the shipped contract kit, but <c>Floor</c> and
+/// <c>Celsius</c>, whose formatted text does not parse back. This is what a consumer writes for their own types: a
+/// handful of accepted and rejected values, and the rest is checked for them.
 /// </summary>
 public sealed class IbanContract : ValueObjectContract<Iban, string>
 {
@@ -131,4 +132,34 @@ public sealed class LedgerEntryIdContract : ValueObjectContract<LedgerEntryId, s
     protected override IEnumerable<string> AcceptedValues => Minted;
 
     protected override IEnumerable<string> RejectedValues => [string.Empty, "ldg_entry_nope", AccountId.New().Value];
+}
+
+/// <inheritdoc cref="AccountIdContract" />
+public sealed class SubscriptionIdContract : ValueObjectContract<SubscriptionId, string>
+{
+    private static readonly string[] Minted = [SubscriptionId.New().Value, SubscriptionId.New().Value];
+
+    protected override IEnumerable<string> AcceptedValues => Minted;
+
+    protected override IEnumerable<string> RejectedValues => [string.Empty, "sub_nope", AccountId.New().Value];
+}
+
+/// <inheritdoc cref="AccountIdContract" />
+public sealed class EventIdContract : ValueObjectContract<EventId, string>
+{
+    private static readonly string[] Minted = [EventId.New().Value, EventId.New().Value];
+
+    protected override IEnumerable<string> AcceptedValues => Minted;
+
+    protected override IEnumerable<string> RejectedValues => [string.Empty, "evt_nope", AccountId.New().Value];
+}
+
+/// <inheritdoc cref="AccountIdContract" />
+public sealed class RevocableIdContract : ValueObjectContract<RevocableId, string>
+{
+    private static readonly string[] Minted = [RevocableId.New().Value, RevocableId.New().Value];
+
+    protected override IEnumerable<string> AcceptedValues => Minted;
+
+    protected override IEnumerable<string> RejectedValues => [string.Empty, "rvk_nope", AccountId.New().Value];
 }

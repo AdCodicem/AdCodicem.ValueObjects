@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace AdCodicem.ValueObjects.Sample.Api.Domain;
 
 /// <summary>
@@ -21,11 +23,13 @@ public readonly partial struct CustomerId : IValueObjectValidator<Guid>
 /// </summary>
 [ValueObject<string>(
     MaxLength = 254,
-    Pattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$",
     SchemaFormat = "email",
     Example = "ada@example.com")]
-public readonly partial struct EmailAddress : IValueObjectNormalizer<string>
+public readonly partial struct EmailAddress : IValueObjectNormalizer<string>, IValueObjectPatternValidator
 {
+    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+
     public static string NormalizeValue(string value) => value.Trim().ToLowerInvariant();
 }
 
@@ -35,11 +39,13 @@ public readonly partial struct EmailAddress : IValueObjectNormalizer<string>
 [ValueObject<string>(
     MinLength = 15,
     MaxLength = 34,
-    Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
     SchemaFormat = "iban",
     Example = "FR7630006000011234567890189")]
-public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectValidator<string>
+public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectPatternValidator, IValueObjectValidator<string>
 {
+    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+
     /// <summary>Gets the ISO 3166 country code of the account.</summary>
     public string CountryCode => Value[..2];
 

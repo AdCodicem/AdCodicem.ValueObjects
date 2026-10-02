@@ -23,7 +23,7 @@ internal static class TypeConverterEmitter
     {
         var underlyingIsString = underlying.IsString;
 
-        writer.Line($"/// <summary>Converts <see cref=\"{model.TypeName}\"/> to and from text and its underlying value.</summary>");
+        writer.Line($"/// <summary>Converts <see cref=\"{model.Identifier}\"/> to and from text and its underlying value.</summary>");
         writer.Open($"public sealed class ValueTypeConverter : {ComponentModel}.TypeConverter");
 
         writer.Line("/// <inheritdoc />");

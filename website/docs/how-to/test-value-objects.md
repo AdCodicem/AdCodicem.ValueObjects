@@ -46,7 +46,11 @@ Each is an xUnit test in your suite:
 - text survives a round trip, and formatting into a span matches formatting into a string;
 - JSON carries the bare underlying value, and rejects what the type rejects;
 - the type is discoverable at run time;
-- every accepted value respects the declared length limits.
+- every accepted value respects the declared length limits. A type that did not register itself has no declared
+  limits to read, and this check reports itself skipped.
+
+The last two read the registry. They run the generated registration of the type's assembly first, so they do not
+depend on another test having used that assembly, which matters for contracts kept in a test project of their own.
 
 ## Constructing an invalid instance on purpose
 

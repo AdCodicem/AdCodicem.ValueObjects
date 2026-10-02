@@ -1,4 +1,3 @@
-using System;
 using System.Text;
 
 namespace AdCodicem.ValueObjects.Generators.Internal;
@@ -10,12 +9,10 @@ internal sealed class CodeWriter
 {
     private readonly StringBuilder _builder = new(capacity: 8 * 1024);
     private int _indent;
-    private bool _atLineStart = true;
 
     public CodeWriter Line()
     {
         _builder.Append('\n');
-        _atLineStart = true;
         return this;
     }
 
@@ -28,9 +25,7 @@ internal sealed class CodeWriter
             var end = text.IndexOf('\n', start);
             var segment = end < 0 ? text.Substring(start) : text.Substring(start, end - start).TrimEnd('\r');
 
-            WriteIndent();
-            _builder.Append(segment).Append('\n');
-            _atLineStart = true;
+            _builder.Append(' ', _indent * 4).Append(segment).Append('\n');
 
             if (end < 0)
             {
@@ -60,12 +55,6 @@ internal sealed class CodeWriter
         return this;
     }
 
-    public IDisposable Block(string text)
-    {
-        Open(text);
-        return new Closer(this);
-    }
-
     public CodeWriter Indent()
     {
         _indent++;
@@ -79,24 +68,4 @@ internal sealed class CodeWriter
     }
 
     public override string ToString() => _builder.ToString();
-
-    private void WriteIndent()
-    {
-        if (!_atLineStart)
-        {
-            return;
-        }
-
-        _builder.Append(' ', _indent * 4);
-        _atLineStart = false;
-    }
-
-    private sealed class Closer : IDisposable
-    {
-        private readonly CodeWriter _writer;
-
-        public Closer(CodeWriter writer) => _writer = writer;
-
-        public void Dispose() => _writer.Close();
-    }
 }

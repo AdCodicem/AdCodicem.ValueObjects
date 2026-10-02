@@ -57,6 +57,18 @@ public sealed class EntityIdAttribute : Attribute
     public IdGranularity Granularity { get; set; } = IdGranularity.Hour;
 
     /// <summary>
+    /// Gets or sets a value indicating whether the analyzer tolerates <c>default</c> and parameterless construction.
+    /// </summary>
+    /// <remarks>
+    /// Those expressions produce an identifier that never went through validation: its <c>Value</c> is empty and
+    /// its <c>IsDefault</c> is <see langword="true"/>. They are reported as errors by the analyzers shipped with
+    /// <c>AdCodicem.ValueObjects</c> unless this is set, exactly as for
+    /// <see cref="Annotations.ValueObjectAttribute{TValue}.AllowDefault"/>. An identifier that may be missing is a
+    /// nullable one, so this is for the rare type whose default state is meaningful to the code holding it.
+    /// </remarks>
+    public bool AllowDefault { get; set; }
+
+    /// <summary>
     /// Gets or sets the description surfaced in the OpenAPI schema.
     /// </summary>
     /// <remarks>Defaults to the XML documentation summary of the declaring type when it has one.</remarks>

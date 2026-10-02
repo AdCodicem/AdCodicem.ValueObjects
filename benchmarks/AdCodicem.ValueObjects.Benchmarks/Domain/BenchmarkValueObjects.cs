@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 
 namespace AdCodicem.ValueObjects.Benchmarks.Domain;
 
@@ -8,10 +9,13 @@ namespace AdCodicem.ValueObjects.Benchmarks.Domain;
 [ValueObject<string>(
     MinLength = 15,
     MaxLength = 34,
-    Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
     ImplicitConversionToValue = true)]
-public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectValidator<string>
+public readonly partial struct Iban
+    : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectPatternValidator, IValueObjectValidator<string>
 {
+    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+
     public static string NormalizeValue(string value) => Normalization.Strip(value.AsSpan());
 
     /// <summary>The span overload the generator routes parsing and JSON reading through.</summary>
@@ -52,6 +56,73 @@ public readonly partial struct CountryCode : IValueObjectNormalizer<string>
 {
     public static string NormalizeValue(string value) => value.ToUpperInvariant();
 }
+
+/// <summary>
+/// A basic bank account number with a masked format, written by a span formatter.
+/// </summary>
+[ValueObject<string>(MinLength = 23, MaxLength = 23)]
+public readonly partial struct Bban : IValueObjectFormatter<string>
+{
+    public static bool TryFormatValue(
+        in string value,
+        Span<char> destination,
+        out int charsWritten,
+        ReadOnlySpan<char> format,
+        IFormatProvider? provider)
+    {
+        _ = provider;
+
+        if (destination.Length < value.Length)
+        {
+            charsWritten = 0;
+            return false;
+        }
+
+        value.CopyTo(destination);
+        if (format is "M")
+        {
+            Masking.Mask(destination[..value.Length]);
+        }
+
+        charsWritten = value.Length;
+        return true;
+    }
+}
+
+/// <summary>
+/// The same rule as <see cref="Bban"/>, written by a string formatter instead.
+/// </summary>
+/// <remarks>
+/// The two differ in one thing only: this hook returns a string where <see cref="Bban"/> writes into a span.
+/// </remarks>
+[ValueObject<string>(MinLength = 23, MaxLength = 23)]
+public readonly partial struct StringFormattedBban : IValueObjectStringFormatter<string>
+{
+    public static string FormatValue(in string value, ReadOnlySpan<char> format, IFormatProvider? provider)
+    {
+        _ = provider;
+
+        return format is "M"
+            ? string.Create(value.Length, value, static (destination, text) =>
+            {
+                text.CopyTo(destination);
+                Masking.Mask(destination);
+            })
+            : value;
+    }
+}
+
+/// <summary>
+/// A UTC date and time, formatted and parsed in its round-trip form, kind included.
+/// </summary>
+[ValueObject<DateTime>]
+public readonly partial struct RecordedAt;
+
+/// <summary>
+/// An instant, formatted and parsed in its round-trip form, offset included.
+/// </summary>
+[ValueObject<DateTimeOffset>]
+public readonly partial struct OccurredAt;
 
 /// <summary>
 /// The same wrapper written by hand as a struct, with no generated code at all.
@@ -178,4 +249,14 @@ public static class Normalization
 
         return remainder == 1;
     }
+}
+
+/// <summary>
+/// The masking rule, shared by both formatter hooks so that they differ only in how they hand the text back.
+/// </summary>
+public static class Masking
+{
+    /// <summary>Hides every character but the first two and the last four.</summary>
+    /// <param name="text">Text to mask in place.</param>
+    public static void Mask(Span<char> text) => text[2..^4].Fill('*');
 }

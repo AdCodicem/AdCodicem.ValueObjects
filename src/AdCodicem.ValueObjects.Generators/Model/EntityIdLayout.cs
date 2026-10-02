@@ -10,8 +10,9 @@ namespace AdCodicem.ValueObjects.Generators.Model;
 /// <c>netstandard2.0</c> and cannot reference the <c>net10.0</c> runtime package it generates calls into.
 /// </para>
 /// <para>
-/// <c>EntityIdLayoutTests</c> asserts the two agree, so the pair cannot drift apart silently — which matters
-/// because a mismatch would emit a column width the runtime then refuses to fill.
+/// <c>EntityIdTests</c> asserts the two agree, on the length and on which prefixes are valid, so the pair cannot
+/// drift apart silently — which matters because a mismatch would emit a column width the runtime then refuses to
+/// fill.
 /// </para>
 /// </remarks>
 internal static class EntityIdLayout

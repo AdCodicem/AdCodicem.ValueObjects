@@ -13,14 +13,15 @@ namespace AdCodicem.ValueObjects.Annotations;
 /// <para>
 /// The declaring type opts into a rule by implementing the interface that declares it, so the compiler checks
 /// its signature: <see cref="IValueObjectNormalizer{TValue}"/>, <see cref="IValueObjectSpanNormalizer"/>,
-/// <see cref="IValueObjectValidator{TValue}"/>, <see cref="IValueObjectFormatter{TValue}"/> and
-/// <see cref="IValueObjectStringFormatter{TValue}"/>. All are optional, and a rule written without its
-/// interface is reported as <c>VO0011</c> rather than silently ignored.
+/// <see cref="IValueObjectPatternValidator"/>, <see cref="IValueObjectValidator{TValue}"/>,
+/// <see cref="IValueObjectFormatter{TValue}"/> and <see cref="IValueObjectStringFormatter{TValue}"/>. All are
+/// optional, and a rule written without its interface is reported as <c>VO0011</c> rather than silently ignored.
 /// </para>
 /// <para>
-/// Declarative constraints set on this attribute (<see cref="Pattern"/>, <see cref="MinLength"/>,
-/// <see cref="Minimum"/>) are checked before any of those rules run, and also feed the generated OpenAPI
-/// schema, so a rule is stated once and enforced everywhere.
+/// Declarative constraints set on this attribute (<see cref="MinLength"/>, <see cref="MaxLength"/>,
+/// <see cref="Minimum"/>), like the pattern of <see cref="IValueObjectPatternValidator"/>, are checked before
+/// <see cref="IValueObjectValidator{TValue}"/> runs, and also feed the generated OpenAPI schema, so a rule is
+/// stated once and enforced everywhere.
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
@@ -75,18 +76,33 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     /// <remarks>
     /// Those expressions produce an instance that never went through validation. They are reported as errors by
     /// the analyzers shipped with <c>AdCodicem.ValueObjects</c> unless this is set, which is occasionally needed
-    /// for a value object whose default state is meaningful, such as a sequence number starting at zero.
+    /// for a value object whose default state is meaningful, such as a sequence number starting at zero. They are
+    /// reported where <c>default</c> or <c>new</c> is written: a parameter defaulting to <c>default</c> on its
+    /// declaration, not at each call that leaves the argument out.
     /// </remarks>
     public bool AllowDefault { get; set; }
 
     /// <summary>
-    /// Gets or sets a regular expression the normalized value must match.
+    /// Gets or sets a regular expression the normalized value must match. Deprecated: implement
+    /// <see cref="IValueObjectPatternValidator"/> instead.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Compiled once into a static <c>Regex</c> with <c>RegexOptions.Compiled</c>: one source generator cannot
-    /// see another's output, so <c>[GeneratedRegex]</c> is not reachable from emitted code. Also emitted as the
+    /// see another's output, so <c>[GeneratedRegex]</c> is not reachable from emitted code. Native AOT cannot compile
+    /// a regular expression at run time and interprets it, about twice as slowly. Also emitted as the
     /// <c>pattern</c> keyword of the OpenAPI schema.
+    /// </para>
+    /// <para>
+    /// <see cref="IValueObjectPatternValidator"/> takes a <c>[GeneratedRegex]</c> the author writes, which the regex
+    /// generator compiles. Setting both is <c>VO0022</c>. This option is reported as <c>VO0021</c> and will be
+    /// removed in the next major version.
+    /// </para>
     /// </remarks>
+    [Obsolete(
+        "Implement IValueObjectPatternValidator with a [GeneratedRegex] partial property instead. Pattern compiles its "
+        + "regular expression at run time, which native AOT interprets, and will be removed in the next major version.",
+        DiagnosticId = "VO0021")]
     [StringSyntax(StringSyntaxAttribute.Regex)]
     public string? Pattern { get; set; }
 
@@ -107,17 +123,31 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     public int MaxLength { get; set; } = -1;
 
     /// <summary>
-    /// Gets or sets the inclusive lower bound, written in invariant culture.
+    /// Gets or sets the inclusive lower bound, written as text in the one form of the underlying type.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Expressed as text so that <see cref="decimal"/>, <see cref="DateOnly"/> or <see cref="TimeSpan"/> bounds
-    /// keep full precision; attribute arguments cannot carry those types. Parsed at compile time and reported
-    /// as a diagnostic when malformed. Also emitted as the <c>minimum</c> OpenAPI keyword.
+    /// keep full precision; attribute arguments cannot carry those types. Each type reads one form, with no white
+    /// space around it and nothing taken from the culture or the time zone of the build machine: digits, with
+    /// <c>-</c> in front of a negative integer; a <see cref="decimal"/> with an optional fraction after
+    /// <c>.</c>; a <see cref="double"/> or a <see cref="float"/> with an optional exponent as well, finite, and zero
+    /// only when written as zero; one character; <c>yyyy-MM-dd</c>; <c>HH:mm</c>, <c>HH:mm:ss</c> or
+    /// <c>HH:mm:ss.fffffff</c>; a <see cref="DateTime"/> as a date, or a date and a time after <c>T</c>, without an
+    /// offset; a <see cref="DateTimeOffset"/> as a date and a time after <c>T</c>, always followed by <c>Z</c>,
+    /// <c>+HH:mm</c> or <c>-HH:mm</c>; and a <see cref="TimeSpan"/> as <c>[-][d.]hh:mm:ss[.fffffff]</c>.
+    /// </para>
+    /// <para>
+    /// Only meaningful for numbers, characters, dates, times and durations: a <see cref="string"/>, a
+    /// <see cref="Guid"/> or a <see cref="bool"/> takes no bound. Parsed at compile time, and reported as a
+    /// diagnostic when written in any other form, outside the type, or on a type that takes none. Also emitted
+    /// as the <c>minimum</c> OpenAPI keyword.
+    /// </para>
     /// </remarks>
     public string? Minimum { get; set; }
 
     /// <summary>
-    /// Gets or sets the inclusive upper bound, written in invariant culture.
+    /// Gets or sets the inclusive upper bound, written as text in the one form of the underlying type.
     /// </summary>
     /// <inheritdoc cref="Minimum" path="/remarks"/>
     public string? Maximum { get; set; }

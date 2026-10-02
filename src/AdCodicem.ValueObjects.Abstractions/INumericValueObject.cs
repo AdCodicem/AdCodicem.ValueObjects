@@ -77,9 +77,14 @@ public interface INumericValueObject<TSelf, TValue> :
     /// </summary>
     /// <param name="values">Values to add up.</param>
     /// <returns>The sum, or the value object built from <c>TValue.Zero</c> for an empty sequence.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="values"/> is <see langword="null"/>.</exception>
+    /// <exception cref="OverflowException">The total overflows an integral underlying type.</exception>
+    /// <exception cref="ValueObjectException">The total is not a valid value for <typeparamref name="TSelf"/>.</exception>
     /// <remarks>
     /// Accumulation happens on the underlying type and the result is validated once, so an intermediate total
-    /// that momentarily leaves the valid range does not throw.
+    /// that momentarily leaves the valid range does not throw. Accumulation is checked, as it is in the
+    /// <c>Sum</c> the generator emits: a total that overflows an integral underlying type throws instead of
+    /// wrapping around.
     /// </remarks>
     static virtual TSelf Sum(IEnumerable<TSelf> values)
     {
@@ -88,7 +93,7 @@ public interface INumericValueObject<TSelf, TValue> :
         var total = TValue.Zero;
         foreach (var value in values)
         {
-            total += value.Value;
+            total = checked(total + value.Value);
         }
 
         return TSelf.Create(total);

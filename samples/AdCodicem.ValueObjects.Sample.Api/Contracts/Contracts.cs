@@ -31,7 +31,11 @@ public sealed record CustomerResponse(CustomerId Id, EmailAddress Email, Country
 /// </summary>
 /// <param name="Iban">Account number.</param>
 /// <param name="Balance">Current balance.</param>
-public sealed record AccountResponse(Iban Iban, Amount Balance);
+public sealed record AccountResponse(Iban Iban, Amount Balance)
+{
+    /// <summary>Gets the country of the account, which its IBAN names: a member derived from the value.</summary>
+    public string Country => Iban.CountryCode;
+}
 
 /// <summary>
 /// A request that carries raw text rather than value objects, as an inbound message from another system would.
@@ -49,7 +53,10 @@ public sealed class ImportAccountRequestValidator : AbstractValidator<ImportAcco
     /// </summary>
     public ImportAccountRequestValidator()
     {
+        // Empty text fails NotEmpty, and the value object's own rule as well: stopping at the first failure reports
+        // the member once.
         RuleFor(request => request.Iban)
+            .Cascade(CascadeMode.Stop)
             .NotEmpty()
             .MustParseAs(typeof(Iban));
     }

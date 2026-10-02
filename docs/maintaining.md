@@ -30,8 +30,12 @@ since the snapshot is on `main` by then.
 
 The GitHub Release ends with a table linking each package to its version page on nuget.org, and carries the
 `.nupkg` and `.snupkg` files as assets, signed by a SLSA build provenance attestation that the **attest
-provenance** job adds once the release exists (`AdCodicem.ValueObjects.<version>.sigstore.json`). If that job
-fails, use **Re-run failed jobs**: dispatching the release again would find nothing to release and skip it. The
+provenance** job adds (`AdCodicem.ValueObjects.<version>.sigstore.json`). Releases are immutable on this
+repository, and a published release refuses any new asset, so semantic-release only creates a **draft**
+(`draftRelease` in `.releaserc.json`): the attest provenance job attaches the bundle to it and then publishes it.
+Until that job succeeds, the release exists only as a draft, even though nuget.org already has the packages. If it
+fails, use **Re-run failed jobs**: dispatching the release again would find nothing to release and skip it. Do not
+publish the draft by hand either, or the release freezes without its bundle. The
 table is not written by hand: `.github/scripts/package-ids.sh` reads every packable project under `src/` before
 semantic-release starts, and `release-pack.sh` fails the prepare step, before anything is pushed, if that list does
 not match the packages it built. The links can answer 404 for a few minutes after the release, until nuget.org has
@@ -48,6 +52,7 @@ to `CHANGELOG.md` for a preview, which has no release of its own (`src/Directory
 | Discussions | Settings → General → Features | `.github/DISCUSSION_TEMPLATE/q-a.yml` and the issue-template link to Discussions go nowhere. |
 | Pages source: GitHub Actions | Settings → Pages | `deploy-docs.yml` uploads an artifact that is never served. |
 | `github-pages` environment limited to `main` (the default) | Settings → Environments | Nothing breaks, but a `deploy docs` dispatched from another branch could replace the live site. Every deployment this repository makes runs from `main`: `ci.yml` on push, `release.yml` dispatched there. |
+| Immutable releases | Settings → General → Releases | Nothing breaks, but release assets and tags could be altered after publication. With it on, a published release takes no new asset, which is why `release.yml` publishes a draft only after the attest provenance job has attached its bundle; turning it off does not require undoing that. |
 | Code scanning: **default setup**, left enabled | Settings → Code security → Code scanning | This repository uses CodeQL's default setup. There is deliberately no `codeql.yml`: an advanced configuration cannot upload its results while default setup is on — GitHub rejects the SARIF with *"CodeQL analyses from advanced configurations cannot be processed when the default setup is enabled"*. Only add a workflow if you first disable default setup, and only if you need something it cannot do (custom query packs, or a manual build for a solution autobuild cannot handle). |
 | GitHub Sponsors | Account settings | `.github/FUNDING.yml` has no effect. |
 
@@ -97,7 +102,7 @@ none, so the score climbs as new releases replace them rather than all at once.
 | **`nuget` environment** — no protection rules | Settings → Environments | `ci.yml`'s preview job targets it. Adding a required reviewer here would gate every merge's preview too, not just stable releases -- use `nuget-stable` for that instead. |
 | **`nuget-stable` environment** — required reviewer(s) | Settings → Environments | `release.yml`'s release job targets it. This is the approval gate: `workflow_dispatch` starts the job, but it waits for a reviewer before the OIDC exchange and `npx semantic-release` run. |
 | `RELEASE_APP_CLIENT_ID` (variable) and `RELEASE_APP_PRIVATE_KEY` (secret) on `nuget-stable` | Settings → Environments → `nuget-stable` | `release.yml`, to push the release commit and tag past the ruleset on `main` as a GitHub App. See [Repository settings](#github-settings) for creating the App. |
-| `CODECOV_TOKEN` | codecov.io → link the repository, then Settings → Secrets → Actions | The coverage upload in `ci.yml`. It is set to `fail_ci_if_error: false`, so without the token CI stays green and coverage is simply missing. |
+| `CODECOV_TOKEN` | codecov.io → link the repository, then Settings → Secrets → Actions | The coverage upload in `ci.yml`. A public repository uploads without it — CI run 128 logged `Token length: 0` and the report still arrived —, so the secret is read only if it exists, which a private repository, or Codecov refusing tokenless uploads, would need. `fail_ci_if_error: false` keeps CI green when an upload is refused. Codecov posts `codecov/patch` and `codecov/project` on each pull request, against the floors in `codecov.yml` ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
 
 The trusted publisher has to name **both** workflows: `ci.yml` pushes previews on every merge, `release.yml`
 pushes the stable release. Registering only one leaves the other failing at the OIDC exchange. If a trusted

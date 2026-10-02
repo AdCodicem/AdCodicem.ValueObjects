@@ -11,7 +11,8 @@ The measurements behind the [design decisions](./design-decisions.md). Absolute 
 any one machine — the same unchanged code measured 248 ns in one run and 152 ns in another — so read the
 ratios, not the nanoseconds. Allocation figures are deterministic and comparable across runs.
 
-The full tables, including JSON round-tripping and the cost of each creation route, live in
+The full tables, including JSON round-tripping, the cost of each creation route, checking a pattern, formatting
+hooks and dates, live in
 [`benchmarks/README.md`](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/benchmarks/README.md)
 in the repository, alongside the exact hardware and BenchmarkDotNet version each run used. Run them yourself
 with:
@@ -70,3 +71,16 @@ primitives allocates, byte for byte — the JSON reader copies text into a stack
 directly. It costs about 1.7x the primitive version in *time*, and that is the validation, not the wrapper:
 every field is normalized and checked on the way in. Buying guaranteed-valid values at the boundary for a few
 hundred nanoseconds is the trade the whole library exists to make.
+
+## Checking a pattern under native AOT
+
+| `TryCreate`, native AOT | `Pattern` option | Pattern hook | By hand |
+| ----------------------- | ---------------: | -----------: | ------: |
+| IBAN                    |         290.5 ns |     213.3 ns | 181.1 ns |
+| Five-digit postal code  |          72.4 ns |      37.2 ns |   3.2 ns |
+
+The deprecated `Pattern` option compiles its regular expression at run time, which native AOT cannot do: there the
+expression is interpreted. The [pattern hook](./authoring-guide.md#a-pattern) takes a `[GeneratedRegex]` compiled
+with the type, and halves what the expression costs. Under the JIT, which compiles both, the difference is a few
+nanoseconds. A shape checked by hand in a validator is cheaper still, by 1.6 to 12 times; the hook is the one that
+also publishes the rule to the OpenAPI schema.

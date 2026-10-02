@@ -126,6 +126,18 @@ public class CreationTests
     }
 
     [Fact]
+    public void A_floating_point_bound_rejects_NaN()
+    {
+        // NaN compares false with everything, so a bound that only asks whether a value is below its minimum
+        // would let NaN through as a valid latitude.
+        Latitude.TryCreate(double.NaN, out _, out var latitude).Should().BeFalse();
+        Ratio.TryCreate(float.NaN, out _, out var ratio).Should().BeFalse();
+
+        latitude.ErrorCode.Should().Be(ValueObjectErrorCodes.OutOfRange);
+        ratio.ErrorCode.Should().Be(ValueObjectErrorCodes.OutOfRange);
+    }
+
+    [Fact]
     public void A_decimal_value_object_normalizes_its_own_precision()
     {
         Amount.Create(10.005m).Value.Should().Be(10.00m);

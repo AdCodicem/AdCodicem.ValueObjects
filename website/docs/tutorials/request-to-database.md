@@ -37,9 +37,12 @@ public readonly partial struct CustomerId : IValueObjectValidator<Guid>
             : ValidationResult.Success;
 }
 
-[ValueObject<string>(MaxLength = 254, Pattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$", SchemaFormat = "email")]
-public readonly partial struct EmailAddress : IValueObjectNormalizer<string>
+[ValueObject<string>(MaxLength = 254, SchemaFormat = "email")]
+public readonly partial struct EmailAddress : IValueObjectNormalizer<string>, IValueObjectPatternValidator
 {
+    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+
     public static string NormalizeValue(string value) => value.Trim().ToLowerInvariant();
 }
 
@@ -55,6 +58,8 @@ public readonly partial struct CountryCode : IValueObjectNormalizer<string>
 
 `CustomerId.New()` is a member of your own, next to the generated ones. `CreateUnchecked` is legitimate there
 because the application produced the value itself; it never is for input that comes from outside.
+`EmailAddress` declares its format through `IValueObjectPatternValidator`: the regex source generator compiles
+the `[GeneratedRegex]`, so its file needs `using System.Text.RegularExpressions;`.
 
 The entity and the contracts use the types directly, with no `string` in sight:
 
