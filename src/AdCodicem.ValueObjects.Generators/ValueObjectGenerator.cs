@@ -33,6 +33,18 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// </summary>
     private const string HookNamespace = "AdCodicem.ValueObjects";
 
+    /// <summary>Metadata name of the pattern hook, which is not generic: a pattern only applies to strings.</summary>
+    private const string PatternHook = "IValueObjectPatternValidator";
+
+    private const string GeneratedRegexAttributeName = "System.Text.RegularExpressions.GeneratedRegexAttribute";
+
+    /// <summary>
+    /// The <c>RegexOptions</c> that change what a pattern matches, which its text, the OpenAPI pattern, cannot carry:
+    /// IgnoreCase, Multiline, Singleline and IgnorePatternWhitespace.
+    /// </summary>
+    private static readonly (int Flag, string Name)[] UnpublishedRegexOptions =
+        [(1, "IgnoreCase"), (2, "Multiline"), (16, "Singleline"), (32, "IgnorePatternWhitespace")];
+
     private static readonly SymbolDisplayFormat QualifiedFormat = SymbolDisplayFormat.FullyQualifiedFormat
         .WithMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
 
@@ -185,6 +197,16 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             pattern = null;
         }
 
+        // Read before the names are reserved: the hook replaces the option, whose compiled field is then never
+        // written. Declaring both is an error, after which the hook wins and the type still generates, so that every
+        // use of it does not fail as well.
+        var patternHook = ReadPatternHook(symbol, underlying, location, diagnostics);
+        if (patternHook.Active && pattern is not null)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.PatternDeclaredTwice, location, symbol.Name));
+            pattern = null;
+        }
+
         // Read as written, white space included: a bound is held to the one form of its type, and an empty or a
         // blank one is no more that form than any other text.
         var minimumText = GetText(arguments, "Minimum");
@@ -260,6 +282,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             IsClosedValueSet = isClosed,
             AllowEmpty = GetBool(arguments, "AllowEmpty"),
             Pattern = pattern,
+            HasPatternHook = patternHook.Active,
+            PatternHookText = patternHook.Text,
             MinLength = minLength,
             MaxLength = maxLength,
             MinimumLiteral = minimumLiteral,
@@ -336,6 +360,14 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         {
             diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.EntityIdOwnsNormalization, location, symbol.Name));
+
+            return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
+        }
+
+        // Its format, too: a pattern would run beside the generated check and publish a second OpenAPI pattern.
+        if (ImplementsHook(symbol, PatternHook))
+        {
+            diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.EntityIdOwnsPattern, location, symbol.Name));
 
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
@@ -908,6 +940,90 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// <returns><see langword="true"/> when the span hook formats the value.</returns>
     private static bool FormatsThroughSpanHook(INamedTypeSymbol symbol)
         => ImplementsHook(symbol, "IValueObjectFormatter`1") && !ImplementsHook(symbol, "IValueObjectStringFormatter`1");
+
+    /// <summary>
+    /// Reads the pattern hook of a value object: whether it applies, and the text of its pattern for the schema.
+    /// </summary>
+    /// <remarks>
+    /// The text is read off the <c>[GeneratedRegex]</c> attribute of the <c>Pattern</c> property, which the author
+    /// wrote and this generator therefore sees, so the schema publishes it as a literal and no regular expression is
+    /// built to describe the type. The same attribute tells which options the published text would drop, and whether
+    /// a match can run unbounded. A pattern written without the attribute is asked for its text at run time instead.
+    /// </remarks>
+    /// <param name="symbol">The value object.</param>
+    /// <param name="underlying">Its underlying type, which must be a string for the hook to apply.</param>
+    /// <param name="location">Where to report a hook on another type.</param>
+    /// <param name="diagnostics">Sink.</param>
+    /// <returns>Whether the hook applies, and the text of its pattern when the attribute gives it.</returns>
+    private static (bool Active, string? Text) ReadPatternHook(
+        INamedTypeSymbol symbol,
+        UnderlyingType underlying,
+        Location location,
+        List<DiagnosticInfo> diagnostics)
+    {
+        if (!ImplementsHook(symbol, PatternHook))
+        {
+            return (false, null);
+        }
+
+        // The interface is not generic, so the compiler accepts it on any value object: the rule would be declared
+        // and never run, which is the silent failure the hook interfaces exist to prevent.
+        if (!underlying.IsString)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.PatternRequiresString, location, symbol.Name, underlying.Keyword));
+
+            return (false, null);
+        }
+
+        var generated = symbol.GetMembers("Pattern")
+            .OfType<IPropertySymbol>()
+            .Where(property => property.IsStatic)
+            .SelectMany(property => property.GetAttributes())
+            .FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == GeneratedRegexAttributeName);
+
+        if (generated?.AttributeConstructor is not { } constructor)
+        {
+            return (true, null);
+        }
+
+        string? text = null;
+        var options = 0;
+        int? timeout = null;
+        for (var index = 0; index < generated.ConstructorArguments.Length && index < constructor.Parameters.Length; index++)
+        {
+            var argument = generated.ConstructorArguments[index].Value;
+            switch (constructor.Parameters[index].Name)
+            {
+                case "pattern":
+                    text = argument as string;
+                    break;
+                case "options":
+                    options = argument is int flags ? flags : 0;
+                    break;
+                case "matchTimeoutMilliseconds":
+                    timeout = argument as int?;
+                    break;
+            }
+        }
+
+        var attributeLocation = generated.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? location;
+
+        var unpublished = UnpublishedRegexOptions.Where(option => (options & option.Flag) != 0).Select(option => option.Name).ToList();
+        if (unpublished.Count > 0)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.PatternOptionsNotPublished, attributeLocation, symbol.Name, string.Join(", ", unpublished)));
+        }
+
+        // Timeout.Infinite, -1, is how the attribute spells "no timeout" when it is written out.
+        if (timeout is null or -1)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.PatternWithoutTimeout, attributeLocation, symbol.Name));
+        }
+
+        return (true, text);
+    }
 
     private static string DeclarationKeyword(INamedTypeSymbol symbol) => symbol switch
     {

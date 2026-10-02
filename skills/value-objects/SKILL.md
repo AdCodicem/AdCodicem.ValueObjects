@@ -67,6 +67,7 @@ does not look at member names, and `VO0011` is only a warning.
 | --- | --- |
 | `IValueObjectNormalizer<TValue>` | `public static TValue NormalizeValue(TValue value)` |
 | `IValueObjectSpanNormalizer` | `public static string NormalizeValue(ReadOnlySpan<char> value)` — `string` only, alongside the above |
+| `IValueObjectPatternValidator` | `[GeneratedRegex("…", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }` — `string` only; runs after `MinLength`/`MaxLength`, rejects as `value_object.invalid_format`, and its text is the OpenAPI `pattern` |
 | `IValueObjectValidator<TValue>` | `public static ValidationResult ValidateValue(in TValue value)` |
 | `IValueObjectFormatter<TValue>` | `public static bool TryFormatValue(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 | `IValueObjectStringFormatter<TValue>` | `public static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |

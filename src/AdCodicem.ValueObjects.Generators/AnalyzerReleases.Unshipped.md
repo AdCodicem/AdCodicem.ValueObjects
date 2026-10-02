@@ -24,3 +24,8 @@ VO0017 | AdCodicem.ValueObjects | Error | Entity identifier owns its normalizati
 VO0018 | AdCodicem.ValueObjects | Error | Conflicting value object annotations
 VO0019 | AdCodicem.ValueObjects | Error | Unsupported value object declaration
 VO0020 | AdCodicem.ValueObjects | Error | Option set to an undefined enum value
+VO0022 | AdCodicem.ValueObjects | Error | Pattern declared twice
+VO0023 | AdCodicem.ValueObjects | Error | A pattern only applies to strings
+VO0024 | AdCodicem.ValueObjects | Error | Entity identifier owns its format
+VO0025 | AdCodicem.ValueObjects | Warning | Pattern options are not published
+VO0026 | AdCodicem.ValueObjects | Warning | Pattern has no match timeout
