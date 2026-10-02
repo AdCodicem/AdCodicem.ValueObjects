@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -39,28 +38,38 @@ public sealed class ValueObjectJsonConverter<TSelf, TValue> : JsonConverter<TSel
         => JsonSerializer.Serialize(writer, value.Value, options);
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The key is read as System.Text.Json reads a key of <typeparamref name="TValue"/>, then validated through
+    /// <c>TryCreate</c>, as a value is: the reverse of <see cref="WriteAsPropertyName"/>, whatever text the value
+    /// object's own parser reads. A key that is not one of <typeparamref name="TValue"/> is refused as it is in a
+    /// dictionary of its own, and a key the value object rejects with a <see cref="JsonException"/> naming the rule.
+    /// </remarks>
     public override TSelf ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        if (!TSelf.TryParse(reader.GetString(), CultureInfo.InvariantCulture, out var result))
+        var value = GetValueConverter(options).ReadAsPropertyName(ref reader, typeof(TValue), options);
+
+        if (!TSelf.TryCreate(value, out var result, out var validation))
         {
-            throw new JsonException($"The dictionary key is not a valid {typeof(TSelf).Name}.");
+            throw new JsonException($"The dictionary key is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}");
         }
 
         return result;
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The key is the underlying value, written as System.Text.Json writes a key of <typeparamref name="TValue"/>:
+    /// the form the value itself travels in. The value object's own formatting, which may print something its
+    /// parser does not read, never reaches the wire. An underlying type System.Text.Json cannot write as a key is
+    /// refused as it is in a dictionary of its own, with a <see cref="NotSupportedException"/>.
+    /// </remarks>
     public override void WriteAsPropertyName(Utf8JsonWriter writer, TSelf value, JsonSerializerOptions options)
+        => GetValueConverter(options).WriteAsPropertyName(writer, value.Value!, options);
+
+    private static JsonConverter<TValue> GetValueConverter(JsonSerializerOptions options)
     {
-        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(options);
 
-        Span<char> buffer = stackalloc char[64];
-        if (value.TryFormat(buffer, out var written, default, CultureInfo.InvariantCulture))
-        {
-            writer.WritePropertyName(buffer[..written]);
-            return;
-        }
-
-        writer.WritePropertyName(value.ToString(null, CultureInfo.InvariantCulture));
+        return (JsonConverter<TValue>)options.GetConverter(typeof(TValue));
     }
 }

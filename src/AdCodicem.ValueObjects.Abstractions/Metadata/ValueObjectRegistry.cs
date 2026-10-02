@@ -73,7 +73,10 @@ public static class ValueObjectRegistry
     /// </summary>
     /// <param name="type">Value object type, possibly nullable.</param>
     /// <param name="descriptor">The descriptor when the type is a value object.</param>
-    /// <returns><see langword="true"/> when <paramref name="type"/> is a value object.</returns>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="type"/> is a value object, as <see cref="IsValueObject"/> defines
+    /// one.
+    /// </returns>
     [RequiresDynamicCode("Building a descriptor for an unregistered value object instantiates a generic method at run time.")]
     [RequiresUnreferencedCode("Building a descriptor for an unregistered value object inspects its interfaces and attributes.")]
     public static bool TryResolve(Type type, [NotNullWhen(true)] out ValueObjectDescriptor? descriptor)
@@ -86,7 +89,7 @@ public static class ValueObjectRegistry
             return true;
         }
 
-        if (!IsValueObject(valueObjectType))
+        if (!TryGetSelfDescribedValueType(valueObjectType, out var valueType))
         {
             descriptor = null;
             return false;
@@ -99,49 +102,54 @@ public static class ValueObjectRegistry
             return true;
         }
 
-        descriptor = Descriptors.GetOrAdd(valueObjectType, static key => BuildByReflection(key));
+        descriptor = Descriptors.GetOrAdd(
+            valueObjectType,
+            static (key, underlying) => BuildByReflection(key, underlying),
+            valueType);
         return true;
     }
 
     /// <summary>
-    /// Determines whether a type is a value object.
+    /// Determines whether a type is a value object: a struct implementing <see cref="IValueObject{TSelf, TValue}"/>
+    /// over itself, the one shape a descriptor, a converter or a model binder can be built for.
     /// </summary>
     /// <param name="type">Type to test, possibly nullable.</param>
-    /// <returns><see langword="true"/> when the type implements <see cref="IValueObject"/>.</returns>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="type"/>, or the type it makes nullable, is a value object, which is
+    /// exactly when <see cref="TryResolve"/> describes it. An interface, a class, or a struct carrying only the
+    /// <see cref="IValueObject"/> marker or <see cref="IValueObject{TValue}"/> is not one.
+    /// </returns>
+    /// <remarks>
+    /// Answering registers nothing. A registered type is answered from the registry, without reflection.
+    /// </remarks>
     public static bool IsValueObject(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
 
-        return typeof(IValueObject).IsAssignableFrom(Nullable.GetUnderlyingType(type) ?? type);
+        var valueObjectType = Nullable.GetUnderlyingType(type) ?? type;
+
+        return Descriptors.ContainsKey(valueObjectType) || TryGetSelfDescribedValueType(valueObjectType, out _);
     }
 
     /// <summary>
     /// Gets the underlying value type of a value object.
     /// </summary>
     /// <param name="type">Value object type, possibly nullable.</param>
-    /// <returns>The underlying value type, or <see langword="null"/> when the type is not a value object.</returns>
-    [UnconditionalSuppressMessage(
-        "Trimming",
-        "IL2070:UnrecognizedReflectionPattern",
-        Justification = "The interface list of a value object is preserved: the type is referenced by the caller and its IValueObject implementation is part of its public contract.")]
+    /// <returns>
+    /// The <c>TValue</c> of the <see cref="IValueObject{TSelf, TValue}"/> the type implements over itself, or
+    /// <see langword="null"/> when the type is not a value object as <see cref="IsValueObject"/> defines one — a
+    /// class or a struct implementing only <see cref="IValueObject{TValue}"/> included.
+    /// </returns>
+    /// <remarks>
+    /// Answering registers nothing. A registered type is answered from the registry, without reflection.
+    /// </remarks>
     public static Type? GetUnderlyingType(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
 
         return UnderlyingTypes.GetOrAdd(
             Nullable.GetUnderlyingType(type) ?? type,
-            static key =>
-            {
-                foreach (var candidate in key.GetInterfaces())
-                {
-                    if (candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IValueObject<>))
-                    {
-                        return candidate.GetGenericArguments()[0];
-                    }
-                }
-
-                return null;
-            });
+            static key => TryGetSelfDescribedValueType(key, out var valueType) ? valueType : null);
     }
 
     /// <summary>
@@ -168,14 +176,42 @@ public static class ValueObjectRegistry
             ?.Invoke(null, null);
     }
 
+    /// <summary>
+    /// Finds the underlying type of a struct implementing <see cref="IValueObject{TSelf, TValue}"/> over itself,
+    /// the only shape <see cref="ValueObjectDescriptor.For{TSelf, TValue}"/> accepts.
+    /// </summary>
+    /// <param name="type">Candidate type, already unwrapped from <see cref="Nullable{T}"/>.</param>
+    /// <param name="valueType">The underlying type when the candidate qualifies.</param>
+    /// <returns><see langword="true"/> when a descriptor can be built for <paramref name="type"/>.</returns>
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2070:UnrecognizedReflectionPattern",
+        Justification = "The interface list of a value object is preserved: the type is referenced by the caller and its IValueObject implementation is part of its public contract.")]
+    private static bool TryGetSelfDescribedValueType(Type type, [NotNullWhen(true)] out Type? valueType)
+    {
+        // The marker is a cheap filter for the many types a serializer asks about that are not value objects at all.
+        if (type.IsValueType && typeof(IValueObject).IsAssignableFrom(type))
+        {
+            foreach (var candidate in type.GetInterfaces())
+            {
+                if (candidate.IsGenericType
+                    && candidate.GetGenericTypeDefinition() == typeof(IValueObject<,>)
+                    && candidate.GetGenericArguments()[0] == type)
+                {
+                    valueType = candidate.GetGenericArguments()[1];
+                    return true;
+                }
+            }
+        }
+
+        valueType = null;
+        return false;
+    }
+
     [RequiresDynamicCode("Instantiates ValueObjectDescriptor.For<,> for the resolved type arguments.")]
     [RequiresUnreferencedCode("Reads the value object interfaces and annotations of the type.")]
-    private static ValueObjectDescriptor BuildByReflection(Type valueObjectType)
+    private static ValueObjectDescriptor BuildByReflection(Type valueObjectType, Type valueType)
     {
-        var valueType = GetUnderlyingType(valueObjectType)
-                        ?? throw new InvalidOperationException(
-                            $"'{valueObjectType.Name}' implements IValueObject but not IValueObject<TValue>.");
-
         var factory = typeof(ValueObjectDescriptor)
             .GetMethod(nameof(ValueObjectDescriptor.For), BindingFlags.Public | BindingFlags.Static)!
             .MakeGenericMethod(valueObjectType, valueType);
@@ -183,6 +219,13 @@ public static class ValueObjectRegistry
         return (ValueObjectDescriptor)factory.Invoke(null, [ReadSchema(valueObjectType)])!;
     }
 
+    /// <summary>
+    /// The name of the deprecated <c>Pattern</c> option, read by name: naming the obsolete property would report
+    /// <c>VO0021</c> here, and once the property is removed the read finds nothing instead of failing to compile.
+    /// </summary>
+    private const string PatternOption = "Pattern";
+
+    [RequiresDynamicCode("Instantiates the generic reader of IValueObjectPatternValidator for the type.")]
     [RequiresUnreferencedCode("Reads the annotations of the value object type.")]
     private static ValueObjectSchema ReadSchema(Type valueObjectType)
     {
@@ -191,9 +234,12 @@ public static class ValueObjectRegistry
             .FirstOrDefault(candidate => candidate.GetType().IsGenericType
                                          && candidate.GetType().GetGenericTypeDefinition() == typeof(ValueObjectAttribute<>));
 
+        // The pattern hook describes a type with no annotation as well: it is an interface the type implements.
+        var hookPattern = ReadPatternHook(valueObjectType);
+
         if (attribute is null)
         {
-            return ValueObjectSchema.Unconstrained;
+            return hookPattern is null ? ValueObjectSchema.Unconstrained : new ValueObjectSchema { Pattern = hookPattern };
         }
 
         var knownValues = valueObjectType
@@ -205,7 +251,7 @@ public static class ValueObjectRegistry
 
         return new ValueObjectSchema
         {
-            Pattern = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.Pattern)),
+            Pattern = hookPattern ?? ReadString(type, attribute, PatternOption),
             MinLength = NormalizeLength(ReadInt32(type, attribute, nameof(ValueObjectAttribute<object>.MinLength))),
             MaxLength = NormalizeLength(ReadInt32(type, attribute, nameof(ValueObjectAttribute<object>.MaxLength))),
             Minimum = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.Minimum)),
@@ -219,6 +265,29 @@ public static class ValueObjectRegistry
 
         static int? NormalizeLength(int value) => value < 0 ? null : value;
     }
+
+    /// <summary>
+    /// Reads the text of the pattern a type declares through <see cref="IValueObjectPatternValidator"/>, or
+    /// <see langword="null"/> when it implements none.
+    /// </summary>
+    /// <remarks>
+    /// A static abstract member is reachable through a type parameter only, so the read goes through
+    /// <see cref="ValueObjectPattern.Of{TSelf}"/> closed over the type, as generated code does, rather than through a
+    /// property lookup that would miss an explicit implementation.
+    /// </remarks>
+    [RequiresDynamicCode("Instantiates ValueObjectPattern.Of for the type.")]
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2060:MakeGenericMethod",
+        Justification = "ValueObjectPattern.Of has no requirement on its type parameter beyond the interface the check above proves.")]
+    private static string? ReadPatternHook(Type valueObjectType)
+        => typeof(IValueObjectPatternValidator).IsAssignableFrom(valueObjectType)
+            ? typeof(ValueObjectPattern)
+                .GetMethod(nameof(ValueObjectPattern.Of), BindingFlags.Public | BindingFlags.Static)!
+                .MakeGenericMethod(valueObjectType)
+                .Invoke(null, null)?
+                .ToString()
+            : null;
 
     [RequiresUnreferencedCode("Reads a property of the value object annotation.")]
     private static string? ReadString(Type attributeType, object attribute, string propertyName)

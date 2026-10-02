@@ -26,15 +26,19 @@ An email address makes a good first candidate: it has a format, it should not ca
 it is routinely passed around as a bare `string`.
 
 ```csharp
+using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects;
 using AdCodicem.ValueObjects.Annotations;
 
 namespace Shop;
 
-[ValueObject<string>(MaxLength = 254, Pattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
-public readonly partial struct EmailAddress : IValueObjectNormalizer<string>
+[ValueObject<string>(MaxLength = 254)]
+public readonly partial struct EmailAddress : IValueObjectNormalizer<string>, IValueObjectPatternValidator
 {
     public static string NormalizeValue(string value) => value.Trim().ToLowerInvariant();
+
+    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
 }
 ```
 
@@ -44,12 +48,15 @@ Three things make it a value object:
   `readonly struct`, because a value object is a value: [Design decisions](./design-decisions.md) explains why
   neither a class nor a `record struct` is accepted.
 - **`[ValueObject<string>]`** names the underlying type and declares the rules that need no code — here a maximum
-  length and a pattern.
-- **`IValueObjectNormalizer<string>`** declares a rule that does need code. The interface is how the generator
-  finds `NormalizeValue`, and how the compiler checks its signature.
+  length.
+- **The hook interfaces** declare the rules that do need code. The interface is how the generator finds the
+  member, and how the compiler checks its signature. `IValueObjectNormalizer<string>` finds `NormalizeValue`.
+  `IValueObjectPatternValidator` finds `Pattern`, a `[GeneratedRegex]` property that the .NET regex source
+  generator compiles; its text is also the pattern the OpenAPI schema publishes.
 
-The two namespaces are the only ones a declaration needs: `AdCodicem.ValueObjects` for the contracts and hook
-interfaces, `AdCodicem.ValueObjects.Annotations` for the attributes. Most projects add them as global usings.
+Two namespaces are all a declaration needs: `AdCodicem.ValueObjects` for the contracts and hook interfaces,
+`AdCodicem.ValueObjects.Annotations` for the attributes. Most projects add them as global usings. A pattern adds a
+third, `System.Text.RegularExpressions`, which is not among the implicit usings.
 
 ## Use it
 
@@ -65,12 +72,12 @@ EmailAddress.Create("not an email");   // throws ValueObjectException, carrying 
 ```
 
 Every way in — `Create`, `TryCreate`, `Parse`, `TryParse`, JSON deserialization, model binding — runs the same
-steps in the same order: **normalize**, check the declared rules, run your own validator if there is one, then
-assign. So an `EmailAddress` that exists is normalized and valid; no code that receives one has to check it
-again.
+steps in the same order: **normalize**, check the declared rules and the pattern, run your own validator if there
+is one, then assign. So an `EmailAddress` that exists is normalized and valid; no code that receives one has to
+check it again.
 
 `Create` throws, and suits domain code where a rejected value is a bug. `TryCreate` returns the reason instead of
-throwing, and is what every integration uses at a boundary.
+throwing; the integrations go through it, or through `TryParse`, wherever outside input arrives.
 
 ## What the generator wrote
 

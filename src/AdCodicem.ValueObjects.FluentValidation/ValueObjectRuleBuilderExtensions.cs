@@ -22,9 +22,16 @@ public static class ValueObjectRuleBuilderExtensions
     /// <param name="valueObjectType">Value object the text must parse into.</param>
     /// <returns>The rule, so it can be configured further.</returns>
     /// <remarks>
+    /// <para>
+    /// A <see langword="null"/> passes: whether the member is required is <c>NotNull</c>'s or <c>NotEmpty</c>'s to
+    /// say, as everywhere in FluentValidation. Empty text is the value object's to judge, as any text is: a string
+    /// value object refuses it as required unless it allows empty text, and one over another type cannot parse it.
+    /// </para>
+    /// <para>
     /// The value object type is passed as a <see cref="Type"/> rather than a type argument so that
     /// <c>RuleFor(x =&gt; x.Iban).MustParseAs(typeof(Iban))</c> stays readable: C# cannot infer one type argument
     /// while another is given explicitly, and spelling out the validated type at every rule is noise.
+    /// </para>
     /// </remarks>
     public static IRuleBuilderOptions<T, string?> MustParseAs<T>(
         this IRuleBuilder<T, string?> ruleBuilder,
@@ -38,12 +45,7 @@ public static class ValueObjectRuleBuilderExtensions
         return ruleBuilder
             .Must((instance, value, context) =>
             {
-                if (value is null)
-                {
-                    return false;
-                }
-
-                if (descriptor.TryParse(value, CultureInfo.InvariantCulture, out _, out var validation))
+                if (value is null || descriptor.TryParse(value, CultureInfo.InvariantCulture, out _, out var validation))
                 {
                     return true;
                 }
@@ -52,8 +54,7 @@ public static class ValueObjectRuleBuilderExtensions
                 context.AddFailure(BuildFailure(context.PropertyPath, validation));
 
                 return true; // The failure is already reported, with its code attached.
-            })
-            .WithMessage($"'{{PropertyName}}' is not a valid {valueObjectType.Name}.");
+            });
     }
 
     /// <summary>
@@ -64,6 +65,10 @@ public static class ValueObjectRuleBuilderExtensions
     /// <typeparam name="TValue">Underlying value type.</typeparam>
     /// <param name="ruleBuilder">Rule builder for a member holding the underlying value.</param>
     /// <returns>The rule, so it can be configured further.</returns>
+    /// <remarks>
+    /// A <see langword="null"/> passes: whether the member is required is <c>NotNull</c>'s or <c>NotEmpty</c>'s to
+    /// say, as everywhere in FluentValidation.
+    /// </remarks>
     public static IRuleBuilderOptions<T, TValue> MustSatisfy<T, TSelf, TValue>(this IRuleBuilder<T, TValue> ruleBuilder)
         where TSelf : struct, IValueObject<TSelf, TValue>
     {
@@ -72,6 +77,11 @@ public static class ValueObjectRuleBuilderExtensions
         return ruleBuilder
             .Must((instance, value, context) =>
             {
+                if (value is null)
+                {
+                    return true;
+                }
+
                 var normalized = TSelf.Normalize(value);
                 var validation = TSelf.Validate(in normalized);
                 if (validation.IsValid)
@@ -81,9 +91,8 @@ public static class ValueObjectRuleBuilderExtensions
 
                 context.AddFailure(BuildFailure(context.PropertyPath, validation));
 
-                return true;
-            })
-            .WithMessage($"'{{PropertyName}}' is not a valid {typeof(TSelf).Name}.");
+                return true; // The failure is already reported, with its code attached.
+            });
     }
 
     /// <summary>

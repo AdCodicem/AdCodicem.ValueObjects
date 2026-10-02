@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.IO;
 using System.Reflection;
 using AdCodicem.ValueObjects.Generators;
 using AdCodicem.ValueObjects.Identifiers;
@@ -6,6 +7,7 @@ using Basic.Reference.Assemblies;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Text;
 
 namespace AdCodicem.ValueObjects.GeneratorTests.Harness;
 
@@ -21,41 +23,78 @@ public static class GeneratorHarness
 {
     private static readonly ImmutableArray<MetadataReference> References = BuildReferences();
 
+    private static readonly ImmutableArray<MetadataReference> WithJsonPackage =
+        References.Add(MetadataReference.CreateFromFile(typeof(Json.ValueObjectJsonRegistry).Assembly.Location));
+
     /// <summary>
     /// Compiles source, runs the generator, and reports what came out.
     /// </summary>
     /// <param name="source">Source to compile. A namespace and usings are added if absent.</param>
+    /// <param name="documentationMode">
+    /// How documentation comments are processed, in the source and in the generated files alike.
+    /// <see cref="DocumentationMode.Diagnose"/> is what a project producing its documentation file compiles with,
+    /// and the only mode that reports a malformed comment or a broken <c>cref</c>.
+    /// </param>
+    /// <param name="referenceJsonPackage">
+    /// Whether the compilation references AdCodicem.ValueObjects.Json, as a project serializing through a
+    /// source-generated context does. The generator then publishes every converter to the package's registry.
+    /// </param>
     /// <returns>The generated sources and every diagnostic produced.</returns>
-    public static GeneratorRun Run(string source)
+    public static GeneratorRun Run(
+        string source,
+        DocumentationMode documentationMode = DocumentationMode.Parse,
+        bool referenceJsonPackage = false)
     {
-        var compilation = Compile(source);
+        var parseOptions = ParseOptions.WithDocumentationMode(documentationMode);
+        var compilation = Compile(source, parseOptions, referenceJsonPackage ? WithJsonPackage : References);
         var driver = CSharpGeneratorDriver
-            .Create([new ValueObjectGenerator().AsSourceGenerator()], parseOptions: ParseOptions, driverOptions: DriverOptions)
-            .RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics);
+            .Create(Generators, parseOptions: parseOptions, driverOptions: DriverOptions)
+            .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
 
-        var result = driver.GetRunResult().Results.Single();
+        var results = driver.GetRunResult().Results;
+        var result = results.Single(run => run.Generator.GetGeneratorType() == typeof(ValueObjectGenerator));
+
+        // What the regex generator reports, an invalid pattern first among it, fails a snippet as a compiler error
+        // would: the generated files and diagnostics this run exposes stay those of the generator under test.
+        var others = results.Where(run => run.Generator.GetGeneratorType() != typeof(ValueObjectGenerator))
+            .SelectMany(run => run.Diagnostics);
 
         return new GeneratorRun(
             [.. result.GeneratedSources.Select(generated => new GeneratedFile(
                 generated.HintName,
                 generated.SourceText.ToString()))],
-            [.. generatorDiagnostics],
-            [.. output.GetDiagnostics().Where(IsRelevant)],
-            driver);
+            [.. result.Diagnostics],
+            [.. output.GetDiagnostics().Concat(others).Where(IsRelevant)],
+            driver,
+            compilation.SyntaxTrees.Single().GetText(TestContext.Current.CancellationToken));
     }
+
+    /// <summary>
+    /// Gets the framework alone, which is what a project that does not reference the library compiles against.
+    /// </summary>
+    public static ImmutableArray<MetadataReference> FrameworkReferences { get; } = [.. Net100.References.All];
+
+    /// <summary>
+    /// Gets what every snippet compiles against unless told otherwise: the framework, the contracts and the
+    /// identifiers.
+    /// </summary>
+    public static ImmutableArray<MetadataReference> LibraryReferences => References;
 
     /// <summary>
     /// Compiles source, runs the generator, then runs an analyzer over the result.
     /// </summary>
     /// <typeparam name="TAnalyzer">Analyzer to run.</typeparam>
     /// <param name="source">Source to compile.</param>
+    /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
     /// <returns>The analyzer's diagnostics.</returns>
-    public static async Task<ImmutableArray<Diagnostic>> RunAnalyzerAsync<TAnalyzer>(string source)
+    public static async Task<ImmutableArray<Diagnostic>> RunAnalyzerAsync<TAnalyzer>(
+        string source,
+        ImmutableArray<MetadataReference>? references = null)
         where TAnalyzer : DiagnosticAnalyzer, new()
     {
-        var compilation = Compile(source);
+        var compilation = Compile(source, references: references);
         var updated = CSharpGeneratorDriver
-            .Create([new ValueObjectGenerator().AsSourceGenerator()], parseOptions: ParseOptions)
+            .Create(Generators, parseOptions: ParseOptions)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
 
         _ = updated;
@@ -63,6 +102,28 @@ public static class GeneratorHarness
         var withAnalyzers = output.WithAnalyzers([new TAnalyzer()]);
 
         return await withAnalyzers.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// Compiles source, runs the generator, and emits the result as the image of an assembly another snippet can
+    /// reference, so that what it declares reaches that snippet as metadata rather than as source.
+    /// </summary>
+    /// <param name="source">Source to compile. A namespace and usings are added if absent.</param>
+    /// <param name="assemblyName">Name of the assembly, distinct from the snippet that will reference it.</param>
+    /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
+    /// <returns>The bytes of the assembly.</returns>
+    public static byte[] Emit(string source, string assemblyName, ImmutableArray<MetadataReference>? references = null)
+    {
+        CSharpGeneratorDriver
+            .Create(Generators, parseOptions: ParseOptions)
+            .RunGeneratorsAndUpdateCompilation(Compile(source, references: references, assemblyName: assemblyName), out var output, out _);
+
+        using var image = new MemoryStream();
+        var emitted = output.Emit(image, cancellationToken: TestContext.Current.CancellationToken);
+
+        emitted.Diagnostics.Where(IsRelevant).Should().BeEmpty("the assembly a snippet references must compile");
+
+        return image.ToArray();
     }
 
     /// <summary>
@@ -95,14 +156,38 @@ public static class GeneratorHarness
     private static readonly CSharpParseOptions ParseOptions =
         new(LanguageVersion.Preview);
 
+    /// <summary>
+    /// The generator under test, and the framework's regex generator a consumer's compilation runs beside it.
+    /// </summary>
+    /// <remarks>
+    /// A value object implements <c>IValueObjectPatternValidator</c> with a <c>[GeneratedRegex]</c> partial property,
+    /// which only compiles once the regex generator has written its other half. Without it every such snippet fails
+    /// with CS9248, so a failure to load it fails here, loudly, rather than as that.
+    /// </remarks>
+    private static readonly ImmutableArray<ISourceGenerator> Generators =
+        [new ValueObjectGenerator().AsSourceGenerator(), LoadRegexGenerator()];
+
+    private static ISourceGenerator LoadRegexGenerator()
+    {
+        // Copied next to the tests by the CopyRegexGenerator target, from the targeting pack the SDK resolved.
+        var path = Path.Combine(AppContext.BaseDirectory, "regex-generator", "System.Text.RegularExpressions.Generator.dll");
+        var type = Assembly.LoadFrom(path).GetType("System.Text.RegularExpressions.Generator.RegexGenerator", throwOnError: true)!;
+
+        return ((IIncrementalGenerator)Activator.CreateInstance(type, nonPublic: true)!).AsSourceGenerator();
+    }
+
     private static readonly GeneratorDriverOptions DriverOptions =
         new(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true);
 
-    private static CSharpCompilation Compile(string source)
+    private static CSharpCompilation Compile(
+        string source,
+        CSharpParseOptions? parseOptions = null,
+        ImmutableArray<MetadataReference>? references = null,
+        string assemblyName = "GeneratorTests")
         => CSharpCompilation.Create(
-            "GeneratorTests",
-            [CSharpSyntaxTree.ParseText(Wrap(source), ParseOptions)],
-            References,
+            assemblyName,
+            [CSharpSyntaxTree.ParseText(Wrap(source), parseOptions ?? ParseOptions)],
+            references ?? References,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
 
     private static string Wrap(string source)
@@ -110,6 +195,7 @@ public static class GeneratorHarness
             ? source
             : $"""
                using System;
+               using System.Text.RegularExpressions;
                using AdCodicem.ValueObjects;
                using AdCodicem.ValueObjects.Annotations;
                using AdCodicem.ValueObjects.Identifiers;
@@ -144,11 +230,13 @@ public sealed record GeneratedFile(string HintName, string Text);
 /// <param name="Diagnostics">Diagnostics the generator reported.</param>
 /// <param name="CompilationDiagnostics">Diagnostics from compiling the result.</param>
 /// <param name="Driver">The driver, for incremental inspection.</param>
+/// <param name="Source">The source compiled, as wrapped by the harness.</param>
 public sealed record GeneratorRun(
     ImmutableArray<GeneratedFile> Files,
     ImmutableArray<Diagnostic> Diagnostics,
     ImmutableArray<Diagnostic> CompilationDiagnostics,
-    GeneratorDriver Driver)
+    GeneratorDriver Driver,
+    SourceText Source)
 {
     /// <summary>Gets the single generated value object file, failing when there is not exactly one.</summary>
     public string SingleValueObject
@@ -156,4 +244,20 @@ public sealed record GeneratorRun(
 
     /// <summary>Gets the identifiers of every diagnostic reported.</summary>
     public IReadOnlyList<string> Ids => [.. Diagnostics.Select(diagnostic => diagnostic.Id)];
+
+    /// <summary>
+    /// Gets the source a diagnostic points at: the text of its span, and the whole line it starts on, trimmed.
+    /// </summary>
+    /// <remarks>
+    /// The generator reports through a location rebuilt from a path and a span, which carries no syntax tree to
+    /// read the text back from, so it is read from the source this run compiled.
+    /// </remarks>
+    /// <param name="diagnostic">A diagnostic reported against <see cref="Source"/>.</param>
+    /// <returns>The spanned text and its line.</returns>
+    public (string Text, string Line) Locate(Diagnostic diagnostic)
+    {
+        var span = diagnostic.Location.SourceSpan;
+
+        return (Source.ToString(span), Source.Lines.GetLineFromPosition(span.Start).ToString().Trim());
+    }
 }

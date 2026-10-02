@@ -37,8 +37,11 @@
     </PropertyGroup>
   </Target>
 
+  <!-- The three shared suites, not one per package: an internal member no input reaches is tested directly
+       (docs/adr/0006-coverage-is-a-signal-not-a-goal.md), and only these assemblies exist to do it. -->
   <ItemGroup>
-    <InternalsVisibleTo Include="$(AssemblyName).UnitTests" />
-    <InternalsVisibleTo Include="$(AssemblyName).IntegrationTests" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.GeneratorTests" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.IntegrationTests" />
   </ItemGroup>
 </Project>

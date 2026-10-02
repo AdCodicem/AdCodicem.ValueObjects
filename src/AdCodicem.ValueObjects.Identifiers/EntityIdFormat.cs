@@ -11,9 +11,8 @@ namespace AdCodicem.ValueObjects.Identifiers;
 /// </para>
 /// <para>
 /// Validation is a span scan, not a regular expression. At fixed length over a fixed alphabet a scan is both
-/// faster and simpler, and it spares an entity identifier the compiled <c>Regex</c> that a
-/// <c>Pattern</c>-constrained value object has to pay for at start-up — source generators cannot feed
-/// <c>[GeneratedRegex]</c>, so that cost is unavoidable there and avoidable here.
+/// faster and simpler than any regular expression, a source-generated one included, and it spares an entity
+/// identifier the <c>Regex</c> the deprecated <c>Pattern</c> option compiles at start-up.
 /// </para>
 /// </remarks>
 public static class EntityIdFormat
@@ -77,6 +76,7 @@ public static class EntityIdFormat
     /// </summary>
     /// <param name="granularity">Bucket width.</param>
     /// <returns>The body length.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="granularity"/> is not a declared value.</exception>
     public static int BodyLength(IdGranularity granularity)
         => TimestampLength(granularity) + RandomLength + ChecksumLength;
 
@@ -87,6 +87,7 @@ public static class EntityIdFormat
     /// <param name="granularity">Bucket width.</param>
     /// <returns>The total length.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="prefix"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="granularity"/> is not a declared value.</exception>
     public static int TotalLength(string prefix, IdGranularity granularity)
     {
         ArgumentNullException.ThrowIfNull(prefix);
@@ -113,6 +114,7 @@ public static class EntityIdFormat
     /// <returns>The identifier, canonical and valid by construction.</returns>
     /// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException"><paramref name="prefix"/> breaks the prefix rules.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="granularity"/> is not a declared value.</exception>
     public static string Create(string prefix, IdGranularity granularity, TimeProvider timeProvider, IdEntropySource entropy)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -139,6 +141,7 @@ public static class EntityIdFormat
     /// <returns>The number of characters written.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="prefix"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException"><paramref name="entropy"/> or <paramref name="destination"/> is too short.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="granularity"/> is not a declared value.</exception>
     public static int Write(
         string prefix,
         IdGranularity granularity,
@@ -232,6 +235,7 @@ public static class EntityIdFormat
     /// <param name="granularity">Bucket width.</param>
     /// <returns>The first rule the candidate breaks, or success.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="prefix"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="granularity"/> is not a declared value.</exception>
     public static ValidationResult Validate(ReadOnlySpan<char> value, string prefix, IdGranularity granularity)
     {
         ArgumentNullException.ThrowIfNull(prefix);
@@ -279,6 +283,9 @@ public static class EntityIdFormat
     /// <param name="prefix">Declared prefix, without its trailing separator.</param>
     /// <param name="granularity">Bucket width.</param>
     /// <returns>A valid identifier of the right shape.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="prefix"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="prefix"/> breaks the prefix rules.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="granularity"/> is not a declared value.</exception>
     /// <remarks>
     /// Derived from a fixed instant and a fixed byte pattern rather than minted, so that regenerating the
     /// document twice produces the same bytes. An example drawn from the real entropy source would be valid and
@@ -287,6 +294,7 @@ public static class EntityIdFormat
     public static string Example(string prefix, IdGranularity granularity)
     {
         ArgumentNullException.ThrowIfNull(prefix);
+        EntityIdPrefix.ThrowIfInvalid(prefix, nameof(prefix));
 
         Span<byte> bytes = stackalloc byte[EntropyByteCount];
         for (var i = 0; i < bytes.Length; i++)
@@ -321,6 +329,8 @@ public static class EntityIdFormat
     /// <param name="prefix">Declared prefix, without its trailing separator.</param>
     /// <param name="granularity">Bucket width.</param>
     /// <returns>An anchored pattern.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="prefix"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="granularity"/> is not a declared value.</exception>
     /// <remarks>
     /// Published as schema text and never compiled: the running validation is <see cref="Validate"/>, a span
     /// scan. The pattern exists so that a client generated from the document rejects the same texts.

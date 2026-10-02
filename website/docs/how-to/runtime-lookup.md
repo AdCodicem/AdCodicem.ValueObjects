@@ -27,13 +27,22 @@ A descriptor exposes what the type declares and how to build one:
 - `Create`, `TryCreate`, `CreateUnchecked` and `TryParse`, which take and return boxed values;
 - `GetValue` and `Format`, to read an instance back.
 
-A rejection carries the same `ValidationResult` as the typed path, with the code of the rule that fired.
+A rejection carries the same `ValidationResult` as the typed path, with the code of the rule that fired. `Create`
+and `TryCreate` reject a `null` as `value_object.required` whatever the underlying type: a decimal value object
+does not read it as zero.
 
 ## Cheaper questions
 
-`ValueObjectRegistry.IsValueObject(type)` and `ValueObjectRegistry.GetUnderlyingType(type)` answer without a
-descriptor. `TryResolve` also unwraps `Nullable<T>`, which is what a model binder or a serializer is usually
+`ValueObjectRegistry.IsValueObject(type)` and `ValueObjectRegistry.GetUnderlyingType(type)` answer without building
+a descriptor. Like `TryResolve`, they unwrap `Nullable<T>`, which is what a model binder or a serializer is usually
 holding.
+
+A value object is a struct implementing `IValueObject<TSelf, TValue>` over itself. `IsValueObject` answers `true`
+exactly for the types `TryResolve` describes, and `false` for an interface, a class, or a struct carrying only the
+`IValueObject` marker or `IValueObject<TValue>`. `GetUnderlyingType` answers `null` for the same types, even one that
+declares a value through `IValueObject<TValue>`. The integrations claim a type by the same rule: the JSON converter
+factory, the Newtonsoft.Json converter, the MVC model binder and `MustParseAs` leave anything else to the framework,
+or refuse it.
 
 ## When a type is not found
 

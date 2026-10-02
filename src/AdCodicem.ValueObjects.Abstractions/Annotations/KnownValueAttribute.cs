@@ -14,11 +14,19 @@ public sealed class KnownValueAttribute : Attribute
     /// <summary>
     /// Initializes a new instance of the <see cref="KnownValueAttribute"/> class.
     /// </summary>
-    /// <param name="name">Name of the generated static property. Must be a valid identifier.</param>
+    /// <param name="name">
+    /// Name of the generated static property. Must be a valid C# identifier, not a keyword, and a name the type does
+    /// not already have: neither a member it declares nor one the generated code uses, the metadata names of its
+    /// operators and the getters of its properties included, nor the name of another known value. The property's own
+    /// getter, <c>get_</c> followed by the name, must be free too: no field, nested type or method without
+    /// parameters of the type takes it. Any other name is reported with the rule it breaks.
+    /// </param>
     /// <param name="value">
     /// The underlying value. Types that cannot appear as an attribute argument, such as <see cref="Guid"/>,
-    /// <see cref="decimal"/> or <see cref="DateOnly"/>, are written as invariant-culture text and parsed at
-    /// compile time.
+    /// <see cref="decimal"/> or <see cref="DateOnly"/>, are written as text and parsed at compile time, in the one
+    /// form of the type that a bound is written in (<see cref="ValueObjectAttribute{TValue}.Minimum"/>). A constant
+    /// of a C# type is held to the same form through its invariant text. A type, an enum member, an array and
+    /// <see langword="null"/> are not values, and are reported.
     /// </param>
     public KnownValueAttribute(string name, object value)
     {

@@ -7,14 +7,15 @@
 -->
 
 ```csharp
-[ValueObject<string>(
-    MinLength = 15,
-    MaxLength = 34,
-    Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
-    SchemaFormat = "iban")]
-public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectValidator<string>
+[ValueObject<string>(MinLength = 15, MaxLength = 34, SchemaFormat = "iban")]
+public readonly partial struct Iban
+    : IValueObjectNormalizer<string>, IValueObjectPatternValidator, IValueObjectValidator<string>
 {
     public static string NormalizeValue(string value) => /* strip separators, upper-case */;
+
+    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
+        RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
 
     public static ValidationResult ValidateValue(in string value)
         => HasValidCheckDigits(value)

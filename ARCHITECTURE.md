@@ -64,26 +64,43 @@ actually fired. `DescriptorTests.cs` covers that surface.
 ## Invariants
 
 - **Normalize, then validate, then assign** — a non-default instance is by construction normalized and valid.
-  The one exception is the EF Core read path, which uses `CreateUnchecked` because it reads values this same
-  application already validated. `ConfigureValueObjects(strict: true)` turns validation back on.
-- **Rejection is not an exception.** `ValidationResult` is a struct that allocates nothing on success, and
-  every integration goes through `TryCreate`. Validation is fail-fast: the first violated rule wins.
+  The exceptions are the EF Core and Dapper read paths, which use `CreateUnchecked` because they read values this
+  same application already validated. `ConfigureValueObjects(strict: true)` turns validation back on for EF Core;
+  Dapper validates only a column the value object cannot have written: text read into a value object over another
+  type, or a number read into one over `string`.
+- **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on
+  success. The integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a
+  `JsonException` or `JsonSerializationException`, a model state error, a FluentValidation failure, a Dapper
+  `DataException`. The one that throws `ValueObjectException` is a strict EF Core read, which goes through `Create`
+  and fails the query; `Create`, `Parse` and an explicit conversion throw it for code that treats a rejected value
+  as a bug. The [error reference](website/docs/reference/errors.md) names what each integration throws. Validation
+  is fail-fast: the first violated rule wins.
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column, and becomes the OpenAPI
-  `maxLength`. Anything added to `[ValueObject<T>]` should feed all three.
+  `maxLength`. Anything added to `[ValueObject<T>]` should feed all three. A hook can feed the schema too: the
+  `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off the attribute at
+  compile time, becomes the OpenAPI `pattern`. It replaces the deprecated `Pattern` option, which builds its
+  `Regex` at run time because one source generator cannot see another's output;
+  [ADR-0007](docs/adr/0007-deprecate-pattern-for-a-source-generated-regex-hook.md) records why.
 
 ## Testing
 
 | Suite | Job |
 |---|---|
-| `UnitTests` | Behaviour of generated code, over value objects defined in `Domain/`. |
+| `UnitTests` | Behaviour of generated code, over value objects defined in `Domain/` — one per underlying type and per option or hook — and of every integration package called directly. |
 | `GeneratorTests` | The generator itself: emission, every diagnostic, hook detection, the analyzers, incremental caching, and every published documentation snippet. |
 | `IntegrationTests` | Real PostgreSQL and SQL Server via Testcontainers, asserting against `information_schema`, plus the API surface end to end. |
 
 `GeneratorTests` drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
 `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Its snippets compile **without** implicit usings,
-which is what catches unqualified names in emitted code. Its incrementality tests assert on
+which is what catches unqualified names in emitted code. The harness also runs the framework's regex generator,
+which the `CopyRegexGenerator` target copies from the targeting pack the SDK resolved, so a snippet implementing
+`IValueObjectPatternValidator` compiles. Its incrementality tests assert on
 `IncrementalStepRunReason` — the only way to notice a caching regression, which otherwise breaks nothing
 visible while making every IDE keystroke re-run the pipeline.
+
+[ADR-0006](docs/adr/0006-coverage-is-a-signal-not-a-goal.md) records what coverage a pull request owes, what stays
+uncovered and why, and the two things Codecov's figure cannot show: a package no test loads, and the code the
+generator emits.
 
 ## Releases
 

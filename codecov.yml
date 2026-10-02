@@ -1,0 +1,20 @@
+# What Codecov requires of a pull request (docs/adr/0006-coverage-is-a-signal-not-a-goal.md). Coverage is a signal,
+# not a goal: a defensive branch stays whether or not a test reaches it, and code goes only when no input can reach it.
+coverage:
+  status:
+    # The project's coverage may drop by at most half a point against the base commit.
+    project:
+      default:
+        target: auto
+        threshold: 0.5%
+    # The lines a pull request adds or changes, partial lines counting as not covered.
+    patch:
+      default:
+        target: 95%
+
+# Only the shipped code is measured. The test projects, the sample API the integration suite drives, and the
+# benchmarks ship in no package.
+ignore:
+  - "tests/**"
+  - "samples/**"
+  - "benchmarks/**"

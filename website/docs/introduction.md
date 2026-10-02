@@ -30,6 +30,7 @@ Here the type costs one declaration. Its rules are written once and carried into
 binding and the OpenAPI document, so they cannot drift apart. This compiles as it stands:
 
 ```csharp
+using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects;
 using AdCodicem.ValueObjects.Annotations;
 
@@ -38,13 +39,17 @@ namespace Banking;
 [ValueObject<string>(
     MinLength = 15,
     MaxLength = 34,
-    Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
     SchemaFormat = "iban")]
-public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectValidator<string>
+public readonly partial struct Iban
+    : IValueObjectNormalizer<string>, IValueObjectPatternValidator, IValueObjectValidator<string>
 {
     // Runs first, on every way in: "fr76 3000 6000 …" and "FR7630006000…" are the same account.
     public static string NormalizeValue(string value)
         => value.Replace(" ", "").Replace("-", "").ToUpperInvariant();
+
+    // Runs once the declared length holds. Compiled at build time, and published as the OpenAPI pattern.
+    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
 
     // Runs once the declared length and pattern hold: the ISO 7064 MOD-97-10 check digits.
     public static ValidationResult ValidateValue(in string value)

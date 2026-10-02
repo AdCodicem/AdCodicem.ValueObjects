@@ -74,8 +74,12 @@ public sealed class BankingDbContext(DbContextOptions<BankingDbContext> options)
         configurationBuilder.ConfigureValueObjects(typeof(Iban).Assembly);
 
         // Identifiers are fixed width and ASCII, so they earn a narrower column than the convention above would
-        // give them: char(n) rather than varchar(n), and never nchar.
-        configurationBuilder.ConfigureEntityIds(typeof(PaymentId).Assembly);
+        // give them: char(n) rather than varchar(n), and never nchar. The collation is the one thing the convention
+        // cannot pick for you, since it names a provider. Binary comparison matches what the application does in
+        // memory, where identifiers compare ordinally, so a sort in SQL and a sort in code agree.
+        configurationBuilder.ConfigureEntityIds(
+            Database.IsNpgsql() ? IdCollations.PostgreSql : IdCollations.SqlServer,
+            typeof(PaymentId).Assembly);
     }
 
     /// <inheritdoc />
@@ -105,13 +109,6 @@ public sealed class BankingDbContext(DbContextOptions<BankingDbContext> options)
             payment.ToTable("payments");
             payment.HasKey(entity => entity.Id);
             payment.Property(entity => entity.Amount).HasPrecision(18, 2);
-
-            // The collation is the one thing the convention cannot pick for you, since it names a provider.
-            // Binary comparison matches what the application does in memory, where identifiers compare
-            // ordinally, so a sort in SQL and a sort in code agree.
-            payment.Property(entity => entity.Id).UseCollation(Database.IsNpgsql()
-                ? IdCollations.PostgreSql
-                : IdCollations.SqlServer);
         });
     }
 }
