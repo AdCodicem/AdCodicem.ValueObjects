@@ -348,6 +348,58 @@ public sealed class UninitializedValueObjectTests
     }
 
     /// <summary>
+    /// A referenced assembly may hold a copy of an annotation under the same full name, internal to it - a library that
+    /// embeds the annotations, a mismatched package. <c>GetTypeByMetadataName</c> then answers null, while the
+    /// generator, matching attributes by name, still generates: the analyzer reads every type of the name.
+    /// </summary>
+    [Fact]
+    public async Task A_value_object_is_reported_when_another_assembly_defines_the_annotations_too()
+    {
+        var copy = GeneratorHarness.Emit(AnnotationCopies, "Copies", GeneratorHarness.FrameworkReferences);
+
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<UninitializedValueObjectAnalyzer>(
+            """
+            [ValueObject<string>]
+            public readonly partial struct Code;
+
+            [EntityId("acc")]
+            public readonly partial struct AccountId;
+
+            public static class Use
+            {
+                public static Code Missing() => default;
+
+                public static AccountId Fresh() => new();
+            }
+            """,
+            GeneratorHarness.LibraryReferences.Add(MetadataReference.CreateFromImage(copy)));
+
+        Located(diagnostics).Should().Equal(
+            ("default", "public static Code Missing() => default;"),
+            ("new()", "public static AccountId Fresh() => new();"));
+    }
+
+    /// <summary>
+    /// Copies of the annotations, internal to the assembly that declares them, under the full names of the real ones.
+    /// </summary>
+    internal const string AnnotationCopies = """
+        namespace AdCodicem.ValueObjects.Annotations
+        {
+            [System.AttributeUsage(System.AttributeTargets.Struct)]
+            internal sealed class ValueObjectAttribute<TValue> : System.Attribute;
+        }
+
+        namespace AdCodicem.ValueObjects.Identifiers
+        {
+            [System.AttributeUsage(System.AttributeTargets.Struct)]
+            internal sealed class EntityIdAttribute(string prefix) : System.Attribute
+            {
+                public string Prefix { get; } = prefix;
+            }
+        }
+        """;
+
+    /// <summary>
     /// An assembly can carry an attribute whose constructor the compiler cannot resolve. Roslyn still loads the
     /// type and lists the attribute, with no class: the analyzer must take that for what it is, an attribute that
     /// is not the value object annotation, rather than fail.
