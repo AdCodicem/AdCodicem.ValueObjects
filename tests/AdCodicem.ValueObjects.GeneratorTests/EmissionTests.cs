@@ -703,4 +703,29 @@ public sealed class EmissionTests
         generated.Contains("Abs(global::Test.Count value) => value;", StringComparison.Ordinal)
             .Should().Be(!negatable, "an unsigned value is its own absolute value");
     }
+
+    /// <summary>
+    /// Static initializers run in declaration order, and a named constant goes through <c>Create</c>, and so through
+    /// the compiled pattern, while it is created. The pattern therefore has to be declared first, or the type
+    /// initializer meets a null field and the module initializer takes the whole assembly down with it.
+    /// </summary>
+    [Fact]
+    public void The_compiled_pattern_is_declared_before_the_named_constants_that_go_through_it()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>(Pattern = "^[A-Z]{3}$")]
+            [KnownValue("Euro", "EUR")]
+            public readonly partial struct CurrencyCode;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        var generated = run.SingleValueObject;
+        var pattern = generated.IndexOf("Regex DeclaredPattern = new(", StringComparison.Ordinal);
+        var constant = generated.IndexOf("CurrencyCode Euro { get; } = Create(", StringComparison.Ordinal);
+        pattern.Should().BePositive();
+        constant.Should().BePositive();
+        pattern.Should().BeLessThan(constant, "the constant goes through the pattern while the type initializes");
+    }
 }
