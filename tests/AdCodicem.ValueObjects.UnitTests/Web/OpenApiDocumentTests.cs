@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Schema;
 
 namespace AdCodicem.ValueObjects.UnitTests.Web;
 
@@ -59,6 +60,28 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
 
     public static TheoryData<string> EveryUnderlyingType => [.. Instances.Keys];
 
+    /// <summary>The value objects over a number the document describes, and their underlying types.</summary>
+    public static TheoryData<string, Type> EveryNumber => new()
+    {
+        { nameof(Adjustment), typeof(sbyte) },
+        { nameof(Score), typeof(byte) },
+        { nameof(Quantity), typeof(short) },
+        { nameof(Port), typeof(ushort) },
+        { nameof(PageNumber), typeof(int) },
+        { nameof(SequenceNumber), typeof(uint) },
+        { nameof(FileSize), typeof(long) },
+        { nameof(ByteCount), typeof(ulong) },
+        { nameof(Amount), typeof(decimal) },
+        { nameof(Latitude), typeof(double) },
+        { nameof(Ratio), typeof(float) },
+    };
+
+    /// <summary>The options ASP.NET Core describes the wire with, unless an application changes them.</summary>
+    private static JsonSerializerOptions WebOptions { get; } = new(JsonSerializerDefaults.Web)
+    {
+        TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(),
+    };
+
     /// <summary>
     /// The schema's type is chosen from the underlying type, the payload's from the converter; a client trusts the
     /// one to describe the other. A 128-bit integer is a string on the wire, where a JSON number would lose digits.
@@ -68,16 +91,35 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
     public void A_value_object_is_documented_with_the_JSON_type_it_is_written_as(string name)
     {
         var instance = Instances[name];
-        var written = JsonSerializer.SerializeToElement(instance, instance.GetType()).ValueKind;
+        var written = JsonSerializer.SerializeToElement(instance, instance.GetType(), WebOptions).ValueKind;
 
-        var documented = document.Schema(name).GetProperty("type").GetString();
+        var documented = Types(document.Schema(name).GetProperty("type"));
 
-        documented.Should().Be(written switch
+        documented.Should().Contain(written switch
         {
             JsonValueKind.True or JsonValueKind.False => "boolean",
             JsonValueKind.Number => instance is Amount or Latitude or Ratio ? "number" : "integer",
             _ => "string",
         });
+    }
+
+    /// <summary>
+    /// ASP.NET Core reads a number written as text by default, and documents a bare number as a number or a string held
+    /// to a numeric pattern. A value object over a number reads what its underlying type reads, and is documented the
+    /// same way, as System.Text.Json documents the underlying type under the same options.
+    /// </summary>
+    /// <param name="name">The value object.</param>
+    /// <param name="underlying">Its underlying type.</param>
+    [Theory]
+    [MemberData(nameof(EveryNumber))]
+    public void A_number_is_documented_as_its_underlying_type_is(string name, Type underlying)
+    {
+        var schema = document.Schema(name);
+        var expected = JsonSchemaExporter.GetJsonSchemaAsNode(WebOptions, underlying);
+
+        Types(schema.GetProperty("type")).Should().BeEquivalentTo(
+            expected["type"]!.AsArray().Select(type => type!.GetValue<string>()));
+        schema.GetProperty("pattern").GetString().Should().Be(expected["pattern"]!.GetValue<string>());
     }
 
     [Fact]
@@ -229,6 +271,9 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
         percentage.TryGetProperty("x-minimum", out _).Should().BeFalse();
         percentage.TryGetProperty("x-maximum", out _).Should().BeFalse();
     }
+
+    private static IEnumerable<string?> Types(JsonElement type)
+        => type.ValueKind == JsonValueKind.Array ? type.EnumerateArray().Select(each => each.GetString()) : [type.GetString()];
 
     [Fact]
     public void A_bound_that_is_no_number_is_left_out()

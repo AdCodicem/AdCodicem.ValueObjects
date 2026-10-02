@@ -67,6 +67,24 @@ In ASP.NET Core MVC, `AddControllers().AddValueObjects()` already does this for 
 `Int128` and `UInt128` value objects are written as JSON **strings**: a JSON number cannot carry them without
 losing precision in most clients.
 
+## Number handling
+
+A value object over a number follows `JsonSerializerOptions.NumberHandling` as its underlying type does, since
+System.Text.Json leaves the number handling of a custom converter to the converter:
+
+- `AllowReadingFromString` reads `"1250.00"` as well as `1250.00`, and reads the text as System.Text.Json reads a
+  number from text: whole, with no white space, no group separator and no culture, so `"1,000"` and `" 5"` are
+  refused, as they are for the bare value;
+- `WriteAsString` writes every number as a string, `"1250.00"`, and an indented writer lays it out as any other;
+- over a `double` or a `float`, `AllowNamedFloatingPointLiterals` writes `NaN` and the infinities as `"NaN"`,
+  `"Infinity"` and `"-Infinity"`, and either reading option reads them back. `WriteAsString` writes them as text
+  too; with neither, writing one throws, as it does for the bare value.
+
+The [OpenAPI document](./openapi.md) describes what these options put on the wire, as it describes the bare value.
+
+What is read still goes through the value object's rules: a `Latitude` bounded to ±90 refuses `"NaN"` whatever the
+options let the reader read.
+
 ## Newtonsoft.Json
 
 For code, SDKs and message contracts that have not moved to System.Text.Json:
