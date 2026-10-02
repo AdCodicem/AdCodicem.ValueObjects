@@ -525,9 +525,11 @@ public sealed class DiagnosticTests
         string value,
         string enumName)
     {
+        // A closed value set needs a known value; an identifier takes none, which is VO0027's to report.
+        var known = attribute.StartsWith("[EntityId", StringComparison.Ordinal) ? string.Empty : "[KnownValue(\"First\", \"first\")]";
         var run = GeneratorHarness.Run($"""
             {attribute}
-            [KnownValue("First", "first")]
+            {known}
             public readonly partial struct Code;
 
             [ValueObject<string>]

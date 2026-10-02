@@ -1,3 +1,4 @@
+using System.Globalization;
 using AdCodicem.ValueObjects.Identifiers;
 using Microsoft.CodeAnalysis;
 
@@ -20,6 +21,50 @@ public sealed class EntityIdTests
         run.Diagnostics.Should().BeEmpty();
         run.CompilationDiagnostics.Should().BeEmpty();
         run.SingleValueObject.Should().Contain("IEntityId<global::Test.AccountId>");
+    }
+
+    /// <summary>
+    /// Nothing generates a known value for an identifier, so a <c>[KnownValue]</c> on one would be read by no one. It is
+    /// reported where it is declared, with the way to declare a well-known identifier, and the type still generates so
+    /// that its uses do not fail too.
+    /// </summary>
+    [Fact]
+    public void A_known_value_on_an_identifier_is_reported_where_it_is_declared()
+    {
+        var run = GeneratorHarness.Run("""
+            [EntityId("acc")]
+            [KnownValue("System", "acc_0000000000000000000000000")]
+            [KnownValue("Robot", "acc_0000000000000000000000001", Description = "The robot.")]
+            public readonly partial struct AccountId;
+            """);
+
+        run.Diagnostics.Should().HaveCount(2).And.OnlyContain(diagnostic =>
+            diagnostic.Id == "VO0027" && diagnostic.Severity == DiagnosticSeverity.Error);
+        run.Diagnostics.Select(run.Locate).Should().Equal(
+            ("KnownValue(\"System\", \"acc_0000000000000000000000000\")", "[KnownValue(\"System\", \"acc_0000000000000000000000000\")]"),
+            ("KnownValue(\"Robot\", \"acc_0000000000000000000000001\", Description = \"The robot.\")", "[KnownValue(\"Robot\", \"acc_0000000000000000000000001\", Description = \"The robot.\")]"));
+        run.Diagnostics[0].GetMessage(CultureInfo.InvariantCulture).Should().Be(
+            "'AccountId' declares the known value 'System', but [EntityId] generates no known values and ignores "
+            + "[KnownValue]. Declare a well-known identifier as a static property of the type instead, "
+            + "public static AccountId System { get; } = Parse(\"...\", null), for instance.");
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("IEntityId<global::Test.AccountId>").And.NotContain(" System ");
+    }
+
+    /// <summary>
+    /// A known value without a name is reported all the same, the name it lacks written as a question mark.
+    /// </summary>
+    [Fact]
+    public void A_known_value_without_a_name_on_an_identifier_is_reported_too()
+    {
+        var run = GeneratorHarness.Run("""
+            [EntityId("acc")]
+            [KnownValue(null!, "acc_0000000000000000000000000")]
+            public readonly partial struct AccountId;
+            """);
+
+        var diagnostic = run.Diagnostics.Should().ContainSingle(diagnostic => diagnostic.Id == "VO0027").Subject;
+        diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().StartWith("'AccountId' declares the known value '?', ");
     }
 
     [Fact]

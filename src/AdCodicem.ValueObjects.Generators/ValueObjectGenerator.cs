@@ -428,6 +428,20 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
 
+        // Nothing generates a known value for an identifier, so a [KnownValue] would be read by no one. The type still
+        // generates, so that every use of it does not fail as well.
+        foreach (var known in symbol.GetAttributes())
+        {
+            if (known.AttributeClass?.ToDisplayString() == KnownValueAttributeName)
+            {
+                diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.EntityIdTakesNoKnownValue,
+                    known.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? location,
+                    symbol.Name,
+                    known.ConstructorArguments.FirstOrDefault().Value as string ?? "?"));
+            }
+        }
+
         var members = ValueObjectEmitter.MemberNames(
             UnderlyingType.String,
             arithmetic: false,

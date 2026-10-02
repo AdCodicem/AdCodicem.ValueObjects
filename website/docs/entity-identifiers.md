@@ -277,6 +277,7 @@ without the package, the attribute does not exist.
 | `VO0019` | Error | The generated code cannot reopen, reach or name the identifier: it is generic, nested in a generic type or an interface, `private`, `protected` or `file`-local, or named after a member the generator writes. |
 | `VO0020` | Error | `Granularity` holds a value `IdGranularity` does not define. |
 | `VO0024` | Error | `IValueObjectPatternValidator` on an identifier, which validates its format itself and publishes its own OpenAPI pattern. |
+| `VO0027` | Error | `[KnownValue]` on an identifier, which generates no known values: declare a well-known identifier as a static property that parses it. |
 
 Cross-assembly prefix collisions are beyond a generator's reach and surface at start-up, when the second
 registration for a prefix is refused.
