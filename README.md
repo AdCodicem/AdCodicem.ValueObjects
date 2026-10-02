@@ -362,7 +362,7 @@ an internal surrogate key alongside it.
 | `VO0016` | Error | Two types claiming the same prefix. |
 | `VO0017` | Error | A normalization hook on an entity identifier, which owns its own. |
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
-| `VO0019` | Error | The generated code cannot reopen, reach or name the type: it is generic or nested in a generic type or an interface; it, or a type around it, is `private`, `protected` or `file`-local; or it is named after a member the generator writes on it, or `var` or `_`. |
+| `VO0019` | Error | The generated code cannot reopen, reach or name the type: it is generic or nested in a generic type or an interface; it, or a type around it, is `private`, `protected` or `file`-local; or it is named after a member the generator writes on it. |
 | `VO0020` | Error | `Comparison`, `ValueSet` or `Granularity` holds a value its enum does not define. |
 | `VO0021` | Warning | The deprecated `Pattern` option of `[ValueObject<T>]`, reported by the compiler. Implement `IValueObjectPatternValidator` with `[GeneratedRegex("X", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }` and remove `Pattern = "X"`. The option builds its regular expression at run time, which native AOT interprets, and is removed in the next major. |
 | `VO0022` | Error | Both the `Pattern` option and `IValueObjectPatternValidator` on one type. The hook wins. |

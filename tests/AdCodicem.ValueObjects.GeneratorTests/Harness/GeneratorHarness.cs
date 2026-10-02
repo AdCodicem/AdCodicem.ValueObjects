@@ -188,7 +188,16 @@ public static class GeneratorHarness
             assemblyName,
             [CSharpSyntaxTree.ParseText(Wrap(source), parseOptions ?? ParseOptions)],
             references ?? References,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            new CSharpCompilationOptions(
+                OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: NullableContextOptions.Enable,
+                warningLevel: LatestWarningLevel));
+
+    /// <summary>
+    /// The warning level of a project on a current SDK, every warning wave included, so that the generated code is held
+    /// to the warnings a consumer sees: <c>CS8981</c> on a lower-case name is in a wave.
+    /// </summary>
+    private const int LatestWarningLevel = 9999;
 
     private static string Wrap(string source)
         => source.Contains("namespace", StringComparison.Ordinal)

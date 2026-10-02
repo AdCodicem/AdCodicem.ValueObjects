@@ -40,16 +40,31 @@ public sealed class KnownValueNameTests
 
     /// <summary>
     /// None of these is a member the generator writes, but a static property of that name would still break the
-    /// generated code: <c>_</c> would capture the discard it writes as <c>out _</c>, and the others would hide a
-    /// member of <see cref="object"/>, with a warning inside the generated file.
+    /// generated code: it would hide a member of <see cref="object"/>, with a warning inside the generated file.
     /// </summary>
     [Theory]
-    [InlineData("_", Generated)]
     [InlineData("GetType", Declared)]
     [InlineData("MemberwiseClone", Declared)]
     [InlineData("ReferenceEquals", Declared)]
-    public void A_known_value_named_after_the_discard_or_an_inherited_member_is_reported(string name, string reason)
+    public void A_known_value_named_after_an_inherited_member_is_reported(string name, string reason)
         => AssertRefusedAlone(name, reason);
+
+    /// <summary>
+    /// The generated statements discard nothing, so a known value may take the name <c>_</c>.
+    /// </summary>
+    [Fact]
+    public void A_known_value_named_after_the_discard_is_generated()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
+            [KnownValue("_", "underscore")]
+            public readonly partial struct Code;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("public static global::Test.Code _ { get; }");
+    }
 
     /// <summary>
     /// The author's own members are in the type the generator reopens, and a static property of the same name would

@@ -1,17 +1,18 @@
 using System.Globalization;
 using AdCodicem.ValueObjects.Generators.Internal;
+using AdCodicem.ValueObjects.Generators.Model;
 using Microsoft.CodeAnalysis;
 
 namespace AdCodicem.ValueObjects.GeneratorTests;
 
 /// <summary>
-/// The names a value object cannot take, which <c>VO0019</c> refuses.
+/// The names a value object cannot take, which <c>VO0019</c> refuses, and the ones it can.
 /// </summary>
 /// <remarks>
 /// The generated code writes members on the value object, and statements inside them. A type named after one of
-/// those members, or after <c>var</c> or the discard <c>_</c> those statements write, would turn what the generator
-/// wrote into errors in a file the author cannot edit. The type is reported instead, and nothing is generated for it,
-/// while the rest of the compilation still is.
+/// those members would turn what the generator wrote into errors in a file the author cannot edit. The type is
+/// reported instead, and nothing is generated for it, while the rest of the compilation still is. The statements name
+/// every type they use, so no other name is taken.
 /// </remarks>
 public sealed class TypeNameTests
 {
@@ -19,37 +20,30 @@ public sealed class TypeNameTests
 
     private const string MemberRemedy = "Rename it: C# does not let a member take the name of the type that declares it.";
 
+    /// <summary>
+    /// The generated statements name the type of every local and discard nothing, so a value object may take the name
+    /// <c>var</c> or <c>_</c>, or be nested in a type that does, and still generates code that compiles.
+    /// </summary>
+    /// <param name="declaration">The value object, and the types around it.</param>
     [Theory]
     [InlineData(
         """
         [ValueObject<string>]
         public readonly partial struct var;
-        """,
-        "var",
-        "public readonly partial struct var;",
-        "takes the name var",
-        "var")]
+        """)]
     [InlineData(
         """
         [EntityId("acc")]
         public readonly partial struct _;
-        """,
-        "_",
-        "public readonly partial struct _;",
-        "takes the name _",
-        "_")]
+        """)]
     [InlineData(
         """
         public partial class var
         {
-            [ValueObject<int>]
+            [ValueObject<int>(Arithmetic = true)]
             public readonly partial struct Code;
         }
-        """,
-        "Code",
-        "public readonly partial struct Code;",
-        "is nested in the type 'var'",
-        "var")]
+        """)]
     [InlineData(
         """
         public partial class _
@@ -60,49 +54,112 @@ public sealed class TypeNameTests
                 public readonly partial struct Code;
             }
         }
-        """,
-        "Code",
-        "public readonly partial struct Code;",
-        "is nested in the type '_'",
-        "_")]
-    public void A_value_object_named_or_nested_in_a_type_named_after_what_the_generated_statements_write_is_reported(
-        string declaration,
-        string typeName,
-        string line,
-        string reason,
-        string captured)
+        """)]
+    public void A_value_object_named_or_nested_in_a_type_named_var_or_the_discard_is_generated(string declaration)
     {
-        // The other value object is declared in a namespace of its own: a type named var or _ is in the scope of every
-        // value object of its namespace, and their generated statements would refer to it too.
-        var run = GeneratorHarness.Run($$"""
+        var run = GeneratorHarness.Run(declaration);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.Files.Should().HaveCount(2);
+        Errors(run).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A type named <c>var</c> or <c>_</c> beside the value objects, a namespace segment named <c>_</c>, and global
+    /// aliases taking either name all change what <c>var x</c>, <c>out var x</c> or <c>out _</c> would mean in the
+    /// generated statements. None of them is written, by any emitter, for any underlying type or option.
+    /// </summary>
+    [Fact]
+    public void Every_value_object_compiles_beside_types_and_aliases_named_var_or_the_discard()
+    {
+        var numeric = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "sbyte", "byte", "short", "ushort", "int", "uint", "long", "ulong", "System.Int128", "System.UInt128",
+            "decimal", "double", "float",
+        };
+        var everyType = string.Concat(UnderlyingType.SupportedNames.Select((name, index) => $$"""
+
+                [ValueObject<{{name}}>{{(numeric.Contains(name) ? "(Arithmetic = true)" : string.Empty)}}]
+                public readonly partial struct Wrapper{{index}};
+
+            """));
+
+        var run = GeneratorHarness.Run(
+            $$"""
+            global using var = System.Object;
+            global using _ = System.Object;
             using System;
+            using System.Text.RegularExpressions;
             using AdCodicem.ValueObjects;
             using AdCodicem.ValueObjects.Annotations;
             using AdCodicem.ValueObjects.Identifiers;
 
-            namespace Test
-            {
-            {{declaration}}
-            }
+            #pragma warning disable VO0021 // The deprecated option compiles a pattern of its own, which is written too.
 
-            namespace Elsewhere
+            namespace Test._
             {
+                public class var;
+
+                public class _;
+            {{everyType}}
+                [ValueObject<string>(ValueSet = ValueSetKind.Closed, ImplicitConversionToValue = true, ExplicitConversionFromValue = true)]
+                [KnownValue("Kept", "K")]
+                public readonly partial struct Code
+                    : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectValidator<string>, IValueObjectFormatter<string>
+                {
+                    public static string NormalizeValue(string value) => NormalizeValue(value.AsSpan());
+
+                    public static string NormalizeValue(ReadOnlySpan<char> value) => value.Trim().ToString();
+
+                    public static ValidationResult ValidateValue(in string value) => ValidationResult.Success;
+
+                    public static bool TryFormatValue(
+                        in string value,
+                        Span<char> destination,
+                        out int charsWritten,
+                        ReadOnlySpan<char> format,
+                        IFormatProvider? provider)
+                        => destination.TryWrite(provider, $"{value}", out charsWritten);
+                }
+
+                [ValueObject<int>(Arithmetic = true, ValueSet = ValueSetKind.Closed)]
+                [KnownValue("Ground", 0)]
+                public readonly partial struct Floor : IValueObjectStringFormatter<int>
+                {
+                    public static string FormatValue(in int value, ReadOnlySpan<char> format, IFormatProvider? provider)
+                        => $"floor {value}";
+                }
+
                 [ValueObject<string>]
-                public readonly partial struct Other;
+                public readonly partial struct Shape : IValueObjectPatternValidator
+                {
+                    [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+                    public static partial Regex Pattern { get; }
+                }
+
+                [ValueObject<string>(Pattern = "^[a-z]+$")]
+                public readonly partial struct Word;
+
+                [EntityId("acc")]
+                public readonly partial struct AccountId : IValueObjectStringFormatter<string>
+                {
+                    public static string FormatValue(in string value, ReadOnlySpan<char> format, IFormatProvider? provider) => value;
+                }
             }
-            """);
+            """,
+            referenceJsonPackage: true);
 
-        var diagnostic = run.Diagnostics.Should().ContainSingle().Subject;
-        diagnostic.Id.Should().Be("VO0019");
-        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
-        run.Locate(diagnostic).Should().Be((typeName, line));
-        diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
-            $"'{typeName}' {reason}, which the generator does not support. Rename the type '{captured}': the generated "
-            + $"code writes {captured} in its statements, where it would refer to that type instead.");
-
-        run.Files.Select(file => file.HintName).Should().BeEquivalentTo(HintNames.For("Elsewhere.Other"), "ValueObjectRegistration.g.cs");
-        run.CompilationDiagnostics.Should().BeEmpty();
+        run.Diagnostics.Should().BeEmpty();
+        run.Files.Should().HaveCount(UnderlyingType.SupportedNames.Count() + 6);
+        Errors(run).Should().BeEmpty();
     }
+
+    /// <summary>
+    /// The errors of compiling the generated code. A type named <c>var</c> also draws CS8981, a warning that its
+    /// lower-case name may one day be a keyword, which is the author's to weigh.
+    /// </summary>
+    private static IEnumerable<Diagnostic> Errors(GeneratorRun run)
+        => run.CompilationDiagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 
     /// <summary>
     /// Reads the members out of the generated code rather than out of a list, so that a member added to an emitter and
