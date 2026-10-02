@@ -29,3 +29,4 @@ VO0023 | AdCodicem.ValueObjects | Error | A pattern only applies to strings
 VO0024 | AdCodicem.ValueObjects | Error | Entity identifier owns its format
 VO0025 | AdCodicem.ValueObjects | Warning | Pattern options are not published
 VO0026 | AdCodicem.ValueObjects | Warning | Pattern has no match timeout
+VO0027 | AdCodicem.ValueObjects | Error | Entity identifier takes no known value

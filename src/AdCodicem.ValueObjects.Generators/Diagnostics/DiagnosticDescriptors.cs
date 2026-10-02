@@ -134,6 +134,13 @@ internal static class DiagnosticDescriptors
         "The [GeneratedRegex] behind '{0}.Pattern' sets no matchTimeoutMilliseconds, so a pathological input can "
         + "hold a request thread for as long as the match runs. Set one, such as matchTimeoutMilliseconds: 1000.");
 
+    public static readonly DiagnosticDescriptor EntityIdTakesNoKnownValue = Error(
+        "VO0027",
+        "Entity identifier takes no known value",
+        "'{0}' declares the known value '{1}', but [EntityId] generates no known values and ignores [KnownValue]. "
+        + "Declare a well-known identifier as a static property of the type instead, "
+        + "public static {0} {1} {{ get; }} = Parse(\"...\", null), for instance.");
+
     private static DiagnosticDescriptor Error(string id, string title, string messageFormat)
         => new(id, title, messageFormat, Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
 

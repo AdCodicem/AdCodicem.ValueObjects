@@ -370,6 +370,7 @@ an internal surrogate key alongside it.
 | `VO0024` | Error | `IValueObjectPatternValidator` on an `[EntityId]`, which validates and publishes its own format. |
 | `VO0025` | Warning | The `[GeneratedRegex]` behind `Pattern` sets `IgnoreCase`, `Multiline`, `Singleline` or `IgnorePatternWhitespace`, which the OpenAPI `pattern` cannot carry. |
 | `VO0026` | Warning | The `[GeneratedRegex]` behind `Pattern` sets no `matchTimeoutMilliseconds`. |
+| `VO0027` | Error | `[KnownValue]` on an `[EntityId]`, which generates no known values. |
 
 ## Using it with an AI coding agent
 
