@@ -14,7 +14,7 @@ namespace AdCodicem.ValueObjects.Dapper;
 /// </remarks>
 public static class ValueObjectDapper
 {
-    private static readonly HashSet<Type> Registered = [];
+    private static readonly Lock Gate = new();
 
     /// <summary>
     /// Registers a handler for every value object declared in the given assemblies.
@@ -22,6 +22,12 @@ public static class ValueObjectDapper
     /// <param name="assemblies">
     /// Assemblies declaring the value objects. When none is given, everything already registered is handled.
     /// </param>
+    /// <remarks>
+    /// A value object Dapper already has a handler for keeps it, whoever registered it, so calling this again
+    /// changes nothing and a handler of the application's own is not replaced. Which types are handled is read
+    /// from Dapper's table rather than remembered here, so a call after <see cref="SqlMapper.ResetTypeHandlers"/>
+    /// registers everything again.
+    /// </remarks>
     [RequiresUnreferencedCode("Closes the generic type handler over each value object type.")]
     [RequiresDynamicCode("Closes the generic type handler over each value object type.")]
     public static void AddValueObjectHandlers(params Assembly[] assemblies)
@@ -33,11 +39,11 @@ public static class ValueObjectDapper
             ValueObjectRegistry.EnsureAssemblyRegistered(assembly);
         }
 
-        lock (Registered)
+        lock (Gate)
         {
             foreach (var descriptor in ValueObjectRegistry.GetRegistered())
             {
-                if (!Registered.Add(descriptor.ValueObjectType))
+                if (SqlMapper.HasTypeHandler(descriptor.ValueObjectType))
                 {
                     continue;
                 }

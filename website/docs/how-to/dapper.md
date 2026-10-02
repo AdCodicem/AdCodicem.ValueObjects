@@ -25,7 +25,10 @@ var account = await connection.QuerySingleOrDefaultAsync<BankAccount>(
 ```
 
 Dapper keeps its handlers in a process-wide table, so the call belongs at start-up rather than per connection.
-Pass several assemblies if the value objects live in more than one. Calling it again changes nothing.
+Pass several assemblies if the value objects live in more than one. Calling it again changes nothing: a value object
+Dapper already has a handler for keeps it, including one the application registered itself. What is handled is read
+from Dapper's own table, so after `SqlMapper.ResetTypeHandlers()` — between tests, say — calling it again registers
+every handler anew.
 
 ## What a read trusts
 
