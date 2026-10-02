@@ -15,7 +15,7 @@
 | `AllowEmpty` | `bool` | `false` | `string` only. Accepts `""`. `null` is rejected regardless: absence is `Iban?`. |
 | `AllowDefault` | `bool` | `false` | Silences `VO0010`. Only for a type whose zero state is meaningful, such as a sequence number starting at zero. |
 | `SchemaFormat` | `string?` | natural format of the underlying type | OpenAPI `format` (`uuid`, `date`, `int64`, or your own: `iban`, `email`). |
-| `Example` | `string?` | none | OpenAPI example. |
+| `Example` | `string?` | none | OpenAPI example, written as text the type parses; published in its JSON form. |
 | `Description` | `string?` | XML `<summary>` of the type | OpenAPI description. |
 
 Declarative rules run **before** any hook, so a validator hook only ever sees values that already satisfy them.

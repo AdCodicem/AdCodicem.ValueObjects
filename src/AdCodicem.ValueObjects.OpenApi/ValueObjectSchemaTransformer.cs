@@ -80,7 +80,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
 
         if (!string.IsNullOrEmpty(declared.Example))
         {
-            schema.Examples = [JsonValue.Create(declared.Example)];
+            schema.Examples = [WriteExample(declared.Example, descriptor, context.JsonTypeInfo.Options)];
         }
 
         if (declared.IsClosedValueSet && !declared.KnownValues.IsEmpty)
@@ -91,6 +91,23 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
 
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Writes the declared example as the type writes it in JSON.
+    /// </summary>
+    /// <param name="example">The example, as declared: text.</param>
+    /// <param name="descriptor">Descriptor of the value object.</param>
+    /// <param name="options">The options the document describes the wire with.</param>
+    /// <returns>The example as JSON.</returns>
+    /// <remarks>
+    /// The example is parsed the way the type parses text, then written by the type's own converter, so that a client
+    /// or a mock server checking it against the schema finds a number where the schema says number. An example the
+    /// type refuses, which nothing checks when the type compiles, is written as its text.
+    /// </remarks>
+    private static JsonNode WriteExample(string example, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
+        => descriptor.TryParse(example, CultureInfo.InvariantCulture, out var parsed, out _)
+            ? JsonSerializer.SerializeToNode(parsed, options.GetTypeInfo(descriptor.ValueObjectType))!
+            : JsonValue.Create(example);
 
     /// <summary>
     /// Writes one known value of a closed set as the type writes it in JSON.

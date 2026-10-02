@@ -6,7 +6,7 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain;
 // chosen to reach the emitted branches; the names only keep the tests readable.
 
 /// <summary>Whether a customer agreed to be contacted.</summary>
-[ValueObject<bool>]
+[ValueObject<bool>(Example = "true")]
 public readonly partial struct Consent;
 
 /// <summary>A school grade, from A to F.</summary>
@@ -25,7 +25,7 @@ public readonly partial struct Adjustment;
 public readonly partial struct Score;
 
 /// <summary>A TCP port.</summary>
-[ValueObject<ushort>(Arithmetic = true, Minimum = "1")]
+[ValueObject<ushort>(Arithmetic = true, Minimum = "1", Example = "8080")]
 public readonly partial struct Port;
 
 /// <summary>A page number, counted from one, with the first page named in an open value set.</summary>

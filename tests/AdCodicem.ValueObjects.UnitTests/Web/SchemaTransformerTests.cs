@@ -60,6 +60,22 @@ public partial class SchemaTransformerTests
     }
 
     /// <summary>
+    /// Nothing checks an example when the type compiles, and one the type refuses has no form the type writes: it is
+    /// published as the text it was declared as, rather than failing the document.
+    /// </summary>
+    [Fact]
+    public async Task An_example_the_type_refuses_is_published_as_its_text()
+    {
+        ValueObjectRegistry.EnsureAssemblyRegistered(typeof(Tally).Assembly);
+        ValueObjectRegistry.Register(ValueObjectDescriptor.For<Tally, int>(new ValueObjectSchema { Example = "many" }));
+        var schema = new OpenApiSchema();
+
+        await new ValueObjectSchemaTransformer().TransformAsync(schema, ContextFor<Tally>(), TestContext.Current.CancellationToken);
+
+        schema.Examples.Should().ContainSingle().Which!.ToJsonString().Should().Be("\"many\"");
+    }
+
+    /// <summary>
     /// A value object written by hand that nothing registered binds through the model binder and validates through
     /// FluentValidation, which both resolve it by reflection. The transformer resolves it the same way, so it is
     /// documented as its underlying value rather than left as the object the serializer would describe.
@@ -93,4 +109,8 @@ public partial class SchemaTransformerTests
     /// <summary>A rate no other test uses, whose registration one test replaces.</summary>
     [ValueObject<decimal>]
     public readonly partial struct Rate;
+
+    /// <summary>A tally no other test uses, whose registration one test replaces.</summary>
+    [ValueObject<int>]
+    public readonly partial struct Tally;
 }
