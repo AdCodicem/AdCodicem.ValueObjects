@@ -1034,17 +1034,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     };
 
     private static string BuildHintName(INamedTypeSymbol symbol)
-    {
-        var qualified = symbol.ToDisplayString(QualifiedFormat).Replace("global::", string.Empty);
-
-        var builder = new StringBuilder(qualified.Length + 8);
-        foreach (var character in qualified)
-        {
-            builder.Append(char.IsLetterOrDigit(character) || character == '_' || character == '.' ? character : '_');
-        }
-
-        return builder.Append(".g.cs").ToString();
-    }
+        => HintNames.For(symbol.ToDisplayString(QualifiedFormat).Replace("global::", string.Empty));
 
     private static bool IsValidRegex(string pattern, out string error)
     {

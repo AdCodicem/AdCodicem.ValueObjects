@@ -1,4 +1,5 @@
 using System.Globalization;
+using AdCodicem.ValueObjects.Generators.Internal;
 using Microsoft.CodeAnalysis;
 
 namespace AdCodicem.ValueObjects.GeneratorTests;
@@ -99,7 +100,7 @@ public sealed class TypeNameTests
             $"'{typeName}' {reason}, which the generator does not support. Rename the type '{captured}': the generated "
             + $"code writes {captured} in its statements, where it would refer to that type instead.");
 
-        run.Files.Select(file => file.HintName).Should().BeEquivalentTo("Elsewhere.Other.g.cs", "ValueObjectRegistration.g.cs");
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo(HintNames.For("Elsewhere.Other"), "ValueObjectRegistration.g.cs");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
@@ -178,7 +179,7 @@ public sealed class TypeNameTests
         run.Diagnostics.Should().OnlyContain(diagnostic => diagnostic.Id == "VO0019");
         run.Diagnostics.Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture)).Should().BeEquivalentTo(
             members.Select(name => $"'{name}' {MemberReason}, which the generator does not support. {MemberRemedy}"));
-        run.Files.Select(file => file.HintName).Should().BeEquivalentTo("Test.Code.g.cs", "ValueObjectRegistration.g.cs");
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo(HintNames.For("Test.Code"), "ValueObjectRegistration.g.cs");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
@@ -204,7 +205,7 @@ public sealed class TypeNameTests
             """);
 
         run.Diagnostics.Should().BeEmpty();
-        run.Files.Select(file => file.HintName).Should().BeEquivalentTo($"Test.{name}.g.cs", "ValueObjectRegistration.g.cs");
+        run.Files.Select(file => file.HintName).Should().BeEquivalentTo(HintNames.For($"Test.{name}"), "ValueObjectRegistration.g.cs");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
@@ -235,7 +236,7 @@ public sealed class TypeNameTests
 
         run.Diagnostics.Should().BeEmpty();
         run.Files.Select(file => file.HintName).Should().BeEquivalentTo(
-            "Test.FormatWithPooledBuffer.g.cs",
+            HintNames.For("Test.FormatWithPooledBuffer"),
             "ValueObjectRegistration.g.cs");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
