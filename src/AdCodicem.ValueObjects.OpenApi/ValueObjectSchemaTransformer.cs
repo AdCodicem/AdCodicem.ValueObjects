@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
 using AdCodicem.ValueObjects.Metadata;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
@@ -57,14 +59,14 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
             schema.MaxLength = maxLength;
         }
 
-        if (declared.Minimum is { } minimum && decimal.TryParse(minimum, CultureInfo.InvariantCulture, out var min))
+        if (declared.Minimum is { } minimum && FormatBound(minimum, descriptor.ValueType) is { } min)
         {
-            schema.Minimum = min.ToString(CultureInfo.InvariantCulture);
+            schema.Minimum = min;
         }
 
-        if (declared.Maximum is { } maximum && decimal.TryParse(maximum, CultureInfo.InvariantCulture, out var max))
+        if (declared.Maximum is { } maximum && FormatBound(maximum, descriptor.ValueType) is { } max)
         {
-            schema.Maximum = max.ToString(CultureInfo.InvariantCulture);
+            schema.Maximum = max;
         }
 
         if (!string.IsNullOrEmpty(declared.Description))
@@ -79,10 +81,55 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
 
         if (declared.IsClosedValueSet && !declared.KnownValues.IsEmpty)
         {
-            schema.Enum = [.. declared.KnownValues.Select(ToJsonNode)];
+            var typeInfo = context.JsonTypeInfo.Options.GetTypeInfo(descriptor.ValueObjectType);
+            schema.Enum = [.. declared.KnownValues.Select(value => WriteKnownValue(value, descriptor, typeInfo))];
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Writes one known value of a closed set as the type writes it in JSON.
+    /// </summary>
+    /// <param name="value">The known value, as the schema holds it.</param>
+    /// <param name="descriptor">Descriptor of the value object.</param>
+    /// <param name="typeInfo">The value object's contract, under the options the document describes the wire with.</param>
+    /// <returns>The value as JSON.</returns>
+    /// <remarks>
+    /// A value of the underlying type is written by the type's own converter, so that a client checks a payload
+    /// against exactly what the type writes: a number of any width as a number, a date in its round-trip form. Only a
+    /// generated registration guarantees that type. A schema read from an annotation by reflection holds what the
+    /// attribute was given, such as a decimal written as text, and a hand-made one holds anything: such a value is
+    /// written as its text.
+    /// </remarks>
+    private static JsonNode WriteKnownValue(object value, ValueObjectDescriptor descriptor, JsonTypeInfo typeInfo)
+        => descriptor.ValueType.IsInstanceOfType(value)
+            ? JsonSerializer.SerializeToNode(descriptor.CreateUnchecked(value), typeInfo)!
+            : JsonValue.Create(Convert.ToString(value, CultureInfo.InvariantCulture))!;
+
+    /// <summary>
+    /// Reads a declared bound as the number the type enforces, in the form the document writes it.
+    /// </summary>
+    /// <param name="bound">The bound, as declared.</param>
+    /// <param name="valueType">Underlying type of the value object.</param>
+    /// <returns>The number, or <see langword="null"/> when the bound is not one, as a date's is not.</returns>
+    /// <remarks>
+    /// A double or a float bound may be written with an exponent, and may lie beyond the range of decimal or below
+    /// its precision, so it is read as a double; every other numeric type has bounds decimal carries exactly.
+    /// </remarks>
+    private static string? FormatBound(string bound, Type valueType)
+    {
+        if (valueType == typeof(double) || valueType == typeof(float))
+        {
+            // The document is JSON, which has no number for an infinity.
+            return double.TryParse(bound, NumberStyles.Float, CultureInfo.InvariantCulture, out var real) && double.IsFinite(real)
+                ? real.ToString("R", CultureInfo.InvariantCulture)
+                : null;
+        }
+
+        return decimal.TryParse(bound, NumberStyles.Float, CultureInfo.InvariantCulture, out var exact)
+            ? exact.ToString(CultureInfo.InvariantCulture)
+            : null;
     }
 
     private static JsonSchemaType MapType(Type valueType) => Type.GetTypeCode(valueType) switch
@@ -92,17 +139,5 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
             or TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Int64 or TypeCode.UInt64 => JsonSchemaType.Integer,
         TypeCode.Decimal or TypeCode.Double or TypeCode.Single => JsonSchemaType.Number,
         _ => JsonSchemaType.String,
-    };
-
-    private static JsonNode ToJsonNode(object value) => value switch
-    {
-        string text => JsonValue.Create(text),
-        bool boolean => JsonValue.Create(boolean),
-        decimal number => JsonValue.Create(number),
-        double number => JsonValue.Create(number),
-        float number => JsonValue.Create(number),
-        long number => JsonValue.Create(number),
-        int number => JsonValue.Create(number),
-        _ => JsonValue.Create(Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty),
     };
 }

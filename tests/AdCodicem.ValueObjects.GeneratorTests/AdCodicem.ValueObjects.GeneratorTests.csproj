@@ -17,11 +17,29 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
+    <!-- Handed to a snippet only on request: the generator publishes its JSON converters when the package is there. -->
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="AdCodicem.ValueObjects.GeneratorTests.Harness" />
     <Using Include="AdCodicem.ValueObjects.Generators.Analyzers" />
   </ItemGroup>
+
+  <!--
+    The harness runs the framework's regex source generator beside this repository's, so that a snippet can implement
+    IValueObjectPatternValidator with a [GeneratedRegex] partial property, as the documentation does. The generator
+    ships in the targeting pack, not in Basic.Reference.Assemblies: it is taken from the analyzers this project is
+    itself compiled with, so the SDK decides the version, on a laptop and in CI alike.
+  -->
+  <Target Name="CopyRegexGenerator" AfterTargets="ResolveTargetingPackAssets" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <_RegexGenerator Include="@(Analyzer)"
+                       Condition="'%(Filename)' == 'System.Text.RegularExpressions.Generator' and $([System.String]::new('%(FullPath)').Contains('$([System.IO.Path]::DirectorySeparatorChar)cs$([System.IO.Path]::DirectorySeparatorChar)'))" />
+      <None Include="@(_RegexGenerator)" Link="regex-generator\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+    <Error Condition="'@(_RegexGenerator)' == ''"
+           Text="The targeting pack's System.Text.RegularExpressions.Generator.dll was not found among this project's analyzers." />
+  </Target>
 
 </Project>

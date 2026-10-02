@@ -20,7 +20,7 @@ Defined as constants on `ValueObjectErrorCodes`:
 | `value_object.required` | The value is `null`, or an empty string on a type without `AllowEmpty`. |
 | `value_object.too_short` | A string is shorter than `MinLength`. |
 | `value_object.too_long` | A string is longer than `MaxLength`. |
-| `value_object.invalid_format` | The value does not match `Pattern`; also the code of `ValidationResult.InvalidFormat`. |
+| `value_object.invalid_format` | The value does not match the `Pattern` of `IValueObjectPatternValidator`, or of the deprecated option of the same name; also the code of `ValidationResult.InvalidFormat`. |
 | `value_object.out_of_range` | The value is below `Minimum` or above `Maximum`; also the code of `ValidationResult.OutOfRange`. |
 | `value_object.not_a_known_value` | The value is not one of the known values of a closed set. |
 | `value_object.not_parsable` | The text does not even have the shape of the underlying type, so no rule of the type ran. |
@@ -52,13 +52,27 @@ Thrown by `Create`, by `Parse`, and by an explicit conversion, when the value is
 
 | Member | |
 | --- | --- |
-| `ErrorCode` | The code of the violated rule, the same `TryCreate` would have reported. |
+| `ErrorCode` | The code of the violated rule, the same `TryCreate`, or for `Parse` the four-argument `TryParse`, would have reported. `Parse` throws `value_object.not_parsable` only for text that is not of the underlying type at all. |
 | `ValueObjectType` | The value object that refused the value. |
 | `AttemptedValue` | The value as it was passed in, before normalization. |
-| `Message` | The message of the violated rule. |
+| `Message` | The message of the violated rule, after the text and the type for `Parse`. |
 
-Every integration on a boundary — JSON, model binding, EF Core, Dapper — uses `TryCreate` instead, so the
-exception is reserved for code that treats a rejected value as a bug.
+The integrations on a boundary report a rejected value in their own terms, so the exception is reserved for code
+that treats a rejected value as a bug, and for a strict EF Core read:
+
+| Integration | A rejected value |
+| --- | --- |
+| The System.Text.Json converters | `JsonException`, with the message of the rule. |
+| The Newtonsoft.Json converter | `JsonSerializationException`, with the message of the rule. |
+| ASP.NET Core model binding | A model state error; the [problem details](../how-to/aspnet-core.md#problem-details-carrying-the-rule) carry its code. |
+| FluentValidation, `MustParseAs` and `MustSatisfy` | A validation failure carrying the code. |
+| Dapper | `DataException`, for a value it cannot convert, and for text read into a value object over another type, or a number read into one over `string`, that the value object refuses. |
+| EF Core with `strict: true` | `ValueObjectException`, from `Create`: the query fails. |
+
+The other reads do not validate. EF Core by default, and Dapper for a value the provider returns as the underlying
+type or as its date and time counterpart, build the value object with `CreateUnchecked`: they read what this
+application validated when it wrote it.
+[EF Core](../how-to/ef-core.md#validation-on-read) says when to read strictly.
 
 ## Detecting an uninitialized instance
 

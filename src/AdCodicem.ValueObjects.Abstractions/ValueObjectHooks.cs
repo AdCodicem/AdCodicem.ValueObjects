@@ -53,14 +53,47 @@ public interface IValueObjectSpanNormalizer
 }
 
 /// <summary>
+/// Declares that a string value object must match a regular expression.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Implement it with a source-generated regular expression, which the regex generator can only write for code a
+/// consumer wrote by hand:
+/// <c>[GeneratedRegex("^[A-Z]{3}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }</c>.
+/// It runs compiled under native AOT, where a <see cref="System.Text.RegularExpressions.Regex"/> built at run time
+/// is interpreted, and costs nothing until it first runs.
+/// </para>
+/// <para>
+/// The pattern runs after <c>MinLength</c> and <c>MaxLength</c>, before the known values and
+/// <see cref="IValueObjectValidator{TValue}"/>, and a value it does not match is rejected as
+/// <see cref="ValueObjectErrorCodes.InvalidFormat"/>. It is declared once: its text is also the OpenAPI
+/// <c>pattern</c>, read off the <c>[GeneratedRegex]</c> attribute when the type compiles. That text carries no
+/// <see cref="System.Text.RegularExpressions.RegexOptions"/>, so a rule like case insensitivity belongs in the
+/// pattern itself.
+/// </para>
+/// <para>
+/// It replaces the <c>Pattern</c> option of <c>[ValueObject&lt;T&gt;]</c>, which builds its regular expression at
+/// run time. Implementing it on a value object that is not a string, or on an <c>[EntityId]</c>, which owns its
+/// format, is a build error.
+/// </para>
+/// </remarks>
+public interface IValueObjectPatternValidator
+{
+    /// <summary>
+    /// Gets the regular expression a value must match.
+    /// </summary>
+    static abstract System.Text.RegularExpressions.Regex Pattern { get; }
+}
+
+/// <summary>
 /// Declares that a value object enforces a rule its declarative constraints cannot express.
 /// </summary>
 /// <typeparam name="TValue">Underlying value type.</typeparam>
 /// <remarks>
-/// Length, pattern and bounds are better declared on <c>[ValueObject&lt;T&gt;]</c>, where they also size the
-/// database column and describe the OpenAPI schema. Implement this for what is left: an IBAN's MOD-97 check
-/// digits, a Luhn checksum, a rule spanning several characters. The declared constraints run first, so this
-/// method only sees values that already satisfy them.
+/// Length and bounds are better declared on <c>[ValueObject&lt;T&gt;]</c>, and a pattern through
+/// <see cref="IValueObjectPatternValidator"/>, where they also size the database column and describe the OpenAPI
+/// schema. Implement this for what is left: an IBAN's MOD-97 check digits, a Luhn checksum, a rule spanning several
+/// characters. The declared constraints run first, so this method only sees values that already satisfy them.
 /// </remarks>
 public interface IValueObjectValidator<TValue>
 {
@@ -77,9 +110,19 @@ public interface IValueObjectValidator<TValue>
 /// </summary>
 /// <typeparam name="TValue">Underlying value type.</typeparam>
 /// <remarks>
+/// <para>
 /// Implementing this takes over formatting entirely, including the default format, so it must handle an empty
 /// or <see langword="null"/> format specifier. It is what gives a value object named formats: an IBAN printed
-/// in groups of four, or masked down to its last four characters.
+/// in groups of four, or masked down to its last four characters. A type that also implements
+/// <see cref="IValueObjectStringFormatter{TValue}"/> never calls this one: the string formatter answers everywhere.
+/// </para>
+/// <para>
+/// The generated <c>ToString(format, provider)</c> calls it with a stack buffer, then with a pooled buffer twice as
+/// large each time it returns <see langword="false"/>, up to 1,048,576 characters, past which it throws a
+/// <see cref="FormatException"/>. A format the rule does not support is therefore refused by throwing that
+/// exception, not by returning <see langword="false"/>. On a <see cref="string"/> value object, text equal to the
+/// value returns the string the value object holds, so formatting a value unchanged allocates nothing.
+/// </para>
 /// </remarks>
 public interface IValueObjectFormatter<TValue>
 {

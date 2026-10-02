@@ -31,7 +31,7 @@ the value itself, and never for input that comes from outside — a request, a f
 ## Properties derived from the value
 
 ```csharp
-[ValueObject<string>(MinLength = 15, MaxLength = 34, Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$")]
+[ValueObject<string>(MinLength = 15, MaxLength = 34)]
 public readonly partial struct Iban
 {
     public string CountryCode => Value[..2];

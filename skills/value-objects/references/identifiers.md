@@ -34,15 +34,22 @@ public static class Minting
 | Member | Default | Effect |
 | --- | --- | --- |
 | `Prefix` (constructor argument) | required | One or more lowercase segments separated by `_`, each opening on a letter: `"acc"`, `"sk_live"`. Malformed → `VO0015`; claimed twice → `VO0016`. |
-| `Granularity` | `IdGranularity.Hour` | Width of the time bucket: `Minute` (6 chars), `Hour` (4), `Day` (3). |
+| `Granularity` | `IdGranularity.Hour` | Width of the time bucket: `Minute` (6 chars), `Hour` (4), `Day` (3). A value the enum does not define → `VO0020`. |
+| `AllowDefault` | `false` | Silences `VO0010` for `default(AccountId)` and `new AccountId()`, as on `[ValueObject<T>]`. Only for a type whose default state is meaningful to the code holding it; absence is `AccountId?`. |
 | `Description`, `Example` | none | OpenAPI documentation. |
 
 Choose `Granularity` from the insert rate of the table, aiming for roughly 10⁴–10⁵ rows per bucket — not from
 taste. It leaks the creation time at exactly that granularity and nothing finer; the random part keeps its full
 80 bits either way, so the identifier never becomes guessable.
 
-An identifier owns its own normalization: declaring a normalizer hook on one is `VO0017`. Both `[EntityId]` and
-`[ValueObject<T>]` on the same type is `VO0018`.
+An identifier owns its own normalization: declaring a normalizer hook on one is `VO0017`. A validator or a
+formatter is declared through its interface, as on any value object; written without it, it never runs and is
+`VO0011`. It also owns its format and publishes its own OpenAPI `pattern`, so `IValueObjectPatternValidator` on
+one is `VO0024`. Both `[EntityId]` and `[ValueObject<T>]` on the same type is `VO0018`.
+
+`default(AccountId)` and `new AccountId()` are build error `VO0010`, as for any value object: the instance they
+produce has an empty `Value` and never went through validation. Mint with `New()`, read with `Parse` or
+`TryParse`, and write absence as `AccountId?`.
 
 ## Why the prefix is stored, not stripped
 
@@ -90,6 +97,9 @@ if (AnyEntityId.TryParse(text, provider: null, out var any) && any.TryConvertTo<
 
 It parses whichever registered prefix arrives. It implements neither `IValueObject` nor `IEntityId`, which is
 what keeps it out of the EF Core convention: a polymorphic column cannot be mapped by accident.
+
+Its `Value` is the identifier's own value, never what a formatting hook writes. In JSON it is that bare text. A
+JSON `null` throws a `JsonException`: declare `AnyEntityId?` for a reference that may be absent.
 
 ## Deterministic tests
 

@@ -119,12 +119,14 @@ public sealed class ApiTests(PostgreSqlFixture database) : IClassFixture<Postgre
     public async Task A_value_object_binds_from_the_query_string()
     {
         await CreateCustomerAsync("query.binding@example.com", "LU");
+        await CreateCustomerAsync("query.elsewhere@example.com", "BE");
 
         var response = await _client.GetAsync("/customers?country=lu", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         body.Should().Contain("query.binding@example.com");
+        body.Should().NotContain("query.elsewhere@example.com", "the country bound from the query string filters");
     }
 
     [Fact]
@@ -148,6 +150,35 @@ public sealed class ApiTests(PostgreSqlFixture database) : IClassFixture<Postgre
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    /// <summary>
+    /// The country is not stored: each response reads it from the account's IBAN, a member the value object derives
+    /// from its value. The IBAN is used by no other test, since it keys the account in the shared database.
+    /// </summary>
+    [Fact]
+    public async Task An_account_is_returned_with_the_country_its_IBAN_names()
+    {
+        var customer = await CreateCustomerAsync("account.country@example.com");
+        var id = customer.GetProperty("id").GetString();
+
+        var opened = await _client.PostAsync(
+            $"/customers/{id}/accounts",
+            Json("""{"iban":"de89 3704 0044 0532 0130 00","initialBalance":1250}"""),
+            TestContext.Current.CancellationToken);
+
+        opened.StatusCode.Should().Be(HttpStatusCode.Created);
+        var account = await opened.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        account.GetProperty("iban").GetString().Should().Be("DE89370400440532013000");
+        account.GetProperty("country").GetString().Should().Be("DE");
+
+        var read = await _client.GetFromJsonAsync<JsonElement>(
+            "/accounts/DE89370400440532013000",
+            TestContext.Current.CancellationToken);
+        read.GetProperty("country").GetString().Should().Be("DE");
+
+        var owner = await _client.GetFromJsonAsync<JsonElement>($"/customers/{id}", TestContext.Current.CancellationToken);
+        owner.GetProperty("accounts")[0].GetProperty("country").GetString().Should().Be("DE");
+    }
+
     [Fact]
     public async Task A_validator_reports_the_rule_the_value_object_owns()
     {
@@ -161,6 +192,38 @@ public sealed class ApiTests(PostgreSqlFixture database) : IClassFixture<Postgre
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         problem.GetProperty("errorCodes").GetProperty("Iban").GetString()
             .Should().Be(ValueObjectErrorCodes.InvalidFormat);
+    }
+
+    [Fact]
+    public async Task A_raw_payload_with_an_IBAN_the_type_accepts_is_accepted()
+    {
+        var response = await _client.PostAsync(
+            "/accounts/import",
+            Json("""{"iban":"fr76 3000 6000 0112 3456 7890 189"}"""),
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+    }
+
+    /// <summary>
+    /// The validator chains NotEmpty and MustParseAs, and empty text would fail both: it stops the member at its
+    /// first failure, so the member is reported once, with one message and the code of the first rule.
+    /// </summary>
+    /// <param name="body">A payload whose IBAN is missing, null or empty.</param>
+    [Theory]
+    [InlineData("""{"iban":""}""")]
+    [InlineData("""{"iban":null}""")]
+    [InlineData("{}")]
+    public async Task A_raw_payload_without_an_IBAN_is_rejected_once_under_its_member(string body)
+    {
+        var response = await _client.PostAsync("/accounts/import", Json(body), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        problem.GetProperty("errors").EnumerateObject().Should().ContainSingle()
+            .Which.Value.GetArrayLength().Should().Be(1);
+        problem.GetProperty("errorCodes").GetProperty("Iban").GetString().Should().Be("NotEmptyValidator");
     }
 
     [Fact]

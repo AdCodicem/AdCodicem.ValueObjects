@@ -188,8 +188,13 @@ equality, ordering, the JSON converter, the `TypeConverter`, the registry entry 
 `MinLength`, `MaxLength` and the OpenAPI `pattern` are **derived** from the profile and flow into the EF Core
 column and the OpenAPI schema exactly as they do for any other value object — the rule is still declared once.
 The pattern is published as schema text but never compiled: at fixed length over a fixed alphabet, validation
-is a span scan, so an entity identifier costs no `Regex` at start-up, unlike a `Pattern`-constrained value
-object.
+is a span scan, so an entity identifier costs no `Regex` at start-up, unlike a value object constrained by the
+deprecated `Pattern` option.
+
+An identifier that skipped validation is refused at compile time, as any value object is: `default(AccountId)`
+and `new AccountId()` are `VO0010`, because the instance they produce has an empty `Value` and no prefix. One
+is minted with `New()` or read with `Parse` and `TryParse`, and absence is written `AccountId?`.
+`[EntityId("acc", AllowDefault = true)]` opts a type out, with the same meaning as on `[ValueObject<T>]`.
 
 The generated `Normalize` trims surrounding whitespace, folds the body to lower case, applies the alias
 mapping, and canonicalizes the prefix's case. It drops nothing, so it preserves length. It never rejects
@@ -233,6 +238,11 @@ make identifiers predictable from a handful of samples.
 `AnyEntityId` parses any registered prefix and reports which type it belongs to. It serves webhooks, deep
 links, audit logs and heterogeneous references.
 
+Its `Value` is the identifier's own value, even where the identifier type declares a formatting hook that writes it
+differently, so it always parses back. In JSON it is that bare text, as a value or as a dictionary key. A `null` is
+refused with a `JsonException`, as it is for every identifier; a reference that may be absent is declared
+`AnyEntityId?`.
+
 It deliberately does **not** implement `IValueObject`, which is what makes it non-persistable by construction:
 the EF Core convention keys off that interface, so `AnyEntityId` is invisible to it and no one can accidentally
 map a polymorphic column. It is a transport and resolution type, nothing more.
@@ -258,10 +268,15 @@ without the package, the attribute does not exist.
 
 | Id | Severity | Meaning |
 | --- | --- | --- |
+| `VO0010` | Error | `default(AccountId)` or `new AccountId()`: an identifier that never went through validation. `AllowDefault = true` opts a type out. |
+| `VO0011` | Warning | A validator or a formatter written without its hook interface, which the generator never calls. |
 | `VO0015` | Error | Malformed prefix: empty, wrong characters, or an over-long segment. |
 | `VO0016` | Error | Two types in the compilation declare the same prefix. |
-| `VO0017` | Error | An option that `[EntityId]` derives or forbids was set by hand. |
+| `VO0017` | Error | A normalization hook on an identifier, which normalizes its own format and would never call it. |
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
+| `VO0019` | Error | The generated code cannot reopen, reach or name the identifier: it is generic, nested in a generic type or an interface, `private`, `protected` or `file`-local, or named after a member the generator writes. |
+| `VO0020` | Error | `Granularity` holds a value `IdGranularity` does not define. |
+| `VO0024` | Error | `IValueObjectPatternValidator` on an identifier, which validates its format itself and publishes its own OpenAPI pattern. |
 
 Cross-assembly prefix collisions are beyond a generator's reach and surface at start-up, when the second
 registration for a prefix is refused.

@@ -1,5 +1,6 @@
 using System.Globalization;
 using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
 namespace AdCodicem.ValueObjects.UnitTests;
 
@@ -96,6 +97,24 @@ public sealed class DescriptorTests
         }
     }
 
+    /// <summary>
+    /// A boxed null is "no value". A string value object says so through its own rule; a decimal one has no null to
+    /// say it about, so the descriptor must, rather than quietly reading null as zero.
+    /// </summary>
+    [Fact]
+    public void A_boxed_null_is_rejected_as_required_whatever_the_underlying_type()
+    {
+        foreach (var descriptor in new[] { Descriptor<CountryCode>(), Descriptor<Amount>(), Descriptor<Quantity>() })
+        {
+            descriptor.TryCreate(null, out var result, out var validation).Should().BeFalse(descriptor.ValueObjectType.Name);
+            result.Should().BeNull();
+            validation.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
+
+            var create = () => descriptor.Create(null);
+            create.Should().Throw<ValueObjectException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
+        }
+    }
+
     [Fact]
     public void The_boxed_creation_path_reports_the_same_rule()
     {
@@ -139,6 +158,95 @@ public sealed class DescriptorTests
 
         first.Should().NotBeSameAs(second, "only a closed set has a fixed number of instances to share");
         first.Should().Be(second);
+    }
+
+    [Fact]
+    public void The_boxed_creation_path_accepts_an_open_set_value_into_a_box_of_its_own()
+    {
+        Descriptor<Amount>().TryCreate(12.5m, out var created, out var validation).Should().BeTrue();
+
+        validation.IsValid.Should().BeTrue();
+        created.Should().Be(Amount.Create(12.50m));
+    }
+
+    /// <summary>
+    /// The shared boxes are keyed with the default comparer, so a spelling the type accepts through its
+    /// case-insensitive comparison misses them. A miss costs an allocation, never correctness.
+    /// </summary>
+    [Fact]
+    public void A_closed_set_compared_case_insensitively_accepts_another_spelling_through_the_boxed_paths()
+    {
+        var descriptor = Descriptor<DocumentStatus>();
+
+        descriptor.TryCreate("DRAFT", out var created, out _).Should().BeTrue();
+        descriptor.TryParse("DRAFT", CultureInfo.InvariantCulture, out var parsed, out _).Should().BeTrue();
+
+        created.Should().Be(DocumentStatus.Draft);
+        parsed.Should().Be(DocumentStatus.Draft);
+        created.Should().NotBeSameAs(descriptor.Create("draft"));
+    }
+
+    [Fact]
+    public void A_closed_schema_whose_known_values_are_not_of_the_underlying_type_shares_no_box()
+    {
+        var descriptor = ValueObjectDescriptor.For<CountryCode, string>(
+            new ValueObjectSchema { IsClosedValueSet = true, KnownValues = [1, 2] });
+
+        var first = descriptor.Create("FR");
+        var second = descriptor.Create("FR");
+
+        first.Should().Be(second);
+        first.Should().NotBeSameAs(second);
+    }
+
+    /// <summary>
+    /// The trusted path builds whatever it is handed, valid or not, and still hands out the shared box of a
+    /// closed set's member. Nothing in the library calls it; it is public for callers reading their own storage.
+    /// </summary>
+    [Fact]
+    public void The_trusted_boxed_path_skips_validation_and_shares_the_boxes_of_a_closed_set()
+    {
+        var iban = Descriptor<Iban>();
+        var country = Descriptor<CountryCode>();
+
+        iban.GetValue(iban.CreateUnchecked("not an iban")).Should().Be("not an iban");
+        country.CreateUnchecked("FR").Should().BeSameAs(country.Create("FR"));
+        country.GetValue(country.CreateUnchecked("ES")).Should().Be("ES", "a trusted value is never checked against the set");
+        ((CountryCode)country.CreateUnchecked(null)).IsDefault.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_parse_without_a_provider_reads_the_invariant_culture()
+    {
+        var culture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+
+            Descriptor<Amount>().TryParse("1234.5", null, out var parsed, out _).Should().BeTrue();
+
+            parsed.Should().Be(Amount.Create(1234.50m));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
+    }
+
+    /// <summary>
+    /// A hand-written parser may answer no without saying why. The descriptor supplies the reason, so a caller can
+    /// still rely on a rejection carrying a code.
+    /// </summary>
+    [Fact]
+    public void A_hand_written_parser_that_gives_no_reason_is_reported_as_unparsable()
+    {
+        ValueObjectRegistry.TryResolve(typeof(HandWrittenCounter), out var descriptor).Should().BeTrue();
+
+        descriptor!.TryParse("abc", CultureInfo.InvariantCulture, out var result, out var validation).Should().BeFalse();
+
+        result.Should().BeNull();
+        validation.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        validation.ErrorMessage.Should().Contain(nameof(HandWrittenCounter));
     }
 
     [Fact]

@@ -4,11 +4,11 @@
 
 | Option | Type | Default | Effect |
 | --- | --- | --- | --- |
-| `Pattern` | `string?` | none | Regular expression the **normalized** value must match. Also the OpenAPI `pattern`. Malformed → `VO0014`. |
+| `Pattern` | `string?` | none | **Deprecated** (`VO0021`, removed in the next major): implement `IValueObjectPatternValidator` instead ([below](#pattern)). Regular expression the **normalized** value must match, built at run time, which native AOT interprets. Also the OpenAPI `pattern`. Malformed → `VO0014`; set beside the hook → `VO0022`. |
 | `MinLength` / `MaxLength` | `int` | `-1` (unconstrained) | `string` only (`VO0008` otherwise). Validation, OpenAPI `minLength`/`maxLength`, and the EF Core column size. |
-| `Minimum` / `Maximum` | `string?` | none | Inclusive bounds written in **invariant-culture text**, so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Parsed at compile time; unparsable → `VO0004`. |
-| `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering, hashing. Pick `OrdinalIgnoreCase` only when the value is not case-normalized, and make the database collation agree. |
-| `ValueSet` | `ValueSetKind` | `Open` | `Closed` accepts only the declared `[KnownValue]`s. Empty closed set → `VO0005`. |
+| `Minimum` / `Maximum` | `string?` | none | Inclusive bounds written as **text**, in the one form of the underlying type ([below](#bounds-and-known-values-written-as-text)), so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Numbers, `char`, dates, times and durations only: on `string`, `Guid` or `bool` → `VO0004`. Parsed at compile time; any other text, or a value outside the type → `VO0004`. |
+| `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering, hashing. Pick `OrdinalIgnoreCase` only when the value is not case-normalized, and make the database collation agree. A value the enum does not define → `VO0020`. |
+| `ValueSet` | `ValueSetKind` | `Open` | `Closed` accepts only the declared `[KnownValue]`s. Empty closed set → `VO0005`; a value the enum does not define → `VO0020`. |
 | `Arithmetic` | `bool` | `false` | Numeric types only (`VO0007` otherwise). Operators, generic math, `Zero`, `One`, `IsZero`, `Min`, `Max`. |
 | `ImplicitConversionToValue` | `bool` | `false` | `string s = iban;` — reading stays terse while construction stays explicit. |
 | `ExplicitConversionFromValue` | `bool` | `false` | `(Iban)text` — validates, throws `ValueObjectException` on rejection. |
@@ -19,6 +19,35 @@
 | `Description` | `string?` | XML `<summary>` of the type | OpenAPI description. |
 
 Declarative rules run **before** any hook, so a validator hook only ever sees values that already satisfy them.
+The [pattern](#pattern) is the one rule declared through a hook, and it runs among them, right after the lengths.
+
+## Bounds and known values written as text
+
+`Minimum`, `Maximum` and a `[KnownValue]` given as a string are read at compile time in **one form per
+underlying type**, and in no other: no culture, no time zone, no white space around the value. Anything else is
+`VO0004` for a bound and `VO0013` for a known value, and the message names the form.
+
+| Underlying type | Form | Example |
+| --- | --- | --- |
+| `sbyte`, `short`, `int`, `long`, `Int128` | Digits, with `-` in front when negative. | `"-42"` |
+| `byte`, `ushort`, `uint`, `ulong`, `UInt128` | Digits alone. | `"42"` |
+| `decimal` | Digits, an optional `-` in front, an optional fraction after `.`. No exponent. | `"-19.99"` |
+| `double`, `float` | As `decimal`, plus an optional exponent (`e` or `E`, an optional sign, digits). Finite, and zero only when written as zero. | `"9.1e-31"` |
+| `char` | Exactly one character. | `"A"` |
+| `DateOnly` | `yyyy-MM-dd` | `"2024-01-31"` |
+| `TimeOnly` | `HH:mm`, `HH:mm:ss` or `HH:mm:ss.fffffff`, one to seven digits of fraction. | `"08:30"` |
+| `DateTime` | `yyyy-MM-dd` or `yyyy-MM-ddTHH:mm[:ss[.fffffff]]`. Never an offset or `Z`. | `"2024-01-31T08:30"` |
+| `DateTimeOffset` | `yyyy-MM-ddTHH:mm[:ss[.fffffff]]` followed by `Z`, `+HH:mm` or `-HH:mm`, always. | `"2024-01-31T08:30+01:00"` |
+| `TimeSpan` | `[-][d.]hh:mm:ss[.fffffff]`, the invariant constant format `"c"`. | `"1.12:00:00"` |
+| `string` | Any text. Known values only. | `"FR"` |
+| `Guid` | Any form `Guid.Parse` reads. Known values only. | `"6f9619ff-8b86-d011-b42d-00c04fc964ff"` |
+| `bool` | `true` or `false`, in any case. Known values only. | `"true"` |
+
+The value must exist in the type: `"300"` is no `byte`, `"2023-02-29"` no date, `"25:00"` no time, `"1e-400"`
+(which reads as zero) no `double`. A time of day alone is neither a `DateTime` nor a `DateTimeOffset`, since it
+would take the date of the day the project is built. `string`, `Guid` and `bool` take no bound at all. A known value may also be a C# constant — `200`, `0.5`,
+`'A'`, `true` — which is held to the same form through its invariant text, a `double` or a `float` in round-trip
+form. A `typeof(...)`, an enum member, an array and `null` are not values: `VO0013`.
 
 ## Normalization
 
@@ -86,6 +115,56 @@ framework code that means something else.
 `ValidationResult` is a `readonly struct` whose success state is `default`: the happy path allocates nothing.
 Never throw from a validator — rejection is a return value.
 
+### Pattern
+
+```csharp
+using System.Text.RegularExpressions;
+
+[ValueObject<string>(MaxLength = 3)]
+public readonly partial struct CurrencyCode : IValueObjectNormalizer<string>, IValueObjectPatternValidator
+{
+    [GeneratedRegex("^[A-Z]{3}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+
+    public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
+}
+```
+
+A string value object declares its format through `IValueObjectPatternValidator`: a `public static partial`
+`Regex Pattern` marked `[GeneratedRegex]`, which the regex source generator compiles. That generator only sees
+code a person wrote, so the value object generator cannot write `[GeneratedRegex]` itself; the hook takes the one
+you write. `[GeneratedRegex]` and `Regex` need `using System.Text.RegularExpressions;`, which is not among the
+implicit usings.
+
+The pattern runs on the **normalized** value, after `MinLength` and `MaxLength`, before the known values and
+`ValidateValue`. A value it does not match is rejected as `value_object.invalid_format`, with "The value does not
+match the expected format." Its text, read off the `[GeneratedRegex]` attribute when the type compiles, is the
+OpenAPI `pattern`, so the rule is still declared once: never test it again in `ValidateValue`.
+
+- Always set `matchTimeoutMilliseconds`. Without it, a pathological input holds the thread for as long as the
+  match runs (`VO0026`, warning).
+- `RegexOptions` do not reach the OpenAPI `pattern`, which is the text alone. `IgnoreCase`, `Multiline`,
+  `Singleline` and `IgnorePatternWhitespace` would make clients check values differently from the type
+  (`VO0025`, warning): write the rule into the pattern, `[A-Za-z]` rather than `IgnoreCase`.
+- `string` only (`VO0023` on any other type), and never on an `[EntityId]`, which owns its format (`VO0024`).
+- A malformed regular expression is reported by the regex generator, not by `VO0014`.
+- A `static Regex Pattern` written without the interface never runs as the pattern: `VO0011`.
+
+Migrating from the deprecated `Pattern` option is mechanical. Remove `Pattern = "X"` and add the hook with the
+same text, `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`: those are the options and the
+timeout the option used, so behaviour is unchanged. Before:
+
+```csharp skip
+// Reported as VO0021, and removed in the next major.
+[ValueObject<string>(MaxLength = 3, Pattern = "^[A-Z]{3}$")]
+public readonly partial struct CurrencyCode : IValueObjectNormalizer<string>
+{
+    public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
+}
+```
+
+After: the `CurrencyCode` above. Keeping both is `VO0022`, and the hook wins until the option is removed.
+
 ## Closed value sets
 
 ```csharp
@@ -104,9 +183,9 @@ order), a `FrozenSet` membership check rejecting anything else with `value_objec
 OpenAPI `enum`. This is how reference-data codes are modelled: a C# `enum` can carry neither validation nor a
 stable wire format.
 
-Values that cannot appear as an attribute argument (`Guid`, `decimal`, `DateOnly`) are written as
-invariant-culture text and parsed at compile time (`VO0013` when that fails). An unusable member name is
-`VO0006`. On an **open** set, `[KnownValue]` still generates the constants — they are convenience only.
+Values that cannot appear as an attribute argument (`Guid`, `decimal`, `DateOnly`) are written as text, in the
+form of their type ([table](#bounds-and-known-values-written-as-text)), and parsed at compile time (`VO0013`
+when that fails). An unusable member name is `VO0006`. On an **open** set, `[KnownValue]` still generates the constants — they are convenience only.
 
 ## Arithmetic
 
@@ -163,10 +242,14 @@ public readonly partial struct Bban : IValueObjectFormatter<string>
 ```
 
 Declaring the hook takes over formatting **entirely**, including the empty and `null` format specifier, so
-handle the default case. Return `false` when the destination is too small — that is the framework contract, and
-the generated `ToString(format, provider)` grows a buffer and retries. Prefer `IValueObjectFormatter<TValue>`,
+handle the default case: `ToString()` and `$"{bban}"` write what the hook writes for it. Return `false` when the
+destination is too small, and only then — that is the framework contract, and the generated
+`ToString(format, provider)` retries with a pooled buffer twice as large, up to 1,048,576 characters, then throws
+`FormatException`; throw it yourself for a format you do not support. For a `string` value object, text equal to the
+value returns the string it holds, without allocating. Prefer `IValueObjectFormatter<TValue>`,
 which formats without allocating; `IValueObjectStringFormatter<TValue>` exists for rules whose output is
-naturally a `string`, and wins when both are declared.
+naturally a `string` — its `TryFormat` copies that string — and wins everywhere when both are declared. A hook
+formats text for people only: JSON, dictionary keys included, carries the underlying value.
 
 ## Domain members you *should* add
 
@@ -190,7 +273,11 @@ legitimate for input coming from outside.
 
 ## Nesting
 
-A value object declared inside another type requires **every** containing type to be `partial` (`VO0009`).
+A value object declared inside another type requires **every** containing type to be `partial` (`VO0009`). The
+containing types are classes, structs or records without type parameters: nesting in a generic type or in an
+interface is `VO0019`, and so is a value object with type parameters of its own. The value object and every type
+around it are `internal` or `public` — never `private`, `protected` or `private protected` — and never `file`-local
+(`VO0019`): the generated registration and the generated file reach them from outside.
 
 ## Consuming a value object
 

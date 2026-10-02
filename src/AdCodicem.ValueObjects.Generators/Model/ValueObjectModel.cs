@@ -32,10 +32,14 @@ internal readonly record struct EntityIdProfile(string Prefix, string Granularit
 /// </remarks>
 internal sealed record ValueObjectModel
 {
+    /// <summary>Gets the namespace of the declared type as C# code writes it, or empty for the global namespace.</summary>
     public required string Namespace { get; init; }
 
-    /// <summary>Gets the simple name of the declared type.</summary>
+    /// <summary>Gets the simple name of the declared type, as messages quote it.</summary>
     public required string TypeName { get; init; }
+
+    /// <summary>Gets the simple name of the declared type as C# code writes it, escaped when it is a keyword.</summary>
+    public required string Identifier { get; init; }
 
     /// <summary>Gets the globally qualified name of the declared type.</summary>
     public required string QualifiedName { get; init; }
@@ -50,9 +54,6 @@ internal sealed record ValueObjectModel
     /// <summary>Gets the file name of the generated source.</summary>
     public required string HintName { get; init; }
 
-    /// <summary>Gets the XML summary of the declared type, reused as the OpenAPI description.</summary>
-    public string? XmlSummary { get; init; }
-
     public string ComparisonName { get; init; } = "Ordinal";
 
     public bool ImplicitConversionToValue { get; init; }
@@ -65,7 +66,19 @@ internal sealed record ValueObjectModel
 
     public bool AllowEmpty { get; init; }
 
+    /// <summary>Gets the regular expression of the deprecated <c>Pattern</c> option, compiled at run time.</summary>
     public string? Pattern { get; init; }
+
+    /// <summary>
+    /// Whether the value is matched against the <c>Pattern</c> property of <c>IValueObjectPatternValidator</c>.
+    /// </summary>
+    public bool HasPatternHook { get; init; }
+
+    /// <summary>
+    /// Gets the text of the hook's pattern, read off its <c>[GeneratedRegex]</c> attribute, for the schema. Null
+    /// when the property carries none, and the schema then asks the regular expression for its text at run time.
+    /// </summary>
+    public string? PatternHookText { get; init; }
 
     public int MinLength { get; init; } = -1;
 
@@ -126,13 +139,4 @@ internal sealed record ValueObjectModel
         => UnderlyingType.TryResolve(UnderlyingFullName, out var underlying)
             ? underlying
             : throw new InvalidOperationException($"Unsupported underlying type '{UnderlyingFullName}'.");
-
-    /// <summary>Gets a value indicating whether the type declares constraints enforced by generated code.</summary>
-    public bool HasDeclarativeRules
-        => Pattern is not null
-           || MinLength >= 0
-           || MaxLength >= 0
-           || MinimumLiteral is not null
-           || MaximumLiteral is not null
-           || IsClosedValueSet;
 }

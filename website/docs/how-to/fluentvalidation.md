@@ -23,6 +23,7 @@ public sealed class ImportAccountValidator : AbstractValidator<ImportAccountRequ
     public ImportAccountValidator()
     {
         RuleFor(request => request.Iban)
+            .Cascade(CascadeMode.Stop)
             .NotEmpty()
             .MustParseAs(typeof(Iban));
     }
@@ -33,6 +34,20 @@ public sealed class ImportAccountValidator : AbstractValidator<ImportAccountRequ
 carries the value object's error code — `value_object.invalid_format` for a wrong check digit — as the
 FluentValidation `ErrorCode`.
 
+A `null` passes `MustParseAs`, as it passes every FluentValidation rule but `NotNull` and `NotEmpty`: whether the
+member is required is theirs to say, which is why the validator above chains `NotEmpty()` first.
+
+Empty text is the value object's to judge, like any other text:
+
+- a `string` value object refuses it with `value_object.required`, unless it declares `AllowEmpty = true`, in which
+  case it passes;
+- a value object over any other type — a `Guid`, a number, a date — cannot parse it, and refuses it with
+  `value_object.not_parsable`.
+
+So with `NotEmpty()` chained before it, empty text fails both rules, and would be reported twice under one member.
+`Cascade(CascadeMode.Stop)` stops the member at its first failure: empty text is reported once, by `NotEmpty()`, and
+`MustParseAs` only ever sees text that is there.
+
 The type is passed as a `Type` rather than a type argument so the rule stays readable: C# cannot infer one type
 argument while another is given explicitly.
 
@@ -42,7 +57,8 @@ argument while another is given explicitly.
 RuleFor(request => request.Amount).MustSatisfy<TransferRequest, Amount, decimal>();
 ```
 
-`MustSatisfy` checks a raw underlying value against the rules of a value object without constructing one.
+`MustSatisfy` checks a raw underlying value against the rules of a value object without constructing one. Like
+`MustParseAs`, it lets `null` through.
 
 ## An uninitialized value object
 

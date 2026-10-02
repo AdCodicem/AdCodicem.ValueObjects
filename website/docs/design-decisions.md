@@ -13,7 +13,7 @@ so that `Comparison = StringComparison.OrdinalIgnoreCase` actually means somethi
 
 **A struct, even when the underlying type is a `string`.** Holding 100 000 struct wrappers allocates exactly
 what holding 100 000 bare strings allocates, to the byte; the class equivalent costs four times the memory and
-twice the time, because a reference type adds 24 bytes of header, method table pointer and field per instance.
+2.3x the time, because a reference type adds 24 bytes of header, method table pointer and field per instance.
 The struct gives that back only when it crosses a non-generic boundary and boxes, so the generated equality,
 hashing and comparison exist to keep the hot paths generic — dictionary lookups and sorts on value objects
 allocate nothing. See [Benchmarks](./benchmarks.md) for the numbers and for where the struct loses.
@@ -24,9 +24,11 @@ which is what makes the struct representation — zero allocation, no null — s
 with `AllowDefault = true`.
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the
-value is valid, and every integration — JSON, model binding, EF Core, Dapper — goes through `TryCreate`.
-`Create` throws, and is for the call sites that want it. Validation is fail-fast: the first violated rule
-wins.
+value is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a
+refusal in their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper
+`DataException` ([what each one throws](./reference/errors.md)). `Create` throws `ValueObjectException`, and is
+for the call sites that want it; a strict EF Core read goes through it, and fails the query. Validation is
+fail-fast: the first violated rule wins.
 
 **Normalize, then validate, then assign.** So a non-default instance is by construction both normalized and
 valid. It happens on construction, on parsing, on deserialization and on model binding — but *not* when
@@ -45,8 +47,11 @@ looks the way it does — worth knowing if a compile error in generated code is 
 
 - **Source generators never observe each other's output.** The `[JsonConverter]` this generator writes is
   invisible to the System.Text.Json generator, which is the entire reason `AdCodicem.ValueObjects.Json` exists:
-  a hand-written converter factory the STJ generator *can* see. The same constraint is why `Pattern` compiles a
-  `Regex` at runtime rather than using `[GeneratedRegex]`.
+  a hand-written converter factory the STJ generator *can* see. The same constraint is why a pattern is a hook:
+  the regex generator only sees code a person wrote, so this generator cannot write a `[GeneratedRegex]` itself.
+  The consumer writes it instead, as the `Pattern` property of `IValueObjectPatternValidator`, and the generator
+  reads its text off the attribute for the schema. The `Pattern` option it replaces had to build its `Regex` at
+  run time, which native AOT interprets, and is deprecated.
 - **Generated code cannot rely on the consumer's usings.** Every type and extension method is fully qualified
   in emitted code. A consumer with `ImplicitUsings` disabled would otherwise get a compile error in code they
   cannot edit.
