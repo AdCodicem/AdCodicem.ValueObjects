@@ -84,6 +84,22 @@ public class KnownValueTests
         CountryCode.KnownValues.Should().Contain(CountryCode.Luxembourg);
     }
 
+    /// <summary>
+    /// The named constants go through <c>Create</c>, and so through the pattern, while the type initializes. The
+    /// pattern therefore has to exist before them: the other way round, the type initializer threw inside the
+    /// module initializer, and the whole assembly failed to load before any code ran.
+    /// </summary>
+    [Fact]
+    public void A_pattern_is_ready_before_the_named_constants_go_through_it()
+    {
+        CurrencyCode.Euro.Value.Should().Be("EUR");
+        CurrencyCode.KnownValues.Should().Equal(CurrencyCode.Euro, CurrencyCode.UsDollar);
+        CurrencyCode.Create(" usd ").Should().Be(CurrencyCode.UsDollar);
+
+        CurrencyCode.TryCreate("EURO", out _, out var validation).Should().BeFalse();
+        validation.ErrorCode.Should().Be(ValueObjectErrorCodes.InvalidFormat);
+    }
+
     [Fact]
     public void A_closed_value_set_rejects_anything_it_does_not_declare()
     {

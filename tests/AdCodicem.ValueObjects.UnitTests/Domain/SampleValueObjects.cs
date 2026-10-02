@@ -17,6 +17,18 @@ public readonly partial struct EmailAddress : IValueObjectNormalizer<string>
 }
 
 /// <summary>
+/// An ISO 4217 currency code: a pattern and named constants on the same type, so that the constants are created
+/// through the pattern while the type initializes.
+/// </summary>
+[ValueObject<string>(Pattern = "^[A-Z]{3}$")]
+[KnownValue("Euro", "EUR")]
+[KnownValue("UsDollar", "USD")]
+public readonly partial struct CurrencyCode : IValueObjectNormalizer<string>
+{
+    public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
+}
+
+/// <summary>
 /// A monetary amount in the ambient currency, never negative.
 /// </summary>
 [ValueObject<decimal>(Arithmetic = true, Minimum = "0", Example = "1250.00")]
