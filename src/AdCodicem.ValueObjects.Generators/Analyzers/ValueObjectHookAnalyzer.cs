@@ -27,6 +27,15 @@ namespace AdCodicem.ValueObjects.Generators.Analyzers;
 /// normalizer calling a source-generated regular expression of its own was the way to get one before the pattern
 /// hook existed. An identifier takes no pattern at all.
 /// </para>
+/// <para>
+/// The bound hooks are properties too: a public static <c>Minimum</c> or <c>Maximum</c> property of the underlying
+/// type, on a value object that does not implement <c>IValueObjectMinimum&lt;T&gt;</c> or
+/// <c>IValueObjectMaximum&lt;T&gt;</c>. A field is left alone, since it could not implement the hook: a constant used
+/// in an attribute or a pattern would have to stop being one. So is a bound on a type implementing a validator or a
+/// normalizer, which may check it or clamp to it itself, as it had to before the bound hooks existed, and a bound the
+/// attribute already sets through its deprecated option, which <c>VO0028</c> reports. A type that takes no bound - a
+/// string, a Guid, a boolean, an identifier - is left to <c>VO0030</c>.
+/// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
@@ -79,6 +88,13 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
         ["FormatCore"] = ["IValueObjectStringFormatter`1"],
     };
 
+    /// <summary>The bound hooks, by the name of their member and the metadata name of their interface.</summary>
+    private static readonly (string Name, string Hook)[] BoundHooks =
+        [("Minimum", "IValueObjectMinimum`1"), ("Maximum", "IValueObjectMaximum`1")];
+
+    /// <summary>The hooks that may enforce a bound themselves, by metadata name.</summary>
+    private static readonly string[] BoundEnforcers = ["IValueObjectValidator`1", "IValueObjectNormalizer`1"];
+
     /// <summary>The hook member names of a normalizer, which an entity identifier leaves to <c>VO0017</c>.</summary>
     private static readonly string[] Normalizers = ["NormalizeValue", "NormalizeCore"];
 
@@ -115,6 +131,10 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
             compilationContext.RegisterSymbolAction(
                 symbolContext => Analyze(symbolContext, valueObjectAttributes, entityIdAttributes),
                 SymbolKind.Method);
+
+            compilationContext.RegisterSymbolAction(
+                symbolContext => AnalyzeBounds(symbolContext, valueObjectAttributes),
+                SymbolKind.NamedType);
 
             // Read from the type rather than from the property: a [GeneratedRegex] property is partial, and the half
             // a property action is handed is the one the regex generator wrote, in generated code this analyzer skips.
@@ -175,6 +195,50 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
             containingType.Name,
             PatternHook));
     }
+
+    private static void AnalyzeBounds(SymbolAnalysisContext context, ImmutableArray<INamedTypeSymbol> valueObjectAttributes)
+    {
+        if (context.Symbol is not INamedTypeSymbol { TypeKind: TypeKind.Struct } containingType)
+        {
+            return;
+        }
+
+        var attribute = containingType.GetAttributes().FirstOrDefault(candidate =>
+            candidate.AttributeClass is { } attributeClass
+            && valueObjectAttributes.Contains(attributeClass.OriginalDefinition, SymbolEqualityComparer.Default));
+        if (attribute?.AttributeClass?.TypeArguments.FirstOrDefault() is not { } underlying
+            || underlying.SpecialType is SpecialType.System_String or SpecialType.System_Boolean
+            || underlying.ToDisplayString() == "System.Guid"
+            || BoundEnforcers.Any(enforcer => Implements(containingType, enforcer)))
+        {
+            return;
+        }
+
+        foreach (var (name, hook) in BoundHooks)
+        {
+            var bound = containingType.GetMembers(name).OfType<IPropertySymbol>().FirstOrDefault(property =>
+                property is { IsStatic: true, DeclaredAccessibility: Accessibility.Public, DeclaringSyntaxReferences.Length: > 0 }
+                && SymbolEqualityComparer.Default.Equals(property.Type, underlying));
+            if (bound is null
+                || Implements(containingType, hook)
+                || attribute.NamedArguments.Any(argument => argument.Key == name))
+            {
+                continue;
+            }
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                UndeclaredHook,
+                bound.Locations[0],
+                bound.Name,
+                containingType.Name,
+                $"{hook.Substring(0, hook.IndexOf('`'))}<{underlying.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}>"));
+        }
+    }
+
+    private static bool Implements(INamedTypeSymbol type, string metadataName)
+        => type.AllInterfaces.Any(candidate =>
+            candidate.ContainingNamespace.ToDisplayString() == HookNamespace
+            && candidate.MetadataName == metadataName);
 
     private static void Analyze(
         SymbolAnalysisContext context,

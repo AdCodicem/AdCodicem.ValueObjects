@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | `Pattern` | `string?` | none | **Deprecated** (`VO0021`, removed in the next major): implement `IValueObjectPatternValidator` instead ([below](#pattern)). Regular expression the **normalized** value must match, built at run time, which native AOT interprets. Also the OpenAPI `pattern`. Malformed → `VO0014`; set beside the hook → `VO0022`. |
 | `MinLength` / `MaxLength` | `int` | `-1` (unconstrained) | `string` only (`VO0008` otherwise). Validation, OpenAPI `minLength`/`maxLength`, and the EF Core column size. |
-| `Minimum` / `Maximum` | `string?` | none | Inclusive bounds written as **text**, in the one form of the underlying type ([below](#bounds-and-known-values-written-as-text)), so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Numbers, `char`, dates, times and durations only: on `string`, `Guid` or `bool` → `VO0004`. Parsed at compile time; any other text, or a value outside the type → `VO0004`. |
+| `Minimum` / `Maximum` | `string?` | none | **Deprecated** (`VO0028`, removed in the next major): implement `IValueObjectMinimum<T>` / `IValueObjectMaximum<T>` instead ([below](#bounds)). Inclusive bounds written as **text**, in the one form of the underlying type ([below](#bounds-and-known-values-written-as-text)). Numbers, `char`, dates, times and durations only: on `string`, `Guid` or `bool` → `VO0004`. Parsed at compile time; any other text, or a value outside the type → `VO0004`; set beside the hook → `VO0029`. |
 | `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering, hashing. Pick `OrdinalIgnoreCase` only when the value is not case-normalized, and make the database collation agree. A value the enum does not define → `VO0020`. |
 | `ValueSet` | `ValueSetKind` | `Open` | `Closed` accepts only the declared `[KnownValue]`s. Empty closed set → `VO0005`; a value the enum does not define → `VO0020`. |
 | `Arithmetic` | `bool` | `false` | Numeric types only (`VO0007` otherwise). Operators, generic math, `Zero`, `One`, `IsZero`, `Min`, `Max`. |
@@ -19,13 +19,17 @@
 | `Description` | `string?` | XML `<summary>` of the type (`///` or `/** */`), as plain text | OpenAPI description. |
 
 Declarative rules run **before** any hook, so a validator hook only ever sees values that already satisfy them.
-The [pattern](#pattern) is the one rule declared through a hook, and it runs among them, right after the lengths.
+The [pattern](#pattern) and the [bounds](#bounds) are declared through hooks, and run among them: the pattern right
+after the lengths, the bounds after the pattern.
 
 ## Bounds and known values written as text
 
-`Minimum`, `Maximum` and a `[KnownValue]` given as a string are read at compile time in **one form per
-underlying type**, and in no other: no culture, no time zone, no white space around the value. Anything else is
-`VO0004` for a bound and `VO0013` for a known value, and the message names the form.
+A `[KnownValue]` given as a string, and the deprecated `Minimum` and `Maximum`, are read at compile time in **one
+form per underlying type**, and in no other: no culture, no time zone, no white space around the value. Anything
+else is `VO0013` for a known value and `VO0004` for a bound, and the message names the form. A bound hook is quoted in
+the message of a rejected value in that form for an integer, a `decimal`, a `char`, a `DateOnly` or a `TimeSpan`,
+and in its round-trip form for a real (`1E-05`), a time (`06:00:00.0000000`) or a date and time, a `DateTime`
+without its kind.
 
 | Underlying type | Form | Example |
 | --- | --- | --- |
@@ -95,9 +99,14 @@ public readonly partial struct AccountNumber : IValueObjectNormalizer<string>, I
 ## Validation
 
 ```csharp
-[ValueObject<int>(Minimum = "1", Maximum = "999999999")]
-public readonly partial struct SequenceNumber : IValueObjectValidator<int>
+[ValueObject<int>]
+public readonly partial struct SequenceNumber
+    : IValueObjectMinimum<int>, IValueObjectMaximum<int>, IValueObjectValidator<int>
 {
+    public static int Minimum => 1;
+
+    public static int Maximum => 999_999_999;
+
     public static ValidationResult ValidateValue(in int value)
         => value % 2 == 0
             ? ValidationResult.Success
@@ -165,6 +174,40 @@ public readonly partial struct CurrencyCode : IValueObjectNormalizer<string>
 
 After: the `CurrencyCode` above. Keeping both is `VO0022`, and the hook wins until the option is removed.
 
+### Bounds
+
+```csharp
+[ValueObject<DateOnly>]
+public readonly partial struct BirthDate : IValueObjectMinimum<DateOnly>, IValueObjectMaximum<DateOnly>
+{
+    public static DateOnly Minimum => new(1900, 1, 1);
+
+    public static DateOnly Maximum => new(2100, 12, 31);
+}
+```
+
+A number, a `char`, a date, a time or a duration declares its inclusive bounds as values of its underlying type,
+which the compiler checks: any expression of that type, `decimal` and `Int128` included. The bounds run after the
+pattern, before the known values and `ValidateValue`. A value outside them is `value_object.out_of_range`, "The
+value must be greater than or equal to 1900-01-01." They are the OpenAPI `minimum` and `maximum` of a number, and
+the `x-minimum`, `x-maximum` and a sentence of the description of a value written as a string.
+
+- A bound is a **constant**, written as an expression-bodied property, `=> …`. The check reads it each time and the
+  schema once, as the assembly loads, so it must not throw. A bound relative to the clock, "not in the future" or
+  "within 90 days", is a rule: write it in `ValidateValue`, reading the time from a `TimeProvider`.
+- Never `{ get; } = …`: it is assigned with the other static fields, in declaration order, and a well-known instance
+  a static field creates before it is checked against the default of the type.
+- `string`, `Guid`, `bool` and `[EntityId]` take no bound, and a hook over another type than the underlying one
+  bounds nothing: `VO0030`.
+- A `public static` `Minimum` or `Maximum` property of the underlying type written without its interface never runs
+  as a bound: `VO0011`, unless the type has a validator or a normalizer, which may enforce it itself.
+
+Migrating from the deprecated `Minimum` and `Maximum` options: remove `Minimum = "X"` and add
+`public static T Minimum => X;` with the interface; the code, the check and the schema are unchanged, and the
+message quotes the bound in the form above, which differs from the option's text for a real, a time or a date and
+time.
+Keeping both is `VO0029`, and the hook wins until the options are removed.
+
 ## Closed value sets
 
 ```csharp
@@ -190,9 +233,11 @@ when that fails). An unusable member name is `VO0006`. On an **open** set, `[Kno
 ## Arithmetic
 
 ```csharp
-[ValueObject<decimal>(Arithmetic = true, Minimum = "0")]
-public readonly partial struct Amount : IValueObjectNormalizer<decimal>
+[ValueObject<decimal>(Arithmetic = true)]
+public readonly partial struct Amount : IValueObjectNormalizer<decimal>, IValueObjectMinimum<decimal>
 {
+    public static decimal Minimum => 0m;
+
     public static decimal NormalizeValue(decimal value) => decimal.Round(value, 2, MidpointRounding.ToEven);
 }
 ```

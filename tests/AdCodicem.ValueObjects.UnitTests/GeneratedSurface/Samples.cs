@@ -63,6 +63,9 @@ public static class Samples
                 "1999-01-01T00:00:00+00:00"),
             Sample.Of<Duration, TimeSpan>(
                 Duration.Create(TimeSpan.FromHours(1)), Duration.Create(TimeSpan.FromHours(2)), "-00:00:01"),
+            Sample.Of<EffectiveDate, DateOnly>(
+                EffectiveDate.LedgerStart, EffectiveDate.Create(new DateOnly(2001, 1, 1)), "1999-12-31"),
+            Sample.Of<Tolerance, double>(Tolerance.Create(0.25), Tolerance.Create(0.5), "2"),
             Sample.Of<PhoneNumber, string>(PhoneNumber.Create("+33123456789"), PhoneNumber.Create("+4930123456"), "123"),
             Sample.Of<Label, string>(Label.Create("a"), Label.Create("b"), new string('x', 201)),
             Sample.Of<DocumentStatus, string>(DocumentStatus.Draft, DocumentStatus.Final, "archived"),

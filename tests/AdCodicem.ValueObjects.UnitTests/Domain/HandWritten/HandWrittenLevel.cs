@@ -4,10 +4,13 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
 /// <summary>
 /// A level of a game written by hand, which nothing registers and only the OpenAPI schema transformer is given, so the
-/// registry has not described it when the transformer meets it.
+/// registry has not described it when the transformer meets it. It carries no annotation, and declares its lower bound
+/// through the hook, which the registry reads back from the interface.
 /// </summary>
-public readonly struct HandWrittenLevel : IValueObject<HandWrittenLevel, int>
+public readonly struct HandWrittenLevel : IValueObject<HandWrittenLevel, int>, IValueObjectMinimum<int>
 {
+    public static int Minimum => 1;
+
     private readonly int _value;
 
     private HandWrittenLevel(int value) => _value = value;
@@ -19,7 +22,7 @@ public readonly struct HandWrittenLevel : IValueObject<HandWrittenLevel, int>
     public static int Normalize(int value) => value;
 
     public static ValidationResult Validate(in int value)
-        => value > 0 ? ValidationResult.Success : ValidationResult.OutOfRange("A level is positive.");
+        => value >= Minimum ? ValidationResult.Success : ValidationResult.OutOfRange("A level is positive.");
 
     public static HandWrittenLevel Create(int value)
     {

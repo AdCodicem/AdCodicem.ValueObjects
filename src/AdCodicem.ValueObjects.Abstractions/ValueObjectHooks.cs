@@ -90,9 +90,9 @@ public interface IValueObjectPatternValidator
 /// </summary>
 /// <typeparam name="TValue">Underlying value type.</typeparam>
 /// <remarks>
-/// Length and bounds are better declared on <c>[ValueObject&lt;T&gt;]</c>, and a pattern through
-/// <see cref="IValueObjectPatternValidator"/>, where they also size the database column and describe the OpenAPI
-/// schema. Implement this for what is left: an IBAN's MOD-97 check digits, a Luhn checksum, a rule spanning several
+/// A length is better declared on <c>[ValueObject&lt;T&gt;]</c>, bounds through <see cref="IValueObjectMinimum{TValue}"/>
+/// and <see cref="IValueObjectMaximum{TValue}"/>, and a pattern through <see cref="IValueObjectPatternValidator"/>,
+/// where they also size the database column and describe the OpenAPI schema. Implement this for what is left: an IBAN's MOD-97 check digits, a Luhn checksum, a rule spanning several
 /// characters. The declared constraints run first, so this method only sees values that already satisfy them.
 /// </remarks>
 public interface IValueObjectValidator<TValue>
@@ -103,6 +103,55 @@ public interface IValueObjectValidator<TValue>
     /// <param name="value">Normalized value to check.</param>
     /// <returns>Success, or the rule that rejected the value.</returns>
     static abstract ValidationResult ValidateValue(in TValue value);
+}
+
+/// <summary>
+/// Declares the inclusive lower bound of a value object, as a value of its underlying type.
+/// </summary>
+/// <typeparam name="TValue">Underlying value type: a number, a <see cref="char"/>, a date, a time or a duration.</typeparam>
+/// <remarks>
+/// <para>
+/// The compiler checks the type of the bound, and the bound can be any expression of that type:
+/// <c>public static DateOnly Minimum => new(1900, 1, 1);</c>. The generated <c>Validate</c> refuses a smaller value
+/// with <see cref="ValueObjectErrorCodes.OutOfRange"/>, and the OpenAPI schema publishes the bound, in the form the
+/// JSON converter writes it.
+/// </para>
+/// <para>
+/// The bound is a constant. The check reads it each time it runs, which costs nothing for a constant, folded into the
+/// check by the JIT, while the schema reads it once, when the value object's type initializes, which the generated
+/// registration does as the declaring assembly loads. A bound that changed would therefore be checked against a value
+/// the schema does not publish, and a bound must neither throw nor depend on the state of the application. A bound
+/// relative to the clock, "not in the future" or "within 90 days", is a rule rather than a bound: implement it in
+/// <see cref="IValueObjectValidator{TValue}"/>, reading the time from a <see cref="TimeProvider"/> a test can fix.
+/// </para>
+/// <para>
+/// Write it as an expression-bodied property, as above. An initialized property, <c>{ get; } = ...</c>, is assigned
+/// with the type's other static fields, in the order they are declared: an instance created from a static field
+/// declared before it, <c>public static readonly Percentage Full = Create(100);</c>, would be checked against the
+/// default of the type.
+/// </para>
+/// </remarks>
+public interface IValueObjectMinimum<TValue>
+{
+    /// <summary>
+    /// Gets the smallest value the value object accepts.
+    /// </summary>
+    static abstract TValue Minimum { get; }
+}
+
+/// <summary>
+/// Declares the inclusive upper bound of a value object, as a value of its underlying type.
+/// </summary>
+/// <typeparam name="TValue">Underlying value type: a number, a <see cref="char"/>, a date, a time or a duration.</typeparam>
+/// <remarks>
+/// The bound is checked, published and read as <see cref="IValueObjectMinimum{TValue}"/> describes.
+/// </remarks>
+public interface IValueObjectMaximum<TValue>
+{
+    /// <summary>
+    /// Gets the largest value the value object accepts.
+    /// </summary>
+    static abstract TValue Maximum { get; }
 }
 
 /// <summary>

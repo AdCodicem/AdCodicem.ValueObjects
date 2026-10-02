@@ -13,15 +13,16 @@ namespace AdCodicem.ValueObjects.Annotations;
 /// <para>
 /// The declaring type opts into a rule by implementing the interface that declares it, so the compiler checks
 /// its signature: <see cref="IValueObjectNormalizer{TValue}"/>, <see cref="IValueObjectSpanNormalizer"/>,
-/// <see cref="IValueObjectPatternValidator"/>, <see cref="IValueObjectValidator{TValue}"/>,
+/// <see cref="IValueObjectPatternValidator"/>, <see cref="IValueObjectMinimum{TValue}"/>,
+/// <see cref="IValueObjectMaximum{TValue}"/>, <see cref="IValueObjectValidator{TValue}"/>,
 /// <see cref="IValueObjectFormatter{TValue}"/> and <see cref="IValueObjectStringFormatter{TValue}"/>. All are
 /// optional, and a rule written without its interface is reported as <c>VO0011</c> rather than silently ignored.
 /// </para>
 /// <para>
-/// Declarative constraints set on this attribute (<see cref="MinLength"/>, <see cref="MaxLength"/>,
-/// <see cref="Minimum"/>), like the pattern of <see cref="IValueObjectPatternValidator"/>, are checked before
-/// <see cref="IValueObjectValidator{TValue}"/> runs, and also feed the generated OpenAPI schema, so a rule is
-/// stated once and enforced everywhere.
+/// Declarative constraints set on this attribute (<see cref="MinLength"/>, <see cref="MaxLength"/>), like the pattern
+/// of <see cref="IValueObjectPatternValidator"/> and the bounds of <see cref="IValueObjectMinimum{TValue}"/> and
+/// <see cref="IValueObjectMaximum{TValue}"/>, are checked before <see cref="IValueObjectValidator{TValue}"/> runs, and
+/// also feed the generated OpenAPI schema, so a rule is stated once and enforced everywhere.
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
@@ -143,13 +144,32 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     /// diagnostic when written in any other form, outside the type, or on a type that takes none. Also emitted
     /// as the <c>minimum</c> OpenAPI keyword.
     /// </para>
+    /// <para>
+    /// <see cref="IValueObjectMinimum{TValue}"/> declares the bound as a value of the underlying type, which the
+    /// compiler checks. Setting both is <c>VO0029</c>. This option is reported as <c>VO0028</c> and will be removed in
+    /// the next major version.
+    /// </para>
     /// </remarks>
+    [Obsolete(
+        "Implement IValueObjectMinimum<T> with a static Minimum property of the underlying type instead. A bound written "
+        + "as text is read under one grammar per type the compiler cannot check, and will be removed in the next major "
+        + "version.",
+        DiagnosticId = "VO0028")]
     public string? Minimum { get; set; }
 
     /// <summary>
     /// Gets or sets the inclusive upper bound, written as text in the one form of the underlying type.
     /// </summary>
-    /// <inheritdoc cref="Minimum" path="/remarks"/>
+    /// <remarks>
+    /// Read as <see cref="Minimum"/> is. <see cref="IValueObjectMaximum{TValue}"/> declares the bound as a value of
+    /// the underlying type, which the compiler checks. Setting both is <c>VO0029</c>. This option is reported as
+    /// <c>VO0028</c> and will be removed in the next major version.
+    /// </remarks>
+    [Obsolete(
+        "Implement IValueObjectMaximum<T> with a static Maximum property of the underlying type instead. A bound written "
+        + "as text is read under one grammar per type the compiler cannot check, and will be removed in the next major "
+        + "version.",
+        DiagnosticId = "VO0028")]
     public string? Maximum { get; set; }
 
     /// <summary>

@@ -268,6 +268,24 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         var minimumLiteral = ParseBound(underlying, minimumText, "Minimum", symbol, location, diagnostics);
         var maximumLiteral = ParseBound(underlying, maximumText, "Maximum", symbol, location, diagnostics);
 
+        // A hook replaces the text option as the pattern hook does: declaring both is an error, after which the hook
+        // wins and the type still generates.
+        var minimumHook = ReadBoundHook(symbol, underlying, "IValueObjectMinimum`1", location, diagnostics);
+        if (minimumHook && minimumText is not null)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BoundDeclaredTwice, location, symbol.Name, "Minimum", $"IValueObjectMinimum<{underlying.Keyword}>"));
+            minimumLiteral = null;
+        }
+
+        var maximumHook = ReadBoundHook(symbol, underlying, "IValueObjectMaximum`1", location, diagnostics);
+        if (maximumHook && maximumText is not null)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BoundDeclaredTwice, location, symbol.Name, "Maximum", $"IValueObjectMaximum<{underlying.Keyword}>"));
+            maximumLiteral = null;
+        }
+
         // An option holding a value its enum does not define stops generation once every mistake is reported:
         // falling back to the default would drop what the author wrote without a word.
         var definedValueSet = TryGetEnumName(arguments, "ValueSet", symbol, location, diagnostics, out var valueSet);
@@ -337,6 +355,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             AllowEmpty = GetBool(arguments, "AllowEmpty"),
             Pattern = pattern,
             HasPatternHook = patternHook.Active,
+            HasMinimumHook = minimumHook,
+            HasMaximumHook = maximumHook,
             PatternHookText = patternHook.Text,
             MinLength = minLength,
             MaxLength = maxLength,
@@ -425,6 +445,10 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
+
+        // An identifier is text, which takes no bound: a bound hook would be declared and never checked.
+        ReadBoundHook(symbol, UnderlyingType.String, "IValueObjectMinimum`1", location, diagnostics, entityId: true);
+        ReadBoundHook(symbol, UnderlyingType.String, "IValueObjectMaximum`1", location, diagnostics, entityId: true);
 
         // Nothing generates a known value for an identifier, so a [KnownValue] would be read by no one. The type still
         // generates, so that every use of it does not fail as well.
@@ -1068,6 +1092,78 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         }
 
         return (true, text);
+    }
+
+    /// <summary>
+    /// Reads a bound hook of a value object: whether it applies.
+    /// </summary>
+    /// <param name="symbol">The value object.</param>
+    /// <param name="underlying">Its underlying type.</param>
+    /// <param name="metadataName">Metadata name of the hook, <c>IValueObjectMinimum`1</c> or <c>IValueObjectMaximum`1</c>.</param>
+    /// <param name="location">Where to report.</param>
+    /// <param name="diagnostics">Sink.</param>
+    /// <param name="entityId">Whether the value object is an entity identifier, whose format is its own.</param>
+    /// <returns><see langword="true"/> when the generated code checks and publishes the bound.</returns>
+    /// <remarks>
+    /// The compiler accepts the interface over any type, on any value object: a bound over a type that takes none, or
+    /// over another type than the underlying one, would be declared and never checked, which is the silent failure
+    /// the hook interfaces exist to prevent. The message points at what the value object can take instead: a length
+    /// or a pattern for a string, a validator for a <see cref="Guid"/>, a boolean or an identifier, whose format is
+    /// fixed.
+    /// </remarks>
+    private static bool ReadBoundHook(
+        INamedTypeSymbol symbol,
+        UnderlyingType underlying,
+        string metadataName,
+        Location location,
+        List<DiagnosticInfo> diagnostics,
+        bool entityId = false)
+    {
+        var hooks = symbol.AllInterfaces
+            .Where(candidate => string.Equals(candidate.MetadataName, metadataName, StringComparison.Ordinal)
+                                && candidate.ContainingNamespace.ToDisplayString() == HookNamespace)
+            .ToList();
+        if (hooks.Count == 0)
+        {
+            return false;
+        }
+
+        // Each hook is judged on its own: beside the one over the underlying type, a second over another type would
+        // still be declared and never checked.
+        var name = metadataName.Substring(0, metadataName.IndexOf('`'));
+        var active = false;
+        foreach (var hook in hooks)
+        {
+            string reason;
+            if (!underlying.SupportsBounds)
+            {
+                reason = entityId
+                    ? "An identifier's format is fixed: check anything more in a validator hook"
+                    : underlying.Kind == UnderlyingKind.String
+                        ? "A string takes no bound: constrain its length with MinLength or MaxLength, and its form with "
+                          + "IValueObjectPatternValidator or a validator hook"
+                        : "A value object over that type takes no bound: remove the hook, or check the value in a validator hook";
+            }
+            else if (hook.TypeArguments[0].ToDisplayString(QualifiedFormat) == underlying.FullName)
+            {
+                active = true;
+                continue;
+            }
+            else
+            {
+                reason = $"A bound is a value of the underlying type: implement {name}<{underlying.Keyword}> instead";
+            }
+
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BoundHookCannotBound,
+                location,
+                symbol.Name,
+                hook.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                underlying.Keyword,
+                reason));
+        }
+
+        return active;
     }
 
     private static string DeclarationKeyword(INamedTypeSymbol symbol) => symbol switch

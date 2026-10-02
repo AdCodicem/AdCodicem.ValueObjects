@@ -121,6 +121,8 @@ public class RegistryResolutionTests
         size.Create("s").Should().BeSameAs(size.Create("S"), "the shared box is found under the normalized value");
 
         rate!.Schema.KnownValues.Should().Equal(20.0m, 5.5m, "twenty");
+        rate.Schema.Minimum.Should().Be("0", "the registry reads the bounds off the hooks the type implements");
+        rate.Schema.Maximum.Should().Be("100");
         rate.Schema.KnownValues[1].Should().BeOfType<decimal>().Which.ToString(CultureInfo.InvariantCulture)
             .Should().Be("5.5", "the declared 5.50 is normalized to one decimal");
     }

@@ -141,6 +141,19 @@ internal static class DiagnosticDescriptors
         + "Declare a well-known identifier as a static property of the type instead, "
         + "public static {0} {1} {{ get; }} = Parse(\"...\", null), for instance.");
 
+    // VO0028 is the identifier of the [Obsolete] on ValueObjectAttribute<T>.Minimum and Maximum, which the compiler
+    // reports itself: no descriptor here declares it.
+    public static readonly DiagnosticDescriptor BoundDeclaredTwice = Error(
+        "VO0029",
+        "Bound declared twice",
+        "'{0}' sets the {1} option and implements {2}. The hook replaces the option: remove {1} = \"...\" and keep "
+        + "the {1} property.");
+
+    public static readonly DiagnosticDescriptor BoundHookCannotBound = Error(
+        "VO0030",
+        "A bound hook that cannot bound the type",
+        "'{0}' implements {1}, which cannot bound a value object over '{2}'. {3}.");
+
     private static DiagnosticDescriptor Error(string id, string title, string messageFormat)
         => new(id, title, messageFormat, Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
 

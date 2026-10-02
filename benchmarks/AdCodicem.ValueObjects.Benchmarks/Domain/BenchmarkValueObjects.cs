@@ -30,7 +30,13 @@ public readonly partial struct Iban
 /// <summary>
 /// An amount, as the framework generates it.
 /// </summary>
+/// <remarks>
+/// Its bound is the deprecated text option, as when the published numbers were measured. The hook replacing it reads
+/// a static readonly field, which the optimizing JIT folds into the check once the field is initialized.
+/// </remarks>
+#pragma warning disable VO0028 // Kept as measured; see the remarks.
 [ValueObject<decimal>(Minimum = "0", Arithmetic = true)]
+#pragma warning restore VO0028
 public readonly partial struct Amount : IValueObjectNormalizer<decimal>
 {
     public static decimal NormalizeValue(decimal value)

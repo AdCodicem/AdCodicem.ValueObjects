@@ -7,22 +7,22 @@ description: Every VO diagnostic the generator and the analyzers report, what it
 
 # Diagnostics
 
-Every rule the generator and the analyzers enforce. `VO0008`, `VO0011`, `VO0021`, `VO0025` and `VO0026` are
-warnings; every other one is an error. There is no `VO0012`.
+Every rule the generator and the analyzers enforce. `VO0008`, `VO0011`, `VO0021`, `VO0025`, `VO0026` and
+`VO0028` are warnings; every other one is an error. There is no `VO0012`.
 
 | Id | Meaning | Fix |
 | --- | --- | --- |
 | `VO0001` | The type is not `partial`. | Add `partial`: the generated members are added to the same type. |
 | `VO0002` | The type is not a `readonly struct`, or is a record or a `ref struct`. | Declare a `readonly partial struct`. A `record struct` is refused on purpose, because `with` and field-wise equality would bypass validation and the declared comparison; a class, because a value object is a value; a `ref struct`, because it can be neither boxed nor a type argument, and the generated members make it both. |
 | `VO0003` | Unsupported underlying type. | Use one of the [supported types](../authoring-guide.md#supported-underlying-types). |
-| `VO0004` | A bound is not written in the form of its underlying type, names no value of it, or is set on a type that takes none. | Write `Minimum` and `Maximum` as text in the [form of the type](../authoring-guide.md#bounds-and-known-values-written-as-text), such as `"0"`, `"-9.99"`, `"2020-01-01"` or `"08:30"`, with no white space around it; the message names the form. The value must fit the type, so `"300"` is refused for a `byte`, `"-1"` for a `ulong` and `"2023-02-29"` for a date, and a `double` or `float` bound must be a finite number, and zero only when written as zero: `"1e-400"`, too small for a `double`, reads as zero and is refused. A `decimal` takes no exponent. Write a `DateTime` bound without an offset and a `DateTimeOffset` bound with one, and neither as a time alone; [date and time bounds](#date-and-time-bounds) explains why. A `string`, a `Guid` and a `bool` take no bound: constrain a string with `MinLength`, `MaxLength` or `IValueObjectPatternValidator`. |
+| `VO0004` | A bound set through the deprecated `Minimum` or `Maximum` option is not written in the form of its underlying type, names no value of it, or is set on a type that takes none. | [Move the bound](#moving-off-minimum-and-maximum) to `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>`, whose type the compiler checks. Until then, write `Minimum` and `Maximum` as text in the [form of the type](../authoring-guide.md#bounds-and-known-values-written-as-text), such as `"0"`, `"-9.99"`, `"2020-01-01"` or `"08:30"`, with no white space around it; the message names the form. The value must fit the type, so `"300"` is refused for a `byte`, `"-1"` for a `ulong` and `"2023-02-29"` for a date, and a `double` or `float` bound must be a finite number, and zero only when written as zero: `"1e-400"`, too small for a `double`, reads as zero and is refused. A `decimal` takes no exponent. Write a `DateTime` bound without an offset and a `DateTimeOffset` bound with one, and neither as a time alone; [date and time bounds](#date-and-time-bounds) explains why. A `string`, a `Guid` and a `bool` take no bound: constrain a string with `MinLength`, `MaxLength` or `IValueObjectPatternValidator`. |
 | `VO0005` | A closed value set declares no value. | Add `[KnownValue]` entries, or drop `ValueSet = ValueSetKind.Closed`: as declared, no value could be valid. |
 | `VO0006` | A known value has an unusable name. | The first argument of `[KnownValue]` becomes a static property of the type: give it a valid, unique C# identifier. The message ends with the rule the name broke. A keyword is refused (`class`, `default`, though a contextual keyword such as `value` is accepted). So is a name the generated code already uses: the name of the type, a member the generator writes (`Value`, `Schema`, `Create`, `TryCreate`, `Parse`, `KnownValues`, and `Zero`, `One`, `Min`, `Max` or `Sum` with `Arithmetic`), the metadata name of one of its operators (`op_Equality`, `op_LessThan` and the other comparisons, `op_Addition` and the other arithmetic operators with `Arithmetic`, `op_Implicit` and `op_Explicit` with the conversions), or the name of a property's getter, `get_` followed by the property's name (`get_Value`, `get_Schema`, and `get_France` beside a known value `France`). So is a name the type already has: a member it declares, such as a hook (`NormalizeValue`), a field or a nested class, or a member of `object` (`GetType`, `MemberwiseClone`). So is a name whose getter, `get_` followed by the name, a member the type declares already takes: `France` beside a field, a nested type or a method without parameters named `get_France`, though a `get_France(int)` overload leaves it free. And so is a name another known value already took. [Generated members](./generated-members.md) lists the public ones. |
 | `VO0007` | Arithmetic requested on a non-numeric type. | Remove `Arithmetic = true`, or change the underlying type. |
-| `VO0008` | Length constraints on a non-string type (warning). | `MinLength` and `MaxLength` apply to `string` only; use `Minimum` and `Maximum` for a number. |
+| `VO0008` | Length constraints on a non-string type (warning). | `MinLength` and `MaxLength` apply to `string` only; bound a number through `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>`. |
 | `VO0009` | A containing type is not `partial`. | Every enclosing type must be `partial`, not only the value object. |
 | `VO0010` | An uninitialized value object or entity identifier: `default(T)` or `new T()`. | Construct through `Create`, `TryCreate` or `Parse` (or `New()` for an identifier), and express absence as `T?`. If the zero state is genuinely meaningful, set `AllowDefault = true` on the type, on `[ValueObject<T>]` or `[EntityId]` alike. It is reported where `default` or `new` is written: a parameter declared `Iban iban = default` is reported once, on its declaration, and not at each call that leaves the argument out. |
-| `VO0011` | A rule written without its hook interface (warning), on a value object or an entity identifier. | Declare the interface — `IValueObjectNormalizer<T>`, `IValueObjectValidator<T>`, `IValueObjectFormatter<T>`, `IValueObjectStringFormatter<T>`, or `IValueObjectPatternValidator` for a public `static Regex Pattern` on a string value object, which is left alone when it is not public, or when the type implements another hook, since that hook may already run it. Until then the rule never runs. On an `[EntityId]` it reports a validator or a formatter; a normalizer there never runs at all, interface or not, and is `VO0017`'s. |
+| `VO0011` | A rule written without its hook interface (warning), on a value object or an entity identifier. | Declare the interface — `IValueObjectNormalizer<T>`, `IValueObjectValidator<T>`, `IValueObjectFormatter<T>`, `IValueObjectStringFormatter<T>`, `IValueObjectPatternValidator` for a public `static Regex Pattern` on a string value object, which is left alone when it is not public, or when the type implements another hook, since that hook may already run it, or `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>` for a public static `Minimum` or `Maximum` property of the underlying type on a value object that takes a bound, which is left alone when the type implements `IValueObjectValidator<T>` or `IValueObjectNormalizer<T>`, since the validator may already check it and the normalizer clamp to it, or still sets the deprecated option, which `VO0028` reports. A field is left alone too: it could not implement the hook. Until then the rule never runs. On an `[EntityId]` it reports a validator or a formatter; a normalizer there never runs at all, interface or not, and is `VO0017`'s. |
 | `VO0013` | A known value is not written in the form of its underlying type, or is not a value. | A `Guid`, a `decimal` or a `DateOnly` is written as text and converted at compile time: write it in the [form of the type](../authoring-guide.md#bounds-and-known-values-written-as-text), which the message names, as a bound would be. A `Guid` or a `bool` keeps every form it reads, without white space around it. A C# constant such as `200` or `0.5` is held to the same form through its invariant text. A known value is a single value: neither `null`, an array, a `typeof(...)` nor an enum member. |
 | `VO0014` | An invalid regular expression in the deprecated `Pattern` option. | Fix it, or better, [move it](#moving-off-pattern) to `IValueObjectPatternValidator`. A verbatim string (`@"^\d+$"`) keeps escapes intact. In a `[GeneratedRegex]`, the regex generator reports an invalid pattern itself. |
 | `VO0015` | A malformed entity identifier prefix. | One or more lower-case segments separated by `_`, each starting with a letter: `"acc"`, `"sk_live"`. |
@@ -38,6 +38,9 @@ warnings; every other one is an error. There is no `VO0012`.
 | `VO0025` | The `[GeneratedRegex]` behind `Pattern` sets `IgnoreCase`, `Multiline`, `Singleline` or `IgnorePatternWhitespace` (warning). | The OpenAPI `pattern` is the text of the regular expression, which carries no option, so clients would check values differently. Write the rule into the pattern itself: `[A-Za-z]` rather than `IgnoreCase`. |
 | `VO0026` | The `[GeneratedRegex]` behind `Pattern` sets no `matchTimeoutMilliseconds` (warning). | Set one, such as `matchTimeoutMilliseconds: 1000`. Without it, a pathological input holds a request thread for as long as the match runs. |
 | `VO0027` | `[KnownValue]` on an `[EntityId]`. | An identifier is minted, not chosen from a set, and `[EntityId]` generates no known values: the attribute would be read by no one. Declare a well-known identifier as a static property of the type, `public static AccountId System { get; } = Parse("acc_…", null);`. The identifier still generates. |
+| `VO0028` | The deprecated `Minimum` or `Maximum` option of `[ValueObject<T>]` (warning, reported by the compiler). | Implement `IValueObjectMinimum<T>` with `public static T Minimum => …;`, or `IValueObjectMaximum<T>` with `Maximum`, and remove `Minimum = "…"`. The bound becomes a value of the underlying type, which the compiler checks, rather than text read under a grammar of its own for each type. The options are removed in the next major version. [Moving off `Minimum` and `Maximum`](#moving-off-minimum-and-maximum) shows the change. |
+| `VO0029` | Both the `Minimum` (or `Maximum`) option and its hook on one type. | Remove `Minimum = "…"` and keep the static property: the hook replaces the option, and wins until you do. |
+| `VO0030` | `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` that cannot bound the type. | A `string`, a `Guid`, a `bool` and an `[EntityId]` take no bound, and a hook over another type than the underlying one, `IValueObjectMinimum<int>` on a `[ValueObject<long>]`, would never be checked. Constrain a string with `MinLength`, `MaxLength` or `IValueObjectPatternValidator`; check a `Guid` or a `bool` in `IValueObjectValidator<T>`, or remove the hook; an identifier's format is fixed, and anything more goes in `IValueObjectValidator<T>`. Otherwise implement the hook over the underlying type itself. The type still generates, without the bound. |
 
 `VO0011` deserves its warning more than most. The code it reports compiles and looks right, and in a project
 without `TreatWarningsAsErrors` it ships with the rule silently absent. It also recognizes the names hooks had
@@ -78,9 +81,57 @@ rejected as `value_object.invalid_format` with the message "The value does not m
 text, read off the attribute when the type compiles, is still the OpenAPI `pattern`. Keep the regular expression
 as it was, and add the `using`: `System.Text.RegularExpressions` is not among the implicit usings.
 
+## Moving off `Minimum` and `Maximum`
+
+The `Minimum` and `Maximum` options of `[ValueObject<T>]` are deprecated. A bound written as text is read under
+a grammar of its own for each underlying type — no white space, no exponent on a `decimal`, an offset on a
+`DateTimeOffset` but never on a `DateTime` — which the compiler knows nothing of, so a mistake surfaces as
+`VO0004` rather than as a type error, and a bound computed from anything is out of reach. The compiler reports
+each use as `VO0028`, a warning that `TreatWarningsAsErrors` turns into an error, and the options are removed in
+the next major version.
+
+A value object declared with the options:
+
+```csharp skip
+[ValueObject<DateOnly>(Minimum = "1900-01-01", Maximum = "2100-12-31")]
+public readonly partial struct BirthDate;
+```
+
+declares each bound as a static property of the underlying type instead:
+
+```csharp
+[ValueObject<DateOnly>]
+public readonly partial struct BirthDate : IValueObjectMinimum<DateOnly>, IValueObjectMaximum<DateOnly>
+{
+    public static DateOnly Minimum => new(1900, 1, 1);
+
+    public static DateOnly Maximum => new(2100, 12, 31);
+}
+```
+
+The rule is unchanged: the bounds are inclusive, checked after normalization and before the known values and
+`ValidateValue`, and a value outside them is rejected as `value_object.out_of_range` with the message "The value
+must be greater than or equal to 1900-01-01." They are still the OpenAPI `minimum` and `maximum`, or for a type
+JSON writes as a string, the `x-minimum` and `x-maximum` extensions and a sentence of the description. The message
+quotes the bound in one invariant form per type, which is the option's text for an integer, a `decimal`, a `char`,
+a `DateOnly` or a `TimeSpan`, but the round-trip form for a real (`1E-05` for `"1e-5"`), a time (`06:00:00.0000000`
+for `"06:00"`) or a date and time, a `DateTime` without its kind: a client matching the message of such a type sees
+it change.
+
+A bound is a constant, written as an expression-bodied property as above. The check reads it each time it runs, and
+the schema once, as the assembly loads, so a bound relative to the clock, such as "not in the future", belongs in
+`IValueObjectValidator<T>`, and a bound must not throw. An initialized property, `{ get; } = ...`, is assigned with
+the type's other static fields, in declaration order, so an instance a static field declared before it creates
+would be checked against the default of the type.
+
 ## Date and time bounds
 
-A bound is compiled into the generated code as a fixed instant, so it must mean the same instant on every
+These rules concern the deprecated `Minimum` and `Maximum` options. A bound declared through
+`IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` is a value the code builds, `new DateTime(2020, 1, 1)`, so no
+text has to be read and no day of the build enters into it. The check compares a `DateTime` bound as a clock
+reading, whatever its kind, and the bound is quoted and published without one.
+
+A bound written as text is compiled into the generated code as a fixed instant, so it must mean the same instant on every
 machine that builds the project, on every day it is built. The forms of a `DateTime` and a `DateTimeOffset` are
 chosen for that, and three kinds of text that would not are refused with `VO0004`:
 

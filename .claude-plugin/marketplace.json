@@ -8,7 +8,7 @@
     {
       "name": "adcodicem-valueobjects",
       "source": "./",
-      "description": "Teaches an agent the AdCodicem.ValueObjects authoring surface: what the generator emits, which rules belong on the attribute, which belong in a hook interface, how each integration is wired, and how to read a VO0001-VO0026 diagnostic."
+      "description": "Teaches an agent the AdCodicem.ValueObjects authoring surface: what the generator emits, which rules belong on the attribute, which belong in a hook interface, how each integration is wired, and how to read a VO0001-VO0030 diagnostic."
     }
   ]
 }

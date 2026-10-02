@@ -12,7 +12,7 @@ two types, one step at a time, and ends with the order in which they run.
 
 ## Rules that need no code
 
-Most rules are shapes: a length, a range. Those are declared on the attribute.
+Most rules are shapes: a length, a range. A length is declared on the attribute.
 
 ```csharp
 [ValueObject<string>(MinLength = 8, MaxLength = 8)]
@@ -23,15 +23,24 @@ public readonly partial struct ProductCode;
 declared rule does more than validate: `MaxLength` also sizes the EF Core column, and `MinLength` and
 `MaxLength` both appear in the OpenAPI schema, so the rule is stated once for every boundary.
 
-Numbers, dates and times take bounds instead. They are written as text, in the one form the
-[authoring reference](../authoring-guide.md#bounds-and-known-values-written-as-text) gives for each type, so a
-`decimal` or a `DateOnly` keeps its full precision, and they are parsed at compile time — a bound written any
-other way is `VO0004`:
+Numbers, dates and times take bounds instead. A bound is a value of the underlying type, declared through
+`IValueObjectMinimum<T>` and `IValueObjectMaximum<T>`, so the compiler checks its type and any expression of that
+type can build it:
 
 ```csharp
-[ValueObject<int>(Minimum = "1", Maximum = "999")]
-public readonly partial struct Quantity;
+[ValueObject<int>]
+public readonly partial struct Quantity : IValueObjectMinimum<int>, IValueObjectMaximum<int>
+{
+    public static int Minimum => 1;
+
+    public static int Maximum => 999;
+}
 ```
+
+`Quantity.TryCreate(0, out _)` fails with `value_object.out_of_range`, and the OpenAPI schema publishes both bounds
+as `minimum` and `maximum`. A bound is a constant, written as an expression-bodied property; a bound relative to the
+clock is a rule, and belongs in a validator, [below](#rules-that-need-code). The `Minimum` and `Maximum`
+options of `[ValueObject<T>]` once did this job, with the bound written as text; they are deprecated (`VO0028`).
 
 ## A pattern
 
@@ -90,9 +99,11 @@ Some rules are not shapes. A delivery date must not fall on a Sunday; an IBAN mu
 Those go in a validator:
 
 ```csharp
-[ValueObject<DateOnly>(Minimum = "2020-01-01")]
-public readonly partial struct DeliveryDate : IValueObjectValidator<DateOnly>
+[ValueObject<DateOnly>]
+public readonly partial struct DeliveryDate : IValueObjectMinimum<DateOnly>, IValueObjectValidator<DateOnly>
 {
+    public static DateOnly Minimum => new(2020, 1, 1);
+
     public static ValidationResult ValidateValue(in DateOnly value)
         => value.DayOfWeek == DayOfWeek.Sunday
             ? ValidationResult.Failure("delivery_date.sunday", "Nothing is delivered on a Sunday.")
@@ -118,7 +129,8 @@ stops at the first rule that fails:
    includes a string that normalization emptied, such as `"   "` after a `Trim`.
 3. `MinLength`, then `MaxLength`.
 4. The pattern of `IValueObjectPatternValidator`, or of the deprecated `Pattern` option.
-5. `Minimum`, then `Maximum`.
+5. The bound of `IValueObjectMinimum<T>`, then of `IValueObjectMaximum<T>`, or of the deprecated `Minimum` and
+   `Maximum` options.
 6. Membership of a closed set of [known values](./known-values.md).
 7. `ValidateValue`, if the type declares it.
 

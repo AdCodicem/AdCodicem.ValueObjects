@@ -24,7 +24,7 @@ was unclear, a compiled test project. Libraries move: if something here is out o
 | Consumer frameworks | .NET 10 | `netstandard2.0` and later | older frameworks too, including .NET Framework, with a .NET 7+ SDK | .NET 8 and later |
 | Type kinds | `readonly struct` | class, struct, record | struct | class, struct |
 | Underlying types | 22 built-in types | any type but a collection | `Guid`, `int`, `long`, `string`; others through templates | any type |
-| Length, pattern and range declared once, on the type | yes: length and range on the attribute, a pattern through a source-generated regex hook | no | no | no |
+| Length, pattern and range declared once, on the type | yes: length on the attribute, range through typed bound hooks, a pattern through a source-generated regex hook | no | no | no |
 | Validation and normalization hooks | interfaces, checked by the compiler | methods found by name | none | a partial method with `ref` parameters |
 | Rejection carries a stable error code | yes | no, a message | — | no, a message (custom error types possible) |
 | `default` and `new T()` rejected at build time | yes | yes | no | yes, for structs |
@@ -48,8 +48,8 @@ was unclear, a compiled test project. Libraries move: if something here is out o
 ## Where this library differs
 
 **A rule is declared once and reaches every boundary.** `MaxLength = 34` validates, sizes the EF Core column and
-becomes the OpenAPI `maxLength`; `Minimum`, and the `[GeneratedRegex]` behind `IValueObjectPatternValidator`, do
-the same for the schema; known values become the `enum`. In the other three, a length or a pattern is code inside
+becomes the OpenAPI `maxLength`; the bound of `IValueObjectMinimum<T>`, and the `[GeneratedRegex]` behind
+`IValueObjectPatternValidator`, do the same for the schema; known values become the `enum`. In the other three, a length or a pattern is code inside
 a validation method, so the column and the schema have to be told separately — which is exactly the drift that
 primitive obsession produces.
 

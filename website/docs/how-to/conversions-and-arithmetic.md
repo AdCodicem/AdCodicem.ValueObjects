@@ -41,9 +41,11 @@ implicit conversion from the underlying value: construction that can fail should
 ## Arithmetic on numeric value objects
 
 ```csharp
-[ValueObject<decimal>(Arithmetic = true, Minimum = "0")]
-public readonly partial struct Amount : IValueObjectNormalizer<decimal>
+[ValueObject<decimal>(Arithmetic = true)]
+public readonly partial struct Amount : IValueObjectNormalizer<decimal>, IValueObjectMinimum<decimal>
 {
+    public static decimal Minimum => 0m;
+
     public static decimal NormalizeValue(decimal value) => decimal.Round(value, 2, MidpointRounding.ToEven);
 }
 ```

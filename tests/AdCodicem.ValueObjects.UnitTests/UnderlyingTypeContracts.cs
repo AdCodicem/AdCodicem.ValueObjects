@@ -157,6 +157,22 @@ public sealed class DurationContract : ValueObjectContract<Duration, TimeSpan>
 }
 
 /// <inheritdoc cref="IbanContract" />
+public sealed class EffectiveDateContract : ValueObjectContract<EffectiveDate, DateOnly>
+{
+    protected override IEnumerable<DateOnly> AcceptedValues => [new(2000, 1, 1), new(2024, 2, 29), DateOnly.MaxValue];
+
+    protected override IEnumerable<DateOnly> RejectedValues => [new(1999, 12, 31), DateOnly.MinValue];
+}
+
+/// <inheritdoc cref="IbanContract" />
+public sealed class ToleranceContract : ValueObjectContract<Tolerance, double>
+{
+    protected override IEnumerable<double> AcceptedValues => [double.MinValue, 0d, 0.05d, 1d];
+
+    protected override IEnumerable<double> RejectedValues => [1.0001d, double.PositiveInfinity, double.NaN];
+}
+
+/// <inheritdoc cref="IbanContract" />
 public sealed class PhoneNumberContract : ValueObjectContract<PhoneNumber, string>
 {
     protected override IEnumerable<string> AcceptedValues => ["+33123456789", "+4930123456"];

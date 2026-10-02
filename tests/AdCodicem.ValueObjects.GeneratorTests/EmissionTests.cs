@@ -325,6 +325,7 @@ public sealed class EmissionTests
         string literal)
     {
         var run = GeneratorHarness.Run($$"""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<{{underlying}}>(Minimum = "{{minimum}}", Maximum = "{{maximum}}")]
             public readonly partial struct Wrapper;
             """);
@@ -342,6 +343,7 @@ public sealed class EmissionTests
     public void A_finite_floating_point_bound_compiles(string underlying, string minimum, string maximum, string literal)
     {
         var run = GeneratorHarness.Run($$"""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<{{underlying}}>(Minimum = "{{minimum}}", Maximum = "{{maximum}}")]
             public readonly partial struct Wrapper;
             """);
@@ -371,6 +373,7 @@ public sealed class EmissionTests
     public void A_date_and_time_bound_compiles_to_the_instant_written(string underlying, string bound, string literal)
     {
         var run = GeneratorHarness.Run($$"""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<{{underlying}}>(Minimum = "{{bound}}")]
             public readonly partial struct Wrapper;
             """);
@@ -515,6 +518,7 @@ public sealed class EmissionTests
     public void A_bound_is_quoted_in_its_message_as_written()
     {
         var run = GeneratorHarness.Run("""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<char>(Minimum = "\"", Maximum = "\\")]
             public readonly partial struct Quoted;
 

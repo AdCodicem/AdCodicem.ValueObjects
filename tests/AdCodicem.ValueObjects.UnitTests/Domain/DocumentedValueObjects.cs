@@ -1,5 +1,7 @@
 namespace AdCodicem.ValueObjects.UnitTests.Domain;
 
+#pragma warning disable VO0028 // The deprecated Minimum and Maximum options are what these types hold the generated code and the document to.
+
 // Declarations only the OpenAPI document reads differently from the rest of the domain: a double or a float bound
 // written with an exponent, which only those two types read, and a decimal bound, published as the decimal written.
 

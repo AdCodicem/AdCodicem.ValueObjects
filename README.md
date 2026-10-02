@@ -193,15 +193,15 @@ strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `Dat
 | --- | --- |
 | `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI schema. |
 | `Pattern` | Deprecated (`VO0021`): a regular expression built at run time, which native AOT interprets. Implement `IValueObjectPatternValidator` instead. Removed in the next major version. |
-| `Minimum`, `Maximum` | Inclusive bounds, written as text in the one form of the underlying type and read at compile time. Validation and OpenAPI schema. |
+| `Minimum`, `Maximum` | Deprecated (`VO0028`): inclusive bounds written as text in the one form of the underlying type. Implement `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>` instead. Removed in the next major version. |
 | `Comparison` | Equality, ordering and hashing for string value objects. Ordinal by default. |
 | `ValueSet = Closed` + `[KnownValue]` | Reference-data codes with a frozen lookup and a schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. |
 | `Arithmetic` | Operators and generic math for numeric value objects. Every result is re-validated. |
 | `ImplicitConversionToValue`, `ExplicitConversionFromValue` | Conversions, opt-in per type. |
 | `AllowEmpty`, `AllowDefault` | Loosen the two defaults that exist to catch mistakes. |
 
-`Minimum` and `Maximum` are text because an attribute argument cannot be a `decimal` or a date, and each underlying
-type reads them in one form and no other: digits for an integer, with `-` in front when negative (`"-42"`); a
+The deprecated `Minimum` and `Maximum` options are text because an attribute argument cannot be a `decimal` or a
+date, and each underlying type reads them in one form and no other: digits for an integer, with `-` in front when negative (`"-42"`); a
 `decimal` with an optional fraction after `.` (`"-19.99"`), and a `double` or a `float` with an optional exponent as
 well (`"9.1e-31"`), finite, and zero only when written as zero; one character for a `char`; `yyyy-MM-dd` for a
 `DateOnly`; `HH:mm`, `HH:mm:ss` or `HH:mm:ss.fffffff` for a `TimeOnly`; a date, or a date and a time after `T`,
@@ -224,6 +224,7 @@ without its interface — the one mistake the compiler cannot catch.
 | `IValueObjectSpanNormalizer` | `static string NormalizeValue(ReadOnlySpan<char> value)` — string value objects only |
 | `IValueObjectPatternValidator` | `static Regex Pattern { get; }`, written as a `[GeneratedRegex]` partial property — string value objects only |
 | `IValueObjectValidator<TValue>` | `static ValidationResult ValidateValue(in TValue value)` |
+| `IValueObjectMinimum<TValue>`, `IValueObjectMaximum<TValue>` | `static TValue Minimum { get; }`, `static TValue Maximum { get; }` — numbers, `char`, dates, times and durations |
 | `IValueObjectFormatter<TValue>` | `static bool TryFormatValue(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 | `IValueObjectStringFormatter<TValue>` | `static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 
@@ -267,6 +268,28 @@ interprets it. The option is deprecated (`VO0021`) and removed in the next major
 expression from `Pattern = "X"` into
 `[GeneratedRegex("X", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }`:
 those are the options and the timeout the option used, so behaviour does not change. Declaring both is `VO0022`.
+
+`IValueObjectMinimum<TValue>` and `IValueObjectMaximum<TValue>` declare inclusive bounds as values of the
+underlying type, so the compiler checks them and any expression of that type builds them:
+
+```csharp
+[ValueObject<DateOnly>]
+public readonly partial struct BirthDate : IValueObjectMinimum<DateOnly>, IValueObjectMaximum<DateOnly>
+{
+    public static DateOnly Minimum => new(1900, 1, 1);
+
+    public static DateOnly Maximum => new(2100, 12, 31);
+}
+```
+
+They run after the pattern, before the known values and `ValidateValue`, and reject a value as
+`value_object.out_of_range`. They are also the OpenAPI `minimum` and `maximum`, or the `x-minimum` and `x-maximum`
+extensions for a type JSON writes as a string. A bound is a constant, written as an expression-bodied property: the
+check reads it each time and the schema once, as the assembly loads, so a bound relative to the clock is a rule for
+`ValidateValue`. Over a `string`, a `Guid`, a `bool`, an
+`[EntityId]` or another type than the underlying one, the hooks are `VO0030`. They replace the `Minimum` and
+`Maximum` options, deprecated (`VO0028`) and removed in the next major version; declaring an option and its hook is
+`VO0029`, and the hook wins.
 
 The rules are public because a static interface member cannot be anything else. `Normalize` remains the member
 callers use: it guards against a null underlying value and then defers to `NormalizeValue`.
@@ -348,7 +371,7 @@ an internal surrogate key alongside it.
 | `VO0001` | Error | The type is not `partial`. |
 | `VO0002` | Error | The type is not a `readonly struct`: a class, an interface, a record, a `ref struct`, or a struct without `readonly`. |
 | `VO0003` | Error | Unsupported underlying type. |
-| `VO0004` | Error | A bound is not written in the one form of its underlying type, names no value of it, or is set on a `string`, a `Guid` or a `bool`, which take none. |
+| `VO0004` | Error | A bound set through the deprecated `Minimum` or `Maximum` option is not written in the one form of its underlying type, names no value of it, or is set on a `string`, a `Guid` or a `bool`, which take none. |
 | `VO0005` | Error | A closed value set declares no value. |
 | `VO0006` | Error | A known value has an unusable name. |
 | `VO0007` | Error | Arithmetic requested on a non-numeric type. |
@@ -371,6 +394,9 @@ an internal surrogate key alongside it.
 | `VO0025` | Warning | The `[GeneratedRegex]` behind `Pattern` sets `IgnoreCase`, `Multiline`, `Singleline` or `IgnorePatternWhitespace`, which the OpenAPI `pattern` cannot carry. |
 | `VO0026` | Warning | The `[GeneratedRegex]` behind `Pattern` sets no `matchTimeoutMilliseconds`. |
 | `VO0027` | Error | `[KnownValue]` on an `[EntityId]`, which generates no known values. |
+| `VO0028` | Warning | The deprecated `Minimum` or `Maximum` option of `[ValueObject<T>]`, reported by the compiler. Implement `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` with a static property of the underlying type and remove the option. It is removed in the next major. |
+| `VO0029` | Error | Both the `Minimum` (or `Maximum`) option and its hook on one type. The hook wins. |
+| `VO0030` | Error | `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` over a type that takes no bound, or over another type than the underlying one. |
 
 ## Using it with an AI coding agent
 

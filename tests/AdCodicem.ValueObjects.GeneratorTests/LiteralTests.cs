@@ -136,6 +136,7 @@ public sealed class LiteralTests
         string check)
     {
         var run = GeneratorHarness.Run($$"""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<{{underlying}}>(Minimum = "{{minimum}}", Maximum = "{{maximum}}")]
             public readonly partial struct Wrapper;
             """);
@@ -166,6 +167,7 @@ public sealed class LiteralTests
     public void A_bound_that_does_not_parse_as_its_underlying_type_is_reported(string underlying, string bound)
     {
         var run = GeneratorHarness.Run($$"""
+            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<{{underlying}}>(Minimum = "{{bound}}")]
             public readonly partial struct Wrapper;
             """);
