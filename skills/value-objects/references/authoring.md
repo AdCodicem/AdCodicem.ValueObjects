@@ -316,13 +316,49 @@ public readonly partial struct CustomerId : IValueObjectValidator<Guid>
 `CreateUnchecked` is legitimate there: the value was just produced by the application itself. It is never
 legitimate for input coming from outside.
 
-## Nesting
+## Nesting and generic value objects
 
 A value object declared inside another type requires **every** containing type to be `partial` (`VO0009`). The
-containing types are classes, structs or records without type parameters: nesting in a generic type or in an
-interface is `VO0019`, and so is a value object with type parameters of its own. The value object and every type
-around it are `internal` or `public` — never `private`, `protected` or `private protected` — and never `file`-local
-(`VO0019`): the generated registration and the generated file reach them from outside.
+containing types can be classes, structs, records or interfaces, generic or not, and the value object can be
+`private`, `protected` or `private protected`: the generated registration reaches it through the types around it.
+Never `file`-local, nor nested in a `file` type: the generated code reopens the type in a file of its own, where a
+file-local type is another type (`VO0019`).
+
+A value object can have type parameters of its own, or sit in a generic type. Each construction is then a value
+object of its own, `Reference<PurchaseOrder>` and `Reference<SalesInvoice>` included:
+
+```csharp
+public sealed class PurchaseOrder;
+
+[ValueObject<string>(MaxLength = 12)]
+public readonly partial struct Reference<TOwner> : IValueObjectNormalizer<string>
+    where TOwner : class
+{
+#pragma warning disable CA1000 // A hook is a static member of the generic type.
+    public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
+#pragma warning restore CA1000
+}
+```
+
+The underlying type is never a type parameter: `[ValueObject<T>]` is no attribute C# accepts. A hook is a static
+member of a generic type, which CA1000 reports under `AnalysisLevel` `Recommended`; suppress it there. What else
+changes is how the integrations meet the constructions:
+
+- The registration registers the generic definition, and `ValueObjectRegistry.TryResolve` describes each construction
+  the first time it is asked for it, by reflection. Under native AOT, register each construction a type-driven
+  integration needs: `ValueObjectRegistry.Register<Reference<PurchaseOrder>, string>(Reference<PurchaseOrder>.Schema, new Reference<PurchaseOrder>.ValueJsonConverter());`.
+- `ConfigureValueObjects()` maps every construction an entity holds.
+- Dapper needs a handler per construction, before any query:
+  `ValueObjectDapper.AddValueObjectHandler<Reference<PurchaseOrder>, string>();`.
+- Never a `private` or `protected` value object, nor one nested in a `private` or `protected` type, inside a generic
+  type: the registration reaches it through the types around it, by name (`VO0019`). Make it `internal` or `public`,
+  or move it out of the generic type.
+- Never a generic `[EntityId]`, nor one in a generic type: its prefix names one type, which every construction would
+  claim (`VO0019`).
+- A type parameter is never named after a generated member (`Value`, `Create`, …), nor hidden from the value object by
+  a nested type, declared or inherited, or a type parameter of the same name between them, nor named after a nested
+  type of `TypeConverter` (`StandardValuesCollection`, `SimplePropertyDescriptor`), which the generated converter
+  inherits (`VO0019`).
 
 ## Consuming a value object
 

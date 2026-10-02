@@ -62,6 +62,14 @@ modelBuilder.Entity<BankAccount>()
 Prefer the convention everywhere else. And do not write `HasConversion` by hand for a value object: you would
 lose the generated comparer, and with it correct change tracking for a type whose comparison is not ordinal.
 
+## Generic value objects
+
+A generic value object, `Reference<TOwner>` or `Catalog<TItem>.Stock`, has no single type the convention could map
+up front. `ConfigureValueObjects` maps its generic definition instead, and each property holding a construction,
+`Reference<PurchaseOrder>` say, gets the converter, the comparer and the column length closed over that construction,
+as the model meets it. `strict: true` applies to them as to any other value object, and a property mapped explicitly
+with `HasValueObjectConversion<Reference<PurchaseOrder>, string>()` keeps what it was mapped with.
+
 ## 128-bit value objects
 
 Entity Framework Core maps neither `Int128` nor `UInt128`, on any provider, so the convention leaves a value object

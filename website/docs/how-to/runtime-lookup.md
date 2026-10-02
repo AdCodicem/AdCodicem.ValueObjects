@@ -44,6 +44,14 @@ declares a value through `IValueObject<TValue>`. The integrations claim a type b
 factory, the Newtonsoft.Json converter, the MVC model binder and `MustParseAs` leave anything else to the framework,
 or refuse it.
 
+## Generic value objects
+
+A generic value object registers its generic definition, since its registration knows none of its constructions:
+`ValueObjectRegistry.GetRegisteredGenericDefinitions()` lists them. `TryResolve` describes a construction the first time
+it is asked for it, from the schema and the converter the generator wrote on it, and caches the descriptor;
+`TryGet` finds it from then on. Describing it takes reflection and dynamic code, so under native AOT, register each
+construction you look up with `ValueObjectRegistry.Register<TSelf, TValue>(TSelf.Schema, new TSelf.ValueJsonConverter())`.
+
 ## When a type is not found
 
 Nothing needs registering by hand: every value object joins the registry through a generated module

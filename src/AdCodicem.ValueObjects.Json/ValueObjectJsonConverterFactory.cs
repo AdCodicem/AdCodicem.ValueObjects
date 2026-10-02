@@ -15,7 +15,9 @@ namespace AdCodicem.ValueObjects.Json;
 /// when the serializer resolves types by reflection. The factory exists for the two cases the attribute cannot
 /// reach: a <c>JsonSerializerContext</c>, whose generator never sees the attribute, and value objects written
 /// by hand. For the first, it hands out the converter the generator registered with the value object's descriptor,
-/// whatever the assembly declaring the value object references.
+/// whatever the assembly declaring the value object references. For a construction of a generic value object, whose
+/// registration registers its generic definition alone, the registry closes the generated converter over the
+/// construction, by reflection, the first time it is asked for it.
 /// </para>
 /// <para>
 /// Register it on the context so the System.Text.Json generator picks it up:
@@ -29,9 +31,10 @@ namespace AdCodicem.ValueObjects.Json;
 public sealed class ValueObjectJsonConverterFactory : JsonConverterFactory
 {
     private const string FallbackOnly =
-        "Only reached for a value object that registered no converter, which never happens for a generated one: "
-        + "its registration carries its converter, served from the registry, statically. A hand-written value object "
-        + "combined with trimming or native AOT has to supply its own converter.";
+        "Only reached for a value object that registered no converter, which never happens for a generated one that is "
+        + "not generic: its registration carries its converter, served from the registry, statically. A hand-written "
+        + "value object, or a construction of a generic one, combined with trimming or native AOT has to be registered "
+        + "with its converter through ValueObjectRegistry.Register.";
 
     /// <inheritdoc />
     /// <remarks>

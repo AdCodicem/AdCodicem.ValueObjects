@@ -208,6 +208,55 @@ The hooks replace the `Minimum` and `Maximum` options, whose bound is text read 
 type. Declaring an option and its hook on one type is `VO0029`, and the hook wins.
 [Moving off `Minimum` and `Maximum`](./reference/diagnostics.md#moving-off-minimum-and-maximum) shows the change.
 
+## Where a value object can be declared
+
+At namespace level, or nested in any class, struct, record or interface, generic or not, with every type around it
+`partial` (`VO0009`). The value object, or a type around it, can be `private`, `protected` or `private protected`: the
+generated registration reaches it through a step nested in each type around it, down to the one that sees it, without
+running their static constructors. Only a `file`-local type is out of reach, since the generated code reopens the type
+in a file of its own (`VO0019`), and so is a `private` or `protected` type inside a generic one, whose step the
+registration could only reach through a construction.
+
+A value object can have type parameters of its own, or sit in a generic type. Each construction is then a value object
+of its own, with its own rules, converters and registry entry:
+
+```csharp
+public sealed class PurchaseOrder;
+
+[ValueObject<string>(MaxLength = 12)]
+public readonly partial struct Reference<TOwner> : IValueObjectNormalizer<string>
+    where TOwner : class
+{
+#pragma warning disable CA1000 // A hook is a static member of the generic type.
+    public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
+#pragma warning restore CA1000
+}
+```
+
+The underlying type is fixed, since C# accepts no type parameter as an attribute's type argument. A hook is a static
+member of the generic type, which the CA1000 analyzer reports at the `Recommended` analysis level; the
+generic type is the point of the declaration, so suppress it there.
+
+The registration knows none of the constructions an application will use, so it registers the generic definition, and
+the registry describes each construction the first time it is asked for it, by reflection: the JSON converter
+factory, the OpenAPI transformer and the model binder find one as they find any value object.
+[Entity Framework Core](./how-to/ef-core.md#generic-value-objects) maps each construction a property holds, and
+[Dapper](./how-to/dapper.md#generic-value-objects) needs a handler per construction, before any query. Under native
+AOT, where describing a construction by reflection is out of reach, register each construction a type-driven
+integration needs:
+
+```csharp skip
+ValueObjectRegistry.Register<Reference<PurchaseOrder>, string>(
+    Reference<PurchaseOrder>.Schema,
+    new Reference<PurchaseOrder>.ValueJsonConverter());
+```
+
+An `[EntityId]` is never generic, nor nested in a generic type: its prefix names one type, which every construction
+would claim (`VO0019`). Neither is a type parameter named after a member the generator writes, such as `Value`, nor
+one of a type around the value object hidden from it by a nested type, declared or inherited, or a type parameter of
+the same name, nor one named after a nested type of `TypeConverter`, such as `StandardValuesCollection`, which the
+generated converter inherits.
+
 ## Diagnostics
 
 The generator and the analyzers report `VO0001` to `VO0030`. [Diagnostics](./reference/diagnostics.md) lists

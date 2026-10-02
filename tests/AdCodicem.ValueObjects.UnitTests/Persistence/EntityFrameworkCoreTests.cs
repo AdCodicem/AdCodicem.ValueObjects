@@ -1,6 +1,7 @@
 using System.Globalization;
 using AdCodicem.ValueObjects.EntityFrameworkCore;
 using AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
+using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -36,6 +37,70 @@ public class EntityFrameworkCoreTests
 
         ledger.FindProperty(nameof(Ledger.Owner))!.GetValueConverter()
             .Should().BeOfType<ValueObjectConverter<CustomerId, Guid>>("an optional value object is mapped the same way");
+    }
+
+    /// <summary>
+    /// A generic value object has no type the convention could configure up front. Its definition makes each
+    /// construction a scalar property, and each property gets the converter, the comparer and the length closed over
+    /// its own construction. Every construction is another type, and a nullable one is mapped the same way. The
+    /// constructions are closed over the entity, which nothing else in the process resolves, so the convention is what
+    /// maps them, and not a descriptor something resolved first.
+    /// </summary>
+    [Fact]
+    public void The_convention_maps_each_construction_of_a_generic_value_object()
+    {
+        ValueObjectRegistry.TryGet(typeof(Reference<Shipment>), out _).Should().BeFalse();
+        ValueObjectRegistry.TryGet(typeof(Catalog<Shipment>.Stock), out _).Should().BeFalse();
+
+        var shipment = DesignTimeModel(new GenericContext()).FindEntityType(typeof(Shipment))!;
+
+        var order = shipment.FindProperty(nameof(Shipment.Order))!;
+        order.GetValueConverter().Should().BeOfType<ValueObjectConverter<Reference<Shipment>, string>>();
+        order.GetValueComparer().Should().BeOfType<ValueObjectComparer<Reference<Shipment>>>();
+        order.GetMaxLength().Should().Be(12);
+
+        shipment.FindProperty(nameof(Shipment.Invoice))!.GetValueConverter()
+            .Should().BeOfType<ValueObjectConverter<Reference<GenericContext>, string>>();
+
+        var stock = shipment.FindProperty(nameof(Shipment.Stock))!;
+        stock.GetValueConverter().Should().BeOfType<ValueObjectConverter<Catalog<Shipment>.Stock, int>>();
+        stock.GetMaxLength().Should().BeNull();
+
+        shipment.FindProperty(nameof(Shipment.Carrier))!.GetValueConverter()
+            .Should().BeOfType<ValueObjectConverter<IShipping.Carrier, string>>("a value object nested in an interface is not generic");
+    }
+
+    /// <summary>
+    /// The strict convention validates each construction too, and a property configured explicitly keeps what it was
+    /// configured with: an explicit configuration outranks a convention.
+    /// </summary>
+    [Fact]
+    public void The_strict_convention_maps_each_construction_and_leaves_an_explicit_one_alone()
+    {
+        ValueObjectRegistry.TryGet(typeof(Reference<StrictShipment>), out _).Should().BeFalse();
+
+        var shipment = DesignTimeModel(new StrictGenericContext()).FindEntityType(typeof(StrictShipment))!;
+
+        shipment.FindProperty(nameof(StrictShipment.Order))!.GetValueConverter()
+            .Should().BeOfType<StrictValueObjectConverter<Reference<StrictShipment>, string>>();
+        shipment.FindProperty(nameof(StrictShipment.Stock))!.GetValueConverter()
+            .Should().BeOfType<ValueObjectConverter<Catalog<StrictShipment>.Stock, int>>("the property maps itself");
+    }
+
+    /// <summary>
+    /// Mapped one by one, without the convention, a construction sizes its column as the value object it is built from
+    /// does, whatever resolved it first: nothing else in the process resolves this one.
+    /// </summary>
+    [Fact]
+    public void A_construction_mapped_one_by_one_sizes_its_column()
+    {
+        ValueObjectRegistry.TryGet(typeof(Reference<ExplicitShipment>), out _).Should().BeFalse();
+        var builder = new ModelBuilder();
+
+        builder.Entity<ExplicitShipment>().Property(entity => entity.Order).HasValueObjectConversion<Reference<ExplicitShipment>, string>();
+
+        builder.Model.FindEntityType(typeof(ExplicitShipment))!.FindProperty(nameof(ExplicitShipment.Order))!
+            .GetMaxLength().Should().Be(12);
     }
 
     [Fact]
@@ -209,6 +274,69 @@ public class EntityFrameworkCoreTests
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<Ledger>().Ignore(entity => entity.Code);
+    }
+
+    /// <summary>A shipment, holding constructions of generic value objects.</summary>
+    private sealed class Shipment
+    {
+        public int Id { get; set; }
+
+        public Reference<Shipment> Order { get; set; }
+
+        public Reference<GenericContext>? Invoice { get; set; }
+
+        public Catalog<Shipment>.Stock Stock { get; set; }
+
+        public IShipping.Carrier Carrier { get; set; }
+    }
+
+    /// <summary>A shipment mapped by the strict convention, holding constructions of its own.</summary>
+    private sealed class StrictShipment
+    {
+        public int Id { get; set; }
+
+        public Reference<StrictShipment> Order { get; set; }
+
+        public Catalog<StrictShipment>.Stock Stock { get; set; }
+    }
+
+    /// <summary>A shipment whose construction is mapped one by one.</summary>
+    private sealed class ExplicitShipment
+    {
+        public int Id { get; set; }
+
+        public Reference<ExplicitShipment> Order { get; set; }
+    }
+
+    /// <summary>A model mapping the generic value objects of the unit domain.</summary>
+    private sealed class GenericContext : DbContext
+    {
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder.UseNpgsql("Host=unused");
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+            => configurationBuilder.ConfigureValueObjects();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+            => modelBuilder.Entity<Shipment>();
+    }
+
+    /// <summary>
+    /// A model mapping the generic value objects of the unit domain and validating what it reads, but for the stock,
+    /// which it maps explicitly, as an application departing from the convention does.
+    /// </summary>
+    private sealed class StrictGenericContext : DbContext
+    {
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder.UseNpgsql("Host=unused");
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+            => configurationBuilder.ConfigureValueObjects(strict: true);
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+            => modelBuilder.Entity<StrictShipment>()
+                .Property(entity => entity.Stock)
+                .HasValueObjectConversion<Catalog<StrictShipment>.Stock, int>();
     }
 
     /// <summary>A model mapping the value objects of the unit domain, and validating what it reads.</summary>

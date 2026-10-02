@@ -30,6 +30,10 @@ public static class ValueObjectConventionExtensions
     /// with a converter of its own.
     /// </para>
     /// <para>
+    /// A generic value object, <c>Code&lt;T&gt;</c> or <c>Outer&lt;T&gt;.Code</c>, is mapped too, whatever its
+    /// constructions: each property of one gets the converter, the comparer and the length closed over its own.
+    /// </para>
+    /// <para>
     /// This runs once, while the model is built. Nothing here happens per query or per row.
     /// </para>
     /// </remarks>
@@ -65,12 +69,27 @@ public static class ValueObjectConventionExtensions
 
         foreach (var descriptor in ValueObjectRegistry.GetRegistered())
         {
-            if (descriptor.ValueType == typeof(Int128) || descriptor.ValueType == typeof(UInt128))
+            if (Is128Bit(descriptor.ValueType))
             {
                 continue;
             }
 
             Apply(builder, descriptor, strict);
+        }
+
+        // A generic value object is configured by its definition, which makes each construction a scalar property, and
+        // the convention closes the converter over the construction of each property it meets.
+        var definitions = ValueObjectRegistry.GetRegisteredGenericDefinitions()
+            .Where(static definition => !Is128Bit(ValueTypeOf(definition)))
+            .ToHashSet();
+        if (definitions.Count > 0)
+        {
+            foreach (var definition in definitions)
+            {
+                builder.Properties(definition);
+            }
+
+            builder.Conventions.Add(_ => new GenericValueObjectConvention(definitions, strict));
         }
 
         return builder;
@@ -102,13 +121,31 @@ public static class ValueObjectConventionExtensions
                 : new ValueObjectConverter<TSelf, TValue>(),
             new ValueObjectComparer<TSelf>());
 
-        if (ValueObjectRegistry.TryGet(typeof(TSelf), out var descriptor) && descriptor.Schema.MaxLength is { } maxLength)
+        // A construction of a generic value object is never registered as such: the registry describes it the first
+        // time it is asked, which happens here, so that the column does not depend on what else asked first.
+#pragma warning disable IL2026, IL3050 // Model building is reflection-based already; EF Core is not trim compatible.
+        var described = typeof(TSelf).IsConstructedGenericType
+            ? ValueObjectRegistry.TryResolve(typeof(TSelf), out var descriptor)
+            : ValueObjectRegistry.TryGet(typeof(TSelf), out descriptor);
+#pragma warning restore IL2026, IL3050
+        if (described && descriptor!.Schema.MaxLength is { } maxLength)
         {
             builder.HasMaxLength(maxLength);
         }
 
         return builder;
     }
+
+    private static bool Is128Bit(Type? valueType) => valueType == typeof(Int128) || valueType == typeof(UInt128);
+
+    /// <summary>
+    /// Reads the underlying type of a generic value object off its definition, which the registry describes no
+    /// construction of.
+    /// </summary>
+    private static Type? ValueTypeOf(Type definition)
+        => definition.GetInterfaces()
+            .FirstOrDefault(static candidate => candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IValueObject<,>))
+            ?.GetGenericArguments()[1];
 
     private static void Apply(ModelConfigurationBuilder builder, ValueObjectDescriptor descriptor, bool strict)
     {

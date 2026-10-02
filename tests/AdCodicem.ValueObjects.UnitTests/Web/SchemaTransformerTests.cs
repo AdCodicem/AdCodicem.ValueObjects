@@ -180,6 +180,32 @@ public partial class SchemaTransformerTests
     }
 
     /// <summary>
+    /// A construction of a generic value object is described from the schema the generator wrote on it, which the
+    /// registry finds once asked for the construction.
+    /// </summary>
+    [Fact]
+    public async Task A_construction_of_a_generic_value_object_is_documented_from_its_generated_schema()
+    {
+        var reference = new OpenApiSchema();
+        var stock = new OpenApiSchema();
+
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            reference,
+            ContextFor<Reference<PurchaseOrder>>(),
+            TestContext.Current.CancellationToken);
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            stock,
+            ContextFor<Catalog<Iban>.Stock>(),
+            TestContext.Current.CancellationToken);
+
+        reference.Type.Should().Be(JsonSchemaType.String);
+        reference.MaxLength.Should().Be(12);
+        reference.Examples.Should().ContainSingle().Which!.ToJsonString().Should().Be("\"PO-1042\"");
+        stock.Type.Should().Be(JsonSchemaType.Integer);
+        stock.Minimum.Should().Be("0");
+    }
+
+    /// <summary>
     /// Under <c>WriteAsString</c> a number goes on the wire as text, its example and its known values with it. It is
     /// documented as System.Text.Json documents a bare number under the same options, a number or a string held to a
     /// numeric pattern, and its bounds, which <c>minimum</c> and <c>maximum</c> apply to the number alone, are also

@@ -254,5 +254,18 @@ public abstract class ValueObjectContract<TSelf, TValue>
     /// Runs the generated registration of the assembly declaring <typeparamref name="TSelf"/>, which a contract kept in
     /// a test assembly of its own may be the first to need: the registry only knows a type once that has run.
     /// </summary>
-    private static void EnsureRegistered() => ValueObjectRegistry.EnsureAssemblyRegistered(typeof(TSelf).Assembly);
+    /// <remarks>
+    /// A construction of a generic value object is never registered as such: its registration registers its generic
+    /// definition, and the registry describes each construction once asked for it, as an integration asks.
+    /// </remarks>
+    private static void EnsureRegistered()
+    {
+        var type = typeof(TSelf);
+        ValueObjectRegistry.EnsureAssemblyRegistered(type.Assembly);
+
+        if (type.IsConstructedGenericType)
+        {
+            ValueObjectRegistry.TryResolve(type, out _);
+        }
+    }
 }

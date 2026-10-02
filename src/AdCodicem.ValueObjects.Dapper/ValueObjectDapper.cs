@@ -32,6 +32,11 @@ public static class ValueObjectDapper
     /// either as a parameter or returns one, so the column type, and the conversion to it, are the application's
     /// to choose, in a handler of its own.
     /// </para>
+    /// <para>
+    /// A generic value object has no handler until its constructions are known, and Dapper looks a handler up by the
+    /// exact type, ahead of any query: register each construction with
+    /// <see cref="AddValueObjectHandler{TSelf, TValue}"/>.
+    /// </para>
     /// </remarks>
     [RequiresUnreferencedCode("Closes the generic type handler over each value object type.")]
     [RequiresDynamicCode("Closes the generic type handler over each value object type.")]
@@ -61,6 +66,42 @@ public static class ValueObjectDapper
                 SqlMapper.AddTypeHandler(descriptor.ValueObjectType, handler);
                 SqlMapper.AddTypeHandler(typeof(Nullable<>).MakeGenericType(descriptor.ValueObjectType), handler);
             }
+        }
+    }
+
+    /// <summary>
+    /// Registers a handler for one value object, such as a construction of a generic value object.
+    /// </summary>
+    /// <typeparam name="TSelf">Value object type, <c>Code&lt;Order&gt;</c> for instance.</typeparam>
+    /// <typeparam name="TValue">Underlying value type.</typeparam>
+    /// <exception cref="NotSupportedException">
+    /// <typeparamref name="TValue"/> is <see cref="Int128"/> or <see cref="UInt128"/>, which no ADO.NET provider carries.
+    /// </exception>
+    /// <remarks>
+    /// The handler is the one <see cref="AddValueObjectHandlers"/> registers, for the value object and its nullable
+    /// form, and a value object Dapper already has a handler for keeps it. Closed at compile time, it needs no dynamic
+    /// code to be built; Dapper reflects over the handlers it is given, and the handler of a construction reads the
+    /// column the construction declares from the registry, which describes the construction by reflection.
+    /// </remarks>
+    public static void AddValueObjectHandler<TSelf, TValue>()
+        where TSelf : struct, IValueObject<TSelf, TValue>
+    {
+        if (Is128Bit(typeof(TValue)))
+        {
+            throw new NotSupportedException(
+                $"'{typeof(TSelf)}' is a value object over {typeof(TValue).Name}, which no ADO.NET provider carries. "
+                + "Choose the column type, and the conversion to it, in a handler of the application's own.");
+        }
+
+        lock (Gate)
+        {
+            if (SqlMapper.HasTypeHandler(typeof(TSelf)))
+            {
+                return;
+            }
+
+            // Dapper registers a handler for a value type under its nullable form as well.
+            SqlMapper.AddTypeHandler(new ValueObjectTypeHandler<TSelf, TValue>());
         }
     }
 

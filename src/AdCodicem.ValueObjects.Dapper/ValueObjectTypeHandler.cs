@@ -126,13 +126,21 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
     /// </summary>
     /// <returns>The column type and its length, or <see langword="null"/> when the underlying type says it all.</returns>
     /// <remarks>
+    /// <para>
     /// Only an entity identifier is known to be ASCII. Declaring any other text non-Unicode would let SQL Server
     /// replace the characters its code page lacks.
+    /// </para>
+    /// <para>
+    /// A construction of a generic value object is never registered as such: the registry describes it the first time
+    /// it is asked, which happens here, so that the column does not depend on what else asked first.
+    /// </para>
     /// </remarks>
     private static (DbType Type, int Length)? DeclaredColumn()
     {
         if (typeof(TValue) != typeof(string)
-            || !ValueObjectRegistry.TryGet(typeof(TSelf), out var descriptor)
+            || !(typeof(TSelf).IsConstructedGenericType
+                ? ValueObjectRegistry.TryResolve(typeof(TSelf), out var descriptor)
+                : ValueObjectRegistry.TryGet(typeof(TSelf), out descriptor))
             || descriptor.Schema.MaxLength is not { } maxLength)
         {
             return null;

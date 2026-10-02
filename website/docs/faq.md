@@ -111,7 +111,10 @@ generic. [Benchmarks](./benchmarks.md) measures each case.
 ### Does it use reflection?
 
 Not in the generated code, and not to find value objects: a generated module initializer registers each type
-at start-up. The contracts, the generated code, the JSON package, FluentValidation and identifiers are marked
+at start-up. The one exception is a generic value object, whose registration knows none of the constructions an
+application uses: the registry describes each one by reflection, the first time it is asked for it, and under native
+AOT each construction is registered by hand instead, as
+[Where a value object can be declared](./authoring-guide.md#where-a-value-object-can-be-declared) shows. The contracts, the generated code, the JSON package, FluentValidation and identifiers are marked
 AOT-compatible and built with the trimming and AOT analyzers on. The EF Core, ASP.NET Core, OpenAPI, Dapper and
 Newtonsoft.Json integrations are not, because the frameworks they plug into are not.
 

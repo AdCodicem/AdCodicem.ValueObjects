@@ -67,6 +67,20 @@ in a `uuid` or `uniqueidentifier` column — is turned into text, then normalize
 `Guid` becomes text in its `D` form, lowercase, as `Guid.ToString()` writes it. Either way, a value the value object refuses throws a `DataException`
 carrying the rule's message.
 
+## Generic value objects
+
+Dapper looks a handler up by the exact type, ahead of any query, and the constructions of a generic value object are
+known only to the application. `AddValueObjectHandlers` handles only the constructions something resolved before it
+ran, which depends on the order of start-up; register each construction a query reads or writes, once, at start-up:
+
+```csharp skip
+ValueObjectDapper.AddValueObjectHandler<Reference<PurchaseOrder>, string>();
+```
+
+It registers the same handler, for the value object and its nullable form, closed at compile time with no assembly
+scan, and keeps a handler the application registered itself. It works for a value object that is not generic too. The
+parameter of a construction declares its column as any other value object's does.
+
 ## 128-bit value objects
 
 No ADO.NET provider takes an `Int128` or a `UInt128` as a parameter, or returns one, so `AddValueObjectHandlers`

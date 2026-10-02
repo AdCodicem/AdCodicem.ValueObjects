@@ -37,9 +37,10 @@ Non-negotiable, each one a diagnostic if you get it wrong:
 
 - `readonly partial struct` — never a `class`, never a `record struct`, never a `ref struct`, never a non-`readonly` struct (`VO0002`).
 - `partial` on the type *and* on every containing type (`VO0001`, `VO0009`).
-- No type parameters on the type, and no generic type or interface around it; the type and every type around it
-  `internal` or `public`, never `file`-local; a name that is not a generated member's, such as `Value` or
-  `Create` (`VO0019`).
+- Never `file`-local, nor in a `file` type; a name that is not a generated member's, such as `Value` or `Create`;
+  never a generic `[EntityId]`, nor one in a generic type; never `private` or `protected` inside a generic type
+  (`VO0019`). Generic value objects, interfaces around one, and `private` or `protected` ones are fine:
+  `references/authoring.md` says what changes.
 - The underlying type is one of 22: `string`, `Guid`, `bool`, `char`, every built-in integer (`Int128` and
   `UInt128` included), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `DateTimeOffset`,
   `TimeSpan` (`VO0003`).
