@@ -76,6 +76,24 @@ public partial class SchemaTransformerTests
     }
 
     /// <summary>
+    /// A value object written as a string with a maximum alone states that one bound, and a description it did not
+    /// have becomes that sentence.
+    /// </summary>
+    [Fact]
+    public async Task A_maximum_alone_of_a_value_object_written_as_a_string_is_stated_alone()
+    {
+        ValueObjectRegistry.EnsureAssemblyRegistered(typeof(Deadline).Assembly);
+        ValueObjectRegistry.Register(ValueObjectDescriptor.For<Deadline, DateOnly>(new ValueObjectSchema { Maximum = "2030-12-31" }));
+        var schema = new OpenApiSchema();
+
+        await new ValueObjectSchemaTransformer().TransformAsync(schema, ContextFor<Deadline>(), TestContext.Current.CancellationToken);
+
+        schema.Maximum.Should().BeNull();
+        schema.Extensions.Should().ContainKey("x-maximum").And.NotContainKey("x-minimum");
+        schema.Description.Should().Be("At most 2030-12-31.");
+    }
+
+    /// <summary>
     /// A value object written by hand that nothing registered binds through the model binder and validates through
     /// FluentValidation, which both resolve it by reflection. The transformer resolves it the same way, so it is
     /// documented as its underlying value rather than left as the object the serializer would describe.
@@ -109,6 +127,10 @@ public partial class SchemaTransformerTests
     /// <summary>A rate no other test uses, whose registration one test replaces.</summary>
     [ValueObject<decimal>]
     public readonly partial struct Rate;
+
+    /// <summary>A deadline no other test uses, whose registration one test replaces.</summary>
+    [ValueObject<DateOnly>]
+    public readonly partial struct Deadline;
 
     /// <summary>A tally no other test uses, whose registration one test replaces.</summary>
     [ValueObject<int>]

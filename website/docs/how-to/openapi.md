@@ -24,7 +24,7 @@ object is then documented as what it is on the wire — its underlying type — 
 | `SchemaFormat`, or the natural format of the type (`uuid`, `date`, `int64`…) | `format` |
 | `MinLength`, `MaxLength` | `minLength`, `maxLength` |
 | `IValueObjectPatternValidator`, or the deprecated `Pattern` option | `pattern` |
-| `Minimum`, `Maximum` | `minimum`, `maximum` |
+| `Minimum`, `Maximum` | `minimum`, `maximum` for a number; for a value written as a string, see below |
 | `[KnownValue]` on a closed set | `enum`, each value as the type writes it in JSON |
 | `Example` | an example, written as the type writes it in JSON |
 | `Description`, or the type's XML `<summary>` | `description` |
@@ -56,6 +56,12 @@ sees them: `IgnoreCase`, `Multiline`, `Singleline` or `IgnorePatternWhitespace` 
 values the server judges otherwise, and are reported as `VO0025`. Write such a rule into the expression itself,
 `[A-Za-z]` rather than `IgnoreCase`, and keep to constructs that mean the same in the ECMA-262 dialect OpenAPI
 clients use.
+
+JSON Schema applies `minimum` and `maximum` to numbers only, so a value object written as a JSON string — an `Int128`
+or a `UInt128`, which a JSON number would round, a `char`, a date, a time or a duration — does not get them: a client
+would ignore them. Its bounds go to `x-minimum` and `x-maximum` instead, in the form the type writes them, for tools
+that read extensions, and to a sentence after the description, `Between 1900-01-01 and 2100-12-31, inclusive.`, for
+the people reading the document.
 
 A known value is written by the type's converter, as the type holds it once normalized. A value object written by
 hand where no generator runs is described from its annotation instead, as the registry describes it by reflection the

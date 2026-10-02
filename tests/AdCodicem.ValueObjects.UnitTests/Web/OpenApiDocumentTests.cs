@@ -184,6 +184,52 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
         document.Schema(nameof(Luminance)).GetProperty("maximum").GetDouble().Should().Be(1500d);
     }
 
+    /// <summary>
+    /// JSON Schema applies <c>minimum</c> and <c>maximum</c> to numbers only. A value object written as a string - a
+    /// 128-bit integer, a character, a date - carries its bounds in extensions instead, in the form the type writes
+    /// them, and in a sentence of its description, after what the description already said.
+    /// </summary>
+    /// <param name="name">The value object.</param>
+    /// <param name="minimum">Its minimum, as the type writes it.</param>
+    /// <param name="maximum">Its maximum, as the type writes it.</param>
+    [Theory]
+    [InlineData(nameof(LedgerBalance), "-1000000000000000000000", "1000000000000000000000")]
+    [InlineData(nameof(Grade), "A", "F")]
+    [InlineData(nameof(BirthDate), "1900-01-01", "2100-12-31")]
+    [InlineData(nameof(OpeningTime), "06:00:00.0000000", "12:00:00.0000000")]
+    public void A_bound_of_a_value_object_written_as_a_string_is_an_extension_and_a_sentence(
+        string name,
+        string minimum,
+        string maximum)
+    {
+        var schema = document.Schema(name);
+
+        schema.TryGetProperty("minimum", out _).Should().BeFalse("JSON Schema applies minimum to numbers only");
+        schema.TryGetProperty("maximum", out _).Should().BeFalse("JSON Schema applies maximum to numbers only");
+        schema.GetProperty("x-minimum").GetString().Should().Be(minimum);
+        schema.GetProperty("x-maximum").GetString().Should().Be(maximum);
+        schema.GetProperty("description").GetString().Should().EndWith($"\n\nBetween {minimum} and {maximum}, inclusive.");
+    }
+
+    [Fact]
+    public void A_single_bound_of_a_value_object_written_as_a_string_is_stated_alone()
+    {
+        var schema = document.Schema(nameof(OccurredAt));
+
+        schema.GetProperty("x-minimum").GetString().Should().Be("2000-01-01T00:00:00+00:00");
+        schema.TryGetProperty("x-maximum", out _).Should().BeFalse();
+        schema.GetProperty("description").GetString().Should().EndWith("At least 2000-01-01T00:00:00+00:00.");
+    }
+
+    [Fact]
+    public void A_bound_of_a_value_object_written_as_a_number_is_no_extension()
+    {
+        var percentage = document.Schema(nameof(Percentage));
+
+        percentage.TryGetProperty("x-minimum", out _).Should().BeFalse();
+        percentage.TryGetProperty("x-maximum", out _).Should().BeFalse();
+    }
+
     [Fact]
     public void A_bound_that_is_no_number_is_left_out()
     {
