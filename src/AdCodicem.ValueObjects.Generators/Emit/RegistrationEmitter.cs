@@ -19,12 +19,23 @@ internal static class RegistrationEmitter
     /// Emits the registration source for one assembly.
     /// </summary>
     /// <param name="models">Value objects declared in the assembly.</param>
-    /// <param name="registerJsonConverters">
-    /// Whether the AdCodicem.ValueObjects.Json package is referenced, in which case each generated converter is
-    /// published so that a source-generated serializer context can find it.
+    /// <param name="legacyJsonRegistry">
+    /// Whether the assembly references AdCodicem.ValueObjects.Json, whose registry the converters are also published to.
     /// </param>
     /// <returns>The generated source.</returns>
-    public static string Emit(ImmutableArray<ValueObjectModel> models, bool registerJsonConverters)
+    /// <remarks>
+    /// <para>
+    /// Each registration carries how to create the converter generated for the value object. The System.Text.Json
+    /// generator cannot see the <c>[JsonConverter]</c> attribute emitted on the type, so a source-generated serializer
+    /// context finds the converter through the descriptor instead, whatever this assembly references.
+    /// </para>
+    /// <para>
+    /// An AdCodicem.ValueObjects.Json older than this generator reads only its own registry, which NuGet lets an
+    /// application pair with a newer generator. Until the next major version, an assembly referencing the package
+    /// therefore also publishes each converter the registration reaches there, as it always did.
+    /// </para>
+    /// </remarks>
+    public static string Emit(ImmutableArray<ValueObjectModel> models, bool legacyJsonRegistry)
     {
         var writer = new CodeWriter();
 
@@ -55,7 +66,7 @@ internal static class RegistrationEmitter
         {
             writer.Line(
                 "global::AdCodicem.ValueObjects.Metadata.ValueObjectRegistry.Register"
-                + $"<{model.QualifiedName}, {model.UnderlyingFullName}>({model.QualifiedName}.Schema);");
+                + $"<{model.QualifiedName}, {model.UnderlyingFullName}>({model.QualifiedName}.Schema, static () => new {model.QualifiedName}.ValueJsonConverter());");
         }
 
         var identifiers = models.Where(static model => model.IsEntityId).ToImmutableArray();
@@ -72,12 +83,12 @@ internal static class RegistrationEmitter
             }
         }
 
-        if (registerJsonConverters)
+        var legacy = legacyJsonRegistry ? models : [];
+        if (legacy.Length > 0)
         {
             writer.Line();
-            writer.Line("// The System.Text.Json generator cannot see the [JsonConverter] attribute emitted above,");
-            writer.Line("// so the converters are published for ValueObjectJsonConverterFactory to hand back.");
-            foreach (var model in models)
+            writer.Line("// An AdCodicem.ValueObjects.Json older than this generator reads its own registry only.");
+            foreach (var model in legacy)
             {
                 writer.Line(
                     "global::AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry.Register("

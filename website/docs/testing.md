@@ -17,8 +17,9 @@ Three suites, each with a distinct job:
   generator emits for every one of them runs rather than only compiles. Generated sources are emitted to disk
   during the build, so they can be read when diagnosing a failure instead of decompiled from memory. Value
   objects written by hand reach what the generator always replaces, such as the default members of the
-  contracts, and two small fixture assemblies hold what the test assembly cannot: a generated value object whose
-  module has not been used yet, and annotated value objects in an assembly the generator does not run on.
+  contracts, and three small fixture assemblies hold what the test assembly cannot: a generated value object whose
+  module has not been used yet, annotated value objects in an assembly the generator does not run on, and
+  generated value objects in an assembly that does not reference the JSON package.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that

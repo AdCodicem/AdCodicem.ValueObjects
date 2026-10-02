@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace AdCodicem.ValueObjects.Metadata;
 
@@ -32,7 +33,7 @@ public delegate bool BoxedTryParse(ReadOnlySpan<char> text, IFormatProvider? pro
 /// type handler — never on a per-request path. Request paths go through the strongly typed generic APIs.
 /// </para>
 /// <para>
-/// Descriptors are produced by <see cref="For{TSelf, TValue}"/>, which is fully generic and therefore free
+/// Descriptors are produced by <see cref="For{TSelf, TValue}(ValueObjectSchema, Func{JsonConverter{TSelf}})"/>, which is fully generic and therefore free
 /// of reflection: the source generator emits one call per value object in a module initializer.
 /// </para>
 /// </remarks>
@@ -43,6 +44,10 @@ public sealed class ValueObjectDescriptor
     /// </summary>
     private const string RequiredMessage = "A value is required.";
 
+    private readonly Func<JsonConverter>? _jsonConverterFactory;
+
+    private JsonConverter? _jsonConverter;
+
     private ValueObjectDescriptor(
         Type valueObjectType,
         Type valueType,
@@ -52,7 +57,8 @@ public sealed class ValueObjectDescriptor
         BoxedTryCreate tryCreate,
         BoxedTryParse tryParse,
         Func<object, object?> getValue,
-        Func<object, string> format)
+        Func<object, string> format,
+        Func<JsonConverter>? jsonConverter)
     {
         ValueObjectType = valueObjectType;
         ValueType = valueType;
@@ -63,6 +69,7 @@ public sealed class ValueObjectDescriptor
         TryParse = tryParse;
         GetValue = getValue;
         Format = format;
+        _jsonConverterFactory = jsonConverter;
     }
 
     /// <summary>
@@ -120,6 +127,19 @@ public sealed class ValueObjectDescriptor
     public Func<object, string> Format { get; }
 
     /// <summary>
+    /// Gets the System.Text.Json converter of the value object, when its registration supplied one.
+    /// </summary>
+    /// <remarks>
+    /// The generator emits a converter for every value object and registers how to create it here, whatever the
+    /// declaring assembly references. <c>ValueObjectJsonConverterFactory</c> hands it to a source-generated serializer
+    /// context, whose generator never sees the <c>[JsonConverter]</c> attribute on the type, so that no converter has to
+    /// be built by reflection, which trimming and native AOT do not support. It is created the first time it is asked
+    /// for, and the same instance is handed out from then on.
+    /// </remarks>
+    public JsonConverter? JsonConverter
+        => _jsonConverter ?? (_jsonConverterFactory is { } factory ? CreateJsonConverter(factory) : null);
+
+    /// <summary>
     /// Builds a descriptor for a value object, resolving every operation statically.
     /// </summary>
     /// <typeparam name="TSelf">Value object type.</typeparam>
@@ -127,6 +147,22 @@ public sealed class ValueObjectDescriptor
     /// <param name="schema">Declarative constraints of the value object.</param>
     /// <returns>The descriptor.</returns>
     public static ValueObjectDescriptor For<TSelf, TValue>(ValueObjectSchema schema)
+        where TSelf : struct, IValueObject<TSelf, TValue>
+        => For<TSelf, TValue>(schema, jsonConverter: null);
+
+    /// <summary>
+    /// Builds a descriptor for a value object carrying its System.Text.Json converter, resolving every operation
+    /// statically.
+    /// </summary>
+    /// <typeparam name="TSelf">Value object type.</typeparam>
+    /// <typeparam name="TValue">Underlying value type.</typeparam>
+    /// <param name="schema">Declarative constraints of the value object.</param>
+    /// <param name="jsonConverter">
+    /// Creates the converter of the value object, the first time <see cref="JsonConverter"/> is read, or
+    /// <see langword="null"/> when its registration supplies none.
+    /// </param>
+    /// <returns>The descriptor.</returns>
+    public static ValueObjectDescriptor For<TSelf, TValue>(ValueObjectSchema schema, Func<JsonConverter<TSelf>>? jsonConverter)
         where TSelf : struct, IValueObject<TSelf, TValue>
     {
         ArgumentNullException.ThrowIfNull(schema);
@@ -224,11 +260,22 @@ public sealed class ValueObjectDescriptor
                 return false;
             },
             getValue: static valueObject => ((TSelf)valueObject).Value,
-            format: static valueObject => ((TSelf)valueObject).ToString(null, CultureInfo.InvariantCulture));
+            format: static valueObject => ((TSelf)valueObject).ToString(null, CultureInfo.InvariantCulture),
+            jsonConverter);
     }
 
     private static TValue Unbox<TValue>(object? value)
         => value is null ? default! : (TValue)value;
+
+    /// <summary>
+    /// Creates the converter once, keeping the first instance created when two threads race to it.
+    /// </summary>
+    private JsonConverter CreateJsonConverter(Func<JsonConverter> factory)
+    {
+        var created = factory();
+
+        return Interlocked.CompareExchange(ref _jsonConverter, created, null) ?? created;
+    }
 
     /// <summary>
     /// Boxes every member of a closed value set once, so the boxed paths can hand out shared instances.

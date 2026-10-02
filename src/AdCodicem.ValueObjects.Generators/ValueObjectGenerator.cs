@@ -163,21 +163,19 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
                 .Collect())
             .Select(static (both, _) => both.Left.AddRange(both.Right));
 
-        // Reduced to a bool so that the compilation changing on every keystroke does not invalidate the output.
-        var jsonPackageReferenced = context.CompilationProvider.Select(static (compilation, _) =>
+        // Only for an AdCodicem.ValueObjects.Json older than the generator, which reads its own registry alone.
+        var legacyJsonRegistry = context.CompilationProvider.Select(static (compilation, _) =>
             compilation.GetTypeByMetadataName(JsonRegistryTypeName) is not null);
 
-        context.RegisterSourceOutput(models.Combine(jsonPackageReferenced), static (production, input) =>
+        context.RegisterSourceOutput(models.Combine(legacyJsonRegistry), static (production, input) =>
         {
-            var (collected, withJson) = input;
+            var (collected, legacy) = input;
             if (collected.Length == 0)
             {
                 return;
             }
 
-            var source = RegistrationEmitter.Emit(
-                collected.Select(static model => model!).ToImmutableArray(),
-                withJson);
+            var source = RegistrationEmitter.Emit(collected.Select(static model => model!).ToImmutableArray(), legacy);
 
             production.AddSource("ValueObjectRegistration.g.cs", SourceText.From(source, Encoding.UTF8));
         });

@@ -112,7 +112,9 @@ unrelated edit does not re-run the pipeline) → `ValueObjectEmitter`, which del
 supported underlying types and drives nearly every per-type decision the emitters make.
 
 `RegistrationEmitter` produces a `[ModuleInitializer]` that populates `ValueObjectRegistry`, so descriptors are
-available without the consumer registering anything.
+available without the consumer registering anything. Each descriptor carries the generated JSON converter, which
+`ValueObjectJsonConverterFactory` hands to a source-generated serializer context, whatever the declaring assembly
+references.
 
 ### Two ways to reach a value object — and why bugs hide in one of them
 
@@ -233,9 +235,10 @@ Three suites, each with a distinct job:
   is on, so generated sources land under `artifacts/obj/.../generated/` and can be read when diagnosing.
   `Domain/HandWritten/` holds value objects written by hand, the supported input that reaches what the generator
   always replaces: the interface defaults and the registry's reflection fallback. The test assembly cannot hold
-  the rest, since the generator runs on it and its module initializer has run before any test does, so two
-  fixture assemblies under `tests/Fixtures/` do: a generated value object in a module nothing has used yet, and
-  annotated hand-written ones where no generator runs.
+  the rest, since the generator runs on it and its module initializer has run before any test does, so three
+  fixture assemblies under `tests/Fixtures/` do: a generated value object in a module nothing has used yet,
+  annotated hand-written ones where no generator runs, and generated ones in an assembly that does not reference
+  `AdCodicem.ValueObjects.Json`, as a domain project serializing through an API's context does not.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
   input. Two things keep such a suite honest and both are easy to lose: a property conditioned on "the value was
