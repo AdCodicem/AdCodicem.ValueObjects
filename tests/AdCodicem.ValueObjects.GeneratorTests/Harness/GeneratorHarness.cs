@@ -37,7 +37,9 @@ public static class GeneratorHarness
     /// </param>
     /// <param name="referenceJsonPackage">
     /// Whether the compilation references AdCodicem.ValueObjects.Json, as a project serializing through a
-    /// source-generated context does. The generator then publishes every converter to the package's registry.
+    /// source-generated context does. The generator registers every converter with its descriptor either way, and
+    /// then also publishes each one to the package's own registry, which a package older than the generator reads
+    /// alone.
     /// </param>
     /// <returns>The generated sources and every diagnostic produced.</returns>
     public static GeneratorRun Run(

@@ -561,32 +561,45 @@ public sealed class EmissionTests
     }
 
     /// <summary>
-    /// A project referencing the JSON package serializes through a source-generated context, which cannot see the
-    /// converters this generator writes, so each one is published to the package's registry at start-up.
+    /// A source-generated serializer context cannot see the converters this generator writes, so each one is
+    /// registered with its value object's descriptor, whether or not the assembly references the JSON package, which
+    /// may only be referenced by the assembly declaring the context. It is registered as a factory, so that loading the
+    /// assembly builds no converter. An assembly referencing the package also publishes each converter to the package's
+    /// own registry, the only one a package older than the generator reads.
     /// </summary>
-    [Fact]
-    public void With_the_json_package_referenced_every_converter_is_published()
+    /// <param name="referenceJsonPackage">Whether the compilation references the JSON package.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Every_converter_is_registered_with_its_value_object(bool referenceJsonPackage)
     {
-        const string source = """
+        var run = GeneratorHarness.Run(
+            """
             [ValueObject<string>]
             public readonly partial struct Code;
 
             [EntityId("acc")]
             public readonly partial struct AccountId;
-            """;
+            """,
+            referenceJsonPackage: referenceJsonPackage);
 
-        var with = GeneratorHarness.Run(source, referenceJsonPackage: true);
-        var without = GeneratorHarness.Run(source);
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        var registration = run.Files.Single(file => file.HintName == "ValueObjectRegistration.g.cs").Text;
+        registration.Should()
+            .Contain("Register<global::Test.Code, global::System.String>(global::Test.Code.Schema, static () => new global::Test.Code.ValueJsonConverter());")
+            .And.Contain("Register<global::Test.AccountId, global::System.String>(global::Test.AccountId.Schema, static () => new global::Test.AccountId.ValueJsonConverter());");
 
-        with.Diagnostics.Should().BeEmpty();
-        with.CompilationDiagnostics.Should().BeEmpty("the calls bind to the package's Register<TSelf>");
-        Registration(with).Should()
-            .Contain("global::AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry.Register(new global::Test.Code.ValueJsonConverter());")
-            .And.Contain("global::AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry.Register(new global::Test.AccountId.ValueJsonConverter());");
-        Registration(without).Should().NotContain("ValueObjectJsonRegistry");
-
-        static string Registration(GeneratorRun run)
-            => run.Files.Single(file => file.HintName == "ValueObjectRegistration.g.cs").Text;
+        if (referenceJsonPackage)
+        {
+            registration.Should()
+                .Contain("global::AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry.Register(new global::Test.Code.ValueJsonConverter());")
+                .And.Contain("global::AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry.Register(new global::Test.AccountId.ValueJsonConverter());");
+        }
+        else
+        {
+            registration.Should().NotContain("ValueObjectJsonRegistry");
+        }
     }
 
     [Fact]

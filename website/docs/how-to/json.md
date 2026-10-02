@@ -44,12 +44,11 @@ public partial class ApiJsonContext : JsonSerializerContext;
 
 It is declared at compile time, on the context, so there is nothing to remember when the options are built.
 
-The factory hands each value object the converter generated for it, and the generator registers that converter
-only in an assembly that references `AdCodicem.ValueObjects.Json`. Add the package to the assembly that
-**declares** the value objects — a domain project, say — and not only to the one that declares the context. A value
-object declared without it registers no converter: the factory then builds a general-purpose one by reflection at
-run time, which trimming and native AOT do not support, and which writes `Int128` and `UInt128` as JSON numbers
-rather than strings.
+The factory hands each value object the converter generated for it, which the generator registers with the value
+object's descriptor. The package belongs in the assembly that declares the context: a domain project declaring the
+value objects needs only `AdCodicem.ValueObjects`, the contracts and the generator, and its converters reach the
+context all the same, with nothing built by reflection, which trimming and native AOT would not support. Only a value object written by hand has no generated
+converter, and gets a general-purpose one from the factory instead.
 
 ## Explicit options
 

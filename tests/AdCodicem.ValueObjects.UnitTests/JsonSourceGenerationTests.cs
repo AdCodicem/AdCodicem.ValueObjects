@@ -1,7 +1,10 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AdCodicem.ValueObjects.Fixtures.WithoutJson;
 using AdCodicem.ValueObjects.Identifiers;
 using AdCodicem.ValueObjects.Json;
+using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
 namespace AdCodicem.ValueObjects.UnitTests;
@@ -17,9 +20,12 @@ public partial class JsonSourceGenerationTests
 
     internal sealed record OptionalTransfer(Iban? Account, BirthDate? Birth);
 
+    internal sealed record Grant(Allowance Amount, Sku Item);
+
     [JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]
     [JsonSerializable(typeof(Transfer))]
     [JsonSerializable(typeof(OptionalTransfer))]
+    [JsonSerializable(typeof(Grant))]
     internal sealed partial class TransferContext : JsonSerializerContext;
 
     private static Transfer Sample => new(
@@ -62,12 +68,68 @@ public partial class JsonSourceGenerationTests
         act.Should().Throw<JsonException>();
     }
 
+    /// <summary>
+    /// The converter travels with the descriptor, created the first time it is asked for and the same from then on. An
+    /// assembly referencing the JSON package, as this one does, also publishes it to the package's own registry, which an
+    /// older package reads alone, and which comes first.
+    /// </summary>
     [Fact]
-    public void The_generator_publishes_a_converter_for_every_value_object_of_the_assembly()
+    public void The_generator_registers_a_converter_for_every_value_object_of_the_assembly()
     {
+        ValueObjectRegistry.TryGet(typeof(Iban), out var descriptor).Should().BeTrue();
+        descriptor!.JsonConverter.Should().BeOfType<Iban.ValueJsonConverter>()
+            .And.BeSameAs(descriptor.JsonConverter, "the descriptor creates its converter once");
+
         ValueObjectJsonRegistry.TryGet(typeof(Iban), out var converter).Should().BeTrue();
-        converter.Should().BeOfType<Iban.ValueJsonConverter>();
-        ValueObjectJsonRegistry.Count.Should().BeGreaterThanOrEqualTo(9);
+        converter.Should().BeOfType<Iban.ValueJsonConverter>()
+            .And.NotBeSameAs(descriptor.JsonConverter, "the package's registry answers from its own first");
+        ValueObjectJsonRegistry.Count.Should().BeGreaterThan(50, "every value object of this assembly is published there");
+        ValueObjectJsonRegistry.TryGet(typeof(Iban?), out _).Should().BeFalse("the serializer wraps the converter of Iban");
+    }
+
+    /// <summary>
+    /// A converter registered by hand travels with the descriptor as one the registration creates does, the same
+    /// instance from then on.
+    /// </summary>
+    [Fact]
+    public void A_converter_registered_by_hand_travels_with_the_descriptor()
+    {
+        var converter = new Ledger.ValueJsonConverter();
+
+        ValueObjectRegistry.Register<Ledger, string>(Ledger.Schema, converter);
+
+        ValueObjectRegistry.TryGet(typeof(Ledger), out var descriptor).Should().BeTrue();
+        descriptor!.JsonConverter.Should().BeSameAs(converter).And.BeSameAs(descriptor.JsonConverter);
+        var missing = () => ValueObjectRegistry.Register<Ledger, string>(Ledger.Schema, (JsonConverter<Ledger>)null!);
+        missing.Should().Throw<ArgumentNullException>();
+        var missingFactory = () => ValueObjectRegistry.Register<Ledger, string>(Ledger.Schema, (Func<JsonConverter<Ledger>>)null!);
+        missingFactory.Should().Throw<ArgumentNullException>();
+        var missingInRegistry = () => ValueObjectJsonRegistry.Register<Ledger>(null!);
+        missingInRegistry.Should().Throw<ArgumentNullException>();
+    }
+
+    /// <summary>A ledger's code, which one test registers by hand.</summary>
+    [ValueObject<string>]
+    public readonly partial struct Ledger;
+
+    /// <summary>
+    /// A domain assembly may reference the contracts and the generator alone, while the API project declares the
+    /// serializer context and names the factory. The converters of its value objects reach the context through their
+    /// descriptors, which the generator always registers, rather than through a converter built by reflection, which
+    /// trimming and native AOT do not support and which would write a 128-bit integer as a JSON number.
+    /// </summary>
+    [Fact]
+    public void A_serializer_context_uses_the_converters_of_an_assembly_that_does_not_reference_the_json_package()
+    {
+        var grant = new Grant(Allowance.Create(Int128.Parse("123456789012345678901234567890", CultureInfo.InvariantCulture)), Sku.Create(" ab-1 "));
+
+        var json = JsonSerializer.Serialize(grant, TransferContext.Default.Grant);
+
+        json.Should().Be("""{"Amount":"123456789012345678901234567890","Item":"AB-1"}""");
+        JsonSerializer.Deserialize(json, TransferContext.Default.Grant).Should().Be(grant);
+        TransferContext.Default.Options.GetConverter(typeof(Allowance)).Should().BeOfType<Allowance.ValueJsonConverter>();
+        ValueObjectJsonRegistry.TryGet(typeof(Sku), out var converter).Should().BeTrue();
+        converter.Should().BeOfType<Sku.ValueJsonConverter>();
     }
 
     /// <summary>

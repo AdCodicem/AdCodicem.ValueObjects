@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
+using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Annotations;
 
 namespace AdCodicem.ValueObjects.Metadata;
@@ -49,6 +50,44 @@ public static class ValueObjectRegistry
     public static void Register<TSelf, TValue>(ValueObjectSchema schema)
         where TSelf : struct, IValueObject<TSelf, TValue>
         => Register(ValueObjectDescriptor.For<TSelf, TValue>(schema));
+
+    /// <summary>
+    /// Registers a value object and its System.Text.Json converter without reflection.
+    /// </summary>
+    /// <typeparam name="TSelf">Value object type.</typeparam>
+    /// <typeparam name="TValue">Underlying value type.</typeparam>
+    /// <param name="schema">Declarative constraints of the value object.</param>
+    /// <param name="jsonConverter">The converter of the value object.</param>
+    /// <remarks>
+    /// A source-generated serializer context finds the converter through the descriptor, whatever the assembly declaring
+    /// the value object references.
+    /// </remarks>
+    public static void Register<TSelf, TValue>(ValueObjectSchema schema, JsonConverter<TSelf> jsonConverter)
+        where TSelf : struct, IValueObject<TSelf, TValue>
+    {
+        ArgumentNullException.ThrowIfNull(jsonConverter);
+
+        Register(ValueObjectDescriptor.For<TSelf, TValue>(schema, () => jsonConverter));
+    }
+
+    /// <summary>
+    /// Registers a value object and the factory of its System.Text.Json converter without reflection.
+    /// </summary>
+    /// <typeparam name="TSelf">Value object type.</typeparam>
+    /// <typeparam name="TValue">Underlying value type.</typeparam>
+    /// <param name="schema">Declarative constraints of the value object.</param>
+    /// <param name="jsonConverter">Creates the converter of the value object, the first time it is asked for.</param>
+    /// <remarks>
+    /// The generated registration calls this one. It runs for every value object when the declaring assembly loads,
+    /// and an application that never serializes a value object through the descriptor never builds its converter.
+    /// </remarks>
+    public static void Register<TSelf, TValue>(ValueObjectSchema schema, Func<JsonConverter<TSelf>> jsonConverter)
+        where TSelf : struct, IValueObject<TSelf, TValue>
+    {
+        ArgumentNullException.ThrowIfNull(jsonConverter);
+
+        Register(ValueObjectDescriptor.For<TSelf, TValue>(schema, jsonConverter));
+    }
 
     /// <summary>
     /// Gets the descriptors registered so far.
@@ -179,7 +218,7 @@ public static class ValueObjectRegistry
 
     /// <summary>
     /// Finds the underlying type of a struct implementing <see cref="IValueObject{TSelf, TValue}"/> over itself,
-    /// the only shape <see cref="ValueObjectDescriptor.For{TSelf, TValue}"/> accepts.
+    /// the only shape <see cref="ValueObjectDescriptor.For{TSelf, TValue}(ValueObjectSchema)"/> accepts.
     /// </summary>
     /// <param name="type">Candidate type, already unwrapped from <see cref="Nullable{T}"/>.</param>
     /// <param name="valueType">The underlying type when the candidate qualifies.</param>
@@ -224,7 +263,7 @@ public static class ValueObjectRegistry
         }
 
         var factory = typeof(ValueObjectDescriptor)
-            .GetMethod(nameof(ValueObjectDescriptor.For), BindingFlags.Public | BindingFlags.Static)!
+            .GetMethod(nameof(ValueObjectDescriptor.For), 2, BindingFlags.Public | BindingFlags.Static, [typeof(ValueObjectSchema)])!
             .MakeGenericMethod(valueObjectType, valueType);
 
         return (ValueObjectDescriptor)factory.Invoke(null, [schema])!;

@@ -22,6 +22,7 @@
   <Folder Name="/tests/Fixtures/">
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Untouched/AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WithoutGenerator/AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
+    <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WithoutJson/AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/AdCodicem.ValueObjects.Benchmarks/AdCodicem.ValueObjects.Benchmarks.csproj" />
