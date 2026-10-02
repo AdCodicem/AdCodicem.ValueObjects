@@ -62,6 +62,26 @@ modelBuilder.Entity<BankAccount>()
 Prefer the convention everywhere else. And do not write `HasConversion` by hand for a value object: you would
 lose the generated comparer, and with it correct change tracking for a type whose comparison is not ordinal.
 
+## 128-bit value objects
+
+Entity Framework Core maps neither `Int128` nor `UInt128`, on any provider, so the convention leaves a value object
+over either alone: the column it lands in is yours to choose, with a converter of your own. Give it the comparer the
+convention would have given it, so that change tracking compares the way the value object does:
+
+```csharp skip
+builder.Properties<LedgerBalance>()
+    .HaveConversion<LedgerBalanceToDecimal, ValueObjectComparer<LedgerBalance>>()
+    .HavePrecision(38, 0);
+
+internal sealed class LedgerBalanceToDecimal() : ValueConverter<LedgerBalance, decimal>(
+    balance => (decimal)balance.Value,
+    value => LedgerBalance.Create((Int128)value));
+```
+
+A numeric column sorts and compares as numbers do, but ADO.NET carries it through `System.Decimal`, which holds
+about ±7.9 × 10²⁸: a value beyond that can be neither written nor read back. A text column holds the whole range,
+and sorts and compares as text does, so `9` comes after `10`.
+
 ## Value objects as keys
 
 A value object makes a perfectly good key, primary or foreign. For a string key declared with

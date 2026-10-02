@@ -25,6 +25,11 @@ public static class ValueObjectConventionExtensions
     /// rather than an unbounded column — the rule is stated once, on the type, and the schema follows.
     /// </para>
     /// <para>
+    /// A value object over <see cref="Int128"/> or <see cref="UInt128"/> is left alone: Entity Framework Core maps
+    /// neither type, on any provider, so the column type, and the conversion to it, are the application's to choose
+    /// with a converter of its own.
+    /// </para>
+    /// <para>
     /// This runs once, while the model is built. Nothing here happens per query or per row.
     /// </para>
     /// </remarks>
@@ -60,6 +65,11 @@ public static class ValueObjectConventionExtensions
 
         foreach (var descriptor in ValueObjectRegistry.GetRegistered())
         {
+            if (descriptor.ValueType == typeof(Int128) || descriptor.ValueType == typeof(UInt128))
+            {
+                continue;
+            }
+
             Apply(builder, descriptor, strict);
         }
 
@@ -74,7 +84,11 @@ public static class ValueObjectConventionExtensions
     /// <param name="builder">Property builder.</param>
     /// <param name="strict">When <see langword="true"/>, values read from the database are validated again.</param>
     /// <returns>The same builder, so calls can be chained.</returns>
-    /// <remarks>Use this for a property that needs to depart from the convention; otherwise prefer the convention.</remarks>
+    /// <remarks>
+    /// Use this for a property that needs to depart from the convention; otherwise prefer the convention. It cannot
+    /// map a value object over <see cref="Int128"/> or <see cref="UInt128"/>, which Entity Framework Core maps to no
+    /// column: such a property needs a converter of the application's own.
+    /// </remarks>
     public static PropertyBuilder<TSelf> HasValueObjectConversion<TSelf, TValue>(
         this PropertyBuilder<TSelf> builder,
         bool strict = false)

@@ -27,6 +27,11 @@ public static class ValueObjectDapper
     /// changes nothing and a handler of the application's own is not replaced. Which types are handled is read
     /// from Dapper's table rather than remembered here, so a call after <see cref="SqlMapper.ResetTypeHandlers"/>
     /// registers everything again.
+    /// <para>
+    /// A value object over <see cref="Int128"/> or <see cref="UInt128"/> gets no handler. No ADO.NET provider takes
+    /// either as a parameter or returns one, so the column type, and the conversion to it, are the application's
+    /// to choose, in a handler of its own.
+    /// </para>
     /// </remarks>
     [RequiresUnreferencedCode("Closes the generic type handler over each value object type.")]
     [RequiresDynamicCode("Closes the generic type handler over each value object type.")]
@@ -43,7 +48,7 @@ public static class ValueObjectDapper
         {
             foreach (var descriptor in ValueObjectRegistry.GetRegistered())
             {
-                if (SqlMapper.HasTypeHandler(descriptor.ValueObjectType))
+                if (SqlMapper.HasTypeHandler(descriptor.ValueObjectType) || Is128Bit(descriptor.ValueType))
                 {
                     continue;
                 }
@@ -58,4 +63,11 @@ public static class ValueObjectDapper
             }
         }
     }
+
+    /// <summary>
+    /// Tells whether an underlying type is one no provider can carry.
+    /// </summary>
+    /// <param name="valueType">Underlying type of a value object.</param>
+    /// <returns><see langword="true"/> for <see cref="Int128"/> and <see cref="UInt128"/>.</returns>
+    private static bool Is128Bit(Type valueType) => valueType == typeof(Int128) || valueType == typeof(UInt128);
 }

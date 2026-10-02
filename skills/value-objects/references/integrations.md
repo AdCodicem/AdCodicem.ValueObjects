@@ -113,6 +113,10 @@ per row.
   correct change tracking for a case-insensitive or otherwise custom comparison.
 - A value object is a perfectly good key. Set the collation of a string key column to match the declared
   `Comparison`, or the database and the application will disagree about equality.
+- EF Core maps no `Int128` or `UInt128`, so the convention skips a value object over either. Map it yourself:
+  `builder.Properties<LedgerBalance>().HaveConversion<MyConverter, ValueObjectComparer<LedgerBalance>>()`, to a
+  numeric column (sorts as numbers, but `System.Decimal` caps it near ±7.9 × 10²⁸) or a text one (full range,
+  sorts as text).
 
 ## Dapper
 
@@ -134,6 +138,8 @@ explicit projection. It never replaces a handler already in Dapper's table, and 
   `DataException` naming the type read and the value object.
 - Text read into a non-string value object is parsed and validated, and a number read into a string value object
   is turned into text and validated through `TryCreate`; a refusal throws `DataException` carrying the rule.
+- A value object over `Int128` or `UInt128` gets no handler: no provider carries either type. Register a
+  `SqlMapper.TypeHandler<T>` of your own that converts to the column you chose.
 
 ## FluentValidation
 
