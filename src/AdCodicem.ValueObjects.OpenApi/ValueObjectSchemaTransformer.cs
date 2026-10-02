@@ -19,7 +19,9 @@ namespace AdCodicem.ValueObjects.OpenApi;
 /// values published in the document are literally the ones the type enforces — they cannot drift.
 /// </para>
 /// <para>
-/// It runs while the document is built, not per request.
+/// A value object written by hand is documented as well, from its annotation, through the descriptor the registry
+/// builds by reflection when nothing registered the type, as the model binder and the FluentValidation rules resolve
+/// it. It runs while the document is built, not per request.
 /// </para>
 /// </remarks>
 public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
@@ -33,8 +35,10 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(context);
 
+        // A value object written by hand that nothing registered binds and validates through a descriptor built by
+        // reflection, and is documented through the same one.
         var type = context.JsonTypeInfo.Type;
-        if (!ValueObjectRegistry.TryGet(type, out var descriptor))
+        if (!ValueObjectRegistry.TryResolve(type, out var descriptor))
         {
             return Task.CompletedTask;
         }

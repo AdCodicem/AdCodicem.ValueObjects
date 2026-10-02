@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.OpenApi;
+using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi;
@@ -56,6 +57,24 @@ public partial class SchemaTransformerTests
 
         schema.Enum.Should().NotBeNull();
         schema.Enum!.Select(value => value.ToJsonString()).Should().Equal("\"0.5\"", "1.5", "\"2\"");
+    }
+
+    /// <summary>
+    /// A value object written by hand that nothing registered binds through the model binder and validates through
+    /// FluentValidation, which both resolve it by reflection. The transformer resolves it the same way, so it is
+    /// documented as its underlying value rather than left as the object the serializer would describe.
+    /// </summary>
+    [Fact]
+    public async Task A_hand_written_value_object_nothing_registered_is_documented_as_its_underlying_value()
+    {
+        var schema = new OpenApiSchema();
+
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            schema,
+            ContextFor<HandWrittenLevel>(),
+            TestContext.Current.CancellationToken);
+
+        schema.Type.Should().Be(JsonSchemaType.Integer);
     }
 
     private static OpenApiSchemaTransformerContext ContextFor<T>() => new()

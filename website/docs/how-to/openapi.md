@@ -58,7 +58,8 @@ values the server judges otherwise, and are reported as `VO0025`. Write such a r
 clients use.
 
 A known value is written by the type's converter, as the type holds it once normalized. A value object written by
-hand where no generator runs is described from its annotation instead, once the registry holds it: each known value
+hand where no generator runs is described from its annotation instead, as the registry describes it by reflection the
+first time it meets the type, registered or not: each known value
 goes through the type too, normalized, or parsed when the attribute had to take it as text — a decimal, a `Guid`, a
 date — and only one the type cannot parse is listed as written. Its description is the annotation's `Description`
 alone: the XML summary a generated value object falls back on is not there to read at run time.
