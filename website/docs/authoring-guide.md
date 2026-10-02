@@ -28,7 +28,7 @@ JSON strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`,
 | `AllowDefault` | `bool` | `false` | Silences `VO0010`, for a type whose zero state is meaningful. |
 | `SchemaFormat` | `string?` | the natural format of the type | OpenAPI `format`: `uuid`, `date`, `int64`, or your own such as `iban` or `email`. |
 | `Example` | `string?` | none | OpenAPI example. |
-| `Description` | `string?` | the type's XML `<summary>` | OpenAPI description. |
+| `Description` | `string?` | the type's XML `<summary>`, as plain text: a `<see cref>` reads as the name it refers to, a `<c>` as its text | OpenAPI description. |
 
 Declared rules, and then the pattern, run before `ValidateValue`, so a validator only ever sees values that
 already satisfy them.

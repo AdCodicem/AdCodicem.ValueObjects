@@ -27,7 +27,7 @@ object is then documented as what it is on the wire — its underlying type — 
 | `Minimum`, `Maximum` | `minimum`, `maximum` for a number; for a value written as a string, see below |
 | `[KnownValue]` on a closed set | `enum`, each value as the type writes it in JSON |
 | `Example` | an example, written as the type writes it in JSON |
-| `Description`, or the type's XML `<summary>` | `description` |
+| `Description`, or the type's XML `<summary>` as plain text | `description` |
 
 So this declaration:
 

@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml;
+using System.Xml.Linq;
 using AdCodicem.ValueObjects.Generators.Diagnostics;
 using AdCodicem.ValueObjects.Generators.Emit;
 using AdCodicem.ValueObjects.Generators.Internal;
@@ -63,6 +66,57 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         miscellaneousOptions: SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
 
     private static readonly string[] LineSeparators = ["\r\n", "\n"];
+
+    /// <summary>The C# keyword of each special type, by its full name, as a summary reads it.</summary>
+    private static readonly Dictionary<string, string> Keywords = new(StringComparer.Ordinal)
+    {
+        ["System.Boolean"] = "bool",
+        ["System.Byte"] = "byte",
+        ["System.SByte"] = "sbyte",
+        ["System.Char"] = "char",
+        ["System.Decimal"] = "decimal",
+        ["System.Double"] = "double",
+        ["System.Single"] = "float",
+        ["System.Int16"] = "short",
+        ["System.UInt16"] = "ushort",
+        ["System.Int32"] = "int",
+        ["System.UInt32"] = "uint",
+        ["System.Int64"] = "long",
+        ["System.UInt64"] = "ulong",
+        ["System.Object"] = "object",
+        ["System.String"] = "string",
+        ["System.Void"] = "void",
+    };
+
+    /// <summary>The symbol of each operator, by the name of the method the compiler gives it.</summary>
+    private static readonly Dictionary<string, string> Operators = new(StringComparer.Ordinal)
+    {
+        ["op_Addition"] = "+",
+        ["op_Subtraction"] = "-",
+        ["op_Multiply"] = "*",
+        ["op_Division"] = "/",
+        ["op_Modulus"] = "%",
+        ["op_UnaryPlus"] = "+",
+        ["op_UnaryNegation"] = "-",
+        ["op_Increment"] = "++",
+        ["op_Decrement"] = "--",
+        ["op_LogicalNot"] = "!",
+        ["op_OnesComplement"] = "~",
+        ["op_BitwiseAnd"] = "&",
+        ["op_BitwiseOr"] = "|",
+        ["op_ExclusiveOr"] = "^",
+        ["op_LeftShift"] = "<<",
+        ["op_RightShift"] = ">>",
+        ["op_UnsignedRightShift"] = ">>>",
+        ["op_Equality"] = "==",
+        ["op_Inequality"] = "!=",
+        ["op_LessThan"] = "<",
+        ["op_GreaterThan"] = ">",
+        ["op_LessThanOrEqual"] = "<=",
+        ["op_GreaterThanOrEqual"] = ">=",
+        ["op_True"] = "true",
+        ["op_False"] = "false",
+    };
 
     /// <summary>
     /// The members of <see cref="object"/> that no value object overrides and a static property would hide.
@@ -1052,7 +1106,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Reads the summary of the declaring type.
+    /// Reads the summary of the declaring type, as plain text.
     /// </summary>
     /// <param name="symbol">Declared value object.</param>
     /// <param name="declaration">Its syntax.</param>
@@ -1060,7 +1114,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// <remarks>
     /// A project that does not produce a documentation file compiles with <c>DocumentationMode.None</c>, and
     /// <c>GetDocumentationCommentXml</c> then returns nothing at all. Since most consumers leave that setting
-    /// off, the trivia is read directly as a fallback.
+    /// off, the trivia is read directly as a fallback: <c>///</c> lines, and a <c>/** */</c> comment, which the
+    /// compiler reads as documentation too.
     /// </remarks>
     private static string? ExtractSummary(INamedTypeSymbol symbol, TypeDeclarationSyntax declaration)
     {
@@ -1071,12 +1126,30 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         }
 
         var builder = new StringBuilder();
-        foreach (var line in declaration.GetLeadingTrivia().ToFullString().Split(LineSeparators, StringSplitOptions.None))
+        foreach (var trivia in declaration.GetLeadingTrivia())
         {
-            var trimmed = line.Trim();
-            if (trimmed.StartsWith("///", StringComparison.Ordinal))
+            var text = trivia.ToFullString();
+
+            // The lexer's rule: /** opens a documentation comment unless another * or a / follows it, as in a /***
+            // banner or an empty /**/.
+            var delimited = text.Length > 3 && text.StartsWith("/**", StringComparison.Ordinal) && text[3] is not '*' and not '/';
+            if (delimited)
             {
-                builder.Append(trimmed, 3, trimmed.Length - 3).Append(' ');
+                text = text.EndsWith("*/", StringComparison.Ordinal) ? text.Substring(3, text.Length - 5) : text.Substring(3);
+            }
+
+            foreach (var line in text.Split(LineSeparators, StringSplitOptions.None))
+            {
+                var trimmed = line.Trim();
+                if (delimited)
+                {
+                    // A delimited comment may start each line with an asterisk, which is not part of its text.
+                    builder.Append(trimmed.StartsWith("*", StringComparison.Ordinal) ? trimmed.Substring(1) : trimmed).Append(' ');
+                }
+                else if (trimmed.StartsWith("///", StringComparison.Ordinal) && !trimmed.StartsWith("////", StringComparison.Ordinal))
+                {
+                    builder.Append(trimmed, 3, trimmed.Length - 3).Append(' ');
+                }
             }
         }
 
@@ -1101,9 +1174,244 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         }
 
         var summary = documentation.Substring(start + open.Length, end - start - open.Length);
-        var collapsed = Regex.Replace(summary, @"\s+", " ").Trim();
+        var collapsed = Regex.Replace(PlainText(summary), @"\s+", " ").Trim();
 
         return collapsed.Length == 0 ? null : collapsed;
+    }
+
+    /// <summary>
+    /// Renders the content of a summary as the plain text a reader of the OpenAPI document sees.
+    /// </summary>
+    /// <param name="summary">The content of the <c>summary</c> element, as XML.</param>
+    /// <returns>The text.</returns>
+    /// <remarks>
+    /// A reference renders as the name it refers to, a <c>see langword</c> as its keyword, and any other element as
+    /// its text. Content that is not well-formed XML, which a project producing no documentation file never has
+    /// checked, loses its tags instead.
+    /// </remarks>
+    private static string PlainText(string summary)
+    {
+        try
+        {
+            var element = XElement.Parse("<summary>" + summary + "</summary>", LoadOptions.PreserveWhitespace);
+            var builder = new StringBuilder();
+            Render(element, builder);
+
+            return builder.ToString();
+        }
+        catch (XmlException)
+        {
+            return WebUtility.HtmlDecode(Regex.Replace(summary, "<[^>]*>", " "));
+        }
+    }
+
+    private static void Render(XElement element, StringBuilder builder)
+    {
+        foreach (var node in element.Nodes())
+        {
+            switch (node)
+            {
+                case XText text:
+                    builder.Append(text.Value);
+                    break;
+
+                // A reference with no text of its own, self-closing or not, reads as what it refers to.
+                case XElement { Name.LocalName: "see" or "seealso" } reference when reference.Attribute("cref") is { } cref:
+                    builder.Append(string.IsNullOrWhiteSpace(reference.Value) ? SimpleName(cref.Value) : reference.Value);
+                    break;
+
+                case XElement { Name.LocalName: "see" or "seealso" } reference when reference.Attribute("langword") is { } keyword:
+                    builder.Append(keyword.Value);
+                    break;
+
+                case XElement { Name.LocalName: "see" or "seealso" } reference when reference.Attribute("href") is { } link:
+                    builder.Append(string.IsNullOrWhiteSpace(reference.Value) ? link.Value : reference.Value);
+                    break;
+
+                case XElement { Name.LocalName: "paramref" or "typeparamref" } reference:
+                    builder.Append(reference.Attribute("name")?.Value);
+                    break;
+
+                case XElement child:
+                    // A block - a paragraph, a line break, a list and its parts - separates words; anything else, <c>
+                    // first among them, is read for its text in the flow of the sentence.
+                    var block = child.Name.LocalName is "para" or "br" or "code" or "list" or "listheader" or "item" or "term" or "description";
+                    builder.Append(block ? " " : string.Empty);
+                    Render(child, builder);
+                    builder.Append(block ? " " : string.Empty);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reads the name a cref refers to, as a reader of the summary sees it, whether the compiler resolved the cref or
+    /// not: <c>T:Ns.Other`1</c> and <c>Other{T}</c> are <c>Other</c>, <c>P:Ns.List`1.Count</c> and <c>List{T}.Count</c>
+    /// are <c>Count</c>, <c>T:System.String</c> and <c>string</c> are <c>string</c>.
+    /// </summary>
+    /// <param name="cref">The cref, resolved by the compiler or as written.</param>
+    /// <returns>The name.</returns>
+    /// <remarks>
+    /// A constructor reads as its type, an operator as <c>operator +</c> or <c>implicit operator int</c>, an indexer as
+    /// <c>this[int]</c>: the compiler resolves them to <c>#ctor</c>, <c>op_Addition</c> and <c>Item</c>, which a project
+    /// producing its documentation file would otherwise publish where any other publishes what the author wrote.
+    /// </remarks>
+    private static string SimpleName(string cref)
+        => cref.Length > 1 && cref[1] == ':' ? ResolvedName(cref[0], cref.Substring(2)) : WrittenName(cref);
+
+    /// <summary>
+    /// Reads the name a documentation ID refers to, <c>M:Ns.Type`1.Member(System.Int32)</c>.
+    /// </summary>
+    private static string ResolvedName(char kind, string id)
+    {
+        var returned = string.Empty;
+        var tilde = id.LastIndexOf('~');
+        if (tilde >= 0 && id.LastIndexOf(')') < tilde)
+        {
+            returned = id.Substring(tilde + 1);
+            id = id.Substring(0, tilde);
+        }
+
+        var parameters = new List<string>();
+        var open = id.IndexOf('(');
+        if (open >= 0)
+        {
+            parameters = SplitArguments(id.Substring(open + 1, id.Length - open - 2));
+            id = id.Substring(0, open);
+        }
+
+        var segments = id.Split('.').Select(segment => Regex.Replace(segment, "``?[0-9]+", string.Empty)).ToList();
+        var member = segments[segments.Count - 1];
+        member = member.Substring(member.LastIndexOf('#') + 1);
+
+        if (kind == 'T')
+        {
+            return TypeName(id);
+        }
+
+        if (member is "ctor" or "cctor")
+        {
+            return segments.Count > 1 ? segments[segments.Count - 2] : member;
+        }
+
+        if (member is "op_Implicit" or "op_Explicit")
+        {
+            return $"{(member == "op_Implicit" ? "implicit" : "explicit")} operator {TypeName(returned)}";
+        }
+
+        if (member.StartsWith("op_", StringComparison.Ordinal) && Operators.TryGetValue(member, out var symbol))
+        {
+            return "operator " + symbol;
+        }
+
+        return kind == 'P' && member == "Item" && parameters.Count > 0
+            ? $"this[{string.Join(", ", parameters.Select(TypeName))}]"
+            : member;
+    }
+
+    /// <summary>
+    /// Reads the name a cref the compiler did not resolve refers to, as its author wrote it.
+    /// </summary>
+    private static string WrittenName(string cref)
+    {
+        var parameters = cref.IndexOf('(');
+        var name = parameters >= 0 ? cref.Substring(0, parameters) : cref;
+
+        // An operator names a type after the keyword, which a dot may qualify: only the type is shortened.
+        var operatorAt = Regex.Match(name, @"\b(?:(?:implicit|explicit)\s+)?operator\b");
+        if (operatorAt.Success)
+        {
+            var conversion = Regex.Match(name.Substring(operatorAt.Index), @"^(implicit|explicit)\s+operator\s+(.+)$");
+            return conversion.Success
+                ? $"{conversion.Groups[1].Value} operator {TypeName(conversion.Groups[2].Value.Trim())}"
+                : Regex.Replace(name.Substring(operatorAt.Index), @"\s+", " ").Trim();
+        }
+
+        var segments = SplitQualified(name);
+        var last = segments[segments.Count - 1];
+        if (last.StartsWith("this[", StringComparison.Ordinal) && last.EndsWith("]", StringComparison.Ordinal))
+        {
+            return $"this[{string.Join(", ", SplitArguments(last.Substring(5, last.Length - 6)).Select(TypeName))}]";
+        }
+
+        return TypeName(name);
+    }
+
+    /// <summary>
+    /// Shortens a type, qualified or not, to the name a reader sees: its keyword for a special type, else its simple
+    /// name without type arguments, an array keeping its brackets.
+    /// </summary>
+    private static string TypeName(string type)
+    {
+        type = type.Trim();
+        var rank = string.Empty;
+        while (type.EndsWith("[]", StringComparison.Ordinal))
+        {
+            rank += "[]";
+            type = type.Substring(0, type.Length - 2);
+        }
+
+        var bare = StripArguments(type);
+        if (Keywords.TryGetValue(bare.StartsWith("global::", StringComparison.Ordinal) ? bare.Substring(8) : bare, out var keyword))
+        {
+            return keyword + rank;
+        }
+
+        var segments = SplitQualified(bare);
+        return segments[segments.Count - 1] + rank;
+    }
+
+    /// <summary>
+    /// Removes every type argument list and arity marker from a name: <c>Dictionary{TKey, List{T}}</c> is <c>Dictionary</c>.
+    /// </summary>
+    private static string StripArguments(string name)
+    {
+        string previous;
+        do
+        {
+            previous = name;
+            name = Regex.Replace(name, @"``?[0-9]+|\{[^{}]*\}|<[^<>]*>", string.Empty);
+        }
+        while (name != previous);
+
+        return name;
+    }
+
+    /// <summary>
+    /// Splits a qualified name on the dots outside its type argument lists and brackets.
+    /// </summary>
+    private static List<string> SplitQualified(string name)
+        => SplitOutside(name, '.');
+
+    /// <summary>
+    /// Splits a parameter or type argument list on the commas outside the lists it nests.
+    /// </summary>
+    private static List<string> SplitArguments(string list)
+        => SplitOutside(list, ',');
+
+    private static List<string> SplitOutside(string text, char separator)
+    {
+        var parts = new List<string>();
+        var depth = 0;
+        var start = 0;
+        for (var index = 0; index < text.Length; index++)
+        {
+            depth += text[index] switch
+            {
+                '{' or '<' or '[' or '(' => 1,
+                '}' or '>' or ']' or ')' => -1,
+                _ => 0,
+            };
+
+            if (depth == 0 && text[index] == separator)
+            {
+                parts.Add(text.Substring(start, index - start).Trim());
+                start = index + 1;
+            }
+        }
+
+        parts.Add(text.Substring(start).Trim());
+        return parts;
     }
 
     private static bool GetBool(Dictionary<string, TypedConstant> arguments, string name)
