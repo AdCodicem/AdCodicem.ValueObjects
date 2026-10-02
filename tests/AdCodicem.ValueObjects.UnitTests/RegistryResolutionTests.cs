@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 using AdCodicem.ValueObjects.Identifiers;
@@ -102,6 +103,26 @@ public class RegistryResolutionTests
         floor.Schema.MaxLength.Should().BeNull();
         floor.Schema.IsClosedValueSet.Should().BeFalse();
         floor.Schema.KnownValues.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The generated schema publishes each known value as the type holds it, normalized. Read back from an
+    /// annotation, a known value goes through the type the same way: normalized when it is of the underlying type,
+    /// parsed when it is text for a type no attribute argument can carry, and left as written when the type cannot
+    /// parse it, which nothing checked where no generator runs.
+    /// </summary>
+    [Fact]
+    public void A_hand_written_value_object_publishes_its_known_values_as_the_type_holds_them()
+    {
+        ValueObjectRegistry.TryResolve(typeof(ShirtSize), out var size).Should().BeTrue();
+        ValueObjectRegistry.TryResolve(typeof(SalesTaxRate), out var rate).Should().BeTrue();
+
+        size!.Schema.KnownValues.Should().Equal("S", "M");
+        size.Create("s").Should().BeSameAs(size.Create("S"), "the shared box is found under the normalized value");
+
+        rate!.Schema.KnownValues.Should().Equal(20.0m, 5.5m, "twenty");
+        rate.Schema.KnownValues[1].Should().BeOfType<decimal>().Which.ToString(CultureInfo.InvariantCulture)
+            .Should().Be("5.5", "the declared 5.50 is normalized to one decimal");
     }
 
     /// <summary>

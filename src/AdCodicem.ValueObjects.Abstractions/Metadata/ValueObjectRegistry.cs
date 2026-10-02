@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Reflection;
 using AdCodicem.ValueObjects.Annotations;
 
@@ -212,11 +213,57 @@ public static class ValueObjectRegistry
     [RequiresUnreferencedCode("Reads the value object interfaces and annotations of the type.")]
     private static ValueObjectDescriptor BuildByReflection(Type valueObjectType, Type valueType)
     {
+        var schema = ReadSchema(valueObjectType);
+        if (!schema.KnownValues.IsDefaultOrEmpty)
+        {
+            var normalize = typeof(ValueObjectRegistry)
+                .GetMethod(nameof(NormalizeKnownValues), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(valueObjectType, valueType);
+
+            schema = schema with { KnownValues = (ImmutableArray<object>)normalize.Invoke(null, [schema.KnownValues])! };
+        }
+
         var factory = typeof(ValueObjectDescriptor)
             .GetMethod(nameof(ValueObjectDescriptor.For), BindingFlags.Public | BindingFlags.Static)!
             .MakeGenericMethod(valueObjectType, valueType);
 
-        return (ValueObjectDescriptor)factory.Invoke(null, [ReadSchema(valueObjectType)])!;
+        return (ValueObjectDescriptor)factory.Invoke(null, [schema])!;
+    }
+
+    /// <summary>
+    /// Turns the known values an annotation declares into the values the type holds, as the generated schema
+    /// publishes them.
+    /// </summary>
+    /// <typeparam name="TSelf">Value object type.</typeparam>
+    /// <typeparam name="TValue">Underlying value type.</typeparam>
+    /// <param name="declared">The known values, as the attributes hold them.</param>
+    /// <returns>The known values, normalized.</returns>
+    /// <remarks>
+    /// A value of the underlying type is normalized. Any other, text for a type no attribute argument can carry
+    /// first among them, is parsed the way the type parses text. What the type cannot parse stays as written: the
+    /// generator would have refused it, but nothing checks an annotation where no generator runs.
+    /// </remarks>
+    private static ImmutableArray<object> NormalizeKnownValues<TSelf, TValue>(ImmutableArray<object> declared)
+        where TSelf : struct, IValueObject<TSelf, TValue>
+    {
+        var normalized = ImmutableArray.CreateBuilder<object>(declared.Length);
+        foreach (var known in declared)
+        {
+            if (known is TValue typed)
+            {
+                normalized.Add(TSelf.Normalize(typed)!);
+            }
+            else if (TSelf.TryParse(Convert.ToString(known, CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, out var parsed, out _))
+            {
+                normalized.Add(parsed.Value!);
+            }
+            else
+            {
+                normalized.Add(known);
+            }
+        }
+
+        return normalized.MoveToImmutable();
     }
 
     /// <summary>

@@ -97,10 +97,9 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     /// <returns>The value as JSON.</returns>
     /// <remarks>
     /// A value of the underlying type is written by the type's own converter, so that a client checks a payload
-    /// against exactly what the type writes: a number of any width as a number, a date in its round-trip form. Only a
-    /// generated registration guarantees that type. A schema read from an annotation by reflection holds what the
-    /// attribute was given, such as a decimal written as text, and a hand-made one holds anything: such a value is
-    /// written as its text.
+    /// against exactly what the type writes: a number of any width as a number, a date in its round-trip form. A
+    /// generated registration guarantees that type, and a schema read from an annotation holds it for every known
+    /// value the type parses. One it cannot parse, and anything a hand-made schema holds, is written as its text.
     /// </remarks>
     private static JsonNode WriteKnownValue(object value, ValueObjectDescriptor descriptor, JsonTypeInfo typeInfo)
         => descriptor.ValueType.IsInstanceOfType(value)
