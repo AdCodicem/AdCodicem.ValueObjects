@@ -361,6 +361,14 @@ internal static class ValueObjectEmitter
         {
             properties.Add($"Pattern = {LiteralFactory.Quote(model.Pattern)},");
         }
+        else if (model.HasPatternHook)
+        {
+            // The text the [GeneratedRegex] attribute holds, so that describing the type builds no regular expression.
+            // Without the attribute, the regular expression is asked for it, which builds it as the type initializes.
+            properties.Add(model.PatternHookText is not null
+                ? $"Pattern = {LiteralFactory.Quote(model.PatternHookText)},"
+                : $"Pattern = {Abstractions}.ValueObjectPattern.Of<{model.QualifiedName}>().ToString(),");
+        }
         else if (model.IsEntityId)
         {
             // Published for the clients generated from the document, and never compiled here: at fixed length
@@ -594,9 +602,14 @@ internal static class ValueObjectEmitter
             }
         }
 
-        if (model.Pattern is not null)
+        // The hook takes the option's place, with the same code and message, so moving from one to the other changes
+        // nothing a caller can observe.
+        if (model.Pattern is not null || model.HasPatternHook)
         {
-            writer.Open("if (!DeclaredPattern.IsMatch(value))");
+            // Through a type parameter, which reaches the pattern however the type implements it, explicitly included.
+            writer.Open(model.HasPatternHook
+                ? $"if (!{Abstractions}.ValueObjectPattern.Of<{model.QualifiedName}>().IsMatch(value))"
+                : "if (!DeclaredPattern.IsMatch(value))");
             writer.Line($"return {ValidationResult}.InvalidFormat(\"The value does not match the expected format.\");");
             writer.Close();
             writer.Line();

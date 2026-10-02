@@ -101,6 +101,39 @@ internal static class DiagnosticDescriptors
         "Option set to an undefined enum value",
         "'{0}' sets {1} to {2}, which '{3}' does not define. Use one of its named members.");
 
+    // VO0021 is the identifier of the [Obsolete] on ValueObjectAttribute<T>.Pattern, which the compiler reports
+    // itself: no descriptor here declares it.
+    public static readonly DiagnosticDescriptor PatternDeclaredTwice = Error(
+        "VO0022",
+        "Pattern declared twice",
+        "'{0}' sets the Pattern option and implements IValueObjectPatternValidator. The hook replaces the option: "
+        + "remove Pattern = \"...\" and keep the [GeneratedRegex] property.");
+
+    public static readonly DiagnosticDescriptor PatternRequiresString = Error(
+        "VO0023",
+        "A pattern only applies to strings",
+        "'{0}' implements IValueObjectPatternValidator, but its underlying type '{1}' is not a string, so the "
+        + "pattern would never run. Remove the interface, or validate the value in IValueObjectValidator<T>.");
+
+    public static readonly DiagnosticDescriptor EntityIdOwnsPattern = Error(
+        "VO0024",
+        "Entity identifier owns its format",
+        "'{0}' implements IValueObjectPatternValidator, but [EntityId] validates its format itself and publishes "
+        + "its own OpenAPI pattern. Remove the interface, or drop [EntityId] and declare the type as a value object.");
+
+    public static readonly DiagnosticDescriptor PatternOptionsNotPublished = Warning(
+        "VO0025",
+        "Pattern options are not published",
+        "The [GeneratedRegex] behind '{0}.Pattern' sets {1}, which the OpenAPI pattern cannot carry: clients would "
+        + "check the pattern without it and disagree with the validation. Write the rule into the pattern itself, "
+        + "such as [A-Za-z] for IgnoreCase.");
+
+    public static readonly DiagnosticDescriptor PatternWithoutTimeout = Warning(
+        "VO0026",
+        "Pattern has no match timeout",
+        "The [GeneratedRegex] behind '{0}.Pattern' sets no matchTimeoutMilliseconds, so a pathological input can "
+        + "hold a request thread for as long as the match runs. Set one, such as matchTimeoutMilliseconds: 1000.");
+
     private static DiagnosticDescriptor Error(string id, string title, string messageFormat)
         => new(id, title, messageFormat, Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
 

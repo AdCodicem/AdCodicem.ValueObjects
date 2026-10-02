@@ -66,7 +66,19 @@ internal sealed record ValueObjectModel
 
     public bool AllowEmpty { get; init; }
 
+    /// <summary>Gets the regular expression of the deprecated <c>Pattern</c> option, compiled at run time.</summary>
     public string? Pattern { get; init; }
+
+    /// <summary>
+    /// Whether the value is matched against the <c>Pattern</c> property of <c>IValueObjectPatternValidator</c>.
+    /// </summary>
+    public bool HasPatternHook { get; init; }
+
+    /// <summary>
+    /// Gets the text of the hook's pattern, read off its <c>[GeneratedRegex]</c> attribute, for the schema. Null
+    /// when the property carries none, and the schema then asks the regular expression for its text at run time.
+    /// </summary>
+    public string? PatternHookText { get; init; }
 
     public int MinLength { get; init; } = -1;
 

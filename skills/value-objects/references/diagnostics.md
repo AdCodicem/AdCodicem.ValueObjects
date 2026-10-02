@@ -1,7 +1,7 @@
 # Diagnostics
 
-Every rule the generator and the analyzers enforce, and what to do about each. `VO0008` and `VO0011` are
-warnings; everything else is an error. There is no `VO0012`.
+Every rule the generator and the analyzers enforce, and what to do about each. `VO0008`, `VO0011`, `VO0025` and
+`VO0026` are warnings; everything else is an error. There is no `VO0012`.
 
 | Id | Meaning | Fix |
 | --- | --- | --- |
@@ -24,6 +24,11 @@ warnings; everything else is an error. There is no `VO0012`.
 | `VO0018` | Both `[EntityId]` and `[ValueObject<T>]` on one type. | Each generates a whole implementation. Keep the one that describes the type. |
 | `VO0019` | The generated code cannot reopen, reach or name the type: it has type parameters, is nested in a generic type or an interface, is `private`, `protected` or `private protected` or nested in such a type, is `file`-local or nested in a `file` type, takes the name of a member the generator writes on it (`Value`, `Schema`, `Create`, `Parse`, `op_Equality`, `Zero` with `Arithmetic`, `Prefix` on an `[EntityId]`, …), or is named `var` or `_` or nested in a type of that name. | Nothing is generated for the type; the message says which rule it broke and what to do. Declare it without type parameters, at namespace level or nested in non-generic classes, structs and records; `internal` or `public`, and every type around it too, since the generated registration refers to it from a class of its own; without `file`, since the generated code reopens it in a file of its own; and under a name of its own. Never name any type `var` or `_` where value objects are declared: the generated statements write both. |
 | `VO0020` | `Comparison`, `ValueSet` or `Granularity` holds a value its enum does not define, such as `(StringComparison)42`. | Use one of the enum's named members. Nothing is generated for the type until then, rather than a default nobody chose. |
+| `VO0022` | Both the `Pattern` option and `IValueObjectPatternValidator` on one type. | Remove `Pattern = "..."`: the hook replaces it, and wins until you do. |
+| `VO0023` | `IValueObjectPatternValidator` on a value object whose underlying type is not `string`. | A pattern only applies to text, so it would never run. Remove the interface; validate a number or a date in `IValueObjectValidator<T>`. |
+| `VO0024` | `IValueObjectPatternValidator` on an `[EntityId]`. | `[EntityId]` validates its format itself and publishes its own OpenAPI pattern. Remove the interface, or drop `[EntityId]` and declare an ordinary value object. Nothing is generated for the type until then. |
+| `VO0025` | The `[GeneratedRegex]` behind `Pattern` sets `IgnoreCase`, `Multiline`, `Singleline` or `IgnorePatternWhitespace` (warning). | The OpenAPI `pattern` is the regex's text, which carries no option, so clients would check values differently. Write the rule into the pattern itself: `[A-Za-z]` rather than `IgnoreCase`. |
+| `VO0026` | The `[GeneratedRegex]` behind `Pattern` sets no `matchTimeoutMilliseconds` (warning). | Set one, such as `matchTimeoutMilliseconds: 1000`. Without it, a pathological input holds a request thread for as long as the match runs. |
 
 ## Diagnosing generated code
 
