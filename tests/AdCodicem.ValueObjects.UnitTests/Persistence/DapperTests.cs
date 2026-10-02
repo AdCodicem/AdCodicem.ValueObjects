@@ -292,6 +292,19 @@ public class DapperTests
         Read(typeof(Ordering.OrderReference), 12.5m).Should().Be(Ordering.OrderReference.Create("12.5"));
     }
 
+    /// <summary>
+    /// A legacy schema may keep a string reference in a <c>uuid</c> or <c>uniqueidentifier</c> column, which the
+    /// provider returns as a Guid. The Guid becomes text in the form <see cref="Guid.ToString()"/> writes, which no
+    /// value object wrote, so it is normalized and validated as a number would be.
+    /// </summary>
+    [Fact]
+    public void A_Guid_read_into_a_string_value_object_is_formatted_and_validated()
+    {
+        var guid = Guid.Parse("0192F4A0-0000-7000-8000-000000000001");
+
+        Read(typeof(Label), guid).Should().Be(Label.Create("0192f4a0-0000-7000-8000-000000000001"));
+    }
+
     [Theory]
     [InlineData(typeof(Iban), 7630006000L, "The value read is not a valid Iban: *")]
     [InlineData(typeof(Ordering.OrderReference), 12, "The value read is not a valid OrderReference: *at least 3*")]
@@ -303,6 +316,14 @@ public class DapperTests
         var act = () => Read(type, cell);
 
         act.Should().Throw<DataException>().WithMessage(message);
+    }
+
+    [Fact]
+    public void A_Guid_read_into_a_string_value_object_it_refuses_is_a_DataException_carrying_the_rule()
+    {
+        var act = () => Read(typeof(Ordering.OrderReference), Guid.Parse("0192f4a0-0000-7000-8000-000000000001"));
+
+        act.Should().Throw<DataException>().WithMessage("The value read is not a valid OrderReference: *at most 20*");
     }
 
     /// <summary>

@@ -16,7 +16,8 @@ namespace AdCodicem.ValueObjects.Dapper;
 /// text where the underlying type is not text, or the reverse, is the exception: the value object did not write it.
 /// Text read into a value object whose underlying type is not <see cref="string"/> is parsed, and so validated, the
 /// way the value object parses text. Anything else read into a value object over <see cref="string"/> - a number
-/// from a numeric column - is converted to text, then validated through <c>TryCreate</c>.
+/// from a numeric column, a <see cref="Guid"/> from a <c>uuid</c> or <c>uniqueidentifier</c> one - is converted to
+/// text, then validated through <c>TryCreate</c>.
 /// </para>
 /// <para>
 /// A SQL <c>NULL</c> reads as <see langword="null"/> into an optional value object, <c>TSelf?</c>, and is refused
@@ -72,7 +73,7 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
 
         var converted = Convert(value);
 
-        // The reverse case, a number kept where text belongs, holds text no value object wrote either.
+        // The reverse case, a number or a Guid kept where text belongs, holds text no value object wrote either.
         if (typeof(TValue) == typeof(string))
         {
             return TSelf.TryCreate(converted, out var created, out var validation)
@@ -105,8 +106,10 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
     /// <see cref="TimeOnly"/> for them, and a UTC <see cref="DateTime"/> for a <c>timestamptz</c>. A
     /// <see cref="DateTime"/> that does not say which zone it is in has no offset to give, and is refused.
     /// Everything else goes to <see cref="System.Convert.ChangeType(object, Type, IFormatProvider)"/>, which turns
-    /// the double a provider may return for a decimal into one. What none of them can convert - another type, a
-    /// value out of the range of the underlying type - is refused with the type read and the type wanted.
+    /// the double a provider may return for a decimal into one. A <see cref="Guid"/>, which implements no
+    /// <see cref="IConvertible"/>, becomes text in its <c>D</c> form, the form <see cref="Guid.ToString()"/> writes.
+    /// What none of them can convert - another type, a value out of the range of the underlying type - is refused
+    /// with the type read and the type wanted.
     /// </remarks>
     private static TValue Convert(object value)
     {
@@ -126,6 +129,7 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
                         + $"{typeof(TSelf).Name}, a value object over DateTimeOffset."),
                 DateTime instant when typeof(TValue) == typeof(DateTimeOffset)
                     => (TValue)(object)new DateTimeOffset(instant),
+                Guid guid when typeof(TValue) == typeof(string) => (TValue)(object)guid.ToString("D"),
                 _ => (TValue)System.Convert.ChangeType(value, typeof(TValue), CultureInfo.InvariantCulture),
             };
         }

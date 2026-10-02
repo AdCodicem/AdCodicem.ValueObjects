@@ -43,9 +43,10 @@ the handler cannot convert to the underlying type, another type or one out of it
 
 A column holding text where the underlying type is not text, or the reverse, is the exception: the value object did
 not write it. Text read into a value object whose underlying type is not `string` — a Guid or a number kept in a
-text column — is parsed the way the value object parses text, so it is normalized and validated. A number read into
-a value object over `string` — the digits of a reference kept in a numeric column — is turned into text, then
-normalized and validated through `TryCreate`. Either way, a value the value object refuses throws a `DataException`
+text column — is parsed the way the value object parses text, so it is normalized and validated. A number or a
+`Guid` read into a value object over `string` — the digits of a reference kept in a numeric column, a reference kept
+in a `uuid` or `uniqueidentifier` column — is turned into text, then normalized and validated through `TryCreate`. A
+`Guid` becomes text in its `D` form, lowercase, as `Guid.ToString()` writes it. Either way, a value the value object refuses throws a `DataException`
 carrying the rule's message.
 
 ## 128-bit value objects
