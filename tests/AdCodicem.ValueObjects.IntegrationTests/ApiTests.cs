@@ -12,10 +12,10 @@ using Microsoft.Extensions.Hosting;
 namespace AdCodicem.ValueObjects.IntegrationTests;
 
 /// <summary>
-/// Hosts the showcase application against a real PostgreSQL container.
+/// Hosts the showcase application against a real database container.
 /// </summary>
 /// <param name="database">Database container.</param>
-public sealed class SampleApiFactory(PostgreSqlFixture database) : WebApplicationFactory<Program>
+public sealed class SampleApiFactory(DatabaseFixture database) : WebApplicationFactory<Program>
 {
     /// <inheritdoc />
     protected override IHost CreateHost(IHostBuilder builder)
@@ -37,8 +37,15 @@ public sealed class SampleApiFactory(PostgreSqlFixture database) : WebApplicatio
 /// Walks the whole chain a request goes through: binding, validation, persistence, serialization and the
 /// published OpenAPI document.
 /// </summary>
+/// <remarks>
+/// Each engine runs the same requests: SQL Server stores a customer identifier as a <c>uniqueidentifier</c> and
+/// compares text under a case-insensitive collation by default, where PostgreSQL has a <c>uuid</c> and compares text
+/// byte by byte, and the sample configures each through its own branch.
+/// </remarks>
 /// <param name="database">Database container.</param>
-public sealed class ApiTests(PostgreSqlFixture database) : IClassFixture<PostgreSqlFixture>, IAsyncLifetime
+/// <typeparam name="TFixture">Database under test.</typeparam>
+public abstract class ApiTests<TFixture>(TFixture database) : IClassFixture<TFixture>, IAsyncLifetime
+    where TFixture : DatabaseFixture
 {
     private SampleApiFactory _factory = null!;
     private HttpClient _client = null!;
@@ -58,6 +65,7 @@ public sealed class ApiTests(PostgreSqlFixture database) : IClassFixture<Postgre
     {
         _client.Dispose();
         await _factory.DisposeAsync();
+        GC.SuppressFinalize(this);
     }
 
     [Fact]
@@ -127,6 +135,25 @@ public sealed class ApiTests(PostgreSqlFixture database) : IClassFixture<Postgre
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         body.Should().Contain("query.binding@example.com");
         body.Should().NotContain("query.elsewhere@example.com", "the country bound from the query string filters");
+    }
+
+    /// <summary>
+    /// Blank text says no more than no text, so a blank country filters nothing, as an absent one does.
+    /// </summary>
+    /// <param name="query">The query string.</param>
+    [Theory]
+    [InlineData("")]
+    [InlineData("?country=")]
+    [InlineData("?country=%20")]
+    public async Task A_blank_query_value_binds_as_no_value(string query)
+    {
+        await CreateCustomerAsync($"blank.filter{query.Length}@example.com", "BE");
+
+        var response = await _client.GetAsync($"/customers{query}", TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        body.Should().Contain($"blank.filter{query.Length}@example.com");
     }
 
     [Fact]
@@ -266,3 +293,11 @@ public sealed class ApiTests(PostgreSqlFixture database) : IClassFixture<Postgre
 
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
 }
+
+/// <summary>Runs the request chain against PostgreSQL.</summary>
+/// <param name="database">PostgreSQL container.</param>
+public sealed class PostgreSqlApiTests(PostgreSqlFixture database) : ApiTests<PostgreSqlFixture>(database);
+
+/// <summary>Runs the request chain against SQL Server.</summary>
+/// <param name="database">SQL Server container.</param>
+public sealed class SqlServerApiTests(SqlServerFixture database) : ApiTests<SqlServerFixture>(database);
