@@ -223,7 +223,9 @@ internal static class ValueObjectEmitter
         EmitState(writer, model, value, self);
         EmitEntityIdMembers(writer, model, self);
 
-        // The named constants come before the schema so that the schema can publish their normalized values.
+        // The pattern comes before the named constants, which go through it while they are created, and the named
+        // constants come before the schema so that the schema can publish their normalized values.
+        EmitDeclaredPattern(writer, model);
         EmitKnownValues(writer, model, value, self);
         EmitSchema(writer, model, underlying);
         EmitNormalize(writer, model, value);
@@ -484,21 +486,35 @@ internal static class ValueObjectEmitter
         writer.Line();
     }
 
-    private static void EmitValidate(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value)
+    /// <summary>
+    /// Emits the compiled form of the <c>Pattern</c> option.
+    /// </summary>
+    /// <remarks>
+    /// Written before the named constants: static initializers run in declaration order, and each constant goes
+    /// through <c>Create</c>, and so through this field. Written after them, it was still null while they were
+    /// created, and the type initializer threw inside the module initializer, before any code of the assembly ran.
+    /// </remarks>
+    /// <param name="writer">Sink.</param>
+    /// <param name="model">Value object being emitted.</param>
+    private static void EmitDeclaredPattern(CodeWriter writer, ValueObjectModel model)
     {
-        if (model.Pattern is not null)
+        if (model.Pattern is null)
         {
-            // A generator cannot feed [GeneratedRegex], which only sees hand-written code, so the pattern is
-            // compiled once into a static field instead. A timeout keeps a pathological pattern from hanging
-            // a request thread.
-            writer.Line("/// <summary>The declared pattern, compiled once for the lifetime of the process.</summary>");
-            writer.Line("private static readonly global::System.Text.RegularExpressions.Regex DeclaredPattern = new(");
-            writer.Line($"    {LiteralFactory.Quote(model.Pattern)},");
-            writer.Line("    global::System.Text.RegularExpressions.RegexOptions.Compiled | global::System.Text.RegularExpressions.RegexOptions.CultureInvariant,");
-            writer.Line("    global::System.TimeSpan.FromSeconds(1));");
-            writer.Line();
+            return;
         }
 
+        // A generator cannot feed [GeneratedRegex], which only sees hand-written code, so the pattern is compiled
+        // once into a static field instead. A timeout keeps a pathological pattern from hanging a request thread.
+        writer.Line("/// <summary>The declared pattern, compiled once for the lifetime of the process.</summary>");
+        writer.Line("private static readonly global::System.Text.RegularExpressions.Regex DeclaredPattern = new(");
+        writer.Line($"    {LiteralFactory.Quote(model.Pattern)},");
+        writer.Line("    global::System.Text.RegularExpressions.RegexOptions.Compiled | global::System.Text.RegularExpressions.RegexOptions.CultureInvariant,");
+        writer.Line("    global::System.TimeSpan.FromSeconds(1));");
+        writer.Line();
+    }
+
+    private static void EmitValidate(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value)
+    {
         writer.Line("/// <inheritdoc />");
         writer.Open($"public static {ValidationResult} Validate(in {value} value)");
 
