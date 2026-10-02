@@ -81,6 +81,52 @@ public class DapperTests
     }
 
     /// <summary>
+    /// A test suite may reset Dapper between tests. The reset empties Dapper's table and tells nobody, so what is
+    /// handled has to be read from that table rather than remembered beside it.
+    /// </summary>
+    [Fact]
+    public void Registering_the_handlers_after_Dapper_reset_its_table_registers_them_again()
+    {
+        try
+        {
+            SqlMapper.ResetTypeHandlers();
+            SqlMapper.HasTypeHandler(typeof(Iban)).Should().BeFalse();
+
+            ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);
+
+            SqlMapper.HasTypeHandler(typeof(Iban)).Should().BeTrue();
+            SqlMapper.HasTypeHandler(typeof(Iban?)).Should().BeTrue();
+            Read(typeof(Iban), "FR7630006000011234567890189").Should().Be(Iban.Create("FR7630006000011234567890189"));
+        }
+        finally
+        {
+            ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);
+        }
+    }
+
+    /// <summary>
+    /// An application may handle one value object its own way. Registering the handlers again, at the start-up of a
+    /// second host say, leaves its handler in place.
+    /// </summary>
+    [Fact]
+    public void Registering_the_handlers_keeps_a_handler_the_application_registered()
+    {
+        try
+        {
+            SqlMapper.AddTypeHandler(new FixedIbanHandler());
+
+            ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);
+
+            Read(typeof(Iban), "anything").Should().Be(FixedIbanHandler.Iban);
+        }
+        finally
+        {
+            SqlMapper.ResetTypeHandlers();
+            ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);
+        }
+    }
+
+    /// <summary>
     /// A row is trusted as it is read: the value comes back as stored, neither normalized nor validated, as the
     /// Entity Framework Core converter reads it.
     /// </summary>
@@ -301,6 +347,16 @@ public class DapperTests
         public Amount Balance { get; set; }
 
         public RecordedAt? Closed { get; set; }
+    }
+
+    /// <summary>An application's own handler, which reads every cell as the same IBAN.</summary>
+    private sealed class FixedIbanHandler : SqlMapper.TypeHandler<Iban>
+    {
+        public static readonly Iban Iban = Iban.Create("FR7630006000011234567890189");
+
+        public override void SetValue(IDbDataParameter parameter, Iban value) => parameter.Value = value.Value;
+
+        public override Iban Parse(object value) => Iban;
     }
 
     /// <summary>A row of a table of accounts, mapped through its constructor.</summary>

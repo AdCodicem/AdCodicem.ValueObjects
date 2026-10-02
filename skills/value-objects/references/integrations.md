@@ -121,7 +121,8 @@ ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);   // once, at s
 ```
 
 Dapper keeps handlers in a process-wide table. Without this, every query touching a value object needs an
-explicit projection.
+explicit projection. It never replaces a handler already in Dapper's table, and after
+`SqlMapper.ResetTypeHandlers()` it has to be called again.
 
 - Read a nullable column into `Iban?`: `NULL` gives `null`. A single-column query into `Iban` throws
   `DataException`, but Dapper never calls the handler for a `NULL` mapped to a member or a constructor parameter:
