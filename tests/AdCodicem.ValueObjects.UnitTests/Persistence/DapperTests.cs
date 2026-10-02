@@ -68,6 +68,17 @@ public class DapperTests
     }
 
     /// <summary>
+    /// No provider takes an Int128 or a UInt128 as a parameter, or returns one, so which column a 128-bit value object
+    /// lands in, and how it gets there, is the application's to say, through a handler of its own.
+    /// </summary>
+    [Fact]
+    public void A_128_bit_value_object_gets_no_handler()
+    {
+        SqlMapper.HasTypeHandler(typeof(LedgerBalance)).Should().BeFalse();
+        SqlMapper.HasTypeHandler(typeof(Fingerprint)).Should().BeFalse();
+    }
+
+    /// <summary>
     /// Start-up code may run twice in one process - two hosts under test, say - and Dapper's table is process-wide.
     /// </summary>
     [Fact]

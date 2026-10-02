@@ -48,6 +48,28 @@ a value object over `string` — the digits of a reference kept in a numeric col
 normalized and validated through `TryCreate`. Either way, a value the value object refuses throws a `DataException`
 carrying the rule's message.
 
+## 128-bit value objects
+
+No ADO.NET provider takes an `Int128` or a `UInt128` as a parameter, or returns one, so `AddValueObjectHandlers`
+registers no handler for a value object over either: the column it lands in, and the conversion to it, are yours to
+choose, with a handler of your own, before or after the call:
+
+```csharp skip
+SqlMapper.AddTypeHandler(new LedgerBalanceHandler());
+
+internal sealed class LedgerBalanceHandler : SqlMapper.TypeHandler<LedgerBalance>
+{
+    public override void SetValue(IDbDataParameter parameter, LedgerBalance value)
+        => parameter.Value = (decimal)value.Value;
+
+    public override LedgerBalance Parse(object value) => LedgerBalance.Create((Int128)(decimal)value);
+}
+```
+
+The choice is the one [Entity Framework Core](ef-core.md#128-bit-value-objects) leaves you: a numeric column
+compares as numbers do but carries no more than `System.Decimal` holds, and a text column holds the whole range but
+compares as text does.
+
 ## NULL
 
 A `NULL` column reads as `null` into an optional value object, `Iban?`, whether it is the result of a single-column

@@ -1,9 +1,11 @@
+using System.Globalization;
 using AdCodicem.ValueObjects.EntityFrameworkCore;
 using AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace AdCodicem.ValueObjects.UnitTests.Persistence;
 
@@ -79,6 +81,21 @@ public class EntityFrameworkCoreTests
     }
 
     /// <summary>
+    /// Entity Framework Core maps neither Int128 nor UInt128, on any provider. The convention leaves a 128-bit value
+    /// object to the converter the application gives it, even one configured before the convention ran.
+    /// </summary>
+    [Fact]
+    public void The_convention_leaves_a_128_bit_value_object_to_a_converter_of_the_application()
+    {
+        var vault = DesignTimeModel(new WideContext()).FindEntityType(typeof(Vault))!;
+
+        vault.FindProperty(nameof(Vault.Balance))!.GetValueConverter().Should().BeOfType<LedgerBalanceToDecimal>();
+        vault.FindProperty(nameof(Vault.Fingerprint))!.GetValueConverter().Should().BeOfType<FingerprintToText>();
+        vault.FindProperty(nameof(Vault.Iban))!.GetValueConverter()
+            .Should().BeOfType<ValueObjectConverter<Iban, string>>("every other value object is still mapped");
+    }
+
+    /// <summary>
     /// A row is trusted as it is read, the way this application wrote it: it is neither normalized nor validated.
     /// </summary>
     [Fact]
@@ -141,6 +158,44 @@ public class EntityFrameworkCoreTests
         public CustomerId? Owner { get; set; }
 
         public UnregisteredCode Code { get; set; }
+    }
+
+    /// <summary>An entity holding 128-bit value objects.</summary>
+    private sealed class Vault
+    {
+        public int Id { get; set; }
+
+        public Iban Iban { get; set; }
+
+        public LedgerBalance Balance { get; set; }
+
+        public Fingerprint Fingerprint { get; set; }
+    }
+
+    /// <summary>Stores a balance as a decimal, which carries the values a decimal column can hold.</summary>
+    private sealed class LedgerBalanceToDecimal() : ValueConverter<LedgerBalance, decimal>(
+        balance => (decimal)balance.Value,
+        value => LedgerBalance.Create((Int128)value));
+
+    /// <summary>Stores a fingerprint as its digits.</summary>
+    private sealed class FingerprintToText() : ValueConverter<Fingerprint, string>(
+        fingerprint => fingerprint.Value.ToString(CultureInfo.InvariantCulture),
+        text => Fingerprint.Create(UInt128.Parse(text, CultureInfo.InvariantCulture)));
+
+    /// <summary>A model mapping 128-bit value objects through converters of its own.</summary>
+    private sealed class WideContext : DbContext
+    {
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder.UseNpgsql("Host=unused");
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+        {
+            configurationBuilder.Properties<LedgerBalance>().HaveConversion<LedgerBalanceToDecimal>();
+            configurationBuilder.ConfigureValueObjects(typeof(Iban).Assembly);
+            configurationBuilder.Properties<Fingerprint>().HaveConversion<FingerprintToText>();
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.Entity<Vault>();
     }
 
     /// <summary>A model mapping every value object already registered, and trusting what it reads.</summary>
