@@ -3,10 +3,10 @@
 #
 # Usage: docs-snapshot.sh <version>
 #
-# semantic-release runs this in its prepare step, after release-pack.sh and
-# before @semantic-release/git: the files written here are among that plugin's
-# assets, so they land in the release commit the tag points at. A dry run skips
-# prepare and writes nothing.
+# release.yml's pack job runs this after release-pack.sh, before semantic-release
+# starts, and hands what it writes to the release job, where the files are among
+# @semantic-release/git's assets: they land in the release commit the tag points
+# at. A dry run runs it too, and commits nothing.
 #
 # There is one entry per line of versions rather than per release: 0.<minor>.x
 # while the major is 0, where a minor is the breaking channel, and <major>.x
@@ -42,8 +42,10 @@ dotnet docfx docs/docfx/docfx.json
 python3 .github/scripts/docfx-postprocess.py website/docs/api
 
 cd website
+# Without install scripts: Docusaurus builds without them, and this runs in the
+# job whose output is released.
 if [[ ! -d node_modules ]]; then
-  npm ci --no-audit --no-fund
+  npm ci --ignore-scripts --no-audit --no-fund
 fi
 
 # `docs:version` refuses a name that already exists, so the line's previous

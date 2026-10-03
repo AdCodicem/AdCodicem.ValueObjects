@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Packs every publishable project at the version semantic-release computed --
-# or, for preview.yml, the version next-version.mjs computed the same way -- and
+# Packs every publishable project at the version next-version.mjs computed, the
+# one semantic-release computes in release.yml's release job, which refuses to
+# publish any other, or the preview version derived from it in preview.yml; and
 # checks the packages against the list the release notes link to.
 #
 # Usage: release-pack.sh <next-version> <release-type> [last-version]
@@ -9,8 +10,8 @@
 #   was first packed.
 #
 # MinVer normally derives the version from git tags. At this point in the run the
-# tag for this release does not exist yet -- semantic-release creates it after
-# publishing -- so MinVer would stamp a preview version. MINVERVERSIONOVERRIDE is
+# tag for this release does not exist yet -- semantic-release creates it later,
+# in another job -- so MinVer would stamp a preview version. MINVERVERSIONOVERRIDE is
 # MinVer's documented hook for exactly this: an external tool that has already
 # decided the version. It is an environment variable, not an MSBuild property.
 set -euo pipefail
@@ -87,9 +88,10 @@ fi
 
 # The GitHub Release links every package in RELEASE_PACKAGE_IDS to nuget.org
 # (see release.yml and .releaserc.json). That list comes from evaluating the
-# projects before semantic-release starts, so check it against what was packed:
-# a mismatch would publish a release whose links 404, or that omits a package.
-# Failing here, in the prepare step, stops the run before anything is pushed.
+# projects, and semantic-release starts with it, so check it against what was
+# packed: a mismatch would publish a release whose links 404, or that omits a
+# package. Failing here, in the pack job, stops the run before anything is
+# pushed.
 if [[ -z "${RELEASE_PACKAGE_IDS:-}" ]]; then
   echo "::error::RELEASE_PACKAGE_IDS is not set; the release notes would carry no nuget.org links. Run .github/scripts/package-ids.sh first." >&2
   exit 1
