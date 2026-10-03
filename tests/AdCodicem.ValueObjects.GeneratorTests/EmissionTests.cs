@@ -1007,6 +1007,29 @@ public sealed class EmissionTests
     }
 
     /// <summary>
+    /// A duration is written in the invariant constant form, <c>01:30:00</c>, and JSON Schema's <c>duration</c> is ISO
+    /// 8601, <c>PT1H30M</c>, which the type does not read: a client trusting that format would send what the server
+    /// refuses. A duration therefore has no natural format, and keeps one the type declares.
+    /// </summary>
+    [Fact]
+    public void A_duration_has_no_natural_format_and_keeps_the_one_it_declares()
+    {
+        var bare = GeneratorHarness.Run("""
+            [ValueObject<System.TimeSpan>]
+            public readonly partial struct Delay;
+            """);
+        var declared = GeneratorHarness.Run("""
+            [ValueObject<System.TimeSpan>(SchemaFormat = "constant-time-span")]
+            public readonly partial struct Delay;
+            """);
+
+        bare.CompilationDiagnostics.Should().BeEmpty();
+        bare.SingleValueObject.Should().NotContain("Format =").And.NotContain("duration");
+        declared.CompilationDiagnostics.Should().BeEmpty();
+        declared.SingleValueObject.Should().Contain("Format = \"constant-time-span\",");
+    }
+
+    /// <summary>
     /// A blank pattern is no blank text option: <c>" "</c> is a regular expression, matching any text that holds a
     /// space, and it validates and is published as written. An empty one matches everything, and is absent.
     /// </summary>

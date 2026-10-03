@@ -122,6 +122,33 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
         schema.GetProperty("pattern").GetString().Should().Be(expected["pattern"]!.GetValue<string>());
     }
 
+    /// <summary>
+    /// A duration goes on the wire in the invariant constant form, <c>01:30:00</c>, which JSON Schema's
+    /// <c>duration</c> format, ISO 8601, does not describe: a client trusting that format would send <c>PT1H30M</c>,
+    /// which the type refuses. It is documented as System.Text.Json documents a bare <see cref="TimeSpan"/>, a string
+    /// held to that form, and what the document writes of it, its example and its bounds, matches the pattern.
+    /// </summary>
+    [Fact]
+    public void A_duration_is_documented_in_the_form_it_is_written_in_rather_than_as_ISO_8601()
+    {
+        var duration = document.Schema(nameof(Duration));
+        var expected = JsonSchemaExporter.GetJsonSchemaAsNode(WebOptions, typeof(TimeSpan));
+        string[] written =
+        [
+            duration.GetProperty("examples")[0].GetString()!,
+            duration.GetProperty("x-minimum").GetString()!,
+            duration.GetProperty("x-maximum").GetString()!,
+        ];
+
+        duration.TryGetProperty("format", out _).Should().BeFalse("the duration format is ISO 8601, which the type does not read");
+        duration.GetProperty("type").GetString().Should().Be("string");
+        duration.GetProperty("pattern").GetString().Should().Be(expected["pattern"]!.GetValue<string>());
+        written.Should().Equal("01:30:00", "00:00:00", "1.00:00:00");
+        written.Should().AllSatisfy(value => value.Should().MatchRegex(duration.GetProperty("pattern").GetString()!));
+        JsonSerializer.Serialize(Duration.Create(new TimeSpan(0, 23, 59, 59, 999)), WebOptions)
+            .Trim('"').Should().MatchRegex(duration.GetProperty("pattern").GetString()!);
+    }
+
     [Fact]
     public void An_object_shape_inferred_for_a_value_object_is_replaced_by_its_underlying_type()
     {
