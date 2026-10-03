@@ -40,7 +40,11 @@ Every value object implements `IValueObject<TSelf, TValue>`, which brings:
 | `static ValidationResult Validate(in TValue value)` | The declared rules, including the `Pattern` of `IValueObjectPatternValidator`, then `ValidateValue` if the type declares it. |
 
 The constructor is private: every public way in goes through `Create`, `TryCreate`, `Parse`, `TryParse` or
-`CreateUnchecked`.
+`CreateUnchecked`. After the value, it takes a required `UncheckedTag` that only the generated code supplies, so a
+reflection mapper looking for a constructor that takes the value alone finds none. AutoMapper then throws
+`AutoMapperMappingException` instead of wrapping a value no rule has checked: give it a map,
+`CreateMap<string, Iban>().ConvertUsing(s => Iban.Create(s))`. On a type declaring `ExplicitConversionFromValue = true`,
+it calls the explicit conversion, which validates.
 
 ## Text
 

@@ -58,6 +58,16 @@ public class GeneratedSurfaceTests
     public void A_real_read_in_the_invariant_culture_takes_no_group_separator(string type)
         => Samples.All[type].RefusesAGroupSeparatorInTheInvariantCulture();
 
+    /// <summary>
+    /// A reflection mapper constructs a type through any constructor taking the source value alone, private ones
+    /// included, and would wrap a value that never went through <c>Create</c>. The one constructor takes a tag only the
+    /// generated code supplies, so a mapper finds none it can call and fails loudly.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Every))]
+    public void No_constructor_takes_the_value_alone(string type)
+        => Samples.All[type].OffersNoConstructorTakingTheValueAlone();
+
     [Theory]
     [MemberData(nameof(EveryArithmetic))]
     public void Every_arithmetic_member_validates_its_result(string type)

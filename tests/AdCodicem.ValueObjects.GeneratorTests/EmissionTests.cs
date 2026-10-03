@@ -2,6 +2,8 @@ using System.Text;
 using AdCodicem.ValueObjects.Generators.Internal;
 using AdCodicem.ValueObjects.Generators.Model;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace AdCodicem.ValueObjects.GeneratorTests;
 
@@ -37,6 +39,40 @@ public sealed class EmissionTests
 
         // The whole memory argument for a struct value object rests on this single field.
         run.SingleValueObject.Should().Contain("private readonly global::System.String? _value;");
+    }
+
+    /// <summary>
+    /// A reflection mapper constructs a type through any constructor taking the source value alone, private ones
+    /// included. The one constructor the generator writes takes, after the value, a required tag only the generated
+    /// code supplies, so a mapper finds no constructor it can call; an optional one it would fill from its default.
+    /// </summary>
+    /// <param name="declaration">The declaration.</param>
+    /// <param name="name">The name of the value object.</param>
+    /// <param name="value">The underlying type, fully qualified.</param>
+    [Theory]
+    [InlineData("[ValueObject<string>(MaxLength = 12)] public readonly partial struct Code;", "Code", "global::System.String")]
+    [InlineData("[ValueObject<int>(Arithmetic = true)] public readonly partial struct Count;", "Count", "global::System.Int32")]
+    [InlineData("[ValueObject<global::System.Guid>] public readonly partial struct OrderId;", "OrderId", "global::System.Guid")]
+    [InlineData("[EntityId(\"acc\")] public readonly partial struct AccountId;", "AccountId", "global::System.String")]
+    [InlineData("[ValueObject<decimal>] public readonly partial struct Price<TCurrency>;", "Price", "global::System.Decimal")]
+    public void The_only_constructor_takes_a_required_tag_after_the_value(string declaration, string name, string value)
+    {
+        var run = GeneratorHarness.Run(declaration);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        var constructor = CSharpSyntaxTree.ParseText(run.SingleValueObject, cancellationToken: TestContext.Current.CancellationToken)
+            .GetRoot(TestContext.Current.CancellationToken)
+            .DescendantNodes()
+            .OfType<ConstructorDeclarationSyntax>()
+            .Where(candidate => candidate.Identifier.Text == name)
+            .Should().ContainSingle().Subject;
+
+        constructor.Modifiers.Select(modifier => modifier.Text).Should().Equal("private");
+        constructor.ParameterList.Parameters.Select(parameter => parameter.Type!.ToString())
+            .Should().Equal(value, "global::AdCodicem.ValueObjects.UncheckedTag");
+        constructor.ParameterList.Parameters.Should().OnlyContain(parameter => parameter.Default == null);
     }
 
     [Fact]
