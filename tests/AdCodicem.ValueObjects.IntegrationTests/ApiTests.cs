@@ -279,6 +279,31 @@ public abstract class ApiTests<TFixture>(TFixture database) : IClassFixture<TFix
             .Should().Equal("FR", "BE", "LU", "DE");
     }
 
+    /// <summary>
+    /// A route or query parameter is bound from text, and the document describes it as its value object all the same,
+    /// in the sample's minimal API and in its controller: with the very schema of the value object's component.
+    /// </summary>
+    /// <param name="path">Route template of the operation.</param>
+    /// <param name="name">Name of the parameter.</param>
+    /// <param name="valueObject">The value object it is.</param>
+    [Theory]
+    [InlineData("/accounts/{iban}", "iban", "Iban")]
+    [InlineData("/customers/{id}", "id", "CustomerId")]
+    [InlineData("/customers", "country", "CountryCode")]
+    public async Task The_OpenAPI_document_describes_a_parameter_as_its_value_object(string path, string name, string valueObject)
+    {
+        var document = await _client.GetFromJsonAsync<JsonElement>("/openapi/v1.json", TestContext.Current.CancellationToken);
+
+        var parameter = document.GetProperty("paths").GetProperty(path).GetProperty("get").GetProperty("parameters")
+            .EnumerateArray().Single(each => each.GetProperty("name").GetString() == name).GetProperty("schema");
+        var component = document.GetProperty("components").GetProperty("schemas").GetProperty(valueObject);
+
+        JsonElement.DeepEquals(parameter, component).Should().BeTrue(
+            $"{name} is a {valueObject}: {parameter.GetRawText()} should be {component.GetRawText()}");
+        parameter.GetProperty("type").GetString().Should().Be("string");
+        parameter.GetProperty("format").GetString().Should().NotBeNullOrEmpty("each of them declares or implies one");
+    }
+
     private async Task<JsonElement> CreateCustomerAsync(string email, string country = "FR")
     {
         var response = await _client.PostAsync(

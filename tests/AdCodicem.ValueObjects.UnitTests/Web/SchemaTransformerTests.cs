@@ -1,9 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.OpenApi;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi;
@@ -300,14 +302,173 @@ public partial class SchemaTransformerTests
         schema.Minimum.Should().Be("-90");
     }
 
-    private static OpenApiSchemaTransformerContext ContextFor<T>(JsonSerializerOptions? options = null) => new()
+    /// <summary>
+    /// A schema for text that describes no parameter, or a parameter that is no value object, is no value object's:
+    /// the transformer leaves it as it found it.
+    /// </summary>
+    [Fact]
+    public async Task Text_that_is_no_parameter_of_a_value_object_is_left_alone()
     {
-        DocumentName = "v1",
-        JsonTypeInfo = (options ?? JsonSerializerOptions.Default).GetTypeInfo(typeof(T)),
-        JsonPropertyInfo = null,
-        ParameterDescription = null,
-        ApplicationServices = new ServiceCollection().BuildServiceProvider(),
-    };
+        var unbound = new OpenApiSchema { Type = JsonSchemaType.String };
+        var note = new OpenApiSchema { Type = JsonSchemaType.String };
+
+        await new ValueObjectSchemaTransformer().TransformAsync(unbound, ContextFor<string>(), TestContext.Current.CancellationToken);
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            note,
+            ContextFor<string>(parameter: new ApiParameterDescription { Name = "note", Type = typeof(string) }),
+            TestContext.Current.CancellationToken);
+
+        unbound.Type.Should().Be(JsonSchemaType.String);
+        unbound.Pattern.Should().BeNull();
+        note.Type.Should().Be(JsonSchemaType.String);
+        note.Pattern.Should().BeNull();
+    }
+
+    /// <summary>
+    /// A value object that only ever is a route or query parameter may be missing from the resolver an application
+    /// generated for the types it serializes. It is documented all the same, its example and its known values as the
+    /// text they were declared as, since no converter is there to write them.
+    /// </summary>
+    [Fact]
+    public async Task A_parameter_the_options_hold_no_contract_for_is_documented_with_its_values_as_text()
+    {
+        var options = new JsonSerializerOptions { TypeInfoResolver = new TextOnlyResolver() };
+        var socket = new OpenApiSchema { Type = JsonSchemaType.String };
+        var tier = new OpenApiSchema { Type = JsonSchemaType.String };
+
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            socket,
+            ContextFor<string>(options, new ApiParameterDescription { Name = "port", Type = typeof(Socket) }),
+            TestContext.Current.CancellationToken);
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            tier,
+            ContextFor<string>(options, new ApiParameterDescription { Name = "tier", Type = typeof(Tier) }),
+            TestContext.Current.CancellationToken);
+
+        socket.Type.Should().Be(JsonSchemaType.Integer);
+        socket.Minimum.Should().Be("1");
+        socket.Examples.Should().ContainSingle().Which!.ToJsonString().Should().Be("\"8080\"");
+        tier.Enum!.Select(value => value.ToJsonString()).Should().Equal("\"1\"", "\"10\"");
+    }
+
+    /// <summary>
+    /// Outside a document there is no component to refer to: the elements of a collection, and the values and keys of
+    /// a dictionary, are described in place.
+    /// </summary>
+    [Fact]
+    public async Task Outside_a_document_the_elements_of_a_collection_are_described_in_place()
+    {
+        var list = new OpenApiSchema { Type = JsonSchemaType.Array };
+        var dictionary = new OpenApiSchema { Type = JsonSchemaType.Object };
+
+        await new ValueObjectSchemaTransformer().TransformAsync(list, ContextFor<List<Iban>>(), TestContext.Current.CancellationToken);
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            dictionary,
+            ContextFor<Dictionary<CountryCode, Socket>>(),
+            TestContext.Current.CancellationToken);
+
+        var element = list.Items.Should().BeOfType<OpenApiSchema>().Subject;
+        element.Type.Should().Be(JsonSchemaType.String);
+        element.MaxLength.Should().Be(34);
+        var value = dictionary.AdditionalProperties.Should().BeOfType<OpenApiSchema>().Subject;
+        value.Type.Should().Be(JsonSchemaType.Integer);
+        value.Minimum.Should().Be("1");
+        var names = dictionary.PropertyNames.Should().BeOfType<OpenApiSchema>().Subject;
+        names.Enum!.Select(code => code.ToJsonString()).Should().Equal("\"FR\"", "\"BE\"", "\"LU\"");
+    }
+
+    /// <summary>
+    /// What describes a collection already, the element System.Text.Json found or the key another transformer
+    /// described, is kept; and a collection of anything but value objects is left as it is.
+    /// </summary>
+    [Fact]
+    public async Task What_already_describes_a_collection_and_a_collection_of_anything_else_are_left_alone()
+    {
+        var names = new OpenApiSchema { Type = JsonSchemaType.String, Format = "country" };
+        var described = new OpenApiSchema { Type = JsonSchemaType.Object, PropertyNames = names };
+        var numbers = new OpenApiSchema { Type = JsonSchemaType.Array };
+        var texts = new OpenApiSchema { Type = JsonSchemaType.Object };
+
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            described,
+            ContextFor<Dictionary<CountryCode, int>>(),
+            TestContext.Current.CancellationToken);
+        await new ValueObjectSchemaTransformer().TransformAsync(numbers, ContextFor<List<int>>(), TestContext.Current.CancellationToken);
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            texts,
+            ContextFor<Dictionary<string, string>>(),
+            TestContext.Current.CancellationToken);
+
+        described.PropertyNames.Should().BeSameAs(names);
+        names.Enum.Should().BeNull();
+        numbers.Items.Should().BeNull();
+        texts.AdditionalProperties.Should().BeNull();
+        texts.PropertyNames.Should().BeNull();
+    }
+
+    /// <summary>
+    /// An element of a nullable real under named literals is the number, null allowed, or one of the literals. ASP.NET
+    /// Core hands the element back to the transformers once it has its schema, and it is still nullable afterwards.
+    /// </summary>
+    [Fact]
+    public async Task A_nullable_real_under_named_literals_stays_nullable_when_described_again()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerOptions.Default) { NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals };
+        var list = new OpenApiSchema { Type = JsonSchemaType.Array };
+
+        await new ValueObjectSchemaTransformer().TransformAsync(list, ContextFor<List<Gauge?>>(options), TestContext.Current.CancellationToken);
+        var element = list.Items.Should().BeOfType<OpenApiSchema>().Subject;
+        await new ValueObjectSchemaTransformer().TransformAsync(element, ContextFor<Gauge?>(options), TestContext.Current.CancellationToken);
+
+        element.Type.Should().BeNull("the alternatives carry it");
+        element.AnyOf![0].Type.Should().Be(JsonSchemaType.Number | JsonSchemaType.Null);
+        element.AnyOf[1].Enum!.Select(value => value.ToJsonString()).Should().Equal("\"NaN\"", "\"Infinity\"", "\"-Infinity\"");
+    }
+
+    /// <summary>
+    /// A bound the parameter's declaration put on its schema is compared with the value object's as a number, beyond
+    /// the range of decimal on either side too; one that is no number leaves the value object's in place, and one the
+    /// value object has none of is kept.
+    /// </summary>
+    [Fact]
+    public async Task A_parameter_bound_is_compared_with_the_value_object_s_beyond_the_range_of_decimal()
+    {
+        var port = new OpenApiSchema { Type = JsonSchemaType.String, Minimum = "1E+30", Maximum = "65000" };
+        var reading = new OpenApiSchema { Type = JsonSchemaType.String, Maximum = "100" };
+        var unbounded = new OpenApiSchema { Type = JsonSchemaType.String, Minimum = "unbounded" };
+
+        foreach (var (schema, type) in new[] { (port, typeof(Socket)), (reading, typeof(Astronomical)), (unbounded, typeof(Socket)) })
+        {
+            await new ValueObjectSchemaTransformer().TransformAsync(
+                schema,
+                ContextFor<string>(parameter: new ApiParameterDescription { Name = "value", Type = type }),
+                TestContext.Current.CancellationToken);
+        }
+
+        port.Minimum.Should().Be("1E+30", "it is stricter than the value object's 1");
+        port.Maximum.Should().Be("65000", "the value object has no maximum");
+        reading.Maximum.Should().Be("100", "it is stricter than the value object's 1E+300");
+        unbounded.Minimum.Should().Be("1", "the parameter's is no number");
+    }
+
+    private static OpenApiSchemaTransformerContext ContextFor<T>(JsonSerializerOptions? options = null, ApiParameterDescription? parameter = null)
+        => new()
+        {
+            DocumentName = "v1",
+            JsonTypeInfo = (options ?? JsonSerializerOptions.Default).GetTypeInfo(typeof(T)),
+            JsonPropertyInfo = null,
+            ParameterDescription = parameter,
+            ApplicationServices = new ServiceCollection().BuildServiceProvider(),
+        };
+
+    /// <summary>A resolver that holds the contract of text alone, as a generated one may hold no value object's.</summary>
+    private sealed class TextOnlyResolver : IJsonTypeInfoResolver
+    {
+        private static readonly DefaultJsonTypeInfoResolver Default = new();
+
+        public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)
+            => type == typeof(string) ? Default.GetTypeInfo(type, options) : null;
+    }
 
     /// <summary>A reading no other test uses, whose registration one test replaces.</summary>
     [ValueObject<double>]
@@ -361,6 +522,13 @@ public partial class SchemaTransformerTests
     [KnownValue("Low", 1)]
     [KnownValue("High", 10)]
     public readonly partial struct Tier;
+
+    /// <summary>A distance in metres, bounded beyond what a decimal holds.</summary>
+    [ValueObject<double>]
+    public readonly partial struct Astronomical : IValueObjectMaximum<double>
+    {
+        public static double Maximum => 1e300;
+    }
 
     /// <summary>A tally no other test uses, whose registration one test replaces.</summary>
     [ValueObject<int>]

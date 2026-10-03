@@ -211,7 +211,10 @@ annotation — and nothing to keep in sync, since the schema comes from the same
 compiles; its `RegexOptions` are not part of it (`VO0025`). A value written as a JSON string (`Int128`, `UInt128`,
 `char`, dates, times) gets no inert `minimum`/`maximum`: its bounds go to `x-minimum`/`x-maximum` and a sentence of
 the description. A `TimeSpan` gets no `format` (`duration` is ISO 8601, which it does not read) but the pattern of its
-constant form, as the built-in stack documents a plain `TimeSpan`.
+constant form, as the built-in stack documents a plain `TimeSpan`. Route, query and header parameters (minimal APIs,
+MVC, `[AsParameters]`) carry the same schema in place, keeping the stricter bound or length of a route constraint;
+`items` of a collection and `additionalProperties` of a dictionary refer to the component; a key documented as a
+string goes to `propertyNames`.
 
 ## Run-time lookup, when only a `Type` is known
 
