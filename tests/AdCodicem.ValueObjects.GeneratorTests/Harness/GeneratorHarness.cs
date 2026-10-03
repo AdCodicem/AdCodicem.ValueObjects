@@ -6,6 +6,8 @@ using AdCodicem.ValueObjects.Generators;
 using AdCodicem.ValueObjects.Identifiers;
 using Basic.Reference.Assemblies;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CodeActions;
+using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
@@ -121,6 +123,180 @@ public static class GeneratorHarness
             new AnalyzerOptions([], options ?? new AnalyzerConfiguration()));
 
         return await withAnalyzers.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// Runs an analyzer over source as <see cref="RunAnalyzerAsync{TAnalyzer}"/> does, then applies a code fix to the
+    /// first diagnostic it fixes, and starts again over the fixed source until none is left, as a developer accepting
+    /// each fix in turn would.
+    /// </summary>
+    /// <typeparam name="TAnalyzer">Analyzer reporting the diagnostics.</typeparam>
+    /// <typeparam name="TCodeFix">Code fix to apply.</typeparam>
+    /// <param name="source">Source to compile. A namespace and usings are added if absent.</param>
+    /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
+    /// <param name="options">The analyzer configuration the compilation is given.</param>
+    /// <returns>The fixed source, after the clean-up a code action runs: imports added, names shortened.</returns>
+    public static async Task<string> FixAsync<TAnalyzer, TCodeFix>(
+        string source,
+        ImmutableArray<MetadataReference>? references = null,
+        AnalyzerConfiguration? options = null)
+        where TAnalyzer : DiagnosticAnalyzer, new()
+        where TCodeFix : CodeFixProvider, new()
+    {
+        var fix = new TCodeFix();
+        var text = Wrap(source);
+
+        // One round per diagnostic; a fix that does not silence its diagnostic would otherwise loop for ever.
+        for (var round = 0; round < 16; round++)
+        {
+            using var workspace = new AdhocWorkspace();
+            var document = Document(workspace, text, references);
+            var diagnostic = (await AnalyzeAsync<TAnalyzer>(document, options))
+                .Where(candidate => fix.FixableDiagnosticIds.Contains(candidate.Id))
+                .OrderBy(candidate => candidate.Location.SourceSpan.Start)
+                .FirstOrDefault();
+
+            if (diagnostic is null)
+            {
+                return text;
+            }
+
+            var actions = await OfferedFixesAsync(fix, document, diagnostic);
+
+            actions.Should().ContainSingle("one fix is offered for {0}", diagnostic);
+            text = await ApplyAsync(actions[0], document);
+        }
+
+        throw new InvalidOperationException("The code fix did not silence the diagnostics it fixes.");
+    }
+
+    /// <summary>
+    /// Runs an analyzer over source, then applies the fix-all of a code fix to every diagnostic it fixes in the
+    /// document at once, as an IDE does to fix all occurrences in a document.
+    /// </summary>
+    /// <typeparam name="TAnalyzer">Analyzer reporting the diagnostics.</typeparam>
+    /// <typeparam name="TCodeFix">Code fix to apply.</typeparam>
+    /// <param name="source">Source to compile. A namespace and usings are added if absent.</param>
+    /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
+    /// <param name="options">The analyzer configuration the compilation is given.</param>
+    /// <returns>The fixed source.</returns>
+    public static async Task<string> FixAllAsync<TAnalyzer, TCodeFix>(
+        string source,
+        ImmutableArray<MetadataReference>? references = null,
+        AnalyzerConfiguration? options = null)
+        where TAnalyzer : DiagnosticAnalyzer, new()
+        where TCodeFix : CodeFixProvider, new()
+    {
+        var fix = new TCodeFix();
+
+        using var workspace = new AdhocWorkspace();
+        var document = Document(workspace, Wrap(source), references);
+        var diagnostics = (await AnalyzeAsync<TAnalyzer>(document, options))
+            .Where(candidate => fix.FixableDiagnosticIds.Contains(candidate.Id))
+            .ToImmutableArray();
+
+        var first = (await OfferedFixesAsync(fix, document, diagnostics[0]))[0];
+        var context = new FixAllContext(
+            document,
+            fix,
+            FixAllScope.Document,
+            first.EquivalenceKey,
+            fix.FixableDiagnosticIds,
+            new ReportedDiagnostics(diagnostics),
+            TestContext.Current.CancellationToken);
+
+        var action = await fix.GetFixAllProvider()!.GetFixAsync(context);
+
+        return await ApplyAsync(action!, document);
+    }
+
+    /// <summary>
+    /// Asks a code fix what it offers for a diagnostic located anywhere in a document holding source, wherever its
+    /// analyzer would or would not report it.
+    /// </summary>
+    /// <param name="fix">The code fix.</param>
+    /// <param name="source">Source of the document. A namespace and usings are added if absent.</param>
+    /// <param name="descriptor">The descriptor of the diagnostic.</param>
+    /// <param name="locate">Picks the span the diagnostic covers in the source as wrapped.</param>
+    /// <returns>The titles of the code actions offered.</returns>
+    public static async Task<IReadOnlyList<string>> OfferedFixTitlesAsync(
+        CodeFixProvider fix,
+        string source,
+        DiagnosticDescriptor descriptor,
+        Func<string, TextSpan> locate)
+    {
+        var text = Wrap(source);
+
+        using var workspace = new AdhocWorkspace();
+        var document = Document(workspace, text, references: null);
+        var tree = await document.GetSyntaxTreeAsync(TestContext.Current.CancellationToken);
+        var diagnostic = Diagnostic.Create(descriptor, Location.Create(tree!, locate(text)));
+
+        return [.. (await OfferedFixesAsync(fix, document, diagnostic)).Select(action => action.Title)];
+    }
+
+    private static Document Document(AdhocWorkspace workspace, string text, ImmutableArray<MetadataReference>? references)
+        => workspace.CurrentSolution
+            .AddProject("Fixed", "Fixed", LanguageNames.CSharp)
+            .WithParseOptions(ParseOptions)
+            .WithCompilationOptions(new CSharpCompilationOptions(
+                OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: NullableContextOptions.Enable))
+            .WithMetadataReferences(references ?? References)
+            .AddDocument("Test.cs", SourceText.From(text));
+
+    /// <summary>
+    /// Runs the generators over the compilation of a document, then an analyzer over the result. The generators add
+    /// their trees beside the document's, so each diagnostic is located in the document's own tree, as a code fix
+    /// expects.
+    /// </summary>
+    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync<TAnalyzer>(Document document, AnalyzerConfiguration? options)
+        where TAnalyzer : DiagnosticAnalyzer, new()
+    {
+        var compilation = await document.Project.GetCompilationAsync(TestContext.Current.CancellationToken);
+        CSharpGeneratorDriver
+            .Create(Generators, parseOptions: ParseOptions)
+            .RunGeneratorsAndUpdateCompilation(compilation!, out var output, out _);
+
+        return await output
+            .WithAnalyzers([new TAnalyzer()], new AnalyzerOptions([], options ?? new AnalyzerConfiguration()))
+            .GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
+    }
+
+    private static async Task<List<CodeAction>> OfferedFixesAsync(CodeFixProvider fix, Document document, Diagnostic diagnostic)
+    {
+        var actions = new List<CodeAction>();
+        await fix.RegisterCodeFixesAsync(new CodeFixContext(
+            document,
+            diagnostic,
+            (action, _) => actions.Add(action),
+            TestContext.Current.CancellationToken));
+
+        return actions;
+    }
+
+    private static async Task<string> ApplyAsync(CodeAction action, Document document)
+    {
+        var operations = await action.GetOperationsAsync(TestContext.Current.CancellationToken);
+        var solution = operations.OfType<ApplyChangesOperation>().Single().ChangedSolution;
+        var text = await solution.GetDocument(document.Id)!.GetTextAsync(TestContext.Current.CancellationToken);
+
+        return text.ToString();
+    }
+
+    /// <summary>
+    /// Hands a fix-all the diagnostics an analyzer reported in the one document of its project.
+    /// </summary>
+    private sealed class ReportedDiagnostics(ImmutableArray<Diagnostic> diagnostics) : FixAllContext.DiagnosticProvider
+    {
+        public override Task<IEnumerable<Diagnostic>> GetDocumentDiagnosticsAsync(Document document, CancellationToken cancellationToken)
+            => Task.FromResult<IEnumerable<Diagnostic>>(diagnostics);
+
+        public override Task<IEnumerable<Diagnostic>> GetProjectDiagnosticsAsync(Project project, CancellationToken cancellationToken)
+            => Task.FromResult<IEnumerable<Diagnostic>>([]);
+
+        public override Task<IEnumerable<Diagnostic>> GetAllDiagnosticsAsync(Project project, CancellationToken cancellationToken)
+            => Task.FromResult<IEnumerable<Diagnostic>>(diagnostics);
     }
 
     /// <summary>

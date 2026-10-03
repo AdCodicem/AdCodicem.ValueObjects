@@ -208,8 +208,13 @@ protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     => builder.ConfigureValueObjects(typeof(Iban).Assembly);
 ```
 
-Minimal APIs need nothing: a generated value object implements `IParsable<T>`, which is exactly what minimal API
-parameter binding looks for.
+Minimal APIs need no package: a generated value object implements `IParsable<T>`, which is exactly what minimal API
+parameter binding looks for. Where the Request Delegate Generator writes that binding, in a project that sets
+`PublishAot` or `PublishTrimmed`, a value object declared in the project that maps the endpoints also lists its
+contract on its declaration, `public readonly partial struct Sku : IValueObject<Sku, string>;`, because that
+generator does not see what this one adds; `VO0033` reports one that does not, and
+[the ASP.NET Core guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/aspnet-core#the-request-delegate-generator)
+explains it. A value object from another project needs nothing.
 
 ### Testing your own value objects
 
@@ -445,6 +450,7 @@ an internal surrogate key alongside it.
 | `VO0030` | Error | `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` over a type that takes no bound, or over another type than the underlying one. |
 | `VO0031` | Error | The `Example` or a known value declared on the type is one its own rules refuse, wherever the generator can evaluate them: an example no form of the underlying type reads, a length, an empty string, a bound returned as a constant, a closed value set. The contract kit checks the rest at run time. |
 | `VO0032` | Error | A value object created uninitialized, by `default` or `new T()`, in code another source generator wrote: Riok.Mapperly, the configuration binding generator, or a tool `adcodicem_value_objects.generated_code_tools` names in a `.globalconfig`. |
+| `VO0033` | Warning | A value object whose own declaration lists no interface bringing `IParsable<TSelf>`, in a project where the Request Delegate Generator runs and that references ASP.NET Core's endpoint routing: that generator would bind it from the request body. A code fix lists the contract. |
 
 ## Using it with an AI coding agent
 

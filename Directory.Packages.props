@@ -12,6 +12,8 @@
 
   <ItemGroup Label="Source generators and analyzers">
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <!-- The code fix, in an assembly of its own: RS1038 refuses Workspaces where an analyzer or a generator lives. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" />
     <PackageVersion Include="PolySharp" Version="1.16.0" />
   </ItemGroup>

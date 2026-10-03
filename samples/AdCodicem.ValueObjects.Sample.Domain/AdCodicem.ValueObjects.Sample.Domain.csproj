@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The value objects of the sample, in a project of their own, which is where an application keeps its domain. It is
+    also where the Request Delegate Generator sees what the generator adds to them: a minimal API binds a value object
+    of a referenced assembly from its interfaces in metadata, while one declared in the API project itself would have to
+    list its contract on its declaration, as the ASP.NET Core guide explains.
+  -->
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Sample.Domain</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="AdCodicem.ValueObjects" />
+    <Using Include="AdCodicem.ValueObjects.Annotations" />
+    <Using Include="AdCodicem.ValueObjects.Identifiers" />
+  </ItemGroup>
+
+</Project>

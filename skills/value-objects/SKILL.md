@@ -205,8 +205,10 @@ protected override void ConfigureConventions(ModelConfigurationBuilder builder) 
     => builder.ConfigureValueObjects(typeof(Iban).Assembly);
 ```
 
-Minimal APIs need nothing: a generated value object implements `IParsable<T>`. Reflection-based
-`System.Text.Json` needs nothing either; a source-generated `JsonSerializerContext` needs the
+Minimal APIs need no package: a generated value object implements `IParsable<T>`. Where the Request Delegate
+Generator runs (`PublishAot`, `PublishTrimmed`, `EnableRequestDelegateGenerator`), a value object declared in the
+project that maps the endpoints lists its contract on its declaration, `: IValueObject<Sku, string>` (`VO0033`).
+Reflection-based `System.Text.Json` needs nothing either; a source-generated `JsonSerializerContext` needs the
 `AdCodicem.ValueObjects.Json` package. Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.
 

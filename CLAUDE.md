@@ -34,9 +34,12 @@ dotnet test --project tests/AdCodicem.ValueObjects.UnitTests        # behaviour 
 dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests   # the generator itself
 dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests # needs Docker
 
-# Formatting, as CI checks it. Not plain `dotnet format`: its workspace does not run source
-# generators, so `analyzers` reports ASP0020 against the sample's minimal API endpoint for an
-# IParsable<T> the generator does emit.
+# Formatting, as CI checks it. Not plain `dotnet format`: its workspace runs the source generators
+# it can load, but CI formats before it builds, and the generator is referenced as a project whose
+# assembly does not exist yet. So `analyzers` reports ASP0020 against every minimal API endpoint
+# binding a value object, and compile errors besides, for members the generator does emit. The
+# Request Delegate Generator has that blind spot in every build, for a value object of its own
+# project (VO0033).
 dotnet format AdCodicem.ValueObjects.slnx whitespace --verify-no-changes
 dotnet format AdCodicem.ValueObjects.slnx style --verify-no-changes
 # The packable projects under src/, as CI packs them
@@ -257,6 +260,11 @@ These are all load-bearing, and each cost real debugging time:
   `[GeneratedRegex]` partial property the regex generator *can* see. The `Pattern` option it replaces compiles a
   `Regex` at run time with `RegexOptions.Compiled`, which native AOT interprets; it is deprecated (`VO0021`) and
   goes at the next major. `docs/adr/0007-deprecate-pattern-for-a-source-generated-regex-hook.md` has the numbers.
+  The Request Delegate Generator, on in every build under `PublishAot` or `PublishTrimmed`, is the case a consumer
+  meets: it binds a value object of its own project from the request body unless the declaration lists its
+  contract, which `VO0033` reports. That analyzer reads `EnableRequestDelegateGenerator` through the
+  `CompilerVisibleProperty` the package's `build/AdCodicem.ValueObjects.props` adds, which a project here, referencing
+  the generator by project, has to list itself.
 - **`static virtual` and `static abstract` interface members are reachable only through a type parameter**
   (CS8926, CS0103 for explicit implementations). Default implementations on `INumericValueObject` are therefore
   unusable directly; the generator emits concrete members, and `UnderlyingValue` holds constrained generic

@@ -26,9 +26,9 @@ namespace AdCodicem.ValueObjects.Generators;
 [Generator(LanguageNames.CSharp)]
 public sealed class ValueObjectGenerator : IIncrementalGenerator
 {
-    private const string ValueObjectAttributeName = "AdCodicem.ValueObjects.Annotations.ValueObjectAttribute`1";
+    internal const string ValueObjectAttributeName = "AdCodicem.ValueObjects.Annotations.ValueObjectAttribute`1";
     private const string KnownValueAttributeName = "AdCodicem.ValueObjects.Annotations.KnownValueAttribute";
-    private const string EntityIdAttributeName = "AdCodicem.ValueObjects.Identifiers.EntityIdAttribute";
+    internal const string EntityIdAttributeName = "AdCodicem.ValueObjects.Identifiers.EntityIdAttribute";
     private const string JsonRegistryTypeName = "AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry";
 
     /// <summary>The namespace of <c>DataClassificationAttribute</c>, which classifies a type as sensitive data.</summary>
@@ -52,7 +52,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     private static readonly (int Flag, string Name)[] UnpublishedRegexOptions =
         [(1, "IgnoreCase"), (2, "Multiline"), (16, "Singleline"), (32, "IgnorePatternWhitespace")];
 
-    private static readonly SymbolDisplayFormat QualifiedFormat = SymbolDisplayFormat.FullyQualifiedFormat
+    internal static readonly SymbolDisplayFormat QualifiedFormat = SymbolDisplayFormat.FullyQualifiedFormat
         .WithMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
 
     /// <summary>
@@ -1031,13 +1031,22 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// <param name="symbol">Type to inspect.</param>
     /// <param name="metadataName">Fully qualified metadata name of the attribute, arity included.</param>
     /// <returns><see langword="true"/> when the attribute is present.</returns>
-    private static bool CarriesAttribute(INamedTypeSymbol symbol, string metadataName)
+    internal static bool CarriesAttribute(INamedTypeSymbol symbol, string metadataName)
+        => FindAttribute(symbol, metadataName) is not null;
+
+    /// <summary>
+    /// Finds an annotation of a type, by metadata name so that generic arity is respected.
+    /// </summary>
+    /// <param name="symbol">Type to inspect.</param>
+    /// <param name="metadataName">Fully qualified metadata name of the attribute, arity included.</param>
+    /// <returns>The first application of the attribute, or <see langword="null"/> when the type does not carry it.</returns>
+    internal static AttributeData? FindAttribute(INamedTypeSymbol symbol, string metadataName)
     {
         var separator = metadataName.LastIndexOf('.');
         var containingNamespace = metadataName.Substring(0, separator);
         var name = metadataName.Substring(separator + 1);
 
-        return symbol.GetAttributes().Any(attribute =>
+        return symbol.GetAttributes().FirstOrDefault(attribute =>
             attribute.AttributeClass is { } attributeClass
             && string.Equals(attributeClass.MetadataName, name, StringComparison.Ordinal)
             && string.Equals(attributeClass.ContainingNamespace.ToDisplayString(), containingNamespace, StringComparison.Ordinal));

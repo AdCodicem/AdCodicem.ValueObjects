@@ -19,12 +19,21 @@
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all" />
+    <ProjectReference Include="..\AdCodicem.ValueObjects.CodeFixes\AdCodicem.ValueObjects.CodeFixes.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Makes EnableRequestDelegateGenerator visible to VO0033, in the consumer's project and in those referencing it. -->
+  <ItemGroup>
+    <None Include="build\AdCodicem.ValueObjects.props" Pack="true" PackagePath="build\;buildTransitive\" />
   </ItemGroup>
 
   <Target Name="PackValueObjectGenerator" DependsOnTargets="ResolveReferences">
     <ItemGroup>
       <TfmSpecificPackageFile Include="@(Analyzer)"
-                              Condition="'%(Analyzer.Filename)' == 'AdCodicem.ValueObjects.Generators'"
+                              Condition="'%(Analyzer.Filename)' == 'AdCodicem.ValueObjects.Generators' or '%(Analyzer.Filename)' == 'AdCodicem.ValueObjects.CodeFixes'"
                               PackagePath="analyzers/dotnet/cs" />
     </ItemGroup>
   </Target>

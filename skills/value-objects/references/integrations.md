@@ -86,12 +86,29 @@ builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetai
 white-space text as it treats empty text, as absent: `?country=%20` binds `CountryCode?` to `null`, while a value
 object that cannot be `null` is a 400 with `value_object.required`, as MVC answers blank text for an `int`.
 
-**Minimal APIs need nothing.** A generated value object implements `IParsable<T>` and `ISpanParsable<T>`, which
+**Minimal APIs need no package.** A generated value object implements `IParsable<T>` and `ISpanParsable<T>`, which
 is exactly what minimal API parameter binding looks for:
 
 ```csharp skip
 app.MapGet("/accounts/{iban}", (Iban iban) => ...);
 ```
+
+**Under the Request Delegate Generator** (RDG), on in every build of a project setting `PublishAot`, `PublishTrimmed`
+or `EnableRequestDelegateGenerator`, a value object declared in the project that maps the endpoints must list its
+contract on its own declaration. The RDG is a source generator and does not see the generated `IParsable<T>`: without
+the interface it binds the parameter from the body, so a route value gets a 400 and a query value is silently `null`.
+`VO0033` reports it, and its code fix lists the interface. A value object from a referenced project needs nothing.
+The contract is `IValueObject<TSelf, TValue>`, `INumericValueObject<TSelf, TValue>` with `Arithmetic = true`, or
+`IEntityId<TSelf>` for an `[EntityId]`; listing it is harmless where no RDG runs:
+
+```csharp
+[ValueObject<string>(MaxLength = 10)]
+public readonly partial struct Sku : IValueObject<Sku, string>;
+```
+
+Under the RDG, a handler returning a generated member needs an explicit return type, `string (Sku sku) => sku.Value`,
+or the build fails with `CS0411` in `GeneratedRouteBuilderExtensions.g.cs`; and `?sku=` binds `null` to a nullable
+parameter, where the reflection-based binding answers 400.
 
 `AddValueObjectProblemDetails()` attaches the stable error code of the violated rule to the automatic 400
 response, under the extension named by `ValueObjectProblemDetails.ExtensionName`, so a client can branch on
