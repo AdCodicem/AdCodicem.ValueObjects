@@ -111,6 +111,13 @@ jobs:
           ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "$version" "$(.github/scripts/package-ids.sh)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      # .github/shipped-dependencies decides which Dependabot updates land as
+      # fix(deps) and release (dependabot-auto-merge.yml): it has to name every
+      # dependency the packed nuspecs declare, and classify every package a
+      # project under src/ references.
+      - name: Every shipped dependency is listed
+        run: .github/scripts/shipped-dependencies-check.sh artifacts/packages
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

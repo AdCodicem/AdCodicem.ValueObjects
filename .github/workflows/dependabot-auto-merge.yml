@@ -1,6 +1,13 @@
 name: dependabot auto-merge
 
-on: pull_request_target
+# Runs with a token that can write to the repository, so nothing a pull request
+# changed may run here: the only checkout is of the base branch, sparse, for the
+# list of shipped dependencies and the script that reads it.
+on:
+  pull_request_target:
+    # `edited`: Dependabot rewrites the title when it refreshes a pull request,
+    # which brings its chore(deps) prefix back.
+    types: [opened, synchronize, reopened, edited]
 
 permissions:
   contents: read
@@ -9,7 +16,15 @@ jobs:
   auto-merge:
     name: auto-merge minor and patch bumps
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    timeout-minutes: 10
+    # Dependabot's own pull requests, from a branch of this repository, on
+    # Dependabot's own events: an edit or a push by the maintainer must not undo
+    # a title they changed by hand. fetch-metadata then refuses a pull request
+    # carrying any commit Dependabot did not sign.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: write
       pull-requests: write
@@ -19,12 +34,65 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Auto-merge is a queue, not an immediate merge: GitHub still waits for the
-      # required status checks, so a red build blocks it. That requires "Allow
-      # auto-merge" in repository settings and CI as a required check in branch
-      # protection -- without both, this job succeeds and nothing merges.
+      # The base branch as it is now, never the pull request's head.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/shipped-dependencies
+            .github/scripts/dependabot-commit-type.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Decide the commit type
+        id: type
+        env:
+          ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          DEPENDENCIES: ${{ steps.metadata.outputs.updated-dependencies-json }}
+        run: |
+          set -euo pipefail
+          prefix="$(.github/scripts/dependabot-commit-type.sh "$ECOSYSTEM" "$DEPENDENCIES")"
+          echo "Commit prefix: ${prefix:-as dependabot.yml sets it}"
+          echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
+
+      # An update of a dependency the packages ship has to release what it
+      # changes, so it lands as fix(deps), or fix(deps)! when it crosses a major
+      # (.releaserc.json rates a breaking change a minor while the major is 0, a
+      # major after). Dependabot pull requests are squash-merged, and a squash
+      # takes the pull request title as the commit subject (the repository's
+      # squash_merge_commit_title is PR_TITLE), so the title is what changes, for
+      # an auto-merge and a merge by hand alike. Only Dependabot's own prefix is
+      # replaced: a title the maintainer typed otherwise stays.
+      - name: Title the pull request after what it ships
+        if: >-
+          steps.type.outputs.prefix != '' && steps.type.outputs.prefix != 'chore(deps)' &&
+          startsWith(github.event.pull_request.title, 'chore(deps): ')
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PREFIX: ${{ steps.type.outputs.prefix }}
+          TITLE: ${{ github.event.pull_request.title }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit "$PR_URL" --title "$PREFIX: ${TITLE#chore(deps): }"
+
+      # Auto-merge is a queue, not an immediate merge: GitHub waits for the
+      # status checks the "Default" ruleset requires on main -- "build and test"
+      # (ci.yml) and "workflows" (lint.yml) -- so a red build or a broken
+      # workflow blocks the merge. A pull request nothing blocks is merged at
+      # once, failing checks the ruleset does not require included ("compat
+      # (.NET 11)", "documentation site"). It needs "Allow auto-merge" in the
+      # repository settings. No --subject: the commit subject is the pull
+      # request title at merge time, retitled or not.
+      #
+      # Queued once, when Dependabot opens the pull request, so that a
+      # maintainer who disables it keeps it off through Dependabot's later
+      # rebases: GitHub keeps auto-merge on across a push by anyone who can
+      # write, Dependabot included, so enabling it again on a push would only
+      # ever undo that decision. A pull request Dependabot opens anew, for a
+      # newer version, is queued again. If this step fails, "Re-run failed
+      # jobs" replays the `opened` event.
       - name: Enable auto-merge
-        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        if: github.event.action == 'opened' && steps.metadata.outputs.update-type != 'version-update:semver-major'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -33,10 +101,19 @@ jobs:
       # A major bump is left for a human. Saying so on the PR beats leaving it
       # to be noticed by whoever next reads the PR list.
       - name: Flag a major bump for review
-        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
-        run: |
-          gh pr comment "$PR_URL" --body \
-            "Major version bump (\`${{ steps.metadata.outputs.previous-version }}\` → \`${{ steps.metadata.outputs.new-version }}\`) — not auto-merged, needs a human review."
+        if: github.event.action == 'opened' && steps.metadata.outputs.update-type == 'version-update:semver-major'
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
+          PREVIOUS: ${{ steps.metadata.outputs.previous-version }}
+          NEW: ${{ steps.metadata.outputs.new-version }}
+          PREFIX: ${{ steps.type.outputs.prefix }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          body="Major version bump (\`$PREVIOUS\` → \`$NEW\`) — not auto-merged, needs a human review."
+          if [[ "$PREFIX" == 'fix(deps)!' ]]; then
+            body+=" It moves a dependency the packages ship to a new major, so it is titled \`fix(deps)!\`: a breaking change, which releases a minor while the packages are 0.x and a major after. Squash-merge it, so that the commit carries that title."
+          elif [[ "$PREFIX" == 'fix(deps)' ]]; then
+            body+=" It also updates a dependency the packages ship, so it is titled \`fix(deps)\` and releases a patch. Squash-merge it, so that the commit carries that title."
+          fi
+          gh pr comment "$PR_URL" --body "$body"

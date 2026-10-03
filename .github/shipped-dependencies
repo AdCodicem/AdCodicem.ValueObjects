@@ -1,0 +1,34 @@
+# The NuGet dependencies whose update changes what the packages ship: one exact package ID per line, compared
+# without regard to case. dependabot-auto-merge.yml titles a Dependabot pull request that updates one of them
+# `fix(deps):`, or `fix(deps)!:` when it crosses a major, so that the commit it is squash-merged into releases
+# what it changes; every other NuGet update keeps Dependabot's `chore(deps):` and releases nothing.
+# .github/scripts/shipped-dependencies-check.sh, which ci.yml runs after the pack, keeps the list true: it fails
+# when a packed nuspec declares a dependency missing here, when a project under src/ references a package this
+# file does not classify, either way, and when a line names something no package ships or no project references.
+
+# Declared by a package's nuspec: referenced by a project under src/, or pinned through
+# CentralPackageTransitivePinningEnabled, which makes a pinned transitive package a dependency of the package
+# that pulls it in.
+Dapper
+FluentValidation
+Microsoft.AspNetCore.OpenApi
+Microsoft.EntityFrameworkCore
+Microsoft.EntityFrameworkCore.Relational
+Microsoft.Extensions.DependencyInjection.Abstractions
+Microsoft.Extensions.Options
+Microsoft.OpenApi
+Newtonsoft.Json
+xunit.v3.assert
+xunit.v3.extensibility.core
+
+# Compiled into a shipped assembly, the generator AdCodicem.ValueObjects bundles: the Roslyn API it is built
+# against, which sets the oldest compiler that loads it, and the polyfills PolySharp writes into it.
+Microsoft.CodeAnalysis.CSharp
+PolySharp
+
+# Referenced by a project under src/ but shipping nothing, marked `!`: MinVer and Microsoft.SourceLink.GitHub
+# stamp the version and the source link but change no code, and Microsoft.CodeAnalysis.Analyzers only checks
+# the generator's own code. An update of one of them stays chore(deps).
+!MinVer
+!Microsoft.SourceLink.GitHub
+!Microsoft.CodeAnalysis.Analyzers
