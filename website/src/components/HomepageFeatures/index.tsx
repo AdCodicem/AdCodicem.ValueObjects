@@ -1,5 +1,4 @@
 import type {ReactNode} from 'react';
-import clsx from 'clsx';
 import Heading from '@theme/Heading';
 import styles from './styles.module.css';
 
@@ -38,13 +37,15 @@ const FeatureList: FeatureItem[] = [
   },
 ];
 
-function Feature({title, description}: FeatureItem) {
+// Numbered columns separated by hairline rules, as the design system lays out a row of principles.
+function Feature({title, description, index}: FeatureItem & {index: number}) {
   return (
-    <div className={clsx('col col--4')}>
-      <div className={styles.feature}>
-        <Heading as="h3">{title}</Heading>
-        <p>{description}</p>
-      </div>
+    <div className={styles.feature}>
+      <span className={styles.number}>{String(index + 1).padStart(2, '0')}</span>
+      <Heading as="h3" className={styles.title}>
+        {title}
+      </Heading>
+      <p className={styles.description}>{description}</p>
     </div>
   );
 }
@@ -52,12 +53,10 @@ function Feature({title, description}: FeatureItem) {
 export default function HomepageFeatures(): ReactNode {
   return (
     <section className={styles.features}>
-      <div className="container">
-        <div className="row">
-          {FeatureList.map((props, idx) => (
-            <Feature key={idx} {...props} />
-          ))}
-        </div>
+      <div className={styles.grid}>
+        {FeatureList.map((props, idx) => (
+          <Feature key={idx} index={idx} {...props} />
+        ))}
       </div>
     </section>
   );

@@ -86,6 +86,32 @@ npm run build && npm run serve
 cd - && git worktree remove --force ../docs-try
 ```
 
+## Look and feel
+
+The site wears the AdCodicem design system: its tokens, its three typefaces, its syntax palette, its logos. Nothing
+is fetched from it at build time; what the site needs was copied in, so a change to the design system reaches the
+site only by being copied again.
+
+- **`src/css/custom.css`** declares the design system's colour tokens by name, primitives (`--ink-900`,
+  `--rust-600`, …) then semantic ones (`--bg-page`, `--fg-1`, `--accent`, `--code-type`, …), and maps Infima's
+  variables onto the semantic ones. Every rule after the tokens uses them only, never a literal colour, so it
+  follows all four colour schemes: paper (`:root`) and ink (`data-theme='dark'`, the default when the system
+  expresses no preference), each in its brand form and in its accessible one (`data-contrast='accessible'`),
+  which reaches WCAG 2 AA on every pair drawn and changes only the tokens the design system lists.
+- **The contrast toggle** (`src/components/ContrastToggle`) sits beside the light and dark one through a wrapper of
+  `ColorModeToggle`, a safe swizzle. It stores the reader's choice under `adcodicem-contrast`; the `contrast` plugin
+  in `docusaurus.config.ts` applies it before the first paint, and before the reader chooses it follows
+  `prefers-contrast: more`.
+- **`src/prism-adcodicem.ts`** is one Prism theme for every scheme: its colours are the `--code-*` tokens, so the
+  accessible schemes retune the comments without a second theme.
+- **`src/fonts/`** holds Archivo, Atkinson Hyperlegible Next and JetBrains Mono as variable `woff2` files, under the
+  SIL Open Font License (`OFL.txt`). They sit under `src/`, not `static/`, so webpack fingerprints them.
+- **`static/img/`**: the navbar carries the ValueObjects lockup in its compact drawing (the design system's rule
+  from 24 to 48px), the footer the AdCodicem lockup, each with a `-light` and a `-dark` file. Their names are
+  outlined, so they render in Archivo inside an `<img>`. The favicons are the ValueObjects tile.
+- **The homepage and the 404 page** follow the design system's docs kit; the 404 page is an ejected `NotFound`, a
+  safe swizzle.
+
 ## Deployment
 
 Deployment is automatic, through `.github/workflows/deploy-docs.yml`, which other workflows call and nobody

@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config, Plugin} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 import sidebars from './sidebars';
+import {adcodicem} from './src/prism-adcodicem';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -32,6 +32,8 @@ const hasStable = stableLines.length > 0;
 // has no published version to name, and neither has ci.yml's pull request build, which nothing deploys.
 const previewVersion = process.env.DOCS_PREVIEW_VERSION;
 const previewLabel = previewVersion ? `Preview (${previewVersion})` : 'Preview';
+
+const baseUrl = '/AdCodicem.ValueObjects/';
 
 const editRoot = 'https://github.com/AdCodicem/AdCodicem.ValueObjects/edit/main/website';
 
@@ -127,6 +129,26 @@ function llmsTxt(): Plugin {
   };
 }
 
+// The accessible colour schemes (src/css/custom.css) hang off a data-contrast attribute on <html>, which this sets
+// before the first paint, as Docusaurus does for data-theme: from the reader's choice in the navbar toggle
+// (src/components/ContrastToggle), or, before they make one, from the system's prefers-contrast setting.
+function contrast(): Plugin {
+  return {
+    name: 'contrast',
+    injectHtmlTags: () => ({
+      headTags: [
+        {
+          tagName: 'script',
+          innerHTML:
+            "(function(){try{var c=localStorage.getItem('adcodicem-contrast');" +
+            "if(c==='accessible'||(c===null&&window.matchMedia('(prefers-contrast: more)').matches))" +
+            "document.documentElement.setAttribute('data-contrast','accessible')}catch(e){}})();",
+        },
+      ],
+    }),
+  };
+}
+
 type SidebarEntry = string | {type?: string; id?: string; label?: string; items?: SidebarEntry[]};
 
 // The hand-written pages in sidebar order: those at the top level under "Docs", then one section per category.
@@ -183,14 +205,25 @@ function lede(markdown: string): string | undefined {
 const config: Config = {
   title: 'AdCodicem.ValueObjects',
   tagline: 'An answer to primitive obsession in .NET: single-value DDD value objects, with no reflection and no allocation on the paths that matter.',
-  favicon: 'img/favicon.svg',
+  favicon: 'img/favicon.ico',
 
   future: {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
 
+  // The ValueObjects tile from the design system; favicon.ico above is the fallback every browser requests.
+  headTags: [
+    {tagName: 'link', attributes: {rel: 'icon', type: 'image/svg+xml', href: `${baseUrl}img/favicon.svg`}},
+    {tagName: 'link', attributes: {rel: 'icon', type: 'image/png', sizes: '16x16', href: `${baseUrl}img/favicon-16.png`}},
+    {tagName: 'link', attributes: {rel: 'icon', type: 'image/png', sizes: '32x32', href: `${baseUrl}img/favicon-32.png`}},
+    {tagName: 'link', attributes: {rel: 'apple-touch-icon', sizes: '180x180', href: `${baseUrl}img/favicon-180.png`}},
+  ],
+
+  // Read by the homepage: before the first stable release, `dotnet add package` needs --prerelease.
+  customFields: {hasStable},
+
   url: 'https://adcodicem.github.io',
-  baseUrl: '/AdCodicem.ValueObjects/',
+  baseUrl,
 
   organizationName: 'AdCodicem',
   projectName: 'AdCodicem.ValueObjects',
@@ -254,10 +287,12 @@ const config: Config = {
     ],
   ],
 
-  plugins: [homepageExample, llmsTxt],
+  plugins: [homepageExample, llmsTxt, contrast],
 
   themeConfig: {
+    // The design system is designed dark first: ink is what a reader gets when the system expresses no preference.
     colorMode: {
+      defaultMode: 'dark',
       respectPrefersColorScheme: true,
     },
     announcementBar: hasStable
@@ -269,9 +304,16 @@ const config: Config = {
             (previewVersion ? `, <code>${previewVersion}</code>` : '') +
             '. Install it with <code>dotnet add package AdCodicem.ValueObjects --prerelease</code>.',
           isCloseable: false,
+          backgroundColor: 'var(--bg-sunken)',
+          textColor: 'var(--fg-1)',
         },
     navbar: {
-      title: 'AdCodicem.ValueObjects',
+      // The name is outlined in the logo, so the lockup renders in Archivo whatever fonts the reader has.
+      logo: {
+        alt: 'AdCodicem.ValueObjects',
+        src: 'img/navbar-logo-light.svg',
+        srcDark: 'img/navbar-logo-dark.svg',
+      },
       items: [
         {
           type: 'docSidebar',
@@ -306,7 +348,12 @@ const config: Config = {
       ],
     },
     footer: {
-      style: 'dark',
+      style: 'light',
+      logo: {
+        alt: 'AdCodicem',
+        src: 'img/footer-logo-light.svg',
+        srcDark: 'img/footer-logo-dark.svg',
+      },
       links: [
         {
           title: 'Docs',
@@ -326,11 +373,13 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} AdCodicem. Released under the MIT licence.`,
+      copyright:
+        `Copyright © ${new Date().getFullYear()} AdCodicem. Released under the MIT licence.` +
+        '<span class="baseline" lang="la">lege artis</span>',
     },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
+      theme: adcodicem,
+      darkTheme: adcodicem,
       additionalLanguages: ['csharp', 'bash'],
     },
   } satisfies Preset.ThemeConfig,
