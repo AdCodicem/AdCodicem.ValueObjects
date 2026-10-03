@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using AdCodicem.ValueObjects.Generators;
@@ -42,16 +43,21 @@ public static class GeneratorHarness
     /// then also publishes each one to the package's own registry, which a package older than the generator reads
     /// alone.
     /// </param>
+    /// <param name="withJsonGenerator">
+    /// Whether the System.Text.Json source generator runs too, as it does in any project declaring a
+    /// <c>JsonSerializerContext</c>, whose generated half only it writes.
+    /// </param>
     /// <returns>The generated sources and every diagnostic produced.</returns>
     public static GeneratorRun Run(
         string source,
         DocumentationMode documentationMode = DocumentationMode.Parse,
-        bool referenceJsonPackage = false)
+        bool referenceJsonPackage = false,
+        bool withJsonGenerator = false)
     {
         var parseOptions = ParseOptions.WithDocumentationMode(documentationMode);
         var compilation = Compile(source, parseOptions, referenceJsonPackage ? WithJsonPackage : References);
         var driver = CSharpGeneratorDriver
-            .Create(Generators, parseOptions: parseOptions, driverOptions: DriverOptions)
+            .Create(GeneratorsFor(withJsonGenerator), parseOptions: parseOptions, driverOptions: DriverOptions)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
 
         var results = driver.GetRunResult().Results;
@@ -90,20 +96,29 @@ public static class GeneratorHarness
     /// <typeparam name="TAnalyzer">Analyzer to run.</typeparam>
     /// <param name="source">Source to compile.</param>
     /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
+    /// <param name="options">
+    /// The analyzer configuration the compilation is given, as <c>.globalconfig</c> and <c>.editorconfig</c> files set
+    /// it; none when omitted.
+    /// </param>
+    /// <param name="withJsonGenerator">Whether the System.Text.Json source generator runs too.</param>
     /// <returns>The analyzer's diagnostics.</returns>
     public static async Task<ImmutableArray<Diagnostic>> RunAnalyzerAsync<TAnalyzer>(
         string source,
-        ImmutableArray<MetadataReference>? references = null)
+        ImmutableArray<MetadataReference>? references = null,
+        AnalyzerConfiguration? options = null,
+        bool withJsonGenerator = false)
         where TAnalyzer : DiagnosticAnalyzer, new()
     {
         var compilation = Compile(source, references: references);
         var updated = CSharpGeneratorDriver
-            .Create(Generators, parseOptions: ParseOptions)
+            .Create(GeneratorsFor(withJsonGenerator), parseOptions: ParseOptions)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
 
         _ = updated;
 
-        var withAnalyzers = output.WithAnalyzers([new TAnalyzer()]);
+        var withAnalyzers = output.WithAnalyzers(
+            [new TAnalyzer()],
+            new AnalyzerOptions([], options ?? new AnalyzerConfiguration()));
 
         return await withAnalyzers.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
     }
@@ -180,6 +195,22 @@ public static class GeneratorHarness
         return ((IIncrementalGenerator)Activator.CreateInstance(type, nonPublic: true)!).AsSourceGenerator();
     }
 
+    /// <summary>
+    /// The System.Text.Json source generator, run only on request: most snippets declare no context, and the files it
+    /// would write for one are no business of the tests that do not ask for it.
+    /// </summary>
+    private static readonly Lazy<ISourceGenerator> JsonGenerator = new(() =>
+    {
+        // Copied next to the tests by the CopyJsonGenerator target, from the targeting pack the SDK resolved.
+        var path = Path.Combine(AppContext.BaseDirectory, "json-generator", "System.Text.Json.SourceGeneration.dll");
+        var type = Assembly.LoadFrom(path).GetType("System.Text.Json.SourceGeneration.JsonSourceGenerator", throwOnError: true)!;
+
+        return ((IIncrementalGenerator)Activator.CreateInstance(type, nonPublic: true)!).AsSourceGenerator();
+    });
+
+    private static ImmutableArray<ISourceGenerator> GeneratorsFor(bool withJsonGenerator)
+        => withJsonGenerator ? Generators.Add(JsonGenerator.Value) : Generators;
+
     private static readonly GeneratorDriverOptions DriverOptions =
         new(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true);
 
@@ -232,6 +263,37 @@ public static class GeneratorHarness
     private static bool IsRelevant(Diagnostic diagnostic)
         => diagnostic.Severity >= DiagnosticSeverity.Warning
            && diagnostic.Id is not ("CS1591" or "CS8019");
+}
+
+/// <summary>
+/// The analyzer configuration of a compilation: the options a <c>.globalconfig</c> sets for the whole project, and the
+/// ones a section of an <c>.editorconfig</c> sets for every file it matches, generated files included.
+/// </summary>
+/// <param name="global">What a <c>.globalconfig</c> sets.</param>
+/// <param name="perFile">What a <c>[*.cs]</c> section of an <c>.editorconfig</c> sets, for every file alike.</param>
+public sealed class AnalyzerConfiguration(
+    IReadOnlyDictionary<string, string>? global = null,
+    IReadOnlyDictionary<string, string>? perFile = null) : AnalyzerConfigOptionsProvider
+{
+    private readonly Options _perFile = new(perFile);
+
+    /// <inheritdoc />
+    public override AnalyzerConfigOptions GlobalOptions { get; } = new Options(global);
+
+    /// <inheritdoc />
+    public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => _perFile;
+
+    /// <inheritdoc />
+    public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => _perFile;
+
+    private sealed class Options(IReadOnlyDictionary<string, string>? values) : AnalyzerConfigOptions
+    {
+        public override bool TryGetValue(string key, [NotNullWhen(true)] out string? value)
+        {
+            value = null;
+            return values?.TryGetValue(key, out value) == true;
+        }
+    }
 }
 
 /// <summary>One file produced by the generator.</summary>
