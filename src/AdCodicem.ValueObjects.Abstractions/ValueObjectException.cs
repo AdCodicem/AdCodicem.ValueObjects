@@ -4,13 +4,23 @@ namespace AdCodicem.ValueObjects;
 /// Thrown when a value object is constructed from a value that violates one of its rules.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The integrations that take outside input (JSON, model binding, FluentValidation, Dapper) use the
 /// <c>TryCreate</c> and <c>TryParse</c> family and report a refusal in their own terms. This exception comes from
 /// the explicit <c>Create</c> and <c>Parse</c> entry points and an explicit conversion, for code that treats a
 /// rejected value as a bug, and from a strict EF Core read, which goes through <c>Create</c> and fails the query.
+/// </para>
+/// <para>
+/// It is a <see cref="FormatException"/>, the exception <see cref="IParsable{TSelf}.Parse"/> documents for text
+/// it refuses, so code written against that contract catches a value object's rejection, and a framework that
+/// recognizes a <see cref="FormatException"/> as bad input, such as ASP.NET Core MVC binding through a type
+/// converter, reports it as such. Every path throws this one type, including <c>Create</c> and the other paths
+/// that take a value rather than text. A <c>catch (FormatException)</c> therefore catches it too, and placed
+/// before a <c>catch (ValueObjectException)</c> of the same <c>try</c>, makes that clause unreachable (CS0160).
+/// </para>
 /// </remarks>
 [Serializable]
-public class ValueObjectException : Exception
+public class ValueObjectException : FormatException
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="ValueObjectException"/> class.

@@ -48,7 +48,9 @@ Validation is fail-fast: a result carries one reason, the first rule that failed
 
 ## `ValueObjectException`
 
-Thrown by `Create`, by `Parse`, and by an explicit conversion, when the value is rejected. It carries:
+Thrown by `Create`, by `Parse`, and by an explicit conversion, when the value is rejected. It derives from
+`FormatException`, the exception `IParsable<T>.Parse` documents for text it refuses, so code written against that
+contract catches a value object's rejection. It carries:
 
 | Member | |
 | --- | --- |
@@ -57,6 +59,12 @@ Thrown by `Create`, by `Parse`, and by an explicit conversion, when the value is
 | `AttemptedValue` | The value as it was passed in, before normalization. |
 | `Message` | The message of the violated rule, after the text and the type for `Parse`. |
 
+Every path throws this one type, including `Create`, the arithmetic of a numeric value object and the other paths
+that take a value rather than text: a value in range for `int` but outside the declared bounds raises a
+`FormatException` too. A `catch (FormatException)` therefore catches it, and placed before a
+`catch (ValueObjectException)` of the same `try`, it makes that clause unreachable, which is compile error CS0160:
+put the `catch (ValueObjectException)` first.
+
 The integrations on a boundary report a rejected value in their own terms, so the exception is reserved for code
 that treats a rejected value as a bug, and for a strict EF Core read:
 
@@ -64,7 +72,7 @@ that treats a rejected value as a bug, and for a strict EF Core read:
 | --- | --- |
 | The System.Text.Json converters | `JsonException`, with the message of the rule. |
 | The Newtonsoft.Json converter | `JsonSerializationException`, with the message of the rule. |
-| ASP.NET Core model binding | A model state error; the [problem details](../how-to/aspnet-core.md#problem-details-carrying-the-rule) carry its code. |
+| ASP.NET Core model binding | A model state error; the [problem details](../how-to/aspnet-core.md#problem-details-carrying-the-rule) carry its code. Without the package's binder, MVC binds through the type converter, which throws `ValueObjectException`, and reports it with the message it gives bad input for an `int`, such as "The value 'ZZ' is not valid.", and no code. |
 | FluentValidation, `MustParseAs` and `MustSatisfy` | A validation failure carrying the code. |
 | Dapper | `DataException`, for a value it cannot convert, and for text read into a value object over another type, or a number or a `Guid` read into one over `string`, that the value object refuses. |
 | EF Core with `strict: true` | `ValueObjectException`, from `Create`: the query fails. |
