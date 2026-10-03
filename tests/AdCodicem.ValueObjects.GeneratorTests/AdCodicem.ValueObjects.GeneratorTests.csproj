@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <!-- The workspace a code fix edits a document in. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     <PackageReference Include="Basic.Reference.Assemblies.Net100" />
     <!-- Handed to every snippet, so that one classifies a value object as personal data as a consumer does. -->
     <PackageReference Include="Microsoft.Extensions.Compliance.Abstractions" />
@@ -17,6 +19,7 @@
   <ItemGroup>
     <!-- Referenced as a library, not as an analyzer: these tests drive the generator themselves. -->
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.CodeFixes\AdCodicem.ValueObjects.CodeFixes.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
     <!-- Handed to a snippet only on request: the generator publishes its JSON converters when the package is there. -->

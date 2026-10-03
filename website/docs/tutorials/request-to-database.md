@@ -106,7 +106,10 @@ public async Task<ActionResult<CustomerResponse>> Create([FromBody] CreateCustom
 ```
 
 A minimal API needs none of the above: a generated value object implements `IParsable<T>`, which is what minimal
-API parameter binding looks for.
+API parameter binding looks for. Under native AOT, a value object declared in the project that maps the endpoints
+also lists its contract on its declaration, as
+[the Request Delegate Generator](../how-to/aspnet-core.md#the-request-delegate-generator) explains; the sample keeps
+its value objects in a domain project of their own, which needs nothing.
 
 ```csharp skip
 app.MapGet("/customers/{id}", async (CustomerId id, ShopDbContext database) => /* … */);

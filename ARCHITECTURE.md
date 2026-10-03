@@ -46,6 +46,9 @@ available without a consumer registering anything.
 
 Alongside the generator, two analyzers enforce what the generator cannot: `VO0010` makes `default(T)` a build
 error, and `VO0011` catches a hook rule written without its interface.
+`VO0033` reports a value object the Request Delegate Generator cannot see as parsable, and its code fix lives in
+`AdCodicem.ValueObjects.CodeFixes`, an assembly of its own: a code fix needs the workspace layer, which the compiler
+does not load with an analyzer.
 
 ## Two ways to reach a value object
 

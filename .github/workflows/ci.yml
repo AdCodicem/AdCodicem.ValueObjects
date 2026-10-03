@@ -33,12 +33,16 @@ jobs:
       - name: Restore
         run: dotnet restore
 
-      # whitespace and style only, deliberately not `analyzers`. dotnet format
-      # builds its own workspace without running source generators, so it cannot
-      # see the IParsable<T> implementation the generator emits and reports
-      # ASP0020 against the sample's minimal API endpoint. The real build, where
-      # the generator does run, is clean -- and EnforceCodeStyleInBuild already
-      # holds analyzer diagnostics to error there.
+      # whitespace and style only, deliberately not `analyzers`. dotnet format's
+      # workspace runs the source generators it can load, but this step runs
+      # before the build, and the generator is referenced as a project whose
+      # assembly does not exist yet. So it cannot see the IParsable<T>
+      # implementation the generator emits, and reports ASP0020 against every
+      # minimal API endpoint binding a value object. The real build, where the
+      # generator does run, is clean -- and EnforceCodeStyleInBuild already holds
+      # analyzer diagnostics to error there. The Request Delegate Generator has
+      # the same blind spot in the real build, for a value object declared in
+      # the project it compiles, which VO0033 reports.
       - name: Format
         run: |
           dotnet format AdCodicem.ValueObjects.slnx whitespace --verify-no-changes --verbosity minimal

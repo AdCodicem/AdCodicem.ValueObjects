@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/AdCodicem.ValueObjects/AdCodicem.ValueObjects.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Abstractions/AdCodicem.ValueObjects.Abstractions.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.CodeFixes/AdCodicem.ValueObjects.CodeFixes.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Generators/AdCodicem.ValueObjects.Generators.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Identifiers/AdCodicem.ValueObjects.Identifiers.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore/AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj" />
@@ -30,6 +31,7 @@
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/AdCodicem.ValueObjects.Sample.Api/AdCodicem.ValueObjects.Sample.Api.csproj" />
+    <Project Path="samples/AdCodicem.ValueObjects.Sample.Domain/AdCodicem.ValueObjects.Sample.Domain.csproj" />
   </Folder>
   <Folder Name="/build/">
     <File Path="Directory.Build.props" />

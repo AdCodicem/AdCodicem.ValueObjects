@@ -14,9 +14,8 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.OpenApi\AdCodicem.ValueObjects.OpenApi.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+    <!-- The value objects live in their own project, where the Request Delegate Generator would see their interfaces. -->
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Sample.Domain\AdCodicem.ValueObjects.Sample.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,9 +28,8 @@
 
   <ItemGroup>
     <Using Include="AdCodicem.ValueObjects" />
-    <Using Include="AdCodicem.ValueObjects.Annotations" />
     <Using Include="AdCodicem.ValueObjects.Identifiers" />
-    <Using Include="AdCodicem.ValueObjects.Sample.Api.Domain" />
+    <Using Include="AdCodicem.ValueObjects.Sample.Domain" />
   </ItemGroup>
 
 </Project>
