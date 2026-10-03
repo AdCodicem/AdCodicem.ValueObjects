@@ -14,8 +14,9 @@ define their own value objects; this repository ships the frame.
 ## Layout
 
 ```
-src/          the ten shipped packages
+src/          the twelve shipped packages
 tests/        three suites with distinct jobs (see below)
+  Compat/     the packed packages in a .NET 11 application, outside the solution
 samples/      a showcase API exercising the whole chain end to end
 benchmarks/   the measurements behind the design decisions
 skills/       the consumer-facing agent skill, shipped as a Claude Code plugin via .claude-plugin/
@@ -89,6 +90,7 @@ actually fired. `DescriptorTests.cs` covers that surface.
 | `UnitTests` | Behaviour of generated code, over value objects defined in `Domain/` — one per underlying type and per option or hook — and of every integration package called directly. |
 | `GeneratorTests` | The generator itself: emission, every diagnostic, hook detection, the analyzers, incremental caching, and every published documentation snippet. |
 | `IntegrationTests` | Real PostgreSQL and SQL Server via Testcontainers, asserting against `information_schema`, plus the API surface end to end. |
+| `tests/Compat` | Not a suite of the solution: the packages exactly as packed, installed into a `net11.0` application on the .NET 11 release candidate, with its own `global.json` and package versions. Run by the `compat (.NET 11)` job of `ci.yml`, informational until .NET 11 ships. |
 
 `GeneratorTests` drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
 `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Its snippets compile **without** implicit usings,
@@ -104,10 +106,15 @@ generator emits.
 
 ## Releases
 
-Merging to `main` publishes a preview package; a stable release is a manual action. See
-[ADR-0003](docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md) for why, and
+A merge publishes nothing by itself. `preview.yml` publishes a preview of every package each week, and on
+dispatch, when a package input changed since the version nuget.org has; a stable release is a manual action. See
+[ADR-0003](docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md) for the stable track,
+[ADR-0009](docs/adr/0009-publish-previews-weekly-when-a-package-input-changed.md) for the previews, and
 [`docs/maintaining.md`](docs/maintaining.md) for the one-time settings the release and publish workflows
 depend on. [ADR-0004](docs/adr/0004-pin-the-supply-chain-by-digest-not-nuget-lock-files.md) records how the
 build's own dependencies are pinned, and why NuGet lock files are not part of it.
 [ADR-0005](docs/adr/0005-version-the-documentation-site.md) records how the documentation site follows the same
-two tracks: every preview redeploys the preview pages, and each stable release freezes its own.
+two tracks: every `preview.yml` run redeploys the preview pages, and each stable release freezes its own.
+[ADR-0010](docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md) records the versioning
+policy: one version for the twelve packages, never aligned with .NET, and a framework's next major supported in the
+same packages.

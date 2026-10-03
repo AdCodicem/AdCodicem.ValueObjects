@@ -66,7 +66,7 @@ body:
     id: version
     attributes:
       label: Package version
-      placeholder: '0.1.0-preview.2'
+      placeholder: '0.2.1'
     validations:
       required: true
 
