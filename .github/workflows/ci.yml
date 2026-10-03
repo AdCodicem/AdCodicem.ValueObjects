@@ -121,3 +121,28 @@ jobs:
         with:
           name: packages
           path: artifacts/packages/*.*nupkg
+
+  # The documentation site, built as deploy-docs.yml builds it and deployed by
+  # nobody. ci.yml deploys nothing since preview.yml took the site over, so a broken
+  # link, a sidebar entry that no longer resolves or an API reference DocFX cannot
+  # generate would otherwise first fail the run that deploys, on main. Here it fails
+  # the pull request that causes it, and main after a merge, where two pull requests
+  # that each built can still break the site together. Not a required check.
+  site:
+    name: documentation site
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # MinVer runs when DocFX builds the projects under src/, and reads the
+          # tag history, which a shallow clone does not have.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # No label: nothing deploys this build, so its preview reads "Preview", as
+      # in a local build.
+      - name: Build the site
+        uses: ./.github/actions/build-site

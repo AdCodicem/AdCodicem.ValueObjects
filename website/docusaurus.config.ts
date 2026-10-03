@@ -28,7 +28,7 @@ const hasStable = stableLines.length > 0;
 // deploy-docs.yml sets this to the version its caller names, so the preview names the package it
 // describes: preview.yml passes the version on nuget.org built from the commit it deploys, or from the
 // nearest one with the same package inputs, and release.yml the version it released. A local build
-// has no published version to name.
+// has no published version to name, and neither has ci.yml's pull request build, which nothing deploys.
 const previewVersion = process.env.DOCS_PREVIEW_VERSION;
 const previewLabel = previewVersion ? `Preview (${previewVersion})` : 'Preview';
 
