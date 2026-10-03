@@ -48,6 +48,13 @@ ASCII, so no other value object goes out as non-Unicode text, which would lose t
 lacks. A value longer than the declared length, which a row read without validation can hold, gets a parameter as
 long as itself: both providers would otherwise cut it short, silently.
 
+A value object that never went through `Create` holds the default value, which its type may reject. The handler
+refuses such a parameter with a `DataException`, "The value to write is not a valid Iban: …", before the command is
+sent, rather than store what every later read would trust. Dapper hands the handler the value object whether the
+parameter is an `Iban` or an `Iban?` holding one, so the handler cannot tell a column that takes a `NULL` from one that
+does not, and refuses either way: an `Iban?` holding nothing is what writes a `NULL`. Over a value type, a type that
+accepts its zero, an `Amount` with a minimum of 0, writes it.
+
 ## What a read trusts
 
 A column the provider returns as the underlying type is read with `CreateUnchecked`, on the same reasoning as the

@@ -2,7 +2,7 @@
 title: Use with Entity Framework Core
 sidebar_label: Entity Framework Core
 slug: /how-to/ef-core
-description: Map every value object of an assembly to its underlying column type in one call, size columns from declared rules, and choose when reads are validated.
+description: Map every value object of an assembly to its underlying column type in one call, size columns from declared rules, choose when reads are validated, and never store a value a type rejects.
 ---
 
 # Use with Entity Framework Core
@@ -48,6 +48,26 @@ On a key, that has a consequence: a row stored as `fr76 3000 …` is tracked und
 the table holds. An update or a delete of that row through the strict context matches no row, and `SaveChanges`
 throws a `DbUpdateConcurrencyException`, as it does for a row another writer deleted. Normalize such keys in the
 table before relying on strict reads to write them back.
+
+## Validation on write
+
+An entity whose value object was never set holds an instance that never went through `Create`, and so the default
+value: an empty `Iban`, a `Guid.Empty` customer identifier. Stored as it stands, it would come back from every later
+read as an instance holding a value its own rules refuse, since the read trusts the column. The converters refuse it
+instead:
+
+- on a property of the value object's type, `SaveChanges` throws a `DbUpdateException` whose inner exception is the
+  value object's `ValueObjectException`, naming the type and the rule, and nothing is written;
+- on an optional property, `Iban?`, the column takes a `NULL`, and stores one.
+
+Over a value type, nothing tells the default from a constructed zero, so the converter validates it: a type that
+accepts its zero, an `Amount` with a minimum of 0, stores it, and an identifier that must never be `Guid.Empty` says
+so with a validator, as the [`CustomerId` of the tutorial](../tutorials/request-to-database.md#the-domain) does.
+Any other instance went through `Create`, and is written without being validated again. The strict converters write
+the same way.
+
+`dotnet ef dbcontext optimize` converts the default of each property to write it into the compiled model. That writes
+no column, and runs under `EF.IsDesignTime`, so the converters let it through.
 
 ## One property, differently
 

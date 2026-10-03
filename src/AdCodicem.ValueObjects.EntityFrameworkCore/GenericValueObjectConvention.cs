@@ -17,6 +17,10 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// each property, as the model meets it.
 /// </para>
 /// <para>
+/// A property of a nullable construction gets the converter that stores a value the value object rejects as
+/// <c>NULL</c>, where a property of the construction itself refuses it.
+/// </para>
+/// <para>
 /// A property configured explicitly, through <c>HasValueObjectConversion</c> or a converter of the application's own,
 /// keeps that configuration: an explicit one outranks a convention.
 /// </para>
@@ -30,7 +34,8 @@ internal sealed class GenericValueObjectConvention(IReadOnlySet<Type> definition
         IConventionPropertyBuilder propertyBuilder,
         IConventionContext<IConventionPropertyBuilder> context)
     {
-        var type = Nullable.GetUnderlyingType(propertyBuilder.Metadata.ClrType) ?? propertyBuilder.Metadata.ClrType;
+        var optional = Nullable.GetUnderlyingType(propertyBuilder.Metadata.ClrType);
+        var type = optional ?? propertyBuilder.Metadata.ClrType;
         if (!type.IsConstructedGenericType
             || !definitions.Contains(type.GetGenericTypeDefinition())
             || !ValueObjectRegistry.TryResolve(type, out var descriptor))
@@ -38,8 +43,9 @@ internal sealed class GenericValueObjectConvention(IReadOnlySet<Type> definition
             return;
         }
 
-        var converter = (strict ? typeof(StrictValueObjectConverter<,>) : typeof(ValueObjectConverter<,>))
-            .MakeGenericType(type, descriptor.ValueType);
+        // A nullable construction stores a value the value object rejects as NULL, where any other throws.
+        var converter = (optional is null ? null : ConverterTypes.Optional(type, descriptor.ValueType, strict))
+            ?? ConverterTypes.Required(type, descriptor.ValueType, strict);
         var comparer = typeof(ValueObjectComparer<>).MakeGenericType(type);
 
         propertyBuilder.HasConversion((ValueConverter)Activator.CreateInstance(converter)!);

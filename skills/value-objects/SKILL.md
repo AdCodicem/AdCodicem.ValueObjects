@@ -166,7 +166,9 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
 
 - `default(Iban)` or `new Iban()`, and the same on an `[EntityId]` — build error `VO0010`, because those bypass
   validation. Construct through `Create`/`TryCreate`; express absence as `Iban?`, never as an empty or default
-  instance. A test that needs one disables `VO0010` on that line with a comment saying why.
+  instance. A test that needs one disables `VO0010` on that line with a comment saying why. One that slips past the
+  analyzer (an entity property never set) is refused by every writer when its type rejects the default (JSON,
+  Dapper, EF Core `SaveChanges`); an EF Core `Iban?` column stores `NULL` instead.
 - `NormalizeCore` / `ValidateCore` / `TryFormatCore` — the pre-interface names. They compile, they never run.
 - `Pattern = "..."` on `[ValueObject<T>]` — deprecated (`VO0021`, an error under `TreatWarningsAsErrors`) and
   removed in the next major: it builds its `Regex` at run time, which native AOT interprets. Move the text to

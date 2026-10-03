@@ -63,6 +63,12 @@ actually generated, and what does it call?".
   (deserialization of a struct by another library, reflection, a default array element). Over a value type, a valid
   zero (`Amount.Create(0m)`, `Guid.Empty`) reads `true` as well, and `FluentValidation`'s `NotDefault` refuses it
   as `value_object.required`: guard with `NotDefault` over a `string`, or where the rules refuse the zero anyway.
+- `The value to write is not a valid Iban: …` — a writer met an uninitialized instance (an entity property never
+  set, a default array element, a message built from raw values) whose default value the type rejects, and refused
+  it: `JsonException` from System.Text.Json, `JsonSerializationException` from Newtonsoft.Json, `DataException` from
+  Dapper, `DbUpdateException` around a `ValueObjectException` from EF Core `SaveChanges`. Set the value, or declare
+  the member `Iban?`: EF Core stores a refused optional one as `NULL`, and a `null` one is written as `null` or `NULL`
+  everywhere.
 - `'Iban' does not contain a definition for 'IsDefault'` (CS1061) — the generated implementation is explicit. Read
   it through `IValueObject<TSelf, TValue>`: a method constrained on it, or `((IValueObject<Iban, string>)iban).IsDefault`.
 - A rejected value reported as `value_object.not_parsable` when you expected your own code — the text did not

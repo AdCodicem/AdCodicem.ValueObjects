@@ -20,7 +20,9 @@ namespace AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
 /// It also applies the conversion itself, so a model holding nothing but identifiers needs this call alone.
 /// Calling both is fine, given the same strictness: whichever call runs last sets the converter of the identifiers,
 /// so a context reading through <c>ConfigureValueObjects(strict: true)</c> passes <c>strict: true</c> here too, or its
-/// identifiers are read without validation.
+/// identifiers are read without validation. Either converter refuses to write an identifier that never went through
+/// <c>New</c> or <c>Create</c>: a required one throws a <see cref="ValueObjectException"/>, and an optional one,
+/// <c>TId?</c>, is stored as <c>NULL</c>.
 /// </para>
 /// <para>
 /// What it deliberately does not do is decide the physical layout of your tables. On SQL Server a primary key
@@ -119,13 +121,22 @@ public static class EntityIdConventionExtensions
         foreach (var descriptor in EntityIdRegistry.GetRegistered())
         {
             var properties = builder.Properties(descriptor.ValueObjectType);
+            var comparer = typeof(ValueObjectComparer<>).MakeGenericType(descriptor.ValueObjectType);
 
             properties.HaveConversion(
                 (strict ? typeof(StrictValueObjectConverter<,>) : typeof(ValueObjectConverter<,>))
                     .MakeGenericType(descriptor.ValueObjectType, typeof(string)),
-                typeof(ValueObjectComparer<>).MakeGenericType(descriptor.ValueObjectType));
+                comparer);
 
             Size(properties, descriptor.Length, collation);
+
+            // An optional identifier stores one that never went through New or Create as NULL, where a required one
+            // throws; it takes the column of the identifier from the configuration above.
+            builder.Properties(typeof(Nullable<>).MakeGenericType(descriptor.ValueObjectType))
+                .HaveConversion(
+                    (strict ? typeof(StrictNullableValueObjectConverter<>) : typeof(NullableValueObjectConverter<>))
+                        .MakeGenericType(descriptor.ValueObjectType),
+                    comparer);
         }
 
         return builder;

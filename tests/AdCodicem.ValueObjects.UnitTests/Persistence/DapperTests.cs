@@ -256,6 +256,32 @@ public class DapperTests
     }
 
     /// <summary>
+    /// An instance that never went through <c>Create</c> holds the default value, which a read would trust. The handler
+    /// refuses to write one its type rejects, with the rule, however Dapper reaches it: Dapper hands an optional value
+    /// object holding one to the handler as it hands a required one, so the column it is written to cannot decide. A
+    /// type that accepts its zero writes it.
+    /// </summary>
+    [Fact]
+    public void A_value_object_parameter_its_type_rejects_is_refused()
+    {
+        SqlMapper.ITypeHandler boxed = new ValueObjectTypeHandler<CustomerId, Guid>();
+        var parameter = Substitute.For<IDbDataParameter>();
+        var zero = Substitute.For<IDbDataParameter>();
+
+#pragma warning disable VO0010 // The uninitialized instance is what the handler refuses.
+        var country = () => new ValueObjectTypeHandler<CountryCode, string>().SetValue(parameter, default);
+        var customer = () => boxed.SetValue(parameter, default(CustomerId));
+        new ValueObjectTypeHandler<Amount, decimal>().SetValue(zero, default);
+#pragma warning restore VO0010
+
+        country.Should().Throw<DataException>().WithMessage("The value to write is not a valid CountryCode: ?*");
+        customer.Should().Throw<DataException>()
+            .WithMessage("The value to write is not a valid CustomerId: A customer identifier must not be empty.");
+        parameter.DidNotReceive().Value = Arg.Any<object>();
+        zero.Value.Should().Be(0m, "zero is an amount");
+    }
+
+    /// <summary>
     /// The EF Core conventions map an identifier to fixed-length, non-Unicode text of its exact length, and a value
     /// object declaring a maximum length to Unicode text of that length. A parameter declaring the same type is
     /// compared with the column as it is, and SQL Server keeps its index seek.
