@@ -44,6 +44,22 @@ declares a value through `IValueObject<TValue>`. The integrations claim a type b
 factory, the Newtonsoft.Json converter, the MVC model binder and `MustParseAs` leave anything else to the framework,
 or refuse it.
 
+## Nullable value objects
+
+`TryGet` and `TryResolve` accept `Iban?` as well as `Iban`, and return the descriptor of `Iban` for both: a descriptor
+describes the value object itself, never its nullable type, and nothing in it handles a `null`. An integration built on
+it handles both before the descriptor does:
+
+- A converter or a provider that closes a generic type of its own over the value object closes it over
+  `descriptor.ValueObjectType`, not over the type it was asked for. Closed over `Iban?`, it fails on the first nullable
+  property, since the value object's constraint refuses a `Nullable<T>`:
+  ``GenericArguments[0], 'System.Nullable`1[Iban]' … violates the constraint of type 'TSelf'``.
+- `GetValue`, `Format` and `ValidateWrite` take an instance, never `null`: the `null` of an `Iban?` throws a
+  `NullReferenceException` inside them. Write the `null` yourself, or skip the property.
+
+Where the host has its own wrapper for nullable types, as most serializers do, claim only the value object and let
+that wrapper deal with `null`.
+
 ## Generic value objects
 
 A generic value object registers its generic definition, since its registration knows none of its constructions:

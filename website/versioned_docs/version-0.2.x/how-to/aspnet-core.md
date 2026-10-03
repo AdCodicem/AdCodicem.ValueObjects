@@ -9,14 +9,25 @@ description: Bind value objects from routes, query strings, headers and bodies i
 
 ## Minimal APIs
 
-Nothing to install. A generated value object implements `IParsable<T>` and `ISpanParsable<T>`, which is exactly
-what minimal API parameter binding looks for, and its `[JsonConverter]` covers request and response bodies:
+Binding needs no package. A generated value object implements `IParsable<T>` and `ISpanParsable<T>`, which is
+exactly what minimal API parameter binding looks for, and its `[JsonConverter]` covers request and response bodies:
 
 ```csharp skip
 app.MapGet("/accounts/{iban}", (Iban iban) => /* … */);
 ```
 
-A value that fails to parse is answered with a 400 before the handler runs.
+A value the value object rejects is answered with a 400 before the handler runs, and that 400 says nothing of why.
+It names no parameter and carries no message and no code: its body is empty, or holds bare problem details, a title
+and a status, once `AddProblemDetails()` is registered. In Development, minimal APIs throw a
+`BadHttpRequestException` instead (`RouteHandlerOptions.ThrowOnBadRequest`), which `UseExceptionHandler` answers with a
+500. The [problem details carrying the rule](#problem-details-carrying-the-rule) are MVC's. Empty text is not MVC's
+rule either: under the reflection-based binding, `?country=` for a `CountryCode?` is a 400, as it is for an `int?`.
+
+Where the Request Delegate Generator writes the binding, in every build of a project that sets `PublishAot` or
+`PublishTrimmed`, it does not see the `IParsable<T>` the generator adds to a value object declared in the same
+project: a route value is then answered with a 400, and a query value is bound to `null`. Declare the value objects
+in another project, a domain project, or list the contract on the value object's own declaration,
+`public readonly partial struct Sku : IValueObject<Sku, string>;`.
 
 ## MVC controllers
 
@@ -37,6 +48,8 @@ is absent, and a 400 when it is present and rejected.
 
 ## Problem details carrying the rule
 
+For MVC controllers, which the package serves:
+
 ```csharp skip
 builder.Services.Configure<ApiBehaviorOptions>(options => options.AddValueObjectProblemDetails());
 ```
@@ -56,8 +69,9 @@ parameter to the stable code of the rule it violated:
 A client branches on `value_object.not_a_known_value`, not on English. The member name is available as
 `ValueObjectProblemDetails.ExtensionName`.
 
-This covers what the model binder rejects: route values, query strings, headers and forms. A value inside a JSON
-body is rejected by the serializer, and the 400 carries its message but no code.
+This covers what the MVC model binder rejects: route values, query strings, headers and forms. A value inside a JSON
+body is rejected by the serializer, and the 400 carries its message but no code. `ApiBehaviorOptions` is MVC's, and
+minimal APIs never read it, so their rejections keep the [bare 400](#minimal-apis).
 
 ## Codes for a payload you validate yourself
 

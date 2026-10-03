@@ -73,7 +73,8 @@ them (all of them below about 1e-28, where it reads as zero).
 Without the converter, Newtonsoft.Json goes through the generated `TypeConverter`: every value object is written as a
 string, and a string or a number of any numeric type is read, checked (a number the underlying type cannot hold whole
 is `value_object.not_parsable`, never truncated). The two modes read each other's numbers, but a rejection loses its
-rule there, so keep the converter.
+rule there, so keep the converter. Hosts that serialize through Newtonsoft.Json by default, the Azure Cosmos DB SDK v3
+and Hangfire among them, take that path until their settings get the converter.
 
 ## ASP.NET Core
 
@@ -82,16 +83,20 @@ builder.Services.AddControllers().AddValueObjects();                            
 builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetails()); // error codes in 400s
 ```
 
-`AddValueObjects()` also exists on `MvcOptions` for an application that configures MVC directly. The binder treats
-white-space text as it treats empty text, as absent: `?country=%20` binds `CountryCode?` to `null`, while a value
-object that cannot be `null` is a 400 with `value_object.required`, as MVC answers blank text for an `int`.
+`AddValueObjects()` also exists on `MvcOptions` for an application that configures MVC directly. The MVC binder
+treats white-space text as it treats empty text, as absent: `?country=%20` binds `CountryCode?` to `null`, while a
+value object that cannot be `null` is a 400 with `value_object.required`, as MVC answers blank text for an `int`.
 
-**Minimal APIs need no package.** A generated value object implements `IParsable<T>` and `ISpanParsable<T>`, which
-is exactly what minimal API parameter binding looks for:
+**Minimal APIs need no package to bind.** A generated value object implements `IParsable<T>` and `ISpanParsable<T>`,
+which is exactly what minimal API parameter binding looks for:
 
 ```csharp skip
 app.MapGet("/accounts/{iban}", (Iban iban) => ...);
 ```
+
+A rejected value is a bare 400 there: no parameter name, no message, no code, `AddProblemDetails()` and
+`AddValidation()` notwithstanding, and a 500 in Development behind `UseExceptionHandler`. Empty text follows the
+framework's rule, not MVC's: `?country=` for a `CountryCode?` is a 400 under the reflection-based binding.
 
 **Under the Request Delegate Generator** (RDG), on in every build of a project setting `PublishAot`, `PublishTrimmed`
 or `EnableRequestDelegateGenerator`, a value object declared in the project that maps the endpoints must list its
@@ -111,9 +116,9 @@ or the build fails with `CS0411` in `GeneratedRouteBuilderExtensions.g.cs`; and 
 parameter, where the reflection-based binding answers 400.
 
 `AddValueObjectProblemDetails()` attaches the stable error code of the violated rule to the automatic 400
-response, under the extension named by `ValueObjectProblemDetails.ExtensionName`, so a client can branch on
-`value_object.too_long` instead of parsing English. To carry the same codes out of a manually validated
-payload, fill that extension yourself:
+response of an **MVC controller**, under the extension named by `ValueObjectProblemDetails.ExtensionName`, so a client
+can branch on `value_object.too_long` instead of parsing English. It extends `ApiBehaviorOptions`, which minimal APIs
+never read. To carry the same codes out of a manually validated payload, fill that extension yourself:
 
 ```csharp skip
 return Results.ValidationProblem(
@@ -140,11 +145,14 @@ per row.
 - **The read path uses `CreateUnchecked`**, deliberately: it is the hottest path in most applications and it
   reads values this same application already validated. For a table another system also writes to, turn
   validation back on with `builder.ConfigureValueObjects(strict: true, typeof(Iban).Assembly)`; it costs one
-  validation per materialized value.
+  validation per materialized value. EF Core builds the model once per context type and caches it, so `strict` is
+  read once per context type: give strict reads a context type of their own, never a constructor argument.
 - **The write path refuses a value the type rejects**, which only an uninitialized instance holds (an entity
   property never set): on an `Iban` property `SaveChanges` throws `DbUpdateException` around the
   `ValueObjectException`, and nothing is written; an optional `Iban?` property stores `NULL`. A type whose zero is
   valid writes it; one that must never hold `Guid.Empty` says so with a validator.
+- A value object created inside a predicate, `Where(a => a.Iban == Iban.Create("DE89…"))`, becomes a SQL literal:
+  hoist it into a variable, or wrap it in `EF.Parameter(...)`, so it goes as a parameter, as a captured value does.
 - Departing from the convention for a single property: `builder.Property(e => e.Iban).HasValueObjectConversion<Iban, string>()`
   (with an optional `strict: true`). Prefer the convention.
 - Never write `HasConversion` by hand for a value object: you would lose the generated comparer, and with it
@@ -248,10 +256,13 @@ Registration happens through a generated `[ModuleInitializer]`, so nothing needs
 module initializer only runs once its assembly is loaded, which is what `EnsureAssemblyRegistered(assembly)`
 forces (the EF Core and Dapper entry points already call it). A generic value object registers its definition
 (`GetRegisteredGenericDefinitions()`), and `TryResolve` describes a construction, by reflection, once asked for it;
-`TryGet` finds it from then on. `TryResolve` also unwraps `Nullable<T>`;
-`IsValueObject` and `GetUnderlyingType` answer the cheap questions. A value object is a struct implementing
-`IValueObject<TSelf, TValue>` over itself: `IsValueObject` is `true`, and `GetUnderlyingType` other than `null`,
-exactly for what `TryResolve` describes, and every integration claims a type by that rule.
+`TryGet` finds it from then on. `TryGet` and `TryResolve` also unwrap `Nullable<T>`, and return the descriptor of the
+value object itself: close a generic type over `descriptor.ValueObjectType`, never over the type asked for, and handle
+`null` before calling `GetValue`, `Format` or `ValidateWrite`, which take a non-null instance (leave it to the host's
+nullable wrapper where it has one). `IsValueObject` and `GetUnderlyingType` answer the cheap questions. A value
+object is a struct implementing `IValueObject<TSelf, TValue>` over itself: `IsValueObject` is `true`, and
+`GetUnderlyingType` other than `null`, exactly for what `TryResolve` describes, and every integration claims a type by
+that rule.
 
 This boxed path is for callers that only know a `Type` at run time. Domain code and the integrations above use
 the typed path — the static abstract members of `IValueObject<TSelf, TValue>` — which neither boxes nor
