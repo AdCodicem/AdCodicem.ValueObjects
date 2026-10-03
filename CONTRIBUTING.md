@@ -53,8 +53,8 @@ Version numbers and the changelog are computed from commit history, so commit me
 `feat` bumps the minor version, `fix` bumps the patch. `docs`, `refactor`, `test`, `chore` and `ci` trigger no
 release on their own, with two exceptions that bump the patch because they change what ships inside every
 package: `build(pack)` for the package metadata, and `docs(readme)` for the README, which is also each package's
-page on nuget.org. A breaking change is marked with `!` after the type, or a `BREAKING CHANGE:` footer, and bumps
-the major.
+page on nuget.org. A breaking change is marked with `!` after the type, or a `BREAKING CHANGE:` footer. It bumps
+the minor while the version is 0.x, and the major from 1.0 on.
 
 ```
 feat(generator): emit a span-based TryParse for numeric underlying types
@@ -62,6 +62,12 @@ fix(descriptor): keep the rule that rejected the value instead of not_parsable
 build(pack): point packages at the documentation site
 feat!: drop the implicit conversion to the underlying type
 ```
+
+Dependabot's NuGet pull requests follow the same rule: one that bumps a dependency the packages ship is retitled
+`fix(deps):`, or `fix(deps)!:` for a new major, and every other one stays `chore(deps):`. The other ecosystems keep
+the prefix `.github/dependabot.yml` gives them, none of which releases anything: `ci(deps):` for the release
+tooling, the commit-message linter and the actions, and `chore(deps):` or `chore(deps-dev):` for the site's
+packages. Every Dependabot pull request is squash-merged, so that its title is the commit that lands.
 
 Both a local hook and a CI check validate this. Install the local one once:
 
@@ -85,8 +91,14 @@ pip install pre-commit && pre-commit install
    defensive branch no test reaches stays, a private member is covered through its callers or not at all, and code
    goes only when no input can reach it. The full rule is in
    [ADR-0006](docs/adr/0006-coverage-is-a-signal-not-a-goal.md).
-5. Run `dotnet format` before pushing — CI enforces it.
+5. Run `dotnet format AdCodicem.ValueObjects.slnx whitespace` and `dotnet format AdCodicem.ValueObjects.slnx style`
+   before pushing — CI enforces both, with `--verify-no-changes`.
 6. Open the PR and fill in the template.
 
-Releases are cut manually by the maintainer from `main`, so a merged pull request does not publish anything by
-itself; it publishes a preview package, and ships in the next stable release.
+Two checks must pass before a pull request merges: **build and test** (`ci.yml`), and **workflows** (`lint.yml`),
+which runs [actionlint](https://github.com/rhysd/actionlint) over every workflow, the ones that never run on a pull
+request included; `CLAUDE.md` has the command to run it locally. `ci.yml` also builds the documentation site and
+runs the packages in a .NET 11 application, in jobs that are worth a look when red but do not block the merge.
+
+Releases are cut manually by the maintainer from `main`, so a merged pull request publishes nothing by itself: if it
+changes what ships in a package, the next weekly preview carries it, and the next stable release ships it.

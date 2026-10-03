@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Twelve NuGet packages for single-value DDD value objects on .NET 10. A `readonly partial struct` marked
+Twelve NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -14,7 +14,8 @@ decisions. The published documentation (`website/`) reorganises this same materi
 the source of truth first (README, this file, the benchmark numbers), then the corresponding page under
 `website/docs/`. The site is versioned: `website/docs/` is the preview and describes `main`, while
 `website/versioned_docs/` holds what each stable line was released with (see Releases below). A change to
-`website/docs/` therefore reaches the stable pages at the next release, not before.
+`website/docs/` therefore reaches the preview pages at the next `preview.yml` run, and the stable pages at the next
+release, not before.
 
 `skills/value-objects/` is the consumer-facing agent skill, distributed as a Claude Code plugin through
 `.claude-plugin/`. It is prescriptive only — the authoring surface, the hooks, the wiring, the diagnostics — and
@@ -38,7 +39,18 @@ dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests # needs Dock
 # IParsable<T> the generator does emit.
 dotnet format AdCodicem.ValueObjects.slnx whitespace --verify-no-changes
 dotnet format AdCodicem.ValueObjects.slnx style --verify-no-changes
-dotnet pack -c Release -o artifacts/packages
+# The packable projects under src/, as CI packs them
+dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
+
+# .NET 11 compatibility island: its own global.json (SDK 11 RC), outside the solution, run from its folder.
+# Pack at a fresh version: NuGet reuses whatever ~/.nuget/packages already holds at a version it has seen.
+v=0.0.0-compat.$(date +%s)
+MINVERVERSIONOVERRIDE=$v dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
+cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj -p:AdCodicemVersion=$v
+# Needs Docker for PostgreSQL and SQL Server; without it, add --filter-not-trait "Requires=Docker"
+
+# Workflows, as lint.yml checks them (actionlint 1.7.12, with shellcheck on PATH; reads .github/actionlint.yaml)
+actionlint
 
 # One test (xunit.v3 runs on Microsoft Testing Platform; wildcards, not substrings, so wrap the name in *)
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests --filter-method "*The_name_of_the_test*"
@@ -64,39 +76,73 @@ Integration tests start PostgreSQL and SQL Server through Testcontainers.
 
 ## Releases
 
-Merging to `main` publishes a **preview** to nuget.org, versioned by MinVer with no decision from anyone. A
-**stable** release is a manual `workflow_dispatch` on `release.yml`, where semantic-release computes the
-version from the Conventional Commits, writes `CHANGELOG.md`, packs, pushes, tags and redeploys the site. The
-bridge between the two is `MINVERVERSIONOVERRIDE`: semantic-release hands MinVer the stable version and MinVer
-steps aside. Both read the same `v*` tags.
+Two tracks, and nothing you merge publishes anything by itself.
 
-The GitHub Release links every package to its version on nuget.org. That list is never written down:
-`.github/scripts/package-ids.sh` evaluates the packable projects under `src/` into `RELEASE_PACKAGE_IDS` before
-semantic-release starts (the release body is rendered from that starting environment, so a prepare step cannot
-feed it), and `release-pack.sh` fails the run before the push if the packages it built differ from that list.
-The **attest provenance** job then signs those packages with a Sigstore SLSA provenance attestation and attaches
-the bundle to the release. It attests the release assets, not the nuget.org copies, which nuget.org re-signs
-and whose digest therefore differs. Releases are immutable on this repository — a published release takes no new
-asset — so semantic-release creates the GitHub Release as a draft (`draftRelease`) and that job publishes it once
-the bundle is attached. The draft's URL dies when it is published, which is why `.releaserc.json` overrides
-`successComment` to link to the tag instead.
+A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
+`main`, and only when a package input changed since the version nuget.org has from the nearest commit:
+`.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
+lookup fails. All twelve packages go out at one version, or none. That version is the one semantic-release would give
+the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
+semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
+tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
+The three suites run on that exact commit first, while a job of its own packs it, `src/` only. Before logging in,
+the publish job checks the set again (`verify-packages.sh`) and rechecks nuget.org (`preview-gate.sh --recheck`), so
+re-running an old run cannot publish a stale version. `push-packages.sh` pushes dependencies first and only what
+nuget.org lacks, in up to three passes, so a push that stops midway is completed at the same version by those
+passes, by **Re-run failed jobs** or by the next run (`repair`); then it waits until nuget.org lists every package.
+MinVer receives the version through `MINVERVERSIONOVERRIDE`. An empty override silently falls back to MinVer's own
+version, which `verify-packages.sh` refuses. The reasoning, and what stays open, is in
+`docs/adr/0009-publish-previews-weekly-when-a-package-input-changed.md`.
 
-So nothing you merge publishes a stable package, and a commit type that triggers no release (`chore`, `ci`,
-`test`) also contributes nothing to the next version. The reasoning, and what it costs, is in
-`docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md`. `build(pack)` and `docs(readme)` are the
-exceptions among the types that otherwise release nothing: `.releaserc.json` rates them a patch, because the
-package metadata and the README ship inside every `.nupkg` — the README is its nuget.org page — so a change to
-either reaches users only through a release. Scope the commit accordingly, or the change waits for the next
-`feat` or `fix`.
+A **stable** release is a manual `workflow_dispatch` on `release.yml`. Its tests run in a job of their own, and a
+**was it previewed** job (`preview-gate.sh --report`) warns, without ever blocking, when the release ships package
+inputs no version on nuget.org carries: dispatch `preview.yml` first, and start the release once that run is green.
+A **pack** job, which holds no credential, computes the version with `next-version.mjs`, packs `src/` through
+`release-pack.sh` and freezes the documentation through `docs-snapshot.sh`. Once the `nuget-stable` reviewer
+approves, the release job checks those files against the digests the pack job output, and semantic-release computes
+the version from the Conventional Commits, refuses to go on unless it is the one packed, writes `CHANGELOG.md`,
+commits it with the snapshot, tags, pushes through `push-packages.sh`, and the site is redeployed. No build code
+runs beside the NuGet key, the App token or the OIDC token. The bridge is `MINVERVERSIONOVERRIDE` again: the pack
+job hands MinVer the stable version and MinVer steps aside. Both read the same `v*` tags.
 
-The documentation follows the same two tracks (`docs/adr/0005-version-the-documentation-site.md`). Every
-preview redeploys the site, with `website/docs/` as the preview under `/docs/preview/`. A stable release
-freezes `website/docs/` — generated API reference included — into `website/versioned_docs/` through
-`.github/scripts/docs-snapshot.sh`, which semantic-release runs in its prepare step and commits with the
-changelog. There is one entry per line, `0.<minor>.x` before 1.0 and `<major>.x` after, replaced wholesale when
-the line ships again. Never add or remove an entry by hand. Editing a released page is allowed only to correct
-an error that misleads users of that release, and the same fix must land in `website/docs/`, or the next
-snapshot of the line discards it.
+The GitHub Release links every package to its version on nuget.org. That list is never written down: the pack job
+evaluates the packable projects under `src/` into `RELEASE_PACKAGE_IDS` with `.github/scripts/package-ids.sh`, and
+semantic-release starts with it (the release body is rendered from that starting environment, so a prepare step
+cannot feed it); `release-pack.sh` fails the pack job, before anything is pushed, if the packages it built differ
+from that list.
+The **attest provenance** job then signs those packages, and every assembly inside them, with a Sigstore SLSA
+provenance attestation and attaches the bundle to the release. nuget.org re-signs each `.nupkg`, so the copy it
+serves no longer has the attested digest, but it leaves the files inside as they were packed: an assembly restored
+from nuget.org verifies (`SECURITY.md`). `preview.yml` attests the same subjects, before its push. Releases are
+immutable on this repository — a published release takes no new asset — so semantic-release creates the GitHub
+Release as a draft (`draftRelease`) and that job publishes it once the bundle is attached. The draft's URL dies when
+it is published, which is why `.releaserc.json` overrides `successComment` to link to the tag instead.
+
+A commit type that triggers no release (`chore`, `ci`, `test`) contributes nothing to the next version. The
+reasoning for the stable track is in `docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md`.
+`build(pack)` and `docs(readme)` are the exceptions among the types that otherwise release nothing:
+`.releaserc.json` rates them a patch, because the package metadata and the README ship inside every `.nupkg` — the
+README is its nuget.org page — so a change to either reaches users only through a release. Scope the commit
+accordingly, or the change waits for the next `feat` or `fix`. While the major is 0, a breaking change (`!`, or a
+`BREAKING CHANGE:` footer) releases a minor: the first of the `releaseRules` is
+`{ "breaking": true, "release": "minor" }`. At 1.0 that rule is replaced by `{ "breaking": true, "release": "major" }`,
+not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. "Removed in the next major version",
+in a deprecation, means 1.0.0. The twelve packages share one version, never aligned with .NET's or EF Core's, and a
+framework's next major is supported in the same packages:
+`docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
+
+The documentation follows the same two tracks (`docs/adr/0005-version-the-documentation-site.md`, amended by
+ADR-0009). Every `preview.yml` run that decides, whether it publishes or not, redeploys the site with
+`website/docs/` as the preview under `/docs/preview/`, labelled with the version on nuget.org that describes the
+commit it builds; a run in which a job failed deploys nothing. `deploy-docs.yml` is called only, never dispatched, so
+the site is redeployed by hand by dispatching `preview.yml`. `ci.yml`'s **documentation site** job builds the site
+on every pull request without deploying it, through `.github/actions/build-site`, the composite action
+`deploy-docs.yml` builds with, so a broken link fails there. A stable release freezes `website/docs/` — generated API reference
+included — into `website/versioned_docs/` through `.github/scripts/docs-snapshot.sh`, which `release.yml`'s pack
+job runs and semantic-release commits with the changelog. There is one entry per line, `0.<minor>.x` before 1.0 and
+`<major>.x` after, replaced wholesale when the line ships again. Never add or remove an entry by hand. Editing a
+released page is allowed only to correct an error that misleads users of that release, and the same fix must land
+in `website/docs/`, or the next snapshot of the line discards it.
 
 `v0.1.0` is a baseline tag placed by hand, not a release: no `0.1.0` package exists. semantic-release ignores
 prerelease tags on a stable branch, so without it the first stable release would have been `1.0.0`.
@@ -229,14 +275,55 @@ These are all load-bearing, and each cost real debugging time:
   on `Pattern`, and on `Minimum` and `Maximum`, which the compiler reports, so no descriptor declares them and they
   have to be documented by hand. A test that exercises a deprecated option disables its diagnostic on the spot,
   `#pragma warning disable VO0021` or `VO0028` with a comment.
-- **Every action in `.github/workflows` is pinned to a commit SHA**, with the release as a same-line comment
-  (`uses: actions/checkout@3d3c42e... # v7.0.1`). Dependabot reads that comment to derive the semver bump, so a
-  pin without one falls out of the `actions` group and may auto-merge as a non-major. Three of the eighteen
-  actions publish *annotated* tags — `codecov/codecov-action`, `ossf/scorecard-action`, `github/codeql-action` —
-  so re-pinning by hand needs `git ls-remote <repo> 'refs/tags/vX.Y.Z^{}'`: without the `^{}` you get the tag
-  object's SHA, which GitHub refuses to resolve. The calls from `ci.yml` and `release.yml` to
-  `./.github/workflows/deploy-docs.yml` target a local reusable workflow and must stay unpinned; GitHub rejects
-  `@ref` on one.
+- **Every action in `.github/workflows` and `.github/actions` is pinned to a commit SHA**, with the release as a
+  same-line comment (`uses: actions/checkout@3d3c42e... # v7.0.1`). Dependabot reads that comment to derive the
+  semver bump, so a pin without one falls out of the `actions` group and may auto-merge as a non-major. Its
+  `github-actions` entry lists `/.github/actions/*` beside `/`, since it does not look into a composite action's
+  folder on its own. Three of the eighteen actions publish *annotated* tags — `codecov/codecov-action`,
+  `ossf/scorecard-action`, `github/codeql-action` — so re-pinning by hand needs
+  `git ls-remote <repo> 'refs/tags/vX.Y.Z^{}'`: without the `^{}` you get the tag object's SHA, which GitHub
+  refuses to resolve. The calls from `preview.yml` and `release.yml` to
+  `./.github/workflows/deploy-docs.yml` target a local reusable workflow, and a `./.github/actions/` path a local
+  action: both must stay unpinned, since GitHub rejects `@ref` on either.
+- **actionlint is a downloaded binary, not an action.** `lint.yml`'s `workflows` job fetches the release named by
+  `ACTIONLINT_VERSION` and checks it against `ACTIONLINT_SHA256` before running it, so Dependabot never updates it:
+  bump both together, taking the digest from the release's checksums file. `.github/actionlint.yaml` silences the
+  one key actionlint does not know yet, `queue: max` in `deploy-docs.yml` and `preview.yml`.
+- **Trusted Publishing is keyed on a workflow file and an environment.** The nuget.org policies name `preview.yml`
+  with the `nuget` environment and `release.yml` with `nuget-stable`. Renaming either file, or moving its publish job
+  to another environment, breaks the OIDC exchange: change the policy on nuget.org first.
+- **Required checks are job names.** The `Default` ruleset on `main` requires `build and test` (`ci.yml`) and
+  `workflows` (`lint.yml`). Renaming either job leaves every pull request waiting for a check that never reports.
+  `compat (.NET 11)` becomes required when .NET 11 ships, not before.
+- **`src/AdCodicem.ValueObjects.Packages.slnf` must list every project under `src/`.** A solution filter cannot
+  glob, and previews and releases pack through it: a project left out is a package that never ships. `ci.yml` packs
+  through it and fails when a packable project is missing from the result. It sits under `src/`, not beside the
+  `.slnx`: `dotnet format` and `dotnet sln` refuse to pick between two solution files in one folder.
+- **`preview-gate.sh` holds the list of package inputs.** It covers `src/`, the solution filter included and the
+  analyzer release-tracking files left out, `README.md`, `icon.png`, the root `Directory.Build.*` files,
+  `global.json`, `nuget.config`, `.gitattributes` and `release-pack.sh`. It also covers `Directory.Packages.props`:
+  any change outside its `<PackageVersion>` elements, and the `<PackageVersion>` of any package in the restore graph
+  of the projects under `src/`, build-time ones included (MinVer, SourceLink, PolySharp, Roslyn and its analyzers).
+  That is a wider set than `.github/shipped-dependencies`, so a `chore(deps)` bump of MinVer still publishes a
+  preview. Anything else that changes the bytes or the metadata of a package has to be added to its `inputs`, or a
+  change to it never reaches a preview.
+- **`.github/shipped-dependencies` must match the packed nuspecs.** `dependabot-auto-merge.yml` retitles a Dependabot
+  pull request `fix(deps):`, or `fix(deps)!:` for a major, when it updates a dependency the list names, and a step of
+  `ci.yml` (`shipped-dependencies-check.sh`) fails when a nuspec names a dependency the list lacks, or a line matches
+  nothing. A dependency added to a shipped package goes into the list in the same pull request. Dependabot pull
+  requests are squash-merged, so that the title becomes the commit semantic-release reads; a rebase merge keeps
+  Dependabot's `chore(deps)` commit and releases nothing. One case needs a hand: a Dependabot security update that
+  pins a transitive dependency the list does not name yet. It opens as `chore(deps)` with auto-merge queued, and
+  `build and test` fails on the list; the workflow reads the list from the base branch and ignores your events, so it
+  cannot retitle it. Retitle the pull request `fix(deps): …` (`fix(deps)!: …` across a major) first, then push the
+  list line to its branch; the auto-merge still queued squashes it under your title. Never merge the line in a pull
+  request of its own: nothing on `main` ships that ID yet, so the check fails there too.
+- **The compatibility island is invisible to the root tooling.** `tests/Compat` has its own `global.json`, naming
+  the .NET 11 release candidate's SDK, which CI installs exactly and a later 11.0 SDK may run locally
+  (`rollForward: latestFeature`), and its own `Directory.Build.props`, `Directory.Packages.props` and
+  `nuget.config`. It is in no solution, so the root build, `dotnet format`, coverage and Dependabot never see it, and
+  it must be run from its folder: from the root, the root `global.json` selects SDK 10 and the build stops. Its SDK
+  and its .NET 11 packages are bumped by hand, Npgsql's provider in the same change as EF Core, which it pins exactly.
 - **NuGet lock files are deliberately absent**, and adding them breaks CI on the first run:
   `src/Directory.Build.props` references `Microsoft.SourceLink.GitHub` under
   `Condition="'$(GITHUB_ACTIONS)' == 'true'"`, so the package graph on a laptop is not the graph on the runner
@@ -298,6 +385,19 @@ Three suites, each with a distinct job:
 - **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
   objects reach the column types they claim, plus the API surface end to end.
 
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twelve packages exactly as
+packed, installed from `artifacts/packages` at the one version just built into a `net11.0` application on the .NET 11
+release candidate. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
+PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, `Microsoft.AspNetCore.OpenApi` 11 over
+`Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json and the contract kit, with no transitive pinning, so
+the dependency floors of the packages meet the next major as an application's would. `ci.yml`'s `compat (.NET 11)`
+job runs it against the packages its build job packed; it is not a required check until .NET 11 ships, and is
+measured by no coverage. Without Docker its 18 container tests fail rather than skip, so leave them out explicitly
+(Commands above). Tools that walk the repository rather than the solution do see it: CodeQL downloads its SDK, and
+GitHub's automatic dependency submission restores it with SDK 10 from the root, which is why its project file leaves
+itself empty on an SDK that cannot target `net11.0`. The suites above are still the three; the island checks the
+packages, not the code.
+
 `AdCodicem.ValueObjects.Testing` ships a contract kit (`ValueObjectContract`) that consumers point at their own
 types; the unit tests use it on every generated value object of `Domain/` but four. `Floor` and `Celsius` cannot
 satisfy it: their formatting hooks write text such as `floor 3` or `21 °C`, which does not parse back, and the kit
@@ -327,3 +427,4 @@ test assembly, which is not measured — so Codecov sees the emitters, not what 
 
 Stack: xUnit v3 (`TestContext.Current.CancellationToken`), AwesomeAssertions, NSubstitute, Testcontainers.
 Versions are centrally managed in `Directory.Packages.props`; versions live there, never in a `.csproj`.
+`tests/Compat`, outside the solution, is the one exception: it has a `Directory.Packages.props` of its own.
