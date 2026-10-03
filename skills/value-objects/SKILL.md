@@ -149,7 +149,8 @@ Contract of the hooks:
 
 Constructor, `Create`, `TryCreate(value, out result)` and `TryCreate(value, out result, out validation)`,
 `CreateUnchecked`, `Normalize`, `Validate`, `Parse` and `TryParse` (`string` and `ReadOnlySpan<char>`, with and
-without an `IFormatProvider`), the 4-argument `TryParse` reporting *why* text was rejected, `Value`,
+without an `IFormatProvider`; a `null` one is the invariant culture, where a `decimal`, `double` or `float` refuses
+a group separator, `12,5` or `1,234.5`), the 4-argument `TryParse` reporting *why* text was rejected, `Value`,
 `IsDefault`, `ToString()` / `ToString(format, provider)` / `TryFormat`, `Equals` / `==` / `!=` / `GetHashCode`,
 `CompareTo` / `<` / `>` / `<=` / `>=`, `Schema`, the `System.Text.Json` converter, the `TypeConverter`, and a
 `[ModuleInitializer]` registration into `ValueObjectRegistry`. Closed sets also get their named constants and

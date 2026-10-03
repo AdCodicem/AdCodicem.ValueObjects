@@ -234,6 +234,31 @@ public sealed class DescriptorTests
     }
 
     /// <summary>
+    /// The descriptor hands a null provider to the generated parser as the invariant culture, which takes no group
+    /// separator in a real: <c>1,234.5</c> is not a number there, where the type's own styles would read it. A culture
+    /// that is not the invariant one keeps those styles.
+    /// </summary>
+    /// <param name="type">The value object, over a <c>decimal</c>, a <c>double</c> or a <c>float</c>.</param>
+    [Theory]
+    [InlineData(typeof(Amount))]
+    [InlineData(typeof(Mass))]
+    [InlineData(typeof(Luminance))]
+    public void A_parse_without_a_provider_takes_no_group_separator_in_a_real(Type type)
+    {
+        ValueObjectRegistry.TryGet(type, out var descriptor).Should().BeTrue();
+
+        foreach (var provider in new IFormatProvider?[] { null, CultureInfo.InvariantCulture })
+        {
+            descriptor!.TryParse("1,234.5", provider, out var refused, out var validation).Should().BeFalse();
+            refused.Should().BeNull();
+            validation.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        }
+
+        descriptor!.TryParse("1,234.5", CultureInfo.GetCultureInfo("en-US"), out var parsed, out _).Should().BeTrue();
+        Convert.ToDecimal(descriptor.GetValue(parsed!), CultureInfo.InvariantCulture).Should().Be(1234.5m);
+    }
+
+    /// <summary>
     /// A hand-written parser may answer no without saying why. The descriptor supplies the reason, so a caller can
     /// still rely on a rejection carrying a code.
     /// </summary>

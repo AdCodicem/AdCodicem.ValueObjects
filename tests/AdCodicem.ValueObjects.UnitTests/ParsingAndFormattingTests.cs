@@ -110,6 +110,45 @@ public class ParsingAndFormattingTests
         }
     }
 
+    /// <summary>
+    /// A null provider stands for the invariant culture, not the current one, and the invariant culture takes no group
+    /// separator in a decimal: written with a decimal comma, <c>12,5</c> would read as 125, ten times the amount.
+    /// </summary>
+    /// <param name="text">Text holding a comma.</param>
+    [Theory]
+    [InlineData("12,5")]
+    [InlineData("1,234.5")]
+    public void Without_a_culture_a_comma_in_a_decimal_is_not_parsable(string text)
+    {
+        var previous = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("fr-FR");
+
+            foreach (var provider in new IFormatProvider?[] { null, CultureInfo.InvariantCulture })
+            {
+                Amount.TryParse(text, provider, out _, out var validation).Should().BeFalse();
+                validation.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+            }
+
+            Amount.TryParse(text, out _).Should().BeFalse();
+            FluentActions.Invoking(() => Amount.Parse(text))
+                .Should().Throw<ValueObjectException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
+    }
+
+    [Fact]
+    public void An_explicit_culture_reads_a_decimal_with_its_own_separators()
+    {
+        Amount.Parse("12,5", new CultureInfo("fr-FR")).Should().Be(Amount.Create(12.5m));
+        Amount.Parse("1.234,5", new CultureInfo("de-DE")).Should().Be(Amount.Create(1234.5m));
+        Amount.Parse("1,234.5", new CultureInfo("en-US")).Should().Be(Amount.Create(1234.5m));
+    }
+
     [Fact]
     public void ToString_honours_an_explicit_format_provider()
     {

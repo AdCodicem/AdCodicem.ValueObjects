@@ -60,4 +60,6 @@ actually generated, and what does it call?".
   analyzer cannot see (deserialization of a struct by another library, reflection, a default array element).
   Guard with `FluentValidation`'s `NotDefault`, or check it where the value enters.
 - A rejected value reported as `value_object.not_parsable` when you expected your own code — the text did not
-  even have the shape of the underlying type, so no rule of yours was ever reached.
+  even have the shape of the underlying type, so no rule of yours was ever reached. `12,5` or `1,234.5` over a
+  `decimal`, `double` or `float`, read with no provider or the invariant culture, is such text: pass the culture the
+  text was written in.

@@ -987,7 +987,7 @@ internal static class ValueObjectEmitter
     {
         // The exception carries the rule that rejected the text, as TryParse reports it: a closed set refusing a
         // value says not_a_known_value, and not_parsable is left to text that is not of the underlying type at all.
-        writer.Line("/// <inheritdoc />");
+        EmitParsingDocumentation(writer, underlying);
         writer.Open($"public static {self} Parse(global::System.ReadOnlySpan<char> s, global::System.IFormatProvider? provider)");
         writer.Open($"if (TryParse(s, provider, out {self} result, out {ValidationResult} validation))");
         writer.Line("return result;");
@@ -1001,7 +1001,7 @@ internal static class ValueObjectEmitter
         writer.Close();
         writer.Line();
 
-        writer.Line("/// <inheritdoc />");
+        EmitParsingDocumentation(writer, underlying);
         writer.Line(Inline);
         writer.Line($"public static {self} Parse(string s, global::System.IFormatProvider? provider) => Parse(global::System.MemoryExtensions.AsSpan(s), provider);");
         writer.Line();
@@ -1011,7 +1011,7 @@ internal static class ValueObjectEmitter
         writer.Line($"public static {self} Parse(string s) => Parse(global::System.MemoryExtensions.AsSpan(s), null);");
         writer.Line();
 
-        writer.Line("/// <inheritdoc />");
+        EmitParsingDocumentation(writer, underlying);
         writer.Open($"public static bool TryParse(global::System.ReadOnlySpan<char> s, global::System.IFormatProvider? provider, out {self} result)");
 
         if (underlying.IsString)
@@ -1051,7 +1051,7 @@ internal static class ValueObjectEmitter
         writer.Close();
         writer.Line();
 
-        writer.Line("/// <inheritdoc />");
+        EmitParsingDocumentation(writer, underlying);
         writer.Open($"public static bool TryParse(global::System.ReadOnlySpan<char> s, global::System.IFormatProvider? provider, out {self} result, out {ValidationResult} validation)");
 
         if (underlying.IsString)
@@ -1085,7 +1085,7 @@ internal static class ValueObjectEmitter
         writer.Close();
         writer.Line();
 
-        writer.Line("/// <inheritdoc />");
+        EmitParsingDocumentation(writer, underlying);
         writer.Open($"public static bool TryParse(string? s, global::System.IFormatProvider? provider, out {self} result)");
         if (underlying.IsString)
         {
@@ -1130,16 +1130,53 @@ internal static class ValueObjectEmitter
     /// <remarks>
     /// A <see cref="DateTime"/> is written in its round-trip form, which names its kind with a <c>Z</c> or an offset.
     /// Read without <c>RoundtripKind</c>, that suffix turns the value into local time: a UTC value would come back
-    /// with another kind, and on a machine outside UTC with other ticks. Every other type reads its own form as is.
+    /// with another kind, and on a machine outside UTC with other ticks. A <c>decimal</c>, a <c>double</c> or a
+    /// <c>float</c> is read in the invariant culture, which a null provider stands for, without the group separator
+    /// its own styles accept, a comma there: <c>12,5</c> would otherwise read as 125. Every other type reads its own
+    /// form as is.
     /// </remarks>
     /// <param name="underlying">The underlying type, neither a string, a bool nor a char.</param>
     /// <param name="value">Its qualified name.</param>
     /// <param name="output">The out argument receiving the value.</param>
     /// <returns>A boolean expression.</returns>
     private static string ParseUnderlying(UnderlyingType underlying, string value, string output)
-        => underlying.Kind == UnderlyingKind.DateTime
-            ? $"global::System.DateTime.TryParse(s, provider ?? {Invariant}, global::System.Globalization.DateTimeStyles.RoundtripKind, {output})"
-            : $"{Abstractions}.UnderlyingValue.TryParse<{value}>(s, provider ?? {Invariant}, {output})";
+        => underlying switch
+        {
+            { Kind: UnderlyingKind.DateTime } =>
+                $"global::System.DateTime.TryParse(s, provider ?? {Invariant}, global::System.Globalization.DateTimeStyles.RoundtripKind, {output})",
+            { InvariantNumberStyles: { } styles } =>
+                $"{Abstractions}.UnderlyingValue.TryParse<{value}>(s, {styles}, provider, {output})",
+            _ => $"{Abstractions}.UnderlyingValue.TryParse<{value}>(s, provider ?? {Invariant}, {output})",
+        };
+
+    /// <summary>
+    /// Writes the documentation of a member parsing text with a provider: the interface's, and what a null provider
+    /// stands for.
+    /// </summary>
+    /// <param name="writer">The writer.</param>
+    /// <param name="underlying">The underlying type.</param>
+    private static void EmitParsingDocumentation(CodeWriter writer, UnderlyingType underlying)
+    {
+        writer.Line("/// <inheritdoc />");
+
+        // A string, a bool or a char reads no culture, and the provider plays no part.
+        if (!underlying.IsSpanFormattable)
+        {
+            return;
+        }
+
+        writer.Line("/// <remarks>");
+        writer.Line("/// A <see langword=\"null\"/> provider stands for <see cref=\"global::System.Globalization.CultureInfo.InvariantCulture\"/>,");
+        writer.Line("/// not for the current culture, here as in <c>ToString</c> and <c>TryFormat</c>.");
+        if (underlying.InvariantNumberStyles is not null)
+        {
+            writer.Line("/// With a <see langword=\"null\"/> provider or the invariant culture, the text takes no group separator:");
+            writer.Line("/// <c>12,5</c> and <c>1,234.5</c> are refused as <c>value_object.not_parsable</c>. Any other culture reads the");
+            writer.Line($"/// text with the number styles of <c>{underlying.Keyword}</c>, its group separator included.");
+        }
+
+        writer.Line("/// </remarks>");
+    }
 
     private static void EmitConversions(CodeWriter writer, ValueObjectModel model, string value, string self)
     {

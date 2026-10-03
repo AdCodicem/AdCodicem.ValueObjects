@@ -15,6 +15,8 @@ public static class Samples
 
     public static TheoryData<string> NumericNames => [.. All.Where(sample => sample.Value.IsNumeric).Select(sample => sample.Key)];
 
+    public static TheoryData<string> RealNames => [.. All.Where(sample => sample.Value.IsReal).Select(sample => sample.Key)];
+
     private static Dictionary<string, Sample> Build()
     {
         Sample[] samples =
