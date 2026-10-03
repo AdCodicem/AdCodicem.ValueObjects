@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using AdCodicem.ValueObjects.Metadata;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 
@@ -30,6 +31,12 @@ namespace AdCodicem.ValueObjects.OpenApi;
 /// number or a string matching a numeric pattern when a number may be written or read as text, and, over a
 /// <see cref="double"/> or a <see cref="float"/>, with the named literals its bounds let through.
 /// </para>
+/// <para>
+/// A value object is described wherever it appears: as a route, query or header parameter, which ASP.NET Core hands
+/// over as text, with the value object's schema in place; as the element of a collection or the value of a
+/// dictionary, which System.Text.Json leaves out, with a reference to its component; and as the key of a dictionary,
+/// when it is written as a string, in <c>propertyNames</c>.
+/// </para>
 /// </remarks>
 public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
 {
@@ -42,16 +49,227 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(context);
 
-        // A value object written by hand that nothing registered binds and validates through a descriptor built by
-        // reflection, and is documented through the same one.
-        var type = context.JsonTypeInfo.Type;
-        if (!ValueObjectRegistry.TryResolve(type, out var descriptor))
+        var info = context.JsonTypeInfo;
+
+        // A route, query or header parameter is bound from text, and reaches the transformer as a string: its
+        // description still names the value object.
+        if (info.Type == typeof(string) && ParameterValueObject(context.ParameterDescription) is { } parameter)
         {
+            var declaredOnParameter = new OpenApiSchema
+            {
+                Minimum = schema.Minimum,
+                Maximum = schema.Maximum,
+                MinLength = schema.MinLength,
+                MaxLength = schema.MaxLength,
+                Pattern = schema.Pattern,
+            };
+            Describe(schema, parameter, info.Options);
+            KeepParameterRules(schema, declaredOnParameter);
             return Task.CompletedTask;
         }
 
+        if (info.Kind is JsonTypeInfoKind.Enumerable or JsonTypeInfoKind.Dictionary)
+        {
+            return DescribeContainerAsync(schema, context, cancellationToken);
+        }
+
+        // A value object written by hand that nothing registered binds and validates through a descriptor built by
+        // reflection, and is documented through the same one.
+        if (ValueObjectRegistry.TryResolve(info.Type, out var descriptor))
+        {
+            Describe(schema, descriptor, info.Options);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Finds the value object a parameter bound from text is, which a minimal API names as the parameter's type, and
+    /// MVC as the type of its model, the parameter's type being the string it is read from.
+    /// </summary>
+    /// <param name="parameter">The parameter, if the schema describes one.</param>
+    /// <returns>The descriptor of the value object, or <see langword="null"/> when the parameter is none.</returns>
+    private static ValueObjectDescriptor? ParameterValueObject(ApiParameterDescription? parameter)
+    {
+        if (parameter?.Type is { } type && ValueObjectRegistry.TryResolve(type, out var descriptor))
+        {
+            return descriptor;
+        }
+
+        return parameter?.ModelMetadata?.ModelType is { } model && ValueObjectRegistry.TryResolve(model, out descriptor)
+            ? descriptor
+            : null;
+    }
+
+    /// <summary>
+    /// Keeps a rule the parameter's declaration put on its schema, such as a route constraint, that is stricter than the
+    /// value object's or that the value object leaves out: the request must satisfy both.
+    /// </summary>
+    /// <param name="schema">The parameter's schema, described as its value object.</param>
+    /// <param name="declared">What the parameter's declaration had put on it before.</param>
+    /// <remarks>
+    /// A bound or a length the value object declares too is replaced by the stricter of the two. A pattern is kept only
+    /// when the value object neither declares nor implies one, since a schema holds a single pattern.
+    /// </remarks>
+    private static void KeepParameterRules(OpenApiSchema schema, OpenApiSchema declared)
+    {
+        if (Stricter(declared.Minimum, schema.Minimum, sign: 1))
+        {
+            schema.Minimum = declared.Minimum;
+        }
+
+        if (Stricter(declared.Maximum, schema.Maximum, sign: -1))
+        {
+            schema.Maximum = declared.Maximum;
+        }
+
+        if (declared.MinLength is { } minLength && !(schema.MinLength >= minLength))
+        {
+            schema.MinLength = minLength;
+        }
+
+        if (declared.MaxLength is { } maxLength && !(schema.MaxLength <= maxLength))
+        {
+            schema.MaxLength = maxLength;
+        }
+
+        schema.Pattern ??= declared.Pattern;
+
+        // Compared exactly where decimal holds both, as a double beyond its range; a bound that is no number, which no
+        // route constraint writes, stays the value object's.
+        static bool Stricter(string? parameter, string? valueObject, int sign)
+        {
+            if (parameter is null)
+            {
+                return false;
+            }
+
+            if (valueObject is null)
+            {
+                return true;
+            }
+
+            if (decimal.TryParse(parameter, NumberStyles.Float, CultureInfo.InvariantCulture, out var mine)
+                && decimal.TryParse(valueObject, NumberStyles.Float, CultureInfo.InvariantCulture, out var its))
+            {
+                return decimal.Compare(mine, its) == sign;
+            }
+
+            return double.TryParse(parameter, NumberStyles.Float, CultureInfo.InvariantCulture, out var mineReal)
+                   && double.TryParse(valueObject, NumberStyles.Float, CultureInfo.InvariantCulture, out var itsReal)
+                   && mineReal.CompareTo(itsReal) == sign;
+        }
+    }
+
+    /// <summary>
+    /// Describes the elements of a collection, and the values and keys of a dictionary, that are value objects.
+    /// </summary>
+    /// <param name="schema">The schema of the collection or the dictionary.</param>
+    /// <param name="context">The context of the transformation.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <remarks>
+    /// <para>
+    /// System.Text.Json describes a type with a converter of its own as the schema <c>true</c>, and leaves
+    /// <c>items</c> and <c>additionalProperties</c> out when that is the element's schema, so the element never
+    /// reaches a transformer. Each is given the schema of its value object, which the document turns into a reference
+    /// to the value object's component, as it does for a property. An element of a nullable value object is described
+    /// in place instead, a value object or <c>null</c>, which a reference could not say.
+    /// </para>
+    /// <para>
+    /// A key is written as text, so a dictionary keyed by a value object documented as a string states the key's
+    /// rules in <c>propertyNames</c>, a keyword of OpenAPI 3.1 that an OpenAPI 3.0 document carries as the
+    /// <c>x-jsonschema-propertyNames</c> extension. A key documented as a number or a boolean is not described: the
+    /// text of a property name is neither.
+    /// </para>
+    /// </remarks>
+    private static async Task DescribeContainerAsync(
+        OpenApiSchema schema,
+        OpenApiSchemaTransformerContext context,
+        CancellationToken cancellationToken)
+    {
+        var info = context.JsonTypeInfo;
+        var dictionary = info.Kind == JsonTypeInfoKind.Dictionary;
+        var described = dictionary ? schema.AdditionalProperties : schema.Items;
+
+        if (described is null && info.ElementType is { } elementType && ValueObjectRegistry.TryResolve(elementType, out var element))
+        {
+            var elementSchema = await DescribeElementAsync(elementType, element, context, cancellationToken).ConfigureAwait(false);
+            if (dictionary)
+            {
+                schema.AdditionalProperties = elementSchema;
+            }
+            else
+            {
+                schema.Items = elementSchema;
+            }
+        }
+
+        if (schema.PropertyNames is null
+            && info.KeyType is { } keyType
+            && ValueObjectRegistry.TryResolve(keyType, out var key)
+            && MapType(key.ValueType) == JsonSchemaType.String)
+        {
+            var names = new OpenApiSchema();
+            Describe(names, key, info.Options);
+            schema.PropertyNames = names;
+        }
+    }
+
+    /// <summary>
+    /// Builds the schema of an element that is a value object.
+    /// </summary>
+    /// <param name="elementType">The element's type, the value object or a nullable one.</param>
+    /// <param name="element">Descriptor of the value object.</param>
+    /// <param name="context">The context of the transformation.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The schema of the element.</returns>
+    /// <remarks>
+    /// Within a document, the schema comes from ASP.NET Core, which runs every schema transformer on it and gives it the
+    /// identifier that makes it a reference to the value object's component. Outside one, as when the transformer is
+    /// called directly, it is described in place.
+    /// </remarks>
+    private static async Task<IOpenApiSchema> DescribeElementAsync(
+        Type elementType,
+        ValueObjectDescriptor element,
+        OpenApiSchemaTransformerContext context,
+        CancellationToken cancellationToken)
+    {
+        var nullable = Nullable.GetUnderlyingType(elementType) is not null;
+        if (!nullable && context.Document is not null)
+        {
+            return await context.GetOrCreateSchemaAsync(elementType, parameterDescription: null, cancellationToken).ConfigureAwait(false);
+        }
+
+        // A nullable element is the value object or null, which describing it keeps.
+        var schema = new OpenApiSchema { Type = nullable ? JsonSchemaType.Null : null };
+        Describe(schema, element, context.JsonTypeInfo.Options);
+        return schema;
+    }
+
+    /// <summary>
+    /// Tells whether a schema allows <c>null</c>, whether it states its type itself or, a real under named literals
+    /// described once already, in its first alternative.
+    /// </summary>
+    /// <param name="schema">The schema.</param>
+    /// <returns><see langword="true"/> when the schema allows <c>null</c>.</returns>
+    private static bool AllowsNull(OpenApiSchema schema)
+        => (schema.Type ?? (schema.AnyOf is [OpenApiSchema number, ..] ? number.Type : null)) is { } type
+           && (type & JsonSchemaType.Null) != 0;
+
+    /// <summary>
+    /// Describes a value object as its underlying value, carrying the rules declared on it.
+    /// </summary>
+    /// <param name="schema">The schema to fill in.</param>
+    /// <param name="descriptor">Descriptor of the value object.</param>
+    /// <param name="options">The options the document describes the wire with.</param>
+    /// <remarks>
+    /// Describing a schema a second time leaves it as the first time did: ASP.NET Core hands the element of a
+    /// collection back to the transformers after this one gave it its schema. A schema that allows <c>null</c> keeps
+    /// allowing it.
+    /// </remarks>
+    private static void Describe(OpenApiSchema schema, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
+    {
         var declared = descriptor.Schema;
-        var options = context.JsonTypeInfo.Options;
         var jsonType = MapType(descriptor.ValueType);
         var numeric = jsonType is JsonSchemaType.Integer or JsonSchemaType.Number;
 
@@ -64,7 +282,8 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         // value that goes on the wire.
         schema.Properties?.Clear();
         schema.Required?.Clear();
-        schema.Type = asText ? jsonType | JsonSchemaType.String : jsonType;
+        var nullable = AllowsNull(schema);
+        schema.Type = (asText ? jsonType | JsonSchemaType.String : jsonType) | (nullable ? JsonSchemaType.Null : default);
         schema.Format = declared.Format;
         schema.Pattern = declared.Pattern ?? WirePattern(descriptor.ValueType, asText);
 
@@ -105,7 +324,8 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
             schema.Description = declared.Description;
         }
 
-        if (bounds is not null)
+        // Stated once, though the schema be described again.
+        if (bounds is not null && schema.Description?.EndsWith(bounds, StringComparison.Ordinal) != true)
         {
             schema.Description = string.IsNullOrEmpty(schema.Description) ? bounds : $"{schema.Description}\n\n{bounds}";
         }
@@ -117,8 +337,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
 
         if (declared.IsClosedValueSet && !declared.KnownValues.IsEmpty)
         {
-            var typeInfo = context.JsonTypeInfo.Options.GetTypeInfo(descriptor.ValueObjectType);
-            schema.Enum = [.. declared.KnownValues.Select(value => WriteKnownValue(value, descriptor, typeInfo))];
+            schema.Enum = [.. declared.KnownValues.Select(value => WriteKnownValue(value, descriptor, options))];
         }
 
         if ((options.NumberHandling & JsonNumberHandling.AllowNamedFloatingPointLiterals) != 0
@@ -127,8 +346,6 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         {
             AllowNamedLiterals(schema, literals);
         }
-
-        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -289,7 +506,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     /// </remarks>
     private static JsonNode WriteText(string text, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
         => descriptor.TryParse(text, CultureInfo.InvariantCulture, out var parsed, out _)
-            ? Write(parsed!, options.GetTypeInfo(descriptor.ValueObjectType)) ?? JsonValue.Create(text)
+            ? Write(parsed!, descriptor, options) ?? JsonValue.Create(text)
             : JsonValue.Create(text);
 
     /// <summary>
@@ -307,7 +524,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     /// </remarks>
     private static JsonNode WriteBound(string text, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
         => ParseUnderlying(text, descriptor.ValueType) is { } value
-            ? Write(descriptor.CreateUnchecked(value), options.GetTypeInfo(descriptor.ValueObjectType)) ?? JsonValue.Create(text)
+            ? Write(descriptor.CreateUnchecked(value), descriptor, options) ?? JsonValue.Create(text)
             : JsonValue.Create(text);
 
     /// <summary>
@@ -315,13 +532,18 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     /// it under the options, rather than failing the whole document.
     /// </summary>
     /// <param name="valueObject">The value object.</param>
-    /// <param name="typeInfo">Its contract, under the options the document describes the wire with.</param>
+    /// <param name="descriptor">Descriptor of the value object.</param>
+    /// <param name="options">The options the document describes the wire with.</param>
     /// <returns>The value as JSON, or <see langword="null"/>.</returns>
-    private static JsonNode? Write(object valueObject, JsonTypeInfo typeInfo)
+    /// <remarks>
+    /// The options may hold no contract for the value object: a resolver generated for the types an application
+    /// serializes knows nothing of one that only ever is a route or query parameter.
+    /// </remarks>
+    private static JsonNode? Write(object valueObject, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
     {
         try
         {
-            return JsonSerializer.SerializeToNode(valueObject, typeInfo);
+            return JsonSerializer.SerializeToNode(valueObject, options.GetTypeInfo(descriptor.ValueObjectType));
         }
         catch (Exception exception) when (exception is ArgumentException or JsonException or NotSupportedException or InvalidOperationException)
         {
@@ -353,7 +575,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     /// </summary>
     /// <param name="value">The known value, as the schema holds it.</param>
     /// <param name="descriptor">Descriptor of the value object.</param>
-    /// <param name="typeInfo">The value object's contract, under the options the document describes the wire with.</param>
+    /// <param name="options">The options the document describes the wire with.</param>
     /// <returns>The value as JSON.</returns>
     /// <remarks>
     /// A value of the underlying type is written by the type's own converter, so that a client checks a payload
@@ -362,8 +584,8 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     /// value the type parses. A value of any other type, from an annotation the type cannot parse or from a schema made
     /// by hand, and one the converter cannot write under the options, is written as its text.
     /// </remarks>
-    private static JsonNode WriteKnownValue(object value, ValueObjectDescriptor descriptor, JsonTypeInfo typeInfo)
-        => (descriptor.ValueType.IsInstanceOfType(value) ? Write(descriptor.CreateUnchecked(value), typeInfo) : null)
+    private static JsonNode WriteKnownValue(object value, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
+        => (descriptor.ValueType.IsInstanceOfType(value) ? Write(descriptor.CreateUnchecked(value), descriptor, options) : null)
            ?? JsonValue.Create(Convert.ToString(value, CultureInfo.InvariantCulture))!;
 
     /// <summary>
