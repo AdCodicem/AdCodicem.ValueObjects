@@ -10,6 +10,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # A version must have been public for a week before Dependabot proposes it,
+    # so that a broken or compromised release has time to be pulled first.
+    # Security updates ignore cooldown and open at once.
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "chore(deps)"
     groups:
@@ -21,6 +26,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "ci(deps)"
     groups:
@@ -38,6 +45,8 @@ updates:
     directory: "/website"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "chore(deps)"
       prefix-development: "chore(deps-dev)"
@@ -45,13 +54,10 @@ updates:
       docusaurus:
         update-types: ["minor", "patch"]
 
-  # Every action in .github/workflows is pinned to a commit SHA with the release as a
-  # trailing comment (`uses: actions/checkout@3d3c42e... # v7.0.1`). Dependabot reads that
-  # comment to work out the semver bump, so it keeps both the SHA and the comment current
-  # and the `actions` group below still sorts minor/patch bumps from major ones.
   # conventional-pre-commit, hash-pinned in .github/requirements/requirements.txt so the
   # lint workflow can install it with --require-hashes. Dependabot rewrites both the version
   # and the digests, which is the only practical way to keep a hashed requirement current.
+  # Dependabot's default cooldown applies.
   - package-ecosystem: "pip"
     directory: "/.github/requirements"
     schedule:
@@ -59,6 +65,13 @@ updates:
     commit-message:
       prefix: "ci(deps)"
 
+  # Every action in .github/workflows and .github/actions is pinned to a commit SHA with the
+  # release as a trailing comment (`uses: actions/checkout@3d3c42e... # v7.0.1`). Dependabot
+  # reads that comment to work out the semver bump, so it keeps both the SHA and the comment
+  # current and the `actions` group below still sorts minor/patch bumps from major ones. A
+  # SHA-pinned action gets no security alert, so this weekly update is the safety net
+  # (docs/adr/0004-pin-the-supply-chain-by-digest-not-nuget-lock-files.md); the cooldown
+  # delays it by a week.
   - package-ecosystem: "github-actions"
     # "/" covers .github/workflows; the composite actions the workflows share
     # (.github/actions/build-site) are pinned the same way and listed apart.
@@ -67,6 +80,9 @@ updates:
       - "/.github/actions/*"
     schedule:
       interval: "weekly"
+    # GitHub Actions takes default-days only, not the per-semver-level days.
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "ci(deps)"
     groups:
