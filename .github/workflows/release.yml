@@ -38,6 +38,7 @@ jobs:
     outputs:
       released: ${{ steps.released.outputs.tag != '' }}
       tag: ${{ steps.released.outputs.tag }}
+      version: ${{ steps.released.outputs.version }}
     steps:
       # The ruleset on main rejects direct pushes, and its bypass list takes roles,
       # teams, apps and deploy keys but never this job's GITHUB_TOKEN. The release
@@ -142,6 +143,7 @@ jobs:
           fi
           echo "Released tag: ${tag:-none}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -224,3 +226,5 @@ jobs:
     uses: ./.github/workflows/deploy-docs.yml
     with:
       ref: ${{ needs.release.outputs.tag }}
+      # Passed rather than looked up: nuget.org can take minutes to list a push.
+      preview-version: ${{ needs.release.outputs.version }}

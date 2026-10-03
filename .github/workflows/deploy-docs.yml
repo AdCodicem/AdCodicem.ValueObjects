@@ -4,19 +4,27 @@ name: deploy docs
 # every deployment rebuilds all of it -- the preview from website/docs/, each
 # stable line from its committed snapshot under website/versioned_docs/ -- since
 # a GitHub Pages deployment replaces the whole site.
+#
+# Called only, never dispatched: the label of /docs/preview/ has to name the
+# version on nuget.org that describes the commit being built, and only the
+# callers know it. preview.yml calls this on every run that decided what to
+# publish, so the preview documentation always describes a package someone can
+# install; dispatching preview.yml is how the site is redeployed by hand.
+# release.yml calls it after a stable release, with the tag whose commit carries
+# the new snapshot and the version it released.
 on:
-  workflow_dispatch:
-  # ci.yml calls this once a preview package is on nuget.org, so the preview
-  # documentation always describes a package someone can install. release.yml
-  # calls it after a stable release, with the tag whose commit carries the new
-  # snapshot.
   workflow_call:
     inputs:
       ref:
-        description: 'Commit, tag or branch to build; defaults to the commit that triggered the caller.'
+        description: >-
+          What to build: the full SHA of the commit the caller's run was started on or of one of its
+          ancestors, or v<preview-version>, the tag of a stable release that descends from that commit.
         type: string
-        required: false
-        default: ''
+        required: true
+      preview-version:
+        description: 'Label of /docs/preview/: the version on nuget.org that describes that commit.'
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -25,18 +33,56 @@ jobs:
   build:
     name: build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       commit: ${{ steps.version.outputs.commit }}
     defaults:
       run:
         working-directory: website
     steps:
+      # The commit the run was started on, not the caller's ref: the next step
+      # decides whether that one may be built. A ref input passed to the
+      # checkout is what CodeQL reports as cache poisoning
+      # (actions/cache-poisoning/poisonable-step), whatever checks it first.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref || github.sha }}
-          # MinVer derives the preview version from the tag history, which a
-          # shallow clone does not have.
+          # MinVer runs when DocFX builds the projects under src/, and reads
+          # the tag history, which a shallow clone does not have. The whole
+          # history and the tags also hold every commit the next step accepts.
           fetch-depth: 0
+          # Nothing here pushes, and the site's npm packages run in this job.
+          persist-credentials: false
+
+      # This job runs the code it checks out -- DocFX, npm, Docusaurus -- in the
+      # context of main, so whatever it writes to the Actions cache lands in
+      # main's scope, which every branch and workflow restores from. So it
+      # builds only the commits its callers mean, and checks that itself rather
+      # than trusting the ref it is given: the commit the run was started on or
+      # one of its ancestors (preview.yml: HEAD, or the commit a repair
+      # completes), or the stable tag of the version being deployed, descending
+      # from it (release.yml: the release commit semantic-release pushed to
+      # main). Anything else, a pull request's head or another branch, stops
+      # here, before a line of it has run.
+      - name: Switch to the commit to build
+        working-directory: ${{ github.workspace }}
+        env:
+          REF: ${{ inputs.ref }}
+          VERSION: ${{ inputs.preview-version }}
+        run: |
+          set -euo pipefail
+          if [[ "$REF" =~ ^[0-9a-f]{40}$ ]] &&
+            commit="$(git rev-parse --verify --quiet "$REF^{commit}")" &&
+            git merge-base --is-ancestor "$commit" "$GITHUB_SHA"; then
+            echo "Building $commit, which is $GITHUB_SHA or one of its ancestors."
+          elif [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$REF" == "v$VERSION" ]] &&
+            commit="$(git rev-parse --verify --quiet "refs/tags/$REF^{commit}")" &&
+            git merge-base --is-ancestor "$GITHUB_SHA" "$commit"; then
+            echo "Building $REF ($commit), which descends from $GITHUB_SHA."
+          else
+            echo "::error::'$REF' is not $GITHUB_SHA, one of its ancestors, or the tag v$VERSION descending from it." >&2
+            exit 1
+          fi
+          git checkout --quiet --detach "$commit"
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -48,17 +94,22 @@ jobs:
           cache: npm
           cache-dependency-path: website/package-lock.json
 
-      # The preview is labelled with the version of the package it describes.
-      # This is the same MinVer computation ci.yml packs with, on the same
-      # commit, so the label names the preview that job pushed -- or the stable
-      # version itself when the commit is a release.
+      # The preview is labelled with the version of the package it describes,
+      # which the caller knows: preview.yml the version on nuget.org built from
+      # the nearest commit with the same package inputs, release.yml the version
+      # it released.
       - name: Preview version
         id: version
         working-directory: ${{ github.workspace }}
+        env:
+          PREVIEW_VERSION: ${{ inputs.preview-version }}
         run: |
           set -euo pipefail
-          version="$(dotnet msbuild src/AdCodicem.ValueObjects.Abstractions/AdCodicem.ValueObjects.Abstractions.csproj \
-            -restore -target:MinVer -getProperty:MinVerVersion -nologo)"
+          version="$PREVIEW_VERSION"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$version' is not a package version." >&2
+            exit 1
+          fi
           echo "Preview documentation describes $version."
           echo "preview=$version" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -74,8 +125,11 @@ jobs:
           dotnet docfx docs/docfx/docfx.json
           python3 .github/scripts/docfx-postprocess.py website/docs/api
 
+      # Without install scripts: Docusaurus builds without them (verified), and
+      # the three packages that declare one (@swc/core, core-js, fsevents) need
+      # none on Linux.
       - name: Install
-        run: npm ci
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       # onBrokenLinks/onBrokenMarkdownLinks are 'throw' in docusaurus.config.ts, so this
       # also fails the build if a sidebar link or a cross-reference no longer resolves.
@@ -99,6 +153,7 @@ jobs:
     name: deploy
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       pages: write
@@ -121,14 +176,14 @@ jobs:
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
         id: pages
 
-      # Two merges in quick succession run CI concurrently, and the older one
-      # can finish last, so its deployment arrives after the newer one's. It
-      # would then replace a newer preview with an older one until the next
-      # merge. So compare against what is live and stand down when that is
-      # already a descendant of this commit. The same check covers a stable
-      # release whose deployment runs after a newer preview: that preview's tree
-      # already contains the release's snapshot. The live commit itself is
-      # redeployed, which is what a manual dispatch to repair the site wants.
+      # A release's deployment and a preview run's can finish out of order, so
+      # the older one's arrives last. It would then replace a newer site with an
+      # older one until the next run. So compare against what is live and stand
+      # down when that is already a descendant of this commit. The same check
+      # covers a stable release whose deployment runs after a newer preview: that
+      # preview's tree already contains the release's snapshot. The live commit
+      # itself is redeployed, which is what a preview.yml dispatched to repair the
+      # site wants.
       - name: Skip if the site already shows a newer commit
         id: freshness
         env:
