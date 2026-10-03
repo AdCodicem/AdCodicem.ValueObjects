@@ -4,7 +4,10 @@ Date: 2026-09-14
 
 ## Status
 
-Accepted
+Accepted. Its preview track is superseded by
+[ADR-0009](0009-publish-previews-weekly-when-a-package-input-changed.md): previews are no longer published on every
+merge by `ci.yml`, but weekly by `preview.yml`, when a package input changed. The stable track stands. The body below
+is kept as the record of the decision as it was taken.
 
 ## Context
 
