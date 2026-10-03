@@ -207,6 +207,52 @@ public partial class DeclarationContextTests
     }
 
     /// <summary>
+    /// The converter of a construction over a number converts from and to every numeric type a value object may wrap,
+    /// with the checked conversion the converter generated on a value object that is not generic performs: a number is
+    /// refused rather than truncated, and one that fits goes through the rules.
+    /// </summary>
+    [Fact]
+    public void A_construction_over_a_number_converts_any_number_through_its_type_converter()
+    {
+        var converter = TypeDescriptor.GetConverter(typeof(Catalog<decimal>.Stock));
+        var twelve = Catalog<decimal>.Stock.Create(12);
+        object[] numbers =
+        [
+            (sbyte)12, (byte)12, (short)12, (ushort)12, 12, 12u, 12L, 12UL, (Int128)12, (UInt128)12, 12m, 12.0, 12f,
+        ];
+
+        foreach (var number in numbers)
+        {
+            converter.CanConvertFrom(number.GetType()).Should().BeTrue();
+            converter.CanConvertTo(number.GetType()).Should().BeTrue();
+            converter.ConvertFrom(number).Should().Be(twelve, "{0} {1} is twelve in stock", number.GetType().Name, number);
+            converter.ConvertTo(twelve, number.GetType()).Should().Be(number);
+        }
+
+        var fraction = converter.Invoking(c => c.ConvertFrom(12.5)).Should().Throw<ValueObjectException>().Which;
+        fraction.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        fraction.Message.Should().Be("'Stock' rejected the supplied number: The number is not a valid int.");
+        fraction.AttemptedValue.Should().Be(12.5);
+        converter.Invoking(c => c.ConvertFrom(5_000_000_000L))
+            .Should().Throw<ValueObjectException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        converter.Invoking(c => c.ConvertFrom(-1L))
+            .Should().Throw<ValueObjectException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.OutOfRange);
+
+        // A numeric type that cannot hold the value is refused as a type the converter does not write; anything else,
+        // null included, is a type it does not read.
+        converter.Invoking(c => c.ConvertTo(Catalog<decimal>.Stock.Create(1200), typeof(sbyte))).Should().Throw<NotSupportedException>();
+        converter.Invoking(c => c.ConvertTo(twelve, typeof(Guid))).Should().Throw<NotSupportedException>();
+        converter.Invoking(c => c.ConvertFrom(null!)).Should().Throw<NotSupportedException>();
+        converter.CanConvertTo(null).Should().BeFalse();
+
+        var reference = TypeDescriptor.GetConverter(typeof(Reference<PurchaseOrder>));
+        reference.CanConvertFrom(typeof(long)).Should().BeFalse("a reference is text, not a number");
+        reference.CanConvertTo(typeof(long)).Should().BeFalse();
+        reference.Invoking(c => c.ConvertFrom(12L)).Should().Throw<NotSupportedException>();
+        reference.Invoking(c => c.ConvertTo(Reference<PurchaseOrder>.Create("PO-1042"), typeof(long))).Should().Throw<NotSupportedException>();
+    }
+
+    /// <summary>
     /// A generic definition has no instance and no descriptor: it is no value object, as every question about one
     /// answers, while each of its constructions is.
     /// </summary>

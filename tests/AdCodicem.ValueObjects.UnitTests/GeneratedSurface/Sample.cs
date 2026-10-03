@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AdCodicem.ValueObjects.Metadata;
 
 namespace AdCodicem.ValueObjects.UnitTests.GeneratedSurface;
 
@@ -21,7 +22,16 @@ public abstract class Sample
     private static readonly JsonSerializerOptions NumbersFromStrings =
         new() { NumberHandling = JsonNumberHandling.AllowReadingFromString };
 
+    /// <summary>The numeric types a value object may wrap, which the type converter of a numeric one converts.</summary>
+    protected static readonly Type[] Numbers =
+    [
+        typeof(sbyte), typeof(byte), typeof(short), typeof(ushort), typeof(int), typeof(uint), typeof(long), typeof(ulong),
+        typeof(Int128), typeof(UInt128), typeof(decimal), typeof(double), typeof(float),
+    ];
+
     public abstract void ConvertsThroughItsTypeConverter();
+
+    public abstract void ConvertsNumbersThroughItsTypeConverter();
 
     public abstract void RoundTripsAsADictionaryKey();
 
@@ -128,6 +138,61 @@ public class Sample<TSelf, TValue> : Sample
         converter.ConvertTo(Small, typeof(TValue)).Should().Be(typeof(TValue) == typeof(string) ? Written : Small.Value);
         converter.ConvertTo("not a value object", typeof(string)).Should().Be("not a value object");
         converter.Invoking(c => c.ConvertTo(Small, typeof(Uri))).Should().Throw<NotSupportedException>();
+    }
+
+    public override void ConvertsNumbersThroughItsTypeConverter()
+    {
+        var converter = TypeDescriptor.GetConverter(typeof(TSelf));
+
+        if (!NumberConversion.IsNumber(typeof(TValue)))
+        {
+            // Over anything but a number, the converter takes text and its own type, and no number.
+            foreach (var type in Numbers)
+            {
+                converter.CanConvertFrom(type).Should().BeFalse("{0} is no {1}", type.Name, typeof(TValue).Name);
+                converter.CanConvertTo(type).Should().BeFalse("{0} is no {1}", type.Name, typeof(TValue).Name);
+            }
+
+            converter.Invoking(c => c.ConvertFrom(1)).Should().Throw<NotSupportedException>();
+            converter.Invoking(c => c.ConvertTo(Small, typeof(int))).Should().Throw<NotSupportedException>();
+            return;
+        }
+
+        converter.CanConvertTo(null).Should().BeFalse("no type is no number");
+
+        // Every arm the generator writes: each numeric type that holds the value whole converts both ways, and one that
+        // cannot is refused as a conversion the converter does not perform. The conversions the generic converter makes
+        // through the same bridges say which types hold it.
+        foreach (var type in Numbers)
+        {
+            converter.CanConvertFrom(type).Should().BeTrue("a {0} is a number", type.Name);
+            converter.CanConvertTo(type).Should().BeTrue("a {0} is a number", type.Name);
+
+            if (NumberConversion.TryConvert(Small.Value, type, out var number))
+            {
+                converter.ConvertFrom(number).Should().Be(Small, "{0} is {1} as a {2}", number, Small, type.Name);
+                converter.ConvertTo(Small, type).Should().Be(number, "{0} as a {1} is {2}", Small, type.Name, number);
+            }
+            else
+            {
+                converter.Invoking(c => c.ConvertTo(Small, type)).Should().Throw<NotSupportedException>();
+            }
+        }
+
+        // A fraction is no integer, and a number beyond the range of a decimal or a float is neither: refused before any
+        // rule runs, and named in no message. A double holds every one of them.
+        foreach (var candidate in new object[] { 0.5, 1e300 })
+        {
+            if (NumberConversion.TryConvert(candidate, typeof(TValue), out _))
+            {
+                continue;
+            }
+
+            var refusal = converter.Invoking(c => c.ConvertFrom(candidate)).Should().Throw<ValueObjectException>().Which;
+            refusal.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+            refusal.Message.Should().StartWith($"'{typeof(TSelf).Name}' rejected the supplied number: The number is not a valid ");
+            refusal.AttemptedValue.Should().Be(candidate);
+        }
     }
 
     public override void RoundTripsAsADictionaryKey()

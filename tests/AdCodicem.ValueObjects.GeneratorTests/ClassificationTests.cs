@@ -184,6 +184,38 @@ public sealed class ClassificationTests
         GeneratorHarness.RunTwice(plain, classified, "ValueObjects").Should().Contain(IncrementalStepRunReason.Modified);
     }
 
+    /// <summary>
+    /// The type converter refuses a number its underlying type cannot hold as <c>Parse</c> refuses text: its message
+    /// names the type, never the number, which it hands to <c>AttemptedValue</c> unless the type is classified.
+    /// </summary>
+    /// <param name="attributes">The attributes on the value object.</param>
+    /// <param name="attempted">The attempted value the converter passes.</param>
+    [Theory]
+    [InlineData("", "value")]
+    [InlineData("[PersonalData]", "null")]
+    public void The_type_converter_names_no_number_it_refuses_and_hands_over_none_of_a_classified_type(string attributes, string attempted)
+    {
+        var run = GeneratorHarness.Run($$"""
+            {{PersonalData}}
+
+            {{attributes}}
+            [ValueObject<int>]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        var generated = run.SingleValueObject;
+        var start = generated.IndexOf("if (!fits)", StringComparison.Ordinal);
+        start.Should().BePositive();
+        var refusal = generated[start..generated.IndexOf(");", start, StringComparison.Ordinal)];
+
+        refusal.Should().Contain("\"'Wrapper' rejected the supplied number: The number is not a valid int.\",");
+        refusal.Should().NotContain("value}", "the number is no part of the message");
+        refusal[(refusal.LastIndexOf(',') + 1)..].Trim().Should().Be(attempted);
+    }
+
     /// <summary>Gets the generated <c>Parse</c> that throws, up to the member after it.</summary>
     private static string Parse(string generated)
     {

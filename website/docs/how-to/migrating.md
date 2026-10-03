@@ -56,7 +56,7 @@ Keep the rules, delete the plumbing.
 | Explicit casts, both ways by default | Opt in with `ExplicitConversionFromValue` and `ImplicitConversionToValue` |
 | `Conversions.EfCoreValueConverter`, `HasVogenConversion()` | `ConfigureValueObjects(assembly)`, once |
 | `Conversions.DapperTypeHandler` | `ValueObjectDapper.AddValueObjectHandlers(assembly)`, once |
-| `Conversions.NewtonsoftJson` | `ValueObjectConverter` in the serializer settings |
+| `Conversions.NewtonsoftJson` | `settings.AddValueObjects()`, which adds `ValueObjectConverter` to the serializer settings |
 | `new VogenTypesFactory()` in the options of a source-generated context | `[JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]` |
 | A length or pattern check inside `Validate` | `MinLength`, `MaxLength` on the attribute; a `[GeneratedRegex]` through `IValueObjectPatternValidator` |
 

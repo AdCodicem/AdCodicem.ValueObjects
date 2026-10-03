@@ -1177,4 +1177,97 @@ public sealed class EmissionTests
         constant.Should().BePositive();
         pattern.Should().BeLessThan(constant, "the constant goes through the pattern while the type initializes");
     }
+
+    /// <summary>
+    /// The type converter of a numeric value object takes every numeric type a value object may wrap, its own through
+    /// <c>Create</c> and each other through a typed arm and a checked bridge, chosen by the type converted to: no
+    /// reflection, and nothing truncated. It hands its value to each of them the same way.
+    /// </summary>
+    /// <param name="underlying">The underlying type, as the attribute names it.</param>
+    /// <param name="value">Its qualified name.</param>
+    /// <param name="bridge">The bridge that converts a number to it.</param>
+    [Theory]
+    [InlineData("int", "global::System.Int32", "TryConvertToInteger")]
+    [InlineData("byte", "global::System.Byte", "TryConvertToInteger")]
+    [InlineData("System.UInt128", "global::System.UInt128", "TryConvertToInteger")]
+    [InlineData("decimal", "global::System.Decimal", "TryConvertToReal")]
+    [InlineData("double", "global::System.Double", "TryConvertToReal")]
+    [InlineData("float", "global::System.Single", "TryConvertToReal")]
+    public void A_numeric_type_converter_converts_every_number_through_a_checked_bridge(string underlying, string value, string bridge)
+    {
+        var run = GeneratorHarness.Run(
+            $$"""
+            [ValueObject<{{underlying}}>]
+            public readonly partial struct Measure;
+            """,
+            DocumentationMode.Diagnose);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        var converter = TypeConverterOf(run.SingleValueObject);
+        converter.Should().Contain("Converts <see cref=\"Measure\"/> to and from text and any number.");
+        converter.Should().Contain($"case {value} underlying:").And.Contain("return global::Test.Measure.Create(underlying);");
+        converter.Should().Contain($"fits = global::AdCodicem.ValueObjects.UnderlyingValue.{bridge}(number, out raw);");
+        converter.Should().Contain($"\"'Measure' rejected the supplied number: The number is not a valid {underlying}.\",");
+        converter.Should().Contain("global::AdCodicem.ValueObjects.ValueObjectErrorCodes.NotParsable,");
+        foreach (var (name, real) in Numbers)
+        {
+            var number = "global::System." + name;
+            converter.Should().Contain($"type == typeof({number})");
+            if (number == value)
+            {
+                converter.Should().NotContain($"case {number} number:", "its own type goes straight to Create");
+                continue;
+            }
+
+            converter.Should().Contain($"case {number} number:");
+            converter.Should().Contain(
+                $"&& global::AdCodicem.ValueObjects.UnderlyingValue.{(real ? "TryConvertToReal" : "TryConvertToInteger")}(typed.Value, out {number} to{name}))");
+        }
+    }
+
+    /// <summary>
+    /// A value object over anything but a number converts from and to text and its own type only: a number is no
+    /// identifier, no flag and no date.
+    /// </summary>
+    /// <param name="underlying">The underlying type, as the attribute names it.</param>
+    [Theory]
+    [InlineData("string")]
+    [InlineData("System.Guid")]
+    [InlineData("bool")]
+    [InlineData("char")]
+    [InlineData("System.DateOnly")]
+    [InlineData("System.TimeSpan")]
+    public void A_type_converter_over_anything_but_a_number_converts_no_number(string underlying)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        var converter = TypeConverterOf(run.SingleValueObject);
+        converter.Should().Contain("to and from text and its underlying value.");
+        converter.Should().NotContain(" number:").And.NotContain("IsNumber").And.NotContain("UnderlyingValue.TryConvert");
+    }
+
+    /// <summary>The numeric types a value object may wrap, by their name in <c>System</c>, and whether each is a real.</summary>
+    private static readonly (string Name, bool Real)[] Numbers =
+    [
+        ("SByte", false), ("Byte", false), ("Int16", false), ("UInt16", false), ("Int32", false), ("UInt32", false),
+        ("Int64", false), ("UInt64", false), ("Int128", false), ("UInt128", false), ("Decimal", true), ("Double", true),
+        ("Single", true),
+    ];
+
+    /// <summary>Gets the type converter nested in a generated value object, from its summary to the end.</summary>
+    private static string TypeConverterOf(string generated)
+    {
+        var start = generated.IndexOf("/// <summary>Converts <see cref=", StringComparison.Ordinal);
+        start.Should().BePositive();
+
+        return generated[start..];
+    }
 }

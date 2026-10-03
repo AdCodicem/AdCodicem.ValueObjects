@@ -26,6 +26,10 @@ public class NewtonsoftJsonTests
         Converters = { new ValueObjectConverter() },
     };
 
+    /// <summary>The options under which System.Text.Json reads a number written as text.</summary>
+    private static readonly System.Text.Json.JsonSerializerOptions NumbersFromText =
+        new() { NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString };
+
     /// <summary>One value object for each of the 22 underlying types, keyed by a description of the case.</summary>
     private static readonly Dictionary<string, object> EveryUnderlyingType = new()
     {
@@ -67,6 +71,29 @@ public class NewtonsoftJsonTests
     };
 
     /// <summary>
+    /// A value object over each numeric type, keyed by the type. An integer stays within the range of a long, which
+    /// Newtonsoft.Json reads a JSON integer as; beyond it, Newtonsoft.Json reads a BigInteger, which no type converter
+    /// takes.
+    /// </summary>
+    private static readonly Dictionary<string, object> NumbersBothWays = new()
+    {
+        ["sbyte"] = Adjustment.Create(-10),
+        ["byte"] = Score.Create(100),
+        ["short"] = Quantity.Create(1000),
+        ["ushort"] = Port.Create(ushort.MaxValue),
+        ["int"] = PageNumber.Create(int.MaxValue),
+        ["uint"] = SequenceNumber.Create(uint.MaxValue),
+        ["long"] = FileSize.Create(long.MaxValue),
+        ["ulong"] = ByteCount.Create((ulong)long.MaxValue),
+        ["Int128"] = LedgerBalance.Create(Int128.Parse("-1000000000000000000000", CultureInfo.InvariantCulture)),
+        ["UInt128"] = Fingerprint.Create(UInt128.MaxValue),
+        ["decimal with sixteen digits"] = Amount.Create(12345678901234.56m),
+        ["whole decimal"] = TransferLimit.Create(1250m),
+        ["double"] = Latitude.Create(-45.5),
+        ["float"] = Ratio.Create(0.25f),
+    };
+
+    /// <summary>
     /// The DateTimeOffset value objects of the round trips under the default date handling, keyed by their offset.
     /// </summary>
     private static readonly Dictionary<string, OccurredAt> Instants = new()
@@ -80,6 +107,14 @@ public class NewtonsoftJsonTests
     public static TheoryData<string> EveryWholeReal => [.. WholeReals.Keys];
 
     public static TheoryData<string> EveryInstant => [.. Instants.Keys];
+
+    public static TheoryData<string> EveryNumber =>
+    [
+        .. EveryUnderlyingType.Where(entry => StjSerializer.Serialize(entry.Value, entry.Value.GetType()) is [not '"', ..] and not ("true" or "false"))
+            .Select(entry => entry.Key),
+    ];
+
+    public static TheoryData<string> EveryNumberBothWays => [.. NumbersBothWays.Keys];
 
     /// <summary>
     /// The payment <see cref="JsonTests"/> writes with System.Text.Json, written with Newtonsoft.Json: the converter
@@ -276,6 +311,11 @@ public class NewtonsoftJsonTests
         JsonConvert.DeserializeObject<Ratio>(tinyJson, decimals).Value.Should().Be(0f);
     }
 
+    /// <summary>
+    /// A number out of the range of the type, with a fraction for an integer, or not finite is refused before any rule
+    /// runs, whether it is written as a number or as text: NaN and the infinities are no number the converter reads,
+    /// from a string either.
+    /// </summary>
     [Theory]
     [InlineData("70000", typeof(Quantity))]
     [InlineData("-1", typeof(Score))]
@@ -285,6 +325,11 @@ public class NewtonsoftJsonTests
     [InlineData("2.0", typeof(PageNumber))]
     [InlineData("NaN", typeof(Latitude))]
     [InlineData("1e400", typeof(Latitude))]
+    [InlineData("\"70000\"", typeof(Quantity))]
+    [InlineData("\"-1\"", typeof(ByteCount))]
+    [InlineData("\"1e400\"", typeof(Latitude))]
+    [InlineData("\"NaN\"", typeof(Latitude))]
+    [InlineData("\"-Infinity\"", typeof(Ratio))]
     public void A_number_the_underlying_type_cannot_hold_is_refused_as_JSON(string json, Type type)
     {
         var act = () => JsonConvert.DeserializeObject(json, type, Defaults);
@@ -293,11 +338,11 @@ public class NewtonsoftJsonTests
     }
 
     /// <summary>
-    /// System.Text.Json reads a number from a string only when its options allow it, and Newtonsoft.Json has no such
-    /// option to honour.
+    /// A value is read from the kind of token it is written as, or from a string for a number: a boolean, an object
+    /// or a date is no number, and a number or a string is no boolean.
     /// </summary>
     [Theory]
-    [InlineData("\"12\"", typeof(Amount), "number", "String")]
+    [InlineData("\"2024-05-17T10:00:00Z\"", typeof(PageNumber), "number", "Date")]
     [InlineData("{}", typeof(Amount), "number", "StartObject")]
     [InlineData("true", typeof(PageNumber), "number", "Boolean")]
     [InlineData("\"true\"", typeof(Consent), "boolean", "String")]
@@ -308,6 +353,71 @@ public class NewtonsoftJsonTests
 
         act.Should().Throw<JsonSerializationException>()
             .WithMessage($"Expected a JSON {expected} for {type.Name} but found {found}.");
+    }
+
+    /// <summary>
+    /// Newtonsoft.Json without the converter writes every value object through its type converter, a number as the
+    /// text of the number. The converter reads that text as System.Text.Json reads a number written as text under
+    /// <c>AllowReadingFromString</c>, so data stored before the converter was added still reads once it is.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryNumber))]
+    public void A_number_written_as_a_string_is_read_as_System_Text_Json_reads_one_from_text(string name)
+    {
+        var value = EveryUnderlyingType[name];
+        var quoted = $"\"{StjSerializer.Serialize(value, value.GetType())}\"";
+
+        JsonConvert.DeserializeObject(quoted, value.GetType(), Defaults).Should().Be(value);
+        JsonConvert.DeserializeObject(quoted, value.GetType(), Recommended).Should().Be(value);
+        StjSerializer.Deserialize(quoted, value.GetType(), NumbersFromText).Should().Be(value);
+    }
+
+    /// <summary>
+    /// The text of a number is read whole, with no white space, no group separator and no culture, so what
+    /// System.Text.Json refuses to read as a number from text is refused here too.
+    /// </summary>
+    [Theory]
+    [InlineData("\" 7\"", typeof(PageNumber))]
+    [InlineData("\"7 \"", typeof(PageNumber))]
+    [InlineData("\"1,000\"", typeof(PageNumber))]
+    [InlineData("\"7.0\"", typeof(PageNumber))]
+    [InlineData("\"0x10\"", typeof(PageNumber))]
+    [InlineData("\"seven\"", typeof(PageNumber))]
+    [InlineData("\"+7\"", typeof(SequenceNumber))]
+    [InlineData("\"12,5\"", typeof(Amount))]
+    [InlineData("\"\"", typeof(Amount))]
+    [InlineData("\"1.5 \"", typeof(Latitude))]
+    public void Text_that_System_Text_Json_reads_as_no_number_is_refused(string json, Type type)
+    {
+        var newtonsoft = () => JsonConvert.DeserializeObject(json, type, Defaults);
+        var systemTextJson = () => StjSerializer.Deserialize(json, type, NumbersFromText);
+
+        newtonsoft.Should().Throw<JsonSerializationException>().WithMessage($"The value could not be read as {type.Name}.");
+        systemTextJson.Should().Throw<System.Text.Json.JsonException>();
+    }
+
+    /// <summary>
+    /// Without the converter, Newtonsoft.Json falls back to the type converter of each value object: it writes every
+    /// one as a string, a number as its text, and reads a string or a number of any numeric type. With it, a number is
+    /// written as a number. Each reads what the other writes, so a host can add the converter without draining what it
+    /// stored before, and a host without it reads the numbers System.Text.Json and the converter write.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryNumberBothWays))]
+    public void Newtonsoft_with_the_converter_and_without_it_read_each_other(string name)
+    {
+        var value = NumbersBothWays[name];
+        var type = value.GetType();
+        var plain = new JsonSerializerSettings();
+
+        var fallback = JsonConvert.SerializeObject(value, type, plain);
+        var converted = JsonConvert.SerializeObject(value, type, Defaults);
+
+        fallback.Should().StartWith("\"", "the type converter writes text");
+        JsonConvert.DeserializeObject(fallback, type, Defaults).Should().Be(value);
+        JsonConvert.DeserializeObject(fallback, type, Recommended).Should().Be(value);
+        JsonConvert.DeserializeObject(converted, type, plain).Should().Be(value);
+        JsonConvert.DeserializeObject(StjSerializer.Serialize(value, type), type, plain).Should().Be(value);
     }
 
     [Fact]
@@ -462,6 +572,48 @@ public class NewtonsoftJsonTests
         var recorded = RecordedAt.Create(new DateTime(2024, 6, 1, 12, 30, 45, 123, DateTimeKind.Utc));
 
         JsonConvert.SerializeObject(recorded, settings).Should().Be("\"2024-06-01T12:30:45.123Z\"");
+    }
+
+    /// <summary>
+    /// <c>AddValueObjects</c> adds the converter once, hands it the text of every string, and reads every real as a
+    /// decimal, so a decimal value object keeps its digits and its scale: under the default float handling, a stored
+    /// <c>12.50</c> reads back as 12.5, and <c>1234567890123456789.12</c> as 1234567890123456800.
+    /// </summary>
+    [Fact]
+    public void AddValueObjects_adds_the_converter_once_with_the_settings_it_reads_best_under()
+    {
+        var enums = new Newtonsoft.Json.Converters.StringEnumConverter();
+        var settings = new JsonSerializerSettings { Converters = { enums } }.AddValueObjects().AddValueObjects();
+        var nothing = () => ((JsonSerializerSettings)null!).AddValueObjects();
+
+        settings.Converters.Should().HaveCount(2).And.Contain(enums);
+        settings.Converters.OfType<ValueObjectConverter>().Should().ContainSingle();
+        settings.DateParseHandling.Should().Be(DateParseHandling.None);
+        settings.FloatParseHandling.Should().Be(FloatParseHandling.Decimal);
+        JsonConvert.DeserializeObject<TransferLimit>("12.50", settings).ToString().Should().Be("12.50");
+        JsonConvert.DeserializeObject<TransferLimit>("12.50", Defaults).ToString().Should().Be("12.5");
+        JsonConvert.DeserializeObject<Amount>("1234567890123456789.12", settings).Value.Should().Be(1234567890123456789.12m);
+        JsonConvert.DeserializeObject<Amount>("1234567890123456789.12", Defaults).Value.Should().Be(1234567890123456800m);
+        JsonConvert.DeserializeObject<Label>("\"2024-05-17T10:00:00Z\"", settings).Value.Should().Be("2024-05-17T10:00:00Z");
+        nothing.Should().Throw<ArgumentNullException>().WithParameterName("settings");
+    }
+
+    /// <summary>
+    /// Every number of the payload is read as a decimal under <see cref="FloatParseHandling.Decimal"/>, and a double
+    /// beyond the range of a decimal then makes the reader throw: a payload carrying one keeps its float handling.
+    /// </summary>
+    [Fact]
+    public void AddValueObjects_leaves_the_float_handling_alone_when_reals_are_not_decimal()
+    {
+        var settings = new JsonSerializerSettings { FloatParseHandling = FloatParseHandling.Double }.AddValueObjects(decimalReals: false);
+        var decimals = new JsonSerializerSettings().AddValueObjects();
+        var large = () => JsonConvert.DeserializeObject<Mass>("1E+30", decimals);
+
+        settings.FloatParseHandling.Should().Be(FloatParseHandling.Double);
+        settings.DateParseHandling.Should().Be(DateParseHandling.None);
+        settings.Converters.OfType<ValueObjectConverter>().Should().ContainSingle();
+        JsonConvert.DeserializeObject<Mass>("1E+30", settings).Should().Be(Mass.Create(1e30));
+        large.Should().Throw<JsonReaderException>();
     }
 
     private sealed record Payment(Iban Account, Amount Total, CustomerId Customer, BirthDate? Birth, Quantity Lines);
