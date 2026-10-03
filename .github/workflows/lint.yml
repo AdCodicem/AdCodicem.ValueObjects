@@ -64,3 +64,34 @@ jobs:
             echo "::endgroup::"
           done < <(git rev-list "$BASE_SHA..$HEAD_SHA")
           exit "$status"
+
+  # preview.yml and release.yml never run on a pull request, and deploy-docs.yml
+  # only through them, so a broken edit to any of them would otherwise merge
+  # green and fail on the next Monday or at release time. actionlint checks
+  # every workflow, and shellcheck (on the runner image) every run: block in
+  # them. A downloaded binary, not an action, verified against the digest the
+  # release publishes (docs/adr/0004-pin-the-supply-chain-by-digest-not-nuget-lock-files.md).
+  actionlint:
+    name: workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ACTIONLINT_VERSION: 1.7.12
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 --output "$RUNNER_TEMP/$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/$archive"
+          echo "$ACTIONLINT_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+
+      # .github/actionlint.yaml silences the one documented key actionlint does not know.
+      - name: Lint the workflows
+        run: '"$RUNNER_TEMP/actionlint" -color'

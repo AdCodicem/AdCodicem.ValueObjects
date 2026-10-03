@@ -1,0 +1,12 @@
+# actionlint configuration, read by the actionlint job in lint.yml.
+paths:
+  .github/workflows/deploy-docs.yml:
+    ignore:
+      # `queue: max` is documented by GitHub but unknown to actionlint 1.7.12
+      # (docs/adr/0005-version-the-documentation-site.md).
+      - 'unexpected key "queue" for "concurrency" section'
+  .github/workflows/preview.yml:
+    ignore:
+      # The same key, at the workflow level
+      # (docs/adr/0009-publish-previews-weekly-when-a-package-input-changed.md).
+      - 'unexpected key "queue" for "concurrency" section'
