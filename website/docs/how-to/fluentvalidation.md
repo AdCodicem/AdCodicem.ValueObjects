@@ -89,7 +89,8 @@ RuleFor(command => command.Account).NotDefault<TransferCommand, Iban, string>();
 
 `NotDefault` catches the one thing a struct value object cannot rule out by itself: an instance that was never
 constructed, arriving from a place the `VO0010` analyzer cannot see — a deserializer of another library,
-reflection, an array element.
+reflection, an array element. [Where a default instance can come from](../reference/default-instances.md) lists the
+sources observed.
 
 It reads `IsDefault`, which tells an instance equal to `default(TSelf)` and nothing more. Over a `string`, that is
 exactly an instance that never went through `Create`. Over a value type, a constructed instance holding the type's
