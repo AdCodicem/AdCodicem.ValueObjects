@@ -20,6 +20,24 @@ updates:
     groups:
       dotnet:
         update-types: ["minor", "patch"]
+    # A new major of a framework is supported by a decision -- a dependency floor
+    # or a target framework, docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md --
+    # never by a bump. For NuGet these rules also hold back a security update that
+    # exists only on a new major: its alert stays open, and the move is made as a
+    # deliberate migration. One published on the current major still opens at once.
+    # Never ignore a shipped dependency by name alone: that blocks every security
+    # update of it.
+    ignore:
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.AspNetCore.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.OpenApi"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Npgsql.EntityFrameworkCore.PostgreSQL"
+        update-types: ["version-update:semver-major"]
 
   # Release tooling (semantic-release and its plugins) in the root package.json.
   - package-ecosystem: "npm"
