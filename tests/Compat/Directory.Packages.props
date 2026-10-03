@@ -1,0 +1,50 @@
+<Project>
+
+  <!--
+    Versions for the island only; the repository's Directory.Packages.props, which pins what the packages are built
+    against, is deliberately not imported. No transitive pinning either: the graph is the one an application without
+    central package management gets, where the dependency floors of the packages under test meet the next major.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <!-- Without a version, "[]" would fail even the restore of the empty project an older SDK sees (the project file
+       says why); Directory.Build.props stops a real restore that lacks one with the reason instead. -->
+  <ItemGroup Label="Under test, at exactly the version just packed" Condition="'$(AdCodicemVersion)' != ''">
+    <PackageVersion Include="AdCodicem.ValueObjects" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.Abstractions" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.AspNetCore" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.Dapper" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.EntityFrameworkCore" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.FluentValidation" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.Identifiers" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.Json" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.NewtonsoftJson" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.OpenApi" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.Testing" Version="[$(AdCodicemVersion)]" />
+  </ItemGroup>
+
+  <!--
+    The next major, as an application on it references it. Npgsql's provider pins Entity Framework Core to the exact
+    build it was compiled against, so the providers move together, release candidate by release candidate.
+  -->
+  <ItemGroup Label=".NET 11">
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="11.0.0-rc.1.1" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="11.0.0-rc.1.26425.128" />
+  </ItemGroup>
+
+  <ItemGroup Label="Testing">
+    <PackageVersion Include="xunit.v3" Version="4.0.1" />
+    <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.1" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.15.0" />
+    <PackageVersion Include="Testcontainers.MsSql" Version="4.15.0" />
+  </ItemGroup>
+
+</Project>

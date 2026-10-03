@@ -122,6 +122,53 @@ jobs:
           name: packages
           path: artifacts/packages/*.*nupkg
 
+  # The packages this commit packed, installed into an application on the next .NET
+  # major (tests/Compat): the generator in its compiler, Entity Framework Core 11 on
+  # SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core
+  # model binding, and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3. The
+  # island has its own global.json, so the SDK it needs is installed from there and
+  # everything runs from its folder. Not a required check until .NET 11 ships, and
+  # deliberately not continue-on-error: a break shows red on the pull request.
+  compat:
+    name: compat (.NET 11)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Where tests/Compat/nuget.config looks for them, the one source it takes them from.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages
+          path: artifacts/packages
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: tests/Compat/global.json
+
+      # From the island's folder, so that its global.json selects the SDK and the test
+      # runner. The version is the one the build job packed, never floated: the island
+      # restores exactly that version, from artifacts/packages only. The containers need
+      # Docker, which the runner has.
+      - name: Compatibility tests
+        working-directory: tests/Compat
+        env:
+          ADCODICEM_VERSION: ${{ needs.build.outputs.version }}
+        run: >-
+          dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj
+          -c Release
+          -p:AdCodicemVersion="$ADCODICEM_VERSION"
+          --report-trx --report-trx-filename compat.trx
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: compat-test-results
+          path: tests/Compat/**/*.trx
+
   # The documentation site, built as deploy-docs.yml builds it and deployed by
   # nobody. ci.yml deploys nothing since preview.yml took the site over, so a broken
   # link, a sidebar entry that no longer resolves or an API reference DocFX cannot

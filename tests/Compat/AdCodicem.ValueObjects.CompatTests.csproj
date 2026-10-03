@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.CompatTests</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    An SDK that cannot target the next major gets here only from outside this folder, where the repository's
+    global.json selects the current SDK. GitHub's automatic dependency submission does exactly that: it restores every
+    project file it finds, from the repository root, and fails the run on the first restore that fails. On such an SDK
+    the project is left empty, so that its restore succeeds and submits nothing, and a build on it stops with the
+    reason instead of compiling code the SDK cannot target.
+  -->
+  <PropertyGroup Condition="$([MSBuild]::VersionLessThan('$(NETCoreAppMaximumVersion)', '$([MSBuild]::GetTargetFrameworkVersion('$(TargetFramework)'))'))">
+    <CompatSdkMissing>true</CompatSdkMissing>
+    <TargetFramework>net$(NETCoreAppMaximumVersion)</TargetFramework>
+  </PropertyGroup>
+
+  <Target Name="_RequireCompatSdk" BeforeTargets="BeforeBuild" Condition="'$(CompatSdkMissing)' == 'true'">
+    <Error Text="The compatibility island targets the next .NET major, which SDK $(NETCoreSdkVersion) cannot. Run it from tests/Compat, whose global.json selects the SDK it needs." />
+  </Target>
+
+  <!-- All twelve, as a consumer installs them: the generator arrives with AdCodicem.ValueObjects and runs in this
+       SDK's compiler, the integrations resolve their dependency floors against the next major. -->
+  <ItemGroup Condition="'$(CompatSdkMissing)' != 'true'">
+    <PackageReference Include="AdCodicem.ValueObjects" />
+    <PackageReference Include="AdCodicem.ValueObjects.Abstractions" />
+    <PackageReference Include="AdCodicem.ValueObjects.AspNetCore" />
+    <PackageReference Include="AdCodicem.ValueObjects.Dapper" />
+    <PackageReference Include="AdCodicem.ValueObjects.EntityFrameworkCore" />
+    <PackageReference Include="AdCodicem.ValueObjects.FluentValidation" />
+    <PackageReference Include="AdCodicem.ValueObjects.Identifiers" />
+    <PackageReference Include="AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore" />
+    <PackageReference Include="AdCodicem.ValueObjects.Json" />
+    <PackageReference Include="AdCodicem.ValueObjects.NewtonsoftJson" />
+    <PackageReference Include="AdCodicem.ValueObjects.OpenApi" />
+    <PackageReference Include="AdCodicem.ValueObjects.Testing" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CompatSdkMissing)' != 'true'">
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CompatSdkMissing)' != 'true'">
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.MsSql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="AwesomeAssertions" />
+    <Using Include="AdCodicem.ValueObjects" />
+    <Using Include="AdCodicem.ValueObjects.Annotations" />
+    <Using Include="AdCodicem.ValueObjects.Identifiers" />
+  </ItemGroup>
+
+</Project>
