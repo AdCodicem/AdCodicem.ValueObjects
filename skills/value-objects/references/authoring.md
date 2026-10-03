@@ -422,4 +422,8 @@ public static class Registrations
 }
 ```
 
-`IsDefault` is the runtime guard for an instance that crossed a boundary the `VO0010` analyzer cannot see.
+`IsDefault` is the runtime guard for an instance that crossed a boundary the `VO0010` analyzer cannot see. It is
+an explicit implementation, so it stays out of a logger's, schema generator's or exporter's view of the type: read it
+in a method constrained on `IValueObject<TSelf, TValue>`, which does not box, or through a cast,
+`((IValueObject<EmailAddress, string>)email).IsDefault`. It says the instance equals `default(TSelf)`, nothing more:
+over a value type, a valid zero (`0`, `Guid.Empty`) reads `true` too.

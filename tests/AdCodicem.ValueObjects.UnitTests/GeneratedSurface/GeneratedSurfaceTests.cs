@@ -68,6 +68,16 @@ public class GeneratedSurfaceTests
     public void No_constructor_takes_the_value_alone(string type)
         => Samples.All[type].OffersNoConstructorTakingTheValueAlone();
 
+    /// <summary>
+    /// A tool reading the public instance properties of a type — a logger destructuring it, a schema generator, a CSV
+    /// or spreadsheet exporter — publishes each as data. <c>IsDefault</c> is a guard for code, implemented explicitly
+    /// so that such a tool finds <c>Value</c> alone, and generic code still reads it.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Every))]
+    public void IsDefault_is_out_of_sight_of_a_tool_reading_public_properties(string type)
+        => Samples.All[type].HidesIsDefaultFromReflection();
+
     [Theory]
     [MemberData(nameof(EveryArithmetic))]
     public void Every_arithmetic_member_validates_its_result(string type)

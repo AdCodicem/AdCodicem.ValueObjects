@@ -170,8 +170,8 @@ public abstract class DapperTests<TFixture>(TFixture fixture) : IClassFixture<TF
         await using var connection = fixture.CreateConnection();
         var account = await connection.QuerySingleAsync<BankAccount>(Command(sql, new { id = customer.Id }));
 
-        account.Iban.IsDefault.Should().BeTrue();
-        account.Balance.IsDefault.Should().BeTrue();
+        ((IValueObject<Iban, string>)account.Iban).IsDefault.Should().BeTrue();
+        ((IValueObject<Amount, decimal>)account.Balance).IsDefault.Should().BeTrue();
         account.CustomerId.Should().Be(customer.Id);
     }
 

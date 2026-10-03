@@ -91,6 +91,11 @@ RuleFor(command => command.Account).NotDefault<TransferCommand, Iban, string>();
 constructed, arriving from a place the `VO0010` analyzer cannot see — a deserializer of another library,
 reflection, an array element.
 
+It reads `IsDefault`, which tells an instance equal to `default(TSelf)` and nothing more. Over a `string`, that is
+exactly an instance that never went through `Create`. Over a value type, a constructed instance holding the type's
+zero equals the default too: `NotDefault` refuses `Amount.Create(0m)` or `OrderId.Create(Guid.Empty)` as
+`value_object.required`. Use it on a value object over a value type only when its rules refuse the zero anyway.
+
 ## Returning the codes
 
 The codes reach an API client if you put them in the response.

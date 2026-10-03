@@ -35,7 +35,7 @@ public class EmittedOptionTests
         // AllowDefault silences VO0010, so the expression below compiles without a pragma: that is the test.
         var start = default(SequenceNumber);
 
-        start.IsDefault.Should().BeTrue();
+        ((IValueObject<SequenceNumber, uint>)start).IsDefault.Should().BeTrue();
         start.Should().Be(SequenceNumber.Zero);
     }
 

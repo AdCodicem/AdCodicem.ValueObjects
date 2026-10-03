@@ -39,6 +39,8 @@ public abstract class Sample
 
     public abstract void OffersNoConstructorTakingTheValueAlone();
 
+    public abstract void HidesIsDefaultFromReflection();
+
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
 
@@ -309,6 +311,19 @@ public class Sample<TSelf, TValue> : Sample
         constructor.GetParameters().Should().NotContain(parameter => parameter.IsOptional, "a mapper fills an optional parameter from its default");
     }
 
+    public override void HidesIsDefaultFromReflection()
+    {
+        // What a logger destructuring the value object, a schema generator or an exporter walks: the guard is for code.
+        typeof(TSelf).GetProperties(BindingFlags.Instance | BindingFlags.Public).Select(property => property.Name)
+            .Should().Contain("Value").And.NotContain(nameof(IValueObject<TSelf, TValue>.IsDefault));
+
+        // Still there for generic code, which reaches it through the constraint without boxing. It tells an instance
+        // equal to the default, which over a value type a constructed zero is too: Consent.Create(false) reads true.
+        IsDefault(default(TSelf)).Should().BeTrue();
+        IsDefault(Small).Should().Be(Small.Equals(default(TSelf)));
+        IsDefault(Large).Should().Be(Large.Equals(default(TSelf)));
+    }
+
     protected static TDelegate Method<TDelegate>(string name, params Type[] parameters)
         where TDelegate : Delegate
         => typeof(TSelf).GetMethod(name, BindingFlags.Public | BindingFlags.Static, parameters)!.CreateDelegate<TDelegate>();
@@ -322,6 +337,8 @@ public class Sample<TSelf, TValue> : Sample
     private static bool TryParseThroughIParsable<T>(string? text, out T result)
         where T : IParsable<T>
         => T.TryParse(text, null, out result!);
+
+    private static bool IsDefault(TSelf value) => value.IsDefault;
 
     private static Func<TSelf, TSelf, bool> Operator(string name)
         => Method<Func<TSelf, TSelf, bool>>(name, typeof(TSelf), typeof(TSelf));
