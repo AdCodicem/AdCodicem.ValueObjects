@@ -29,4 +29,9 @@
     <PackageReference Include="PolySharp" PrivateAssets="all" />
   </ItemGroup>
 
+  <!-- The code fix reads the diagnostic's contract from here, as the analyzer computes it. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.CodeFixes" />
+  </ItemGroup>
+
 </Project>

@@ -1,0 +1,13 @@
+<Project>
+
+  <!--
+    VO0033 reports a value object the Request Delegate Generator cannot see as parsable. The SDK turns that generator
+    on through EnableRequestDelegateGenerator, which it sets under PublishAot and PublishTrimmed, and an analyzer reads
+    a build property only when the project lists it here. NuGet imports this file into the projects that reference the
+    package and, from buildTransitive/, into those that reference it through another project.
+  -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="EnableRequestDelegateGenerator" />
+  </ItemGroup>
+
+</Project>

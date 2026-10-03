@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>AdCodicem.ValueObjects.CodeFixes</RootNamespace>
+
+    <!-- Shipped beside the generator as an analyzer asset of the AdCodicem.ValueObjects package, never on its own. -->
+    <IsPackable>false</IsPackable>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+    <EnablePackageValidation>false</EnablePackageValidation>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!--
+    A code fix needs the workspace layer, which RS1038 refuses in an assembly holding an analyzer or a generator: the
+    compiler loads those without it. So the fix lives here, and reads the diagnostic and the contract from the generator
+    assembly, loaded from the same analyzer folder.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+    <PackageReference Include="PolySharp" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj" />
+  </ItemGroup>
+
+</Project>

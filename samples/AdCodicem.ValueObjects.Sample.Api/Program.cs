@@ -40,8 +40,9 @@ var app = builder.Build();
 app.MapOpenApi();
 app.MapControllers();
 
-// A minimal API needs nothing from the ASP.NET Core package: a generated value object implements IParsable<T>,
-// which is exactly what minimal API parameter binding looks for.
+// A minimal API binds a value object through the IParsable<T> it implements. Iban comes from the domain project, so
+// the Request Delegate Generator, which native AOT turns on, sees that interface too: it does not see what a generator
+// adds to a type of the project it compiles.
 app.MapGet("/accounts/{iban}", async (Iban iban, BankingDbContext database, CancellationToken cancellationToken) =>
 {
     var account = await database.Accounts.FirstOrDefaultAsync(entity => entity.Iban == iban, cancellationToken);

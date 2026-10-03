@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace AdCodicem.ValueObjects.Sample.Api.Domain;
+namespace AdCodicem.ValueObjects.Sample.Domain;
 
 /// <summary>
 /// The identifier of a customer.

@@ -16,7 +16,46 @@ what minimal API parameter binding looks for, and its `[JsonConverter]` covers r
 app.MapGet("/accounts/{iban}", (Iban iban) => /* … */);
 ```
 
-A value that fails to parse is answered with a 400 before the handler runs.
+A value that fails to parse is answered with a 400 before the handler runs. That holds wherever a value object
+comes from, except for one declared in the project that maps the endpoints when the Request Delegate Generator runs,
+which the next section covers.
+
+### The Request Delegate Generator
+
+The Request Delegate Generator (RDG) writes minimal API binding at build time, for native AOT. It runs in every build
+of a project that sets `PublishAot`, `PublishTrimmed` or `EnableRequestDelegateGenerator`, not only when it
+publishes. It is a source generator, and source generators never see each other's output: for a value object
+declared in its own project, it sees the struct without the `IParsable<T>` the generator adds, and binds the
+parameter from the request body. A route value is then answered with a 400, a query value is bound to `null`
+without an error, and the build stays clean.
+
+A value object declared in another project, a domain project where most applications keep them, is not affected:
+the RDG reads its interfaces from the compiled assembly. One declared in the endpoints' project lists its contract on
+its own declaration, which is the part the RDG reads. The members still come from the generator:
+
+```csharp
+[ValueObject<string>(MaxLength = 10)]
+public readonly partial struct Sku : IValueObject<Sku, string>;
+```
+
+The contract is `IValueObject<TSelf, TValue>`, `INumericValueObject<TSelf, TValue>` for an arithmetic value object,
+and `IEntityId<TSelf>` for an identifier; any interface that brings `IParsable<TSelf>` will do. Listing it is
+harmless where no RDG runs, and required where one does. In a project where the RDG runs and that references
+ASP.NET Core's endpoint routing, a value object listing none is reported as `VO0033`, with a code fix that adds the
+contract. Every value object of that project is reported, whether an endpoint binds it or not.
+
+A handler that returns a member the generator writes needs an explicit return type, which the RDG cannot infer from
+a member it does not see:
+
+```csharp skip
+app.MapGet("/skus/{sku}", string (Sku sku) => sku.Value);
+```
+
+Without it, the build fails with `CS0411` and `CS1031` in `GeneratedRouteBuilderExtensions.g.cs`, a file the RDG
+writes. Listing the interface does not help there.
+
+The RDG also binds empty text as the reflection-based binding does not, for a value object as for an `int?` or a
+`Guid?`: `?sku=` binds `null` to a nullable parameter, where the reflection-based binding answers 400.
 
 ## MVC controllers
 
