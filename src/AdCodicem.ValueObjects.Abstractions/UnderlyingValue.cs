@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
@@ -39,6 +40,43 @@ public static class UnderlyingValue
     public static bool TryParse<TValue>(string? text, IFormatProvider? provider, out TValue value)
         where TValue : IParsable<TValue>
         => TValue.TryParse(text, provider, out value!);
+
+    /// <summary>
+    /// Parses a span using the underlying number type's own parser, with the given styles in the invariant culture.
+    /// </summary>
+    /// <typeparam name="TValue">Underlying value type.</typeparam>
+    /// <param name="text">Text to parse.</param>
+    /// <param name="invariantStyle">
+    /// The styles the text is read with when <paramref name="provider"/> is <see langword="null"/> or the invariant
+    /// culture.
+    /// </param>
+    /// <param name="provider">
+    /// Format provider. <see langword="null"/> stands for <see cref="CultureInfo.InvariantCulture"/>; any culture other
+    /// than the invariant one reads the text with the type's own styles.
+    /// </param>
+    /// <param name="value">The parsed value.</param>
+    /// <returns><see langword="true"/> when the text was parsed.</returns>
+    /// <remarks>
+    /// The own styles of <see cref="decimal"/>, <see cref="double"/> and <see cref="float"/> accept the group separator,
+    /// a comma in the invariant culture, so text written with a decimal comma, <c>12,5</c>, would read as 125. Generated
+    /// code hands those styles over without <see cref="NumberStyles.AllowThousands"/>. A culture that is not the
+    /// invariant one says what a comma is, and keeps the type's own styles: <c>fr-FR</c> reads <c>12,5</c> as 12.5.
+    /// The invariant culture is recognized by equality, so a <see cref="CultureInfo"/> created for the empty name is
+    /// read as <see cref="CultureInfo.InvariantCulture"/> is, and so is its number format,
+    /// <see cref="NumberFormatInfo.InvariantInfo"/>, which callers of <c>decimal.Parse</c> pass as often.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool TryParse<TValue>(
+        ReadOnlySpan<char> text,
+        NumberStyles invariantStyle,
+        IFormatProvider? provider,
+        out TValue value)
+        where TValue : INumberBase<TValue>
+        => provider is null
+            || CultureInfo.InvariantCulture.Equals(provider)
+            || ReferenceEquals(provider, NumberFormatInfo.InvariantInfo)
+            ? TValue.TryParse(text, invariantStyle, provider ?? CultureInfo.InvariantCulture, out value!)
+            : TValue.TryParse(text, provider, out value!);
 
     /// <summary>
     /// Formats a value into a destination span using the underlying type's own formatter.

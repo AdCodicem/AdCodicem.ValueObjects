@@ -30,6 +30,12 @@ public sealed class ProbeController : ControllerBase
     [HttpGet("customers/{id}")]
     public IActionResult Customer(CustomerId id) => Ok(id.ToString());
 
+    /// <summary>Echoes an amount read from the query string.</summary>
+    /// <param name="total">The amount.</param>
+    /// <returns>Its value.</returns>
+    [HttpGet("total")]
+    public IActionResult Total([FromQuery] Amount total) => Ok(total.Value);
+
     /// <summary>Echoes a value object written by hand, whose parser may refuse text without saying why.</summary>
     /// <param name="counter">The counter.</param>
     /// <returns>Its value.</returns>

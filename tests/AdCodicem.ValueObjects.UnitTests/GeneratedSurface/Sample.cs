@@ -35,8 +35,16 @@ public abstract class Sample
 
     public abstract void RefusesJsonOfTheWrongShape();
 
+    public abstract void RefusesAGroupSeparatorInTheInvariantCulture();
+
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
+
+    /// <summary>
+    /// Gets a value indicating whether the underlying type is a <c>decimal</c>, a <c>double</c> or a <c>float</c>, whose
+    /// own number styles read a group separator.
+    /// </summary>
+    public abstract bool IsReal { get; }
 
     public virtual void ComputesThroughEveryArithmeticMember()
         => throw new InvalidOperationException($"{this} declares no arithmetic.");
@@ -90,6 +98,8 @@ public class Sample<TSelf, TValue> : Sample
 
     /// <summary>Gets the text the smaller instance is formatted as, which is <see cref="Text"/> but for a hook.</summary>
     private string Written { get; }
+
+    public override bool IsReal => typeof(TValue) == typeof(decimal) || typeof(TValue) == typeof(double) || typeof(TValue) == typeof(float);
 
     public override string ToString() => typeof(TSelf).Name;
 
@@ -247,6 +257,39 @@ public class Sample<TSelf, TValue> : Sample
             FluentActions.Invoking(() => JsonSerializer.Deserialize<TSelf>("\"not a number\"", LenientNumbers))
                 .Should().Throw<JsonException>();
         }
+    }
+
+    public override void RefusesAGroupSeparatorInTheInvariantCulture()
+    {
+        // A zero and a group separator ahead of the text: the type's own number styles read the same value from it.
+        var grouped = Text.StartsWith('-') ? "-0," + Text[1..] : "0," + Text;
+        var english = CultureInfo.GetCultureInfo("en-US");
+        var converter = TypeDescriptor.GetConverter(typeof(TSelf));
+        var parse = Method<Func<string, TSelf>>("Parse", typeof(string));
+
+        IFormatProvider?[] invariant = [null, CultureInfo.InvariantCulture, new CultureInfo(string.Empty), NumberFormatInfo.InvariantInfo];
+        foreach (var provider in invariant)
+        {
+            TSelf.TryParse(grouped, provider, out _, out var validation).Should().BeFalse("'{0}' holds a group separator", grouped);
+            validation.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+            TSelf.TryParse(grouped.AsSpan(), provider, out _).Should().BeFalse();
+            FluentActions.Invoking(() => TSelf.Parse(grouped.AsSpan(), provider))
+                .Should().Throw<ValueObjectException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        }
+
+        TryParseThroughIParsable<TSelf>(grouped, out _).Should().BeFalse();
+        FluentActions.Invoking(() => parse(grouped))
+            .Should().Throw<ValueObjectException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        converter.Invoking(c => c.ConvertFromInvariantString(grouped))
+            .Should().Throw<ValueObjectException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        var key = JsonSerializer.Serialize(new Dictionary<string, int> { [grouped] = 1 });
+        FluentActions.Invoking(() => JsonSerializer.Deserialize<Dictionary<TSelf, int>>(key)).Should().Throw<JsonException>();
+
+        // Any other culture says what a comma is, and keeps the type's own styles.
+        TSelf.TryParse(grouped, english, out var read, out _).Should().BeTrue();
+        read.Should().Be(Small);
+        TSelf.Parse(grouped.AsSpan(), english).Should().Be(Small);
+        converter.ConvertFrom(null, english, grouped).Should().Be(Small);
     }
 
     protected static TDelegate Method<TDelegate>(string name, params Type[] parameters)

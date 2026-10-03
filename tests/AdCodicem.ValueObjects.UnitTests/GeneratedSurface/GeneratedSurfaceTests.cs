@@ -11,6 +11,8 @@ public class GeneratedSurfaceTests
 
     public static TheoryData<string> EveryArithmetic => Samples.NumericNames;
 
+    public static TheoryData<string> EveryReal => Samples.RealNames;
+
     [Theory]
     [MemberData(nameof(Every))]
     public void Every_value_object_converts_through_its_TypeConverter(string type)
@@ -45,6 +47,16 @@ public class GeneratedSurfaceTests
     [MemberData(nameof(Every))]
     public void JSON_of_the_wrong_shape_is_refused(string type)
         => Samples.All[type].RefusesJsonOfTheWrongShape();
+
+    /// <summary>
+    /// A null provider stands for the invariant culture, where the group separator is a comma, and a comma is what a
+    /// decimal comma writes: <c>12,5</c> would read as 125. Read with no provider or the invariant culture, a real takes
+    /// no group separator, through every member that reads text; any other culture keeps the type's own styles.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryReal))]
+    public void A_real_read_in_the_invariant_culture_takes_no_group_separator(string type)
+        => Samples.All[type].RefusesAGroupSeparatorInTheInvariantCulture();
 
     [Theory]
     [MemberData(nameof(EveryArithmetic))]

@@ -23,7 +23,7 @@ Defined as constants on `ValueObjectErrorCodes`:
 | `value_object.invalid_format` | The value does not match the `Pattern` of `IValueObjectPatternValidator`, or of the deprecated option of the same name; also the code of `ValidationResult.InvalidFormat`. |
 | `value_object.out_of_range` | The value is below the bound of `IValueObjectMinimum<T>` or above that of `IValueObjectMaximum<T>`, or of the deprecated options of the same names; also the code of `ValidationResult.OutOfRange`. |
 | `value_object.not_a_known_value` | The value is not one of the known values of a closed set. |
-| `value_object.not_parsable` | The text does not even have the shape of the underlying type, so no rule of the type ran. |
+| `value_object.not_parsable` | The text does not even have the shape of the underlying type, so no rule of the type ran. That includes a group separator in a `decimal`, a `double` or a `float` read with no provider or the invariant culture: `12,5` is not 125. |
 
 ## Codes of your own
 
