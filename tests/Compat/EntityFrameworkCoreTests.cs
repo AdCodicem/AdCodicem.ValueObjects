@@ -115,7 +115,7 @@ public sealed class EntityFrameworkCoreTests : IDisposable
         await using var read = new ShopContext(_options);
         var entity = read.Model.FindEntityType(typeof(Order))!;
         entity.FindProperty(nameof(Order.Purchase))!.GetValueConverter().Should().BeOfType<ValueObjectConverter<Reference<PurchaseOrder>, string>>();
-        entity.FindProperty(nameof(Order.Invoice))!.GetValueConverter().Should().BeOfType<ValueObjectConverter<Reference<SalesInvoice>, string>>();
+        entity.FindProperty(nameof(Order.Invoice))!.GetValueConverter().Should().BeOfType<NullableValueObjectConverter<Reference<SalesInvoice>>>();
         entity.FindProperty(nameof(Order.Purchase))!.GetMaxLength().Should().Be(12);
 
         var orders = await read.Orders
