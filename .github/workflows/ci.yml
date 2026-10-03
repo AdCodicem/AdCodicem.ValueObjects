@@ -18,6 +18,8 @@ jobs:
   build:
     name: build and test
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.packed.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -85,11 +87,29 @@ jobs:
       - name: Every shipped assembly is measured
         run: .github/scripts/coverage-modules.sh
 
-      # Solution-wide --no-build trips NETSDK1085: the non-packable test/benchmark/sample
-      # projects still resolve their ProjectReferences during Pack, which re-invokes Build
-      # on the referenced library after it has already been packed.
+      # The packable projects under src/ only, through the solution filter preview.yml and
+      # release.yml pack with. Not --no-build: the generator is built into the main package
+      # through ResolveReferences during Pack, which trips NETSDK1085.
       - name: Pack
-        run: dotnet pack --no-restore -c Release -o artifacts/packages
+        run: dotnet pack src/AdCodicem.ValueObjects.Packages.slnf --no-restore -c Release -o artifacts/packages
+
+      # The solution filter cannot glob: a project added under src/ and left out of it would
+      # be missing from every preview and release. Caught here, on the pull request that adds
+      # it, rather than when a preview or a release packs.
+      - name: Every packable project is packed
+        id: packed
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          main=(artifacts/packages/AdCodicem.ValueObjects.[0-9]*.nupkg)
+          if (( ${#main[@]} != 1 )); then
+            echo "::error::Expected one AdCodicem.ValueObjects package, found ${#main[@]}." >&2
+            exit 1
+          fi
+          version="$(basename "${main[0]}" .nupkg)"
+          version="${version#AdCodicem.ValueObjects.}"
+          ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "$version" "$(.github/scripts/package-ids.sh)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -101,80 +121,3 @@ jobs:
         with:
           name: packages
           path: artifacts/packages/*.*nupkg
-
-  # Every merge to main ships a preview, so a change can be tried before it is
-  # permanent. MinVer produces the version: with no stable tag at HEAD it yields
-  # the next patch as a prerelease (0.1.1-preview.0.N), which needs no decision
-  # from anyone. Stable releases are cut by hand -- see release.yml and
-  # docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md.
-  preview:
-    name: publish preview to nuget.org
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    # Deliberately unprotected -- see release.yml's `nuget-stable` for the environment
-    # that carries the required reviewer. Gating this one too would mean every merge to
-    # main needs a manual approval before the preview goes out, defeating the point.
-    environment: nuget
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: packages
-          path: packages
-
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: '10.0.x'
-
-      # This job must never publish a stable version: that is release.yml's job,
-      # and it is the one step that cannot be undone. If a stable tag ever ends
-      # up at HEAD, MinVer stamps a stable version and these packages would claim
-      # to be a release nobody cut. Stop instead of guessing.
-      - name: Refuse to publish a non-preview version
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          packages=(packages/AdCodicem.ValueObjects.*.nupkg)
-          if (( ${#packages[@]} == 0 )); then
-            echo "::error::No packages were downloaded." >&2
-            exit 1
-          fi
-          for package in "${packages[@]}"; do
-            name="$(basename "$package")"
-            if [[ "$name" != *-preview* ]]; then
-              echo "::error::$name is not a preview build. Stable releases go through release.yml." >&2
-              exit 1
-            fi
-          done
-          echo "All ${#packages[@]} packages are preview builds."
-
-      # Trusted Publishing: exchanges this job's GitHub OIDC token for a NuGet API key that
-      # is scoped to this run and expires in an hour, so no long-lived secret is stored.
-      - name: NuGet login (OIDC -> temporary API key)
-        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
-        id: login
-        with:
-          user: AdCodicem
-
-      - name: Push preview
-        run: >-
-          dotnet nuget push "packages/*.nupkg"
-          --api-key "${{ steps.login.outputs.NUGET_API_KEY }}"
-          --source https://api.nuget.org/v3/index.json
-          --skip-duplicate
-
-  # The preview documentation follows the preview package: redeployed once the
-  # package is on nuget.org, and not at all when the push above fails, so the
-  # site never describes a preview nobody can install. Stable documentation is
-  # frozen by release.yml and only rebuilt here, unchanged.
-  docs:
-    name: publish preview documentation
-    needs: preview
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    uses: ./.github/workflows/deploy-docs.yml
