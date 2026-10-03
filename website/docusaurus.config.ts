@@ -9,10 +9,11 @@ import sidebars from './sidebars';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 // The site is versioned (docs/adr/0005-version-the-documentation-site.md). website/docs/ is
-// the preview: it describes main, and every merge that publishes a preview package redeploys
-// it. Each stable release freezes it into versioned_docs/ through
-// .github/scripts/docs-snapshot.sh, one entry per line of versions -- 0.3.x while the major is
-// 0, 1.x from 1.0 on -- replaced in place when that line ships again.
+// the preview: it describes main, and preview.yml redeploys it every week and on dispatch,
+// after publishing a preview package when a package input changed. Each stable release freezes
+// it into versioned_docs/ through .github/scripts/docs-snapshot.sh, one entry per line of
+// versions -- 0.3.x while the major is 0, 1.x from 1.0 on -- replaced in place when that line
+// ships again.
 function readJson<T>(file: string, fallback: T): T {
   const fullPath = path.join(__dirname, file);
   return fs.existsSync(fullPath) ? (JSON.parse(fs.readFileSync(fullPath, 'utf8')) as T) : fallback;

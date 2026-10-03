@@ -1,9 +1,10 @@
 name: release
 
 # Cutting a stable release is a deliberate act, not a consequence of merging.
-# Merges to main publish previews (see ci.yml); this workflow is the moment a
-# human decides those changes are a release. That matters because pushing to
-# nuget.org cannot be undone -- a package can be delisted, never unpublished.
+# Previews go out weekly when a package input changed (see preview.yml); this
+# workflow is the moment a human decides those changes are a release. That
+# matters because pushing to nuget.org cannot be undone -- a package can be
+# delisted, never unpublished.
 on:
   workflow_dispatch:
     inputs:
@@ -23,9 +24,9 @@ jobs:
   release:
     name: ${{ inputs.dry_run && 'dry run' || 'publish' }}
     runs-on: ubuntu-latest
-    # A separate environment from ci.yml's preview job: this is the one gated by a
-    # required reviewer, so cutting a stable release needs a deliberate approval
-    # while previews keep publishing on every merge without one.
+    # A separate environment from preview.yml's publish job: this is the one gated
+    # by a required reviewer, so cutting a stable release needs a deliberate
+    # approval while previews go out without one.
     environment: nuget-stable
     permissions:
       # semantic-release commits CHANGELOG.md and pushes the tag.
