@@ -17,6 +17,7 @@ internal static class ValueObjectEmitter
     private const string IdFormat = Identifiers + ".EntityIdFormat";
     private const string ValidationResult = Abstractions + ".ValidationResult";
     private const string ErrorCodes = Abstractions + ".ValueObjectErrorCodes";
+    private const string UncheckedTag = Abstractions + ".UncheckedTag";
     private const string Inline = "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]";
     private const string Invariant = "global::System.Globalization.CultureInfo.InvariantCulture";
 
@@ -303,9 +304,11 @@ internal static class ValueObjectEmitter
         writer.Line($"private readonly {value}{(underlying.IsReferenceType ? "?" : string.Empty)} _value;");
         writer.Line();
 
+        // The tag is required and of a type only generated code has a reason to supply: a reflection mapper calls a
+        // non-public constructor that takes the source value alone, and would wrap a value no rule has checked.
         writer.Line("/// <summary>Wraps an already normalized and validated value.</summary>");
         writer.Line(Inline);
-        writer.Open($"private {model.Identifier}({value} value)");
+        writer.Open($"private {model.Identifier}({value} value, {UncheckedTag} tag)");
         writer.Line("_value = value;");
         writer.Close();
         writer.Line();
@@ -369,7 +372,7 @@ internal static class ValueObjectEmitter
         // re-normalizing and re-validating it would only cost a scan to reach the same value.
         writer.Line("/// <inheritdoc />");
         writer.Line($"public static {self} New(global::System.TimeProvider timeProvider, {Identifiers}.IdEntropySource entropy)");
-        writer.Line($"    => new({IdFormat}.Create(Prefix, Granularity, timeProvider, entropy));");
+        writer.Line($"    => new({IdFormat}.Create(Prefix, Granularity, timeProvider, entropy), default({UncheckedTag}));");
         writer.Line();
     }
 
@@ -709,7 +712,7 @@ internal static class ValueObjectEmitter
         writer.Line($"validation.ThrowIfInvalid(typeof({self}), {AttemptedValue(model, "value")});");
         writer.Close();
         writer.Line();
-        writer.Line($"return new {self}(normalized);");
+        writer.Line($"return new {self}(normalized, default({UncheckedTag}));");
         writer.Close();
         writer.Line();
 
@@ -723,7 +726,7 @@ internal static class ValueObjectEmitter
         writer.Line($"{value} normalized = Normalize(value);");
         writer.Line("validation = Validate(in normalized);");
         writer.Open("if (validation.IsValid)");
-        writer.Line($"result = new {self}(normalized);");
+        writer.Line($"result = new {self}(normalized, default({UncheckedTag}));");
         writer.Line("return true;");
         writer.Close();
         writer.Line();
@@ -734,7 +737,7 @@ internal static class ValueObjectEmitter
 
         writer.Line("/// <inheritdoc />");
         writer.Line(Inline);
-        writer.Line($"public static {self} CreateUnchecked({value} value) => new(value);");
+        writer.Line($"public static {self} CreateUnchecked({value} value) => new(value, default({UncheckedTag}));");
         writer.Line();
 
         if (model.NormalizesFromSpan)
@@ -748,7 +751,7 @@ internal static class ValueObjectEmitter
                 : $"{value} normalized = NormalizeValue(value);");
             writer.Line("validation = Validate(in normalized);");
             writer.Open("if (validation.IsValid)");
-            writer.Line($"result = new {self}(normalized);");
+            writer.Line($"result = new {self}(normalized, default({UncheckedTag}));");
             writer.Line("return true;");
             writer.Close();
             writer.Line();
