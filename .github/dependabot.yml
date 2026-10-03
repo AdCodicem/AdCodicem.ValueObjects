@@ -6,6 +6,14 @@ updates:
   # Dependabot discovers the projects through AdCodicem.ValueObjects.slnx, so the
   # .NET compatibility island under tests/Compat, which no solution lists, is out
   # of its reach: its versions are bumped by hand (docs/maintaining.md).
+  #
+  # One entry only: Dependabot refuses two entries of one ecosystem on one
+  # directory, and a group cannot set a commit prefix of its own. Every NuGet
+  # update is therefore opened as chore(deps), and dependabot-auto-merge.yml
+  # retitles fix(deps) -- fix(deps)! across a major -- the ones that update a
+  # dependency listed in .github/shipped-dependencies. Squash-merge them: the
+  # squash commit takes the pull request title, which is what semantic-release
+  # reads.
   - package-ecosystem: "nuget"
     directory: "/"
     schedule:
