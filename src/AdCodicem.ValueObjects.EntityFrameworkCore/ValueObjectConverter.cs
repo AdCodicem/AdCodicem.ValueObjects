@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace AdCodicem.ValueObjects.EntityFrameworkCore;
@@ -24,9 +26,15 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// </para>
 /// <para>
 /// Both directions go through static helpers rather than inline lambdas, because an expression tree cannot
-/// contain a call to a static abstract interface member.
+/// contain a call to a static abstract interface member. The helpers are public, out of sight of IntelliSense: the
+/// code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes into the application's assembly, calls
+/// them there, as it calls whatever a converter calls when it is generated for native AOT.
 /// </para>
 /// </remarks>
+[SuppressMessage(
+    "Design",
+    "CA1000:Do not declare static members on generic types",
+    Justification = "A compiled model calls the conversions on the converter type it was built from.")]
 public sealed class ValueObjectConverter<TSelf, TValue> : ValueConverter<TSelf, TValue>
     where TSelf : struct, IValueObject<TSelf, TValue>
 {
@@ -38,9 +46,30 @@ public sealed class ValueObjectConverter<TSelf, TValue> : ValueConverter<TSelf, 
     {
     }
 
-    private static TValue ToProvider(TSelf valueObject) => ProviderValue.Required<TSelf, TValue>(valueObject);
+    /// <summary>
+    /// Gives the value the column stores for a value object.
+    /// </summary>
+    /// <param name="valueObject">Value object being written.</param>
+    /// <returns>Its underlying value.</returns>
+    /// <exception cref="ValueObjectException">The value object rejects the value it holds.</exception>
+    /// <remarks>
+    /// The converter calls it, and so does the code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes
+    /// into the application's assembly: that is why it is public. Application code has no reason to call it.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static TValue ToProvider(TSelf valueObject) => ProviderValue.Required<TSelf, TValue>(valueObject);
 
-    private static TSelf FromProvider(TValue value) => TSelf.CreateUnchecked(value);
+    /// <summary>
+    /// Gives the value object a value read from the column holds, without validating it.
+    /// </summary>
+    /// <param name="value">Value read from the column.</param>
+    /// <returns>The value object holding it.</returns>
+    /// <remarks>
+    /// The converter calls it, and so does the code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes
+    /// into the application's assembly: that is why it is public. Application code has no reason to call it.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static TSelf FromProvider(TValue value) => TSelf.CreateUnchecked(value);
 }
 
 /// <summary>
@@ -58,6 +87,10 @@ public sealed class ValueObjectConverter<TSelf, TValue> : ValueConverter<TSelf, 
 /// Writing refuses a value the value object rejects, as <see cref="ValueObjectConverter{TSelf, TValue}"/> does.
 /// </para>
 /// </remarks>
+[SuppressMessage(
+    "Design",
+    "CA1000:Do not declare static members on generic types",
+    Justification = "A compiled model calls the conversions on the converter type it was built from.")]
 public sealed class StrictValueObjectConverter<TSelf, TValue> : ValueConverter<TSelf, TValue>
     where TSelf : struct, IValueObject<TSelf, TValue>
 {
@@ -69,7 +102,29 @@ public sealed class StrictValueObjectConverter<TSelf, TValue> : ValueConverter<T
     {
     }
 
-    private static TValue ToProvider(TSelf valueObject) => ProviderValue.Required<TSelf, TValue>(valueObject);
+    /// <summary>
+    /// Gives the value the column stores for a value object.
+    /// </summary>
+    /// <param name="valueObject">Value object being written.</param>
+    /// <returns>Its underlying value.</returns>
+    /// <exception cref="ValueObjectException">The value object rejects the value it holds.</exception>
+    /// <remarks>
+    /// The converter calls it, and so does the code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes
+    /// into the application's assembly: that is why it is public. Application code has no reason to call it.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static TValue ToProvider(TSelf valueObject) => ProviderValue.Required<TSelf, TValue>(valueObject);
 
-    private static TSelf FromProvider(TValue value) => TSelf.Create(value);
+    /// <summary>
+    /// Gives the value object a value read from the column holds, normalized and validated.
+    /// </summary>
+    /// <param name="value">Value read from the column.</param>
+    /// <returns>The value object holding it.</returns>
+    /// <exception cref="ValueObjectException">The value object rejects the value read.</exception>
+    /// <remarks>
+    /// The converter calls it, and so does the code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes
+    /// into the application's assembly: that is why it is public. Application code has no reason to call it.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static TSelf FromProvider(TValue value) => TSelf.Create(value);
 }

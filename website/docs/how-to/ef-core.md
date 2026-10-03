@@ -2,7 +2,7 @@
 title: Use with Entity Framework Core
 sidebar_label: Entity Framework Core
 slug: /how-to/ef-core
-description: Map every value object of an assembly to its underlying column type in one call, size columns from declared rules, choose when reads are validated, and never store a value a type rejects.
+description: Map every value object of an assembly to its underlying column type in one call, size columns from declared rules, choose when reads are validated, never store a value a type rejects, and compile the model.
 ---
 
 # Use with Entity Framework Core
@@ -115,6 +115,40 @@ and sorts and compares as text does, so `9` comes after `10`.
 A value object makes a perfectly good key, primary or foreign. For a string key declared with
 `Comparison = StringComparison.OrdinalIgnoreCase`, set a case-insensitive collation on the column, or the
 database and the application will disagree about which values are equal.
+
+## Compiled models
+
+`dotnet ef dbcontext optimize` turns the model into code that names each converter and comparer. Every value object
+the conventions map compiles there, whatever its underlying type, generic or not, optional or not, identifiers
+included. An optional property, `Quantity?`, is compared by `NullableValueObjectComparer<Quantity>`: given the comparer
+of the value object, Entity Framework Core would wrap it in code that does not compile. A property you map with a
+converter of your own, a [128-bit value object](#128-bit-value-objects) for one, needs the same for its optional form:
+
+```csharp skip
+builder.Properties<LedgerBalance?>()
+    .HaveConversion<LedgerBalanceToDecimal, NullableValueObjectComparer<LedgerBalance>>();
+```
+
+Regenerate the compiled model when a rule that shapes a column changes, `MaxLength` say, as after any other change to
+the model.
+
+One difference remains, on a value object over `string` whose property has a database default, through
+`HasDefaultValue` or `HasDefaultValueSql`. Left unset, the property holds `default(T)`, which a model built at run
+time takes for unset, so the database default applies. A compiled model rebuilds that sentinel from the empty text,
+which gives an instance unequal to `default(T)`, so it writes the property: the empty text, for a type that accepts
+it, or a [refusal](#validation-on-write), for one that does not. An optional property, `Currency?`, is not affected,
+and neither is a value object over a value type.
+
+### Native AOT
+
+`dotnet ef dbcontext optimize --precompile-queries --nativeaot` writes a model whose code calls the conversions of
+each converter itself, `ValueObjectConverter<OrderId, Guid>.ToProvider` and `FromProvider`. They are public for it,
+and hidden from IntelliSense, since nothing else has a reason to call them. Such a model builds and publishes with
+native AOT, and `SaveChanges` writes, but queries do not run yet. Two bugs of Entity Framework Core's precompiled
+queries, which any converted type reproduces without this library, fail a query that materializes an entity whose key
+has a converter, and a query that takes a parameter of a converted type. Until they are fixed, native AOT is out of
+reach for an application reading value objects through Entity Framework Core, and the package does not claim to be
+AOT-compatible.
 
 ## Public identifiers
 

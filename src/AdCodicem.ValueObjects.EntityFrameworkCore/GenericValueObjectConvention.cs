@@ -43,10 +43,12 @@ internal sealed class GenericValueObjectConvention(IReadOnlySet<Type> definition
             return;
         }
 
-        // A nullable construction stores a value the value object rejects as NULL, where any other throws.
+        // A nullable construction stores a value the value object rejects as NULL, where any other throws, and is
+        // compared by a comparer of the nullable type, which a compiled model can write.
         var converter = (optional is null ? null : ConverterTypes.Optional(type, descriptor.ValueType, strict))
             ?? ConverterTypes.Required(type, descriptor.ValueType, strict);
-        var comparer = typeof(ValueObjectComparer<>).MakeGenericType(type);
+        var comparer = (optional is null ? typeof(ValueObjectComparer<>) : typeof(NullableValueObjectComparer<>))
+            .MakeGenericType(type);
 
         propertyBuilder.HasConversion((ValueConverter)Activator.CreateInstance(converter)!);
         propertyBuilder.HasValueComparer((ValueComparer)Activator.CreateInstance(comparer)!);

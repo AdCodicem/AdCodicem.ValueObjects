@@ -39,6 +39,10 @@ public static class ValueObjectConventionExtensions
     /// <see cref="ValueObjectException"/>, and a property of its nullable type, <c>TSelf?</c>, stores a <c>NULL</c>.
     /// </para>
     /// <para>
+    /// A compiled model, which <c>dotnet ef dbcontext optimize</c> generates, holds the same mapping. A property of
+    /// <c>TSelf?</c> is compared by <see cref="NullableValueObjectComparer{TSelf}"/>, which such a model can write.
+    /// </para>
+    /// <para>
     /// This runs once, while the model is built. Nothing here happens per query or per row.
     /// </para>
     /// </remarks>
@@ -167,12 +171,13 @@ public static class ValueObjectConventionExtensions
             properties.HaveMaxLength(maxLength);
         }
 
-        // A TSelf? property takes the configuration of TSelf, then its own, which stores a value the value object
-        // rejects as NULL, where the column of a TSelf throws: the length above still applies to it.
-        if (ConverterTypes.Optional(descriptor.ValueObjectType, descriptor.ValueType, strict) is { } optionalType)
-        {
-            builder.Properties(typeof(Nullable<>).MakeGenericType(descriptor.ValueObjectType))
-                .HaveConversion(optionalType, comparerType);
-        }
+        // A TSelf? property takes the configuration of TSelf, the length included, then its own: a converter storing a
+        // value the value object rejects as NULL, where the column of a TSelf throws (a value object written by hand
+        // over a reference type other than string keeps its own), and a comparer of the nullable type, which a compiled
+        // model can write, where it cannot write the wrapping EF Core would otherwise give ValueObjectComparer.
+        builder.Properties(typeof(Nullable<>).MakeGenericType(descriptor.ValueObjectType))
+            .HaveConversion(
+                ConverterTypes.Optional(descriptor.ValueObjectType, descriptor.ValueType, strict) ?? converterType,
+                typeof(NullableValueObjectComparer<>).MakeGenericType(descriptor.ValueObjectType));
     }
 }
