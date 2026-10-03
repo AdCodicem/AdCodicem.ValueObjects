@@ -102,10 +102,23 @@ internal sealed class UnderlyingType
     public string? SchemaFormat { get; private init; }
 
     /// <summary>
+    /// Gets the number styles text is read with in the invariant culture, or <see langword="null"/> for a type that
+    /// reads it with its own styles whatever the culture.
+    /// </summary>
+    /// <remarks>
+    /// The own styles of <c>decimal</c>, <c>double</c> and <c>float</c> accept the group separator, which is a comma in
+    /// the invariant culture: <c>12,5</c> would read as 125. These are the same styles without it. An integer type
+    /// refuses the separator in its own styles already, and no other type reads one.
+    /// </remarks>
+    public string? InvariantNumberStyles { get; private init; }
+
+    /// <summary>
     /// Gets the one form a bound or a known value of the type is written in as text, for the diagnostic that
     /// refuses any other.
     /// </summary>
     public string LiteralForm { get; private init; } = "text";
+
+    private const string NumberStyles = "global::System.Globalization.NumberStyles";
 
     private const string SignedIntegerForm = "digits, with a leading '-' when negative, such as \"-42\"";
 
@@ -159,18 +172,21 @@ internal sealed class UnderlyingType
         {
             IsNumeric = true, IsSigned = true, IsJsonNumber = true,
             JsonReadExpression = "reader.GetDecimal()", SchemaType = "number", SchemaFormat = "decimal",
+            InvariantNumberStyles = NumberStyles + ".Number & ~" + NumberStyles + ".AllowThousands",
             LiteralForm = "digits with an optional leading '-' and an optional fraction after '.', such as \"-19.99\"",
         },
         new(UnderlyingKind.Double, "global::System.Double", "double")
         {
             IsNumeric = true, IsSigned = true, IsJsonNumber = true,
             JsonReadExpression = "reader.GetDouble()", SchemaType = "number", SchemaFormat = "double",
+            InvariantNumberStyles = NumberStyles + ".Float",
             LiteralForm = RealForm,
         },
         new(UnderlyingKind.Single, "global::System.Single", "float")
         {
             IsNumeric = true, IsSigned = true, IsJsonNumber = true,
             JsonReadExpression = "reader.GetSingle()", SchemaType = "number", SchemaFormat = "float",
+            InvariantNumberStyles = NumberStyles + ".Float",
             LiteralForm = RealForm,
         },
         new(UnderlyingKind.DateOnly, "global::System.DateOnly", "System.DateOnly")

@@ -944,6 +944,68 @@ public sealed class EmissionTests
         run.SingleValueObject.Should().Contain(JsonForms[underlying]);
     }
 
+    /// <summary>
+    /// A null provider stands for the invariant culture, whose group separator is the comma a decimal comma writes. A
+    /// real is read there with its own number styles but the group separator, and a culture that is not the invariant one
+    /// keeps them, which the bridge decides; an integer refuses the separator in its own styles already. The members
+    /// taking a provider say so, in documentation a project producing its documentation file resolves.
+    /// </summary>
+    /// <param name="underlying">The underlying type.</param>
+    /// <param name="qualified">Its qualified name.</param>
+    /// <param name="styles">The styles of the invariant culture, or <see langword="null"/> for the type's own.</param>
+    [Theory]
+    [InlineData("decimal", "global::System.Decimal", "global::System.Globalization.NumberStyles.Number & ~global::System.Globalization.NumberStyles.AllowThousands")]
+    [InlineData("double", "global::System.Double", "global::System.Globalization.NumberStyles.Float")]
+    [InlineData("float", "global::System.Single", "global::System.Globalization.NumberStyles.Float")]
+    [InlineData("int", "global::System.Int32", null)]
+    [InlineData("System.DateOnly", "global::System.DateOnly", null)]
+    public void A_real_takes_no_group_separator_in_the_invariant_culture(string underlying, string qualified, string? styles)
+    {
+        var run = GeneratorHarness.Run(
+            $$"""
+            [ValueObject<{{underlying}}>]
+            public readonly partial struct Wrapper;
+            """,
+            DocumentationMode.Diagnose);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        var generated = run.SingleValueObject;
+        generated.Should().Contain(styles is null
+            ? $"UnderlyingValue.TryParse<{qualified}>(s, provider ?? global::System.Globalization.CultureInfo.InvariantCulture, out raw)"
+            : $"UnderlyingValue.TryParse<{qualified}>(s, {styles}, provider, out raw)");
+        generated.Should().Contain(
+            "/// A <see langword=\"null\"/> provider stands for <see cref=\"global::System.Globalization.CultureInfo.InvariantCulture\"/>,",
+            Exactly.Times(5),
+            "each Parse and TryParse taking a provider says what a null one stands for");
+        if (styles is null)
+        {
+            generated.Should().NotContain("group separator");
+        }
+        else
+        {
+            generated.Should().Contain("the text takes no group separator", Exactly.Times(5));
+        }
+    }
+
+    /// <summary>A string, a bool or a char reads no culture: the members taking a provider say nothing of one.</summary>
+    /// <param name="underlying">The underlying type.</param>
+    [Theory]
+    [InlineData("string")]
+    [InlineData("bool")]
+    [InlineData("char")]
+    public void A_value_object_reading_no_culture_says_nothing_of_the_provider(string underlying)
+    {
+        var run = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>]
+            public readonly partial struct Wrapper;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().NotContain("provider stands for");
+    }
+
     /// <summary>The line of the JSON converter that sets each underlying type apart.</summary>
     private static readonly Dictionary<string, string> JsonForms = new(StringComparer.Ordinal)
     {

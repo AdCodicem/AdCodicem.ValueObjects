@@ -68,6 +68,22 @@ public sealed class ModelBindingTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// The binder reads text in the invariant culture, where a comma is the group separator, which a decimal does not
+    /// take there: <c>12,5</c>, written with a decimal comma, is refused rather than bound as 125.
+    /// </summary>
+    /// <param name="text">Text holding a comma.</param>
+    [Theory]
+    [InlineData("12,5")]
+    [InlineData("1,234.5")]
+    public async Task A_decimal_holding_a_group_separator_is_refused_rather_than_bound_as_another_amount(string text)
+    {
+        var problem = await GetProblemAsync($"/probe/total?total={text}");
+
+        problem.GetProperty("errorCodes").GetProperty("total").GetString().Should().Be(ValueObjectErrorCodes.NotParsable);
+        (await _client.GetStringAsync("/probe/total?total=12.5", TestContext.Current.CancellationToken)).Should().Be("12.50");
+    }
+
+    /// <summary>
     /// Blank text binds an optional value object to null, but a value object that cannot be null would bind to its
     /// default instance, which no rule has checked: it is refused as MVC refuses blank text for an int.
     /// </summary>

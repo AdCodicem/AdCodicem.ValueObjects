@@ -46,14 +46,16 @@ The constructor is private: every public way in goes through `Create`, `TryCreat
 
 | Member | |
 | --- | --- |
-| `static TSelf Parse(string s)`, `Parse(string s, IFormatProvider? provider)`, `Parse(ReadOnlySpan<char> s, IFormatProvider? provider)` | Parses the underlying value from text, then as `Create`. A rejection throws `ValueObjectException`, a `FormatException` as `IParsable<T>` documents, with the code the four-argument `TryParse` reports. Without a formatting hook, it reads back what `ToString` writes: a `DateTime` keeps the kind its round-trip form names, `Z` for UTC, on a machine in any time zone. |
-| `static bool TryParse(…, out TSelf result)` | For `string` and `ReadOnlySpan<char>`, with or without a provider. |
+| `static TSelf Parse(string s)`, `Parse(string s, IFormatProvider? provider)`, `Parse(ReadOnlySpan<char> s, IFormatProvider? provider)` | Parses the underlying value from text, then as `Create`. A rejection throws `ValueObjectException`, a `FormatException` as `IParsable<T>` documents, with the code the four-argument `TryParse` reports. Without a formatting hook, it reads back what `ToString` writes: a `DateTime` keeps the kind its round-trip form names, `Z` for UTC, on a machine in any time zone. A `null` provider stands for the invariant culture, as it does for `ToString` and `TryFormat`, not for the current culture as it does for `decimal.Parse`. Read with a `null` provider or the invariant culture, a `decimal`, a `double` or a `float` takes no group separator: `12,5` and `1,234.5` are `value_object.not_parsable`, not 125 and 1234.5. Any other culture reads the text with the type's own number styles, so `fr-FR` reads `12,5` as 12.5. |
+| `static bool TryParse(…, out TSelf result)` | For `string` and `ReadOnlySpan<char>`, with or without a provider, which it reads as `Parse` does. |
 | `static bool TryParse(ReadOnlySpan<char> s, IFormatProvider? provider, out TSelf result, out ValidationResult validation)` | And with the rule that fired; a `string` converts to the span implicitly. |
 | `string ToString()`, `ToString(string? format, IFormatProvider? provider)` | The underlying value or, with a [formatter hook](../how-to/formatting.md), what the hook writes: its default format for `ToString()`, its named formats otherwise. With both formatter hooks, the string formatter answers. A span formatter is offered a larger pooled buffer each time it answers that the destination is too small, up to 1,048,576 characters, past which `ToString` throws `FormatException`; on a `string` value object, text equal to the value returns the string the value object holds. |
 | `bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` | Formats into the destination without allocating, unless the type declares `IValueObjectStringFormatter<TValue>`: the string it returns is then copied into the destination. With both formatter hooks, the string formatter answers here too. |
 
 Text that does not even have the shape of the underlying type is rejected with `value_object.not_parsable`,
-before any rule of the type runs.
+before any rule of the type runs. The integrations that read text pass the invariant culture — model binding and
+minimal APIs, configuration through the `TypeConverter`, a JSON dictionary key, a text column read by Dapper — and a
+descriptor reads a `null` provider as it, so a query string `?total=12,5` is refused there too.
 
 ## Equality and ordering
 
