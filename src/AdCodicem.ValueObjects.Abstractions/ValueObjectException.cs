@@ -18,6 +18,11 @@ namespace AdCodicem.ValueObjects;
 /// that take a value rather than text. A <c>catch (FormatException)</c> therefore catches it too, and placed
 /// before a <c>catch (ValueObjectException)</c> of the same <c>try</c>, makes that clause unreachable (CS0160).
 /// </para>
+/// <para>
+/// The message names the value object and the rule, never the rejected value, so a log recording it records no IBAN,
+/// email address or telephone number. <see cref="AttemptedValue"/> does hold the value, except on a value object its
+/// author classifies as sensitive data: see that property.
+/// </para>
 /// </remarks>
 [Serializable]
 public class ValueObjectException : FormatException
@@ -76,6 +81,19 @@ public class ValueObjectException : FormatException
     /// <summary>
     /// Gets the value that was rejected.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The value as it was passed in, before normalization, and the text for <c>Parse</c>. Unlike the message, it holds
+    /// the value itself: a logger that records the public properties of an exception, as Serilog.Exceptions does,
+    /// records it in clear.
+    /// </para>
+    /// <para>
+    /// The generated <c>Create</c> and <c>Parse</c> leave it <see langword="null"/> on a value object that carries an
+    /// attribute derived from <c>Microsoft.Extensions.Compliance.Classification.DataClassificationAttribute</c>, other
+    /// than <c>NoDataClassificationAttribute</c>, and so does the type converter of a generic one: classify a value
+    /// object that holds personal data.
+    /// </para>
+    /// </remarks>
     public object? AttemptedValue { get; }
 
     /// <summary>

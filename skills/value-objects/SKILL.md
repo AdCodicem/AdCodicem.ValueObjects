@@ -216,7 +216,7 @@ it for every value object, then test only the domain behaviour that is actually 
 
 | File | Read it for |
 | --- | --- |
-| `references/authoring.md` | Every attribute option, closed value sets, arithmetic, formats, span normalization. |
+| `references/authoring.md` | Every attribute option, closed value sets, arithmetic, formats, span normalization, personal data. |
 | `references/integrations.md` | ASP.NET Core, EF Core, JSON, Dapper, FluentValidation, OpenAPI, Newtonsoft. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0030`, with the fix for each. |

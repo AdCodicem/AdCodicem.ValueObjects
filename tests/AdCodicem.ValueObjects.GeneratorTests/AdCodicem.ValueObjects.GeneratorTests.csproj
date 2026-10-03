@@ -10,6 +10,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Basic.Reference.Assemblies.Net100" />
+    <!-- Handed to every snippet, so that one classifies a value object as personal data as a consumer does. -->
+    <PackageReference Include="Microsoft.Extensions.Compliance.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>

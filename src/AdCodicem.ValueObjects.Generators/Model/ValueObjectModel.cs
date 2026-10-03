@@ -168,6 +168,13 @@ internal sealed record ValueObjectModel
 
     public EquatableArray<KnownValueModel> KnownValues { get; init; } = EquatableArray<KnownValueModel>.Empty;
 
+    /// <summary>
+    /// Gets a value indicating whether the author classifies the type as sensitive data, with an attribute derived from
+    /// <c>DataClassificationAttribute</c> other than <c>NoDataClassificationAttribute</c>: the exception
+    /// <c>Create</c> and <c>Parse</c> throw then leaves the rejected value out of its <c>AttemptedValue</c>.
+    /// </summary>
+    public bool IsClassified { get; init; }
+
     /// <summary>Gets the entity identifier profile, or <see langword="null"/> for an ordinary value object.</summary>
     public EntityIdProfile? Id { get; init; }
 

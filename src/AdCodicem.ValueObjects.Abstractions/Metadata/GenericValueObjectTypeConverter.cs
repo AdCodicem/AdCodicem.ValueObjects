@@ -19,6 +19,12 @@ namespace AdCodicem.ValueObjects.Metadata;
 /// as native AOT requires, is found without reflection; any other is described by the registry the first time it is
 /// asked for it.
 /// </para>
+/// <para>
+/// Text it refuses is never quoted in the message of the <see cref="ValueObjectException"/> it throws, and is left out
+/// of its <see cref="ValueObjectException.AttemptedValue"/> too when the generic definition carries an attribute derived
+/// from <c>Microsoft.Extensions.Compliance.Classification.DataClassificationAttribute</c>, other than
+/// <c>NoDataClassificationAttribute</c>, as the <c>Parse</c> the generator writes does.
+/// </para>
 /// </remarks>
 public sealed class GenericValueObjectTypeConverter : TypeConverter
 {
@@ -62,11 +68,13 @@ public sealed class GenericValueObjectTypeConverter : TypeConverter
                 return parsed;
             }
 
+            // As the generated Parse: the message names the type and the rule, never the text, and the text stays off
+            // AttemptedValue too when the value object is classified as sensitive data.
             throw new ValueObjectException(
-                $"'{text}' is not a valid {Name(_descriptor.ValueObjectType)}: {validation.ErrorMessage}",
+                $"'{Name(_descriptor.ValueObjectType)}' rejected the supplied text: {validation.ErrorMessage}",
                 _descriptor.ValueObjectType,
                 validation.ErrorCode,
-                text);
+                DataClassificationReader.IsClassified(_descriptor.ValueObjectType) ? null : text);
         }
 
         return _descriptor.ValueType.IsInstanceOfType(value)

@@ -189,9 +189,9 @@ public partial class DeclarationContextTests
         converter.ConvertTo(null, CultureInfo.InvariantCulture, 12, typeof(string)).Should().Be("12", "anything else is the base's");
 
         var refused = () => converter.ConvertFrom(null, CultureInfo.InvariantCulture, "-1");
-        refused.Should().Throw<ValueObjectException>()
-            .WithMessage("'-1' is not a valid Stock: *")
-            .Which.ErrorCode.Should().Be(ValueObjectErrorCodes.OutOfRange);
+        var refusal = refused.Should().Throw<ValueObjectException>().WithMessage("'Stock' rejected the supplied text: *").Which;
+        refusal.ErrorCode.Should().Be(ValueObjectErrorCodes.OutOfRange);
+        refusal.AttemptedValue.Should().Be("-1", "a value object nobody classified keeps the text it refused");
         var foreign = () => converter.ConvertFrom(Guid.Empty);
         foreign.Should().Throw<NotSupportedException>();
         var notValueObject = () => new GenericValueObjectTypeConverter(typeof(List<int>));
@@ -203,7 +203,7 @@ public partial class DeclarationContextTests
         converter.ConvertTo(null, null, Catalog<decimal>.Stock.Create(1200), typeof(string)).Should().Be("1200");
         converter.CanConvertTo(typeof(Guid)).Should().BeFalse();
         var tooLong = () => TypeDescriptor.GetConverter(typeof(Reference<PurchaseOrder>)).ConvertFrom(null, null, "PO-1042-TOO-LONG");
-        tooLong.Should().Throw<ValueObjectException>().WithMessage("'PO-1042-TOO-LONG' is not a valid Reference: *");
+        tooLong.Should().Throw<ValueObjectException>().WithMessage("'Reference' rejected the supplied text: *");
     }
 
     /// <summary>

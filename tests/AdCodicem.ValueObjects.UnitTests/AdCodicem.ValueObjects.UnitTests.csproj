@@ -51,6 +51,8 @@
     <!-- An in-memory server, so that the ASP.NET Core and OpenAPI integrations are driven by real requests without
          a socket. The sample's end-to-end flows stay in the integration suite. -->
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <!-- DataClassificationAttribute, which a value object of Domain/ derives to be classified as personal data. -->
+    <PackageReference Include="Microsoft.Extensions.Compliance.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>

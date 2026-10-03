@@ -30,6 +30,9 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     private const string EntityIdAttributeName = "AdCodicem.ValueObjects.Identifiers.EntityIdAttribute";
     private const string JsonRegistryTypeName = "AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry";
 
+    /// <summary>The namespace of <c>DataClassificationAttribute</c>, which classifies a type as sensitive data.</summary>
+    private const string ClassificationNamespace = "Microsoft.Extensions.Compliance.Classification";
+
     /// <summary>
     /// Fully qualified names without the C# keyword shorthand, so that <c>string</c> reads as
     /// <c>global::System.String</c> and matches the underlying type table.
@@ -384,6 +387,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             HasTryFormatHook = ImplementsHook(symbol, "IValueObjectFormatter`1"),
             HasFormatHook = ImplementsHook(symbol, "IValueObjectStringFormatter`1"),
             KnownValues = EquatableArray<KnownValueModel>.From(knownValues),
+            IsClassified = IsClassified(symbol),
         };
 
         return new ParseResult(model, EquatableArray<DiagnosticInfo>.From(diagnostics));
@@ -534,6 +538,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             HasTryFormatHook = ImplementsHook(symbol, "IValueObjectFormatter`1"),
             HasFormatHook = ImplementsHook(symbol, "IValueObjectStringFormatter`1"),
             Id = new EntityIdProfile(prefix!, granularity, totalLength),
+            IsClassified = IsClassified(symbol),
         };
 
         return new ParseResult(
@@ -1009,6 +1014,44 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             attribute.AttributeClass is { } attributeClass
             && string.Equals(attributeClass.MetadataName, name, StringComparison.Ordinal)
             && string.Equals(attributeClass.ContainingNamespace.ToDisplayString(), containingNamespace, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Determines whether the author classifies a type as sensitive data, with an attribute derived from
+    /// <c>DataClassificationAttribute</c>.
+    /// </summary>
+    /// <remarks>
+    /// The attribute is the author's own, so it is recognized by the metadata name of the base it derives from, and the
+    /// library references Microsoft.Extensions.Compliance.Abstractions nowhere. <c>NoDataClassificationAttribute</c>
+    /// derives from it to say the opposite, and does not count. Every other derived attribute does,
+    /// <c>UnknownDataClassificationAttribute</c> included: data nobody has classified yet is read as sensitive.
+    /// </remarks>
+    /// <param name="symbol">Type to inspect.</param>
+    /// <returns><see langword="true"/> when one of the attributes of the type classifies it.</returns>
+    private static bool IsClassified(INamedTypeSymbol symbol)
+    {
+        foreach (var attribute in symbol.GetAttributes())
+        {
+            for (var type = attribute.AttributeClass; type is not null; type = type.BaseType)
+            {
+                if (!string.Equals(type.ContainingNamespace.ToDisplayString(), ClassificationNamespace, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (string.Equals(type.MetadataName, "NoDataClassificationAttribute", StringComparison.Ordinal))
+                {
+                    break;
+                }
+
+                if (string.Equals(type.MetadataName, "DataClassificationAttribute", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
