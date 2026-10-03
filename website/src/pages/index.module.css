@@ -76,6 +76,21 @@
   gap: 12px;
 }
 
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Arrows nudge 3px on hover. */
+.arrow {
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.button:hover .arrow {
+  transform: translateX(3px);
+}
+
 @media screen and (max-width: 996px) {
   .heroInner {
     grid-template-columns: minmax(0, 1fr);

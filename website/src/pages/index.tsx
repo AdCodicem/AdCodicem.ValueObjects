@@ -1,10 +1,12 @@
 import type {ReactNode} from 'react';
+import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
 import MDXContent from '@theme/MDXContent';
 import HomepageFeatures from '@site/src/components/HomepageFeatures';
+import Icon from '@site/src/components/Icon';
 import InstallCommand from '@site/src/components/InstallCommand';
 // docs/_homepage-example.md as frozen by the latest stable release; see docusaurus.config.ts.
 import HomepageExample from '@homepage-example';
@@ -32,12 +34,14 @@ function HomepageHeader() {
           </p>
           <InstallCommand command={install} />
           <div className={styles.buttons}>
-            <Link className="button button--primary button--lg" to="/docs/introduction">
-              Get started <span aria-hidden="true">→</span>
+            <Link className={clsx('button button--primary button--lg', styles.button)} to="/docs/introduction">
+              Get started
+              <Icon name="arrow-right" className={styles.arrow} />
             </Link>
             <Link
-              className="button button--secondary button--lg"
+              className={clsx('button button--secondary button--lg', styles.button)}
               to="https://github.com/AdCodicem/AdCodicem.ValueObjects">
+              <Icon name="github" />
               View on GitHub
             </Link>
           </div>

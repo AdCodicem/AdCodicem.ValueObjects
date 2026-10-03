@@ -1,8 +1,10 @@
 import type {ReactNode} from 'react';
+import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import {PageMetadata} from '@docusaurus/theme-common';
 import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
+import Icon from '@site/src/components/Icon';
 import ValueObjectsMark from '@site/src/components/ValueObjectsMark';
 import styles from './styles.module.css';
 
@@ -28,8 +30,9 @@ export default function NotFound(): ReactNode {
                 Go to the introduction
               </Link>
               <Link
-                className="button button--secondary"
+                className={clsx('button button--secondary', styles.button)}
                 to="https://github.com/AdCodicem/AdCodicem.ValueObjects/issues/new">
+                <Icon name="github" size={16} />
                 Report a broken link
               </Link>
             </div>

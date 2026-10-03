@@ -479,6 +479,99 @@ a > code {
   color: var(--fg-strong);
 }
 
+/* ---- Icon buttons ---------------------------------------------------------------------------------------------- */
+
+/* The design system's IconButton, ghost, size md: a 36px square, radius-md, the icon in fg-2. The theme and contrast
+   toggles use it, and the GitHub link in the navbar takes its look. */
+.icon-button {
+  -webkit-tap-highlight-color: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--fg-2);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.icon-button:hover {
+  background: var(--surface-hover);
+  color: var(--fg-strong);
+}
+
+.icon-button--active,
+.icon-button--active:hover {
+  background: var(--surface-hover);
+  color: var(--accent-text);
+}
+
+.icon-button:disabled {
+  cursor: not-allowed;
+}
+
+/* The theme toggle shows the theme it switches to: the moon on paper, the sun on ink. Both icons are rendered and
+   data-theme picks one, so the right one shows before React hydrates. */
+.theme-icon--on-dark,
+[data-theme='dark'] .theme-icon--on-light {
+  display: none;
+}
+
+[data-theme='dark'] .theme-icon--on-dark {
+  display: block;
+}
+
+/* The GitHub link: the icon alone in the navbar, its label still read by screen readers; text in the mobile menu. */
+.navbar__item.navbar-github-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  margin: 0 0.25rem;
+  border-radius: var(--radius-md);
+  font-size: 0;
+  color: var(--fg-2);
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.navbar__item.navbar-github-link:hover {
+  background: var(--surface-hover);
+  color: var(--fg-strong);
+}
+
+.navbar__item.navbar-github-link > svg {
+  display: none;
+}
+
+/* Below 997px Infima hides every navbar item from the top bar; the display above would bring this one back. */
+@media (max-width: 996px) {
+  .navbar__item.navbar-github-link {
+    display: none;
+  }
+}
+
+.navbar__item.navbar-github-link::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  -webkit-mask: var(--icon-github) center / contain no-repeat;
+  mask: var(--icon-github) center / contain no-repeat;
+}
+
+:root {
+  /* Lucide's github icon (ISC licence), the one the design system's Icon draws. */
+  --icon-github: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4'/%3E%3Cpath d='M9 18c-4.51 2-5-2-7-2'/%3E%3C/svg%3E");
+}
+
 /* ---- Navbar ---------------------------------------------------------------------------------------------------- */
 
 /* bg-page at 92 % with an 8px blur. The blur sits on a pseudo-element: a backdrop-filter on .navbar itself would

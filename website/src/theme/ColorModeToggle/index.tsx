@@ -1,21 +1,38 @@
 import type {ReactNode} from 'react';
-import ColorModeToggle from '@theme-original/ColorModeToggle';
-import type ColorModeToggleType from '@theme/ColorModeToggle';
-import type {WrapperProps} from '@docusaurus/types';
+import clsx from 'clsx';
+import useIsBrowser from '@docusaurus/useIsBrowser';
+import {useColorMode} from '@docusaurus/theme-common';
+import type {Props} from '@theme/ColorModeToggle';
 import ContrastToggle from '@site/src/components/ContrastToggle';
+import Icon from '@site/src/components/Icon';
 
-type Props = WrapperProps<typeof ColorModeToggleType>;
-
-// A wrapper (a safe swizzle): the contrast toggle sits beside the light and dark one, in the navbar and in the mobile
-// sidebar alike, since it retunes whichever of the two is active. The class name goes on the pair, not on the
-// original toggle alone: it is what hides the toggle from the top bar on a narrow screen, where the mobile sidebar
-// shows it instead.
-export default function ColorModeToggleWrapper({className, ...props}: Props): ReactNode {
+// Ejected (a safe swizzle): the design system's theme toggle, an icon button showing the theme it switches to, the
+// moon on paper and the sun on ink, beside the contrast toggle, in the navbar and the mobile sidebar alike.
+//
+// It switches between the two themes only. Until the reader clicks it the site follows the system's preference
+// (respectPrefersColorScheme), and the first click records an explicit choice; Docusaurus' third state, back to the
+// system, has no place in a two-icon toggle.
+//
+// The class name goes on the pair: it is what hides the toggles from the top bar on a narrow screen, where the
+// mobile sidebar shows them instead.
+export default function ColorModeToggle({className, buttonClassName, onChange}: Props): ReactNode {
+  const isBrowser = useIsBrowser();
+  const {colorMode} = useColorMode();
+  const next = colorMode === 'dark' ? 'light' : 'dark';
   return (
     <div className={className}>
-      <div style={{display: 'flex', alignItems: 'center', gap: '0.25rem'}}>
+      <div style={{display: 'flex', alignItems: 'center', gap: '0.125rem'}}>
         <ContrastToggle />
-        <ColorModeToggle {...props} />
+        <button
+          type="button"
+          className={clsx('icon-button', buttonClassName)}
+          onClick={() => onChange(next)}
+          disabled={!isBrowser}
+          aria-label={`Switch to the ${next} theme`}
+          title="Switch theme">
+          <Icon name="moon" className="theme-icon--on-light" />
+          <Icon name="sun" className="theme-icon--on-dark" />
+        </button>
       </div>
     </div>
   );

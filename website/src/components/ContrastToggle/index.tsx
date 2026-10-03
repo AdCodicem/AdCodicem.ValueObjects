@@ -1,6 +1,6 @@
 import {type ReactNode, useEffect, useState} from 'react';
 import clsx from 'clsx';
-import styles from './styles.module.css';
+import Icon from '@site/src/components/Icon';
 
 // Also read by the script the `contrast` plugin puts in <head> (docusaurus.config.ts), which applies the choice
 // before the first paint. 'accessible' or 'brand'; absent until the reader chooses, which defers to prefers-contrast.
@@ -33,19 +33,14 @@ export default function ContrastToggle({className}: {className?: string}): React
   };
 
   return (
-    <div className={clsx(styles.toggle, className)}>
-      <button
-        type="button"
-        className={clsx('clean-btn', styles.button, accessible && styles.active)}
-        onClick={toggle}
-        aria-pressed={accessible}
-        aria-label="Accessible contrast (WCAG 2 AA)"
-        title={accessible ? 'Accessible contrast: on' : 'Accessible contrast: off'}>
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
-          <path d="M12 3a9 9 0 0 1 0 18z" fill={accessible ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" />
-        </svg>
-      </button>
-    </div>
+    <button
+      type="button"
+      className={clsx('icon-button', accessible && 'icon-button--active', className)}
+      onClick={toggle}
+      aria-pressed={accessible}
+      aria-label="Accessible contrast (WCAG 2 AA)"
+      title={accessible ? 'Accessible contrast: on' : 'Accessible contrast: off'}>
+      <Icon name="contrast" />
+    </button>
   );
 }
