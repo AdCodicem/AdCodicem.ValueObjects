@@ -4,7 +4,11 @@ Date: 2026-09-19
 
 ## Status
 
-Accepted
+Accepted. Amended by [ADR-0009](0009-publish-previews-weekly-when-a-package-input-changed.md): Dependabot's `nuget`,
+`npm` and `github-actions` entries propose a version only once it has been public for seven days (the `pip` entry,
+which updates `conventional-pre-commit`, keeps Dependabot's default of three), so the weekly `github-actions` update
+this record relies on arrives a week later; security updates are not delayed. `lint.yml` also downloads actionlint as
+a binary pinned by its SHA-256, which Dependabot does not update: its version is bumped by hand.
 
 ## Context
 

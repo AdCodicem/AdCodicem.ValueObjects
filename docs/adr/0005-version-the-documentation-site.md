@@ -4,7 +4,13 @@ Date: 2026-09-22
 
 ## Status
 
-Accepted
+Accepted. Amended by [ADR-0009](0009-publish-previews-weekly-when-a-package-input-changed.md): `preview.yml`
+redeploys the site on every run that decides what to publish, weekly and on dispatch, labelled with the version on
+nuget.org that describes the commit it builds. `ci.yml` no longer deploys it, `deploy-docs.yml` can no longer be
+dispatched, and the pull-request validation of `deploy-docs.yml` that `ci.yml` gave is now `lint.yml`'s actionlint
+job, beside a build of the site on every pull request. `docs-snapshot.sh` no longer runs in semantic-release's
+prepare step: `release.yml`'s pack job, which holds no credential, runs it on every run, a dry run included, and
+semantic-release commits what it wrote.
 
 ## Context
 
