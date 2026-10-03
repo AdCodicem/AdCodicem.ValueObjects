@@ -706,7 +706,7 @@ internal static class ValueObjectEmitter
         writer.Line($"{value} normalized = Normalize(value);");
         writer.Line($"{ValidationResult} validation = Validate(in normalized);");
         writer.Open("if (!validation.IsValid)");
-        writer.Line($"validation.ThrowIfInvalid(typeof({self}), value);");
+        writer.Line($"validation.ThrowIfInvalid(typeof({self}), {AttemptedValue(model, "value")});");
         writer.Close();
         writer.Line();
         writer.Line($"return new {self}(normalized);");
@@ -758,6 +758,16 @@ internal static class ValueObjectEmitter
             writer.Line();
         }
     }
+
+    /// <summary>
+    /// Writes what the exception of <c>Create</c> or <c>Parse</c> carries as its <c>AttemptedValue</c>: the rejected
+    /// value, or <see langword="null"/> on a type its author classifies as sensitive data, whose value a logger reading
+    /// the public properties of an exception would otherwise record in clear.
+    /// </summary>
+    /// <param name="model">The value object.</param>
+    /// <param name="rejected">The expression of the rejected value.</param>
+    /// <returns>The expression to pass.</returns>
+    private static string AttemptedValue(ValueObjectModel model, string rejected) => model.IsClassified ? "null" : rejected;
 
     private static void EmitEquality(CodeWriter writer, ValueObjectModel model, string value, string self)
     {
@@ -987,6 +997,8 @@ internal static class ValueObjectEmitter
     {
         // The exception carries the rule that rejected the text, as TryParse reports it: a closed set refusing a
         // value says not_a_known_value, and not_parsable is left to text that is not of the underlying type at all.
+        // Its message names the type and the rule, never the text, as Create's does: a message is what every log
+        // records.
         EmitParsingDocumentation(writer, underlying);
         writer.Open($"public static {self} Parse(global::System.ReadOnlySpan<char> s, global::System.IFormatProvider? provider)");
         writer.Open($"if (TryParse(s, provider, out {self} result, out {ValidationResult} validation))");
@@ -994,10 +1006,10 @@ internal static class ValueObjectEmitter
         writer.Close();
         writer.Line();
         writer.Line($"throw new {Abstractions}.ValueObjectException(");
-        writer.Line($"    $\"'{{s.ToString()}}' is not a valid {model.TypeName}: {{validation.ErrorMessage}}\",");
+        writer.Line($"    \"'{model.TypeName}' rejected the supplied text: \" + validation.ErrorMessage,");
         writer.Line($"    typeof({self}),");
         writer.Line("    validation.ErrorCode,");
-        writer.Line("    s.ToString());");
+        writer.Line($"    {AttemptedValue(model, "s.ToString()")});");
         writer.Close();
         writer.Line();
 

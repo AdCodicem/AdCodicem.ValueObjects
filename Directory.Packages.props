@@ -53,6 +53,9 @@
     <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.12" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="FsCheck" Version="3.4.0" />
+    <!-- The attribute a consumer derives to classify a value object as personal data, which the generator recognizes
+         by name: the tests classify value objects as a consumer does, and no package under src/ references it. -->
+    <PackageVersion Include="Microsoft.Extensions.Compliance.Abstractions" Version="10.10.0" />
   </ItemGroup>
 
 </Project>

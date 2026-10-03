@@ -56,14 +56,58 @@ contract catches a value object's rejection. It carries:
 | --- | --- |
 | `ErrorCode` | The code of the violated rule, the same `TryCreate`, or for `Parse` the four-argument `TryParse`, would have reported. `Parse` throws `value_object.not_parsable` only for text that is not of the underlying type at all. |
 | `ValueObjectType` | The value object that refused the value. |
-| `AttemptedValue` | The value as it was passed in, before normalization. |
-| `Message` | The message of the violated rule, after the text and the type for `Parse`. |
+| `AttemptedValue` | The value as it was passed in, before normalization, and the text for `Parse`. `null` on a value object [classified as personal data](#personal-data-in-an-exception). |
+| `Message` | The type, then the message of the violated rule: `'Iban' rejected the supplied value: …` from `Create`, `'Iban' rejected the supplied text: …` from `Parse`. It never quotes the rejected value. |
 
 Every path throws this one type, including `Create`, the arithmetic of a numeric value object and the other paths
 that take a value rather than text: a value in range for `int` but outside the declared bounds raises a
 `FormatException` too. A `catch (FormatException)` therefore catches it, and placed before a
 `catch (ValueObjectException)` of the same `try`, it makes that clause unreachable, which is compile error CS0160:
 put the `catch (ValueObjectException)` first.
+
+### Personal data in an exception
+
+The message of the exception names the type and the rule, never the value, on every path: a mistyped IBAN, email
+address or telephone number does not reach the logs, traces and error reports that record a message. The
+converters and the integrations name the type and the rule, and leave the value out, too.
+
+`AttemptedValue` does hold the value. An exception logger that records the public properties of an exception, as
+Serilog.Exceptions does, records it in clear. On a value object that holds personal data, classify the type with an
+attribute of your own derived from `DataClassificationAttribute`, from Microsoft.Extensions.Compliance.Abstractions:
+the generated `Create` and `Parse` then leave `AttemptedValue` `null`. The library recognizes the attribute by its
+base, so it adds no dependency and no option to `[ValueObject<T>]`.
+
+```csharp
+using Microsoft.Extensions.Compliance.Classification;
+
+public static class Taxonomy
+{
+    public static DataClassification Personal => new("Shop", nameof(Personal));
+}
+
+public sealed class PersonalDataAttribute : DataClassificationAttribute
+{
+    public PersonalDataAttribute() : base(Taxonomy.Personal) { }
+}
+
+[PersonalData]
+[ValueObject<string>(MaxLength = 254, SchemaFormat = "email")]
+public readonly partial struct EmailAddress : IValueObjectNormalizer<string>, IValueObjectPatternValidator
+{
+    public static string NormalizeValue(string value) => value.Trim().ToLowerInvariant();
+
+    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+}
+
+// EmailAddress.Parse("ada@example") throws a ValueObjectException whose message names EmailAddress and the rule,
+// and whose AttemptedValue is null.
+```
+
+Any attribute derived from `DataClassificationAttribute` classifies the type, `UnknownDataClassificationAttribute`
+included; `NoDataClassificationAttribute`, which says the data is not sensitive, does not. The type converter of a
+generic value object reads the same attribute on the generic definition. On a type left unclassified,
+`AttemptedValue` carries the raw value, by design: it is what a caller debugging a rejection needs.
 
 The integrations on a boundary report a rejected value in their own terms, so the exception is reserved for code
 that treats a rejected value as a bug, and for a strict EF Core read:

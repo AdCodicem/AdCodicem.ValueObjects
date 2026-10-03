@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.Extensions.Compliance.Classification;
 
 namespace AdCodicem.ValueObjects.GeneratorTests.Harness;
 
@@ -77,8 +78,9 @@ public static class GeneratorHarness
     public static ImmutableArray<MetadataReference> FrameworkReferences { get; } = [.. Net100.References.All];
 
     /// <summary>
-    /// Gets what every snippet compiles against unless told otherwise: the framework, the contracts and the
-    /// identifiers.
+    /// Gets what every snippet compiles against unless told otherwise: the framework, the contracts, the identifiers,
+    /// and Microsoft.Extensions.Compliance.Abstractions, whose <c>DataClassificationAttribute</c> a consumer derives to
+    /// classify a value object as personal data.
     /// </summary>
     public static ImmutableArray<MetadataReference> LibraryReferences => References;
 
@@ -221,6 +223,7 @@ public static class GeneratorHarness
         .. Net100.References.All,
         MetadataReference.CreateFromFile(typeof(IValueObject).Assembly.Location),
         MetadataReference.CreateFromFile(typeof(EntityIdAttribute).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(DataClassificationAttribute).Assembly.Location),
     ];
 
     /// <summary>

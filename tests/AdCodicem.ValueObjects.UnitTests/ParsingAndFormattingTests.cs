@@ -23,21 +23,22 @@ public class ParsingAndFormattingTests
 
     /// <summary>
     /// Parse throws with the rule TryParse reports, so a caller catching the exception can act on the same code a
-    /// caller of TryParse gets.
+    /// caller of TryParse gets. Its message names the type and the rule, as Create's does, and never quotes the text,
+    /// which a log recording the message would record with it; the text is the exception's AttemptedValue.
     /// </summary>
     [Theory]
     [InlineData("not-an-iban", ValueObjectErrorCodes.TooShort)] // nine characters once the dashes are stripped
     [InlineData("1R7630006000011234567890189", ValueObjectErrorCodes.InvalidFormat)] // the declared pattern
     [InlineData("FR7630006000011234567890188", ValueObjectErrorCodes.InvalidFormat)] // the check digits of the hook
     [InlineData("", ValueObjectErrorCodes.Required)]
-    public void Parse_reports_the_offending_text_and_the_rule_it_broke(string text, string expectedErrorCode)
+    public void Parse_reports_the_rule_it_broke_without_quoting_the_text(string text, string expectedErrorCode)
     {
         Iban.TryParse(text, CultureInfo.InvariantCulture, out _, out var validation).Should().BeFalse();
 
         var exception = FluentActions.Invoking(() => Iban.Parse(text)).Should().Throw<ValueObjectException>().Which;
 
         exception.ErrorCode.Should().Be(expectedErrorCode).And.Be(validation.ErrorCode);
-        exception.Message.Should().Be($"'{text}' is not a valid Iban: {validation.ErrorMessage}");
+        exception.Message.Should().Be($"'Iban' rejected the supplied text: {validation.ErrorMessage}");
         exception.AttemptedValue.Should().Be(text);
         exception.ValueObjectType.Should().Be<Iban>();
     }

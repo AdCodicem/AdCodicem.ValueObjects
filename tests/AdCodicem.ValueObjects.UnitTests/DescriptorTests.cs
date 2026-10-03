@@ -124,6 +124,23 @@ public sealed class DescriptorTests
         validation.ErrorCode.Should().Be(ValueObjectErrorCodes.InvalidFormat);
     }
 
+    /// <summary>
+    /// The boxed factory throws the exception of the generated <c>Create</c>: a value object classified as personal
+    /// data leaves the rejected value off it there too, and one nobody classified hands it over.
+    /// </summary>
+    [Fact]
+    public void The_boxed_creation_path_leaves_the_value_of_a_classified_value_object_off_its_exception()
+    {
+        var classified = () => Descriptor<PassportNumber>().Create("X1");
+        var unclassified = () => Descriptor<Amount>().Create(-1m);
+
+        var hidden = classified.Should().Throw<ValueObjectException>().Which;
+        hidden.ErrorCode.Should().Be(ValueObjectErrorCodes.TooShort);
+        hidden.AttemptedValue.Should().BeNull();
+        hidden.Message.Should().NotContain("X1");
+        unclassified.Should().Throw<ValueObjectException>().Which.AttemptedValue.Should().Be(-1m);
+    }
+
     [Fact]
     public void A_closed_value_set_hands_out_the_same_box_every_time()
     {

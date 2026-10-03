@@ -19,6 +19,10 @@ namespace AdCodicem.ValueObjects.Identifiers;
 /// generated identifier: an identifier that may be absent is declared <c>AnyEntityId?</c>, whose null never
 /// reaches this converter.
 /// </para>
+/// <para>
+/// The message of a refusal leaves out the text it refused, as every converter of the library does: a message is what
+/// every log records.
+/// </para>
 /// </remarks>
 public sealed class AnyEntityIdJsonConverter : JsonConverter<AnyEntityId>
 {
@@ -34,7 +38,7 @@ public sealed class AnyEntityIdJsonConverter : JsonConverter<AnyEntityId>
 
         if (!AnyEntityId.TryParse(text, null, out var result))
         {
-            throw new JsonException($"'{text}' is not an identifier of any registered type.");
+            throw new JsonException("The value is not an identifier of any registered type.");
         }
 
         return result;
@@ -55,7 +59,7 @@ public sealed class AnyEntityIdJsonConverter : JsonConverter<AnyEntityId>
 
         if (!AnyEntityId.TryParse(text, CultureInfo.InvariantCulture, out var result))
         {
-            throw new JsonException($"'{text}' is not an identifier of any registered type.");
+            throw new JsonException("The dictionary key is not an identifier of any registered type.");
         }
 
         return result;

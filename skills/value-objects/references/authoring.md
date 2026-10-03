@@ -360,6 +360,35 @@ changes is how the integrations meet the constructions:
   type of `TypeConverter` (`StandardValuesCollection`, `SimplePropertyDescriptor`), which the generated converter
   inherits (`VO0019`).
 
+## Personal data
+
+The message of a `ValueObjectException` never quotes the rejected value; its `AttemptedValue` holds it, and a logger
+recording the properties of an exception records it in clear. On a value object that holds personal data, classify
+the type with an attribute derived from `DataClassificationAttribute` (Microsoft.Extensions.Compliance.Abstractions,
+referenced by the consuming project): the generated `Create` and `Parse` then leave `AttemptedValue` `null`.
+
+```csharp
+using Microsoft.Extensions.Compliance.Classification;
+
+public static class Taxonomy
+{
+    public static DataClassification Personal => new("Shop", nameof(Personal));
+}
+
+public sealed class PersonalDataAttribute : DataClassificationAttribute
+{
+    public PersonalDataAttribute() : base(Taxonomy.Personal) { }
+}
+
+[PersonalData]
+[ValueObject<string>(MinLength = 6, MaxLength = 9)]
+public readonly partial struct PassportNumber;
+```
+
+Every derived attribute classifies the type, `UnknownDataClassificationAttribute` included;
+`NoDataClassificationAttribute` does not. Never quote the value in the message of a validator hook either: the
+message is what every log records.
+
 ## Consuming a value object
 
 ```csharp

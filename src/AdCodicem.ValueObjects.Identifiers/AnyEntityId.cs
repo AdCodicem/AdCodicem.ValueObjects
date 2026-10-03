@@ -68,8 +68,9 @@ public readonly struct AnyEntityId : IEquatable<AnyEntityId>, ISpanParsable<AnyE
             return result;
         }
 
+        // The message names the rule, never the text, as the generated Parse does: a message is what every log records.
         throw new ValueObjectException(
-            $"'{s.ToString()}' is not a valid entity identifier: {validation.ErrorMessage}",
+            $"'{nameof(AnyEntityId)}' rejected the supplied text: {validation.ErrorMessage}",
             typeof(AnyEntityId),
             validation.ErrorCode ?? ValueObjectErrorCodes.NotParsable,
             s.ToString());
