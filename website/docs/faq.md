@@ -85,8 +85,9 @@ uninitialized struct would skip every rule. A type whose zero value is genuinely
 
 ### Can I throw my own exception type?
 
-`Create` always throws `ValueObjectException`, which carries the error code, the type and the attempted value.
-To throw something else, call `TryCreate` and throw your own exception from the `ValidationResult` it returns.
+`Create` always throws `ValueObjectException`, which carries the error code, the type and, unless the type is
+[classified as personal data](./reference/errors.md#personal-data-in-an-exception), the attempted value. To throw
+something else, call `TryCreate` and throw your own exception from the `ValidationResult` it returns.
 
 ### Can a value object be a dictionary key, or an EF Core key?
 

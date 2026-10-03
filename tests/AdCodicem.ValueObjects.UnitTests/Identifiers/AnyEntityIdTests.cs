@@ -120,6 +120,9 @@ public partial class AnyEntityIdTests
         thrown.ErrorCode.Should().Be(IdentifierErrorCodes.UnknownPrefix);
         thrown.ValueObjectType.Should().Be<AnyEntityId>();
         thrown.AttemptedValue.Should().Be("zzz_2k7x9wqmz4h3n8vyb6tcr");
+        thrown.Message.Should().Be(
+            "'AnyEntityId' rejected the supplied text: The text carries no prefix belonging to a registered identifier type.",
+            "the message names the rule, never the text");
         corrupt.Should().Throw<ValueObjectException>().Which.ErrorCode.Should().Be(IdentifierErrorCodes.InvalidChecksum);
     }
 
@@ -311,12 +314,17 @@ public partial class AnyEntityIdTests
         act.Should().Throw<JsonException>().WithMessage("*found Number*");
     }
 
+    /// <summary>
+    /// The message says what was refused, never the text: a message is what every log records.
+    /// </summary>
     [Fact]
     public void Deserializing_something_no_type_claims_fails_loudly()
     {
         var act = () => JsonSerializer.Deserialize<AnyEntityId>("\"zzz_nope\"");
 
-        act.Should().Throw<JsonException>();
+        act.Should().Throw<JsonException>()
+            .WithMessage("The value is not an identifier of any registered type.")
+            .Which.Message.Should().NotContain("zzz_nope");
     }
 
     /// <summary>
@@ -341,7 +349,9 @@ public partial class AnyEntityIdTests
     {
         var act = () => JsonSerializer.Deserialize<Dictionary<AnyEntityId, int>>("""{"zzz_nope":1}""");
 
-        act.Should().Throw<JsonException>().WithMessage("*'zzz_nope' is not an identifier of any registered type*");
+        act.Should().Throw<JsonException>()
+            .WithMessage("The dictionary key is not an identifier of any registered type.")
+            .Which.Message.Should().NotContain("zzz_nope", "a key is the text of a value, which a log must not record");
     }
 
     [Fact]

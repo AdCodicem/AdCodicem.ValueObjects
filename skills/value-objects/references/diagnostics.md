@@ -55,7 +55,10 @@ actually generated, and what does it call?".
   code and message of the violated rule: from `Parse`, the code the four-argument `TryParse` reports. Use
   `TryCreate` / `TryParse` at a boundary; let `Create` throw in domain code where a rejected value is a bug.
   It derives from `FormatException`, whatever path throws it, so a `catch (FormatException)` catches it: put a
-  `catch (ValueObjectException)` before one in the same `try`, or it is unreachable (CS0160).
+  `catch (ValueObjectException)` before one in the same `try`, or it is unreachable (CS0160). Its message names
+  the type and the rule, never the value: `'Iban' rejected the supplied text: …` from `Parse`. `AttemptedValue`
+  carries the raw value, which an exception logger records in clear, except on a type classified as personal data
+  with an attribute derived from `DataClassificationAttribute`, where it is `null` (see `authoring.md`).
 - `IsDefault` returning `true` — an instance that never went through validation crossed a boundary the
   analyzer cannot see (deserialization of a struct by another library, reflection, a default array element).
   Guard with `FluentValidation`'s `NotDefault`, or check it where the value enters.
