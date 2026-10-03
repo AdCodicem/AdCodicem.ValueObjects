@@ -13,7 +13,6 @@
   <ItemGroup Label="Source generators and analyzers">
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
     <PackageVersion Include="PolySharp" Version="1.16.0" />
   </ItemGroup>
 
@@ -23,6 +22,10 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    <!-- No project references these two: they are transitive pins. They raise the 6.0.0 that BenchmarkDotNet's
+         Microsoft.Extensions.Logging asks for in the benchmarks to the version Entity Framework Core asks for,
+         and pinning lists them as dependencies of both Entity Framework Core packages: removing them changes what
+         those two pack. -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.12" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
@@ -47,10 +50,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing" Version="1.1.2" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzer.Testing" Version="1.1.2" />
     <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.12" />
-    <PackageVersion Include="Verify.XunitV3" Version="30.15.0" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="FsCheck" Version="3.4.0" />
   </ItemGroup>
