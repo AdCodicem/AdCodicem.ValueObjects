@@ -61,6 +61,7 @@ An attribute argument can only be a constant, so a `Guid`, a `decimal` or a `Dat
 the form the [authoring reference](../authoring-guide.md#bounds-and-known-values-written-as-text) gives for its
 type, and converted at compile time. A value that does not convert is `VO0013`; a member name
 that is not a valid C# identifier is `VO0006`; a closed set with no value at all is `VO0005`, since no value
-could ever be valid.
+could ever be valid. A value the type's own rules refuse, longer than its `MaxLength` say, is `VO0031`: each known
+value is created as the type initializes, and a refused one would stop the application before it starts.
 
 Next: [From request to database](./request-to-database.md), which puts these types behind an API.

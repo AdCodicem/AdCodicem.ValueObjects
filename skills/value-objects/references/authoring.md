@@ -15,7 +15,7 @@
 | `AllowEmpty` | `bool` | `false` | `string` only. Accepts `""`. `null` is rejected regardless: absence is `Iban?`. |
 | `AllowDefault` | `bool` | `false` | Silences `VO0010`. Only for a type whose zero state is meaningful, such as a sequence number starting at zero. |
 | `SchemaFormat` | `string?` | natural format of the underlying type | OpenAPI `format` (`uuid`, `date`, `int64`, or your own: `iban`, `email`). None for a `TimeSpan`, documented with the pattern of its constant form `[-][d.]hh:mm:ss[.fffffff]`; never set `duration`, which means ISO 8601. |
-| `Example` | `string?` | none | OpenAPI example, written as text the type parses; published in its JSON form. |
+| `Example` | `string?` | none | OpenAPI example, written as text the type parses; published in its JSON form. A value the type's own rules refuse → `VO0031` where the generator can evaluate them; the contract kit's `The_declared_example_is_accepted` checks the rest. |
 | `Description` | `string?` | XML `<summary>` of the type (`///` or `/** */`), as plain text | OpenAPI description. |
 
 Declarative rules run **before** any hook, so a validator hook only ever sees values that already satisfy them.
@@ -229,6 +229,10 @@ stable wire format.
 Values that cannot appear as an attribute argument (`Guid`, `decimal`, `DateOnly`) are written as text, in the
 form of their type ([table](#bounds-and-known-values-written-as-text)), and parsed at compile time (`VO0013`
 when that fails). An unusable member name is `VO0006`. On an **open** set, `[KnownValue]` still generates the constants — they are convenience only.
+Each known value is created through `Create` as the type initializes, so one the type's own rules refuse would stop
+the application before `Main`: `VO0031` refuses it at compile time when the rule is a length, an empty string, a bound
+returned as a constant or set through the options, and the contract kit's `Every_declared_known_value_is_accepted`
+checks the rest.
 
 ## Arithmetic
 

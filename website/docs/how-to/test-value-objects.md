@@ -2,7 +2,7 @@
 title: Test Your Value Objects
 sidebar_label: Testing value objects
 slug: /how-to/test-value-objects
-description: Derive a dozen behavioural checks for your own value objects from a list of accepted and rejected values, with the xUnit contract kit.
+description: Derive over a dozen behavioural checks for your own value objects from a list of accepted and rejected values, with the xUnit contract kit.
 ---
 
 # Test your value objects
@@ -47,10 +47,23 @@ Each is an xUnit test in your suite:
 - JSON carries the bare underlying value, and rejects what the type rejects;
 - the type is discoverable at run time;
 - every accepted value respects the declared length limits. A type that did not register itself has no declared
-  limits to read, and this check reports itself skipped.
+  limits to read, and this check reports itself skipped;
+- the declared `Example` is a value the type accepts, parsed in the invariant culture as the OpenAPI document reads
+  it, and reported with the code and the message of the rule it breaks. A type that declares none reports the check
+  skipped;
+- every known value is a value the type accepts. A type that declares none reports the check skipped.
 
-The last two read the registry. They run the generated registration of the type's assembly first, so they do not
+The last four read the registry. They run the generated registration of the type's assembly first, so they do not
 depend on another test having used that assembly, which matters for contracts kept in a test project of their own.
+
+The generator already refuses an example or a known value its rules refuse wherever it can evaluate them, with
+[`VO0031`](../reference/diagnostics.md). The two checks cover what only runs at run time: a pattern, a validator, a
+bound computed by its hook, a normalization, the format of an `[EntityId]`, and an example written in another form
+than the one a known value takes. A refused known value throws from the type initializer. On a construction of a
+generic value object, which initializes when first used, the check names the rule and the value object behind the
+`TypeInitializationException`. Any other value object is initialized by the registration of its assembly, as soon as
+anything of the assembly is used: every check of every type of the assembly then fails before it starts, and the
+innermost exception of the `TypeInitializationException` the runner reports names the type and the rule.
 
 ## Constructing an invalid instance on purpose
 

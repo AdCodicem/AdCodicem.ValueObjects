@@ -185,6 +185,11 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     /// <summary>
     /// Gets or sets an example value surfaced in the OpenAPI schema.
     /// </summary>
+    /// <remarks>
+    /// Written as text the type parses in the invariant culture, and published as the type writes the value in JSON. It
+    /// must be a value the type accepts: one its own rules refuse is reported at compile time wherever the generator can
+    /// evaluate the rule, and the contract kit of <c>AdCodicem.ValueObjects.Testing</c> checks it at run time.
+    /// </remarks>
     public string? Example { get; set; }
 
     /// <summary>

@@ -26,7 +26,7 @@ object is then documented as what it is on the wire — its underlying type — 
 | `IValueObjectPatternValidator`, or the deprecated `Pattern` option | `pattern` |
 | `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>`, or the deprecated `Minimum` and `Maximum` options | `minimum`, `maximum` for a number; for a value written as a string, see below |
 | `[KnownValue]` on a closed set | `enum`, each value as the type writes it in JSON |
-| `Example` | an example, written as the type writes it in JSON |
+| `Example` | an example, written as the type writes it in JSON; one the type refuses fails the build (`VO0031`) or the [contract kit](./test-value-objects.md#what-it-checks) |
 | `Description`, or the type's XML `<summary>` as plain text | `description` |
 
 So this declaration:

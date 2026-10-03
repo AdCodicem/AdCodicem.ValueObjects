@@ -39,25 +39,33 @@ internal static class LiteralFactory
     /// <param name="literal">The literal expression when the value is convertible.</param>
     /// <returns><see langword="true"/> when the value could be converted.</returns>
     public static bool TryCreate(UnderlyingType underlying, object? value, out string literal)
+        => TryCreate(underlying, value, out literal, out _);
+
+    /// <summary>
+    /// Builds the C# literal expression for a value of the given underlying type, and the value it names in a form
+    /// the generator can compare with another value of that type.
+    /// </summary>
+    /// <param name="underlying">Underlying type descriptor.</param>
+    /// <param name="value">Value read from the attribute argument.</param>
+    /// <param name="literal">The literal expression when the value is convertible.</param>
+    /// <param name="key">
+    /// The value itself when it is convertible, ordered and compared as the generated code orders and compares it: the
+    /// text of a string, a <see cref="BigInteger"/> for every integer type, a <see cref="decimal"/>, a
+    /// <see cref="double"/> for a <c>double</c> or a <c>float</c>, the ticks of a date, a time or a duration, the
+    /// ticks of the instant a <c>DateTimeOffset</c> names, and the value for a <c>Guid</c>, a <c>bool</c> or a
+    /// <c>char</c>.
+    /// </param>
+    /// <returns><see langword="true"/> when the value could be converted.</returns>
+    public static bool TryCreate(UnderlyingType underlying, object? value, out string literal, out IComparable key)
     {
         literal = string.Empty;
+        key = string.Empty;
         if (value is null)
         {
             return false;
         }
 
-        var text = value switch
-        {
-            string written => written,
-
-            // The compiler may run on .NET Framework, as in Visual Studio, whose default form of a double keeps
-            // 15 significant digits and of a float 7, and so names a neighbouring value. The round-trip form
-            // names the value itself.
-            double real => RoundTrip(real),
-            float single => RoundTrip(single),
-            _ => Convert.ToString(value, CultureInfo.InvariantCulture),
-        };
-
+        var text = Text(value);
         if (text is null)
         {
             return false;
@@ -68,6 +76,7 @@ internal static class LiteralFactory
         {
             case UnderlyingKind.String:
                 literal = Quote(text);
+                key = text;
                 return true;
 
             case UnderlyingKind.Guid:
@@ -78,6 +87,7 @@ internal static class LiteralFactory
                 }
 
                 literal = $"new global::System.Guid({Quote(guid.ToString("D", CultureInfo.InvariantCulture))})";
+                key = guid;
                 return true;
 
             case UnderlyingKind.Boolean:
@@ -85,12 +95,14 @@ internal static class LiteralFactory
                 if (string.Equals(text, bool.TrueString, StringComparison.OrdinalIgnoreCase))
                 {
                     literal = "true";
+                    key = true;
                     return true;
                 }
 
                 if (string.Equals(text, bool.FalseString, StringComparison.OrdinalIgnoreCase))
                 {
                     literal = "false";
+                    key = false;
                     return true;
                 }
 
@@ -103,37 +115,38 @@ internal static class LiteralFactory
                 }
 
                 literal = $"'{Escape(text)}'";
+                key = text[0];
                 return true;
 
             case UnderlyingKind.SByte:
-                return TryInteger(text, sbyte.MinValue, sbyte.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal);
+                return TryInteger(text, sbyte.MinValue, sbyte.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal, out key);
 
             case UnderlyingKind.Byte:
-                return TryInteger(text, byte.MinValue, byte.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal);
+                return TryInteger(text, byte.MinValue, byte.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal, out key);
 
             case UnderlyingKind.Int16:
-                return TryInteger(text, short.MinValue, short.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal);
+                return TryInteger(text, short.MinValue, short.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal, out key);
 
             case UnderlyingKind.UInt16:
-                return TryInteger(text, ushort.MinValue, ushort.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal);
+                return TryInteger(text, ushort.MinValue, ushort.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal, out key);
 
             case UnderlyingKind.Int32:
-                return TryInteger(text, int.MinValue, int.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal);
+                return TryInteger(text, int.MinValue, int.MaxValue, suffix: string.Empty, cast: underlying.Keyword, out literal, out key);
 
             case UnderlyingKind.UInt32:
-                return TryInteger(text, uint.MinValue, uint.MaxValue, "U", cast: null, out literal);
+                return TryInteger(text, uint.MinValue, uint.MaxValue, "U", cast: null, out literal, out key);
 
             case UnderlyingKind.Int64:
-                return TryInteger(text, long.MinValue, long.MaxValue, "L", cast: null, out literal);
+                return TryInteger(text, long.MinValue, long.MaxValue, "L", cast: null, out literal, out key);
 
             case UnderlyingKind.UInt64:
-                return TryInteger(text, ulong.MinValue, ulong.MaxValue, "UL", cast: null, out literal);
+                return TryInteger(text, ulong.MinValue, ulong.MaxValue, "UL", cast: null, out literal, out key);
 
             case UnderlyingKind.Int128:
-                return TryInteger128(text, underlying, Int128Minimum, Int128Maximum, out literal);
+                return TryInteger128(text, underlying, Int128Minimum, Int128Maximum, out literal, out key);
 
             case UnderlyingKind.UInt128:
-                return TryInteger128(text, underlying, BigInteger.Zero, UInt128Maximum, out literal);
+                return TryInteger128(text, underlying, BigInteger.Zero, UInt128Maximum, out literal, out key);
 
             case UnderlyingKind.Decimal:
                 if (!IsNumber(text, exponent: false)
@@ -143,6 +156,7 @@ internal static class LiteralFactory
                 }
 
                 literal = dec.ToString(CultureInfo.InvariantCulture) + "m";
+                key = dec;
                 return true;
 
             case UnderlyingKind.Double:
@@ -159,6 +173,7 @@ internal static class LiteralFactory
                 }
 
                 literal = RoundTrip(dbl) + "d";
+                key = dbl;
                 return true;
 
             case UnderlyingKind.Single:
@@ -170,6 +185,9 @@ internal static class LiteralFactory
                 }
 
                 literal = RoundTrip(flt) + "f";
+
+                // Widened, which is exact and keeps the order: the generated code compares the float itself.
+                key = (double)flt;
                 return true;
 
             case UnderlyingKind.DateOnly:
@@ -179,6 +197,7 @@ internal static class LiteralFactory
                 }
 
                 literal = $"new global::System.DateOnly({date.Year}, {date.Month}, {date.Day})";
+                key = date.Ticks;
                 return true;
 
             case UnderlyingKind.TimeOnly:
@@ -188,6 +207,7 @@ internal static class LiteralFactory
                 }
 
                 literal = $"new global::System.TimeOnly({timeOfDay}L)";
+                key = timeOfDay;
                 return true;
 
             case UnderlyingKind.DateTime:
@@ -200,6 +220,9 @@ internal static class LiteralFactory
                 }
 
                 literal = $"new global::System.DateTime({clock}L, global::System.DateTimeKind.Unspecified)";
+
+                // A DateTime compares its clock reading, whatever its kind.
+                key = clock;
                 return true;
 
             case UnderlyingKind.DateTimeOffset:
@@ -215,6 +238,9 @@ internal static class LiteralFactory
                 }
 
                 literal = $"new global::System.DateTimeOffset({local}L, new global::System.TimeSpan({offset}L))";
+
+                // A DateTimeOffset compares the instant it names, whatever its offset.
+                key = local - offset;
                 return true;
 
             case UnderlyingKind.TimeSpan:
@@ -224,6 +250,7 @@ internal static class LiteralFactory
                 }
 
                 literal = $"new global::System.TimeSpan({duration}L)";
+                key = duration;
                 return true;
 
             default:
@@ -237,6 +264,65 @@ internal static class LiteralFactory
     /// <param name="value">Value to quote.</param>
     /// <returns>The literal expression.</returns>
     public static string Quote(string value) => $"\"{Escape(value)}\"";
+
+    /// <summary>
+    /// Writes an attribute argument as the text it is read from: a string as it is, any other constant in its
+    /// invariant form.
+    /// </summary>
+    /// <param name="value">A constant read from an attribute argument.</param>
+    /// <returns>Its text, or <see langword="null"/> when it has none.</returns>
+    public static string? Text(object value) => value switch
+    {
+        string written => written,
+
+        // The compiler may run on .NET Framework, as in Visual Studio, whose default form of a double keeps
+        // 15 significant digits and of a float 7, and so names a neighbouring value. The round-trip form
+        // names the value itself.
+        double real => RoundTrip(real),
+        float single => RoundTrip(single),
+        _ => Convert.ToString(value, CultureInfo.InvariantCulture),
+    };
+
+    /// <summary>
+    /// Whether the parser the generated <c>Parse</c> calls in the invariant culture can read the text, in any of the
+    /// forms it takes, not only the one form <see cref="TryCreate(UnderlyingType, object?, out string)"/> reads.
+    /// </summary>
+    /// <remarks>
+    /// The generator targets netstandard2.0, which has neither <c>DateOnly</c> nor <c>TimeOnly</c>, so a date and a time
+    /// of day are read as a <see cref="DateTime"/>, whose parser reads every form theirs do, and more: text it refuses
+    /// they refuse too. A real too large for its type reads as an infinity on .NET and does not read at all on
+    /// .NET Framework, where the compiler may run, so a number written as digits is readable whatever it holds.
+    /// </remarks>
+    /// <param name="underlying">Underlying type descriptor.</param>
+    /// <param name="text">The text, as written.</param>
+    /// <returns><see langword="false"/> when no form of the type is the text.</returns>
+    public static bool IsReadable(UnderlyingType underlying, string text)
+    {
+        var invariant = CultureInfo.InvariantCulture;
+        return underlying.Kind switch
+        {
+            UnderlyingKind.String => true,
+            UnderlyingKind.Char => text.Length == 1,
+            UnderlyingKind.Boolean => bool.TryParse(text, out _),
+            UnderlyingKind.Guid => Guid.TryParse(text, out _),
+            UnderlyingKind.SByte => IsIntegerWithin(text, sbyte.MinValue, sbyte.MaxValue),
+            UnderlyingKind.Byte => IsIntegerWithin(text, byte.MinValue, byte.MaxValue),
+            UnderlyingKind.Int16 => IsIntegerWithin(text, short.MinValue, short.MaxValue),
+            UnderlyingKind.UInt16 => IsIntegerWithin(text, ushort.MinValue, ushort.MaxValue),
+            UnderlyingKind.Int32 => IsIntegerWithin(text, int.MinValue, int.MaxValue),
+            UnderlyingKind.UInt32 => IsIntegerWithin(text, uint.MinValue, uint.MaxValue),
+            UnderlyingKind.Int64 => IsIntegerWithin(text, long.MinValue, long.MaxValue),
+            UnderlyingKind.UInt64 => IsIntegerWithin(text, ulong.MinValue, ulong.MaxValue),
+            UnderlyingKind.Int128 => IsIntegerWithin(text, Int128Minimum, Int128Maximum),
+            UnderlyingKind.UInt128 => IsIntegerWithin(text, BigInteger.Zero, UInt128Maximum),
+            UnderlyingKind.Decimal => decimal.TryParse(text, NumberStyles.Number & ~NumberStyles.AllowThousands, invariant, out _),
+            UnderlyingKind.Double => double.TryParse(text, NumberStyles.Float, invariant, out _) || IsWrittenAsReal(text),
+            UnderlyingKind.Single => float.TryParse(text, NumberStyles.Float, invariant, out _) || IsWrittenAsReal(text),
+            UnderlyingKind.DateTimeOffset => DateTimeOffset.TryParse(text, invariant, DateTimeStyles.None, out _),
+            UnderlyingKind.TimeSpan => TimeSpan.TryParse(text, invariant, out _),
+            _ => DateTime.TryParse(text, invariant, DateTimeStyles.RoundtripKind, out _),
+        };
+    }
 
     /// <summary>
     /// Writes a double in a form that reads back as the same value, whatever runtime the compiler runs on.
@@ -576,13 +662,17 @@ internal static class LiteralFactory
         UnderlyingType underlying,
         BigInteger minimum,
         BigInteger maximum,
-        out string literal)
+        out string literal,
+        out IComparable key)
     {
         literal = string.Empty;
+        key = string.Empty;
         if (!TryReadInteger(text, minimum, maximum, out var number))
         {
             return false;
         }
+
+        key = number;
 
         var bits = number.Sign < 0 ? number + (BigInteger.One << 128) : number;
         var upper = (ulong)(bits >> 64);
@@ -607,13 +697,17 @@ internal static class LiteralFactory
         BigInteger maximum,
         string suffix,
         string? cast,
-        out string literal)
+        out string literal,
+        out IComparable key)
     {
         literal = string.Empty;
+        key = string.Empty;
         if (!TryReadInteger(text, minimum, maximum, out var number))
         {
             return false;
         }
+
+        key = number;
 
         var digits = number.ToString(CultureInfo.InvariantCulture);
 
@@ -636,6 +730,29 @@ internal static class LiteralFactory
 
         number = BigInteger.Parse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
         return number >= minimum && number <= maximum;
+    }
+
+    /// <summary>
+    /// Whether the text is an integer in the form the integer types read in the invariant culture, white space and a
+    /// sign included, within the range of the type.
+    /// </summary>
+    private static bool IsIntegerWithin(string text, BigInteger minimum, BigInteger maximum)
+        => BigInteger.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)
+           && number >= minimum
+           && number <= maximum;
+
+    /// <summary>
+    /// Whether the text is a real written as digits, white space and a leading sign included, whatever it holds: one
+    /// too large for its type does not read at all on .NET Framework, where it reads as an infinity on .NET.
+    /// </summary>
+    private static bool IsWrittenAsReal(string text)
+    {
+        var trimmed = text.Trim();
+        var unsigned = trimmed.StartsWith("+", StringComparison.Ordinal) || trimmed.StartsWith("-", StringComparison.Ordinal)
+            ? trimmed.Substring(1)
+            : trimmed;
+
+        return !unsigned.StartsWith("-", StringComparison.Ordinal) && IsNumber(unsigned, exponent: true);
     }
 
     private static string Escape(string value)

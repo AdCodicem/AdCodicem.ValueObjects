@@ -26,7 +26,9 @@ public sealed class KnownValueAttribute : Attribute
     /// <see cref="decimal"/> or <see cref="DateOnly"/>, are written as text and parsed at compile time, in the one
     /// form of the type that a bound is written in (<see cref="ValueObjectAttribute{TValue}.Minimum"/>). A constant
     /// of a C# type is held to the same form through its invariant text. A type, an enum member, an array and
-    /// <see langword="null"/> are not values, and are reported.
+    /// <see langword="null"/> are not values, and are reported. The value is created through <c>Create</c> as the type
+    /// initializes, so it must be one the type's own rules accept: one they refuse is reported at compile time wherever
+    /// the generator can evaluate the rule, and would otherwise stop the application before it starts.
     /// </param>
     public KnownValueAttribute(string name, object value)
     {
