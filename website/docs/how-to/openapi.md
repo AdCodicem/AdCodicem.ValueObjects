@@ -21,7 +21,7 @@ object is then documented as what it is on the wire — its underlying type — 
 | Declared on the type | In the schema |
 | --- | --- |
 | The underlying type | `type` |
-| `SchemaFormat`, or the natural format of the type (`uuid`, `date`, `int64`…) | `format` |
+| `SchemaFormat`, or the natural format of the type (`uuid`, `date`, `int64`…; none for a `TimeSpan`, see below) | `format` |
 | `MinLength`, `MaxLength` | `minLength`, `maxLength` |
 | `IValueObjectPatternValidator`, or the deprecated `Pattern` option | `pattern` |
 | `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>`, or the deprecated `Minimum` and `Maximum` options | `minimum`, `maximum` for a number; for a value written as a string, see below |
@@ -62,6 +62,14 @@ or a `UInt128`, which a JSON number would round, a `char`, a date, a time or a d
 would ignore them. Its bounds go to `x-minimum` and `x-maximum` instead, in the form the type writes them, for tools
 that read extensions, and to a sentence after the description, `Between 1900-01-01 and 2100-12-31, inclusive.`, for
 the people reading the document.
+
+A `TimeSpan` has no natural format. JSON Schema's `duration` is ISO 8601, `PT1H30M`, while a duration is read and
+written in the invariant constant form `[-][d.]hh:mm:ss[.fffffff]`, `01:30:00`: a client generated from a `duration`
+format would send what the server refuses. A value object over a `TimeSpan` is therefore documented as the built-in
+stack documents a plain `TimeSpan`, a `string` held to the pattern `^-?(\d+\.)?\d{2}:\d{2}:\d{2}(\.\d{1,7})?$`, which
+its example and its bounds match. A client generator types such a property as a string rather than a duration, as it
+types a plain `TimeSpan` of the same document. `SchemaFormat` still sets a `format`, and a pattern declared on the type
+replaces this one.
 
 A bound is published as it is declared and enforced, never normalized as an input would be: the check compares the
 normalized value with the bound itself. An example is an input, parsed and normalized as the type parses text, then

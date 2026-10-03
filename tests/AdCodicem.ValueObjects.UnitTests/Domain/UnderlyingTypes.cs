@@ -126,7 +126,7 @@ public readonly partial struct OccurredAt : IValueObjectMinimum<DateTimeOffset>
 }
 
 /// <summary>How long a task took.</summary>
-[ValueObject<TimeSpan>]
+[ValueObject<TimeSpan>(Example = "01:30:00")]
 public readonly partial struct Duration : IValueObjectMinimum<TimeSpan>, IValueObjectMaximum<TimeSpan>
 {
     public static TimeSpan Minimum => TimeSpan.Zero;

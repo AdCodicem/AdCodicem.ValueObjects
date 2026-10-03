@@ -66,7 +66,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         schema.Required?.Clear();
         schema.Type = asText ? jsonType | JsonSchemaType.String : jsonType;
         schema.Format = declared.Format;
-        schema.Pattern = declared.Pattern ?? (asText ? NumberPattern(descriptor.ValueType) : null);
+        schema.Pattern = declared.Pattern ?? WirePattern(descriptor.ValueType, asText);
 
         if (declared.MinLength is { } minLength)
         {
@@ -186,6 +186,33 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         schema.Maximum = null;
         schema.AnyOf = [number, new OpenApiSchema { Enum = literals }];
     }
+
+    /// <summary>
+    /// Gets the pattern a value object that declares none is held to on the wire, as System.Text.Json documents its
+    /// underlying type: a number written as text, and a duration, which no <c>format</c> describes.
+    /// </summary>
+    /// <param name="valueType">Underlying type of the value object.</param>
+    /// <param name="asText">Whether a number may be written or read as text.</param>
+    /// <returns>The pattern, or <see langword="null"/> for a value the type alone describes.</returns>
+    /// <remarks>
+    /// A duration is written in the invariant constant form <c>[-][d.]hh:mm:ss[.fffffff]</c>. The <c>duration</c>
+    /// format of JSON Schema is ISO 8601, <c>PT1H30M</c>, which the type does not read: a client taking the document
+    /// at its word would send a value the server refuses.
+    /// </remarks>
+    private static string? WirePattern(Type valueType, bool asText)
+    {
+        if (asText)
+        {
+            return NumberPattern(valueType);
+        }
+
+        return valueType == typeof(TimeSpan) ? DurationPattern : null;
+    }
+
+    /// <summary>
+    /// The pattern System.Text.Json documents a <see cref="TimeSpan"/> with: its invariant constant form.
+    /// </summary>
+    private const string DurationPattern = @"^-?(\d+\.)?\d{2}:\d{2}:\d{2}(\.\d{1,7})?$";
 
     /// <summary>
     /// Gets the pattern System.Text.Json holds a number written as text to.

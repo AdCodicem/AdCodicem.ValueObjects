@@ -210,7 +210,8 @@ annotation — and nothing to keep in sync, since the schema comes from the same
 `pattern` is the text of the `[GeneratedRegex]` behind `IValueObjectPatternValidator`, read when the type
 compiles; its `RegexOptions` are not part of it (`VO0025`). A value written as a JSON string (`Int128`, `UInt128`,
 `char`, dates, times) gets no inert `minimum`/`maximum`: its bounds go to `x-minimum`/`x-maximum` and a sentence of
-the description.
+the description. A `TimeSpan` gets no `format` (`duration` is ISO 8601, which it does not read) but the pattern of its
+constant form, as the built-in stack documents a plain `TimeSpan`.
 
 ## Run-time lookup, when only a `Type` is known
 
