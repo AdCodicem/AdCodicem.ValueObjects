@@ -41,8 +41,8 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": ".github/scripts/release-pack.sh '${nextRelease.version}' '${nextRelease.type}' '${lastRelease.version || \"\"}' && .github/scripts/docs-snapshot.sh '${nextRelease.version}'",
-        "publishCmd": "dotnet nuget push 'artifacts/packages/*.nupkg' --api-key \"$NUGET_API_KEY\" --source https://api.nuget.org/v3/index.json --skip-duplicate"
+        "prepareCmd": "test \"$PACKED_VERSION\" = '${nextRelease.version}' || { echo \"::error::semantic-release computed ${nextRelease.version}, but the pack job packed '$PACKED_VERSION'.\" >&2; exit 1; }",
+        "publishCmd": ".github/scripts/push-packages.sh artifacts/packages '${nextRelease.version}'"
       }
     ],
     [

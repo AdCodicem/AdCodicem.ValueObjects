@@ -4,8 +4,9 @@
 #
 # Usage: verify-packages.sh <packages-dir> <version> <expected-ids>
 #   <expected-ids>: the space- or newline-separated package ids package-ids.sh prints.
-#   The version must be of the X.Y.Z-preview.N shape preview.yml publishes; ci.yml,
-#   which checks the set MinVer packed and publishes nothing, sets ALLOW_ANY_VERSION=true.
+#   The version must be of the X.Y.Z-preview.N shape preview.yml publishes. ci.yml,
+#   which checks the set MinVer packed and publishes nothing, and release.yml, whose
+#   version is stable, set ALLOW_ANY_VERSION=true.
 #
 # Previews publish all the packages or none, so the set is checked as a whole:
 # one id missing, one too many, or one at another version stops the run before

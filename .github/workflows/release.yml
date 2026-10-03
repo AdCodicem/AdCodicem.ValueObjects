@@ -24,9 +24,8 @@ jobs:
   # A release must not be cut from a red tree. ci.yml has already run these on
   # the merge, but nothing guarantees this workflow was dispatched from the same
   # commit, and the cost of being wrong here is a bad package on nuget.org
-  # forever. A job of its own, so that the job that packs and publishes restores
-  # nothing but the packable projects under src/: no test project, no
-  # Testcontainers.
+  # forever. A job of its own, so that the job that packs restores nothing but
+  # the packable projects under src/: no test project, no Testcontainers.
   test:
     name: build and test
     runs-on: ubuntu-latest
@@ -58,6 +57,113 @@ jobs:
       - name: Integration tests
         run: dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests --no-build -c Release
 
+  # Packs the release and freezes its documentation, in a job that holds no
+  # credential and waits for no approval. The pack, DocFX and Docusaurus run
+  # third-party code, which must not share a machine with the NuGet key, the
+  # App token or the OIDC token nuget.org exchanges for a key: removing them
+  # from the environment of a step is not enough, since a process reads the
+  # environment of every process above it through /proc. The release job takes
+  # the files this job uploads, checked against the digests it outputs, and
+  # builds nothing.
+  pack:
+    name: pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      # Whether a commit since the last release releases anything; when none
+      # does, nothing is packed, and semantic-release releases nothing either.
+      release: ${{ steps.next.outputs.release_type != '' }}
+      version: ${{ steps.next.outputs.next_version }}
+      ids: ${{ steps.pack.outputs.ids }}
+      packages-artifact-id: ${{ steps.upload-packages.outputs.artifact-id }}
+      packages-sha256: ${{ steps.pack.outputs.sha256 }}
+      documentation-artifact-id: ${{ steps.upload-documentation.outputs.artifact-id }}
+      documentation-sha256: ${{ steps.snapshot.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tags and every commit since the last stable one, for the
+          # version, and for MinVer, which reads them even when overridden.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # The commit analyzer semantic-release itself loads, for next-version.mjs.
+      - name: Install release tooling
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      # The version semantic-release computes in the release job, which refuses
+      # to publish unless it is the one packed here.
+      - name: Next version
+        id: next
+        run: |
+          set -euo pipefail
+          node .github/scripts/next-version.mjs | tee -a "$GITHUB_OUTPUT"
+
+      # The GitHub Release links each package to its page on nuget.org. Its
+      # body is rendered from the environment semantic-release starts with, so
+      # the list is computed here and handed to it; release-pack.sh checks it
+      # against the packages actually built.
+      - name: Pack
+        id: pack
+        if: steps.next.outputs.release_type != ''
+        env:
+          VERSION: ${{ steps.next.outputs.next_version }}
+          RELEASE_TYPE: ${{ steps.next.outputs.release_type }}
+          LAST_RELEASE: ${{ steps.next.outputs.last_version }}
+        run: |
+          set -euo pipefail
+          RELEASE_PACKAGE_IDS="$(.github/scripts/package-ids.sh | paste -sd ' ' -)"
+          export RELEASE_PACKAGE_IDS
+          .github/scripts/release-pack.sh "$VERSION" "$RELEASE_TYPE" "$LAST_RELEASE"
+          ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "$VERSION" "$RELEASE_PACKAGE_IDS"
+          echo "ids=$RELEASE_PACKAGE_IDS" >> "$GITHUB_OUTPUT"
+          # The digests travel as job outputs, which only this job writes.
+          echo "sha256=$(cd artifacts/packages && sha256sum -- *.*nupkg | base64 -w0)" >> "$GITHUB_OUTPUT"
+
+      # Freezes website/docs/ as this release's documentation, generated API
+      # reference included (docs/adr/0005-version-the-documentation-site.md),
+      # and hands over every file @semantic-release/git commits for it as one
+      # archive, so that the release job replaces the folders whole.
+      - name: Freeze the documentation
+        id: snapshot
+        if: steps.next.outputs.release_type != ''
+        env:
+          VERSION: ${{ steps.next.outputs.next_version }}
+        run: |
+          set -euo pipefail
+          .github/scripts/docs-snapshot.sh "$VERSION"
+          tar -cf documentation.tar -C website versions.json released-versions.json versioned_docs versioned_sidebars
+          echo "sha256=$(sha256sum documentation.tar | base64 -w0)" >> "$GITHUB_OUTPUT"
+
+      # Downloaded by the ids these steps return, not by name: any job of the
+      # run can delete an artifact by name and upload another, and the test
+      # job runs third-party code beside this one.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: upload-packages
+        if: steps.next.outputs.release_type != ''
+        with:
+          name: release-packages
+          path: artifacts/packages/*.*nupkg
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: upload-documentation
+        if: steps.next.outputs.release_type != ''
+        with:
+          name: release-documentation
+          path: documentation.tar
+          if-no-files-found: error
+
   # Warns, without blocking, when this release ships package inputs that no
   # preview carried: inputs that changed since the version on nuget.org built
   # from the nearest commit. Before the release job, so the warning is on the
@@ -81,25 +187,29 @@ jobs:
         continue-on-error: true
         run: .github/scripts/preview-gate.sh --report
 
+  # Builds nothing and runs no build code: it checks the pack job's files,
+  # then semantic-release commits the changelog and the documentation, tags,
+  # pushes the packages and drafts the GitHub Release. What third-party code is
+  # left beside the credentials is semantic-release's own npm packages and the
+  # .NET SDK's `dotnet nuget push`.
   release:
     name: ${{ inputs.dry_run && 'dry run' || 'publish' }}
-    # Waits for the warning to be on the run page, but only the tests can stop
-    # the release: a failure anywhere in the previewed job, not only in its
-    # check, must not block it.
-    needs: [test, previewed]
-    if: ${{ !cancelled() && needs.test.result == 'success' }}
+    # Waits for the warning to be on the run page, but only the tests and the
+    # pack can stop the release: a failure anywhere in the previewed job, not
+    # only in its check, must not block it.
+    needs: [test, pack, previewed]
+    if: ${{ !cancelled() && needs.test.result == 'success' && needs.pack.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # A separate environment from preview.yml's publish job: this is the one gated
     # by a required reviewer, so cutting a stable release needs a deliberate
     # approval while previews go out without one.
     environment: nuget-stable
+    # Every write -- the release commit and tag, the draft GitHub Release and its
+    # assets, the comments on the issues and pull requests it closes -- goes
+    # through the release App's token below; the job's own token only reads.
     permissions:
-      # semantic-release commits CHANGELOG.md and pushes the tag.
-      contents: write
-      # It also creates the GitHub Release and comments on the issues it closes.
-      issues: write
-      pull-requests: write
+      contents: read
       # Exchanged for a short-lived nuget.org API key.
       id-token: write
     outputs:
@@ -126,11 +236,12 @@ jobs:
         with:
           # semantic-release reads the whole tag history to find the last release.
           fetch-depth: 0
-          # Checked out with the App's token and left in place, so the credentials
-          # git uses for @semantic-release/git's push are the ones allowed to bypass.
-          token: ${{ steps.app-token.outputs.token }}
-          persist-credentials: true
+          # Nothing left in .git/config: semantic-release pushes the release
+          # commit and the tag through a URL it builds from GITHUB_TOKEN, the
+          # App's token below, the one allowed to bypass the ruleset.
+          persist-credentials: false
 
+      # For `dotnet nuget push`, in push-packages.sh.
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
@@ -141,8 +252,42 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      # Without install scripts: this job holds the App token and can mint the
+      # nuget-stable OIDC token, and no package in package-lock.json declares one.
       - name: Install release tooling
-        run: npm ci
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: needs.pack.outputs.release == 'true'
+        with:
+          artifact-ids: ${{ needs.pack.outputs.packages-artifact-id }}
+          path: artifacts/packages
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: needs.pack.outputs.release == 'true'
+        with:
+          artifact-ids: ${{ needs.pack.outputs.documentation-artifact-id }}
+          path: .
+
+      # The bytes the pack job produced, and nothing else: the packages a
+      # second time, as they are about to be pushed, and the documentation,
+      # which replaces the versioned folders whole, as docs-snapshot.sh replaced
+      # the line's entry.
+      - name: Check what the pack job produced
+        if: needs.pack.outputs.release == 'true'
+        env:
+          VERSION: ${{ needs.pack.outputs.version }}
+          IDS: ${{ needs.pack.outputs.ids }}
+          PACKAGES_SHA256: ${{ needs.pack.outputs.packages-sha256 }}
+          DOCUMENTATION_SHA256: ${{ needs.pack.outputs.documentation-sha256 }}
+        run: |
+          set -euo pipefail
+          base64 -d <<<"$PACKAGES_SHA256" | (cd artifacts/packages && sha256sum --check --strict)
+          ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "$VERSION" "$IDS"
+          base64 -d <<<"$DOCUMENTATION_SHA256" | sha256sum --check --strict
+          rm -rf website/versioned_docs website/versioned_sidebars
+          tar -xf documentation.tar -C website
+          rm documentation.tar
 
       # Trusted Publishing: exchanges this job's GitHub OIDC token for a NuGet
       # API key scoped to this run, so no long-lived secret is stored.
@@ -153,27 +298,17 @@ jobs:
         with:
           user: AdCodicem
 
-      # The GitHub Release links each package to its page on nuget.org. Its body
-      # is rendered from the environment semantic-release starts with, so the
-      # list has to exist before it runs; release-pack.sh then checks it against
-      # the packages actually built, before anything is pushed.
-      - name: Package list
-        run: |
-          set -euo pipefail
-          ids="$(.github/scripts/package-ids.sh | paste -sd ' ' -)"
-          echo "Packages: $ids"
-          echo "RELEASE_PACKAGE_IDS=$ids" >> "$GITHUB_ENV"
-
-      # Its prepare step also freezes website/docs/ as this release's
-      # documentation (.github/scripts/docs-snapshot.sh), which needs the DocFX
-      # tool, python3 and the site's npm packages -- all available on the runner
-      # or installed by the script.
+      # Its prepare step only checks that the version it computed is the one
+      # packed; PACKED_VERSION is empty when the pack job packed nothing, which
+      # fails a release the pack job did not expect.
       - name: semantic-release
         id: semantic
         run: npx semantic-release ${{ inputs.dry_run && '--dry-run' || '' }}
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+          RELEASE_PACKAGE_IDS: ${{ needs.pack.outputs.ids }}
+          PACKED_VERSION: ${{ needs.pack.outputs.release == 'true' && needs.pack.outputs.version || '' }}
 
       # semantic-release commits the changelog and the documentation snapshot,
       # then tags that commit, so when HEAD has moved off the dispatched commit
@@ -193,23 +328,16 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: release-packages
-          path: artifacts/packages/*.*nupkg
-          if-no-files-found: ignore
-
   # Signs the released packages with a SLSA build provenance attestation:
   # keyless, through Sigstore and this run's OIDC token, verifiable with
   # `gh attestation verify <file> --repo AdCodicem/AdCodicem.ValueObjects`.
   # The bundle is also attached to the GitHub Release, which is where the
   # OpenSSF Scorecard Signed-Releases check looks for it.
   #
-  # It attests the files the release job uploaded, which are byte for byte the
-  # GitHub Release assets. The copies on nuget.org carry nuget.org's repository
-  # signature, added after the push, so their digest differs and they do not
-  # verify against this attestation.
+  # It attests the files the pack job uploaded, which the release job checked
+  # and attached: byte for byte the GitHub Release assets. The copies on
+  # nuget.org carry nuget.org's repository signature, added after the push, so
+  # their digest differs and they do not verify against this attestation.
   #
   # A job of its own, after the push rather than inside semantic-release: an
   # action cannot run between semantic-release's steps, and a failure here can
