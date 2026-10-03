@@ -62,6 +62,33 @@ public abstract class DapperTests<TFixture>(TFixture fixture) : IClassFixture<TF
         reloaded.Accounts.Should().ContainSingle().Which.Balance.Should().Be(Amount.Create(10m));
     }
 
+    /// <summary>
+    /// A value object that never went through <c>Create</c> holds a value its type may reject, which a read would then
+    /// trust. The handler refuses it before the command reaches the engine, from a required parameter and from an
+    /// optional one alike, since Dapper hands the handler the value object either way: nothing is written.
+    /// </summary>
+    [Fact]
+    public async Task A_value_object_never_created_is_refused_as_a_parameter_and_nothing_is_written()
+    {
+        var id = CustomerId.New();
+        var email = EmailAddress.Create("dapper.unset@example.com");
+        var insert = $"INSERT INTO {Q("customers")} ({Q("Id")}, {Q("Email")}, {Q("Country")}) VALUES (@Id, @Email, @Country)";
+
+        await using var connection = fixture.CreateConnection();
+#pragma warning disable VO0010 // The uninitialized value object is what the handler refuses.
+        var required = () => connection.ExecuteAsync(Command(insert, new { Id = id, Email = email, Country = default(CountryCode) }));
+        var optional = () => connection.ExecuteAsync(
+            Command(insert, new { Id = id, Email = email, Country = (CountryCode?)default(CountryCode) }));
+#pragma warning restore VO0010
+
+        await required.Should().ThrowAsync<DataException>().WithMessage("The value to write is not a valid CountryCode: ?*");
+        await optional.Should().ThrowAsync<DataException>().WithMessage("The value to write is not a valid CountryCode: ?*");
+
+        var written = await connection.QuerySingleAsync<int>(
+            Command($"SELECT COUNT(*) FROM {Q("customers")} WHERE {Q("Id")} = @id", new { id }));
+        written.Should().Be(0);
+    }
+
     [Fact]
     public async Task A_row_read_through_Dapper_materializes_its_value_objects()
     {

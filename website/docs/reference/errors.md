@@ -110,7 +110,8 @@ generic value object reads the same attribute on the generic definition. On a ty
 `AttemptedValue` carries the raw value, by design: it is what a caller debugging a rejection needs.
 
 The integrations on a boundary report a rejected value in their own terms, so the exception is reserved for code
-that treats a rejected value as a bug, and for a strict EF Core read:
+that treats a rejected value as a bug, for a strict EF Core read, and for an EF Core write
+[refusing a value](#a-value-refused-on-write):
 
 | Integration | A rejected value |
 | --- | --- |
@@ -127,6 +128,28 @@ type or as its date and time counterpart, build the value object with `CreateUnc
 application validated when it wrote it.
 [EF Core](../how-to/ef-core.md#validation-on-read) says when to read strictly.
 
+## A value refused on write
+
+An instance that never went through `Create` — an entity property never set, a default array element, a message
+built from raw values — holds the default value, which its type may reject. Every writer refuses such a value rather
+than write it: a read trusts what it finds, so an empty `Iban` stored as it stands would come back from every later
+read as an instance holding it, and a message carrying it would fault the service reading it.
+
+Over a value type, the default and a constructed zero are the same instance, so the writer validates the default: a
+type that accepts its zero, an `Amount` with a minimum of 0 or an unconstrained `Guid`, writes it, and a type that
+must never hold `Guid.Empty` says so with a validator. Any other instance went through `Create`, and is written
+without being validated again.
+
+| Integration | A refused write |
+| --- | --- |
+| The System.Text.Json converters | `JsonException`, "The value to write is not a valid Iban: …", from a value and from a dictionary key. |
+| The Newtonsoft.Json converter | `JsonSerializationException`, with the same message. |
+| Dapper | `DataException`, with the same message, before the command is sent. Dapper hands the handler the value object whether the parameter is an `Iban` or an `Iban?` holding one, so the handler cannot tell whether the column takes a `NULL`, and refuses either way; an `Iban?` holding nothing is written as `NULL`. |
+| EF Core, a property of the value object's type | `SaveChanges` throws a `DbUpdateException` whose inner exception is the `ValueObjectException`, with the same message, the code and the type, and no `AttemptedValue`. Nothing is written. |
+| EF Core, an optional property (`Iban?`) | Nothing is thrown: the column takes a `NULL`, and stores one. |
+
+The message names the type and the rule, never the value.
+
 ## Detecting an uninitialized instance
 
 `IsDefault` is `true` for an instance equal to `default(TSelf)`, such as one that crossed a boundary the `VO0010`
@@ -135,7 +158,8 @@ instance that never went through `Create`. Over a value type, a constructed inst
 (`Amount.Create(0m)`, `OrderId.Create(Guid.Empty)`) equals the default too and reads `true`; only the
 analyzer and validation tell them apart. FluentValidation's
 [`NotDefault`](../how-to/fluentvalidation.md#an-uninitialized-value-object) rule checks it at the edge, and so refuses
-a valid zero.
+a valid zero. The writers do not stop at it: they validate the default, and refuse only the value its type rejects
+([above](#a-value-refused-on-write)).
 
 A generated value object implements it explicitly, as a member of `IValueObject<TSelf, TValue>`, so a tool reading
 the public properties of the type (a logger destructuring it, a schema generator, an exporter) does not publish it.

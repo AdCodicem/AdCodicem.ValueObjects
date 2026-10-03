@@ -51,6 +51,8 @@ public abstract class Sample
 
     public abstract void HidesIsDefaultFromReflection();
 
+    public abstract void WritesNoJsonItsTypeRejects();
+
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
 
@@ -387,6 +389,34 @@ public class Sample<TSelf, TValue> : Sample
         IsDefault(default(TSelf)).Should().BeTrue();
         IsDefault(Small).Should().Be(Small.Equals(default(TSelf)));
         IsDefault(Large).Should().Be(Large.Equals(default(TSelf)));
+    }
+
+    public override void WritesNoJsonItsTypeRejects()
+    {
+        // What a deserializer, an array or a message initializer hands out before any rule ran.
+        var uninitialized = default(TSelf);
+        var value = uninitialized.Value;
+        var validation = TSelf.Validate(in value);
+
+        if (validation.IsValid)
+        {
+            // A type that accepts its zero writes it, as a value and as a key, and reads it back.
+            var json = JsonSerializer.Serialize(uninitialized);
+            json.Should().Be(JsonSerializer.Serialize(TSelf.CreateUnchecked(value)));
+            ((object?)JsonSerializer.Deserialize<TSelf>(json).Value).Should().Be(value);
+            JsonSerializer.Serialize(new Dictionary<TSelf, int> { [uninitialized] = 1 }).Should().NotBeNullOrEmpty();
+            return;
+        }
+
+        var refusal = $"The value to write is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}";
+        FluentActions.Invoking(() => JsonSerializer.Serialize(uninitialized))
+            .Should().Throw<JsonException>().WithMessage(refusal);
+        FluentActions.Invoking(() => JsonSerializer.Serialize<TSelf?>(uninitialized))
+            .Should().Throw<JsonException>().WithMessage(refusal);
+        FluentActions.Invoking(() => JsonSerializer.Serialize(new Dictionary<TSelf, int> { [uninitialized] = 1 }))
+            .Should().Throw<JsonException>().WithMessage(refusal);
+        JsonSerializer.Serialize<TSelf?>(null).Should().Be("null", "an optional value object holding nothing is no refused value");
+        JsonSerializer.Serialize(Small).Should().NotBeNullOrEmpty("a created instance is written without a second look");
     }
 
     protected static TDelegate Method<TDelegate>(string name, params Type[] parameters)

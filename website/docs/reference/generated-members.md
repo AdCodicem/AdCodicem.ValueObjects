@@ -69,7 +69,9 @@ descriptor reads a `null` provider as it, so a query string `?total=12,5` is ref
 ## Serialization and discovery
 
 - A nested `ValueJsonConverter`, applied with `[JsonConverter]`: the value is read and written as its bare
-  underlying value, including as a dictionary key, whatever a formatter hook writes.
+  underlying value, including as a dictionary key, whatever a formatter hook writes. It writes no value the type
+  rejects: an uninitialized instance whose default value fails validation is a `JsonException`
+  ([A value refused on write](./errors.md#a-value-refused-on-write)).
 - A nested `ValueTypeConverter`, applied with `[TypeConverter]`, converting from and to the underlying value and
   its text. Over a number, it converts from and to every numeric type a value object may wrap, `sbyte` to
   `UInt128`, `decimal`, `double` and `float`, since its callers hand it the number they hold: Newtonsoft.Json without

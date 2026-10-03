@@ -34,6 +34,11 @@ public static class ValueObjectConventionExtensions
     /// constructions: each property of one gets the converter, the comparer and the length closed over its own.
     /// </para>
     /// <para>
+    /// Writing refuses a value the value object rejects, which only an instance equal to <c>default(TSelf)</c> can hold,
+    /// rather than store it for a read to trust: a property of the value object's type throws a
+    /// <see cref="ValueObjectException"/>, and a property of its nullable type, <c>TSelf?</c>, stores a <c>NULL</c>.
+    /// </para>
+    /// <para>
     /// This runs once, while the model is built. Nothing here happens per query or per row.
     /// </para>
     /// </remarks>
@@ -106,7 +111,8 @@ public static class ValueObjectConventionExtensions
     /// <remarks>
     /// Use this for a property that needs to depart from the convention; otherwise prefer the convention. It cannot
     /// map a value object over <see cref="Int128"/> or <see cref="UInt128"/>, which Entity Framework Core maps to no
-    /// column: such a property needs a converter of the application's own.
+    /// column: such a property needs a converter of the application's own. Writing refuses a value the value object
+    /// rejects with a <see cref="ValueObjectException"/>, as the convention does.
     /// </remarks>
     public static PropertyBuilder<TSelf> HasValueObjectConversion<TSelf, TValue>(
         this PropertyBuilder<TSelf> builder,
@@ -149,8 +155,7 @@ public static class ValueObjectConventionExtensions
 
     private static void Apply(ModelConfigurationBuilder builder, ValueObjectDescriptor descriptor, bool strict)
     {
-        var converterType = (strict ? typeof(StrictValueObjectConverter<,>) : typeof(ValueObjectConverter<,>))
-            .MakeGenericType(descriptor.ValueObjectType, descriptor.ValueType);
+        var converterType = ConverterTypes.Required(descriptor.ValueObjectType, descriptor.ValueType, strict);
 
         var comparerType = typeof(ValueObjectComparer<>).MakeGenericType(descriptor.ValueObjectType);
 
@@ -160,6 +165,14 @@ public static class ValueObjectConventionExtensions
         if (descriptor.Schema.MaxLength is { } maxLength)
         {
             properties.HaveMaxLength(maxLength);
+        }
+
+        // A TSelf? property takes the configuration of TSelf, then its own, which stores a value the value object
+        // rejects as NULL, where the column of a TSelf throws: the length above still applies to it.
+        if (ConverterTypes.Optional(descriptor.ValueObjectType, descriptor.ValueType, strict) is { } optionalType)
+        {
+            builder.Properties(typeof(Nullable<>).MakeGenericType(descriptor.ValueObjectType))
+                .HaveConversion(optionalType, comparerType);
         }
     }
 }

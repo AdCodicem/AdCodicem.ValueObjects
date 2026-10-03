@@ -132,6 +132,49 @@ public sealed class EmissionTests
         run.SingleValueObject.Should().Contain(implementation).And.NotContain("public bool IsDefault");
     }
 
+    /// <summary>
+    /// Both writers of the System.Text.Json converter first refuse a value the type rejects, which only an instance
+    /// equal to the default can hold: the check compares the field as <c>IsDefault</c> does, then validates the value as
+    /// it stands, and throws a <c>JsonException</c> naming the type and the rule.
+    /// </summary>
+    /// <param name="declaration">The declaration.</param>
+    /// <param name="name">The name of the value object, as messages quote it.</param>
+    /// <param name="condition">The comparison with the default.</param>
+    [Theory]
+    [InlineData("[ValueObject<string>(MaxLength = 12)] public readonly partial struct Code;", "Code", "value._value is null")]
+    [InlineData("[ValueObject<int>(Arithmetic = true)] public readonly partial struct Count;", "Count", "value._value.Equals(default(global::System.Int32))")]
+    [InlineData("[ValueObject<global::System.Guid>] public readonly partial struct OrderId;", "OrderId", "value._value.Equals(default(global::System.Guid))")]
+    [InlineData("[EntityId(\"acc\")] public readonly partial struct AccountId;", "AccountId", "value._value is null")]
+    [InlineData("[ValueObject<decimal>] public readonly partial struct Price<TCurrency>;", "Price", "value._value.Equals(default(global::System.Decimal))")]
+    public void Both_JSON_writers_first_refuse_a_value_the_type_rejects(string declaration, string name, string condition)
+    {
+        var run = GeneratorHarness.Run(declaration);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        var methods = CSharpSyntaxTree.ParseText(run.SingleValueObject, cancellationToken: TestContext.Current.CancellationToken)
+            .GetRoot(TestContext.Current.CancellationToken)
+            .DescendantNodes()
+            .OfType<ClassDeclarationSyntax>()
+            .Should().ContainSingle(candidate => candidate.Identifier.Text == "ValueJsonConverter").Subject
+            .Members.OfType<MethodDeclarationSyntax>()
+            .ToList();
+
+        foreach (var writer in new[] { "Write", "WriteAsPropertyName" })
+        {
+            methods.Should().ContainSingle(method => method.Identifier.Text == writer).Subject
+                .Body!.Statements.First().ToString().Should().Be("ThrowIfRefused(in value);", "{0} checks before it writes", writer);
+        }
+
+        var check = methods.Should().ContainSingle(method => method.Identifier.Text == "ThrowIfRefused").Subject;
+        check.Modifiers.Select(modifier => modifier.Text).Should().Equal("private", "static");
+        check.Body!.Statements.Should().ContainSingle().Which.Should().BeOfType<IfStatementSyntax>()
+            .Which.Condition.ToString().Should().Be(condition);
+        check.ToString().Should().Contain(".Validate(in current);")
+            .And.Contain($"throw new global::System.Text.Json.JsonException($\"The value to write is not a valid {name}: {{validation.ErrorMessage}}\");");
+    }
+
     [Fact]
     public void A_value_object_serializes_as_its_underlying_value()
     {

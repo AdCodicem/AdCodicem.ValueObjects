@@ -88,6 +88,16 @@ public class GeneratedSurfaceTests
     public void IsDefault_is_out_of_sight_of_a_tool_reading_public_properties(string type)
         => Samples.All[type].HidesIsDefaultFromReflection();
 
+    /// <summary>
+    /// An instance that never went through <c>Create</c> holds the default value, which the type may reject, and a
+    /// reader then refuses: the writers refuse it first, naming the type and the rule. A type that accepts its zero
+    /// writes it, since over a value type nothing tells the default from a constructed zero.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Every))]
+    public void No_JSON_writer_writes_a_value_the_type_rejects(string type)
+        => Samples.All[type].WritesNoJsonItsTypeRejects();
+
     [Theory]
     [MemberData(nameof(EveryArithmetic))]
     public void Every_arithmetic_member_validates_its_result(string type)

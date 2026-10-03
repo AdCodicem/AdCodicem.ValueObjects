@@ -156,7 +156,10 @@ allocate nothing. See [benchmarks/](https://github.com/AdCodicem/AdCodicem.Value
 **`default(Iban)` is a build error.** A struct can always be brought into existence uninitialized, and that is
 the one hole a struct value object cannot close by itself. The `VO0010` analyzer closes it at compile time,
 which is what makes the struct representation — zero allocation, no null — safe to choose. Opt out per type with
-`AllowDefault = true`.
+`AllowDefault = true`. What reaches a boundary the analyzer cannot see — an entity property never set, a default
+array element — is not written as it stands: the JSON converters, the Dapper handler and the EF Core converters
+refuse an uninitialized instance whose value its type rejects, and an optional EF Core column stores a `NULL`
+instead.
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in

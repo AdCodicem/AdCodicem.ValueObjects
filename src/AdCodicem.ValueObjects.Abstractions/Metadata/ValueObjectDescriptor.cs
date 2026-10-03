@@ -57,6 +57,7 @@ public sealed class ValueObjectDescriptor
         BoxedTryCreate tryCreate,
         BoxedTryParse tryParse,
         Func<object, object?> getValue,
+        Func<object, ValidationResult> validateWrite,
         Func<object, string> format,
         Func<JsonConverter>? jsonConverter)
     {
@@ -68,6 +69,7 @@ public sealed class ValueObjectDescriptor
         TryCreate = tryCreate;
         TryParse = tryParse;
         GetValue = getValue;
+        ValidateWrite = validateWrite;
         Format = format;
         _jsonConverterFactory = jsonConverter;
     }
@@ -120,6 +122,24 @@ public sealed class ValueObjectDescriptor
     /// Gets the accessor returning the boxed underlying value of a boxed value object.
     /// </summary>
     public Func<object, object?> GetValue { get; }
+
+    /// <summary>
+    /// Gets the check a boundary runs on a boxed value object before it writes it: the outcome of the first rule the
+    /// value it holds violates, or <see cref="ValidationResult.Success"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A writer refuses what fails it, rather than write a value its type rejects, which a reader would then trust:
+    /// the Newtonsoft.Json converter throws, as the generated System.Text.Json converter, the Dapper handler and the
+    /// Entity Framework Core converters do for a value object they know by its type.
+    /// </para>
+    /// <para>
+    /// Only an instance equal to <c>default(TSelf)</c> is validated, as its value stands: it is the one an instance that
+    /// never went through <c>Create</c> holds. Over a value type, a constructed zero equals the default too, and
+    /// validation tells a valid zero from a refused one. Any other instance passes without being validated again.
+    /// </para>
+    /// </remarks>
+    public Func<object, ValidationResult> ValidateWrite { get; }
 
     /// <summary>
     /// Gets the invariant text representation of a boxed value object.
@@ -260,12 +280,33 @@ public sealed class ValueObjectDescriptor
                 return false;
             },
             getValue: static valueObject => ((TSelf)valueObject).Value,
+            validateWrite: static valueObject => ValidateWritten<TSelf, TValue>((TSelf)valueObject),
             format: static valueObject => ((TSelf)valueObject).ToString(null, CultureInfo.InvariantCulture),
             jsonConverter);
     }
 
     private static TValue Unbox<TValue>(object? value)
         => value is null ? default! : (TValue)value;
+
+    /// <summary>
+    /// Validates the value an instance equal to the default holds, which no rule checked.
+    /// </summary>
+    /// <typeparam name="TSelf">Value object type.</typeparam>
+    /// <typeparam name="TValue">Underlying value type.</typeparam>
+    /// <param name="valueObject">Value object about to be written.</param>
+    /// <returns>The outcome of the validation, or <see cref="ValidationResult.Success"/> for any other instance.</returns>
+    private static ValidationResult ValidateWritten<TSelf, TValue>(TSelf valueObject)
+        where TSelf : struct, IValueObject<TSelf, TValue>
+    {
+        if (!valueObject.IsDefault)
+        {
+            return ValidationResult.Success;
+        }
+
+        var value = valueObject.Value;
+
+        return TSelf.Validate(in value);
+    }
 
     /// <summary>
     /// Creates the converter once, keeping the first instance created when two threads race to it.

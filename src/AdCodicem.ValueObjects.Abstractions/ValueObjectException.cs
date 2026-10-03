@@ -8,7 +8,8 @@ namespace AdCodicem.ValueObjects;
 /// The integrations that take outside input (JSON, model binding, FluentValidation, Dapper) use the
 /// <c>TryCreate</c> and <c>TryParse</c> family and report a refusal in their own terms. This exception comes from
 /// the explicit <c>Create</c> and <c>Parse</c> entry points and an explicit conversion, for code that treats a
-/// rejected value as a bug, and from a strict EF Core read, which goes through <c>Create</c> and fails the query.
+/// rejected value as a bug, from a strict EF Core read, which goes through <c>Create</c> and fails the query, and from
+/// an EF Core write of an uninitialized value object whose value its type rejects, which fails <c>SaveChanges</c>.
 /// </para>
 /// <para>
 /// It is a <see cref="FormatException"/>, the exception <see cref="IParsable{TSelf}.Parse"/> documents for text

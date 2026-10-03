@@ -53,9 +53,30 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
     private static readonly (DbType Type, int Length)? Column = DeclaredColumn();
 
     /// <inheritdoc />
+    /// <exception cref="DataException">
+    /// <paramref name="value"/> equals <c>default(TSelf)</c> and holds a value the value object rejects.
+    /// </exception>
+    /// <remarks>
+    /// The handler refuses to write a value the value object rejects, which a read would then trust: only an instance
+    /// equal to the default can hold one, since any other went through <c>Create</c>, and over a value type, where a
+    /// constructed zero equals the default too, validation tells a valid zero from a refused one. Dapper calls the
+    /// handler with the value object alone, whether the parameter is a <typeparamref name="TSelf"/> or a
+    /// <c>TSelf?</c> holding one, so it cannot tell a column that takes a <c>NULL</c> from one that does not, and
+    /// refuses in both cases: a <c>NULL</c> is written from a <c>TSelf?</c> that holds nothing.
+    /// </remarks>
     public override void SetValue(IDbDataParameter parameter, TSelf value)
     {
         ArgumentNullException.ThrowIfNull(parameter);
+
+        if (value.IsDefault)
+        {
+            var current = value.Value;
+            var validation = TSelf.Validate(in current);
+            if (!validation.IsValid)
+            {
+                throw new DataException($"The value to write is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}");
+            }
+        }
 
         parameter.Value = value.Value;
         Declare(parameter, value.Value is string text ? text.Length : 0);

@@ -291,6 +291,53 @@ public sealed class DescriptorTests
         validation.ErrorMessage.Should().Contain(nameof(HandWrittenCounter));
     }
 
+    /// <summary>
+    /// A writer reaching a value object through its descriptor refuses what the typed writers refuse: an instance equal
+    /// to the default whose value its type rejects, with the rule that rejects it. A zero the type accepts passes, since
+    /// over a value type nothing else tells it from the default, and so does any other instance, which is not
+    /// validated again: it went through <c>Create</c>, or was read from a column this application wrote.
+    /// </summary>
+    [Fact]
+    public void The_write_check_refuses_the_default_of_a_type_that_rejects_it_and_nothing_else()
+    {
+#pragma warning disable VO0010 // The uninitialized instance is what the check exists to catch.
+        var country = Descriptor<CountryCode>().ValidateWrite(default(CountryCode));
+        var customer = Descriptor<CustomerId>().ValidateWrite(default(CustomerId));
+        var amount = Descriptor<Amount>().ValidateWrite(default(Amount));
+#pragma warning restore VO0010
+
+        country.IsValid.Should().BeFalse();
+        country.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
+        customer.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
+        customer.ErrorMessage.Should().Be("A customer identifier must not be empty.");
+        amount.IsValid.Should().BeTrue("zero is an amount");
+        Descriptor<CountryCode>().ValidateWrite(CountryCode.France).IsValid.Should().BeTrue();
+        Descriptor<Iban>().ValidateWrite(Iban.CreateUnchecked("not an IBAN")).IsValid.Should().BeTrue("only the default is validated");
+    }
+
+    /// <summary>
+    /// The descriptor of a construction, described by reflection the first time it is asked for, and of a value object
+    /// written by hand, checks a write as a generated one does.
+    /// </summary>
+    [Fact]
+    public void The_write_check_of_a_construction_and_of_a_hand_written_value_object_validates_their_default()
+    {
+        ValueObjectRegistry.TryResolve(typeof(Reference<DescriptorTests>), out var reference).Should().BeTrue();
+        ValueObjectRegistry.TryResolve(typeof(HandWrittenItemCount), out var count).Should().BeTrue();
+        ValueObjectRegistry.TryResolve(typeof(HandWrittenCounter), out var counter).Should().BeTrue();
+
+#pragma warning disable VO0010 // The uninitialized instance is what the check exists to catch.
+        var unsetReference = reference!.ValidateWrite(default(Reference<DescriptorTests>));
+        var unsetCount = count!.ValidateWrite(default(HandWrittenItemCount));
+        var unsetCounter = counter!.ValidateWrite(default(HandWrittenCounter));
+#pragma warning restore VO0010
+
+        unsetReference.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
+        reference.ValidateWrite(Reference<DescriptorTests>.Create("PO-7")).IsValid.Should().BeTrue();
+        unsetCount.ErrorMessage.Should().Be("A count of items is positive.");
+        unsetCounter.IsValid.Should().BeTrue("the counter accepts its zero");
+    }
+
     [Fact]
     public void The_descriptor_exposes_the_underlying_value_unwrapped()
     {

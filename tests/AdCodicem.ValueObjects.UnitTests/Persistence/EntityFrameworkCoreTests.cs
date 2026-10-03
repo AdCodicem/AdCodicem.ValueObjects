@@ -35,14 +35,23 @@ public class EntityFrameworkCoreTests
         balance.GetValueConverter().Should().BeOfType<ValueObjectConverter<Amount, decimal>>();
         balance.GetMaxLength().Should().BeNull("a value object declaring no maximum length leaves the column alone");
 
-        ledger.FindProperty(nameof(Ledger.Owner))!.GetValueConverter()
-            .Should().BeOfType<ValueObjectConverter<CustomerId, Guid>>("an optional value object is mapped the same way");
+        // An optional value object takes the configuration of the value object, the length and the comparer included,
+        // then a converter of its own, which stores a value the value object rejects as NULL where a required one
+        // refuses it.
+        var owner = ledger.FindProperty(nameof(Ledger.Owner))!;
+        owner.GetValueConverter().Should().BeOfType<NullableValueObjectConverter<CustomerId, Guid>>();
+        owner.IsNullable.Should().BeTrue();
+
+        var previous = ledger.FindProperty(nameof(Ledger.PreviousIban))!;
+        previous.GetValueConverter().Should().BeOfType<NullableValueObjectConverter<Iban>>();
+        previous.GetMaxLength().Should().Be(34, "the optional property takes the length of the value object");
     }
 
     /// <summary>
     /// A generic value object has no type the convention could configure up front. Its definition makes each
     /// construction a scalar property, and each property gets the converter, the comparer and the length closed over
-    /// its own construction. Every construction is another type, and a nullable one is mapped the same way. The
+    /// its own construction. Every construction is another type, and a nullable one gets the converter that stores a
+    /// value the value object rejects as NULL. The
     /// constructions are closed over the entity, which nothing else in the process resolves, so the convention is what
     /// maps them, and not a descriptor something resolved first.
     /// </summary>
@@ -59,12 +68,16 @@ public class EntityFrameworkCoreTests
         order.GetValueComparer().Should().BeOfType<ValueObjectComparer<Reference<Shipment>>>();
         order.GetMaxLength().Should().Be(12);
 
-        shipment.FindProperty(nameof(Shipment.Invoice))!.GetValueConverter()
-            .Should().BeOfType<ValueObjectConverter<Reference<GenericContext>, string>>();
+        var invoice = shipment.FindProperty(nameof(Shipment.Invoice))!;
+        invoice.GetValueConverter().Should().BeOfType<NullableValueObjectConverter<Reference<GenericContext>>>();
+        invoice.GetMaxLength().Should().Be(12);
 
         var stock = shipment.FindProperty(nameof(Shipment.Stock))!;
         stock.GetValueConverter().Should().BeOfType<ValueObjectConverter<Catalog<Shipment>.Stock, int>>();
         stock.GetMaxLength().Should().BeNull();
+
+        shipment.FindProperty(nameof(Shipment.Backorder))!.GetValueConverter()
+            .Should().BeOfType<NullableValueObjectConverter<Catalog<Shipment>.Stock, int>>();
 
         shipment.FindProperty(nameof(Shipment.Carrier))!.GetValueConverter()
             .Should().BeOfType<ValueObjectConverter<IShipping.Carrier, string>>("a value object nested in an interface is not generic");
@@ -83,6 +96,10 @@ public class EntityFrameworkCoreTests
 
         shipment.FindProperty(nameof(StrictShipment.Order))!.GetValueConverter()
             .Should().BeOfType<StrictValueObjectConverter<Reference<StrictShipment>, string>>();
+        shipment.FindProperty(nameof(StrictShipment.Return))!.GetValueConverter()
+            .Should().BeOfType<StrictNullableValueObjectConverter<Reference<StrictShipment>>>();
+        shipment.FindProperty(nameof(StrictShipment.Backorder))!.GetValueConverter()
+            .Should().BeOfType<StrictNullableValueObjectConverter<Catalog<StrictShipment>.Stock, int>>();
         shipment.FindProperty(nameof(StrictShipment.Stock))!.GetValueConverter()
             .Should().BeOfType<ValueObjectConverter<Catalog<StrictShipment>.Stock, int>>("the property maps itself");
     }
@@ -115,6 +132,10 @@ public class EntityFrameworkCoreTests
 
         ledger.FindProperty(nameof(Ledger.Balance))!.GetValueConverter()
             .Should().BeOfType<StrictValueObjectConverter<Amount, decimal>>();
+        ledger.FindProperty(nameof(Ledger.Owner))!.GetValueConverter()
+            .Should().BeOfType<StrictNullableValueObjectConverter<CustomerId, Guid>>();
+        ledger.FindProperty(nameof(Ledger.PreviousIban))!.GetValueConverter()
+            .Should().BeOfType<StrictNullableValueObjectConverter<Iban>>();
     }
 
     [Fact]
@@ -188,6 +209,109 @@ public class EntityFrameworkCoreTests
     }
 
     /// <summary>
+    /// An instance that never went through <c>Create</c> holds the default value, which a read would trust. Both
+    /// converters refuse to write one the value object rejects, with the rule and without the value, and write a zero
+    /// the value object accepts, since over a value type nothing else tells it from the default.
+    /// </summary>
+    [Fact]
+    public void The_converters_refuse_to_write_a_value_the_value_object_rejects()
+    {
+#pragma warning disable VO0010 // The uninitialized instance is what the converters refuse.
+        var customer = default(CustomerId);
+        var country = default(CountryCode);
+        var amount = default(Amount);
+#pragma warning restore VO0010
+
+        var lenient = new ValueObjectConverter<CustomerId, Guid>()
+            .Invoking(converter => converter.ConvertToProvider(customer))
+            .Should().Throw<ValueObjectException>().Which;
+        var strict = new StrictValueObjectConverter<CountryCode, string>()
+            .Invoking(converter => converter.ConvertToProvider(country))
+            .Should().Throw<ValueObjectException>().Which;
+
+        lenient.Message.Should().Be("The value to write is not a valid CustomerId: A customer identifier must not be empty.");
+        lenient.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
+        lenient.ValueObjectType.Should().Be<CustomerId>();
+        lenient.AttemptedValue.Should().BeNull();
+        strict.ValueObjectType.Should().Be<CountryCode>();
+        new ValueObjectConverter<Amount, decimal>().ConvertToProvider(amount).Should().Be(0m, "zero is an amount");
+        new StrictValueObjectConverter<Amount, decimal>().ConvertToProvider(amount).Should().Be(0m);
+    }
+
+    /// <summary>
+    /// An optional property maps a value the value object rejects to a NULL, which its column takes, and anything else
+    /// as a required one does. Entity Framework Core answers a null itself in both directions, so only a direct call of
+    /// the typed conversions hands the converter one.
+    /// </summary>
+    [Fact]
+    public void The_optional_converters_store_a_value_the_value_object_rejects_as_NULL()
+    {
+#pragma warning disable VO0010 // The uninitialized instance is what the converters store as NULL.
+        var unsetCustomer = default(CustomerId);
+        var unsetIban = default(Iban);
+        var unsetAmount = default(Amount);
+#pragma warning restore VO0010
+        var customer = CustomerId.Create(Guid.Parse("0192f4a0-0000-7000-8000-000000000001"));
+        var iban = Iban.Create("FR7630006000011234567890189");
+        var customers = new NullableValueObjectConverter<CustomerId, Guid>();
+        var ibans = new NullableValueObjectConverter<Iban>();
+
+        customers.ConvertToProvider(unsetCustomer).Should().BeNull();
+        customers.ConvertToProvider(customer).Should().Be(customer.Value);
+        customers.ConvertFromProvider(Guid.Empty).Should().Be(CustomerId.CreateUnchecked(Guid.Empty), "a read trusts the column");
+        customers.ConvertToProviderTyped(null).Should().BeNull();
+        customers.ConvertFromProviderTyped(null).Should().BeNull();
+        new NullableValueObjectConverter<Amount, decimal>().ConvertToProvider(unsetAmount).Should().Be(0m, "zero is an amount");
+
+        ibans.ConvertToProvider(unsetIban).Should().BeNull();
+        ibans.ConvertToProvider(iban).Should().Be(iban.Value);
+        ibans.ConvertFromProvider("fr76 3000").Should().Be(Iban.CreateUnchecked("fr76 3000"), "a read trusts the column");
+        ibans.ConvertToProviderTyped(null).Should().BeNull();
+        ibans.ConvertFromProviderTyped(null).Should().BeNull();
+    }
+
+    /// <summary>
+    /// The strict optional converters store as the others do, and validate what they read.
+    /// </summary>
+    [Fact]
+    public void The_strict_optional_converters_validate_what_they_read()
+    {
+#pragma warning disable VO0010 // The uninitialized instance is what the converters store as NULL.
+        var unsetCustomer = default(CustomerId);
+        var unsetIban = default(Iban);
+#pragma warning restore VO0010
+        var customer = CustomerId.Create(Guid.Parse("0192f4a0-0000-7000-8000-000000000001"));
+        var customers = new StrictNullableValueObjectConverter<CustomerId, Guid>();
+        var ibans = new StrictNullableValueObjectConverter<Iban>();
+
+        customers.ConvertToProvider(unsetCustomer).Should().BeNull();
+        customers.ConvertToProvider(customer).Should().Be(customer.Value);
+        customers.ConvertFromProvider(customer.Value).Should().Be(customer);
+        customers.Invoking(converter => converter.ConvertFromProvider(Guid.Empty)).Should().Throw<ValueObjectException>();
+        customers.ConvertToProviderTyped(null).Should().BeNull();
+        customers.ConvertFromProviderTyped(null).Should().BeNull();
+
+        ibans.ConvertToProvider(unsetIban).Should().BeNull();
+        ibans.ConvertToProvider(Iban.Create("FR7630006000011234567890189")).Should().Be("FR7630006000011234567890189");
+        ibans.ConvertFromProvider("fr76 3000 6000 0112 3456 7890 189").Should().Be(Iban.Create("FR7630006000011234567890189"));
+        ibans.Invoking(converter => converter.ConvertFromProvider("not an IBAN")).Should().Throw<ValueObjectException>();
+        ibans.ConvertToProviderTyped(null).Should().BeNull();
+        ibans.ConvertFromProviderTyped(null).Should().BeNull();
+    }
+
+    /// <summary>
+    /// A value object written by hand over a reference type other than <see cref="string"/> has no optional converter:
+    /// its optional properties keep its own, which refuses a value it rejects rather than store it.
+    /// </summary>
+    [Fact]
+    public void A_hand_written_value_object_over_another_reference_type_has_no_optional_converter()
+    {
+        ConverterTypes.Optional(typeof(HandWrittenLink), typeof(Uri), strict: false).Should().BeNull();
+        ConverterTypes.Optional(typeof(HandWrittenCode), typeof(string), strict: true)
+            .Should().Be<StrictNullableValueObjectConverter<HandWrittenCode>>();
+    }
+
+    /// <summary>
     /// Change tracking compares with the value object's own equality, so assigning a reference that differs only by
     /// case is no change for a value object compared case-insensitively.
     /// </summary>
@@ -221,6 +345,8 @@ public class EntityFrameworkCoreTests
         public Amount Balance { get; set; }
 
         public CustomerId? Owner { get; set; }
+
+        public Iban? PreviousIban { get; set; }
 
         public UnregisteredCode Code { get; set; }
     }
@@ -287,6 +413,8 @@ public class EntityFrameworkCoreTests
 
         public Catalog<Shipment>.Stock Stock { get; set; }
 
+        public Catalog<Shipment>.Stock? Backorder { get; set; }
+
         public IShipping.Carrier Carrier { get; set; }
     }
 
@@ -297,7 +425,11 @@ public class EntityFrameworkCoreTests
 
         public Reference<StrictShipment> Order { get; set; }
 
+        public Reference<StrictShipment>? Return { get; set; }
+
         public Catalog<StrictShipment>.Stock Stock { get; set; }
+
+        public Catalog<StrictShipment>.Stock? Backorder { get; set; }
     }
 
     /// <summary>A shipment whose construction is mapped one by one.</summary>

@@ -30,6 +30,25 @@ public class EntityIdEntityFrameworkCoreTests
         account.GetCollation().Should().Be(IdCollations.PostgreSql);
     }
 
+    /// <summary>
+    /// An optional identifier takes the column of the identifier, and a converter of its own, which stores an identifier
+    /// that never went through <c>New</c> or <c>Create</c> as <c>NULL</c> where a required one refuses it.
+    /// </summary>
+    [Fact]
+    public void An_optional_identifier_takes_the_column_of_the_identifier_and_a_converter_storing_a_refused_one_as_NULL()
+    {
+        var replaced = DesignTimeModel(new CollatedContext())
+            .FindEntityType(typeof(Ledger))!
+            .FindProperty(nameof(Ledger.Replaced))!;
+
+        replaced.GetValueConverter().Should().BeOfType<NullableValueObjectConverter<AccountId>>();
+        replaced.GetMaxLength().Should().Be(AccountId.Length);
+        replaced.IsFixedLength().Should().BeTrue();
+        replaced.IsUnicode().Should().BeFalse();
+        replaced.GetCollation().Should().Be(IdCollations.PostgreSql);
+        replaced.IsNullable.Should().BeTrue();
+    }
+
     [Fact]
     public void Identifiers_mapped_by_convention_keep_the_database_collation_when_none_is_given()
     {
@@ -83,6 +102,8 @@ public class EntityIdEntityFrameworkCoreTests
             .Should().BeOfType<StrictValueObjectConverter<AccountId, string>>();
         ledger.FindProperty(nameof(Ledger.Event))!.GetValueConverter()
             .Should().BeOfType<StrictValueObjectConverter<EventId, string>>();
+        ledger.FindProperty(nameof(Ledger.Replaced))!.GetValueConverter()
+            .Should().BeOfType<StrictNullableValueObjectConverter<AccountId>>();
         ledger.FindProperty(nameof(Ledger.Account))!.IsFixedLength().Should().BeTrue();
     }
 
@@ -121,6 +142,8 @@ public class EntityIdEntityFrameworkCoreTests
         public AccountId Account { get; set; }
 
         public EventId Event { get; set; }
+
+        public AccountId? Replaced { get; set; }
     }
 
     /// <summary>A model whose identifier columns compare byte by byte.</summary>
