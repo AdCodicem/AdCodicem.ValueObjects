@@ -137,7 +137,14 @@ per row.
 - EF Core maps no `Int128` or `UInt128`, so the convention skips a value object over either. Map it yourself:
   `builder.Properties<LedgerBalance>().HaveConversion<MyConverter, ValueObjectComparer<LedgerBalance>>()`, to a
   numeric column (sorts as numbers, but `System.Decimal` caps it near ±7.9 × 10²⁸) or a text one (full range,
-  sorts as text).
+  sorts as text), and its optional form with
+  `builder.Properties<LedgerBalance?>().HaveConversion<MyConverter, NullableValueObjectComparer<LedgerBalance>>()`.
+- **Compiled models** (`dotnet ef dbcontext optimize`) hold everything the conventions map. Regenerate after
+  changing a rule that shapes a column. A `string` value object property with a database default is written, not
+  defaulted, when left unset under a compiled model: declare it `Iban?` to let the default apply. `--nativeaot`
+  builds and publishes, but EF Core's precompiled queries fail on a converted key or parameter, value object or not:
+  do not ship EF Core under native AOT yet. Never call the converters' `ToProvider`/`FromProvider`; they are public
+  only for the generated model.
 
 ## Dapper
 

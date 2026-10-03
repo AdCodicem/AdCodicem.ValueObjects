@@ -131,12 +131,13 @@ public static class EntityIdConventionExtensions
             Size(properties, descriptor.Length, collation);
 
             // An optional identifier stores one that never went through New or Create as NULL, where a required one
-            // throws; it takes the column of the identifier from the configuration above.
+            // throws; it takes the column of the identifier from the configuration above, and a comparer of the
+            // nullable type, which a compiled model can write.
             builder.Properties(typeof(Nullable<>).MakeGenericType(descriptor.ValueObjectType))
                 .HaveConversion(
                     (strict ? typeof(StrictNullableValueObjectConverter<>) : typeof(NullableValueObjectConverter<>))
                         .MakeGenericType(descriptor.ValueObjectType),
-                    comparer);
+                    typeof(NullableValueObjectComparer<>).MakeGenericType(descriptor.ValueObjectType));
         }
 
         return builder;

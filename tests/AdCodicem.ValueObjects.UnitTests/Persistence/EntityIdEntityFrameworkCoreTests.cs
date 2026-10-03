@@ -49,6 +49,22 @@ public class EntityIdEntityFrameworkCoreTests
         replaced.IsNullable.Should().BeTrue();
     }
 
+    /// <summary>
+    /// An optional identifier is compared by a comparer of its nullable type, which the compiled model
+    /// <c>dotnet ef dbcontext optimize</c> writes as it stands, where it cannot write the wrapping Entity Framework Core
+    /// would otherwise give the comparer of the identifier.
+    /// </summary>
+    [Fact]
+    public void An_optional_identifier_is_compared_by_a_comparer_a_compiled_model_can_write()
+    {
+        var replaced = DesignTimeModel(new CollatedContext())
+            .FindEntityType(typeof(Ledger))!
+            .FindProperty(nameof(Ledger.Replaced))!;
+
+        replaced.FindAnnotation("ValueComparerType")!.Value.Should().Be(typeof(NullableValueObjectComparer<AccountId>));
+        replaced.GetValueComparer().Should().BeOfType<NullableValueObjectComparer<AccountId>>();
+    }
+
     [Fact]
     public void Identifiers_mapped_by_convention_keep_the_database_collation_when_none_is_given()
     {
