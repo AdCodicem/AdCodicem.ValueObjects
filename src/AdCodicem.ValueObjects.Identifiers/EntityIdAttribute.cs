@@ -77,6 +77,9 @@ public sealed class EntityIdAttribute : Attribute
     /// <summary>
     /// Gets or sets an example value surfaced in the OpenAPI schema.
     /// </summary>
-    /// <remarks>Defaults to an identifier of the right shape, built at compile time from the profile.</remarks>
+    /// <remarks>
+    /// Defaults to an identifier of the right shape, built at compile time from the profile. One declared here must be an
+    /// identifier of the type: the contract kit of <c>AdCodicem.ValueObjects.Testing</c> checks it at run time.
+    /// </remarks>
     public string? Example { get; set; }
 }

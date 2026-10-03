@@ -216,9 +216,10 @@ public sealed class IbanContract : ValueObjectContract<Iban, string>   // AdCodi
 }
 ```
 
-That derives a dozen checks: normalization settles after one pass, equality agrees with the hash code, ordering
-agrees with equality, text and JSON round-trip, and every entry point rejects a bad value the same way. Write
-it for every value object, then test only the domain behaviour that is actually yours.
+That derives over a dozen checks: normalization settles after one pass, equality agrees with the hash code, ordering
+agrees with equality, text and JSON round-trip, every entry point rejects a bad value the same way, and the type
+accepts its declared `Example` and every known value. Write it for every value object, then test only the domain
+behaviour that is actually yours.
 
 ## Reference files
 

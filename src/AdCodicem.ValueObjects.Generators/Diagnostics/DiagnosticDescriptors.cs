@@ -154,6 +154,11 @@ internal static class DiagnosticDescriptors
         "A bound hook that cannot bound the type",
         "'{0}' implements {1}, which cannot bound a value object over '{2}'. {3}.");
 
+    public static readonly DiagnosticDescriptor DeclaredValueRefused = Error(
+        "VO0031",
+        "Declared value refused by its own type",
+        "The {0} '{1}' declared on '{2}' is refused by its own type ({3}): {4}");
+
     private static DiagnosticDescriptor Error(string id, string title, string messageFormat)
         => new(id, title, messageFormat, Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
 

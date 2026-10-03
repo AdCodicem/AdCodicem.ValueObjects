@@ -219,8 +219,9 @@ public sealed class IbanContract : ValueObjectContract<Iban, string>
 }
 ```
 
-That derives a dozen checks: normalization settles, equality and ordering agree, text and JSON round-trip,
-rejected values are rejected the same way by every entry point.
+That derives over a dozen checks: normalization settles, equality and ordering agree, text and JSON round-trip,
+rejected values are rejected the same way by every entry point, and the declared example and known values are
+values the type accepts.
 
 ## Authoring reference
 
@@ -252,7 +253,8 @@ for a `DateTimeOffset`; and `[-][d.]hh:mm:ss[.fffffff]` for a `TimeSpan`. No whi
 the same declaration compiles to the same bound on every machine. Any other text, or a value the type cannot hold,
 is `VO0004`, and the message names the form. A `string`, a `Guid` and a `bool` take no bound, which is `VO0004`
 too: constrain a string with `MinLength`, `MaxLength` or `IValueObjectPatternValidator`. A `[KnownValue]` written
-as text is read in the same form, and refused with `VO0013`.
+as text is read in the same form, and refused with `VO0013`. A known value or an `Example` the type's own rules
+refuse is `VO0031`, wherever the generator can evaluate the rule; the contract kit checks the rest.
 
 ### Hooks
 
@@ -439,6 +441,7 @@ an internal surrogate key alongside it.
 | `VO0028` | Warning | The deprecated `Minimum` or `Maximum` option of `[ValueObject<T>]`, reported by the compiler. Implement `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` with a static property of the underlying type and remove the option. It is removed in the next major. |
 | `VO0029` | Error | Both the `Minimum` (or `Maximum`) option and its hook on one type. The hook wins. |
 | `VO0030` | Error | `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` over a type that takes no bound, or over another type than the underlying one. |
+| `VO0031` | Error | The `Example` or a known value declared on the type is one its own rules refuse, wherever the generator can evaluate them: an example no form of the underlying type reads, a length, an empty string, a bound returned as a constant, a closed value set. The contract kit checks the rest at run time. |
 
 ## Using it with an AI coding agent
 
