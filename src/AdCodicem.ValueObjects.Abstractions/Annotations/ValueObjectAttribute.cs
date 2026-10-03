@@ -175,7 +175,11 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     /// <summary>
     /// Gets or sets the value of the OpenAPI <c>format</c> keyword for the generated schema.
     /// </summary>
-    /// <remarks>Defaults to the natural format of the underlying type, such as <c>uuid</c>, <c>date</c> or <c>int64</c>.</remarks>
+    /// <remarks>
+    /// Defaults to the natural format of the underlying type, such as <c>uuid</c>, <c>date</c> or <c>int64</c>. A
+    /// <see cref="TimeSpan"/> has none: it is written in the invariant constant form <c>[-][d.]hh:mm:ss[.fffffff]</c>,
+    /// not the ISO 8601 form the <c>duration</c> format names, and is documented with a pattern instead.
+    /// </remarks>
     public string? SchemaFormat { get; set; }
 
     /// <summary>

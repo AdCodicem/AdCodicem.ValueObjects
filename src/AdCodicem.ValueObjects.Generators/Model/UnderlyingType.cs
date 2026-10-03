@@ -216,9 +216,11 @@ internal sealed class UnderlyingType
             JsonReadExpression = "reader.GetDateTimeOffset()", RoundTripFormat = "O", SchemaFormat = "date-time", FormatBufferSize = 33,
             LiteralForm = "yyyy-MM-ddTHH:mm[:ss[.fffffff]] followed by Z, +HH:mm or -HH:mm, such as \"2024-01-31T08:30+01:00\"",
         },
+        // No format: JSON Schema's duration is ISO 8601, PT1H30M, and a duration is written in the constant form, which
+        // the OpenAPI transformer documents with the pattern System.Text.Json documents a bare TimeSpan with.
         new(UnderlyingKind.TimeSpan, "global::System.TimeSpan", "System.TimeSpan")
         {
-            JsonReadExpression = "ReadTimeSpan(ref reader)", RoundTripFormat = "c", SchemaFormat = "duration", FormatBufferSize = 26,
+            JsonReadExpression = "ReadTimeSpan(ref reader)", RoundTripFormat = "c", FormatBufferSize = 26,
             LiteralForm = "[-][d.]hh:mm:ss[.fffffff], such as \"1.12:00:00\"",
         },
     ];
