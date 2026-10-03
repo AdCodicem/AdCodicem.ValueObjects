@@ -18,6 +18,16 @@ public class GeneratedSurfaceTests
     public void Every_value_object_converts_through_its_TypeConverter(string type)
         => Samples.All[type].ConvertsThroughItsTypeConverter();
 
+    /// <summary>
+    /// The callers of a type converter hand it whatever number they hold: Newtonsoft.Json a <see cref="long"/> for every
+    /// JSON integer, a numeric control a <see cref="decimal"/>. A numeric value object converts from and to every numeric
+    /// type a value object may wrap, checked, and any other value object from and to none.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Every))]
+    public void Every_numeric_value_object_converts_any_number_through_its_TypeConverter(string type)
+        => Samples.All[type].ConvertsNumbersThroughItsTypeConverter();
+
     [Theory]
     [MemberData(nameof(Every))]
     public void Every_value_object_round_trips_as_a_JSON_dictionary_key(string type)

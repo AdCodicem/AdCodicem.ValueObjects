@@ -99,23 +99,46 @@ dotnet add package AdCodicem.ValueObjects.NewtonsoftJson
 ```
 
 ```csharp skip
-var settings = new JsonSerializerSettings
-{
-    DateParseHandling = DateParseHandling.None,   // hand the converter the text of every string
-};
-settings.Converters.Add(new ValueObjectConverter());
+var settings = new JsonSerializerSettings().AddValueObjects();
+```
+
+`AddValueObjects()` adds `ValueObjectConverter`, once, and sets the two settings Newtonsoft.Json reads value objects
+best under: `DateParseHandling.None`, which hands the converter the text of every string, and
+`FloatParseHandling.Decimal`, which keeps every digit of a `decimal` ([Numbers](#numbers) says when to leave it off).
+A host that hands you its settings takes the same call:
+
+```csharp skip
+GlobalConfiguration.Configuration.UseRecommendedSerializerSettings(settings => settings.AddValueObjects());   // Hangfire
+builder.Services.AddControllers().AddNewtonsoftJson(options => options.SerializerSettings.AddValueObjects()); // MVC
 ```
 
 One converter covers every value object, with the same rules as System.Text.Json and the same values on the wire:
 a number or a boolean as such, anything else as a string in the same form, `Int128` and `UInt128` included. The
 text is the same too, but for a whole `decimal`, `double` or `float`: Newtonsoft.Json always writes a real with a
 fraction, `1250.0` where System.Text.Json writes `1250`, and each serializer reads the other's text as the same
-value. The converter reads only the kind of token it writes, so a number in a string, or a string where a number
-belongs, is refused as JSON rather than converted. A rejected value throws a `JsonSerializationException` naming
-the type and the rule.
+value. A number written as a string is read as well, `"7"` as `7`, as System.Text.Json reads one under
+`AllowReadingFromString`: whole, with no white space, no group separator and no culture, so `"1,000"` and `" 5"` are
+refused. `NaN` and the infinities are refused, in a string or not. Otherwise the converter reads only the kind of
+token it writes, so a string where a boolean belongs, or a number where a string belongs, is refused as JSON rather
+than converted. A rejected value throws a `JsonSerializationException` naming the type and the rule.
 
 Newtonsoft.Json reads each token before a converter sees it, under the serializer's settings, and its defaults
 change what the converter is handed.
+
+### Without the converter
+
+Newtonsoft.Json falls back to the type converter the generator writes on every value object. It then writes each one
+as a string, a number included, `"Quantity":"7"`, and reads a string, or a number of any numeric type, through the
+value object's rules. For a number, the two modes read each other's data: a host without the converter reads the
+numbers System.Text.Json and the converter write, and the converter reads the numbers a host stored without it, which
+can add it without draining what it stored first. A boolean is the exception: the type converter writes `"True"`,
+a string where the converter reads a boolean.
+
+The converter is still the one to use. System.Text.Json on its default options refuses a number written as a
+string. A rejection loses its rule: Newtonsoft.Json reports `Could not cast or convert from System.String to
+Quantity`, with no `ValueObjectException` in the chain. And a JSON integer beyond the range of a `long`, which
+Newtonsoft.Json reads as a `BigInteger`, is converted by no type converter, so a `ulong` value object above
+`long.MaxValue` written as a number is not read without the converter.
 
 ### Dates
 
@@ -130,21 +153,23 @@ converts one written with an offset to local time. What a value object makes of 
 - A string value object has lost its text, and refuses it.
 
 A date that no longer says what the text said is refused rather than read as another value. Set
-`DateParseHandling` to `None`, as above, and every string reaches the converter as text.
+`DateParseHandling` to `None`, as `AddValueObjects()` does, and every string reaches the converter as text.
 
 ### Numbers
 
 Under the default `FloatParseHandling`, Newtonsoft.Json reads a number with a fraction or an exponent as a
-`double`, and a `decimal` value object keeps the fifteen to seventeen significant digits a `double` carries. When
-`decimal` value objects carry more, set `FloatParseHandling.Decimal`, which keeps all of them, as System.Text.Json
-does:
-
-```csharp skip
-settings.FloatParseHandling = FloatParseHandling.Decimal;   // for decimal value objects only
-```
+`double`, and a `decimal` value object keeps the fifteen to seventeen significant digits a `double` carries: a stored
+`12.50` reads back as 12.5, and `1234567890123456789.12` as 1234567890123456800. `AddValueObjects()` sets
+`FloatParseHandling.Decimal`, which keeps all of them, as System.Text.Json does.
 
 It applies to every number of the payload, and a `decimal` holds a narrower range than a `double`. Under it, a
 `double` or `float` value object beyond about ±7.9 × 10²⁸ makes the reader throw a `JsonReaderException`, and one
 smaller than a `decimal`'s 28 decimal places keeps only the digits that fit in them — none below about 10⁻²⁸, so it
-reads as zero. Leave the default when a payload carries such values. `FloatParseHandling.Decimal` also gives an
-`object` or `JToken` member a `decimal` rather than a `double` for such a number.
+reads as zero. When a payload carries such values, leave the float handling as the settings have it:
+
+```csharp skip
+var settings = new JsonSerializerSettings().AddValueObjects(decimalReals: false);
+```
+
+`FloatParseHandling.Decimal` also gives an `object` or `JToken` member a `decimal` rather than a `double` for such a
+number.

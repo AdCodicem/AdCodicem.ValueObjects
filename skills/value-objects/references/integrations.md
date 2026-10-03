@@ -43,26 +43,32 @@ value object follows `JsonSerializerOptions.NumberHandling` as its underlying ty
 OpenAPI schema follows the same options: a number that may be read or written as text is `[integer|number, string]`
 with a numeric `pattern`, as ASP.NET Core documents a bare number under its defaults.
 
-Newtonsoft.Json: add `ValueObjectConverter` from `AdCodicem.ValueObjects.NewtonsoftJson`. It applies the
-System.Text.Json rules and writes the same values, in the same text but for a whole `decimal`, `double` or `float`,
-which Newtonsoft.Json writes with a fraction (`1250.0` against `1250`); either serializer reads the other's text as
-the same value. It reads only the token kind it writes. Set `DateParseHandling.None`: under the default,
-Newtonsoft.Json turns date-like strings into `DateTime`, converted to local time when they carry an offset, and the
-converter refuses a date that lost its text or its offset — so a `DateTimeOffset` value object refuses any text with
-an offset, its own output (`+00:00` for UTC) included:
+Newtonsoft.Json: call `settings.AddValueObjects()` from `AdCodicem.ValueObjects.NewtonsoftJson`. It adds
+`ValueObjectConverter` once, sets `DateParseHandling.None` and `FloatParseHandling.Decimal`, and returns the settings,
+so it fits a host's own hook (`UseRecommendedSerializerSettings(s => s.AddValueObjects())` for Hangfire,
+`AddNewtonsoftJson(o => o.SerializerSettings.AddValueObjects())` for MVC):
 
 ```csharp skip
-var settings = new JsonSerializerSettings
-{
-    DateParseHandling = DateParseHandling.None,
-    Converters = { new ValueObjectConverter() },
-};
+var settings = new JsonSerializerSettings().AddValueObjects();
 ```
 
-Add `FloatParseHandling.Decimal` only for `decimal` value objects with more than fifteen significant digits. It reads
-every number with a fraction or an exponent as a `decimal`, so a `double` or `float` value object beyond about
-7.9e28 makes the reader throw, and one small enough to need more than 28 decimal places loses the digits past them
-(all of them below about 1e-28, where it reads as zero).
+The converter applies the System.Text.Json rules and writes the same values, in the same text but for a whole
+`decimal`, `double` or `float`, which Newtonsoft.Json writes with a fraction (`1250.0` against `1250`); either
+serializer reads the other's text as the same value. It reads a number written as a string too (`"7"`), whole, as
+System.Text.Json does under `AllowReadingFromString`, and otherwise only the token kind it writes. Without
+`DateParseHandling.None`, Newtonsoft.Json turns date-like strings into `DateTime`, converted to local time when they
+carry an offset, and the converter refuses a date that lost its text or its offset — so a `DateTimeOffset` value
+object refuses any text with an offset, its own output (`+00:00` for UTC) included.
+
+Pass `AddValueObjects(decimalReals: false)` when a payload carries a `double` or `float` value object beyond about
+7.9e28, or one small enough to need more than 28 decimal places: `FloatParseHandling.Decimal` reads every number with
+a fraction or an exponent as a `decimal`, so the first makes the reader throw and the second loses the digits past
+them (all of them below about 1e-28, where it reads as zero).
+
+Without the converter, Newtonsoft.Json goes through the generated `TypeConverter`: every value object is written as a
+string, and a string or a number of any numeric type is read, checked (a number the underlying type cannot hold whole
+is `value_object.not_parsable`, never truncated). The two modes read each other's numbers, but a rejection loses its
+rule there, so keep the converter.
 
 ## ASP.NET Core
 
