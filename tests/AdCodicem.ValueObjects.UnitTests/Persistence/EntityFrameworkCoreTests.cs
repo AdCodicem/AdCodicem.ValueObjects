@@ -1,9 +1,13 @@
+using System.ComponentModel;
 using System.Globalization;
+using System.Linq.Expressions;
+using System.Reflection;
 using AdCodicem.ValueObjects.EntityFrameworkCore;
 using AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -35,9 +39,9 @@ public class EntityFrameworkCoreTests
         balance.GetValueConverter().Should().BeOfType<ValueObjectConverter<Amount, decimal>>();
         balance.GetMaxLength().Should().BeNull("a value object declaring no maximum length leaves the column alone");
 
-        // An optional value object takes the configuration of the value object, the length and the comparer included,
-        // then a converter of its own, which stores a value the value object rejects as NULL where a required one
-        // refuses it.
+        // An optional value object takes the configuration of the value object, the length included, then a converter
+        // of its own, which stores a value the value object rejects as NULL where a required one refuses it, and a
+        // comparer of its own.
         var owner = ledger.FindProperty(nameof(Ledger.Owner))!;
         owner.GetValueConverter().Should().BeOfType<NullableValueObjectConverter<CustomerId, Guid>>();
         owner.IsNullable.Should().BeTrue();
@@ -168,7 +172,8 @@ public class EntityFrameworkCoreTests
 
     /// <summary>
     /// Entity Framework Core maps neither Int128 nor UInt128, on any provider. The convention leaves a 128-bit value
-    /// object to the converter the application gives it, even one configured before the convention ran.
+    /// object to the converter the application gives it, even one configured before the convention ran, and its
+    /// optional form to the comparer the application gives that, which a compiled model can write.
     /// </summary>
     [Fact]
     public void The_convention_leaves_a_128_bit_value_object_to_a_converter_of_the_application()
@@ -176,6 +181,9 @@ public class EntityFrameworkCoreTests
         var vault = DesignTimeModel(new WideContext()).FindEntityType(typeof(Vault))!;
 
         vault.FindProperty(nameof(Vault.Balance))!.GetValueConverter().Should().BeOfType<LedgerBalanceToDecimal>();
+        var previous = vault.FindProperty(nameof(Vault.PreviousBalance))!;
+        previous.GetValueConverter().Should().BeOfType<LedgerBalanceToDecimal>();
+        ComparedAsOptional<LedgerBalance>(previous);
         vault.FindProperty(nameof(Vault.Fingerprint))!.GetValueConverter().Should().BeOfType<FingerprintToText>();
         vault.FindProperty(nameof(Vault.Iban))!.GetValueConverter()
             .Should().BeOfType<ValueObjectConverter<Iban, string>>("every other value object is still mapped");
@@ -327,6 +335,134 @@ public class EntityFrameworkCoreTests
         comparer.Snapshot(upper).Should().Be(upper);
     }
 
+    /// <summary>
+    /// Every optional value object is compared by a comparer of its nullable type. Given the comparer of the value
+    /// object, Entity Framework Core would wrap it, and the compiled model <c>dotnet ef dbcontext optimize</c> writes for
+    /// that wrapping does not compile (CS0453), since it names the comparer where the wrapper takes the value type. The
+    /// convention names the comparer by its type, which a compiled model instantiates as it stands; the generic
+    /// convention sets an instance, whose expressions a compiled model writes out.
+    /// </summary>
+    [Fact]
+    public void Every_optional_value_object_is_compared_by_a_comparer_a_compiled_model_can_write()
+    {
+        var ledger = DesignTimeModel(new LenientContext()).FindEntityType(typeof(Ledger))!;
+
+        ComparedAsOptional<CustomerId>(ledger.FindProperty(nameof(Ledger.Owner))!);
+        ComparedAsOptional<Iban>(ledger.FindProperty(nameof(Ledger.PreviousIban))!);
+        ledger.FindProperty(nameof(Ledger.Iban))!.GetValueComparer()
+            .Should().BeOfType<ValueObjectComparer<Iban>>("a required value object keeps the comparer of the value object");
+
+        var parcel = DesignTimeModel(new ParcelContext()).FindEntityType(typeof(Parcel))!;
+
+        parcel.FindProperty(nameof(Parcel.Return))!.GetValueComparer()
+            .Should().BeOfType<NullableValueObjectComparer<Reference<Parcel>>>();
+        parcel.FindProperty(nameof(Parcel.Backorder))!.GetValueComparer()
+            .Should().BeOfType<NullableValueObjectComparer<Catalog<Parcel>.Stock>>();
+        parcel.FindProperty(nameof(Parcel.Order))!.GetValueComparer()
+            .Should().BeOfType<ValueObjectComparer<Reference<Parcel>>>();
+    }
+
+    /// <summary>
+    /// A value object written by hand over a reference type other than <see cref="string"/> has no optional converter:
+    /// an optional property keeps the converter of the value object, and is compared as an optional one all the same.
+    /// </summary>
+    [Fact]
+    public void An_optional_value_object_without_an_optional_converter_keeps_its_own_and_is_compared_as_optional()
+    {
+        var link = DesignTimeModel(new BookmarkContext()).FindEntityType(typeof(Bookmark))!
+            .FindProperty(nameof(Bookmark.Link))!;
+
+        link.GetValueConverter().Should().BeOfType<ValueObjectConverter<HandWrittenLink, Uri>>();
+        ComparedAsOptional<HandWrittenLink>(link);
+    }
+
+    /// <summary>
+    /// The comparer of an optional value object compares two present values as the value object does, here without
+    /// regard to case, and an absent value equal to an absent one alone.
+    /// </summary>
+    [Fact]
+    public void The_optional_comparer_compares_present_values_as_the_value_object_does_and_an_absent_one_with_none_but_another()
+    {
+        var comparer = new NullableValueObjectComparer<Ordering.OrderReference>();
+        Ordering.OrderReference? upper = Ordering.OrderReference.Create("ORD-42");
+        Ordering.OrderReference? lower = Ordering.OrderReference.Create("ord-42");
+        Ordering.OrderReference? other = Ordering.OrderReference.Create("ORD-43");
+
+        comparer.Type.Should().Be<Ordering.OrderReference?>();
+        comparer.Equals(upper, lower).Should().BeTrue();
+        comparer.Equals(upper, other).Should().BeFalse();
+        comparer.Equals(upper, null).Should().BeFalse();
+        comparer.Equals(null, lower).Should().BeFalse();
+        comparer.Equals(null, null).Should().BeTrue();
+        comparer.GetHashCode(upper).Should().Be(comparer.GetHashCode(lower));
+        comparer.GetHashCode(null).Should().Be(0);
+        comparer.Snapshot(upper).Should().Be(upper);
+        comparer.Snapshot(null).Should().BeNull();
+    }
+
+    /// <summary>
+    /// A compiled model generated for native AOT writes out the expressions of every converter and comparer, and calls
+    /// what they call from the application's assembly, which Entity Framework Core asks to be public: its breaking
+    /// change 35033. A converter calls its own helpers, public and out of sight of IntelliSense; a comparer calls the
+    /// equality of the value object.
+    /// </summary>
+    [Fact]
+    public void Everything_a_converter_or_a_comparer_calls_is_public_for_a_compiled_model_to_call()
+    {
+        ValueConverter[] converters =
+        [
+            new ValueObjectConverter<CustomerId, Guid>(),
+            new StrictValueObjectConverter<Iban, string>(),
+            new NullableValueObjectConverter<CustomerId, Guid>(),
+            new StrictNullableValueObjectConverter<CustomerId, Guid>(),
+            new NullableValueObjectConverter<Iban>(),
+            new StrictNullableValueObjectConverter<Iban>(),
+        ];
+
+        foreach (var converter in converters)
+        {
+            var helpers = Called(converter.ConvertToProviderExpression, converter.ConvertFromProviderExpression);
+
+            helpers.Select(static method => method.Name).Should().Equal("ToProvider", "FromProvider");
+            helpers.Should().OnlyContain(method => IsPublic(method), $"a compiled model calls the helpers of {converter.GetType()}");
+            helpers.Should().OnlyContain(
+                method => method.GetCustomAttribute<EditorBrowsableAttribute>()!.State == EditorBrowsableState.Never);
+        }
+
+        ValueComparer[] comparers = [new ValueObjectComparer<CustomerId>(), new NullableValueObjectComparer<CustomerId>()];
+
+        foreach (var comparer in comparers)
+        {
+            Called(comparer.EqualsExpression, comparer.HashCodeExpression, comparer.SnapshotExpression)
+                .Should().OnlyContain(method => IsPublic(method), $"a compiled model writes out what {comparer.GetType()} calls");
+        }
+
+        // A compiled model calls them as the converter does.
+        ValueObjectConverter<CustomerId, Guid>.FromProvider(Guid.Empty).Should().Be(CustomerId.CreateUnchecked(Guid.Empty));
+        NullableValueObjectConverter<Iban>.ToProvider(null).Should().BeNull();
+    }
+
+    private static void ComparedAsOptional<TSelf>(IReadOnlyProperty property)
+        where TSelf : struct, IEquatable<TSelf>
+    {
+        // The comparer type is what a compiled model instantiates, and wraps when it compares the value object alone.
+        property.FindAnnotation("ValueComparerType")!.Value.Should().Be(typeof(NullableValueObjectComparer<TSelf>));
+        property.GetValueComparer().Should().BeOfType<NullableValueObjectComparer<TSelf>>();
+    }
+
+    private static List<MethodInfo> Called(params LambdaExpression[] expressions)
+    {
+        var collector = new CallCollector();
+        foreach (var expression in expressions)
+        {
+            collector.Visit(expression);
+        }
+
+        return collector.Methods;
+    }
+
+    private static bool IsPublic(MethodInfo method) => method.IsPublic && method.DeclaringType!.IsVisible;
+
     private static IModel DesignTimeModel(DbContext context)
     {
         using (context)
@@ -351,6 +487,77 @@ public class EntityFrameworkCoreTests
         public UnregisteredCode Code { get; set; }
     }
 
+    /// <summary>Collects the methods an expression calls, property getters included.</summary>
+    private sealed class CallCollector : ExpressionVisitor
+    {
+        public List<MethodInfo> Methods { get; } = [];
+
+        protected override Expression VisitMethodCall(MethodCallExpression node)
+        {
+            Methods.Add(node.Method);
+            return base.VisitMethodCall(node);
+        }
+
+        protected override Expression VisitMember(MemberExpression node)
+        {
+            if (node.Member is PropertyInfo property)
+            {
+                Methods.Add(property.GetMethod!);
+            }
+
+            return base.VisitMember(node);
+        }
+    }
+
+    /// <summary>A parcel, holding constructions of generic value objects of its own, optional ones included.</summary>
+    private sealed class Parcel
+    {
+        public int Id { get; set; }
+
+        public Reference<Parcel> Order { get; set; }
+
+        public Reference<Parcel>? Return { get; set; }
+
+        public Catalog<Parcel>.Stock? Backorder { get; set; }
+    }
+
+    /// <summary>A model mapping the parcel, whose constructions no other test resolves.</summary>
+    private sealed class ParcelContext : DbContext
+    {
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder.UseNpgsql("Host=unused");
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+            => configurationBuilder.ConfigureValueObjects();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.Entity<Parcel>();
+    }
+
+    /// <summary>An entity holding an optional value object written by hand over a reference type.</summary>
+    private sealed class Bookmark
+    {
+        public int Id { get; set; }
+
+        public HandWrittenLink? Link { get; set; }
+    }
+
+    /// <summary>
+    /// A model mapping a value object written by hand, which nothing registers: the registry describes it once asked.
+    /// </summary>
+    private sealed class BookmarkContext : DbContext
+    {
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder.UseNpgsql("Host=unused");
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+        {
+            ValueObjectRegistry.TryResolve(typeof(HandWrittenLink), out _).Should().BeTrue();
+            configurationBuilder.ConfigureValueObjects();
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.Entity<Bookmark>();
+    }
+
     /// <summary>An entity holding 128-bit value objects.</summary>
     private sealed class Vault
     {
@@ -359,6 +566,8 @@ public class EntityFrameworkCoreTests
         public Iban Iban { get; set; }
 
         public LedgerBalance Balance { get; set; }
+
+        public LedgerBalance? PreviousBalance { get; set; }
 
         public Fingerprint Fingerprint { get; set; }
     }
@@ -382,6 +591,8 @@ public class EntityFrameworkCoreTests
         protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         {
             configurationBuilder.Properties<LedgerBalance>().HaveConversion<LedgerBalanceToDecimal>();
+            configurationBuilder.Properties<LedgerBalance?>()
+                .HaveConversion<LedgerBalanceToDecimal, NullableValueObjectComparer<LedgerBalance>>();
             configurationBuilder.ConfigureValueObjects(typeof(Iban).Assembly);
             configurationBuilder.Properties<Fingerprint>().HaveConversion<FingerprintToText>();
         }

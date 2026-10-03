@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace AdCodicem.ValueObjects.EntityFrameworkCore;
@@ -22,6 +24,10 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// <see cref="StrictNullableValueObjectConverter{TSelf, TValue}"/> validates what it reads.
 /// </para>
 /// </remarks>
+[SuppressMessage(
+    "Design",
+    "CA1000:Do not declare static members on generic types",
+    Justification = "A compiled model calls the conversions on the converter type it was built from.")]
 public sealed class NullableValueObjectConverter<TSelf, TValue> : ValueConverter<TSelf?, TValue?>
     where TSelf : struct, IValueObject<TSelf, TValue>
     where TValue : struct
@@ -34,10 +40,31 @@ public sealed class NullableValueObjectConverter<TSelf, TValue> : ValueConverter
     {
     }
 
-    private static TValue? ToProvider(TSelf? valueObject)
+    /// <summary>
+    /// Gives the value the column stores for an optional value object: its value, or <c>NULL</c> for a value the value
+    /// object rejects.
+    /// </summary>
+    /// <param name="valueObject">Value object being written.</param>
+    /// <returns>Its underlying value, or <see langword="null"/>.</returns>
+    /// <remarks>
+    /// The converter calls it, and so does the code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes
+    /// into the application's assembly: that is why it is public. Application code has no reason to call it.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static TValue? ToProvider(TSelf? valueObject)
         => valueObject is { } present && !ProviderValue.IsRefused<TSelf, TValue>(present) ? present.Value : null;
 
-    private static TSelf? FromProvider(TValue? value) => value is { } present ? TSelf.CreateUnchecked(present) : null;
+    /// <summary>
+    /// Gives the optional value object a value read from the column holds, without validating it.
+    /// </summary>
+    /// <param name="value">Value read from the column.</param>
+    /// <returns>The value object holding it, or <see langword="null"/> for a <c>NULL</c>.</returns>
+    /// <remarks>
+    /// The converter calls it, and so does the code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes
+    /// into the application's assembly: that is why it is public. Application code has no reason to call it.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static TSelf? FromProvider(TValue? value) => value is { } present ? TSelf.CreateUnchecked(present) : null;
 }
 
 /// <summary>
@@ -50,6 +77,10 @@ public sealed class NullableValueObjectConverter<TSelf, TValue> : ValueConverter
 /// Writes as <see cref="NullableValueObjectConverter{TSelf, TValue}"/> does, and reads as
 /// <see cref="StrictValueObjectConverter{TSelf, TValue}"/> does.
 /// </remarks>
+[SuppressMessage(
+    "Design",
+    "CA1000:Do not declare static members on generic types",
+    Justification = "A compiled model calls the conversions on the converter type it was built from.")]
 public sealed class StrictNullableValueObjectConverter<TSelf, TValue> : ValueConverter<TSelf?, TValue?>
     where TSelf : struct, IValueObject<TSelf, TValue>
     where TValue : struct
@@ -62,10 +93,32 @@ public sealed class StrictNullableValueObjectConverter<TSelf, TValue> : ValueCon
     {
     }
 
-    private static TValue? ToProvider(TSelf? valueObject)
+    /// <summary>
+    /// Gives the value the column stores for an optional value object: its value, or <c>NULL</c> for a value the value
+    /// object rejects.
+    /// </summary>
+    /// <param name="valueObject">Value object being written.</param>
+    /// <returns>Its underlying value, or <see langword="null"/>.</returns>
+    /// <remarks>
+    /// The converter calls it, and so does the code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes
+    /// into the application's assembly: that is why it is public. Application code has no reason to call it.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static TValue? ToProvider(TSelf? valueObject)
         => valueObject is { } present && !ProviderValue.IsRefused<TSelf, TValue>(present) ? present.Value : null;
 
-    private static TSelf? FromProvider(TValue? value) => value is { } present ? TSelf.Create(present) : null;
+    /// <summary>
+    /// Gives the optional value object a value read from the column holds, normalized and validated.
+    /// </summary>
+    /// <param name="value">Value read from the column.</param>
+    /// <returns>The value object holding it, or <see langword="null"/> for a <c>NULL</c>.</returns>
+    /// <exception cref="ValueObjectException">The value object rejects the value read.</exception>
+    /// <remarks>
+    /// The converter calls it, and so does the code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes
+    /// into the application's assembly: that is why it is public. Application code has no reason to call it.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static TSelf? FromProvider(TValue? value) => value is { } present ? TSelf.Create(present) : null;
 }
 
 /// <summary>
@@ -82,6 +135,10 @@ public sealed class StrictNullableValueObjectConverter<TSelf, TValue> : ValueCon
 /// <see cref="StrictNullableValueObjectConverter{TSelf}"/> validates what it reads.
 /// </para>
 /// </remarks>
+[SuppressMessage(
+    "Design",
+    "CA1000:Do not declare static members on generic types",
+    Justification = "A compiled model calls the conversions on the converter type it was built from.")]
 public sealed class NullableValueObjectConverter<TSelf> : ValueConverter<TSelf?, string?>
     where TSelf : struct, IValueObject<TSelf, string>
 {
@@ -93,10 +150,31 @@ public sealed class NullableValueObjectConverter<TSelf> : ValueConverter<TSelf?,
     {
     }
 
-    private static string? ToProvider(TSelf? valueObject)
+    /// <summary>
+    /// Gives the value the column stores for an optional value object: its value, or <c>NULL</c> for a value the value
+    /// object rejects.
+    /// </summary>
+    /// <param name="valueObject">Value object being written.</param>
+    /// <returns>Its underlying value, or <see langword="null"/>.</returns>
+    /// <remarks>
+    /// The converter calls it, and so does the code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes
+    /// into the application's assembly: that is why it is public. Application code has no reason to call it.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static string? ToProvider(TSelf? valueObject)
         => valueObject is { } present && !ProviderValue.IsRefused<TSelf, string>(present) ? present.Value : null;
 
-    private static TSelf? FromProvider(string? value) => value is null ? null : TSelf.CreateUnchecked(value);
+    /// <summary>
+    /// Gives the optional value object a value read from the column holds, without validating it.
+    /// </summary>
+    /// <param name="value">Value read from the column.</param>
+    /// <returns>The value object holding it, or <see langword="null"/> for a <c>NULL</c>.</returns>
+    /// <remarks>
+    /// The converter calls it, and so does the code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes
+    /// into the application's assembly: that is why it is public. Application code has no reason to call it.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static TSelf? FromProvider(string? value) => value is null ? null : TSelf.CreateUnchecked(value);
 }
 
 /// <summary>
@@ -108,6 +186,10 @@ public sealed class NullableValueObjectConverter<TSelf> : ValueConverter<TSelf?,
 /// Writes as <see cref="NullableValueObjectConverter{TSelf}"/> does, and reads as
 /// <see cref="StrictValueObjectConverter{TSelf, TValue}"/> does.
 /// </remarks>
+[SuppressMessage(
+    "Design",
+    "CA1000:Do not declare static members on generic types",
+    Justification = "A compiled model calls the conversions on the converter type it was built from.")]
 public sealed class StrictNullableValueObjectConverter<TSelf> : ValueConverter<TSelf?, string?>
     where TSelf : struct, IValueObject<TSelf, string>
 {
@@ -119,8 +201,30 @@ public sealed class StrictNullableValueObjectConverter<TSelf> : ValueConverter<T
     {
     }
 
-    private static string? ToProvider(TSelf? valueObject)
+    /// <summary>
+    /// Gives the value the column stores for an optional value object: its value, or <c>NULL</c> for a value the value
+    /// object rejects.
+    /// </summary>
+    /// <param name="valueObject">Value object being written.</param>
+    /// <returns>Its underlying value, or <see langword="null"/>.</returns>
+    /// <remarks>
+    /// The converter calls it, and so does the code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes
+    /// into the application's assembly: that is why it is public. Application code has no reason to call it.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static string? ToProvider(TSelf? valueObject)
         => valueObject is { } present && !ProviderValue.IsRefused<TSelf, string>(present) ? present.Value : null;
 
-    private static TSelf? FromProvider(string? value) => value is null ? null : TSelf.Create(value);
+    /// <summary>
+    /// Gives the optional value object a value read from the column holds, normalized and validated.
+    /// </summary>
+    /// <param name="value">Value read from the column.</param>
+    /// <returns>The value object holding it, or <see langword="null"/> for a <c>NULL</c>.</returns>
+    /// <exception cref="ValueObjectException">The value object rejects the value read.</exception>
+    /// <remarks>
+    /// The converter calls it, and so does the code of a compiled model, which <c>dotnet ef dbcontext optimize</c> writes
+    /// into the application's assembly: that is why it is public. Application code has no reason to call it.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static TSelf? FromProvider(string? value) => value is null ? null : TSelf.Create(value);
 }
