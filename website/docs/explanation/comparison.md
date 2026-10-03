@@ -21,7 +21,7 @@ was unclear, a compiled test project. Libraries move: if something here is out o
 
 | | AdCodicem.ValueObjects | Vogen | StronglyTypedId | Thinktecture |
 | --- | --- | --- | --- | --- |
-| Consumer frameworks | .NET 10 | `netstandard2.0` and later | older frameworks too, including .NET Framework, with a .NET 7+ SDK | .NET 8 and later |
+| Consumer frameworks | .NET 10 and later | `netstandard2.0` and later | older frameworks too, including .NET Framework, with a .NET 7+ SDK | .NET 8 and later |
 | Type kinds | `readonly struct` | class, struct, record | struct | class, struct |
 | Underlying types | 22 built-in types | any type but a collection | `Guid`, `int`, `long`, `string`; others through templates | any type |
 | Length, pattern and range declared once, on the type | yes: length on the attribute, range through typed bound hooks, a pattern through a source-generated regex hook | no | no | no |
@@ -73,7 +73,7 @@ public identifiers are part of the library rather than left to you.
 
 ## Where the others are stronger
 
-**They run in more places.** This library requires .NET 10. Vogen targets `netstandard2.0`, StronglyTypedId runs
+**They run in more places.** This library requires .NET 10 or later. Vogen targets `netstandard2.0`, StronglyTypedId runs
 on older frameworks including .NET Framework, and Thinktecture supports .NET 8. For an application that cannot
 move to .NET 10, the choice is made.
 
@@ -98,7 +98,7 @@ them. This library was first published in September 2026 and is still at 0.x.
 
 ## Choosing
 
-- **On .NET 10, with an API and a database,** where a rule should be written once and reach the schema and the
+- **On .NET 10 or later, with an API and a database,** where a rule should be written once and reach the schema and the
   column: this library is built for that.
 - **On an older framework, or with a store this library does not cover:** Vogen.
 - **Only strongly-typed identifiers, and nothing to validate:** StronglyTypedId does that with the least

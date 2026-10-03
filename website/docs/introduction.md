@@ -2,13 +2,13 @@
 title: Introduction
 sidebar_label: Introduction
 slug: /introduction
-description: An answer to primitive obsession in .NET 10 — single-value DDD value objects generated at compile time, whose rules reach JSON, EF Core, model binding and OpenAPI.
+description: An answer to primitive obsession in .NET 10 and later — single-value DDD value objects generated at compile time, whose rules reach JSON, EF Core, model binding and OpenAPI.
 ---
 
 # AdCodicem.ValueObjects
 
-An answer to primitive obsession for .NET 10: single-value DDD value objects, generated at compile time, with no
-reflection and no allocation on the paths that matter.
+An answer to primitive obsession for .NET 10 and later: single-value DDD value objects, generated at compile time,
+with no reflection and no allocation on the paths that matter.
 
 ## Primitive obsession
 

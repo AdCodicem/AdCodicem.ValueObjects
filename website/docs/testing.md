@@ -2,7 +2,7 @@
 title: How the Library Is Tested
 sidebar_label: How the library is tested
 slug: /testing
-description: The three test suites behind AdCodicem.ValueObjects — generated behaviour, the generator itself, real databases — and the two paths bugs hide in.
+description: The three test suites behind AdCodicem.ValueObjects — generated behaviour, the generator itself, real databases —, the packages run on the next .NET, and the two paths bugs hide in.
 ---
 
 # How the library is tested
@@ -35,6 +35,21 @@ Three suites, each with a distinct job:
 object but two, so the framework's own test suite is a live example of how a consumer would use it. `Floor` and
 `Celsius` cannot satisfy it: their formatting hooks write text such as `floor 3` or `21 °C`, which does not parse
 back, and the kit requires a text round trip.
+
+## The compatibility island
+
+The three suites build and test the source. One more project tests the packages: `tests/Compat`, outside the
+solution, installs the twelve packages exactly as they were packed — from the folder the build packs into, at that
+one version, never from nuget.org — into a `net11.0` application on the .NET 11 release candidate. It has its own
+SDK, its own package versions and no transitive pinning, so the dependency floors of the packages meet the next
+major as they would in an application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on
+SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core model binding and a minimal API,
+`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json and the
+contract kit.
+
+CI's `compat (.NET 11)` job runs it on every pull request, against the packages that commit packed. It informs and
+blocks nothing until .NET 11 ships, then becomes a required check. The "On the next .NET" column of
+[Supported frameworks](./packages.md#supported-frameworks) states what it covers.
 
 ## Two ways to reach a value object — and why bugs hide in one of them
 
@@ -70,13 +85,20 @@ dotnet test -c Release                                    # all three suites
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests         # behaviour of generated code
 dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests    # the generator itself
 dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests  # needs Docker
-dotnet pack -c Release -o artifacts/packages
+dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages   # the packable projects only
+
+# The compatibility island, from its own folder, with the .NET 11 SDK its global.json names. Pack at a fresh
+# version: NuGet reuses whatever its global packages folder already holds at a version it has seen.
+v=0.0.0-compat.$(date +%s)
+MINVERVERSIONOVERRIDE=$v dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
+cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj -p:AdCodicemVersion=$v
+# needs Docker for PostgreSQL and SQL Server; without it, add --filter-not-trait "Requires=Docker"
 
 # One test (Microsoft Testing Platform: a wildcard pattern, not a substring)
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests --filter-method "*The_name_of_the_test*"
 ```
 
 `TreatWarningsAsErrors` is on repository-wide, so a warning fails the build before it reaches any of the three
-suites.
+suites. The island sets it too.
 
 Next: [Benchmarks](./benchmarks.md), for the numbers behind the design decisions.

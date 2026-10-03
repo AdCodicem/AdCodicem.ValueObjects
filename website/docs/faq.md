@@ -17,17 +17,27 @@ problem and how the library answers it.
 
 ### Which versions of .NET are supported?
 
-.NET 10: every package targets `net10.0`, and so must the project that uses them. If your application cannot
-move to .NET 10,
+.NET 10 and later: every package targets `net10.0`, so a project on .NET 10 or a later version can use them.
+[Supported frameworks](./packages.md#supported-frameworks) lists what each integration is built and tested against,
+and what CI checks on the next .NET before it ships. If your application cannot move to .NET 10,
 [Compared with other libraries](./explanation/comparison.md#where-the-others-are-stronger) names alternatives
 that run on older frameworks.
+
+### Will there be a package per EF Core or .NET version?
+
+No. The twelve packages share one version, driven by their own API and not by the framework's, and a framework's
+next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
+them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
+major in a release that says so, and an application on the older one keeps the version before.
+[ADR-0010](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md) has the reasoning.
 
 ### Is it ready for production?
 
 It follows semantic versioning and is still at 0.x, which means the public surface may change between minor
 releases; every change is recorded in the
 [changelog](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.md). Stable releases are
-cut by hand, and every merge to `main` publishes a preview package in between.
+cut by hand; in between, a preview is published in any week in which something that ships has changed
+([Trying a preview](./packages.md#trying-a-preview)).
 
 ### How does it compare with Vogen, StronglyTypedId or Thinktecture?
 

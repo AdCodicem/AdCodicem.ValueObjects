@@ -25,6 +25,48 @@ application actually has.
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | Fixed-width, non-Unicode columns for those identifiers. |
 | `AdCodicem.ValueObjects.Testing` | An xUnit contract kit for your own value objects. |
 
+## Supported frameworks
+
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twelve are
+released together under one version number: reference the same version of each. Their dependencies are minimums
+with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
+next major is supported by these same packages, never by a package per framework version
+([ADR-0010](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)).
+
+| Package | Target | Built and tested against | On the next .NET¹ |
+| --- | --- | --- | --- |
+| `AdCodicem.ValueObjects` | `net10.0` | the .NET 10 SDK | the .NET 11 SDK, whose compiler runs the generator |
+| `AdCodicem.ValueObjects.Abstractions` | `net10.0` | .NET 10 | .NET 11 |
+| `AdCodicem.ValueObjects.Json` | `net10.0` | .NET 10, source generation included | .NET 11, source generation included |
+| `AdCodicem.ValueObjects.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
+| `AdCodicem.ValueObjects.AspNetCore` | `net10.0` | ASP.NET Core 10 | ASP.NET Core 11 |
+| `AdCodicem.ValueObjects.OpenApi` | `net10.0` | ASP.NET Core 10, with `Microsoft.OpenApi` 2 | ASP.NET Core 11, with `Microsoft.OpenApi` 3 |
+| `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
+| `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
+| `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
+| `AdCodicem.ValueObjects.Identifiers` | `net10.0` | .NET 10 | .NET 11 |
+| `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
+| `AdCodicem.ValueObjects.Testing` | `net10.0` | xUnit v3 4 | xUnit v3 4 on .NET 11 |
+
+¹ On the .NET 11 release candidate, by a CI job that installs the packages each commit builds into a `net11.0`
+application ([How the library is tested](./testing.md#the-compatibility-island)). It informs and blocks nothing until
+.NET 11 ships.
+
+## Trying a preview
+
+Between stable releases, a preview of every package is published to nuget.org when something a package ships has
+changed, checked every week. It carries the number of the release it leads to, `0.3.0-preview.172` for instance,
+and every package is published at that version:
+
+```bash
+dotnet add package AdCodicem.ValueObjects --prerelease
+```
+
+Previews receive no fixes of their own: a fix reaches the next preview and the next release. Every package, and every
+assembly inside it, carries a signed build provenance attestation; the
+[security policy](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/SECURITY.md#verifying-a-package) says how to check one. The
+[preview of this documentation](/docs/preview/introduction) describes the latest preview, and its label names it.
+
 ## Why this many packages
 
 Each integration is its own package so that adding EF Core support doesn't pull FluentValidation into a

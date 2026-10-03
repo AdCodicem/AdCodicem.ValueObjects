@@ -53,9 +53,10 @@ correct a released page as described on the [Contributing](src/pages/contributin
 `docusaurus.config.ts` derives every version option from those two JSON files, so the configuration never names
 a version. Two things there are worth knowing:
 
-- **The preview label comes from the build environment.** `DOCS_PREVIEW_VERSION` is set by `deploy-docs.yml`
-  from MinVer, so twelve commits after `v0.3.2` the preview reads `Preview (0.3.3-preview.0.12)`. A local build
-  without it reads `Preview`.
+- **The preview label comes from the workflow that deploys.** `DOCS_PREVIEW_VERSION` is set from
+  `deploy-docs.yml`'s required `preview-version` input. `preview.yml` passes the version on nuget.org that describes
+  the commit it builds, so the preview reads `Preview (0.3.0-preview.172)`, and `release.yml` the version it has just
+  released. A local build without it reads `Preview`.
 - **The homepage example is a partial**, `docs/_homepage-example.md`. It is frozen with the rest of the docs, and
   the `homepage-example` plugin points the homepage at the copy in the latest stable snapshot, so the homepage
   shows the code of the package `dotnet add package` installs.
@@ -87,14 +88,25 @@ cd - && git worktree remove --force ../docs-try
 
 ## Deployment
 
-Deployment is automatic, through `.github/workflows/deploy-docs.yml`, and always rebuilds the whole site:
+Deployment is automatic, through `.github/workflows/deploy-docs.yml`, which other workflows call and nobody
+dispatches, and always rebuilds the whole site:
 
-- `ci.yml` calls it on every merge to `main`, once the preview package is on nuget.org, so the preview
-  documentation always describes a package that can be installed.
+- `preview.yml` calls it on every run that decided what to publish, every Monday and at each dispatch, whether it
+  published a preview or not, and only once its packages are listed on nuget.org, so the preview documentation
+  always describes a package that can be installed. A run in which a job failed deploys nothing.
 - `release.yml` calls it after a stable release, on the release tag, whose commit carries the new snapshot.
+
+To redeploy the site by hand, dispatch `preview.yml` from `main` (**Actions → preview → Run workflow**). If a package
+input changed since the last preview, that run publishes one first. A documentation change merged to `main` therefore
+goes live at the next Monday's run, or at once by dispatching it.
+
+`ci.yml`'s **documentation site** job builds the site on every pull request and on `main`, and deploys nothing: a
+broken link fails the pull request instead of the next deployment. It builds through `.github/actions/build-site`,
+the composite action `deploy-docs.yml` builds with, so what a pull request builds is what a deployment builds, except
+for the label: nothing deploys that build, so its preview reads `Preview`.
 
 Deployments queue in the `pages` concurrency group (`queue: max`), in the order they arrive, and none is
 dropped. Each one writes `deployment.json` at the root of the site, and the next one reads it back. When the
 live site was built from a descendant of the commit about to be deployed, the older deployment stands down
-instead of rolling the preview back. That happens when two merges' CI runs finish out of order. There is no
-`deploy` script here: the site is never pushed to a `gh-pages` branch by hand.
+instead of rolling the preview back. That happens when a release's deployment and a preview run's finish out of
+order. There is no `deploy` script here: the site is never pushed to a `gh-pages` branch by hand.
