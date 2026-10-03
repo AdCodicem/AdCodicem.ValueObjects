@@ -165,7 +165,7 @@ It is reported in the generated file, which cannot be edited: the fix is on your
 
 **Mapperly.** Give it a method for each direction, which it picks by source and target type. This works on
 Mapperly 4.3.1 and 5.0.0-next.11, whether the value objects are declared in the mapper's project or in a project it
-references:
+references, and [Object mappers](../how-to/mapping.md) covers Mapster and AutoMapper too:
 
 ```csharp skip
 public static class ValueObjectMappings

@@ -2,7 +2,7 @@
 title: Test Your Value Objects
 sidebar_label: Testing value objects
 slug: /how-to/test-value-objects
-description: Derive over a dozen behavioural checks for your own value objects from a list of accepted and rejected values, with the xUnit contract kit.
+description: Derive over a dozen behavioural checks for your own value objects from a list of accepted and rejected values, with the xUnit contract kit, and keep them bare values in Verify snapshots.
 ---
 
 # Test your value objects
@@ -75,6 +75,36 @@ Disable it on the spot, with a comment saying why:
 var missing = default(Iban);
 #pragma warning restore VO0010
 ```
+
+## Snapshot tests with Verify
+
+Verify writes a value object as its bare value already, through its `TypeConverter`. Under `UseStrictJson`, though,
+numbers and booleans become strings, and a `DateOnly` value object escapes date scrubbing. A converter of a few lines
+for Argon, the JSON library Verify uses, fixes both:
+
+```csharp skip
+public sealed class ValueObjectArgonConverter : Argon.JsonConverter
+{
+    public override bool CanConvert(Type type) => typeof(IValueObject).IsAssignableFrom(type) && type.IsValueType;
+
+    public override void WriteJson(Argon.JsonWriter writer, object value, Argon.JsonSerializer serializer)
+        => serializer.Serialize(writer, ((IValueObject)value).GetBoxedValue());
+
+    public override object ReadJson(Argon.JsonReader reader, Type type, object? existing, Argon.JsonSerializer serializer)
+        => throw new NotSupportedException();
+}
+
+public static class VerifyConfiguration
+{
+    [ModuleInitializer]
+    public static void Initialize()
+        => VerifierSettings.AddExtraSettings(settings => settings.Converters.Add(new ValueObjectArgonConverter()));
+}
+```
+
+The probe registered it on one `VerifySettings` instance, `settings.AddExtraSettings(…)`, on Verify.XunitV3 30.15.0;
+the global form above is the same call. Every Verify version released after 1 September 2026 requires a SponsorCheck
+licence property: Verify 33.2.0 fails the build with `SC021` without one.
 
 ## Identifiers in tests
 
