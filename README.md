@@ -6,8 +6,8 @@
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/AdCodicem/AdCodicem.ValueObjects/badge)](https://scorecard.dev/viewer/?uri=github.com/AdCodicem/AdCodicem.ValueObjects)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/LICENSE)
 
-An answer to primitive obsession for .NET 10: single-value DDD value objects, generated at compile time, with no
-reflection and no allocation on the paths that matter.
+An answer to primitive obsession for .NET 10 and later: single-value DDD value objects, generated at compile time,
+with no reflection and no allocation on the paths that matter.
 
 **[Documentation](https://adcodicem.github.io/AdCodicem.ValueObjects/)**
 
@@ -100,6 +100,45 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.Identifiers` | Stripe-style public entity identifiers: `acc_2K7X9…`. |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | Fixed-width, non-Unicode columns for those identifiers. |
 | `AdCodicem.ValueObjects.Testing` | An xUnit contract kit for your own value objects. |
+
+## Supported frameworks
+
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twelve are
+released together under one version number: reference the same version of each. Their dependencies are minimums
+with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
+next major is supported by these same packages, never by a package per framework version
+([ADR-0010](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)).
+
+| Package | Target | Built and tested against | On the next .NET¹ |
+| --- | --- | --- | --- |
+| `AdCodicem.ValueObjects` | `net10.0` | the .NET 10 SDK | the .NET 11 SDK, whose compiler runs the generator |
+| `AdCodicem.ValueObjects.Abstractions` | `net10.0` | .NET 10 | .NET 11 |
+| `AdCodicem.ValueObjects.Json` | `net10.0` | .NET 10, source generation included | .NET 11, source generation included |
+| `AdCodicem.ValueObjects.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
+| `AdCodicem.ValueObjects.AspNetCore` | `net10.0` | ASP.NET Core 10 | ASP.NET Core 11 |
+| `AdCodicem.ValueObjects.OpenApi` | `net10.0` | ASP.NET Core 10, with `Microsoft.OpenApi` 2 | ASP.NET Core 11, with `Microsoft.OpenApi` 3 |
+| `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
+| `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
+| `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
+| `AdCodicem.ValueObjects.Identifiers` | `net10.0` | .NET 10 | .NET 11 |
+| `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
+| `AdCodicem.ValueObjects.Testing` | `net10.0` | xUnit v3 4 | xUnit v3 4 on .NET 11 |
+
+¹ On the .NET 11 release candidate, by a CI job that installs the packages each commit builds into a `net11.0`
+application. It informs and blocks nothing until .NET 11 ships.
+
+## Trying a preview
+
+Between stable releases, a preview of every package is published to nuget.org when something a package ships has
+changed, checked every week. It carries the number of the release it leads to, `0.3.0-preview.172` for instance,
+and every package is published at that version:
+
+```
+dotnet add package AdCodicem.ValueObjects --prerelease
+```
+
+Previews receive no fixes of their own: a fix reaches the next preview and the next release. Every package, and every
+assembly inside it, carries a signed build provenance attestation; [`SECURITY.md`](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/SECURITY.md#verifying-a-package) says how to check one.
 
 ## Design decisions worth knowing
 
@@ -420,6 +459,7 @@ without failing the build.
 ```
 src/          the shipped packages
 tests/        unit tests, generator tests, and integration tests on real database engines
+  Compat/     the packed packages in a .NET 11 application, outside the solution
 samples/      a showcase API exercising the whole chain end to end
 benchmarks/   the measurements behind the design decisions above
 skills/       the agent skill, and the plugin manifest that distributes it
