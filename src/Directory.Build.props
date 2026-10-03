@@ -8,6 +8,16 @@
     <DebugType>portable</DebugType>
   </PropertyGroup>
 
+  <!--
+    release-pack.sh holds each package to the API of the previous release, except one that nuget.org does not have
+    at that version (a package added since), whose baseline would fail to restore. It passes the version and the
+    projects to leave out. They are named by project rather than by PackageId, which NuGet's pack targets only
+    default later in the evaluation.
+  -->
+  <PropertyGroup Condition="'$(ReleaseBaselineVersion)' != '' and !$([System.String]::Copy(' $(ProjectsWithoutBaseline) ').Contains(' $(MSBuildProjectName) '))">
+    <PackageValidationBaselineVersion>$(ReleaseBaselineVersion)</PackageValidationBaselineVersion>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="MinVer" PrivateAssets="all" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" Condition="'$(GITHUB_ACTIONS)' == 'true'" />
