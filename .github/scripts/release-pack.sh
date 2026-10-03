@@ -15,7 +15,9 @@ next_version="${1:?next version required}"
 release_type="${2:?release type required}"
 last_version="${3:-}"
 
-args=(--configuration Release --output artifacts/packages)
+# Only the packable projects under src/ (the solution filter): no test, benchmark or sample project is
+# restored, evaluated or built in the job that produces what gets published.
+args=(src/AdCodicem.ValueObjects.Packages.slnf --configuration Release --output artifacts/packages)
 
 # EnablePackageValidation compares the new package's API against a published
 # baseline. That check is meaningful for a patch or a minor, and actively wrong
@@ -68,8 +70,17 @@ packed="$(for package in artifacts/packages/*."${next_version}".nupkg; do
   echo "${name%."${next_version}".nupkg}"
 done | LC_ALL=C sort -u)"
 if [[ "$expected" != "$packed" ]]; then
-  echo "::error::The packed packages do not match RELEASE_PACKAGE_IDS." >&2
+  echo "::error::The packed packages do not match RELEASE_PACKAGE_IDS. A project under src/ missing from src/AdCodicem.ValueObjects.Packages.slnf is not packed." >&2
   diff <(echo "$expected") <(echo "$packed") >&2 || true
+  exit 1
+fi
+# The push takes artifacts/packages/*.nupkg, so nothing else may be there: a package
+# at another version would go out with this one.
+shopt -s nullglob
+all=(artifacts/packages/*.nupkg)
+if (( ${#all[@]} != $(wc -l <<<"$expected") )); then
+  echo "::error::artifacts/packages holds packages other than the $next_version ones:" >&2
+  printf '  %s\n' "${all[@]}" >&2
   exit 1
 fi
 echo "Packed $(wc -l <<<"$packed") packages, matching RELEASE_PACKAGE_IDS."

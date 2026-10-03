@@ -1,0 +1,20 @@
+{
+  "solution": {
+    "path": "../AdCodicem.ValueObjects.slnx",
+    "projects": [
+      "src/AdCodicem.ValueObjects/AdCodicem.ValueObjects.csproj",
+      "src/AdCodicem.ValueObjects.Abstractions/AdCodicem.ValueObjects.Abstractions.csproj",
+      "src/AdCodicem.ValueObjects.AspNetCore/AdCodicem.ValueObjects.AspNetCore.csproj",
+      "src/AdCodicem.ValueObjects.Dapper/AdCodicem.ValueObjects.Dapper.csproj",
+      "src/AdCodicem.ValueObjects.EntityFrameworkCore/AdCodicem.ValueObjects.EntityFrameworkCore.csproj",
+      "src/AdCodicem.ValueObjects.FluentValidation/AdCodicem.ValueObjects.FluentValidation.csproj",
+      "src/AdCodicem.ValueObjects.Generators/AdCodicem.ValueObjects.Generators.csproj",
+      "src/AdCodicem.ValueObjects.Identifiers/AdCodicem.ValueObjects.Identifiers.csproj",
+      "src/AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore/AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj",
+      "src/AdCodicem.ValueObjects.Json/AdCodicem.ValueObjects.Json.csproj",
+      "src/AdCodicem.ValueObjects.NewtonsoftJson/AdCodicem.ValueObjects.NewtonsoftJson.csproj",
+      "src/AdCodicem.ValueObjects.OpenApi/AdCodicem.ValueObjects.OpenApi.csproj",
+      "src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj"
+    ]
+  }
+}
