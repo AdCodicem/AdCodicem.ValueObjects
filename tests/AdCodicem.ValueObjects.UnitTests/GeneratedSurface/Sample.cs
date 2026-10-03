@@ -37,6 +37,8 @@ public abstract class Sample
 
     public abstract void RefusesAGroupSeparatorInTheInvariantCulture();
 
+    public abstract void OffersNoConstructorTakingTheValueAlone();
+
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
 
@@ -290,6 +292,21 @@ public class Sample<TSelf, TValue> : Sample
         read.Should().Be(Small);
         TSelf.Parse(grouped.AsSpan(), english).Should().Be(Small);
         converter.ConvertFrom(null, english, grouped).Should().Be(Small);
+    }
+
+    public override void OffersNoConstructorTakingTheValueAlone()
+    {
+        const BindingFlags Instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        // What a reflection mapper looks for, AutoMapper first among them: a constructor of any accessibility taking
+        // the source value alone, which it calls with a value no rule has checked.
+        typeof(TSelf).GetConstructor(Instance, [typeof(TValue)]).Should().BeNull();
+
+        var constructor = typeof(TSelf).GetConstructors(Instance).Should().ContainSingle().Subject;
+        constructor.IsPrivate.Should().BeTrue();
+        constructor.GetParameters().Select(parameter => parameter.ParameterType)
+            .Should().Equal(typeof(TValue), typeof(UncheckedTag));
+        constructor.GetParameters().Should().NotContain(parameter => parameter.IsOptional, "a mapper fills an optional parameter from its default");
     }
 
     protected static TDelegate Method<TDelegate>(string name, params Type[] parameters)

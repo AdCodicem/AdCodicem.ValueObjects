@@ -177,6 +177,10 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   (and `Maximum` through `IValueObjectMaximum<T>`). Never keep both: that is `VO0029`. A `Minimum` or `Maximum`
   written without its interface never runs: `VO0011`.
 - `CreateUnchecked` on input from outside the application. It validates nothing; it is for the EF read path.
+- An AutoMapper conversion to a value object with no map. The private constructor takes a tag only the generated
+  code supplies, so AutoMapper finds no constructor and throws `AutoMapperMappingException`. Map through the
+  factory: `CreateMap<string, Iban>().ConvertUsing(s => Iban.Create(s))`. On `ExplicitConversionFromValue = true`,
+  AutoMapper calls the explicit conversion, which validates.
 - A separate FluentValidation rule restating length or pattern — defer to the value object
   (`MustParseAs`, `MustSatisfy`).
 - A nullable underlying value (`[ValueObject<string?>]`). `null` is always rejected.

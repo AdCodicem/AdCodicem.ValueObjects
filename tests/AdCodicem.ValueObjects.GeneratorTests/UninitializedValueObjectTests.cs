@@ -109,9 +109,10 @@ public sealed class UninitializedValueObjectTests
 
     /// <summary>
     /// The absent value object is null, which is how absence is meant to be written, and a construction with an
-    /// argument goes through validation. A type parameter, an array, a primitive and a plain object are not value
-    /// objects, and an array of value objects is a boundary the
-    /// analyzer does not see: its elements are reported by <c>IsDefault</c> at run time, as documented.
+    /// argument goes through the generated constructor, whose tag is no value object for <c>default</c> to leave
+    /// uninitialized. A type parameter, an array, a primitive and a plain object are not value objects, and an array of
+    /// value objects is a boundary the analyzer does not see: its elements are reported by <c>IsDefault</c> at run time,
+    /// as documented.
     /// </summary>
     [Fact]
     public async Task Only_an_uninitialized_value_object_itself_is_reported()
@@ -120,7 +121,7 @@ public sealed class UninitializedValueObjectTests
             [ValueObject<string>]
             public readonly partial struct Code
             {
-                public static Code Of(string value) => new(value);
+                public static Code Of(string value) => new(value, default);
             }
 
             public static class Use
