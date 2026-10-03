@@ -89,7 +89,7 @@ public partial class AnyEntityIdTests
         none.ValueObjectType.Should().BeNull();
         none.Is<AccountId>().Should().BeFalse();
         none.TryConvertTo<AccountId>(out var typed).Should().BeFalse();
-        typed.IsDefault.Should().BeTrue();
+        ((IValueObject<AccountId, string>)typed).IsDefault.Should().BeTrue();
         none.ToValueObject().Should().BeNull();
         none.ToString().Should().BeEmpty();
         none.GetHashCode().Should().Be(0);

@@ -151,10 +151,11 @@ Constructor, `Create`, `TryCreate(value, out result)` and `TryCreate(value, out 
 `CreateUnchecked`, `Normalize`, `Validate`, `Parse` and `TryParse` (`string` and `ReadOnlySpan<char>`, with and
 without an `IFormatProvider`; a `null` one is the invariant culture, where a `decimal`, `double` or `float` refuses
 a group separator, `12,5` or `1,234.5`), the 4-argument `TryParse` reporting *why* text was rejected, `Value`,
-`IsDefault`, `ToString()` / `ToString(format, provider)` / `TryFormat`, `Equals` / `==` / `!=` / `GetHashCode`,
-`CompareTo` / `<` / `>` / `<=` / `>=`, `Schema`, the `System.Text.Json` converter, the `TypeConverter`, and a
-`[ModuleInitializer]` registration into `ValueObjectRegistry`. Closed sets also get their named constants and
-`KnownValues`; `Arithmetic = true` adds the operators plus `Zero`, `One`, `IsZero`, `Min`, `Max`.
+`IsDefault` (explicit: read it through `IValueObject<TSelf, TValue>`), `ToString()` /
+`ToString(format, provider)` / `TryFormat`, `Equals` / `==` / `!=` / `GetHashCode`, `CompareTo` / `<` / `>` /
+`<=` / `>=`, `Schema`, the `System.Text.Json` converter, the `TypeConverter`, and a `[ModuleInitializer]`
+registration into `ValueObjectRegistry`. Closed sets also get their named constants and `KnownValues`;
+`Arithmetic = true` adds the operators plus `Zero`, `One`, `IsZero`, `Min`, `Max`.
 
 So: **do not** hand-write a constructor, a factory, `Equals`/`GetHashCode`, a `JsonConverter`, a
 `TypeConverter`, or an EF `HasConversion` per property. Add only domain members the generator knows nothing

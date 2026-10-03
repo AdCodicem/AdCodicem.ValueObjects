@@ -183,8 +183,8 @@ public class CreationTests
     [Fact]
     public void IsDefault_flags_an_instance_that_never_went_through_validation()
     {
-        default(Iban).IsDefault.Should().BeTrue();
-        Iban.Create("DE89370400440532013000").IsDefault.Should().BeFalse();
+        ((IValueObject<Iban, string>)default(Iban)).IsDefault.Should().BeTrue();
+        ((IValueObject<Iban, string>)Iban.Create("DE89370400440532013000")).IsDefault.Should().BeFalse();
     }
 
     [Fact]
@@ -201,7 +201,20 @@ public class CreationTests
         // Kept as documentation: every expression in this region is a build error without the pragma above.
         var uninitialized = default(Iban);
 
-        uninitialized.IsDefault.Should().BeTrue();
+        ((IValueObject<Iban, string>)uninitialized).IsDefault.Should().BeTrue();
     }
 #pragma warning restore VO0010
+
+    /// <summary>
+    /// Over a value type, <c>IsDefault</c> compares the value with the type's zero, so a constructed and valid zero
+    /// reads as the default too: it says that the instance equals <c>default(TSelf)</c>, not that it skipped
+    /// validation. Over a string, the default holds no string at all, which nothing constructed does.
+    /// </summary>
+    [Fact]
+    public void IsDefault_cannot_tell_a_constructed_zero_from_the_default_over_a_value_type()
+    {
+        ((IValueObject<Amount, decimal>)Amount.Create(0m)).IsDefault.Should().BeTrue();
+        ((IValueObject<Quantity, short>)Quantity.Create(0)).IsDefault.Should().BeTrue();
+        ((IValueObject<Iban, string>)Iban.CreateUnchecked(string.Empty)).IsDefault.Should().BeFalse();
+    }
 }

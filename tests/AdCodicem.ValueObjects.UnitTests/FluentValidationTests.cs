@@ -237,6 +237,20 @@ public class FluentValidationTests
         validator.Validate(new Transfer(10m, Iban.Create("FR7630006000011234567890189"))).IsValid.Should().BeTrue();
     }
 
+    /// <summary>
+    /// <c>IsDefault</c> tells an instance equal to the default, and over a value type a constructed zero is one: the
+    /// rule refuses a valid zero as required, as its documentation says.
+    /// </summary>
+    [Fact]
+    public void NotDefault_refuses_a_valid_zero_over_a_value_type_as_required()
+    {
+        var validator = new InlineValidator<Amount> { v => v.RuleFor(x => x).NotDefault<Amount, Amount, decimal>() };
+
+        validator.Validate(Amount.Create(0m)).Errors.Should().ContainSingle()
+            .Which.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
+        validator.Validate(Amount.Create(0.01m)).IsValid.Should().BeTrue();
+    }
+
     /// <summary>A command carrying raw text, as an inbound message from another system would.</summary>
     /// <param name="Iban">The account number, as text.</param>
     public sealed record ImportCommand(string? Iban);

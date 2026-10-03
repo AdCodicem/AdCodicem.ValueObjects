@@ -355,11 +355,11 @@ public class DapperTests
         using var parameters = table.CreateDataReader();
         var positional = parameters.Parse<PositionalAccount>().Single();
 
-        account.Iban.IsDefault.Should().BeTrue();
-        account.Balance.IsDefault.Should().BeTrue();
+        ((IValueObject<Iban, string>)account.Iban).IsDefault.Should().BeTrue();
+        ((IValueObject<Amount, decimal>)account.Balance).IsDefault.Should().BeTrue();
         account.Closed.Should().BeNull();
-        positional.Iban.IsDefault.Should().BeTrue();
-        positional.Balance.IsDefault.Should().BeTrue();
+        ((IValueObject<Iban, string>)positional.Iban).IsDefault.Should().BeTrue();
+        ((IValueObject<Amount, decimal>)positional.Balance).IsDefault.Should().BeTrue();
         positional.Closed.Should().BeNull();
     }
 
