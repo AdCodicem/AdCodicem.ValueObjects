@@ -58,9 +58,36 @@ jobs:
       - name: Integration tests
         run: dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests --no-build -c Release
 
+  # Warns, without blocking, when this release ships package inputs that no
+  # preview carried: inputs that changed since the version on nuget.org built
+  # from the nearest commit. Before the release job, so the warning is on the
+  # run page while the nuget-stable reviewer decides whether to approve.
+  previewed:
+    name: was it previewed
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tags, and the commit each nuspec names.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Compare with what nuget.org has
+        continue-on-error: true
+        run: .github/scripts/preview-gate.sh --report
+
   release:
     name: ${{ inputs.dry_run && 'dry run' || 'publish' }}
-    needs: test
+    # Waits for the warning to be on the run page, but only the tests can stop
+    # the release: a failure anywhere in the previewed job, not only in its
+    # check, must not block it.
+    needs: [test, previewed]
+    if: ${{ !cancelled() && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # A separate environment from preview.yml's publish job: this is the one gated
@@ -196,7 +223,9 @@ jobs:
   provenance:
     name: attest provenance
     needs: release
-    if: needs.release.outputs.released == 'true'
+    # A status function of its own, as the release job has: the implicit success()
+    # covers every job upstream, so a failed previewed job would skip this one too.
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.released == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       # Uploads the bundle to the draft GitHub Release, then publishes it.
@@ -239,7 +268,9 @@ jobs:
   docs:
     name: publish documentation
     needs: release
-    if: needs.release.outputs.released == 'true'
+    # A status function of its own, as the release job has: the implicit success()
+    # covers every job upstream, so a failed previewed job would skip this one too.
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.released == 'true' }}
     permissions:
       contents: read
       pages: write
