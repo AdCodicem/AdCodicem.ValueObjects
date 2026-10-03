@@ -1,3 +1,5 @@
+![AdCodicem.ValueObjects — lege artis](https://raw.githubusercontent.com/AdCodicem/AdCodicem.ValueObjects/main/docs/assets/readme-banner.png)
+
 # AdCodicem.ValueObjects
 
 [![ci](https://github.com/AdCodicem/AdCodicem.ValueObjects/actions/workflows/ci.yml/badge.svg)](https://github.com/AdCodicem/AdCodicem.ValueObjects/actions/workflows/ci.yml)
