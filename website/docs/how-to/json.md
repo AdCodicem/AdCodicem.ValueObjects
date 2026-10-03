@@ -73,6 +73,26 @@ var options = new JsonSerializerOptions().AddValueObjects();
 
 In ASP.NET Core MVC, `AddControllers().AddValueObjects()` already does this for you.
 
+## A member missing from the payload
+
+System.Text.Json leaves a member the payload does not carry as it is, so a value object member holds its default,
+which no rule checks. Contracts evolve, and a producer that drops a property otherwise delivers a default instance to
+a consumer that never validated it. Make the members of every message contract holding value objects required:
+
+```csharp skip
+var options = new JsonSerializerOptions { RespectRequiredConstructorParameters = true };
+
+public sealed record OrderSubmitted(OrderId OrderId, CustomerCode Customer, Quantity Quantity);
+
+// {"OrderId":"3f2504e0-…"} throws a JsonException: JSON deserialization for type 'OrderSubmitted' was missing
+// required properties including: 'Customer', 'Quantity'.
+```
+
+`RespectRequiredConstructorParameters` covers the parameters of a constructor, a positional record's included, which
+is the form that was run here. For a settable property, `[JsonRequired]` and the C# `required` modifier are
+System.Text.Json's documented equivalents. The JSON payload is one source among others:
+[Where a default instance can come from](../reference/default-instances.md) lists them.
+
 ## Large integers
 
 `Int128` and `UInt128` value objects are written as JSON **strings**: a JSON number cannot carry them without
