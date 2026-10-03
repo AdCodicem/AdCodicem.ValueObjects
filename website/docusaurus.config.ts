@@ -340,10 +340,15 @@ const config: Config = {
           label: 'NuGet',
           position: 'right',
         },
+        // Drawn as the design system's GitHub icon button (custom.css); the label is what screen readers and the
+        // mobile menu read.
         {
           href: 'https://github.com/AdCodicem/AdCodicem.ValueObjects',
           label: 'GitHub',
           position: 'right',
+          className: 'navbar-github-link',
+          'aria-label': 'GitHub repository',
+          title: 'GitHub repository',
         },
       ],
     },

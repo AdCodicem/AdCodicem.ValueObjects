@@ -98,8 +98,10 @@ site only by being copied again.
   follows all four colour schemes: paper (`:root`) and ink (`data-theme='dark'`, the default when the system
   expresses no preference), each in its brand form and in its accessible one (`data-contrast='accessible'`),
   which reaches WCAG 2 AA on every pair drawn and changes only the tokens the design system lists.
-- **The contrast toggle** (`src/components/ContrastToggle`) sits beside the light and dark one through a wrapper of
-  `ColorModeToggle`, a safe swizzle. It stores the reader's choice under `adcodicem-contrast`; the `contrast` plugin
+- **The theme toggle** is an ejected `ColorModeToggle`, a safe swizzle: the design system's icon button, showing the
+  moon on paper and the sun on ink. It switches between the two themes; until the reader uses it, the site follows
+  the system's preference. The GitHub link in the navbar takes the same look, through `navbar-github-link`.
+- **The contrast toggle** (`src/components/ContrastToggle`) sits beside it. It stores the reader's choice under `adcodicem-contrast`; the `contrast` plugin
   in `docusaurus.config.ts` applies it before the first paint, and before the reader chooses it follows
   `prefers-contrast: more`.
 - **`src/prism-adcodicem.ts`** is one Prism theme for every scheme: its colours are the `--code-*` tokens, so the
