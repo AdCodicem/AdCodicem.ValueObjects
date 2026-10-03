@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Packs every publishable project at the version semantic-release computed, and
+# Packs every publishable project at the version semantic-release computed --
+# or, for preview.yml, the version next-version.mjs computed the same way -- and
 # checks the packages against the list the release notes link to.
 #
 # Usage: release-pack.sh <next-version> <release-type> [last-version]
+#   release-type: major, minor or patch; or repair, for preview.yml completing a
+#   version nuget.org already partly has, which was held to its baseline when it
+#   was first packed.
 #
 # MinVer normally derives the version from git tags. At this point in the run the
 # tag for this release does not exist yet -- semantic-release creates it after
@@ -24,23 +28,49 @@ args=(src/AdCodicem.ValueObjects.Packages.slnf --configuration Release --output 
 # for a release that is *supposed* to break: a major says so in its version
 # number, and while the version is still 0.x a minor is the breaking channel by
 # convention, so neither is held to the baseline.
-if [[ -z "$last_version" ]]; then
+if [[ "$release_type" == "repair" ]]; then
+  echo "Completing $next_version, partly published already: skipping package validation baseline."
+elif [[ -z "$last_version" ]]; then
   echo "No previous release: skipping package validation baseline."
 elif [[ "$release_type" == "major" ]]; then
   echo "Major release: skipping package validation baseline (breaks are intended)."
 elif [[ "$next_version" == 0.* && "$release_type" == "minor" ]]; then
   echo "Pre-1.0 minor: skipping package validation baseline (0.x minor is the breaking channel)."
 else
-  # Only a published package can serve as a baseline. v0.1.0 is a tag placed by
-  # hand with no package behind it, and restoring a baseline that does not exist
-  # fails the pack. A failed lookup stops the script rather than skipping the check.
-  published="$(curl --fail --silent --show-error --retry 3 \
-    https://api.nuget.org/v3-flatcontainer/adcodicem.valueobjects/index.json)"
-  if grep -qF "\"${last_version}\"" <<<"$published"; then
-    echo "Validating API compatibility against $last_version."
-    args+=("-p:PackageValidationBaselineVersion=$last_version")
-  else
+  # Only a published package can serve as a baseline, and each package only for
+  # itself. v0.1.0 is a tag placed by hand with no package behind it, and a package
+  # added since the last release has no version to compare with; restoring a
+  # baseline that does not exist fails the pack. So every package is looked up, and
+  # the projects nuget.org lacks at that version are packed without one, through
+  # the hook in src/Directory.Build.props. A failed lookup stops the script rather
+  # than skipping the check.
+  validated=()
+  without=()
+  index="$(mktemp)"
+  trap 'rm -f "$index"' EXIT
+  for project in src/*/*.csproj; do
+    properties="$(dotnet msbuild "$project" -nologo \
+      -getProperty:IsPackable -getProperty:PackageId -getProperty:MSBuildProjectName)"
+    [[ "$(jq -r .Properties.IsPackable <<<"$properties")" == true ]] || continue
+    id="$(jq -r .Properties.PackageId <<<"$properties")"
+    code="$(curl --silent --show-error --location --retry 3 --output "$index" --write-out '%{http_code}' \
+      "https://api.nuget.org/v3-flatcontainer/${id,,}/index.json")"
+    if [[ "$code" == 200 ]] && jq -e --arg v "${last_version,,}" '.versions | index($v)' "$index" >/dev/null; then
+      validated+=("$id")
+    elif [[ "$code" == 200 || "$code" == 404 ]]; then
+      echo "$id $last_version is not on nuget.org: packing it without a baseline."
+      without+=("$(jq -r .Properties.MSBuildProjectName <<<"$properties")")
+    else
+      echo "::error::nuget.org answered HTTP $code for $id; cannot tell whether $last_version is a baseline." >&2
+      exit 1
+    fi
+  done
+  if (( ${#validated[@]} == 0 )); then
     echo "$last_version was never published to nuget.org: skipping package validation baseline."
+  else
+    echo "Validating the API of ${#validated[@]} packages against $last_version."
+    args+=("-p:ReleaseBaselineVersion=$last_version")
+    (( ${#without[@]} == 0 )) || args+=("-p:ProjectsWithoutBaseline=${without[*]}")
   fi
 fi
 
