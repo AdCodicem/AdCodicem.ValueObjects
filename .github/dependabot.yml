@@ -3,6 +3,9 @@ version: 2
 updates:
   # Central package management (Directory.Packages.props) means every project's
   # versions live here, so a single "/" directory covers the whole solution.
+  # Dependabot discovers the projects through AdCodicem.ValueObjects.slnx, so the
+  # .NET compatibility island under tests/Compat, which no solution lists, is out
+  # of its reach: its versions are bumped by hand (docs/maintaining.md).
   - package-ecosystem: "nuget"
     directory: "/"
     schedule:
