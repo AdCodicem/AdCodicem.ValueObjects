@@ -107,6 +107,28 @@ public sealed class ModelBindingTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// An application that does not register the package's binder still binds a value object, through the type
+    /// converter it carries, as MVC binds any simple type. MVC turns a <see cref="FormatException"/> into the message
+    /// of its binding message provider, quoting the text as it does for an <c>int</c>, and records any other exception
+    /// with no message, which problem details render as "The input was not valid.". No rule code is recorded, which
+    /// only the binder does.
+    /// </summary>
+    [Fact]
+    public async Task Without_the_binder_a_rejection_through_the_type_converter_is_reported_as_MVC_reports_bad_input()
+    {
+        await using var application = await StartAsync(static _ => { }, withValueObjectBinder: false);
+        using var client = application.GetTestClient();
+
+        using var response = await client.GetAsync("/probe/country?country=ZZ", TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        problem.GetProperty("errors").GetProperty("country")[0].GetString().Should().Be("The value 'ZZ' is not valid.");
+        problem.TryGetProperty(ValueObjectProblemDetails.ExtensionName, out _).Should().BeFalse();
+        (await client.GetStringAsync("/probe/country?country=lu", TestContext.Current.CancellationToken)).Should().Be("LU");
+    }
+
+    /// <summary>
     /// A value inside a JSON body is refused by the serializer, which records no code: the response is the
     /// framework's own, with no empty extension added to it.
     /// </summary>
@@ -146,19 +168,23 @@ public sealed class ModelBindingTests : IAsyncLifetime
 
     /// <summary>
     /// Starts an MVC application holding <see cref="ProbeController"/> alone, configured as the ASP.NET Core how-to
-    /// says, after the application's own API behaviour.
+    /// says, after the application's own API behaviour, or without the value object binder.
     /// </summary>
-    private static async Task<WebApplication> StartAsync(Action<ApiBehaviorOptions> configure)
+    private static async Task<WebApplication> StartAsync(Action<ApiBehaviorOptions> configure, bool withValueObjectBinder = true)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
-        builder.Services.AddControllers()
+        var mvc = builder.Services.AddControllers()
             .ConfigureApplicationPartManager(static manager =>
             {
                 manager.ApplicationParts.Clear();
                 manager.ApplicationParts.Add(new AssemblyPart(typeof(ProbeController).Assembly));
-            })
-            .AddValueObjects();
+            });
+        if (withValueObjectBinder)
+        {
+            mvc.AddValueObjects();
+        }
+
         builder.Services.Configure<ApiBehaviorOptions>(options =>
         {
             configure(options);
