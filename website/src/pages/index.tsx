@@ -1,11 +1,11 @@
 import type {ReactNode} from 'react';
-import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
 import MDXContent from '@theme/MDXContent';
 import HomepageFeatures from '@site/src/components/HomepageFeatures';
+import InstallCommand from '@site/src/components/InstallCommand';
 // docs/_homepage-example.md as frozen by the latest stable release; see docusaurus.config.ts.
 import HomepageExample from '@homepage-example';
 
@@ -13,36 +13,39 @@ import styles from './index.module.css';
 
 function HomepageHeader() {
   const {siteConfig} = useDocusaurusContext();
+  const install = `dotnet add package AdCodicem.ValueObjects${siteConfig.customFields?.hasStable ? '' : ' --prerelease'}`;
   return (
-    <header className={clsx('hero hero--primary', styles.heroBanner)}>
-      <div className="container">
-        <div className="row">
-          <div className="col col--5">
-            <Heading as="h1" className={styles.heroTitle}>
-              {siteConfig.title}
-            </Heading>
-            <p className="hero__subtitle">{siteConfig.tagline}</p>
-            <p className={styles.heroLede}>
-              An IBAN carried as a bare <code>string</code> is validated wherever someone remembered to. Declare
-              the type and its rules once instead; the framework carries them into JSON, the database, model
-              binding and the OpenAPI document, so they cannot drift apart.
-            </p>
-            <div className={styles.buttons}>
-              <Link className="button button--primary button--lg" to="/docs/introduction">
-                Get Started
-              </Link>
-              <Link
-                className="button button--secondary button--lg"
-                to="https://github.com/AdCodicem/AdCodicem.ValueObjects">
-                View on GitHub
-              </Link>
-            </div>
+    <header className={styles.hero}>
+      <div className={styles.heroInner}>
+        <div className={styles.heroText}>
+          <p className={styles.eyebrow}>.NET 10 and later · MIT · NuGet</p>
+          <Heading as="h1" className={styles.heroTitle}>
+            <span className={styles.prefix}>AdCodicem.</span>
+            <br />
+            ValueObjects
+          </Heading>
+          <p className={styles.heroLead}>{siteConfig.tagline}</p>
+          <p className={styles.heroLede}>
+            An IBAN carried as a bare <code>string</code> is validated wherever someone remembered to. Declare
+            the type and its rules once instead; the framework carries them into JSON, the database, model
+            binding and the OpenAPI document, so they cannot drift apart.
+          </p>
+          <InstallCommand command={install} />
+          <div className={styles.buttons}>
+            <Link className="button button--primary button--lg" to="/docs/introduction">
+              Get started <span aria-hidden="true">→</span>
+            </Link>
+            <Link
+              className="button button--secondary button--lg"
+              to="https://github.com/AdCodicem/AdCodicem.ValueObjects">
+              View on GitHub
+            </Link>
           </div>
-          <div className={clsx('col col--7', styles.heroCode)}>
-            <MDXContent>
-              <HomepageExample />
-            </MDXContent>
-          </div>
+        </div>
+        <div className={styles.heroCode}>
+          <MDXContent>
+            <HomepageExample />
+          </MDXContent>
         </div>
       </div>
     </header>
