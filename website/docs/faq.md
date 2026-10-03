@@ -103,10 +103,12 @@ also write to.
 
 ### Does it work with minimal APIs?
 
-Yes, with nothing to install: a value object implements `IParsable<T>`, which is what minimal API parameter
-binding looks for. Under native AOT, the Request Delegate Generator writes that binding and does not see what this
-generator adds, so a value object declared in the project that maps the endpoints lists its contract on its
-declaration, as [the Request Delegate Generator](./how-to/aspnet-core.md#the-request-delegate-generator) shows.
+Yes, with no package to install: a value object implements `IParsable<T>`, which is what minimal API parameter
+binding looks for. A value it rejects is answered with a bare 400, though, naming neither the parameter nor the rule:
+the problem details carrying the rule's code are MVC's, as [Minimal APIs](./how-to/aspnet-core.md#minimal-apis)
+explains. Under native AOT, the Request Delegate Generator writes that binding and does not see what this generator
+adds, so a value object declared in the project that maps the endpoints lists its contract on its declaration, as
+[the Request Delegate Generator](./how-to/aspnet-core.md#the-request-delegate-generator) shows.
 
 ### Does it work with Swashbuckle?
 

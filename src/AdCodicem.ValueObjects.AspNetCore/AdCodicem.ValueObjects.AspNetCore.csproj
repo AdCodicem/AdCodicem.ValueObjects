@@ -7,10 +7,12 @@
 
     <!--
       This package exists for MVC controllers, whose model binding is reflection-driven and not AOT compatible
-      to begin with. Minimal APIs need nothing from it: a generated value object implements IParsable<T>, which
-      is exactly what minimal API parameter binding looks for. Under the Request Delegate Generator, which does not
-      see that interface on a value object of its own project, the value object lists it on its declaration
-      (VO0033); no package can change what one generator sees of another's output.
+      to begin with. Minimal APIs need nothing from it to bind: a generated value object implements IParsable<T>,
+      which is exactly what minimal API parameter binding looks for. They answer a rejected value with a bare 400,
+      though, since the problem details carrying the rule's code extend ApiBehaviorOptions, which only MVC reads.
+      Under the Request Delegate Generator, which does not see that interface on a value object of its own
+      project, the value object lists it on its declaration (VO0033); no package can change what one generator
+      sees of another's output.
     -->
     <IsAotCompatible>false</IsAotCompatible>
     <EnableAotAnalyzer>false</EnableAotAnalyzer>

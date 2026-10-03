@@ -197,7 +197,7 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
 
 ```csharp skip
 builder.Services.AddControllers().AddValueObjects();                                  // AspNetCore
-builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetails()); // AspNetCore
+builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetails()); // AspNetCore, MVC only
 builder.Services.AddOpenApi(o => o.AddValueObjects());                                 // OpenApi
 ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);                       // Dapper
 
@@ -205,9 +205,11 @@ protected override void ConfigureConventions(ModelConfigurationBuilder builder) 
     => builder.ConfigureValueObjects(typeof(Iban).Assembly);
 ```
 
-Minimal APIs need no package: a generated value object implements `IParsable<T>`. Where the Request Delegate
-Generator runs (`PublishAot`, `PublishTrimmed`, `EnableRequestDelegateGenerator`), a value object declared in the
-project that maps the endpoints lists its contract on its declaration, `: IValueObject<Sku, string>` (`VO0033`).
+Minimal APIs need no package to bind: a generated value object implements `IParsable<T>`. They answer a rejected
+value with a bare 400, with no parameter, message or code: problem details carrying the code are MVC's. Where the
+Request Delegate Generator runs (`PublishAot`, `PublishTrimmed`, `EnableRequestDelegateGenerator`), a value object
+declared in the project that maps the endpoints lists its contract on its declaration, `: IValueObject<Sku, string>`
+(`VO0033`).
 Reflection-based `System.Text.Json` needs nothing either; a source-generated `JsonSerializerContext` needs the
 `AdCodicem.ValueObjects.Json` package. Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.

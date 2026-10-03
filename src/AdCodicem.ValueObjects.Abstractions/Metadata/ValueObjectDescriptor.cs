@@ -121,6 +121,11 @@ public sealed class ValueObjectDescriptor
     /// <summary>
     /// Gets the accessor returning the boxed underlying value of a boxed value object.
     /// </summary>
+    /// <remarks>
+    /// It takes a boxed instance of <see cref="ValueObjectType"/>, never <see langword="null"/>: the
+    /// <see langword="null"/> of a nullable value object throws a <see cref="NullReferenceException"/> here. A caller
+    /// holding a <c>TSelf?</c> handles its <see langword="null"/> first.
+    /// </remarks>
     public Func<object, object?> GetValue { get; }
 
     /// <summary>
@@ -138,12 +143,20 @@ public sealed class ValueObjectDescriptor
     /// never went through <c>Create</c> holds. Over a value type, a constructed zero equals the default too, and
     /// validation tells a valid zero from a refused one. Any other instance passes without being validated again.
     /// </para>
+    /// <para>
+    /// It takes a boxed instance, never <see langword="null"/>, as <see cref="GetValue"/> does.
+    /// </para>
     /// </remarks>
     public Func<object, ValidationResult> ValidateWrite { get; }
 
     /// <summary>
     /// Gets the invariant text representation of a boxed value object.
     /// </summary>
+    /// <remarks>
+    /// It takes a boxed instance of <see cref="ValueObjectType"/>, never <see langword="null"/>: the
+    /// <see langword="null"/> of a nullable value object throws a <see cref="NullReferenceException"/> here. A caller
+    /// holding a <c>TSelf?</c> handles its <see langword="null"/> first.
+    /// </remarks>
     public Func<object, string> Format { get; }
 
     /// <summary>

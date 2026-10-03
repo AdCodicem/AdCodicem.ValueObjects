@@ -16,7 +16,10 @@ builder.Services.AddOpenApi(options => options.AddValueObjects());
 ```
 
 That registers a schema transformer on the built-in .NET OpenAPI stack (`Microsoft.AspNetCore.OpenApi`). A value
-object is then documented as what it is on the wire — its underlying type — carrying every rule declared on it:
+object in a request or response body is then documented as what it is on the wire — its underlying type — carrying
+every rule declared on it. A route, query or header parameter is not: it is documented as a plain `string`, whatever
+the underlying type and without the rules, and a collection of value objects, a `List<Iban>`, as an array whose
+items are not described:
 
 | Declared on the type | In the schema |
 | --- | --- |

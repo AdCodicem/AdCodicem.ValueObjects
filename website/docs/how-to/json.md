@@ -134,9 +134,11 @@ change what the converter is handed.
 
 ### Without the converter
 
-Newtonsoft.Json falls back to the type converter the generator writes on every value object. It then writes each one
-as a string, a number included, `"Quantity":"7"`, and reads a string, or a number of any numeric type, through the
-value object's rules. For a number, the two modes read each other's data: a host without the converter reads the
+Newtonsoft.Json falls back to the type converter the generator writes on every value object. A host that
+serializes through Newtonsoft.Json on settings of its own takes this path until its settings get the converter: the
+Azure Cosmos DB SDK v3 and Hangfire both do by default. Newtonsoft.Json then writes each value object as a string, a
+number included, `"Quantity":"7"`, and reads a string, or a number of any numeric type, through the value object's
+rules. For a number, the two modes read each other's data: a host without the converter reads the
 numbers System.Text.Json and the converter write, and the converter reads the numbers a host stored without it, which
 can add it without draining what it stored first. A boolean is the exception: the type converter writes `"True"`,
 a string where the converter reads a boolean.
@@ -165,9 +167,11 @@ A date that no longer says what the text said is refused rather than read as ano
 ### Numbers
 
 Under the default `FloatParseHandling`, Newtonsoft.Json reads a number with a fraction or an exponent as a
-`double`, and a `decimal` value object keeps the fifteen to seventeen significant digits a `double` carries: a stored
-`12.50` reads back as 12.5, and `1234567890123456789.12` as 1234567890123456800. `AddValueObjects()` sets
-`FloatParseHandling.Decimal`, which keeps all of them, as System.Text.Json does.
+`double`, and a `decimal` value object keeps the fifteen to seventeen significant digits a `double` carries, and loses
+its scale: a stored `12.50` reads back as 12.5, and `1234567890123456789.12` as 1234567890123456800. Any payload
+carrying an amount of money therefore needs `FloatParseHandling.Decimal`, whatever its number of digits, and a host
+that sets its own deserializer settings may leave it at `Double`. `AddValueObjects()` sets it, which keeps every digit
+and the scale, as System.Text.Json does.
 
 It applies to every number of the payload, and a `decimal` holds a narrower range than a `double`. Under it, a
 `double` or `float` value object beyond about ±7.9 × 10²⁸ makes the reader throw a `JsonReaderException`, and one

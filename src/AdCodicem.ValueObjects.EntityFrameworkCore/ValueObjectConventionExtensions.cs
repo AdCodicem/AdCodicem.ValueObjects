@@ -61,6 +61,13 @@ public static class ValueObjectConventionExtensions
     /// </param>
     /// <param name="assemblies">Assemblies declaring the value objects.</param>
     /// <returns>The same builder, so calls can be chained.</returns>
+    /// <remarks>
+    /// <paramref name="strict"/> is read once per context type, not per instance: Entity Framework Core builds the
+    /// model the first time a context type is used and caches it for every later instance. A context that chooses the
+    /// value from a constructor argument gets whichever model was built first. Give strict reads a context type of
+    /// their own, or an <see cref="Microsoft.EntityFrameworkCore.Infrastructure.IModelCacheKeyFactory"/> that puts the
+    /// choice in the cache key.
+    /// </remarks>
     public static ModelConfigurationBuilder ConfigureValueObjects(
         this ModelConfigurationBuilder builder,
         bool strict,

@@ -187,7 +187,7 @@ a frozen membership lookup, and the `enum` keyword of the schema.
 Vogen, StronglyTypedId and Thinktecture.Runtime.Extensions generate value objects too, and each is the better
 choice for some projects: an older target framework, a class or an arbitrary underlying type, smart enums and
 unions. What sets this one apart is that a rule declared on the type also reaches the EF Core column and the
-OpenAPI schema, and that a rejection carries a stable error code all the way to the API response.
+OpenAPI schema, and that a rejection carries a stable error code all the way to an MVC controller's response.
 [The comparison](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/explanation/comparison) has the
 full table, including where the others are stronger, and
 [the migration guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/migrating) maps each
@@ -210,11 +210,13 @@ protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     => builder.ConfigureValueObjects(typeof(Iban).Assembly);
 ```
 
-Minimal APIs need no package: a generated value object implements `IParsable<T>`, which is exactly what minimal API
-parameter binding looks for. Where the Request Delegate Generator writes that binding, in a project that sets
-`PublishAot` or `PublishTrimmed`, a value object declared in the project that maps the endpoints also lists its
-contract on its declaration, `public readonly partial struct Sku : IValueObject<Sku, string>;`, because that
-generator does not see what this one adds; `VO0033` reports one that does not, and
+Minimal APIs need no package to bind: a generated value object implements `IParsable<T>`, which is exactly what
+minimal API parameter binding looks for. A value it rejects is answered there with a bare 400, naming neither the
+parameter nor the rule: the problem details carrying the rule's code are MVC's. Where the Request Delegate Generator
+writes that binding, in a project that sets `PublishAot` or `PublishTrimmed`, a value object declared in the project
+that maps the endpoints also lists its contract on its declaration,
+`public readonly partial struct Sku : IValueObject<Sku, string>;`, because that generator does not see what this one
+adds; `VO0033` reports one that does not, and
 [the ASP.NET Core guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/aspnet-core#the-request-delegate-generator)
 explains it. A value object from another project needs nothing.
 

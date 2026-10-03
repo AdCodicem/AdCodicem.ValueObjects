@@ -8,10 +8,14 @@ namespace AdCodicem.ValueObjects.Generators.Emit;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A type converter is what makes a value object usable everywhere the framework converts text without knowing
-/// the type: <c>IConfiguration</c> binding, <c>[FromQuery]</c> properties of a complex model, dictionary keys in
-/// route data, and designers. The ASP.NET Core model binder does not need it — it has a dedicated binder — but
-/// having it costs one small class and removes a whole family of surprises.
+/// A type converter serves the code that converts text, or a number, through <c>TypeDescriptor</c> without knowing
+/// the type. Probes found it used by the reflection-based configuration binder, MVC model binding without the
+/// package's binder, Newtonsoft.Json without <c>ValueObjectConverter</c>, Spectre.Console.Cli, YamlDotNet's
+/// reflection reader, Blazor <c>@bind</c>, Quartz job data, and Avalonia and WPF bindings (WPF read from its source,
+/// not run). It is not everywhere, though: the configuration binding source generator, CsvHelper, System.CommandLine
+/// 2.0, <c>XmlSerializer</c>, <c>DataContractSerializer</c>, Parquet.Net and the Azure Functions isolated worker
+/// never read <c>TypeDescriptor</c>: they reach a value object only through an extension point of their own, so
+/// support for them does not belong here. Having the converter costs one small class.
 /// </para>
 /// <para>
 /// A numeric value object converts from and to every numeric type a value object may wrap, not only its own: the

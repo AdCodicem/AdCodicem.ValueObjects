@@ -11,11 +11,12 @@ AdCodicem.ValueObjects is not the first answer to primitive obsession in .NET. T
 generate value objects too, and each of them is the better choice for some projects. This page is meant to help
 you tell which one yours is.
 
-The comparison was made in September 2026 against **Vogen 8.0.7**, **StronglyTypedId 1.0.0-beta08** — the version
-most of its users install, although nuget.org still lists 0.2.1 as the latest stable — and
-**Thinktecture.Runtime.Extensions 10.5.0**, from their source, their documentation and, where the documentation
-was unclear, a compiled test project. Libraries move: if something here is out of date,
-[open an issue](https://github.com/AdCodicem/AdCodicem.ValueObjects/issues) and it will be corrected.
+The comparison was made in September 2026 against **Vogen 8.0.7**, its latest stable release (9.0 was in beta:
+9.0.0-beta.1 came out in July 2026), **StronglyTypedId 1.0.0-beta08** — the version most of its users install,
+although nuget.org still lists 0.2.1 as the latest stable — and **Thinktecture.Runtime.Extensions 10.5.0**, from their
+source, their documentation and, where the documentation was unclear, a compiled test project. Libraries move: if
+something here is out of date, [open an issue](https://github.com/AdCodicem/AdCodicem.ValueObjects/issues) and it will
+be corrected.
 
 ## At a glance
 
@@ -35,11 +36,12 @@ was unclear, a compiled test project. Libraries move: if something here is out o
 | Column size from the type's rules | yes | no | no | no, a max-length strategy can be configured |
 | EF Core reads validate | on request (`strict: true`) | by default | — | no, reads use the constructor |
 | ASP.NET Core model binding | yes | through the `TypeConverter` | through the `TypeConverter` | yes |
-| Problem details carry the violated rule's code | yes | no | no | no |
+| Problem details carry the violated rule's code | MVC controllers | no | no | no |
 | OpenAPI | built-in stack, with lengths, pattern, bounds, `enum` | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
 | FluentValidation | yes | third-party package | no | no |
 | Dapper | yes | yes | through a template | no |
-| Other serializers and stores | Newtonsoft.Json | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
+| Other serializers and stores | Newtonsoft.Json | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
+| Structured logging | no | no | no | Serilog destructuring policy |
 | Contract test kit for your own types | yes | no | no | no |
 | Prefixed public identifiers (`acc_…`) | yes | no | no | no |
 | Beyond single values | no | no | no | complex value objects, smart enums, discriminated unions |
@@ -54,8 +56,8 @@ a validation method, so the column and the schema have to be told separately —
 primitive obsession produces.
 
 **A rejection is data a client can act on.** Validation returns a `ValidationResult` struct holding a stable
-code and a message, and allocates nothing when the value is valid. The code travels to problem details
-responses and FluentValidation failures, so an API client branches on `value_object.too_long` rather than on
+code and a message, and allocates nothing when the value is valid. The code travels to the problem details of
+MVC controllers and to FluentValidation failures, so an API client branches on `value_object.too_long` rather than on
 English.
 
 **Rules are found by interface, not by name.** `IValueObjectValidator<T>` and `IValueObjectNormalizer<T>` let the
@@ -83,8 +85,13 @@ and to `readonly struct`: [Design decisions](../design-decisions.md) explains wh
 `Uri`, it is not for you.
 
 **They cover more stores and serializers.** Vogen generates support for LinqToDB, ServiceStack.Text, Orleans,
-MessagePack, MongoDB's BSON and XML; Thinktecture for MessagePack. Both work with Swashbuckle, which this library
-does not support.
+MessagePack, MongoDB's BSON and XML; Thinktecture for MessagePack. Vogen's XML support comes with a caveat: its
+generated `ReadXml` assigns the value straight from the reader, with neither validation nor normalization, and the
+option makes the struct's fields writable. Both work with Swashbuckle, which this library does not support.
+
+**Thinktecture has a logging integration.** Thinktecture.Runtime.Extensions.Serilog ships a destructuring policy,
+`Destructure.UsingThinktectureRuntimeExtensions()`, which applies to a value object logged as `{@Value}` and leaves
+`{Value}` to `ToString()`. This library has no logging integration.
 
 **Thinktecture goes beyond single values.** Complex value objects with several members, smart enums and
 discriminated unions are out of scope here.
