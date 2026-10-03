@@ -269,6 +269,7 @@ without the package, the attribute does not exist.
 | Id | Severity | Meaning |
 | --- | --- | --- |
 | `VO0010` | Error | `default(AccountId)` or `new AccountId()`: an identifier that never went through validation. `AllowDefault = true` opts a type out. |
+| `VO0032` | Error | The same, in code another source generator wrote, such as a Riok.Mapperly mapping or a property the configuration binding generator binds. [The diagnostics reference](./reference/diagnostics.md#a-value-object-another-generator-creates) has the fix. |
 | `VO0011` | Warning | A validator or a formatter written without its hook interface, which the generator never calls. |
 | `VO0015` | Error | Malformed prefix: empty, wrong characters, or an over-long segment. |
 | `VO0016` | Error | Two types in the compilation declare the same prefix. |

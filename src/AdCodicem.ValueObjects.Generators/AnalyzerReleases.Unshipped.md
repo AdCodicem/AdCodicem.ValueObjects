@@ -33,3 +33,4 @@ VO0027 | AdCodicem.ValueObjects | Error | Entity identifier takes no known value
 VO0029 | AdCodicem.ValueObjects | Error | Bound declared twice
 VO0030 | AdCodicem.ValueObjects | Error | A bound hook that cannot bound the type
 VO0031 | AdCodicem.ValueObjects | Error | Declared value refused by its own type
+VO0032 | AdCodicem.ValueObjects | Error | Value object created uninitialized by generated code

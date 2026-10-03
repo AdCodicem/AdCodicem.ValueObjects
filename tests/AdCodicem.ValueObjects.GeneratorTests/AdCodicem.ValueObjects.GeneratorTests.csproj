@@ -44,4 +44,18 @@
            Text="The targeting pack's System.Text.RegularExpressions.Generator.dll was not found among this project's analyzers." />
   </Target>
 
+  <!--
+    The System.Text.Json source generator, taken the same way, runs only for the tests that ask for it: VO0032 must stay
+    silent on the code it writes for a value object, `ObjectCreator = () => new global::Sku()` among it.
+  -->
+  <Target Name="CopyJsonGenerator" AfterTargets="ResolveTargetingPackAssets" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <_JsonGenerator Include="@(Analyzer)"
+                      Condition="'%(Filename)' == 'System.Text.Json.SourceGeneration' and $([System.String]::new('%(FullPath)').Contains('$([System.IO.Path]::DirectorySeparatorChar)cs$([System.IO.Path]::DirectorySeparatorChar)'))" />
+      <None Include="@(_JsonGenerator)" Link="json-generator\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+    <Error Condition="'@(_JsonGenerator)' == ''"
+           Text="The targeting pack's System.Text.Json.SourceGeneration.dll was not found among this project's analyzers." />
+  </Target>
+
 </Project>

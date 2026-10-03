@@ -42,6 +42,7 @@ Every rule the generator and the analyzers enforce. `VO0008`, `VO0011`, `VO0021`
 | `VO0029` | Both the `Minimum` (or `Maximum`) option and its hook on one type. | Remove `Minimum = "…"` and keep the static property: the hook replaces the option, and wins until you do. |
 | `VO0030` | `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` that cannot bound the type. | A `string`, a `Guid`, a `bool` and an `[EntityId]` take no bound, and a hook over another type than the underlying one, `IValueObjectMinimum<int>` on a `[ValueObject<long>]`, would never be checked. Constrain a string with `MinLength`, `MaxLength` or `IValueObjectPatternValidator`; check a `Guid` or a `bool` in `IValueObjectValidator<T>`, or remove the hook; an identifier's format is fixed, and anything more goes in `IValueObjectValidator<T>`. Otherwise implement the hook over the underlying type itself. The type still generates, without the bound. |
 | `VO0031` | The `Example` or a known value declared on the type is one its own rules refuse. | Fix the value, or the rule. The example is the OpenAPI example, which generated clients, mock servers and readers take at its word, and a refused known value throws from the type initializer, which the registration of the assembly runs before `Main`: the application would not start. The message names the value, then the code and the message of the rule it breaks, as the type would answer at run time. The generator checks what it can evaluate on its own: an example no form of the underlying type reads, such as `"lots"` on an `int` or `"12,5"` on a `decimal`; `MinLength`, `MaxLength`, and an empty string without `AllowEmpty`; a bound returned as a constant, `public static int Maximum => 100;` written as a getter, an explicit implementation or a constant field alike, or set through the deprecated options; and a closed value set, compared under the type's `Comparison`, except under the current culture, which is the application's. An example is held to these rules when written in the [form of a known value](../authoring-guide.md#bounds-and-known-values-written-as-text), and left alone in any other form the type parses, such as `NaN` or a date and time with `Z`. What runs only at run time is left to the [contract kit](../how-to/test-value-objects.md#what-it-checks), which checks the example and every known value: a pattern, a validator, a bound computed by its hook or initialized as a property, a type with a normalization hook, which may turn a refused value into an accepted one (an example no form of the type reads is still reported), and an `[EntityId]`. |
+| `VO0032` | A value object or entity identifier created uninitialized, `default(T)` or `new T()`, in code another source generator wrote: Riok.Mapperly, the configuration binding generator, or a tool you list. | It is reported in the generated file, which cannot be edited, so the fix is on your side: give Mapperly a method that calls `Create`, keep the underlying type in an options class the binding generator binds, or `AllowDefault = true` when the zero state is meaningful. [A value object another generator creates](#a-value-object-another-generator-creates) shows each fix, and how to add a generator to the list through a `.globalconfig`. |
 
 `VO0011` deserves its warning more than most. The code it reports compiles and looks right, and in a project
 without `TreatWarningsAsErrors` it ships with the rule silently absent. It also recognizes the names hooks had
@@ -145,6 +146,74 @@ chosen for that, and three kinds of text that would not are refused with `VO0004
   the project is built. Write the date: `"2020-01-01T08:00"`.
 
 The same holds for a known value of either type, refused with `VO0013`.
+
+## A value object another generator creates
+
+Source generators never see each other's output. A generator that builds objects finds a value object without the
+`Create`, `Parse` and conversions this generator adds to it, and writes `new T()` in their place, which skips every
+rule the type declares. `VO0010` leaves generated code alone, since this generator's own `TryCreate` assigns
+`default` on its rejection path, so `VO0032` reports the `new` or the `default` there, in the code of two
+generators:
+
+| Generator | What it writes |
+| --- | --- |
+| Riok.Mapperly | `var target = new global::CountryCode();` for a mapping from a `string` to a value object declared in the mapper's own project. The value of the source is dropped, and every value object of the target is a default instance. |
+| The configuration binding generator, which `PublishAot` turns on | `var temp7 = new global::Quantity();` for a property of an options class. The options bind to default instances, and `ValidateOnStart` cannot tell. |
+
+It is reported in the generated file, which cannot be edited: the fix is on your side.
+
+**Mapperly.** Give it a method for each direction, which it picks by source and target type. This works on
+Mapperly 4.3.1 and 5.0.0-next.11, whether the value objects are declared in the mapper's project or in a project it
+references:
+
+```csharp skip
+public static class ValueObjectMappings
+{
+    public static Iban ToIban(string value) => Iban.Create(value);
+    public static string FromIban(Iban value) => value.Value;
+    public static OrderId ToOrderId(Guid value) => OrderId.Create(value);
+    public static Guid FromOrderId(OrderId value) => value.Value;
+}
+
+[Mapper]
+[UseStaticMapper(typeof(ValueObjectMappings))]
+public partial class OrderMapper
+{
+    public partial Order ToDomain(OrderDto dto);
+    public partial OrderDto ToDto(Order order);
+}
+```
+
+Write the methods out of a value object too. Without `FromOrderId`, Mapperly can map an `OrderId` to a `Guid` as
+`new Guid()`, which is `Guid.Empty`, silently: `VO0032` cannot see it, since a `Guid` is not a value object.
+
+**The configuration binding generator.** Keep the underlying type in the options class and create the value object
+where the options are read, or bind the value object in an `IConfigureOptions<T>` of your own that calls `Parse`.
+Without the generator, the binder that works by reflection goes through the generated `TypeConverter`, and reports
+a value its type rejects.
+
+**Another generator.** The list holds the names these two write as the first argument of `[GeneratedCode]`,
+`Riok.Mapperly` and `Microsoft.Extensions.Configuration.Binder.SourceGeneration`. Add others, comma-separated, under
+`adcodicem_value_objects.generated_code_tools` in a `.globalconfig` file, which the SDK reads from the project's
+directory or from any directory above it:
+
+```ini
+is_global = true
+adcodicem_value_objects.generated_code_tools = My.Generator, Other.Generator
+```
+
+The names add to the list, never replace it, and each must be the tool's name in full and in the same case. The
+`[GeneratedCode]` that counts is the nearest one: on the member holding the `new` or the `default`, or else on the
+type containing it, and so on outwards. The key is not read from an `.editorconfig`: a `[*.cs]` section reaches a
+generated file only when the project's intermediate output directory lies beneath that `.editorconfig`, which the
+artifacts output layout, for one, does not. A team that wants none of this suppresses `VO0032` as a whole:
+`dotnet_diagnostic.VO0032.severity = none` in that `.globalconfig`, or `<NoWarn>$(NoWarn);VO0032</NoWarn>` in the
+project. In an `.editorconfig` section, the same line misses the generated files, for the same reason.
+
+The System.Text.Json generator is not in the list, and should not be added to it. It writes
+`ObjectCreator = () => new global::Sku()` into the metadata of a context for every type it is given, and a context
+wired as [the JSON guide](../how-to/json.md#systemtextjson-source-generated) shows reads a value object through its
+converter, never through that line.
 
 ## Suppressing `VO0010` in a test
 

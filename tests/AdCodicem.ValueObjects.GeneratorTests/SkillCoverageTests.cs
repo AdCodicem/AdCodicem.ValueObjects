@@ -160,9 +160,9 @@ public sealed class SkillCoverageTests
 
     /// <summary>
     /// Reads the diagnostic identifiers out of the generator: the descriptors it reports while generating, plus
-    /// the ones its analyzers support, plus the ones the compiler reports for an obsolete member of the contracts,
-    /// which no descriptor declares. <c>DiagnosticDescriptors</c> is internal to the generator, so this goes
-    /// through reflection rather than adding an <c>InternalsVisibleTo</c> for the sake of a test.
+    /// the ones each of its analyzers supports, plus the ones the compiler reports for an obsolete member of the
+    /// contracts, which no descriptor declares. <c>DiagnosticDescriptors</c> is internal to the generator, so this
+    /// goes through reflection rather than adding an <c>InternalsVisibleTo</c> for the sake of a test.
     /// </summary>
     private static IReadOnlyList<string> Diagnostics()
     {
@@ -174,7 +174,10 @@ public sealed class SkillCoverageTests
             .Where(field => field.FieldType == typeof(DiagnosticDescriptor))
             .Select(field => ((DiagnosticDescriptor)field.GetValue(null)!).Id);
 
-        var analyzers = new DiagnosticAnalyzer[] { new ValueObjectHookAnalyzer(), new UninitializedValueObjectAnalyzer() }
+        // Every analyzer the assembly ships, so that a new one is held to the skill without being listed here.
+        var analyzers = generator.GetTypes()
+            .Where(type => type.GetCustomAttribute<DiagnosticAnalyzerAttribute>() is not null)
+            .Select(type => (DiagnosticAnalyzer)Activator.CreateInstance(type)!)
             .SelectMany(analyzer => analyzer.SupportedDiagnostics)
             .Select(descriptor => descriptor.Id);
 

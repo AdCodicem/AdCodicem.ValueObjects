@@ -79,7 +79,8 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     /// the analyzers shipped with <c>AdCodicem.ValueObjects</c> unless this is set, which is occasionally needed
     /// for a value object whose default state is meaningful, such as a sequence number starting at zero. They are
     /// reported where <c>default</c> or <c>new</c> is written: a parameter defaulting to <c>default</c> on its
-    /// declaration, not at each call that leaves the argument out.
+    /// declaration, not at each call that leaves the argument out. The same holds in the code another source
+    /// generator writes, such as a Riok.Mapperly mapping, where they are <c>VO0032</c> rather than <c>VO0010</c>.
     /// </remarks>
     public bool AllowDefault { get; set; }
 

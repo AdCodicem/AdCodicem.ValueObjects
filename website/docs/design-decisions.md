@@ -21,10 +21,14 @@ allocate nothing. See [Benchmarks](./benchmarks.md) for the numbers and for wher
 **`default(Iban)` is a build error.** A struct can always be brought into existence uninitialized, and that is
 the one hole a struct value object cannot close by itself. The `VO0010` analyzer closes it at compile time,
 which is what makes the struct representation — zero allocation, no null — safe to choose. Opt out per type
-with `AllowDefault = true`. What reaches a boundary the analyzer cannot see — an entity property never set, a
-default array element — is not written as it stands: the JSON converters, the Dapper handler and the EF Core
-converters refuse an uninitialized instance whose value its type rejects, and an optional EF Core column stores a
-`NULL` instead ([what each one throws](./reference/errors.md#a-value-refused-on-write)).
+with `AllowDefault = true`. Another source generator cannot see the generated members, and may write
+`new Iban()` in its own output: `VO0032` reports it in the code of Riok.Mapperly and of the configuration binding
+generator, and of any generator a `.globalconfig` adds
+([the fix](./reference/diagnostics.md#a-value-object-another-generator-creates)). What reaches a boundary the
+analyzer cannot see — an entity property never set, a default array element — is not written as it stands: the
+JSON converters, the Dapper handler and the EF Core converters refuse an uninitialized instance whose value its
+type rejects, and an optional EF Core column stores a `NULL` instead
+([what each one throws](./reference/errors.md#a-value-refused-on-write)).
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the
 value is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a

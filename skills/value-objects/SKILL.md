@@ -181,6 +181,10 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   (and `Maximum` through `IValueObjectMaximum<T>`). Never keep both: that is `VO0029`. A `Minimum` or `Maximum`
   written without its interface never runs: `VO0011`.
 - `CreateUnchecked` on input from outside the application. It validates nothing; it is for the EF read path.
+- A Riok.Mapperly mapper, or an options class bound by the configuration binding generator, that holds a value
+  object it has no method for — build error `VO0032`: another generator cannot see the generated members, so it
+  writes `new Iban()`. Give Mapperly `public static Iban ToIban(string value) => Iban.Create(value);` and its
+  reverse through `[UseStaticMapper]`; keep the underlying type in an options class.
 - An AutoMapper conversion to a value object with no map. The private constructor takes a tag only the generated
   code supplies, so AutoMapper finds no constructor and throws `AutoMapperMappingException`. Map through the
   factory: `CreateMap<string, Iban>().ConvertUsing(s => Iban.Create(s))`. On `ExplicitConversionFromValue = true`,

@@ -25,7 +25,7 @@ JSON strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`,
 | `ImplicitConversionToValue` | `bool` | `false` | `string s = iban;` |
 | `ExplicitConversionFromValue` | `bool` | `false` | `(Iban)text`, validating like `Create`. |
 | `AllowEmpty` | `bool` | `false` | `string` only. Accepts `""`; `null` is still rejected, since absence is `T?`. |
-| `AllowDefault` | `bool` | `false` | Silences `VO0010`, for a type whose zero state is meaningful. |
+| `AllowDefault` | `bool` | `false` | Silences `VO0010`, and `VO0032` in the code another generator writes, for a type whose zero state is meaningful. |
 | `SchemaFormat` | `string?` | the natural format of the type | OpenAPI `format`: `uuid`, `date`, `int64`, or your own such as `iban` or `email`. A `TimeSpan` has none: it is documented with the pattern of its constant form, not as an ISO 8601 `duration`. |
 | `Example` | `string?` | none | OpenAPI example, written as text the type parses in the invariant culture. A value the type's own rules refuse → `VO0031`: see [declared values](#declared-values-the-type-must-accept). |
 | `Description` | `string?` | the type's XML `<summary>`, as plain text: a `<see cref>` reads as the name it refers to, a `<c>` as its text | OpenAPI description. |
