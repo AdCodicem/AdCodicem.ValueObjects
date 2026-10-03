@@ -154,10 +154,11 @@ The message names the type and the rule, never the value.
 ## Detecting an uninitialized instance
 
 `IsDefault` is `true` for an instance equal to `default(TSelf)`, such as one that crossed a boundary the `VO0010`
-analyzer cannot see: a default array element or another library's deserializer. Over a `string`, that is exactly an
-instance that never went through `Create`. Over a value type, a constructed instance holding the type's zero
-(`Amount.Create(0m)`, `OrderId.Create(Guid.Empty)`) equals the default too and reads `true`; only the
-analyzer and validation tell them apart. FluentValidation's
+analyzer cannot see: a default array element or another library's deserializer.
+[Where a default instance can come from](./default-instances.md) lists the sources observed, and what closes each.
+Over a `string`, that is exactly an instance that never went through `Create`. Over a value type, a constructed
+instance holding the type's zero (`Amount.Create(0m)`, `OrderId.Create(Guid.Empty)`) equals the default too and reads
+`true`; only the analyzer and validation tell them apart. FluentValidation's
 [`NotDefault`](../how-to/fluentvalidation.md#an-uninitialized-value-object) rule checks it at the edge, and so refuses
 a valid zero. The writers do not stop at it: they validate the default, and refuse only the value its type rejects
 ([above](#a-value-refused-on-write)).

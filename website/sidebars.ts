@@ -48,6 +48,7 @@ const sidebars: SidebarsConfig = {
         'authoring-guide',
         'reference/generated-members',
         'reference/errors',
+        'reference/default-instances',
         'reference/diagnostics',
         {
           type: 'category',
