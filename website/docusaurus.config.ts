@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type {Config, Plugin} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import type {PluginOptions as SearchOptions} from '@easyops-cn/docusaurus-search-local';
 import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 import sidebars from './sidebars';
 import {adcodicem} from './src/prism-adcodicem';
@@ -290,6 +291,24 @@ const config: Config = {
 
   plugins: [homepageExample, llmsTxt, contrast],
 
+  // Local search: the build writes a lunr index for each version of the docs, served with the site, so a search
+  // reaches no third party and always describes what is deployed. The search bar searches the version the reader is
+  // in. The preview is noIndex once a stable line exists, which keeps it out of search engines but must not keep it
+  // out of its own search.
+  themes: [
+    [
+      '@easyops-cn/docusaurus-search-local',
+      {
+        hashed: true,
+        indexBlog: false,
+        docsRouteBasePath: 'docs',
+        language: ['en'],
+        explicitSearchResultPath: true,
+        forceIgnoreNoIndex: true,
+      } satisfies SearchOptions,
+    ],
+  ],
+
   themeConfig: {
     // The design system is designed dark first: ink is what a reader gets when the system expresses no preference.
     colorMode: {
@@ -336,6 +355,7 @@ const config: Config = {
               {type: 'docsVersionDropdown', versions: stableLines, position: 'right' as const},
             ]
           : []),
+        {type: 'search', position: 'right'},
         // Drawn as the design system's icon buttons, `nuget` and `github` (custom.css); the label is what screen
         // readers and the mobile menu read.
         {
