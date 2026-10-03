@@ -97,11 +97,39 @@ public sealed class EmissionTests
             "public int CompareTo(global::Test.Code",
             "public bool TryFormat(",
             "public override string ToString()",
-            "public bool IsDefault",
         })
         {
             generated.Should().Contain(member);
         }
+    }
+
+    /// <summary>
+    /// A tool reading the public instance properties of a type publishes each as data, so <c>IsDefault</c>, a guard
+    /// for code, is implemented explicitly: over a string it tells an instance holding no string, over a value type an
+    /// instance equal to the type's zero.
+    /// </summary>
+    /// <param name="declaration">The declaration.</param>
+    /// <param name="implementation">The implementation expected.</param>
+    [Theory]
+    [InlineData(
+        "[ValueObject<string>] public readonly partial struct Code;",
+        "bool global::AdCodicem.ValueObjects.IValueObject<global::Test.Code, global::System.String>.IsDefault => _value is null;")]
+    [InlineData(
+        "[ValueObject<decimal>(Arithmetic = true)] public readonly partial struct Amount;",
+        "bool global::AdCodicem.ValueObjects.IValueObject<global::Test.Amount, global::System.Decimal>.IsDefault => _value.Equals(default(global::System.Decimal));")]
+    [InlineData(
+        "[EntityId(\"acc\")] public readonly partial struct AccountId;",
+        "bool global::AdCodicem.ValueObjects.IValueObject<global::Test.AccountId, global::System.String>.IsDefault => _value is null;")]
+    [InlineData(
+        "[ValueObject<global::System.Guid>] public readonly partial struct Key<T>;",
+        "bool global::AdCodicem.ValueObjects.IValueObject<global::Test.Key<T>, global::System.Guid>.IsDefault => _value.Equals(default(global::System.Guid));")]
+    public void IsDefault_is_an_explicit_implementation_of_the_contract(string declaration, string implementation)
+    {
+        var run = GeneratorHarness.Run(declaration);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain(implementation).And.NotContain("public bool IsDefault");
     }
 
     [Fact]

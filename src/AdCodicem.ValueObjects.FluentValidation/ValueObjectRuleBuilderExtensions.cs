@@ -126,7 +126,8 @@ public static class ValueObjectRuleBuilderExtensions
     }
 
     /// <summary>
-    /// Requires a value object member to hold a value that actually went through validation.
+    /// Requires a value object member not to equal <c>default(TSelf)</c>, through
+    /// <see cref="IValueObject{TSelf, TValue}.IsDefault"/>.
     /// </summary>
     /// <typeparam name="T">Validated object.</typeparam>
     /// <typeparam name="TSelf">Value object type.</typeparam>
@@ -134,8 +135,15 @@ public static class ValueObjectRuleBuilderExtensions
     /// <param name="ruleBuilder">Rule builder for a value object member.</param>
     /// <returns>The rule, so it can be configured further.</returns>
     /// <remarks>
+    /// <para>
     /// Catches the one hole a struct value object cannot close by itself: an uninitialized instance, which the
     /// CLR always allows and which the analyzer only catches where it can see the code.
+    /// </para>
+    /// <para>
+    /// Over a value type, a constructed instance holding the type's zero (<c>0</c>, <see cref="Guid.Empty"/>, …) equals
+    /// the default too, so the rule refuses a valid zero as <c>value_object.required</c>. Keep it for a value object
+    /// over <see cref="string"/>, or over a value type whose rules refuse its zero anyway.
+    /// </para>
     /// </remarks>
     public static IRuleBuilderOptions<T, TSelf> NotDefault<T, TSelf, TValue>(this IRuleBuilder<T, TSelf> ruleBuilder)
         where TSelf : struct, IValueObject<TSelf, TValue>

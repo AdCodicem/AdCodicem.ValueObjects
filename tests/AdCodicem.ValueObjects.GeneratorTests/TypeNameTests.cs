@@ -267,6 +267,17 @@ public sealed class TypeNameTests
     }
 
     /// <summary>
+    /// <c>IsDefault</c> is implemented explicitly, which takes no name in the type: a value object may be named after
+    /// it or after its getter, over a reference type and a value type alike.
+    /// </summary>
+    [Theory]
+    [InlineData("[ValueObject<string>]", "IsDefault")]
+    [InlineData("[ValueObject<int>]", "IsDefault")]
+    [InlineData("[EntityId(\"acc\")]", "get_IsDefault")]
+    public void A_type_may_take_the_name_of_the_explicit_IsDefault(string attribute, string name)
+        => A_type_name_the_options_leave_free_is_generated(attribute, name);
+
+    /// <summary>
     /// The retry loop of a span formatting hook is written only where that hook answers. When a string formatting
     /// hook answers in its place, on a value object as on an identifier, a type may take the loop's name.
     /// </summary>

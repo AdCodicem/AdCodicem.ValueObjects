@@ -315,6 +315,17 @@ public sealed class KnownValueNameTests
     }
 
     /// <summary>
+    /// <c>IsDefault</c> is implemented explicitly, which takes no name in the type, so a known value may take its name
+    /// or its getter's.
+    /// </summary>
+    [Theory]
+    [InlineData("string", "IsDefault", "\"D\"")]
+    [InlineData("int", "IsDefault", "0")]
+    [InlineData("string", "get_IsDefault", "\"G\"")]
+    public void A_known_value_may_take_the_name_of_the_explicit_IsDefault(string underlying, string name, string literal)
+        => A_member_name_the_options_leave_free_is_usable_as_a_known_value_name(underlying, name, literal);
+
+    /// <summary>
     /// The retry loop of a span formatting hook is written only where that hook answers. When a string formatting
     /// hook answers in its place, its name stays free.
     /// </summary>

@@ -59,12 +59,25 @@ public interface IValueObject<TSelf, TValue> :
     where TSelf : struct, IValueObject<TSelf, TValue>
 {
     /// <summary>
-    /// Gets a value indicating whether this instance is the uninitialized <see langword="default"/> of its type.
+    /// Gets a value indicating whether this instance equals <c>default(TSelf)</c>.
     /// </summary>
     /// <remarks>
-    /// <c>default(TSelf)</c> and <c>new TSelf()</c> bypass validation because the CLR always allows them for a
-    /// struct. The analyzers shipped with <c>AdCodicem.ValueObjects</c> report those expressions as errors; this
-    /// property is the runtime guard for values that cross a boundary the analyzer cannot see.
+    /// <para>
+    /// Over a reference type (<see cref="string"/>), that is exactly an instance that never went through <c>Create</c>.
+    /// Over a value type, a constructed instance holding the type's zero (<c>0</c>, <see cref="Guid.Empty"/>, …) also
+    /// equals the default and reads <see langword="true"/>; only the <c>VO0010</c> analyzer and validation tell them
+    /// apart.
+    /// </para>
+    /// <para>
+    /// <c>default(TSelf)</c> and <c>new TSelf()</c> bypass validation because the CLR always allows them for a struct.
+    /// The analyzers shipped with <c>AdCodicem.ValueObjects</c> report those expressions as errors (<c>VO0010</c>);
+    /// this property is the run-time guard for values that cross a boundary the analyzer cannot see.
+    /// </para>
+    /// <para>
+    /// A generated value object implements it explicitly, so that a tool reading the public instance properties of the
+    /// type finds <c>Value</c> alone. Generic code constrained on this interface reads it without boxing; code holding
+    /// the concrete type calls such generic code, or casts to the interface, which boxes.
+    /// </para>
     /// </remarks>
     bool IsDefault { get; }
 

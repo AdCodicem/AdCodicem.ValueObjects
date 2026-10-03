@@ -59,9 +59,12 @@ actually generated, and what does it call?".
   the type and the rule, never the value: `'Iban' rejected the supplied text: …` from `Parse`. `AttemptedValue`
   carries the raw value, which an exception logger records in clear, except on a type classified as personal data
   with an attribute derived from `DataClassificationAttribute`, where it is `null` (see `authoring.md`).
-- `IsDefault` returning `true` — an instance that never went through validation crossed a boundary the
-  analyzer cannot see (deserialization of a struct by another library, reflection, a default array element).
-  Guard with `FluentValidation`'s `NotDefault`, or check it where the value enters.
+- `IsDefault` returning `true` — an instance equal to `default(TSelf)` crossed a boundary the analyzer cannot see
+  (deserialization of a struct by another library, reflection, a default array element). Over a value type, a valid
+  zero (`Amount.Create(0m)`, `Guid.Empty`) reads `true` as well, and `FluentValidation`'s `NotDefault` refuses it
+  as `value_object.required`: guard with `NotDefault` over a `string`, or where the rules refuse the zero anyway.
+- `'Iban' does not contain a definition for 'IsDefault'` (CS1061) — the generated implementation is explicit. Read
+  it through `IValueObject<TSelf, TValue>`: a method constrained on it, or `((IValueObject<Iban, string>)iban).IsDefault`.
 - A rejected value reported as `value_object.not_parsable` when you expected your own code — the text did not
   even have the shape of the underlying type, so no rule of yours was ever reached. `12,5` or `1,234.5` over a
   `decimal`, `double` or `float`, read with no provider or the invariant culture, is such text: pass the culture the

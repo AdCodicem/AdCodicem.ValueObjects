@@ -35,7 +35,7 @@ internal static class ValueObjectEmitter
     /// <summary>The members written on every value object, by name.</summary>
     private static readonly string[] CommonMembers =
     [
-        "_value", "Value", "IsDefault", "KnownValues", "Schema", "Normalize", "Validate", "Create", "TryCreate",
+        "_value", "Value", "KnownValues", "Schema", "Normalize", "Validate", "Create", "TryCreate",
         "CreateUnchecked", "Equals", "GetHashCode", "CompareTo", "ToString", "TryFormat", "Parse", "TryParse",
         "ValueJsonConverter", "ValueTypeConverter",
     ];
@@ -47,7 +47,7 @@ internal static class ValueObjectEmitter
     /// The getters of the properties written on every value object. The compiler names a getter <c>get_</c>
     /// followed by its property's name and reserves that name in the type, as it does a member's.
     /// </summary>
-    private static readonly string[] CommonGetters = ["get_Value", "get_IsDefault", "get_KnownValues", "get_Schema"];
+    private static readonly string[] CommonGetters = ["get_Value", "get_KnownValues", "get_Schema"];
 
     /// <summary>The getters of the properties arithmetic adds.</summary>
     private static readonly string[] ArithmeticGetters = ["get_Zero", "get_One", "get_IsZero"];
@@ -319,17 +319,17 @@ internal static class ValueObjectEmitter
             : $"public {value} Value => _value;");
         writer.Line();
 
+        // Explicit, so that a tool reading the public instance properties of the type (a logger destructuring it, a
+        // schema generator, an exporter) finds the value alone, not a guard meant for code.
         writer.Line("/// <inheritdoc />");
         writer.Line(underlying.IsReferenceType
-            ? "public bool IsDefault => _value is null;"
-            : $"public bool IsDefault => _value.Equals(default({value}));");
+            ? $"bool {Abstractions}.IValueObject<{self}, {value}>.IsDefault => _value is null;"
+            : $"bool {Abstractions}.IValueObject<{self}, {value}>.IsDefault => _value.Equals(default({value}));");
         writer.Line();
 
         writer.Line("/// <inheritdoc />");
         writer.Line($"object? {Abstractions}.IValueObject.GetBoxedValue() => Value;");
         writer.Line();
-
-        _ = self;
     }
 
     /// <summary>

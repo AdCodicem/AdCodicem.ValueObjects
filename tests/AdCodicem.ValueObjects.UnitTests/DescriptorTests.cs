@@ -229,7 +229,7 @@ public sealed class DescriptorTests
         iban.GetValue(iban.CreateUnchecked("not an iban")).Should().Be("not an iban");
         country.CreateUnchecked("FR").Should().BeSameAs(country.Create("FR"));
         country.GetValue(country.CreateUnchecked("ES")).Should().Be("ES", "a trusted value is never checked against the set");
-        ((CountryCode)country.CreateUnchecked(null)).IsDefault.Should().BeTrue();
+        ((IValueObject<CountryCode, string>)country.CreateUnchecked(null)).IsDefault.Should().BeTrue();
     }
 
     [Fact]

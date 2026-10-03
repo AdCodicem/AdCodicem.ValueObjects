@@ -128,6 +128,15 @@ application validated when it wrote it.
 
 ## Detecting an uninitialized instance
 
-`IsDefault` is `true` for an instance that was never constructed: one that crossed a boundary the `VO0010`
-analyzer cannot see, such as a default array element or another library's deserializer. FluentValidation's
-[`NotDefault`](../how-to/fluentvalidation.md#an-uninitialized-value-object) rule checks it at the edge.
+`IsDefault` is `true` for an instance equal to `default(TSelf)`, such as one that crossed a boundary the `VO0010`
+analyzer cannot see: a default array element or another library's deserializer. Over a `string`, that is exactly an
+instance that never went through `Create`. Over a value type, a constructed instance holding the type's zero
+(`Amount.Create(0m)`, `OrderId.Create(Guid.Empty)`) equals the default too and reads `true`; only the
+analyzer and validation tell them apart. FluentValidation's
+[`NotDefault`](../how-to/fluentvalidation.md#an-uninitialized-value-object) rule checks it at the edge, and so refuses
+a valid zero.
+
+A generated value object implements it explicitly, as a member of `IValueObject<TSelf, TValue>`, so a tool reading
+the public properties of the type (a logger destructuring it, a schema generator, an exporter) does not publish it.
+Generic code constrained on the interface reads it without boxing; code holding the concrete type casts to the
+interface, `((IValueObject<Iban, string>)iban).IsDefault`, which boxes.
