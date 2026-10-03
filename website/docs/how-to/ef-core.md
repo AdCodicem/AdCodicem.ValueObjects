@@ -2,7 +2,7 @@
 title: Use with Entity Framework Core
 sidebar_label: Entity Framework Core
 slug: /how-to/ef-core
-description: Map every value object of an assembly to its underlying column type in one call, size columns from declared rules, choose when reads are validated, never store a value a type rejects, and compile the model.
+description: Map every value object of an assembly to its underlying column type in one call, size columns from declared rules, choose when reads are validated, never store a value a type rejects, compile the model, and work with JSON columns, raw SQL, other providers, bulk extensions, Always Encrypted and data masking.
 ---
 
 # Use with Entity Framework Core
@@ -167,6 +167,79 @@ queries, which any converted type reproduces without this library, fail a query 
 has a converter, and a query that takes a parameter of a converted type. Until they are fixed, native AOT is out of
 reach for an application reading value objects through Entity Framework Core, and the package does not claim to be
 AOT-compatible.
+
+## Complex types and JSON columns
+
+Complex types, `ToJson`, complex collections and owned types mapped to JSON work with the convention, and the rules
+still shape the query: a value object declaring `MaxLength = 34` is read as
+`JSON_VALUE([i].[Shipping], '$.Account' RETURNING nvarchar(34)) = @iban` on SQL Server. A collection of value objects
+inside them fails, as a collection of value objects does anywhere in the model.
+
+## Raw SQL
+
+`FromSql` and `SqlQuery` know nothing of the convention. `FromSql($"… WHERE Iban = {iban}")` throws
+`The current provider doesn't have a store type mapping for properties of type 'Iban'`, and so does
+`SqlQuery<Iban>`. Pass `.Value` as the parameter, and create the value object from a scalar result:
+
+```csharp skip
+var orders = await db.Orders.FromSql($"SELECT * FROM Orders WHERE Iban = {iban.Value}").ToListAsync();
+```
+
+## Other providers
+
+**Azure Cosmos DB**, through Microsoft.EntityFrameworkCore.Cosmos 10.0.12: the convention applies, and equality, range
+and nullable queries translate. `ibans.Contains(x.Iban)` throws
+`Couldn't find array type mapping when applying item/array mappings`, as it does for any value converter, one written
+by hand included: write a chain of `||`, or query the underlying values. `MaxLength` has no effect there. This was
+checked offline, on the text of the queries.
+
+**MongoDB**, through MongoDB.EntityFrameworkCore 10.0.4: the convention is mandatory. Without it, the provider writes a
+value object as `{}` and reads it back as a default instance, where a relational provider refuses to build the model.
+With it, values are stored bare, queries translate, and strict reads validate. On a standalone `mongod`, which has no
+transactions, `SaveChanges` needs `db.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never`; a replica set
+does not.
+
+## Bulk extensions and linq2db
+
+**EFCore.BulkExtensions 10.0.1** reads the model, so the convention is all it needs: `BulkInsert`, `BulkUpdate`,
+`BulkRead` keyed on a value object, `BulkInsertOrUpdate` and `BulkDelete` honour the converter, the nullability and
+the column sizes, and a strict context validates on `BulkRead`. It writes through the same converters, so a default its
+type rejects is refused as [on write](#validation-on-write) (inferred, not run).
+
+**Z.EntityFramework.Extensions 10.105.8.1**, a commercial package: `BulkInsert`, `BulkMerge` on a value-object key and
+`UpdateFromQuery` work. `WhereBulkContains` over a list of value objects fails,
+`'Iban' is not a member of type 'Probe.Domain.Iban'`: pass anonymous objects instead, `new { Iban = iban }`.
+
+**linq2db.EntityFrameworkCore 10.6.0**: after `LinqToDBForEFTools.Initialize()`, `ToLinqToDB()` queries, `BulkCopy`,
+`Merge` and `Update().Set(…)` use the converters and the column sizes of the model, `DECLARE @iban NVarChar(34)`.
+Compare value objects there too, not `.Value`, which linq2db cannot translate.
+
+## Always Encrypted
+
+The converter runs before SqlClient encrypts, so deterministic equality, `Contains`, reads and `ExecuteUpdate` work on
+an encrypted column. Three things trip it:
+
+- A parameter wider than the column is refused. Declare a `MaxLength` no greater than the column's size: a value object
+  without one is sent as `nvarchar(4000)`.
+- A `varchar` column needs the value object mapped as non-Unicode:
+  `configurationBuilder.Properties<Iban>().AreUnicode(false)`.
+- A value object created inside a predicate, `Iban.Create("…")`, becomes a literal, which cannot be encrypted: hoist
+  it into a variable, as [Columns sized by the type](#columns-sized-by-the-type) shows.
+
+`BulkInsertOrUpdate` of EFCore.BulkExtensions does not work on randomized columns.
+
+## Dynamic data masking
+
+With EntityFrameworkCore.Extensions 10.2.0, a mask is one line per type, and covers its optional properties too:
+
+```csharp skip
+configurationBuilder.Properties<Iban>()
+    .HaveAnnotation(AnnotationConstants.DynamicDataMasking, MaskingFunctions.Partial(2, "XXXXXXXX", 4));
+```
+
+A principal without `UNMASK` reads `DEXXXXXXXX3000`, which the default read, trusting the column, turns into an `Iban`
+its rules refuse, and not a default one; a masked `int` reads as `0`, a default `Quantity`. Use
+[strict reads](#validation-on-read) on a masked column.
 
 ## Public identifiers
 

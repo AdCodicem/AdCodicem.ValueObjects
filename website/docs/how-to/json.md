@@ -154,14 +154,14 @@ change what the converter is handed.
 
 ### Without the converter
 
-Newtonsoft.Json falls back to the type converter the generator writes on every value object. A host that
-serializes through Newtonsoft.Json on settings of its own takes this path until its settings get the converter: the
-Azure Cosmos DB SDK v3 and Hangfire both do by default. Newtonsoft.Json then writes each value object as a string, a
-number included, `"Quantity":"7"`, and reads a string, or a number of any numeric type, through the value object's
-rules. For a number, the two modes read each other's data: a host without the converter reads the
-numbers System.Text.Json and the converter write, and the converter reads the numbers a host stored without it, which
-can add it without draining what it stored first. A boolean is the exception: the type converter writes `"True"`,
-a string where the converter reads a boolean.
+Newtonsoft.Json falls back to the type converter the generator writes on every value object. A host that serializes
+through Newtonsoft.Json on settings of its own takes this path until its settings get the converter: the
+[Azure Cosmos DB SDK v3](./azure.md#cosmos-db-sdk) and [Hangfire](./messaging.md#hangfire) both do by default.
+Newtonsoft.Json then writes each value object as a string, a number included, `"Quantity":"7"`, and reads a string,
+or a number of any numeric type, through the value object's rules. For a number, the two modes read each other's
+data: a host without the converter reads the numbers System.Text.Json and the converter write, and the converter
+reads the numbers a host stored without it, which can add it without draining what it stored first. A boolean is the
+exception: the type converter writes `"True"`, a string where the converter reads a boolean.
 
 The converter is still the one to use. System.Text.Json on its default options refuses a number written as a
 string. A rejection loses its rule: Newtonsoft.Json reports `Could not cast or convert from System.String to

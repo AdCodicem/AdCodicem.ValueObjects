@@ -2,7 +2,7 @@
 title: Use with Dapper
 sidebar_label: Dapper
 slug: /how-to/dapper
-description: Register Dapper type handlers for every value object of an assembly, so raw SQL reads and writes the underlying value.
+description: Register Dapper type handlers for every value object of an assembly, so raw SQL reads and writes the underlying value, and declare them for Dapper.AOT.
 ---
 
 # Use with Dapper
@@ -132,3 +132,19 @@ So a nullable column belongs in a nullable member: declare `Iban?` wherever the 
 join included.
 
 An optional value object holding nothing goes out as a `NULL` parameter.
+
+## Dapper.AOT
+
+Dapper.AOT 1.1.0 intercepts the calls it can, at build time, and ignores the handlers in `SqlMapper`'s table, so
+`AddValueObjectHandlers` does not reach them: a parameter fails with
+`No mapping exists from object type Probe.Domain.OrderId`, and a read goes through `GetFieldValue<Iban>`. Declare each
+handler at module level, and keep `AddValueObjectHandlers` for the calls Dapper.AOT does not intercept:
+
+```csharp skip
+[module: DapperAot]
+[module: TypeHandler(typeof(Iban), typeof(ValueObjectTypeHandler<Iban, string>))]
+[module: TypeHandler(typeof(Quantity), typeof(ValueObjectTypeHandler<Quantity, int>))]
+```
+
+`QuerySingle<Iban>` stays a build error, `DAP037`, since Dapper.AOT takes a value object for a row type: query the
+underlying type, and `Create` the value object from it.
