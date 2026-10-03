@@ -35,8 +35,8 @@ was unclear, a compiled test project. Libraries move: if something here is out o
 | Column size from the type's rules | yes | no | no | no, a max-length strategy can be configured |
 | EF Core reads validate | on request (`strict: true`) | by default | — | no, reads use the constructor |
 | ASP.NET Core model binding | yes | through the `TypeConverter` | through the `TypeConverter` | yes |
-| Problem details carry the violated rule's code | yes | no | no | no |
-| OpenAPI | built-in stack, with lengths, pattern, bounds, `enum` | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
+| Problem details carry the violated rule's code | MVC controllers | no | no | no |
+| OpenAPI | built-in stack, with lengths, pattern, bounds, `enum` on a body's value objects | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
 | FluentValidation | yes | third-party package | no | no |
 | Dapper | yes | yes | through a template | no |
 | Other serializers and stores | Newtonsoft.Json | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
@@ -53,8 +53,8 @@ becomes the OpenAPI `maxLength`; `Pattern` and `Minimum` do the same for the sch
 schema have to be told separately — which is exactly the drift that primitive obsession produces.
 
 **A rejection is data a client can act on.** Validation returns a `ValidationResult` struct holding a stable
-code and a message, and allocates nothing when the value is valid. The code travels to problem details
-responses and FluentValidation failures, so an API client branches on `value_object.too_long` rather than on
+code and a message, and allocates nothing when the value is valid. The code travels to the problem details of
+MVC controllers and to FluentValidation failures, so an API client branches on `value_object.too_long` rather than on
 English.
 
 **Rules are found by interface, not by name.** `IValueObjectValidator<T>` and `IValueObjectNormalizer<T>` let the

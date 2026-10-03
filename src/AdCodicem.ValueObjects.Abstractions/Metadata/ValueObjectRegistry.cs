@@ -160,6 +160,13 @@ public static class ValueObjectRegistry
     /// <param name="type">Value object type, possibly nullable.</param>
     /// <param name="descriptor">The descriptor when found.</param>
     /// <returns><see langword="true"/> when a descriptor is registered for <paramref name="type"/>.</returns>
+    /// <remarks>
+    /// Asked for <c>Iban?</c>, it returns the descriptor of <c>Iban</c>: a descriptor describes the value object
+    /// itself, never its nullable type. A converter or a provider built from it closes its generic types over
+    /// <see cref="ValueObjectDescriptor.ValueObjectType"/> rather than over <paramref name="type"/>, which a
+    /// constraint on the value object refuses for a <see cref="Nullable{T}"/>, and handles a <see langword="null"/>
+    /// before the descriptor's delegates see it, leaving it to the host's own nullable wrapper where one exists.
+    /// </remarks>
     public static bool TryGet(Type type, [NotNullWhen(true)] out ValueObjectDescriptor? descriptor)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -176,6 +183,10 @@ public static class ValueObjectRegistry
     /// <see langword="true"/> when <paramref name="type"/> is a value object, as <see cref="IsValueObject"/> defines
     /// one.
     /// </returns>
+    /// <remarks>
+    /// Asked for <c>Iban?</c>, it returns the descriptor of <c>Iban</c>, as <see cref="TryGet"/> does, and the caller
+    /// handles <see cref="Nullable{T}"/> and <see langword="null"/> as <see cref="TryGet"/> says.
+    /// </remarks>
     [RequiresDynamicCode("Building a descriptor for an unregistered value object instantiates a generic method at run time.")]
     [RequiresUnreferencedCode("Building a descriptor for an unregistered value object inspects its interfaces and attributes.")]
     public static bool TryResolve(Type type, [NotNullWhen(true)] out ValueObjectDescriptor? descriptor)

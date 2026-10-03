@@ -29,7 +29,20 @@ A value object declaring `MaxLength` also sizes its column: an `Iban` with `MaxL
 object lands in the provider's native GUID column. Change the rule on the type, and the next migration follows.
 
 LINQ queries compare value objects as they would compare the underlying values:
-`Where(a => a.Iban == iban)` becomes an ordinary `WHERE` on the column.
+`Where(a => a.Iban == iban)` becomes an ordinary `WHERE` on the column, with `iban` sent as a parameter.
+
+That holds for a value captured in a variable. A value created inside the predicate is evaluated while the query is
+translated and written into the SQL as a literal: `Where(a => a.Iban == Iban.Create("DE89370400440532013000"))`
+gives `WHERE [a].[Iban] = N'DE89370400440532013000'`, and `Quantity.Create(3)` gives `= 3`. Each value then makes a
+statement of its own in the plan cache, and on an Always Encrypted column the query fails, since a literal cannot be
+encrypted. Hoist the value into a variable, or wrap it in `EF.Parameter(...)`:
+
+```csharp skip
+var iban = Iban.Create("DE89370400440532013000");
+var accounts = await db.Accounts.Where(a => a.Iban == iban).ToListAsync();
+```
+
+A static property, `Currency.Eur`, is sent as a parameter already.
 
 ## Validation on read
 
@@ -48,6 +61,11 @@ On a key, that has a consequence: a row stored as `fr76 3000 …` is tracked und
 the table holds. An update or a delete of that row through the strict context matches no row, and `SaveChanges`
 throws a `DbUpdateConcurrencyException`, as it does for a row another writer deleted. Normalize such keys in the
 table before relying on strict reads to write them back.
+
+`strict` is read once per context type, not per instance. Entity Framework Core builds the model the first time a
+context type is used and caches it for every later instance, so a context whose constructor chooses `strict` from an
+argument gets whichever model was built first, and the other value does nothing. Give strict reads a context type of
+their own, which may derive from the other, or a custom `IModelCacheKeyFactory` that puts the choice in the key.
 
 ## Validation on write
 

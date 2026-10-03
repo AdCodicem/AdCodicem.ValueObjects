@@ -100,8 +100,10 @@ public async Task<IReadOnlyList<CustomerResponse>> List([FromQuery] CountryCode?
 public async Task<ActionResult<CustomerResponse>> Create([FromBody] CreateCustomerRequest request, CancellationToken cancellationToken)
 ```
 
-A minimal API needs none of the above: a generated value object implements `IParsable<T>`, which is what minimal
-API parameter binding looks for.
+A minimal API needs none of the above to bind: a generated value object implements `IParsable<T>`, which is what
+minimal API parameter binding looks for. A rejected value is a bare 400 there, though, with no code: the problem
+details carrying it are MVC's. And under the Request Delegate Generator, a value object declared in the endpoints'
+project is not bound, as [Minimal APIs](../how-to/aspnet-core.md#minimal-apis) explains.
 
 ```csharp skip
 app.MapGet("/customers/{id}", async (CustomerId id, ShopDbContext database) => /* … */);

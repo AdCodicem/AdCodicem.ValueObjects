@@ -91,8 +91,10 @@ also write to.
 
 ### Does it work with minimal APIs?
 
-Yes, with nothing to install: a value object implements `IParsable<T>`, which is what minimal API parameter
-binding looks for.
+Yes, with no package to install: a value object implements `IParsable<T>`, which is what minimal API parameter
+binding looks for. A value it rejects is answered with a bare 400, though, naming neither the parameter nor the rule:
+the problem details carrying the rule's code are MVC's, as [Minimal APIs](./how-to/aspnet-core.md#minimal-apis)
+explains, along with what the Request Delegate Generator changes.
 
 ### Does it work with Swashbuckle?
 
