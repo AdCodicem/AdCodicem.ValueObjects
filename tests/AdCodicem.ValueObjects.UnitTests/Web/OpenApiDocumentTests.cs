@@ -299,6 +299,162 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
         percentage.TryGetProperty("x-maximum", out _).Should().BeFalse();
     }
 
+    /// <summary>
+    /// A route, query or header parameter is bound from text, and ASP.NET Core hands its schema to the transformers
+    /// as a string's. It is described as its value object nonetheless, in minimal APIs, in MVC actions, in a type
+    /// gathered with <c>[AsParameters]</c> and in a model MVC binds from the query string, nullable or not: the very
+    /// schema of the value object's component, in place or as a reference to it.
+    /// </summary>
+    /// <param name="path">Route template of the operation.</param>
+    /// <param name="name">Name of the parameter.</param>
+    /// <param name="valueObject">The value object it is.</param>
+    [Theory]
+    [InlineData("/accounts/{iban}", "iban", nameof(Iban))]
+    [InlineData("/accounts/{iban}", "quantity", nameof(Quantity))]
+    [InlineData("/accounts/{iban}", "country", nameof(CountryCode))]
+    [InlineData("/accounts/{iban}", "X-Page", nameof(PageNumber))]
+    [InlineData("/accounts/{iban}", "within", nameof(Duration))]
+    [InlineData("/ledgers/{account}", "account", nameof(AccountId))]
+    [InlineData("/ledgers/{account}", "Above", nameof(Amount))]
+    [InlineData("/ledgers/{account}", "X-Grade", nameof(Grade))]
+    [InlineData("/mvc/accounts/{iban}", "iban", nameof(Iban))]
+    [InlineData("/mvc/accounts/{iban}", "quantity", nameof(Quantity))]
+    [InlineData("/mvc/accounts/{iban}", "country", nameof(CountryCode))]
+    [InlineData("/mvc/accounts/{iban}", "X-Page", nameof(PageNumber))]
+    [InlineData("/mvc/accounts/search", "Least", nameof(Quantity))]
+    [InlineData("/mvc/accounts/search", "Country", nameof(CountryCode))]
+    public void A_parameter_carries_the_rules_of_its_value_object(string path, string name, string valueObject)
+    {
+        var parameter = Resolve(document.Parameter(path, name));
+
+        JsonElement.DeepEquals(parameter, document.Schema(valueObject)).Should().BeTrue(
+            $"{name} is a {valueObject}: {parameter.GetRawText()} should be {document.Schema(valueObject).GetRawText()}");
+    }
+
+    /// <summary>
+    /// A route constraint is a rule of the parameter, which a request satisfies beside the value object's: describing
+    /// the parameter as its value object keeps the stricter bound and length of the two, and a pattern the value object
+    /// has none of.
+    /// </summary>
+    [Fact]
+    public void A_parameter_keeps_the_stricter_rules_its_route_constraints_add_to_its_value_object()
+    {
+        const string path = "/constrained/{page}/{quantity}/{iban}/{country}";
+        var page = document.Parameter(path, "page");
+        var quantity = document.Parameter(path, "quantity");
+        var iban = document.Parameter(path, "iban");
+        var country = document.Parameter(path, "country");
+
+        page.GetProperty("minimum").GetInt32().Should().Be(5, "the route asks for more than the value object's 1");
+        page.GetProperty("maximum").GetInt32().Should().Be(50, "the value object has no maximum");
+        page.GetProperty("description").GetString().Should().Be(document.Schema(nameof(PageNumber)).GetProperty("description").GetString());
+        quantity.GetProperty("minimum").GetInt32().Should().Be(0);
+        quantity.GetProperty("maximum").GetInt32().Should().Be(1000, "the value object asks for less than the route's 5000");
+        iban.GetProperty("minLength").GetInt32().Should().Be(20, "the route asks for more than the value object's 15");
+        iban.GetProperty("maxLength").GetInt32().Should().Be(30, "the route asks for less than the value object's 34");
+        iban.GetProperty("pattern").GetString().Should().Be(document.Schema(nameof(Iban)).GetProperty("pattern").GetString());
+        country.GetProperty("minLength").GetInt32().Should().Be(2, "the value object asks for more than the route's 1");
+        country.GetProperty("maxLength").GetInt32().Should().Be(2, "the value object asks for less than the route's 5");
+        country.GetProperty("pattern").GetString().Should().Be("^[A-Z]+$", "the value object declares no pattern");
+        country.GetProperty("enum").EnumerateArray().Select(code => code.GetString()).Should().Equal("FR", "BE", "LU");
+    }
+
+    [Fact]
+    public void A_parameter_that_is_no_value_object_keeps_the_schema_ASP_NET_Core_gave_it()
+    {
+        var note = document.Parameter("/accounts/{iban}", "note");
+        var count = document.Parameter("/accounts/{iban}", "count");
+
+        note.EnumerateObject().Select(keyword => keyword.Name).Should().Equal("type");
+        note.GetProperty("type").GetString().Should().Be("string");
+        Types(count.GetProperty("type")).Should().BeEquivalentTo("integer", "string");
+        count.TryGetProperty("minimum", out _).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// System.Text.Json leaves out the element of a collection whose element type has a converter of its own, so a
+    /// collection of value objects was documented as an array of anything. Each element now refers to the component
+    /// of its value object, as a property of that type does, whatever the collection, nested ones included, and in a
+    /// query string as in a body.
+    /// </summary>
+    /// <param name="property">The property of the body.</param>
+    /// <param name="valueObject">The value object of its elements.</param>
+    [Theory]
+    [InlineData("alternates", nameof(Iban))]
+    [InlineData("quantities", nameof(Quantity))]
+    [InlineData("countries", nameof(CountryCode))]
+    public void An_element_of_a_collection_of_value_objects_refers_to_the_value_object(string property, string valueObject)
+    {
+        var collection = document.BodyProperty(property);
+
+        collection.GetProperty("type").GetString().Should().Be("array");
+        collection.GetProperty("items").GetProperty("$ref").GetString().Should().Be($"#/components/schemas/{valueObject}");
+    }
+
+    [Fact]
+    public void A_nested_collection_a_dictionary_and_a_query_string_collection_refer_to_their_value_object()
+    {
+        var groups = document.BodyProperty("groups");
+        var perSku = document.BodyProperty("perSku");
+        var quantities = document.Parameter("/quantities", "quantity");
+
+        groups.GetProperty("items").GetProperty("type").GetString().Should().Be("array");
+        groups.GetProperty("items").GetProperty("items").GetProperty("$ref").GetString().Should().Be("#/components/schemas/Iban");
+        perSku.GetProperty("type").GetString().Should().Be("object");
+        perSku.GetProperty("additionalProperties").GetProperty("$ref").GetString().Should().Be("#/components/schemas/Quantity");
+        quantities.GetProperty("items").GetProperty("$ref").GetString().Should().Be("#/components/schemas/Quantity");
+    }
+
+    /// <summary>
+    /// An element of a nullable value object is the value object or <c>null</c>, which a reference to the component
+    /// could not say: it is described in place, as the component describes the value object, <c>null</c> allowed.
+    /// </summary>
+    [Fact]
+    public void An_element_of_a_nullable_value_object_is_the_value_object_or_null()
+    {
+        var element = document.BodyProperty("optional").GetProperty("items");
+        var quantity = document.Schema(nameof(Quantity));
+
+        Types(element.GetProperty("type")).Should().BeEquivalentTo(Types(quantity.GetProperty("type")).Append("null"));
+        element.EnumerateObject().Where(keyword => keyword.Name != "type").Select(keyword => (keyword.Name, keyword.Value.GetRawText()))
+            .Should().BeEquivalentTo(
+                quantity.EnumerateObject().Where(keyword => keyword.Name != "type").Select(keyword => (keyword.Name, keyword.Value.GetRawText())));
+    }
+
+    /// <summary>
+    /// A value object keys a dictionary as the text it writes, so the key's rules hold for the names of its members,
+    /// which <c>propertyNames</c> states. A number or a boolean is no such text, and its schema would refuse every name.
+    /// </summary>
+    [Fact]
+    public void A_dictionary_keyed_by_a_value_object_written_as_text_states_its_rules_in_propertyNames()
+    {
+        var stock = document.BodyProperty("stockPerCountry");
+        var counts = document.BodyProperty("countPerQuantity");
+
+        JsonElement.DeepEquals(stock.GetProperty("propertyNames"), document.Schema(nameof(CountryCode))).Should().BeTrue();
+        stock.GetProperty("additionalProperties").GetProperty("$ref").GetString().Should().Be("#/components/schemas/Quantity");
+        counts.TryGetProperty("propertyNames", out _).Should().BeFalse("the name of a member is text, never a number");
+    }
+
+    /// <summary>
+    /// ASP.NET Core hands the element of a collection back to the transformers once the value object's transformer
+    /// has given it its schema, which is then described a second time. A value object with no description of its own,
+    /// whose bounds written as text are its whole description, still states them once.
+    /// </summary>
+    [Fact]
+    public void A_value_object_in_a_collection_states_its_bounds_once()
+    {
+        document.BodyProperty("hours").GetProperty("items").GetProperty("$ref").GetString().Should().Be("#/components/schemas/ServiceHour");
+        document.Schema(nameof(ServiceHour)).GetProperty("description").GetString()
+            .Should().Be("Between 08:00:00.0000000 and 18:00:00.0000000, inclusive.");
+    }
+
+    /// <summary>Follows a reference to a component, or answers the schema itself.</summary>
+    private JsonElement Resolve(JsonElement schema)
+        => schema.TryGetProperty("$ref", out var reference)
+            ? document.Schema(reference.GetString()!["#/components/schemas/".Length..])
+            : schema;
+
     private static IEnumerable<string?> Types(JsonElement type)
         => type.ValueKind == JsonValueKind.Array ? type.EnumerateArray().Select(each => each.GetString()) : [type.GetString()];
 

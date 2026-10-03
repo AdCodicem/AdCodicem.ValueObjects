@@ -79,6 +79,29 @@ type's converter, as the type holds it once normalized.
 
 The transformer targets the built-in OpenAPI stack. Swashbuckle is not supported.
 
+## Parameters, collections and dictionaries
+
+A value object is described the same way wherever it appears, not only as a property of a body:
+
+- **A route, query or header parameter**, in a minimal API, an MVC action, a type gathered with `[AsParameters]` or a
+  model MVC binds from the query string, nullable or not. ASP.NET Core documents a parameter bound from text as a
+  `string`; the transformer gives it the schema of its value object in place, so a `Quantity` parameter is an
+  `[integer, string]` with its bounds and the numeric pattern, as a raw `int` parameter of the same document is, and a
+  closed set keeps its `enum`. The schema stays in place rather than becoming a reference: it is the parameter's own,
+  holding what the parameter's declaration adds, such as a default value. A route constraint is a rule the request
+  satisfies too: of its bounds and lengths and the value object's, the stricter stay, and its `regex` stays when the
+  value object has no pattern. A parameter ASP.NET Core already documents
+  as the value object itself, as a minimal API's header parameter, refers to the component.
+- **An element of a collection**, `List<Iban>`, `Quantity[]`, `IReadOnlyList<CountryCode>`, nested ones included,
+  and **a value of a dictionary**, `Dictionary<string, Quantity>`: `items` and `additionalProperties` refer to the
+  value object's component, as a property of that type does. System.Text.Json leaves them out for a type with a
+  converter of its own, so they would otherwise be an array or an object of anything. An element of a nullable value
+  object, `List<Quantity?>`, is described in place instead, with `null` added to its type.
+- **A key of a dictionary**, `Dictionary<CountryCode, int>`, when the value object is documented as a string: a key is
+  written as text, so its rules go to `propertyNames`, which an OpenAPI 3.0 document carries as the
+  `x-jsonschema-propertyNames` extension. A key over a number or a boolean is left undescribed, since the name of a
+  member is neither.
+
 ## Numbers written as text
 
 A value object over a number follows `JsonSerializerOptions.NumberHandling` as its underlying type does, and is
