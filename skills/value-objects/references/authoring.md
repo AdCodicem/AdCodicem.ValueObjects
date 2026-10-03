@@ -13,7 +13,7 @@
 | `ImplicitConversionToValue` | `bool` | `false` | `string s = iban;` — reading stays terse while construction stays explicit. |
 | `ExplicitConversionFromValue` | `bool` | `false` | `(Iban)text` — validates, throws `ValueObjectException` on rejection. |
 | `AllowEmpty` | `bool` | `false` | `string` only. Accepts `""`. `null` is rejected regardless: absence is `Iban?`. |
-| `AllowDefault` | `bool` | `false` | Silences `VO0010`. Only for a type whose zero state is meaningful, such as a sequence number starting at zero. |
+| `AllowDefault` | `bool` | `false` | Silences `VO0010`, and `VO0032` in the code another generator writes. Only for a type whose zero state is meaningful, such as a sequence number starting at zero. |
 | `SchemaFormat` | `string?` | natural format of the underlying type | OpenAPI `format` (`uuid`, `date`, `int64`, or your own: `iban`, `email`). None for a `TimeSpan`, documented with the pattern of its constant form `[-][d.]hh:mm:ss[.fffffff]`; never set `duration`, which means ISO 8601. |
 | `Example` | `string?` | none | OpenAPI example, written as text the type parses; published in its JSON form. A value the type's own rules refuse → `VO0031` where the generator can evaluate them; the contract kit's `The_declared_example_is_accepted` checks the rest. |
 | `Description` | `string?` | XML `<summary>` of the type (`///` or `/** */`), as plain text | OpenAPI description. |

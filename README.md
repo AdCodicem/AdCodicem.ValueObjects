@@ -158,10 +158,12 @@ allocate nothing. See [benchmarks/](https://github.com/AdCodicem/AdCodicem.Value
 **`default(Iban)` is a build error.** A struct can always be brought into existence uninitialized, and that is
 the one hole a struct value object cannot close by itself. The `VO0010` analyzer closes it at compile time,
 which is what makes the struct representation — zero allocation, no null — safe to choose. Opt out per type with
-`AllowDefault = true`. What reaches a boundary the analyzer cannot see — an entity property never set, a default
-array element — is not written as it stands: the JSON converters, the Dapper handler and the EF Core converters
-refuse an uninitialized instance whose value its type rejects, and an optional EF Core column stores a `NULL`
-instead.
+`AllowDefault = true`. Another source generator cannot see the generated members, and may write `new Iban()` in
+its own output: `VO0032` reports it in the code of Riok.Mapperly and of the configuration binding generator, and
+of any generator a `.globalconfig` adds. What reaches a boundary the analyzer cannot see — an entity property never
+set, a default array element — is not written as it stands: the JSON converters, the Dapper handler and the EF Core
+converters refuse an uninitialized instance whose value its type rejects, and an optional EF Core column stores a
+`NULL` instead.
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
@@ -444,6 +446,7 @@ an internal surrogate key alongside it.
 | `VO0029` | Error | Both the `Minimum` (or `Maximum`) option and its hook on one type. The hook wins. |
 | `VO0030` | Error | `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` over a type that takes no bound, or over another type than the underlying one. |
 | `VO0031` | Error | The `Example` or a known value declared on the type is one its own rules refuse, wherever the generator can evaluate them: an example no form of the underlying type reads, a length, an empty string, a bound returned as a constant, a closed value set. The contract kit checks the rest at run time. |
+| `VO0032` | Error | A value object created uninitialized, by `default` or `new T()`, in code another source generator wrote: Riok.Mapperly, the configuration binding generator, or a tool `adcodicem_value_objects.generated_code_tools` names in a `.globalconfig`. |
 
 ## Using it with an AI coding agent
 
