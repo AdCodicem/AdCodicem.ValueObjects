@@ -23,7 +23,7 @@ Defined as constants on `ValueObjectErrorCodes`:
 | `value_object.invalid_format` | The value does not match the `Pattern` of `IValueObjectPatternValidator`, or of the deprecated option of the same name; also the code of `ValidationResult.InvalidFormat`. |
 | `value_object.out_of_range` | The value is below the bound of `IValueObjectMinimum<T>` or above that of `IValueObjectMaximum<T>`, or of the deprecated options of the same names; also the code of `ValidationResult.OutOfRange`. |
 | `value_object.not_a_known_value` | The value is not one of the known values of a closed set. |
-| `value_object.not_parsable` | The text does not even have the shape of the underlying type, so no rule of the type ran. That includes a group separator in a `decimal`, a `double` or a `float` read with no provider or the invariant culture: `12,5` is not 125. |
+| `value_object.not_parsable` | The text does not even have the shape of the underlying type, so no rule of the type ran. That includes a group separator in a `decimal`, a `double` or a `float` read with no provider or the invariant culture: `12,5` is not 125. The type converter reports it too for a number of another numeric type that the underlying type cannot hold whole: out of its range, or with a fraction for an integer. |
 
 ## Codes of your own
 
@@ -57,7 +57,7 @@ contract catches a value object's rejection. It carries:
 | `ErrorCode` | The code of the violated rule, the same `TryCreate`, or for `Parse` the four-argument `TryParse`, would have reported. `Parse` throws `value_object.not_parsable` only for text that is not of the underlying type at all. |
 | `ValueObjectType` | The value object that refused the value. |
 | `AttemptedValue` | The value as it was passed in, before normalization, and the text for `Parse`. `null` on a value object [classified as personal data](#personal-data-in-an-exception). |
-| `Message` | The type, then the message of the violated rule: `'Iban' rejected the supplied value: …` from `Create`, `'Iban' rejected the supplied text: …` from `Parse`. It never quotes the rejected value. |
+| `Message` | The type, then the message of the violated rule: `'Iban' rejected the supplied value: …` from `Create`, `'Iban' rejected the supplied text: …` from `Parse`, `'Quantity' rejected the supplied number: …` from the type converter, for a number its underlying type cannot hold. It never quotes the rejected value. |
 
 Every path throws this one type, including `Create`, the arithmetic of a numeric value object and the other paths
 that take a value rather than text: a value in range for `int` but outside the declared bounds raises a
@@ -116,6 +116,7 @@ that treats a rejected value as a bug, and for a strict EF Core read:
 | --- | --- |
 | The System.Text.Json converters | `JsonException`, with the message of the rule. |
 | The Newtonsoft.Json converter | `JsonSerializationException`, with the message of the rule. |
+| Newtonsoft.Json [without the converter](../how-to/json.md#without-the-converter) | `JsonSerializationException`, "Error converting value…", around an `ArgumentException` that names neither the rule nor its code. |
 | ASP.NET Core model binding | A model state error; the [problem details](../how-to/aspnet-core.md#problem-details-carrying-the-rule) carry its code. Without the package's binder, MVC binds through the type converter, which throws `ValueObjectException`, and reports it with the message it gives bad input for an `int`, such as "The value 'ZZ' is not valid.", and no code. |
 | FluentValidation, `MustParseAs` and `MustSatisfy` | A validation failure carrying the code. |
 | Dapper | `DataException`, for a value it cannot convert, and for text read into a value object over another type, or a number or a `Guid` read into one over `string`, that the value object refuses. |

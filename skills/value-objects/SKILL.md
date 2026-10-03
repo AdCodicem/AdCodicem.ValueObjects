@@ -153,8 +153,9 @@ without an `IFormatProvider`; a `null` one is the invariant culture, where a `de
 a group separator, `12,5` or `1,234.5`), the 4-argument `TryParse` reporting *why* text was rejected, `Value`,
 `IsDefault` (explicit: read it through `IValueObject<TSelf, TValue>`), `ToString()` /
 `ToString(format, provider)` / `TryFormat`, `Equals` / `==` / `!=` / `GetHashCode`, `CompareTo` / `<` / `>` /
-`<=` / `>=`, `Schema`, the `System.Text.Json` converter, the `TypeConverter`, and a `[ModuleInitializer]`
-registration into `ValueObjectRegistry`. Closed sets also get their named constants and `KnownValues`;
+`<=` / `>=`, `Schema`, the `System.Text.Json` converter, the `TypeConverter` (text and the underlying value, and
+over a number any numeric type, checked: never truncated), and a `[ModuleInitializer]` registration into
+`ValueObjectRegistry`. Closed sets also get their named constants and `KnownValues`;
 `Arithmetic = true` adds the operators plus `Zero`, `One`, `IsZero`, `Min`, `Max`.
 
 So: **do not** hand-write a constructor, a factory, `Equals`/`GetHashCode`, a `JsonConverter`, a

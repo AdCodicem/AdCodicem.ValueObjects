@@ -30,6 +30,8 @@ public sealed class ClassifiedValueObjectTests
             ("Parse, over a number", "-4321", () => Salary.Parse("-4321", CultureInfo.InvariantCulture)),
             ("the arithmetic", "-4321", () => _ = Salary.Create(1m) - Salary.Create(4322m)),
             ("the type converter, from the underlying value", "-4321", () => TypeDescriptor.GetConverter(typeof(Salary)).ConvertFrom(-4321m)),
+            ("the type converter, from another number", "-4321", () => TypeDescriptor.GetConverter(typeof(Salary)).ConvertFrom(-4321L)),
+            ("the type converter, from a number no decimal holds", "1E+300", () => TypeDescriptor.GetConverter(typeof(Salary)).ConvertFrom(1e300)),
             ("Parse, of an identifier", "pat_secret", () => PatientId.Parse("pat_secret", null)),
             ("Create, of an identifier", "pat_secret", () => PatientId.Create("pat_secret")),
             ("Parse, of a generic value object", "Q", () => Pseudonym<PurchaseOrder>.Parse("Q", null)),
@@ -43,7 +45,7 @@ public sealed class ClassifiedValueObjectTests
             thrown.AttemptedValue.Should().BeNull("{0} must not hand a classified value over", path);
             thrown.ErrorCode.Should().NotBeNullOrEmpty(path);
             thrown.ValueObjectType.Should().NotBeNull(path);
-            thrown.Message.Should().MatchRegex(@"^'(PassportNumber|Salary|PatientId|Pseudonym)' rejected the supplied (text|value): ", path);
+            thrown.Message.Should().MatchRegex(@"^'(PassportNumber|Salary|PatientId|Pseudonym)' rejected the supplied (text|value|number): ", path);
             thrown.Message.Should().NotContain(rejected, "{0} names the type and the rule, never the value", path);
         }
     }

@@ -71,7 +71,13 @@ descriptor reads a `null` provider as it, so a query string `?total=12,5` is ref
 - A nested `ValueJsonConverter`, applied with `[JsonConverter]`: the value is read and written as its bare
   underlying value, including as a dictionary key, whatever a formatter hook writes.
 - A nested `ValueTypeConverter`, applied with `[TypeConverter]`, converting from and to the underlying value and
-  its text.
+  its text. Over a number, it converts from and to every numeric type a value object may wrap, `sbyte` to
+  `UInt128`, `decimal`, `double` and `float`, since its callers hand it the number they hold: Newtonsoft.Json without
+  its converter a `long` for every JSON integer, a numeric control a `decimal`. The conversion is checked. A number
+  the underlying type cannot hold whole, out of its range or with a fraction for an integer, is
+  `value_object.not_parsable`, never truncated, and one that fits goes through `Create`, so a `long` of 5000 is
+  `value_object.out_of_range` for a quantity bounded to 1000. A `double` or a `float` becomes a `decimal` with every
+  digit it carries. Converting the value to a numeric type that cannot hold it whole throws `NotSupportedException`.
 - `[DebuggerDisplay]`, showing the formatted value.
 - A registration in a generated `[ModuleInitializer]`, which makes the type available to
   [`ValueObjectRegistry`](../how-to/runtime-lookup.md) without any code of yours. A `private` or `protected` type is
@@ -79,7 +85,8 @@ descriptor reads a `null` provider as it, so a query string `?total=12,5` is ref
 
 On a generic value object, an attribute cannot name a converter through a type parameter, so `[JsonConverter]` names
 `GenericValueObjectJsonConverterFactory` and `[TypeConverter]` names `GenericValueObjectTypeConverter`, which reach the
-construction they convert through its descriptor. The registration registers the generic definition.
+construction they convert through its descriptor, and convert numbers as the generated converter does. The
+registration registers the generic definition.
 
 ## Added by options
 

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
@@ -79,6 +80,12 @@ internal sealed class UnderlyingType
     public bool IsNumeric { get; private init; }
 
     public bool IsSigned { get; private init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the type is a <c>decimal</c>, a <c>double</c> or a <c>float</c>, which holds a
+    /// fraction, rather than an integer type or a type that is no number.
+    /// </summary>
+    public bool IsReal => Kind is UnderlyingKind.Decimal or UnderlyingKind.Double or UnderlyingKind.Single;
 
     /// <summary>Gets a value indicating whether the JSON representation is a number rather than a string.</summary>
     public bool IsJsonNumber { get; private init; }
@@ -217,6 +224,12 @@ internal sealed class UnderlyingType
     ];
 
     private static readonly Dictionary<string, UnderlyingType> ByFullName = BuildIndex();
+
+    /// <summary>
+    /// Gets every numeric type a value object may wrap, from <c>sbyte</c> to <c>float</c>: those the type converter of a
+    /// numeric value object converts from and to.
+    /// </summary>
+    public static IReadOnlyList<UnderlyingType> Numbers { get; } = Array.FindAll(All, type => type.IsNumeric);
 
     /// <summary>
     /// Resolves the descriptor of a supported underlying type.

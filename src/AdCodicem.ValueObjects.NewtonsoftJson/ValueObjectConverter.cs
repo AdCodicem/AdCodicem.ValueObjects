@@ -1,6 +1,8 @@
+using System.Buffers.Text;
 using System.Collections.Frozen;
 using System.Globalization;
 using System.Numerics;
+using System.Text;
 using AdCodicem.ValueObjects.Metadata;
 using Newtonsoft.Json;
 
@@ -21,6 +23,10 @@ namespace AdCodicem.ValueObjects.NewtonsoftJson;
 /// which Newtonsoft.Json always writes with a fraction: <c>1250.0</c> where System.Text.Json writes <c>1250</c>.
 /// Each serializer reads the other's text as the same value.
 /// </para>
+/// <para>
+/// <see cref="ValueObjectJsonSerializerSettingsExtensions.AddValueObjects(JsonSerializerSettings, bool)"/> adds it to
+/// the serializer settings with the two settings it reads value objects best under.
+/// </para>
 /// </remarks>
 public sealed class ValueObjectConverter : JsonConverter
 {
@@ -33,21 +39,21 @@ public sealed class ValueObjectConverter : JsonConverter
         [typeof(char)] = new(JsonToken.String),
         [typeof(Guid)] = new(JsonToken.String, "D"),
         [typeof(bool)] = new(JsonToken.Boolean),
-        [typeof(sbyte)] = Wire.Integer<sbyte>(),
-        [typeof(byte)] = Wire.Integer<byte>(),
-        [typeof(short)] = Wire.Integer<short>(),
-        [typeof(ushort)] = Wire.Integer<ushort>(),
-        [typeof(int)] = Wire.Integer<int>(),
-        [typeof(uint)] = Wire.Integer<uint>(),
-        [typeof(long)] = Wire.Integer<long>(),
-        [typeof(ulong)] = Wire.Integer<ulong>(),
+        [typeof(sbyte)] = Wire.Integer<sbyte>(Utf8Parser.TryParse),
+        [typeof(byte)] = Wire.Integer<byte>(Utf8Parser.TryParse),
+        [typeof(short)] = Wire.Integer<short>(Utf8Parser.TryParse),
+        [typeof(ushort)] = Wire.Integer<ushort>(Utf8Parser.TryParse),
+        [typeof(int)] = Wire.Integer<int>(Utf8Parser.TryParse),
+        [typeof(uint)] = Wire.Integer<uint>(Utf8Parser.TryParse),
+        [typeof(long)] = Wire.Integer<long>(Utf8Parser.TryParse),
+        [typeof(ulong)] = Wire.Integer<ulong>(Utf8Parser.TryParse),
 
         // No JSON consumer holds a 128-bit integer in a number without losing precision.
         [typeof(Int128)] = new(JsonToken.String, "D"),
         [typeof(UInt128)] = new(JsonToken.String, "D"),
-        [typeof(decimal)] = Wire.Real<decimal>(),
-        [typeof(double)] = Wire.Real<double>(),
-        [typeof(float)] = Wire.Real<float>(),
+        [typeof(decimal)] = Wire.Real<decimal>(Utf8Parser.TryParse),
+        [typeof(double)] = Wire.Real<double>(Utf8Parser.TryParse),
+        [typeof(float)] = Wire.Real<float>(Utf8Parser.TryParse),
         [typeof(DateOnly)] = new(JsonToken.String, "O"),
         [typeof(TimeOnly)] = new(JsonToken.String, "O"),
         [typeof(DateTime)] = new(JsonToken.String, "O"),
@@ -68,6 +74,12 @@ public sealed class ValueObjectConverter : JsonConverter
     /// <para>
     /// The value is read as the System.Text.Json converter the generator emits reads it: from the kind of token it
     /// writes, and through the value object's rules, so a rejection says which rule refused it.
+    /// </para>
+    /// <para>
+    /// A value written as a number is read from a string as well, as System.Text.Json reads one under
+    /// <c>JsonNumberHandling.AllowReadingFromString</c>: the whole text, with no white space, no group separator and no
+    /// culture. That is how Newtonsoft.Json writes a numeric value object without this converter, through its type
+    /// converter, so data stored that way still reads once the converter is added.
     /// </para>
     /// <para>
     /// Newtonsoft.Json reads the token under the serializer's settings before the converter sees it. Under its
@@ -205,8 +217,9 @@ public sealed class ValueObjectConverter : JsonConverter
         => reader.TokenType == JsonToken.Boolean ? reader.Value! : throw Expected(descriptor, "boolean", reader);
 
     /// <summary>
-    /// Reads a number as System.Text.Json reads it: from a number token only, with no fraction for an integral type,
-    /// and within the range of the type.
+    /// Reads a number as System.Text.Json reads it: from a number token, or from a string as it reads one under
+    /// <c>JsonNumberHandling.AllowReadingFromString</c>, with no fraction for an integral type, and within the range
+    /// of the type.
     /// </summary>
     /// <param name="reader">Reader positioned on the token.</param>
     /// <param name="descriptor">Value object being read.</param>
@@ -214,21 +227,33 @@ public sealed class ValueObjectConverter : JsonConverter
     /// <returns>The underlying value.</returns>
     private static object ReadNumber(JsonReader reader, ValueObjectDescriptor descriptor, Wire wire)
     {
-        if (reader.TokenType is not (JsonToken.Integer or JsonToken.Float))
+        var number = reader.TokenType switch
         {
-            throw Expected(descriptor, "number", reader);
-        }
+            JsonToken.Integer => wire.Parse!(TokenText(reader)),
 
-        // Newtonsoft.Json has already turned the token into a long, a ulong or a BigInteger, or, under the
-        // serializer's FloatParseHandling, into a double or a decimal. The invariant text of each is the token's own
-        // digits, but for a double, whose shortest round-trip text is the closest to them it left: a decimal is never
-        // read through a double's fifteen digits.
-        var text = Convert.ToString(reader.Value, CultureInfo.InvariantCulture)!;
+            // A fraction or an exponent is no integer.
+            JsonToken.Float => wire.Token == JsonToken.Float ? wire.Parse!(TokenText(reader)) : null,
 
-        return (reader.TokenType == JsonToken.Integer || wire.Token == JsonToken.Float) && wire.Parse!(text) is { } number
-            ? number
-            : throw new JsonSerializationException($"The value could not be read as {descriptor.ValueObjectType.Name}.");
+            // A number written as text, which Newtonsoft.Json without this converter writes for every value object.
+            JsonToken.String => wire.ParseQuoted!((string)reader.Value!),
+            _ => throw Expected(descriptor, "number", reader),
+        };
+
+        return number ?? throw new JsonSerializationException($"The value could not be read as {descriptor.ValueObjectType.Name}.");
     }
+
+    /// <summary>
+    /// Gives the invariant text of a number token.
+    /// </summary>
+    /// <remarks>
+    /// Newtonsoft.Json has already turned the token into a long, a ulong or a BigInteger, or, under the serializer's
+    /// FloatParseHandling, into a double or a decimal. The invariant text of each is the token's own digits, but for a
+    /// double, whose shortest round-trip text is the closest to them it left: a decimal is never read through a
+    /// double's fifteen digits.
+    /// </remarks>
+    /// <param name="reader">Reader positioned on the token.</param>
+    /// <returns>The text.</returns>
+    private static string TokenText(JsonReader reader) => Convert.ToString(reader.Value, CultureInfo.InvariantCulture)!;
 
     /// <summary>
     /// Builds the value object from its underlying value, through its rules.
@@ -299,18 +324,53 @@ public sealed class ValueObjectConverter : JsonConverter
     /// For a number, parses the invariant text of the token, giving <see langword="null"/> for what the type cannot
     /// hold: out of its range, or not finite.
     /// </param>
-    private sealed record Wire(JsonToken Token, string? Format = null, Func<string, object?>? Parse = null)
+    /// <param name="ParseQuoted">
+    /// For a number, parses the text of a string as System.Text.Json parses a number written as text, giving
+    /// <see langword="null"/> for text that is not such a number or that the type cannot hold.
+    /// </param>
+    private sealed record Wire(
+        JsonToken Token,
+        string? Format = null,
+        Func<string, object?>? Parse = null,
+        Func<string, object?>? ParseQuoted = null)
     {
-        public static Wire Integer<T>()
+        public static Wire Integer<T>(Utf8Parse<T> parse)
             where T : struct, INumberBase<T>
-            => new(JsonToken.Integer, Parse: static text => Number<T>(text, NumberStyles.AllowLeadingSign));
+            => new(
+                JsonToken.Integer,
+                Parse: static text => Number<T>(text, NumberStyles.AllowLeadingSign),
+                ParseQuoted: text => Quoted(text, parse));
 
-        public static Wire Real<T>()
+        public static Wire Real<T>(Utf8Parse<T> parse)
             where T : struct, INumberBase<T>
-            => new(JsonToken.Float, Parse: static text => Number<T>(text, NumberStyles.Float));
+            => new(
+                JsonToken.Float,
+                Parse: static text => Number<T>(text, NumberStyles.Float),
+                ParseQuoted: text => Quoted(text, parse));
 
         private static object? Number<T>(string text, NumberStyles styles)
             where T : struct, INumberBase<T>
             => T.TryParse(text, styles, CultureInfo.InvariantCulture, out var value) && T.IsFinite(value) ? value : null;
+
+        /// <summary>
+        /// Parses text as System.Text.Json parses a number written as a string: its UTF-8 bytes, through
+        /// <see cref="Utf8Parser"/>, which has to consume them whole. A real the parser reads as an infinity, from
+        /// digits beyond its range, is refused as System.Text.Json refuses it, and so are <c>NaN</c> and the
+        /// infinities spelled out, which the converter reads from no token either.
+        /// </summary>
+        private static object? Quoted<T>(string text, Utf8Parse<T> parse)
+            where T : struct, INumberBase<T>
+        {
+            var bytes = Encoding.UTF8.GetBytes(text);
+
+            return parse(bytes, out var value, out var consumed, default) && consumed == bytes.Length && T.IsFinite(value)
+                ? value
+                : null;
+        }
     }
+
+    /// <summary>
+    /// The shape of the <see cref="Utf8Parser"/> overload of one number type.
+    /// </summary>
+    private delegate bool Utf8Parse<T>(ReadOnlySpan<byte> source, out T value, out int bytesConsumed, char standardFormat);
 }

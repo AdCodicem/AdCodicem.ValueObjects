@@ -763,14 +763,14 @@ internal static class ValueObjectEmitter
     }
 
     /// <summary>
-    /// Writes what the exception of <c>Create</c> or <c>Parse</c> carries as its <c>AttemptedValue</c>: the rejected
-    /// value, or <see langword="null"/> on a type its author classifies as sensitive data, whose value a logger reading
-    /// the public properties of an exception would otherwise record in clear.
+    /// Writes what the exception of <c>Create</c>, <c>Parse</c> or the type converter carries as its
+    /// <c>AttemptedValue</c>: the rejected value, or <see langword="null"/> on a type its author classifies as sensitive
+    /// data, whose value a logger reading the public properties of an exception would otherwise record in clear.
     /// </summary>
     /// <param name="model">The value object.</param>
     /// <param name="rejected">The expression of the rejected value.</param>
     /// <returns>The expression to pass.</returns>
-    private static string AttemptedValue(ValueObjectModel model, string rejected) => model.IsClassified ? "null" : rejected;
+    internal static string AttemptedValue(ValueObjectModel model, string rejected) => model.IsClassified ? "null" : rejected;
 
     private static void EmitEquality(CodeWriter writer, ValueObjectModel model, string value, string self)
     {
