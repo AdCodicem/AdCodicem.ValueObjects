@@ -8,7 +8,7 @@ description: Install AdCodicem.ValueObjects, declare a first value object, and s
 # Getting started
 
 This tutorial installs the package, declares a first value object, and looks at what the generator writes for
-it. It needs the .NET 10 SDK and takes a few minutes.
+it. It needs the .NET 10 SDK or later, and takes a few minutes.
 
 ## Install the package
 

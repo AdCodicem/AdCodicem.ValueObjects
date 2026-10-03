@@ -10,6 +10,7 @@ description: How to build, test and change AdCodicem.ValueObjects, its agent ski
 ```
 src/          the shipped packages
 tests/        unit tests, generator tests, and integration tests on real database engines
+  Compat/     the packed packages in a .NET 11 application, outside the solution
 samples/      a showcase API exercising the whole chain end to end
 benchmarks/   the measurements behind the design decisions
 skills/       the agent skill, distributed as a Claude Code plugin through .claude-plugin/
@@ -27,6 +28,10 @@ dotnet pack -c Release
 ```
 
 Integration tests start PostgreSQL and SQL Server through Testcontainers, so they need a Docker daemon.
+
+`tests/Compat`, the compatibility island, is not part of the solution and is run from its own folder, with the
+.NET 11 SDK its `global.json` names, against packages you have just packed. The commands are on
+[How the library is tested](/docs/preview/testing#commands), and the island itself is described there too.
 
 ## Coverage
 
@@ -64,6 +69,15 @@ A pull request lands with *Rebase and merge*, so that each of its commits reache
 at most 100 commits: past that it refuses, and its web UI blames conflicts that do not exist. Keep a pull request to
 100 commits or fewer, and split larger work into pull requests stacked on one another.
 
+Two checks must pass before a pull request merges: **build and test**, and **workflows**, which runs
+[actionlint](https://github.com/rhysd/actionlint) over every workflow, including those that never run on a pull
+request. CI also builds this site and runs the packages in a .NET 11 application, in jobs that do not block the
+merge.
+
+Nothing you merge publishes a package by itself. A preview of every package goes to nuget.org each week in which
+something a package ships has changed, and a stable release is cut by hand; while the version is 0.x, a breaking
+change releases a minor.
+
 ## The agent skill
 
 `skills/value-objects/` is what an AI coding agent reads before writing a value object: the attribute options,
@@ -98,16 +112,20 @@ npm start          # local dev server with hot reload
 npm run build      # production build, fails on a broken internal link
 ```
 
+Every pull request builds the site the same way, without deploying it, so a broken link fails there.
+
 This page is the one part of the site that is not versioned: it describes how to work on `main`, whichever
 release you are reading about.
 
 ### Versions
 
-`website/docs/` is the **preview**. It describes `main`, and every merge that publishes a preview package to
-nuget.org redeploys it under `/docs/preview/`. A stable release freezes it into `website/versioned_docs/` —
-one entry per minor while the version is 0.x (`0.3.x`), one per major from 1.0 on (`1.x`) — and `/docs/`
-serves the newest of those. So a change to `website/docs/` reaches readers of the stable documentation with the
-next release, not before. Until the first stable release exists, `/docs/` serves the preview.
+`website/docs/` is the **preview**. It describes `main`, and `preview.yml` redeploys it under `/docs/preview/` every
+Monday and whenever it is dispatched, whether or not the run publishes a package, labelled with the version on
+nuget.org that describes it. A stable release freezes it into `website/versioned_docs/` — one entry per minor
+while the version is 0.x (`0.3.x`), one per major from 1.0 on (`1.x`) — and `/docs/` serves the newest of those. So
+a change to `website/docs/` reaches readers of the preview at the next `preview.yml` run, and readers of the stable
+documentation with the next release, not before. Until the first stable release exists, `/docs/` serves the
+preview.
 
 The release workflow writes `versioned_docs/`, `versioned_sidebars/`, `versions.json` and
 `released-versions.json`; nothing else should add or remove an entry.
@@ -123,7 +141,8 @@ An error in the stable documentation can be corrected before the next release wh
 using that release: a snippet that does not compile against it, an option described as doing something it does
 not. Fix it in `website/docs/` **and** in `website/versioned_docs/version-<line>/`, in the same pull request.
 Both are needed: the next release of that line replaces its snapshot wholesale with a fresh copy of
-`website/docs/`, so a fix made only in the snapshot is lost there.
+`website/docs/`, so a fix made only in the snapshot is lost there. Once merged, the fix goes live at the next
+`preview.yml` run, or at once when the maintainer dispatches it.
 
 Anything else waits for the next release, and documentation of a feature that exists only on `main` never goes
 into a snapshot. `DocumentationSnippetTests` checks `website/docs/` against the current generator and not the
