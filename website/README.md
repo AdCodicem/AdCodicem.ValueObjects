@@ -113,6 +113,11 @@ site only by being copied again.
   from 24 to 48px), the footer the AdCodicem lockup, each with a `-light` and a `-dark` file. Their names are
   outlined, so they render in Archivo inside an `<img>`. The favicons are the design system's ValueObjects pack,
   with `site.webmanifest`.
+- **Search** is `@easyops-cn/docusaurus-search-local`: the build writes a lunr index for each version of the docs,
+  served with the site, so a search reaches no third party, searches the version the reader is in, and covers the API
+  reference. `forceIgnoreNoIndex` keeps the preview searchable once it is `noIndex`. The plugin takes its colours
+  from `--search-local-*` variables set in `custom.css`; the few rules they cannot reach match its CSS-module class
+  names on their stable prefix (`[class*='suggestion_']`), which a release of the plugin may rename.
 - **The homepage and the 404 page** follow the design system's docs kit; the 404 page is an ejected `NotFound`, a
   safe swizzle.
 

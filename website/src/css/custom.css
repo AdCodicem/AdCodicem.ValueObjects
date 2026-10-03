@@ -359,6 +359,14 @@ html[data-theme='dark'] {
 
 /* ---- Base ------------------------------------------------------------------------------------------------------ */
 
+/* A match, wherever the search marks one: in the results and on the page it opens. */
+mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
 ::selection {
   background: var(--rust-400);
   color: var(--ink-900);
@@ -640,6 +648,87 @@ a > code {
 .dropdown__menu {
   border: 1px solid var(--border-1);
   border-radius: var(--radius-md);
+}
+
+/* ---- Search ---------------------------------------------------------------------------------------------------- */
+
+/* The local search plugin, dressed as the design system's docs kit: a field on the sunken ground with a mono key cap,
+   and results on surface-1 where the match is set in accent-text on accent-soft and the selected hit carries a 2px
+   accent bar. The plugin reads its colours from --search-local-* variables; its own class names are CSS-module
+   hashes, so the few rules the variables cannot reach match on their stable prefix. */
+:root,
+html[data-theme='dark'] {
+  --ifm-navbar-search-input-background-color: var(--bg-sunken);
+  --ifm-navbar-search-input-color: var(--fg-1);
+  --ifm-navbar-search-input-placeholder-color: var(--fg-3);
+  --search-local-modal-background: var(--surface-1);
+  --search-local-modal-shadow: var(--shadow-overlay);
+  --search-local-modal-width: 560px;
+  --search-local-spacing: 8px;
+  --search-local-input-active-border-color: var(--focus-ring);
+  --search-local-hit-background: transparent;
+  --search-local-hit-shadow: none;
+  --search-local-hit-color: var(--fg-1);
+  --search-local-hit-active-color: var(--fg-strong);
+  --search-local-highlight-color: var(--accent-text);
+  --search-local-muted-color: var(--fg-3);
+}
+
+.navbar__search-input {
+  width: 13rem;
+  height: 36px;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: 14px;
+}
+
+.navbar__search-input:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.navbar__search [class*='searchIcon_'] {
+  color: var(--fg-3);
+}
+
+.navbar__search kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  background: transparent;
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.navbar__search [class*='dropdownMenu_'] {
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+}
+
+.navbar__search [class*='suggestion_'] {
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+}
+
+.navbar__search [class*='suggestion_'][class*='cursor_'] {
+  background: var(--surface-hover) !important;
+  box-shadow: inset 2px 0 0 var(--accent) !important;
+}
+
+.navbar__search [class*='hitWrapper_'] mark,
+.navbar__search [class*='suggestion_'][class*='cursor_'] mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--accent-soft);
+  color: var(--accent-text) !important;
+  text-decoration: none;
+}
+
+.navbar__search [class*='hitFooter_'] a {
+  color: var(--link);
 }
 
 /* ---- Sidebar, breadcrumbs, table of contents, pager ------------------------------------------------------------ */
