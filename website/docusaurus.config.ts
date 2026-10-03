@@ -211,13 +211,14 @@ const config: Config = {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
 
-  // The ValueObjects tile from the design system; favicon.ico above is the fallback every browser requests.
+  // The design system's ValueObjects favicon pack, with the link tags it prescribes; favicon.ico above is the
+  // fallback every browser requests.
   headTags: [
-    {tagName: 'link', attributes: {rel: 'icon', type: 'image/svg+xml', href: `${baseUrl}img/favicon.svg`}},
-    {tagName: 'link', attributes: {rel: 'icon', type: 'image/png', sizes: '16x16', href: `${baseUrl}img/favicon-16.png`}},
-    {tagName: 'link', attributes: {rel: 'icon', type: 'image/png', sizes: '32x32', href: `${baseUrl}img/favicon-32.png`}},
-    {tagName: 'link', attributes: {rel: 'apple-touch-icon', sizes: '180x180', href: `${baseUrl}img/favicon-180.png`}},
-  ],
+    {rel: 'icon', type: 'image/png', sizes: '16x16', href: `${baseUrl}img/favicon-16.png`},
+    {rel: 'icon', type: 'image/png', sizes: '32x32', href: `${baseUrl}img/favicon-32.png`},
+    {rel: 'apple-touch-icon', sizes: '180x180', href: `${baseUrl}img/favicon-180.png`},
+    {rel: 'manifest', href: `${baseUrl}site.webmanifest`},
+  ].map((attributes) => ({tagName: 'link', attributes})),
 
   // Read by the homepage: before the first stable release, `dotnet add package` needs --prerelease.
   customFields: {hasStable},
@@ -335,18 +336,21 @@ const config: Config = {
               {type: 'docsVersionDropdown', versions: stableLines, position: 'right' as const},
             ]
           : []),
+        // Drawn as the design system's icon buttons, `nuget` and `github` (custom.css); the label is what screen
+        // readers and the mobile menu read.
         {
           href: 'https://www.nuget.org/packages/AdCodicem.ValueObjects',
           label: 'NuGet',
           position: 'right',
+          className: 'navbar-icon-link navbar-icon-link--nuget',
+          'aria-label': 'NuGet package',
+          title: 'NuGet package',
         },
-        // Drawn as the design system's GitHub icon button (custom.css); the label is what screen readers and the
-        // mobile menu read.
         {
           href: 'https://github.com/AdCodicem/AdCodicem.ValueObjects',
           label: 'GitHub',
           position: 'right',
-          className: 'navbar-github-link',
+          className: 'navbar-icon-link navbar-icon-link--github',
           'aria-label': 'GitHub repository',
           title: 'GitHub repository',
         },
