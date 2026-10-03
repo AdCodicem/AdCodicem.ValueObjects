@@ -328,16 +328,19 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
-  # Signs the released packages with a SLSA build provenance attestation:
-  # keyless, through Sigstore and this run's OIDC token, verifiable with
+  # Signs the released packages, and every assembly inside them, with a SLSA
+  # build provenance attestation: keyless, through Sigstore and this run's OIDC
+  # token, verifiable with
   # `gh attestation verify <file> --repo AdCodicem/AdCodicem.ValueObjects`.
   # The bundle is also attached to the GitHub Release, which is where the
   # OpenSSF Scorecard Signed-Releases check looks for it.
   #
   # It attests the files the pack job uploaded, which the release job checked
-  # and attached: byte for byte the GitHub Release assets. The copies on
+  # and attached: byte for byte the GitHub Release assets. The .nupkg copies on
   # nuget.org carry nuget.org's repository signature, added after the push, so
-  # their digest differs and they do not verify against this attestation.
+  # their digest differs; the assemblies inside are left as they were packed,
+  # and NuGet restores them unchanged, so a restored DLL verifies against this
+  # attestation.
   #
   # A job of its own, after the push rather than inside semantic-release: an
   # action cannot run between semantic-release's steps, and a failure here can
@@ -350,24 +353,40 @@ jobs:
   # bundle is attached, so a release never goes public without its attestation.
   provenance:
     name: attest provenance
-    needs: release
+    needs: [pack, release]
     # A status function of its own, as the release job has: the implicit success()
     # covers every job upstream, so a failed previewed job would skip this one too.
-    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.released == 'true' }}
+    if: ${{ !cancelled() && needs.pack.result == 'success' && needs.release.result == 'success' && needs.release.outputs.released == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       # Uploads the bundle to the draft GitHub Release, then publishes it.
       contents: write
       # Requests the short-lived Sigstore signing certificate.
       id-token: write
-      # Stores the attestation with the repository.
+      # Stores the attestation with the repository. No artifact-metadata: the
+      # action writes a storage record only for an image pushed to a registry.
       attestations: write
-      artifact-metadata: write
     steps:
+      # Only the scripts, at the released tag.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: release-packages
+          artifact-ids: ${{ needs.pack.outputs.packages-artifact-id }}
           path: packages
+
+      - name: Extract the assemblies
+        env:
+          SHA256: ${{ needs.pack.outputs.packages-sha256 }}
+        run: |
+          set -euo pipefail
+          base64 -d <<<"$SHA256" | (cd packages && sha256sum --check --strict)
+          .github/scripts/package-assemblies.sh packages assemblies
 
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         id: attest
@@ -375,6 +394,7 @@ jobs:
           subject-path: |
             packages/*.nupkg
             packages/*.snupkg
+            assemblies/**/*.dll
 
       # Publishing is the last write: once the release is public it is
       # immutable, so everything it carries has to be on the draft first.
