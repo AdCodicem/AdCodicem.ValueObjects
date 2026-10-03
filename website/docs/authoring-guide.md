@@ -27,7 +27,7 @@ JSON strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`,
 | `AllowEmpty` | `bool` | `false` | `string` only. Accepts `""`; `null` is still rejected, since absence is `T?`. |
 | `AllowDefault` | `bool` | `false` | Silences `VO0010`, for a type whose zero state is meaningful. |
 | `SchemaFormat` | `string?` | the natural format of the type | OpenAPI `format`: `uuid`, `date`, `int64`, or your own such as `iban` or `email`. A `TimeSpan` has none: it is documented with the pattern of its constant form, not as an ISO 8601 `duration`. |
-| `Example` | `string?` | none | OpenAPI example. |
+| `Example` | `string?` | none | OpenAPI example, written as text the type parses in the invariant culture. A value the type's own rules refuse → `VO0031`: see [declared values](#declared-values-the-type-must-accept). |
 | `Description` | `string?` | the type's XML `<summary>`, as plain text: a `<see cref>` reads as the name it refers to, a `<c>` as its text | OpenAPI description. |
 
 Declared rules, and then the pattern, run before `ValidateValue`, so a validator only ever sees values that
@@ -69,6 +69,39 @@ A known value may also be a C# constant, such as `200`, `0.5`, `'A'` or `true`. 
 through its invariant text, a `double` or a `float` in its round-trip form, so `[KnownValue("Ok", 200)]` suits a
 `short` and `[KnownValue("Half", 0.5)]` a `decimal`. A `typeof(...)`, an enum member, an array and `null` are not
 values, and are `VO0013`.
+
+## Declared values the type must accept
+
+The example and every known value are values the type must accept. The example is the OpenAPI example, which
+generated clients, mock servers and readers take at its word. A known value is created through `Create` as the type
+initializes, which the registration of the assembly does before `Main`, so a refused one stops the application.
+
+`VO0031` refuses either at compile time wherever the generator can evaluate the rule on its own, and names the value,
+the code and the message of the rule as the type would answer at run time:
+
+- an example no form of the underlying type reads, such as `"lots"` on an `int`;
+- `MinLength`, `MaxLength`, and an empty string without `AllowEmpty`;
+- a bound returned as a constant, `public static int Maximum => 100;`, or set through the deprecated options;
+- a closed value set, compared under the type's `Comparison`.
+
+An example is held to these rules when it is written in the [form of a known value](#bounds-and-known-values-written-as-text).
+Written in another form the type parses, such as `NaN` or a date and time with `Z`, it is left to run time. So is
+what only runs there: a pattern, a validator, a bound computed by its hook, the format of an `[EntityId]`, and every
+rule of a type with a normalization hook, which may turn a refused value into an accepted one. The
+[contract kit](./how-to/test-value-objects.md#what-it-checks) checks the example and every known value at run time.
+
+```csharp
+[ValueObject<int>(Example = "40")]
+public readonly partial struct Quantity : IValueObjectMinimum<int>, IValueObjectMaximum<int>
+{
+    public static int Minimum => 1;
+
+    public static int Maximum => 100;
+}
+```
+
+With `Example = "5000"`, the build fails: `The Example '5000' declared on 'Quantity' is refused by its own type
+(value_object.out_of_range): The value must be less than or equal to 100.`
 
 ## Hooks
 

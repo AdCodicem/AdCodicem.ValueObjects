@@ -39,6 +39,16 @@ public sealed class LiteralFactoryTests
         LiteralFactory.RoundTrip(tenth).Should().Be("0.1");
     }
 
+    /// <summary>
+    /// The generator asks whether text is readable only once the one form of the type refused it, which a string never
+    /// does: any text is a string.
+    /// </summary>
+    [Fact]
+    public void Any_text_is_readable_as_a_string()
+    {
+        LiteralFactory.IsReadable(UnderlyingType.String, "anything at all").Should().BeTrue();
+    }
+
     private sealed class NullText
     {
         public override string? ToString() => null;

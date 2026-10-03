@@ -12,7 +12,7 @@ That is a value object like any other — same parsing, same JSON, same column, 
 `Prefix`, `Granularity` and `Length`. It implements `IEntityId<TSelf>`, so it is also an `IValueObject<TSelf, string>`.
 
 ```csharp
-[EntityId("cus", Granularity = IdGranularity.Minute, Example = "cus_ke1kcv3ahrz6dmv29gqy5cv")]
+[EntityId("cus", Granularity = IdGranularity.Minute, Example = "cus_ke1kcv3ahrz6dmv29gqy5c8")]
 public readonly partial struct CustomerId;
 
 public static class Minting
@@ -36,7 +36,7 @@ public static class Minting
 | `Prefix` (constructor argument) | required | One or more lowercase segments separated by `_`, each opening on a letter: `"acc"`, `"sk_live"`. Malformed → `VO0015`; claimed twice → `VO0016`. |
 | `Granularity` | `IdGranularity.Hour` | Width of the time bucket: `Minute` (6 chars), `Hour` (4), `Day` (3). A value the enum does not define → `VO0020`. |
 | `AllowDefault` | `false` | Silences `VO0010` for `default(AccountId)` and `new AccountId()`, as on `[ValueObject<T>]`. Only for a type whose default state is meaningful to the code holding it; absence is `AccountId?`. |
-| `Description`, `Example` | none | OpenAPI documentation. |
+| `Description`, `Example` | none | OpenAPI documentation. A declared `Example` must be an identifier of the type, which the contract kit checks; the default is one built from the profile. |
 
 Choose `Granularity` from the insert rate of the table, aiming for roughly 10⁴–10⁵ rows per bucket — not from
 taste. It leaks the creation time at exactly that granularity and nothing finer; the random part keeps its full

@@ -1,8 +1,10 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Metadata;
 using Xunit;
+using Xunit.Sdk;
 
 namespace AdCodicem.ValueObjects.Testing;
 
@@ -15,8 +17,8 @@ namespace AdCodicem.ValueObjects.Testing;
 /// <para>
 /// Derive from it, supply a handful of accepted and rejected values, and the properties that are easy to get
 /// subtly wrong are all checked: that normalization settles, that equality and ordering agree, that a value
-/// survives a round-trip through text and through JSON, and that a rejected value is rejected the same way by
-/// every entry point.
+/// survives a round-trip through text and through JSON, that a rejected value is rejected the same way by
+/// every entry point, and that the example and the known values the type declares are values it accepts.
 /// </para>
 /// <para>
 /// <code>
@@ -248,7 +250,113 @@ public abstract class ValueObjectContract<TSelf, TValue>
         }
     }
 
+    /// <summary>
+    /// The example the type declares is the one the OpenAPI document publishes, which generated clients, mock servers
+    /// and readers take at its word: the type must accept it, read as the document's transformer reads it.
+    /// </summary>
+    /// <remarks>
+    /// The generator refuses at compile time an example its rules refuse when it can evaluate them (<c>VO0031</c>).
+    /// This checks the rest: a pattern, a validator, a bound computed at run time, a normalization, the format of an
+    /// entity identifier, and an example written in a form the generator does not evaluate.
+    /// </remarks>
+    [Fact]
+    public void The_declared_example_is_accepted()
+    {
+        var descriptor = Descriptor("example");
+        var example = descriptor.Schema.Example;
+        if (example is null)
+        {
+            Assert.Skip($"'{typeof(TSelf).Name}' declares no example.");
+        }
+
+        Assert.True(
+            descriptor.TryParse(example, CultureInfo.InvariantCulture, out _, out var validation),
+            $"The example '{example}' declared on '{typeof(TSelf).Name}' is refused ({validation.ErrorCode}): {validation.ErrorMessage}");
+    }
+
+    /// <summary>
+    /// A known value is built as the type initializes, and a refused one makes the type fail to initialize: every check
+    /// of the type then fails with a <see cref="TypeInitializationException"/>, and this one says which value broke
+    /// which rule.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The generator refuses at compile time a known value its rules refuse when it can evaluate them (<c>VO0031</c>).
+    /// </para>
+    /// <para>
+    /// A value object that is not generic is initialized by the registration of its module, which the runtime runs as
+    /// soon as anything of the module is used, before this contract can even be created: the runner then reports the
+    /// <see cref="TypeInitializationException"/> of the module for every check, and its innermost exception names the
+    /// type and the rule. A construction of a generic value object, and a value object written by hand, initialize
+    /// when first used, which this check does.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_declared_known_value_is_accepted()
+    {
+        var knownValues = Descriptor("known value").Schema.KnownValues;
+        if (knownValues.IsEmpty)
+        {
+            Assert.Skip($"'{typeof(TSelf).Name}' declares no known value.");
+        }
+
+        foreach (var known in knownValues)
+        {
+            Assert.True(
+                TSelf.TryCreate((TValue)known, out _, out var validation),
+                $"The known value '{known}' declared on '{typeof(TSelf).Name}' is refused ({validation.ErrorCode}): {validation.ErrorMessage}");
+        }
+    }
+
     private IEnumerable<TSelf> Accepted() => AcceptedValues.Select(TSelf.Create);
+
+    /// <summary>
+    /// Initializes the type and gets its descriptor, reporting a type that cannot initialize because a value it creates
+    /// as it does, such as a known value, is refused, and skipping the check when the type did not register itself.
+    /// </summary>
+    /// <param name="declaration">What the check reads off the schema, as the skip names it.</param>
+    /// <returns>The descriptor.</returns>
+    /// <remarks>
+    /// The type is initialized first, directly rather than through the reflection the registry describes a construction
+    /// of a generic value object with, so that its failure reaches the kit as it happened.
+    /// </remarks>
+    private static ValueObjectDescriptor Descriptor(string declaration)
+    {
+        try
+        {
+            RuntimeHelpers.RunClassConstructor(typeof(TSelf).TypeHandle);
+        }
+        catch (TypeInitializationException exception) when (Refusal(exception) is { } refusal)
+        {
+            throw FailException.ForFailure(
+                $"'{typeof(TSelf).Name.Split('`')[0]}' cannot initialize: a value it creates as it does, a known value most "
+                + $"likely, is refused ({refusal.ErrorCode}): {refusal.Message}");
+        }
+
+        EnsureRegistered();
+        if (!ValueObjectRegistry.TryGet(typeof(TSelf), out var descriptor))
+        {
+            Assert.Skip(
+                $"'{typeof(TSelf).Name}' did not register itself, so it has no declared {declaration} to check. "
+                + "The_type_is_discoverable_at_run_time says why.");
+        }
+
+        return descriptor;
+    }
+
+    /// <summary>
+    /// Finds the rejection behind a failure to initialize, through the type initializers it went through.
+    /// </summary>
+    private static ValueObjectException? Refusal(TypeInitializationException exception)
+    {
+        Exception? current = exception;
+        while (current is TypeInitializationException)
+        {
+            current = current.InnerException;
+        }
+
+        return current as ValueObjectException;
+    }
 
     /// <summary>
     /// Runs the generated registration of the assembly declaring <typeparamref name="TSelf"/>, which a contract kept in
