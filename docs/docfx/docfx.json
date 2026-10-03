@@ -9,6 +9,7 @@
             "**/*.csproj"
           ],
           "exclude": [
+            "**/AdCodicem.ValueObjects.CodeFixes.csproj",
             "**/AdCodicem.ValueObjects.Generators.csproj",
             "**/AdCodicem.ValueObjects.Testing.csproj"
           ]
