@@ -27,6 +27,10 @@ namespace AdCodicem.ValueObjects.Generators.Emit;
 /// the generated <c>Read</c> refuses it from its default arm with a <c>JsonException</c>; for an optional value
 /// object, the nullable wrapper System.Text.Json puts around the converter answers the null itself.
 /// </para>
+/// <para>
+/// The writers refuse what the reader would: an instance equal to the default whose value the type rejects is a
+/// <c>JsonException</c> naming the type and the rule, rather than a value that faults the service reading it.
+/// </para>
 /// </remarks>
 internal static class JsonConverterEmitter
 {
@@ -54,6 +58,7 @@ internal static class JsonConverterEmitter
         EmitRead(writer, model, underlying, value, self);
         EmitWrite(writer, underlying, value, self);
         EmitPropertyName(writer, model, underlying, self);
+        EmitWriteCheck(writer, model, underlying, value, self);
         EmitHelpers(writer, underlying, value);
 
         writer.Close();
@@ -169,6 +174,8 @@ internal static class JsonConverterEmitter
     {
         writer.Line("/// <inheritdoc />");
         writer.Open($"public override void Write({Writer} writer, {self} value, {Options} options)");
+        writer.Line("ThrowIfRefused(in value);");
+        writer.Line();
 
         if (underlying.IsJsonNumber)
         {
@@ -265,6 +272,8 @@ internal static class JsonConverterEmitter
         // the value object instead would hand the key to a formatting hook, whose text TryParse cannot read back.
         writer.Line("/// <inheritdoc />");
         writer.Open($"public override void WriteAsPropertyName({Writer} writer, {self} value, {Options} options)");
+        writer.Line("ThrowIfRefused(in value);");
+        writer.Line();
 
         switch (underlying.Kind)
         {
@@ -291,6 +300,30 @@ internal static class JsonConverterEmitter
                 break;
         }
 
+        writer.Close();
+        writer.Line();
+    }
+
+    /// <summary>
+    /// Emits the check both writers run first, which refuses a value the type rejects rather than put it on the wire.
+    /// </summary>
+    /// <remarks>
+    /// Only an instance equal to the default can hold one: every other went through <c>Create</c>, whose value is valid
+    /// by construction, and costs the comparison <c>IsDefault</c> makes. Over a value type, a constructed zero equals the
+    /// default too, so validation decides between a valid zero, which is written, and a refused one. The message names
+    /// the type and the rule, never the value.
+    /// </remarks>
+    private static void EmitWriteCheck(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value, string self)
+    {
+        writer.Line("/// <summary>Refuses to write a value the type rejects, which only an instance equal to the default can hold.</summary>");
+        writer.Open($"private static void ThrowIfRefused(in {self} value)");
+        writer.Open(underlying.IsReferenceType ? "if (value._value is null)" : $"if (value._value.Equals(default({value})))");
+        writer.Line($"{value} current = value.Value;");
+        writer.Line($"{ValidationResult} validation = {self}.Validate(in current);");
+        writer.Open("if (!validation.IsValid)");
+        writer.Line($"throw new {JsonException}($\"The value to write is not a valid {model.TypeName}: {{validation.ErrorMessage}}\");");
+        writer.Close();
+        writer.Close();
         writer.Close();
         writer.Line();
     }

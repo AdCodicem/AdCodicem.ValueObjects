@@ -133,7 +133,9 @@ public sealed class ValueObjectConverter : JsonConverter
     /// as such, and anything else as a string, <see cref="Int128"/> and <see cref="UInt128"/> included, in the same
     /// round-trip form. The serializer's date settings do not apply, so that both serializers write the same text.
     /// A whole <see cref="decimal"/>, <see cref="double"/> or <see cref="float"/> is the one difference:
-    /// Newtonsoft.Json writes it with a fraction, as the same value.
+    /// Newtonsoft.Json writes it with a fraction, as the same value. An instance equal to the default whose value the
+    /// value object rejects is refused with a <see cref="JsonSerializationException"/> naming the rule, as the
+    /// System.Text.Json converter refuses it, rather than written for a reader to refuse.
     /// </remarks>
     public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
     {
@@ -147,6 +149,12 @@ public sealed class ValueObjectConverter : JsonConverter
         }
 
         var descriptor = Resolve(value.GetType());
+        if (descriptor.ValidateWrite(value) is { IsValid: false } refusal)
+        {
+            throw new JsonSerializationException(
+                $"The value to write is not a valid {descriptor.ValueObjectType.Name}: {refusal.ErrorMessage}");
+        }
+
         var raw = descriptor.GetValue(value);
 
         if (!Wires.TryGetValue(descriptor.ValueType, out var wire))

@@ -37,6 +37,11 @@ public partial class ApiJsonContext : JsonSerializerContext;
 var options = new JsonSerializerOptions().AddValueObjects();
 ```
 
+Writing refuses what reading would: an uninitialized instance (a member never set, a default array element) whose
+default value its type rejects throws `JsonException` from System.Text.Json and `JsonSerializationException` from
+Newtonsoft.Json, as a value or a dictionary key. A type whose zero is valid (`Amount` with `Minimum` 0, an
+unconstrained `Guid`) writes it.
+
 `Int128` and `UInt128` value objects travel as JSON **strings**, because JSON numbers cannot carry them. A numeric
 value object follows `JsonSerializerOptions.NumberHandling` as its underlying type does: `AllowReadingFromString`,
 `WriteAsString`, and `AllowNamedFloatingPointLiterals` for `NaN` and the infinities of a `double` or `float`. The
@@ -119,6 +124,10 @@ per row.
   reads values this same application already validated. For a table another system also writes to, turn
   validation back on with `builder.ConfigureValueObjects(strict: true, typeof(Iban).Assembly)`; it costs one
   validation per materialized value.
+- **The write path refuses a value the type rejects**, which only an uninitialized instance holds (an entity
+  property never set): on an `Iban` property `SaveChanges` throws `DbUpdateException` around the
+  `ValueObjectException`, and nothing is written; an optional `Iban?` property stores `NULL`. A type whose zero is
+  valid writes it; one that must never hold `Guid.Empty` says so with a validator.
 - Departing from the convention for a single property: `builder.Property(e => e.Iban).HasValueObjectConversion<Iban, string>()`
   (with an optional `strict: true`). Prefer the convention.
 - Never write `HasConversion` by hand for a value object: you would lose the generated comparer, and with it
@@ -155,6 +164,9 @@ Dapper looks one up by the exact type, ahead of any query. Register each constru
 - Text read into a non-string value object is parsed and validated, and a number or a `Guid` read into a string
   value object is turned into text (a `Guid` in its lowercase `D` form) and validated through `TryCreate`; a refusal
   throws `DataException` carrying the rule.
+- A parameter holding an uninitialized value object whose default its type rejects throws `DataException` before the
+  command runs, from an `Iban` and an `Iban?` alike: the handler cannot see the column. A `null` `Iban?` goes out as
+  `NULL`.
 - A string parameter declares its column as the EF Core conventions map it: an `[EntityId]` as `char(n)`
   non-Unicode, a value object with `MaxLength` as Unicode text of that length. SQL Server keeps its index seek.
 - A value object over `Int128` or `UInt128` gets no handler: no provider carries either type. Register a
@@ -199,7 +211,8 @@ the description.
 if (ValueObjectRegistry.TryGet(type, out var descriptor)
     && descriptor.TryParse(text, CultureInfo.InvariantCulture, out var boxed, out var validation))
 {
-    // descriptor.ValueObjectType, .ValueType, .Schema, .Create, .CreateUnchecked, .TryCreate, .GetValue, .Format
+    // descriptor.ValueObjectType, .ValueType, .Schema, .Create, .CreateUnchecked, .TryCreate, .GetValue, .Format,
+    // .ValidateWrite (refuses the default of a type that rejects it, as the writers do)
 }
 ```
 

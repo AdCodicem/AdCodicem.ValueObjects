@@ -173,6 +173,30 @@ public class NewtonsoftJsonTests
     }
 
     /// <summary>
+    /// The converter refuses to write what the System.Text.Json converter refuses to write: an instance equal to the
+    /// default whose value its type rejects, a member of an object or an optional value object holding one included,
+    /// with the rule and never the value. A type that accepts its zero writes it.
+    /// </summary>
+    [Fact]
+    public void A_value_the_value_object_rejects_is_never_written()
+    {
+#pragma warning disable VO0010 // The uninitialized instance is what the writer refuses.
+        var country = () => JsonConvert.SerializeObject(default(CountryCode), Defaults);
+        var birth = () => JsonConvert.SerializeObject((BirthDate?)default(BirthDate), Defaults);
+        var payment = () => JsonConvert.SerializeObject(
+            new Payment(Iban.Create("FR7630006000011234567890189"), Amount.Create(1m), default, null, Quantity.Create(3)),
+            Defaults);
+        var amount = JsonConvert.SerializeObject(default(Amount), Defaults);
+#pragma warning restore VO0010
+
+        country.Should().Throw<JsonSerializationException>().WithMessage("The value to write is not a valid CountryCode: ?*");
+        birth.Should().Throw<JsonSerializationException>().WithMessage("The value to write is not a valid BirthDate: ?*");
+        payment.Should().Throw<JsonSerializationException>()
+            .WithMessage("The value to write is not a valid CustomerId: A customer identifier must not be empty.");
+        amount.Should().Be("0.0", "zero is an amount");
+    }
+
+    /// <summary>
     /// The serializer writes a null itself before it looks for a converter, so only a caller of the converter - one
     /// that delegates to it, say - hands it one.
     /// </summary>

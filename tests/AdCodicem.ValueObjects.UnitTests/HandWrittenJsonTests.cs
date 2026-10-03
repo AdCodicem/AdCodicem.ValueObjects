@@ -84,6 +84,25 @@ public class HandWrittenJsonTests
     }
 
     /// <summary>
+    /// The general-purpose converter refuses to write what the value object rejects, as the generated one does: only
+    /// an instance equal to the default can hold such a value, as a value or as a key. A value object that accepts its
+    /// zero writes it.
+    /// </summary>
+    [Fact]
+    public void A_hand_written_value_object_writes_no_value_it_rejects()
+    {
+#pragma warning disable VO0010 // The uninitialized instance is what the writer refuses.
+        var code = () => JsonSerializer.Serialize(default(HandWrittenCode), Options);
+        var key = () => JsonSerializer.Serialize(new Dictionary<HandWrittenItemCount, int> { [default] = 1 }, Options);
+        var counter = JsonSerializer.Serialize(default(HandWrittenCounter), Options);
+#pragma warning restore VO0010
+
+        code.Should().Throw<JsonException>().WithMessage("The value to write is not a valid HandWrittenCode: A code is required.");
+        key.Should().Throw<JsonException>().WithMessage("The value to write is not a valid HandWrittenItemCount: A count of items is positive.");
+        counter.Should().Be("0", "the counter accepts its zero");
+    }
+
+    /// <summary>
     /// A key that is not the underlying type's key at all is refused as System.Text.Json refuses it in a dictionary
     /// keyed by that type, the value object's own text included.
     /// </summary>
