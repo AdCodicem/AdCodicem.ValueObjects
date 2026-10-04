@@ -675,7 +675,7 @@ html[data-theme='dark'] {
 }
 
 .navbar__search-input {
-  width: 13rem;
+  width: 12rem;
   height: 36px;
   border: 1px solid var(--border-1);
   border-radius: var(--radius-sm);
@@ -729,6 +729,77 @@ html[data-theme='dark'] {
 
 .navbar__search [class*='hitFooter_'] a {
   color: var(--link);
+}
+
+/* The index picker beside the search bar (src/components/SearchScope): a segmented control, the active index in
+   accent-text on accent-soft, its labels in the mono label style. */
+.search-with-scope {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.search-scope {
+  display: inline-flex;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+
+.search-scope__option {
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-3);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.search-scope__option:hover {
+  color: var(--fg-strong);
+}
+
+.search-scope__option--active,
+.search-scope__option--active:hover {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+/* Below 997px the navbar has room for the search bar alone; the picker stays on the results page, where the bar
+   steps aside. */
+@media (max-width: 996px) {
+  .search-scope:not(.search-scope--results) {
+    display: none;
+  }
+}
+
+/* On a phone the lockup and the picker do not fit side by side: the lockup shows its mark alone, the first 34px of
+   the drawing. */
+@media (max-width: 576px) {
+  .navbar:has(.search-scope--results) .navbar__logo img {
+    width: 34px;
+    object-fit: cover;
+    object-position: left;
+  }
+}
+
+/* The results page: the plugin's own context picker cannot offer the guides, whose index has no context; the
+   picker in the navbar replaces it, and the field takes the whole row. */
+[class*='searchContextColumn_'] {
+  display: none;
+}
+
+[class*='searchQueryColumn_'] {
+  flex: 0 0 100%;
+  max-width: 100%;
 }
 
 /* ---- Sidebar, breadcrumbs, table of contents, pager ------------------------------------------------------------ */
