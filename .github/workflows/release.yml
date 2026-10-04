@@ -57,6 +57,9 @@ jobs:
       - name: Integration tests
         run: dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests --no-build -c Release
 
+      - name: Request Delegate Generator tests
+        run: dotnet test --project tests/AdCodicem.ValueObjects.RdgTests --no-build -c Release
+
   # Packs the release and freezes its documentation, in a job that holds no
   # credential and waits for no approval. The pack, DocFX and Docusaurus run
   # third-party code, which must not share a machine with the NuGet key, the

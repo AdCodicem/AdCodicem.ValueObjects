@@ -27,12 +27,13 @@ interface, a diagnostic, an extension method) must be reflected there too.
 
 ```bash
 dotnet build -c Release
-dotnet test -c Release                                    # all three suites
+dotnet test -c Release                                    # all four suites
 # One suite. --project is required: given a bare directory, dotnet test prints a hint and exits 0
 # without running anything, which reads exactly like a pass.
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests        # behaviour of generated code
 dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests   # the generator itself
 dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests # needs Docker
+dotnet test --project tests/AdCodicem.ValueObjects.RdgTests         # minimal APIs through the RDG
 
 # Formatting, as CI checks it. Not plain `dotnet format`: its workspace runs the source generators
 # it can load, but CI formats before it builds, and the generator is referenced as a project whose
@@ -51,6 +52,13 @@ v=0.0.0-compat.$(date +%s)
 MINVERVERSIONOVERRIDE=$v dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj -p:AdCodicemVersion=$v
 # Needs Docker for PostgreSQL and SQL Server; without it, add --filter-not-trait "Requires=Docker"
+
+# Native AOT, as ci.yml's native AOT job runs it; needs clang and zlib. The application of tests/NativeAot under
+# the JIT and as a native binary, compared; then the compiled model written for native AOT, published (Docker-free).
+.github/scripts/native-aot.sh
+.github/scripts/compiled-model.sh aot
+# The compiled model as the build job checks it: dotnet ef dbcontext optimize, a build on it, a round trip (Docker)
+.github/scripts/compiled-model.sh jit
 
 # Workflows, as lint.yml checks them (actionlint 1.7.12, with shellcheck on PATH; reads .github/actionlint.yaml)
 actionlint
@@ -88,7 +96,7 @@ lookup fails. All twelve packages go out at one version, or none. That version i
 the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
-The three suites run on that exact commit first, while a job of its own packs it, `src/` only. Before logging in,
+The four suites run on that exact commit first, while a job of its own packs it, `src/` only. Before logging in,
 the publish job checks the set again (`verify-packages.sh`) and rechecks nuget.org (`preview-gate.sh --recheck`), so
 re-running an old run cannot publish a stale version. `push-packages.sh` pushes dependencies first and only what
 nuget.org lacks, in up to three passes, so a push that stops midway is completed at the same version by those
@@ -313,7 +321,7 @@ These are all load-bearing, and each cost real debugging time:
   to another environment, breaks the OIDC exchange: change the policy on nuget.org first.
 - **Required checks are job names.** The `Default` ruleset on `main` requires `build and test` (`ci.yml`) and
   `workflows` (`lint.yml`). Renaming either job leaves every pull request waiting for a check that never reports.
-  `compat (.NET 11)` becomes required when .NET 11 ships, not before.
+  `compat (.NET 11)` becomes required when .NET 11 ships, not before; `native AOT` is not required.
 - **`src/AdCodicem.ValueObjects.Packages.slnf` must list every project under `src/`.** A solution filter cannot
   glob, and previews and releases pack through it: a project left out is a package that never ships. `ci.yml` packs
   through it and fails when a packable project is missing from the result. It sits under `src/`, not beside the
@@ -365,7 +373,7 @@ These are all load-bearing, and each cost real debugging time:
 
 ## Testing
 
-Three suites, each with a distinct job:
+Four suites, each with a distinct job:
 
 - **UnitTests** — behaviour of generated code, using value objects defined in `Domain/`, and of every integration
   package called directly. `Domain/UnderlyingTypes.cs` declares one value object for each underlying type and each
@@ -403,6 +411,43 @@ Three suites, each with a distinct job:
   scope: those snapshots describe older releases, not the current generator.
 - **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
   objects reach the column types they claim, plus the API surface end to end.
+- **RdgTests** — minimal API endpoints whose binding the Request Delegate Generator writes, over value objects
+  declared in the endpoints' own project, which list their contract (VO0033). The project imports the package's
+  `build/AdCodicem.ValueObjects.props`, so VO0033 fails its build for a value object that drops its contract, and a
+  test reads the RDG's output under the generated files, so that a change in the SDK's defaults cannot turn it into a
+  test of the reflection-based binding. The RDG writes one interceptor for two handlers whose parameters share types
+  and names, dropping the attribute of the second, a `[FromHeader]` included: name such parameters apart.
+
+Beside them, in the solution but no suite, `tests/NativeAot` holds applications built as consumers build them, which
+CI publishes rather than tests. None imports `tests/Directory.Build.props`, so the trimming and AOT analyzers stay
+on where they apply.
+
+- `AdCodicem.ValueObjects.NativeAot` is a minimal API referencing every package that claims to be AOT-compatible,
+  with its value objects in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
+  `Domain/UnderlyingTypes.cs`. `ci.yml`'s `native AOT` job (`.github/scripts/native-aot.sh`) runs its fixed script once
+  under the JIT and once as the native binary, and fails on a trimming or AOT warning or on any difference between the
+  two outputs. The JIT run turns on the RDG and turns off reflection-based serialization, as `PublishAot` does, so
+  that the outputs differ only where native AOT changes something. A value object added to `UnderlyingTypes.cs` goes
+  into its `AppJsonContext` too, or the script reports it missing. `PublishAot` is set by the project when `NativeAot`
+  is true, never as `-p:PublishAot`, which would reach the `netstandard2.0` generator. A `#pragma` silences only the
+  analyzers that run with the compiler: the AOT compiler reads the compiled code, so a warning the library suppresses
+  takes `[UnconditionalSuppressMessage]` and a guard, as `MustParseAs` found out.
+- `AdCodicem.ValueObjects.CompiledModel` holds a context mapping every value object the EF Core convention maps,
+  required and optional, a generic one and an `[EntityId]` key, and a strict context beside it.
+  `.github/scripts/compiled-model.sh` writes their model with `dotnet ef dbcontext optimize` under
+  `artifacts/compiled-model/`, never committed, and builds on it with `CompiledModel=jit` or `aot`. The build job
+  takes the `jit` one on a round trip through SQL Server; the native AOT job publishes the `aot` one, written with its
+  queries precompiled, never runs it (two bugs of EF Core stop its queries), and fails on a warning about this
+  library's code only, EF Core and its dependencies warning on their own. `dotnet-ef` is pinned in
+  `.config/dotnet-tools.json` to the version of `Microsoft.EntityFrameworkCore.Design`, EF Core's own: Dependabot's
+  `dotnet` group bumps them together, and holds back the tool's next major as it does EF Core's. The project
+  turns transitive pinning off: Design depends on a later Roslyn than the one `Directory.Packages.props` pins for the
+  generator. EF Core 10 constrains what its query precompilation accepts, and Program.cs is written around it: each
+  query on a context held in a local and over locals (a context passed as a parameter is a "dynamic" query, a method
+  parameter inside the query throws), tracked (it writes an untracked query that does not compile), on an entity type
+  that is not sealed, in a model with no type named as one of EF Core's internal ones, `Reference<T>` among them
+  (CS0104). A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
+  (`UNTRACKED_READS`); the EF Core guide says why.
 
 Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twelve packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into a `net11.0` application on the .NET 11
@@ -414,7 +459,7 @@ job runs it against the packages its build job packed; it is not a required chec
 measured by no coverage. Without Docker its 18 container tests fail rather than skip, so leave them out explicitly
 (Commands above). Tools that walk the repository rather than the solution do see it: CodeQL downloads its SDK, and
 GitHub's automatic dependency submission restores it with SDK 10 from the root, which is why its project file leaves
-itself empty on an SDK that cannot target `net11.0`. The suites above are still the three; the island checks the
+itself empty on an SDK that cannot target `net11.0`. The suites above are still the four; the island checks the
 packages, not the code.
 
 `AdCodicem.ValueObjects.Testing` ships a contract kit (`ValueObjectContract`) that consumers point at their own

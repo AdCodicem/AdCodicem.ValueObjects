@@ -38,6 +38,10 @@ updates:
     ignore:
       - dependency-name: "Microsoft.EntityFrameworkCore*"
         update-types: ["version-update:semver-major"]
+      # The local tool in .config/dotnet-tools.json, pinned to Entity Framework
+      # Core's version: its next major runs on the next .NET only.
+      - dependency-name: "dotnet-ef"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "Microsoft.AspNetCore.*"
         update-types: ["version-update:semver-major"]
       - dependency-name: "Microsoft.Extensions.*"

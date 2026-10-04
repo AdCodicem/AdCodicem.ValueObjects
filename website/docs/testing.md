@@ -2,7 +2,7 @@
 title: How the Library Is Tested
 sidebar_label: How the library is tested
 slug: /testing
-description: The three test suites behind AdCodicem.ValueObjects — generated behaviour, the generator itself, real databases —, the packages run on the next .NET, and the two paths bugs hide in.
+description: The four test suites behind AdCodicem.ValueObjects — generated behaviour, the generator itself, real databases, minimal APIs bound by the Request Delegate Generator —, the applications CI publishes with native AOT, the packages run on the next .NET, and the two paths bugs hide in.
 ---
 
 # How the library is tested
@@ -10,7 +10,7 @@ description: The three test suites behind AdCodicem.ValueObjects — generated b
 To test your own value objects, see [Test your value objects](./how-to/test-value-objects.md). This page is
 about the library's own suites.
 
-Three suites, each with a distinct job:
+Four suites, each with a distinct job:
 
 - **UnitTests** — behaviour of generated code, and of every integration package called directly. The sample
   value objects declare each of the 22 underlying types and each option and hook at least once, so that what the
@@ -29,6 +29,12 @@ Three suites, each with a distinct job:
 - **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
   objects reach the column types they claim, Dapper and EF Core round trips, plus the API surface end to end.
   These need a Docker daemon: Testcontainers starts both engines for the run.
+- **RdgTests** — minimal API endpoints whose binding the Request Delegate Generator writes, as it does in every
+  build under `PublishAot` or `PublishTrimmed`, over value objects declared in the endpoints' own project: the case
+  [the Request Delegate Generator](./how-to/aspnet-core.md#the-request-delegate-generator) cannot see the
+  generator's output for. A route, query or header value binds, a refused one answers 400, an absent optional one
+  binds `null`, and a test fails if the RDG did not write the binding, so that the suite cannot silently become one
+  more test of the reflection-based binding.
 
 `AdCodicem.ValueObjects.Testing` ships the contract kit (`ValueObjectContract`) described in
 [Test your value objects](./how-to/test-value-objects.md); the unit tests use it on every generated sample value
@@ -36,9 +42,27 @@ object but two, so the framework's own test suite is a live example of how a con
 `Celsius` cannot satisfy it: their formatting hooks write text such as `floor 3` or `21 °C`, which does not parse
 back, and the kit requires a text round trip.
 
+## Native AOT and compiled models
+
+Two applications, built as an application builds them, are published rather than tested.
+
+The first references every package that claims to be AOT-compatible: the contracts, the generated code, the JSON
+package with a source-generated context and the JSON Schema it exports, the identifiers and FluentValidation. Its
+value objects cover each of the 22 underlying types, a pattern hook, a closed set, an identifier and a generic value
+object registered by hand. It runs a fixed script over every one of them — the typed path, the descriptor, JSON,
+FluentValidation, and requests over Kestrel to minimal API endpoints the Request Delegate Generator binds — once under
+the JIT and once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT warning in the publish,
+and on any difference between the two outputs, so the claim of AOT compatibility is run, not only analysed.
+
+The second holds an Entity Framework Core context mapping every value object the conventions map, required and
+optional, a generic one and an identifier as the key, beside a strict context. `dotnet ef dbcontext optimize`
+writes its compiled model on every pull request, which the project then builds on and takes on a round trip through
+SQL Server; the native AOT job also writes the model for native AOT, with its queries precompiled, and publishes it.
+[Compiled models](./how-to/ef-core.md#compiled-models) says what holds there.
+
 ## The compatibility island
 
-The three suites build and test the source. One more project tests the packages: `tests/Compat`, outside the
+The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the
 solution, installs the twelve packages exactly as they were packed — from the folder the build packs into, at that
 one version, never from nuget.org — into a `net11.0` application on the .NET 11 release candidate. It has its own
 SDK, its own package versions and no transitive pinning, so the dependency floors of the packages meet the next
@@ -81,10 +105,11 @@ xUnit v3, AwesomeAssertions, NSubstitute, FsCheck, Testcontainers.
 
 ```bash
 dotnet build -c Release
-dotnet test -c Release                                    # all three suites
+dotnet test -c Release                                    # all four suites
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests         # behaviour of generated code
 dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests    # the generator itself
 dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests  # needs Docker
+dotnet test --project tests/AdCodicem.ValueObjects.RdgTests          # minimal APIs through the RDG
 dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages   # the packable projects only
 
 # The compatibility island, from its own folder, with the .NET 11 SDK its global.json names. Pack at a fresh
@@ -94,11 +119,16 @@ MINVERVERSIONOVERRIDE=$v dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c
 cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj -p:AdCodicemVersion=$v
 # needs Docker for PostgreSQL and SQL Server; without it, add --filter-not-trait "Requires=Docker"
 
+# Native AOT (needs clang and zlib), and the compiled model, for the JIT (a round trip, needs Docker) and native AOT
+.github/scripts/native-aot.sh
+.github/scripts/compiled-model.sh jit
+.github/scripts/compiled-model.sh aot
+
 # One test (Microsoft Testing Platform: a wildcard pattern, not a substring)
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests --filter-method "*The_name_of_the_test*"
 ```
 
-`TreatWarningsAsErrors` is on repository-wide, so a warning fails the build before it reaches any of the three
+`TreatWarningsAsErrors` is on repository-wide, so a warning fails the build before it reaches any of the four
 suites. The island sets it too.
 
 Next: [Benchmarks](./benchmarks.md), for the numbers behind the design decisions.

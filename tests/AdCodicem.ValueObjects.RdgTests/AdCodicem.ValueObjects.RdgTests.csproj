@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Minimal API endpoints whose binding the Request Delegate Generator writes, as it does in every build under PublishAot
+    or PublishTrimmed, over value objects declared in this same project: the case where the RDG cannot see what the
+    generator adds, so that each value object lists its contract on its declaration (ValueObjects.cs). The package's
+    build props are imported as NuGet imports them into a consumer, so that VO0033 reads EnableRequestDelegateGenerator
+    here as it does there: a value object that stops listing its contract fails the build.
+  -->
+  <Import Project="..\..\src\AdCodicem.ValueObjects\build\AdCodicem.ValueObjects.props" />
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.RdgTests</RootNamespace>
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+
+    <!-- What the RDG writes lands on disk, where a test looks for it, so that a change in the SDK's defaults cannot turn
+         this suite into one more test of the reflection-based binding unnoticed. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="CompilerGeneratedFilesOutputPath"
+                      Value="$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(CompilerGeneratedFilesOutputPath)'))" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="AdCodicem.ValueObjects" />
+    <Using Include="AdCodicem.ValueObjects.Annotations" />
+    <Using Include="AdCodicem.ValueObjects.Identifiers" />
+  </ItemGroup>
+
+</Project>

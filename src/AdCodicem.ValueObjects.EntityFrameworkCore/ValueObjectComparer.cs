@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace AdCodicem.ValueObjects.EntityFrameworkCore;
@@ -16,8 +17,12 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// A property holding a <c>TSelf?</c> takes <see cref="NullableValueObjectComparer{TSelf}"/>, which a compiled model
 /// can write, where it cannot write the wrapping Entity Framework Core would give this comparer.
 /// </para>
+/// <para>
+/// <typeparamref name="TSelf"/> carries the annotation <see cref="ValueComparer{T}"/> puts on its own type argument, so
+/// that an application trimmed or published with native AOT gets no warning for the comparer its model names.
+/// </para>
 /// </remarks>
-public sealed class ValueObjectComparer<TSelf> : ValueComparer<TSelf>
+public sealed class ValueObjectComparer<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.PublicProperties)] TSelf> : ValueComparer<TSelf>
     where TSelf : struct, IEquatable<TSelf>
 {
     /// <summary>

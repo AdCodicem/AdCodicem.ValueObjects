@@ -74,8 +74,28 @@ jobs:
           --report-trx --report-trx-filename integration.trx
           --coverage --coverage-output-format cobertura --coverage-output integration.cobertura.xml
 
-      # All three suites, because they cover genuinely different surfaces: the
-      # typed path, the generator, and the integrations against real engines.
+      # Minimal API endpoints whose binding the Request Delegate Generator writes,
+      # as it does in every build under PublishAot or PublishTrimmed, over value
+      # objects declared in the endpoints' own project: the case where it cannot
+      # see what the generator adds, and where VO0033 fails the build.
+      - name: Request Delegate Generator tests
+        run: >-
+          dotnet test --project tests/AdCodicem.ValueObjects.RdgTests
+          --no-build -c Release
+          --report-trx --report-trx-filename rdg.trx
+          --coverage --coverage-output-format cobertura --coverage-output rdg.cobertura.xml
+
+      # `dotnet ef dbcontext optimize` turns a model mapping every value object
+      # into code that names each converter and comparer, which only this
+      # catches when it no longer compiles. The project then builds on it and
+      # takes it on a round trip through SQL Server, started by Testcontainers.
+      # The native AOT job compiles the same model for native AOT.
+      - name: Compiled model
+        run: .github/scripts/compiled-model.sh jit
+
+      # All four suites, because they cover genuinely different surfaces: the
+      # typed path, the generator, the integrations against real engines, and
+      # minimal API binding as the Request Delegate Generator writes it.
       # Coverage from the unit suite alone would flatter the descriptor and the
       # database mappings, which is exactly where defects have hidden before.
       - name: Upload coverage
@@ -179,6 +199,60 @@ jobs:
         with:
           name: compat-test-results
           path: tests/Compat/**/*.trx
+
+  # The packages that claim to be AOT-compatible, in an application published
+  # with native AOT (tests/NativeAot): the contracts, the generated code, the
+  # JSON package with a source-generated context and the JSON Schema it exports,
+  # the identifiers and FluentValidation, every value object reached through the
+  # visitor its descriptor accepts, and over Kestrel through the Request
+  # Delegate Generator. The analyzers see what each library calls; this runs it,
+  # once under the JIT and once as the native binary, and a trimming or AOT
+  # warning, or any difference between the two outputs, fails the job. Then the
+  # compiled model of the build job, written for native AOT with its queries
+  # precompiled, and published: never run, since two bugs of Entity Framework
+  # Core stop its queries. Beside build rather than after it, as a native
+  # publish takes minutes. Not a required check.
+  native-aot:
+    name: native AOT
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # MinVer runs when the projects under src/ build, and reads the tag
+          # history, which a shallow clone does not have.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      # What the native AOT compiler links with on Linux. The runner image ships
+      # both; they are installed only if it no longer does.
+      - name: Native toolchain
+        run: |
+          if ! command -v clang > /dev/null || ! dpkg -s zlib1g-dev > /dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes --no-install-recommends clang zlib1g-dev
+          fi
+
+      # Records the size of the binary in the job summary, with no threshold.
+      - name: Application
+        run: .github/scripts/native-aot.sh
+
+      - name: Compiled model
+        run: .github/scripts/compiled-model.sh aot
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: native-aot
+          path: |
+            artifacts/native-aot/*.txt
+            artifacts/native-aot/*.diff
+            artifacts/native-aot/*.log
+            artifacts/compiled-model/*.log
 
   # The documentation site, built as deploy-docs.yml builds it and deployed by
   # nobody. ci.yml deploys nothing since preview.yml took the site over, so a broken

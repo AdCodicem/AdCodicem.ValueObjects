@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -442,6 +443,27 @@ public class EntityFrameworkCoreTests
         // A compiled model calls them as the converter does.
         ValueObjectConverter<CustomerId, Guid>.FromProvider(Guid.Empty).Should().Be(CustomerId.CreateUnchecked(Guid.Empty));
         NullableValueObjectConverter<Iban>.ToProvider(null).Should().BeNull();
+    }
+
+    /// <summary>
+    /// <see cref="ValueComparer{T}"/> asks that the members of its type argument be kept. A comparer passing its own type
+    /// argument on without the same annotation warns, IL2091, in every application trimmed or published with native AOT
+    /// whose model names it, as a compiled model does.
+    /// </summary>
+    [Fact]
+    public void The_comparers_pass_on_what_the_comparer_of_Entity_Framework_Core_asks_of_its_type_argument()
+    {
+        var asked = Kept(typeof(ValueComparer<>));
+
+        asked.Should().NotBe(DynamicallyAccessedMemberTypes.None);
+        foreach (var comparer in (Type[])[typeof(ValueObjectComparer<>), typeof(NullableValueObjectComparer<>)])
+        {
+            (Kept(comparer) & asked).Should().Be(asked, $"{comparer.Name} passes its type argument to ValueComparer<T>");
+        }
+
+        static DynamicallyAccessedMemberTypes Kept(Type definition)
+            => definition.GetGenericArguments()[0].GetCustomAttribute<DynamicallyAccessedMembersAttribute>()?.MemberTypes
+               ?? DynamicallyAccessedMemberTypes.None;
     }
 
     private static void ComparedAsOptional<TSelf>(IReadOnlyProperty property)

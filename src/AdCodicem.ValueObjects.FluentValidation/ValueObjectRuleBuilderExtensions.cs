@@ -1,4 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using AdCodicem.ValueObjects.Metadata;
 using FluentValidation;
 using FluentValidation.Internal;
@@ -156,17 +158,38 @@ public static class ValueObjectRuleBuilderExtensions
             .WithMessage("'{PropertyName}' is required.");
     }
 
-
+    /// <summary>
+    /// Finds the descriptor of a value object: the one registered, or, where the runtime supports dynamic code, one the
+    /// registry describes by reflection.
+    /// </summary>
+    /// <param name="valueObjectType">The value object type.</param>
+    /// <returns>Its descriptor.</returns>
+    /// <exception cref="ArgumentException">The type is not a value object the registry describes.</exception>
+    /// <remarks>
+    /// A <c>#pragma</c> silences the analyzers that run with the compiler, never the trimmer or the native AOT compiler,
+    /// which read the compiled code: they reported the call to <see cref="ValueObjectRegistry.TryResolve"/> in every
+    /// application published with native AOT that called <c>MustParseAs</c>. Under native AOT, where the reflection that
+    /// call needs is not available, it is not made: a generated value object is registered already, and a construction
+    /// of a generic one is registered by hand.
+    /// </remarks>
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2026",
+        Justification = "Only reached for a value object nothing registered: one written by hand, or a construction of a "
+                        + "generic one, whose type the rule names, which keeps it. Under native AOT, where dynamic code is "
+                        + "not supported, the registered descriptor is the only one.")]
     private static ValueObjectDescriptor Resolve(Type valueObjectType)
     {
-#pragma warning disable IL2026, IL3050 // Validators are wired up at start-up, never on a request path.
-        if (ValueObjectRegistry.TryResolve(valueObjectType, out var descriptor))
+        if (ValueObjectRegistry.TryGet(valueObjectType, out var descriptor)
+            || (RuntimeFeature.IsDynamicCodeSupported && ValueObjectRegistry.TryResolve(valueObjectType, out descriptor)))
         {
             return descriptor;
         }
-#pragma warning restore IL2026, IL3050
 
-        throw new ArgumentException($"'{valueObjectType.Name}' is not a value object.", nameof(valueObjectType));
+        throw new ArgumentException(
+            $"'{valueObjectType.Name}' is not a value object. Under native AOT, a construction of a generic value object "
+            + "has to be registered before a rule names it.",
+            nameof(valueObjectType));
     }
 
     /// <summary>

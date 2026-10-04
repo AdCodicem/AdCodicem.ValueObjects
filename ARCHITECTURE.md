@@ -15,7 +15,8 @@ define their own value objects; this repository ships the frame.
 
 ```
 src/          the twelve shipped packages
-tests/        three suites with distinct jobs (see below)
+tests/        four suites with distinct jobs (see below)
+  NativeAot/  applications CI publishes with native AOT and compiles an EF Core model for
   Compat/     the packed packages in a .NET 11 application, outside the solution
 samples/      a showcase API exercising the whole chain end to end
 benchmarks/   the measurements behind the design decisions
@@ -93,6 +94,8 @@ actually fired. `DescriptorTests.cs` covers that surface.
 | `UnitTests` | Behaviour of generated code, over value objects defined in `Domain/` — one per underlying type and per option or hook — and of every integration package called directly. |
 | `GeneratorTests` | The generator itself: emission, every diagnostic, hook detection, the analyzers, incremental caching, and every published documentation snippet. |
 | `IntegrationTests` | Real PostgreSQL and SQL Server via Testcontainers, asserting against `information_schema`, plus the API surface end to end. |
+| `RdgTests` | Minimal API endpoints whose binding the Request Delegate Generator writes, over value objects declared in the endpoints' own project, which list their contract (`VO0033`). |
+| `tests/NativeAot` | Not a suite: an application referencing every AOT-compatible package, run under the JIT and as a native AOT binary by the `native AOT` job of `ci.yml`, which fails on a trimming or AOT warning or on any difference between the two outputs; and an EF Core model compiled with `dotnet ef dbcontext optimize`, taken on a round trip through SQL Server and published for native AOT. |
 | `tests/Compat` | Not a suite of the solution: the packages exactly as packed, installed into a `net11.0` application on the .NET 11 release candidate, with its own `global.json` and package versions. Run by the `compat (.NET 11)` job of `ci.yml`, informational until .NET 11 ships. |
 
 `GeneratorTests` drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through

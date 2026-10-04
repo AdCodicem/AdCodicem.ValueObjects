@@ -5,7 +5,7 @@
     next .NET major. Deliberately no import of the repository's Directory.Build.props, whose settings describe the
     code that is packed (net10.0, trimming and AOT analysers, the artifacts folder, the package metadata), not an
     application that consumes it. This folder has its own global.json, nuget.config and Directory.Packages.props for
-    the same reason, and is in no solution: the root build, `dotnet format` and the three suites never see it.
+    the same reason, and is in no solution: the root build, `dotnet format` and the suites never see it.
   -->
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>
@@ -21,7 +21,7 @@
     -->
     <IsTestingPlatformApplication>true</IsTestingPlatformApplication>
     <OutputType>Exe</OutputType>
-    <!-- CA1707: underscores make test names readable as sentences, as in the three suites. -->
+    <!-- CA1707: underscores make test names readable as sentences, as in the suites. -->
     <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
 

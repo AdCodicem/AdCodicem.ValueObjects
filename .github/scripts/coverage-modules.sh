@@ -8,7 +8,7 @@
 # counting them as missed. AdCodicem.ValueObjects.Dapper and AdCodicem.ValueObjects.NewtonsoftJson shipped that
 # way, invisible behind a figure that looked complete. Every project under src/ with code of its own must
 # therefore appear in at least one Cobertura report; the meta-package AdCodicem.ValueObjects carries none and is
-# skipped. Run it after the three suites, from anywhere in the repository.
+# skipped. Run it after the suites, from anywhere in the repository.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
