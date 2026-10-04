@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
@@ -493,6 +494,48 @@ public partial class JsonSchemaTests
     }
 
     /// <summary>
+    /// A schema built by hand may hold details the generator never writes, a null entry, an entry built without its
+    /// constructor, which has no name, or details beside known values left at the default of their array, of which the
+    /// OpenAPI integration names no value. No profile names one either, and each describes such a closed set from its
+    /// known values alone, rather than failing.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    [Theory]
+    [InlineData(ValueObjectJsonSchemaProfile.OpenApi)]
+    [InlineData(ValueObjectJsonSchemaProfile.LanguageModel)]
+    public void Details_only_a_schema_built_by_hand_holds_leave_a_closed_set_described_by_its_known_values(ValueObjectJsonSchemaProfile profile)
+    {
+        ValueObjectRegistry.EnsureAssemblyRegistered(typeof(Verdict).Assembly);
+        (ValueObjectSchema Declared, string Expected)[] cases =
+        [
+            (
+                new() { IsClosedValueSet = true, KnownValues = [1, 2], KnownValueDetails = [new KnownValueInfo(1, "Pass"), null!] },
+                """{"type":"integer","enum":[1,2]}"""
+            ),
+            (
+                new()
+                {
+                    IsClosedValueSet = true,
+                    KnownValues = [null!, 2],
+                    KnownValueDetails = [(KnownValueInfo)RuntimeHelpers.GetUninitializedObject(typeof(KnownValueInfo)), new KnownValueInfo(2, "Merit")],
+                },
+                """{"type":"integer","enum":["",2]}"""
+            ),
+            (
+                new() { IsClosedValueSet = true, KnownValues = default, KnownValueDetails = [new KnownValueInfo(1, "Pass")] },
+                """{"type":"integer"}"""
+            ),
+        ];
+
+        foreach (var (declared, expected) in cases)
+        {
+            ValueObjectRegistry.Register(ValueObjectDescriptor.For<Verdict, int>(declared));
+
+            ShouldDescribe(Export(OptionsFor("reflection"), typeof(Verdict), profile), expected);
+        }
+    }
+
+    /// <summary>
     /// A time of day and a <see cref="DateTime"/> are written without the offset RFC 3339 requires of the <c>time</c>
     /// and <c>date-time</c> formats, the second whenever its kind is unspecified. Neither format is published: each is
     /// held to the pattern of the form it is written in, which every value the type writes matches, as a value and as
@@ -767,6 +810,10 @@ public partial class JsonSchemaTests
     /// <summary>A shade no other test uses, whose registration one test replaces.</summary>
     [ValueObject<string>]
     public readonly partial struct Shade;
+
+    /// <summary>A verdict no other test uses, whose registration one test replaces with closed sets.</summary>
+    [ValueObject<int>]
+    public readonly partial struct Verdict;
 
     /// <summary>A time stamp no other test uses, whose registration one test replaces.</summary>
     [ValueObject<DateTime>]

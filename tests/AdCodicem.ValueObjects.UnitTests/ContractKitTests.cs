@@ -73,17 +73,86 @@ public partial class ContractKitTests
     }
 
     /// <summary>
-    /// The declared example and known values live in the registry's schema as well, and a check that cannot run says so.
+    /// The declared example and known values are read off the schema the type declares, as generic code reads it, which
+    /// takes no registration: a value object written by hand that nothing registered is checked as any other, and one
+    /// that declares neither has nothing to check.
     /// </summary>
     [Fact]
-    public void The_declaration_checks_report_themselves_skipped_for_a_type_the_registry_does_not_know()
+    public void The_declaration_checks_read_the_schema_of_a_type_the_registry_does_not_know()
     {
-        var contract = new UnregisteredContract();
+        var unregistered = new UnregisteredContract();
 
-        contract.Invoking(checks => checks.The_declared_example_is_accepted()).Should().Throw<SkipException>()
-            .WithMessage("*'UnregisteredCode' did not register itself, so it has no declared example to check.*");
-        contract.Invoking(checks => checks.Every_declared_known_value_is_accepted()).Should().Throw<SkipException>()
-            .WithMessage("*'UnregisteredCode' did not register itself, so it has no declared known value to check.*");
+        new FanSpeedContract<LinedUp>().The_declared_example_is_accepted();
+        new FanSpeedContract<LinedUp>().Every_declared_known_value_is_accepted();
+        unregistered.Invoking(checks => checks.The_declared_example_is_accepted()).Should().Throw<SkipException>()
+            .WithMessage("*'UnregisteredCode' declares no example.");
+        unregistered.Invoking(checks => checks.Every_declared_known_value_is_accepted()).Should().Throw<SkipException>()
+            .WithMessage("*'UnregisteredCode' declares no known value.");
+        ValueObjectRegistry.TryGet(typeof(FanSpeed<LinedUp>), out _).Should().BeFalse("nothing registers a value object written by hand");
+        ValueObjectRegistry.TryGet(typeof(UnregisteredCode), out _).Should().BeFalse("nothing registers a value object written by hand");
+    }
+
+    /// <summary>
+    /// A value object written by hand initializes when first used, so its example and its known values reach nothing
+    /// before the kit: the kit is what reports one its type refuses, with the rule it broke, and a known value that is
+    /// not of the underlying type, as a schema written by hand may hold, with the type it is of.
+    /// </summary>
+    /// <param name="declared">The schema the value object written by hand declares.</param>
+    /// <param name="check">The check of the kit that reports it.</param>
+    /// <param name="failure">What the kit reports.</param>
+    [Theory]
+    [MemberData(nameof(DeclarationsRefused))]
+    public void A_declaration_a_schema_written_by_hand_holds_and_its_type_refuses_fails_the_contract(
+        Type declared,
+        string check,
+        string failure)
+    {
+        var speed = typeof(FanSpeed<>).MakeGenericType(declared);
+        var contract = (IDeclarationChecks)Activator.CreateInstance(typeof(FanSpeedContract<>).MakeGenericType(declared))!;
+        Action act = check == "example" ? contract.The_declared_example_is_accepted : contract.Every_declared_known_value_is_accepted;
+
+        act.Should().Throw<XunitException>().WithMessage(failure);
+        ValueObjectRegistry.TryGet(speed, out _).Should().BeFalse("nothing registers a value object written by hand");
+    }
+
+    /// <summary>Schemas written by hand declaring what their type refuses, and what the kit reports on each.</summary>
+    public static TheoryData<Type, string, string> DeclarationsRefused => new()
+    {
+        {
+            typeof(Overreaching),
+            "example",
+            "The example '3' declared on 'FanSpeed`1' is refused (value_object.out_of_range): A fan runs low or high."
+        },
+        {
+            typeof(Overreaching),
+            "known value",
+            "The known value '3' declared on 'FanSpeed`1' is refused (value_object.out_of_range): A fan runs low or high."
+        },
+        {
+            typeof(Unknown),
+            "known value",
+            "The known value null declared on 'FanSpeed`1' is not of its underlying type, Int32."
+        },
+        {
+            typeof(Mistyped),
+            "known value",
+            "The known value '2' (Int64) declared on 'FanSpeed`1' is not of its underlying type, Int32."
+        },
+    };
+
+    /// <summary>
+    /// Known values left at the default of their array, as an init accessor allows, are none, rather than an exception
+    /// the kit throws; details beside them still have no value to line up with.
+    /// </summary>
+    [Fact]
+    public void Known_values_left_at_their_default_are_none()
+    {
+        new FanSpeedContract<Blank>().Invoking(checks => checks.Every_declared_known_value_is_accepted())
+            .Should().Throw<SkipException>().WithMessage("*'FanSpeed`1' declares no known value.");
+        new FanSpeedContract<Blank>().Invoking(checks => checks.The_known_value_details_line_up_with_the_known_values())
+            .Should().Throw<SkipException>().WithMessage("*'FanSpeed`1' declares no known value.");
+        new FanSpeedContract<Unlisted>().Invoking(checks => checks.Every_declared_known_value_is_accepted())
+            .Should().Throw<SkipException>().WithMessage("*'FanSpeed`1' declares no known value.");
     }
 
     /// <summary>
@@ -164,7 +233,7 @@ public partial class ContractKitTests
         string failure)
     {
         var speed = typeof(FanSpeed<>).MakeGenericType(declared);
-        var contract = (IDetailCheck)Activator.CreateInstance(typeof(FanSpeedContract<>).MakeGenericType(declared))!;
+        var contract = (IDeclarationChecks)Activator.CreateInstance(typeof(FanSpeedContract<>).MakeGenericType(declared))!;
 
         contract.Invoking(checks => checks.The_known_value_details_line_up_with_the_known_values())
             .Should().Throw<XunitException>().WithMessage(failure);
@@ -174,6 +243,11 @@ public partial class ContractKitTests
     /// <summary>Schemas written by hand whose known value details are out of step, and what the kit reports on each.</summary>
     public static TheoryData<Type, string> DetailsOutOfStep => new()
     {
+        {
+            typeof(Undetailed),
+            "'FanSpeed`1' has 0 known value details for 2 known values: KnownValueDetails lists the values of KnownValues "
+            + "one for one, in the same order."
+        },
         {
             typeof(OneShort),
             "'FanSpeed`1' has 1 known value details for 2 known values: KnownValueDetails lists the values of KnownValues "
@@ -210,17 +284,15 @@ public partial class ContractKitTests
     };
 
     /// <summary>
-    /// Details that line up pass, on a value object written by hand as on a generated one. A type that details no known
-    /// value, because it declares none or because its schema written by hand leaves the details out, has nothing to check.
+    /// Details that line up pass, on a value object written by hand as on a generated one. A type that declares no known
+    /// value has nothing to check.
     /// </summary>
     [Fact]
-    public void The_detail_check_passes_on_details_that_line_up_and_skips_a_type_that_details_no_known_value()
+    public void The_detail_check_passes_on_details_that_line_up_and_skips_a_type_that_declares_no_known_value()
     {
         new FanSpeedContract<LinedUp>().The_known_value_details_line_up_with_the_known_values();
         new DigitsContract().The_known_value_details_line_up_with_the_known_values();
 
-        new FanSpeedContract<Undetailed>().Invoking(checks => checks.The_known_value_details_line_up_with_the_known_values())
-            .Should().Throw<SkipException>().WithMessage("*'FanSpeed`1' details none of its known values.");
         new SilentContract().Invoking(checks => checks.The_known_value_details_line_up_with_the_known_values())
             .Should().Throw<SkipException>().WithMessage("*'Silent' declares no known value.");
     }
@@ -314,7 +386,7 @@ public partial class ContractKitTests
     /// Private, so the runner does not discover it: the schemas it is used with are out of step on purpose.
     /// </summary>
     /// <typeparam name="TDeclared">The schema the fan speed declares.</typeparam>
-    private sealed class FanSpeedContract<TDeclared> : ValueObjectContract<FanSpeed<TDeclared>, int>, IDetailCheck
+    private sealed class FanSpeedContract<TDeclared> : ValueObjectContract<FanSpeed<TDeclared>, int>, IDeclarationChecks
         where TDeclared : IDeclaredSchema
     {
         protected override IEnumerable<int> AcceptedValues => [1, 2];
@@ -322,9 +394,13 @@ public partial class ContractKitTests
         protected override IEnumerable<int> RejectedValues => [0, 3];
     }
 
-    /// <summary>The check of the kit on the details of the known values.</summary>
-    private interface IDetailCheck
+    /// <summary>The checks of the kit that read the schema the type declares.</summary>
+    private interface IDeclarationChecks
     {
+        void The_declared_example_is_accepted();
+
+        void Every_declared_known_value_is_accepted();
+
         void The_known_value_details_line_up_with_the_known_values();
     }
 
@@ -334,11 +410,12 @@ public partial class ContractKitTests
         static abstract ValueObjectSchema Schema { get; }
     }
 
-    /// <summary>Low and high, each detailed in its place.</summary>
+    /// <summary>Low and high, each detailed in its place, with low as the example.</summary>
     private sealed class LinedUp : IDeclaredSchema
     {
         public static ValueObjectSchema Schema { get; } = new()
         {
+            Example = "1",
             IsClosedValueSet = true,
             KnownValues = [1, 2],
             KnownValueDetails = [new KnownValueInfo(1, "Low", "Quiet."), new KnownValueInfo(2, "High")],
@@ -349,6 +426,33 @@ public partial class ContractKitTests
     private sealed class Undetailed : IDeclaredSchema
     {
         public static ValueObjectSchema Schema { get; } = new() { IsClosedValueSet = true, KnownValues = [1, 2] };
+    }
+
+    /// <summary>Known values and their details both left at the default of their array, which holds nothing.</summary>
+    private sealed class Blank : IDeclaredSchema
+    {
+        public static ValueObjectSchema Schema { get; } = new() { KnownValues = default, KnownValueDetails = default };
+    }
+
+    /// <summary>Low, high and a speed the fan does not run at, both as an example and as a known value.</summary>
+    private sealed class Overreaching : IDeclaredSchema
+    {
+        public static ValueObjectSchema Schema { get; } = new()
+        {
+            Example = "3",
+            KnownValues = [1, 2, 3],
+            KnownValueDetails = [new KnownValueInfo(1, "Low"), new KnownValueInfo(2, "High"), new KnownValueInfo(3, "Turbo")],
+        };
+    }
+
+    /// <summary>Low and high, high declared as a number of another type, and detailed as such.</summary>
+    private sealed class Mistyped : IDeclaredSchema
+    {
+        public static ValueObjectSchema Schema { get; } = new()
+        {
+            KnownValues = [1, 2L],
+            KnownValueDetails = [new KnownValueInfo(1, "Low"), new KnownValueInfo(2L, "High")],
+        };
     }
 
     /// <summary>Low and high, of which only low is detailed.</summary>

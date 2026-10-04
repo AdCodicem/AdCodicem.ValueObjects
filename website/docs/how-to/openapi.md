@@ -169,7 +169,8 @@ A value object is described the same way wherever it appears, not only as a prop
   so its rules go to `propertyNames`, which an OpenAPI 3.0 document carries as the `x-jsonschema-propertyNames`
   extension, as the key is written. A value object documented as a string is described as its component is; one over a
   number is a `string` held to the pattern of that number's text, `"4"`, its bounds in `x-minimum`, `x-maximum` and a
-  sentence, and one over a `bool` is `True` or `False`.
+  sentence, and one over a `bool` is `True` or `False`, as the generated converter writes it, or `true` or `false`, as
+  System.Text.Json writes the key of a `bool`.
 
 ## Numbers written as text
 
@@ -193,6 +194,6 @@ describes it by reflection the first time it meets the type, unless it was regis
 published as it was built. An annotation it also carries is not read: nothing generates from it there, so its rules,
 its known values as the type holds them and its description belong in the schema. A known value of another type than
 the underlying one is listed as its text. The names of its known values belong there too, in `KnownValueDetails`, one
-`KnownValueInfo` per value of `KnownValues`, in the same order: names that do not list those values one for one are
-not published, rather than published beside the wrong value, and the
-[contract kit](./test-value-objects.md#what-it-checks) fails on them.
+`KnownValueInfo` per value of `KnownValues`, in the same order: names left out, or that do not list those values one
+for one, are not published, rather than published beside the wrong value, and the
+[contract kit](./test-value-objects.md#what-it-checks) fails on either.

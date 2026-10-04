@@ -350,7 +350,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
             schema.Examples = [ValueObjectSchemaKeywords.WriteText(declared.Example, descriptor, options, asKey)];
         }
 
-        if (declared.IsClosedValueSet && !declared.KnownValues.IsEmpty)
+        if (declared.IsClosedValueSet && !declared.KnownValues.IsDefaultOrEmpty)
         {
             schema.Enum = [.. declared.KnownValues.Select(value => ValueObjectSchemaKeywords.WriteKnownValue(value, descriptor, options, asKey))];
             NameKnownValues(schema, declared, EnumName(schema, descriptor, options));

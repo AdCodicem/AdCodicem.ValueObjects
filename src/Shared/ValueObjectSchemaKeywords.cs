@@ -306,16 +306,32 @@ internal static class ValueObjectSchemaKeywords
     /// <param name="declared">The declared rules.</param>
     /// <returns>
     /// <see langword="true"/> when <see cref="ValueObjectSchema.KnownValueDetails"/> holds as many entries as
-    /// <see cref="ValueObjectSchema.KnownValues"/>, each of the same value, in the same order; a schema built by hand may
-    /// leave them empty or out of step, and a name beside the wrong value would mislead every reader.
+    /// <see cref="ValueObjectSchema.KnownValues"/>, each named, of the same value, in the same order; a schema built by
+    /// hand may leave them empty or out of step, and a name beside the wrong value would mislead every reader.
     /// </returns>
+    /// <remarks>
+    /// A schema built by hand may also hold what the generator never writes: an array left at its default, which holds
+    /// nothing, a <see langword="null"/> entry, or an entry without a name, built without its constructor. None of them
+    /// lines up, so no name is published rather than the schema failing.
+    /// </remarks>
     internal static bool DetailsListTheKnownValues(ValueObjectSchema declared)
     {
-        var details = declared.KnownValueDetails;
+        var details = declared.KnownValueDetails.AsSpan();
+        var knownValues = declared.KnownValues.AsSpan();
+        if (details.IsEmpty || details.Length != knownValues.Length)
+        {
+            return false;
+        }
 
-        return !details.IsDefaultOrEmpty
-               && details.Length == declared.KnownValues.Length
-               && !details.Where((detail, index) => !Equals(detail.Value, declared.KnownValues[index])).Any();
+        for (var index = 0; index < details.Length; index++)
+        {
+            if (details[index] is not { } detail || string.IsNullOrWhiteSpace(detail.Name) || !Equals(detail.Value, knownValues[index]))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
