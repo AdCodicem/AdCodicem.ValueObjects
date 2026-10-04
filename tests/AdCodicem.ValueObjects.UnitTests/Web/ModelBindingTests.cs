@@ -211,6 +211,27 @@ public sealed class ModelBindingTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// The formatter reads the application's JSON options themselves, not a copy of them: exception messages turned off
+    /// once the application runs are turned off for a body, as they are for the framework's formatter, and the code is
+    /// recorded all the same.
+    /// </summary>
+    [Fact]
+    public async Task Exception_messages_turned_off_once_the_application_runs_are_turned_off_for_a_body()
+    {
+        await using var application = await StartAsync(static _ => { });
+        using var client = application.GetTestClient();
+        var before = await PostProblemAsync(client, "/probe/orders", """{"reference":"no"}""");
+
+        application.Services.GetRequiredService<IOptions<JsonOptions>>().Value.AllowInputFormatterExceptionMessages = false;
+        var after = await PostProblemAsync(client, "/probe/orders", """{"reference":"no"}""");
+
+        before.GetProperty("errors").GetProperty("$.reference")[0].GetString().Should()
+            .Be("The value is not a valid OrderReference: The value must be at least 3 characters long.");
+        after.GetProperty("errors").GetProperty("$.reference")[0].GetString().Should().Be("The input was not valid.");
+        after.GetProperty("errorCodes").GetProperty("$.reference").GetString().Should().Be(ValueObjectErrorCodes.TooShort);
+    }
+
+    /// <summary>
     /// A request whose query string and body are both refused answers with both codes, each under its own key.
     /// </summary>
     [Fact]

@@ -45,11 +45,20 @@ public static class ValueObjectMvcExtensions
     /// <returns>The same builder, so calls can be chained.</returns>
     /// <remarks>
     /// <para>
-    /// It also puts a formatter of its own in place of MVC's System.Text.Json input formatter: the framework's,
-    /// configured as the application configures it, which records the code of a value object a request body refuses,
-    /// so that <see cref="AddValueObjectProblemDetails"/> puts it in the response under the JSON path, as it puts the
-    /// code of a route or query value under the parameter. The model state keeps the messages it keeps without it,
-    /// whatever <see cref="JsonOptions.AllowInputFormatterExceptionMessages"/> says.
+    /// It also puts a formatter of its own in place of MVC's System.Text.Json input formatter, at its index: one
+    /// deriving from it, which reads with the very serializer options the framework's formatter read with, and records
+    /// the code of a value object a request body refuses, so that <see cref="AddValueObjectProblemDetails"/> puts it in
+    /// the response under the JSON path, as it puts the code of a route or query value under the parameter. The model
+    /// state keeps the messages it keeps without it, whatever <see cref="JsonOptions.AllowInputFormatterExceptionMessages"/>
+    /// says, and a change made to the JSON options later on reaches it as it reaches the framework's. A System.Text.Json
+    /// formatter the application built with options of its own, or derived, is left as it is, and records no code.
+    /// </para>
+    /// <para>
+    /// The swap is a post-configuration of <see cref="MvcOptions"/>. Removing the framework's formatter with
+    /// <c>InputFormatters.RemoveType&lt;SystemTextJsonInputFormatter&gt;()</c> still works in <c>AddMvcOptions</c>, in
+    /// <c>Configure&lt;MvcOptions&gt;</c> or in a post-configuration registered before this call; in one registered
+    /// after it, that finds this formatter in its place, which is not of that exact type: remove there every formatter
+    /// that is a <see cref="Microsoft.AspNetCore.Mvc.Formatters.SystemTextJsonInputFormatter"/>, derived included.
     /// </para>
     /// <para>
     /// Once Newtonsoft.Json reads the body, through <c>AddNewtonsoftJson()</c>, there is no such formatter to replace,
