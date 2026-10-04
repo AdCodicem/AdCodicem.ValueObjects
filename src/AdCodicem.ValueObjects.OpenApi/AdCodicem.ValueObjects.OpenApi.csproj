@@ -23,4 +23,9 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- What a value object's rules become in a JSON Schema, compiled into every package that describes one. -->
+    <Compile Include="..\Shared\ValueObjectSchemaKeywords.cs" Link="Shared\ValueObjectSchemaKeywords.cs" />
+  </ItemGroup>
+
 </Project>

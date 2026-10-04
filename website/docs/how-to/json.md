@@ -2,7 +2,7 @@
 title: Serialize to JSON
 sidebar_label: JSON
 slug: /how-to/json
-description: Serialize value objects as their bare underlying value with System.Text.Json, including source-generated contexts, and with Newtonsoft.Json.
+description: Serialize value objects as their bare underlying value with System.Text.Json, including source-generated contexts, and with Newtonsoft.Json, and describe them in the JSON Schema System.Text.Json exports.
 ---
 
 # Serialize to JSON
@@ -117,6 +117,102 @@ The [OpenAPI document](./openapi.md) describes what these options put on the wir
 
 What is read still goes through the value object's rules: a `Latitude` bounded to ±90 refuses `"NaN"` whatever the
 options let the reader read.
+
+## JSON Schema
+
+System.Text.Json's `JsonSchemaExporter`, which the schemas of Microsoft.Extensions.AI tools and structured output, of
+the Model Context Protocol SDK and of Semantic Kernel functions are built on, describes a type its converter serializes
+as `true`, the schema that accepts anything. Every value object comes out that way, a `List<Iban>` as an array with no
+`items`, and a `DeliveryDate?` loses the `null` it accepts. `ValueObjectJsonSchema`, in `AdCodicem.ValueObjects.Json`,
+fills each of them in from the rules its type declares, the ones the OpenAPI document publishes:
+
+```csharp skip
+var schema = JsonSchemaExporter.GetJsonSchemaAsNode(
+    ApiJsonContext.Default.Options,
+    typeof(Order),
+    new JsonSchemaExporterOptions { TransformSchemaNode = ValueObjectJsonSchema.TransformSchemaNode });
+```
+
+```json
+"iban": {
+  "description": "An International Bank Account Number.",
+  "type": "string",
+  "format": "iban",
+  "pattern": "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
+  "minLength": 15,
+  "maxLength": 34,
+  "examples": ["FR7630006000011234567890189"]
+}
+```
+
+| Declared | Keyword |
+| --- | --- |
+| Underlying type | `type`: `boolean`, `integer`, `number`, or `string` for text, a character, a `Guid`, a date or a time, and `Int128` or `UInt128`, which travel as strings |
+| A nullable value object | `"null"` added to `type`, and to `enum` |
+| `MinLength`, `MaxLength` | `minLength`, `maxLength` |
+| `IValueObjectPatternValidator` | `pattern`; a `TimeSpan` declaring none gets the pattern of the constant form it is written in |
+| `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>` | `minimum`, `maximum` on a number; a sentence of the `description` on anything written as a string, a date or a character, which those keywords cannot bound |
+| A closed set of `[KnownValue]` | `enum`, each value written by the type's own converter |
+| The summary, or `Description` | `description` |
+| `Example` | `examples`, written by the converter |
+| `SchemaFormat`, or the type's own | `format`, as the profile below says |
+
+A collection or a dictionary of value objects gets its `items` or `additionalProperties`, which the exporter leaves
+out, and a dictionary keyed by a value object written as a string gets the key's rules in `propertyNames`. A value
+object is described in place, never as a `$ref`. The schema the exporter, or a host, hands over is completed rather
+than replaced: a description already there, from a `[Description]` on a tool's parameter for instance, comes first,
+the value object's after it, and a keyword the value object does not declare, such as a `default`, stays.
+
+### Two profiles
+
+The transform above uses `ValueObjectJsonSchemaProfile.OpenApi`, which describes what the serializer reads and writes
+under the options, as the [OpenAPI document](./openapi.md) does: under `AllowReadingFromString`, the default of
+ASP.NET Core and of `JsonSerializerDefaults.Web`, a number is `["string", "integer"]` with the pattern a number is
+written in, and a format such as `int32`, `decimal` or `iban` stays in `format`.
+
+`ValueObjectJsonSchemaProfile.LanguageModel` describes what a model should send. A number is a number alone, which the
+serializer reads under any options, and its example and known values are numbers. A format JSON Schema defines,
+`uuid`, `date`, `date-time`, `email` and the others, stays; any other moves into the description, where a model reads
+it and a provider that refuses an unknown format does not see it. A closed set names each of its values there too, with
+the description the value was declared with:
+
+```csharp skip
+var options = new JsonSchemaExporterOptions
+{
+    TransformSchemaNode = ValueObjectJsonSchema.CreateTransform(ValueObjectJsonSchemaProfile.LanguageModel),
+};
+```
+
+```json
+"vat": {
+  "description": "A value-added tax rate, in percent.\n\nFormat: decimal.\n\n20.0: Standard\n5.5: Reduced — Food, books and medicine.",
+  "type": "number",
+  "enum": [20.0, 5.5]
+}
+```
+
+### In a host
+
+Every host built on the exporter hands a transform of its own the `JsonTypeInfo` of each node, whatever it calls its
+context, and `ValueObjectJsonSchema.Apply` takes it. With Microsoft.Extensions.AI:
+
+```csharp skip
+var schemaOptions = new AIJsonSchemaCreateOptions
+{
+    TransformSchemaNode = (context, schema) => ValueObjectJsonSchema.Apply(
+        context.TypeInfo, schema, ValueObjectJsonSchemaProfile.LanguageModel),
+};
+
+var pay = AIFunctionFactory.Create(PayAsync, new AIFunctionFactoryOptions { JsonSchemaCreateOptions = schemaOptions });
+```
+
+The Model Context Protocol SDK takes the same options for a tool's `inputSchema`, through its
+`McpServerToolCreateOptions.SchemaCreateOptions`.
+
+A value object is found in the registry its generated registration fills, without reflection. One nothing registered,
+a value object written by hand or a construction of a generic one, is described by reflection where the runtime
+supports dynamic code; under native AOT it is left as the exporter described it until it is registered, as
+serializing it through the factory asks already.
 
 ## Newtonsoft.Json
 

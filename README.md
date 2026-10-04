@@ -92,7 +92,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | --- | --- |
 | **`AdCodicem.ValueObjects`** | The one to install: contracts, source generator and analyzers. |
 | `AdCodicem.ValueObjects.Abstractions` | The contracts alone, with no dependency at all. |
-| `AdCodicem.ValueObjects.Json` | Covers source-generated serializer contexts and hand-written value objects. |
+| `AdCodicem.ValueObjects.Json` | Covers source-generated serializer contexts and hand-written value objects, and fills in the JSON Schema System.Text.Json exports. |
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, and a convention that maps a whole assembly. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
@@ -192,6 +192,8 @@ also writes to.
 `maxLength` keyword of the OpenAPI schema. The `[GeneratedRegex]` behind `IValueObjectPatternValidator`
 validates the value, and its text becomes the `pattern` keyword. `[KnownValue]` entries become named constants,
 a frozen membership lookup, and the `enum` keyword of the schema, with their names beside it for generated clients.
+The same rules fill in the JSON Schema System.Text.Json exports, which AI tools, structured output and MCP servers
+describe their parameters with, through `ValueObjectJsonSchema`.
 
 ## Compared with other libraries
 

@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.Shared;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
@@ -18,7 +19,9 @@ namespace AdCodicem.ValueObjects.OpenApi;
 /// Schema generation is driven by <c>JsonTypeInfo</c>, and a type carrying a custom converter is opaque to it,
 /// so a value object would otherwise appear as an empty schema. This transformer fills it in from the
 /// <see cref="ValueObjectSchema"/> the generator captured, which means the pattern, bounds, length and accepted
-/// values published in the document are literally the ones the type enforces — they cannot drift.
+/// values published in the document are literally the ones the type enforces — they cannot drift. What each rule
+/// becomes is shared with <c>ValueObjectJsonSchema</c>, in AdCodicem.ValueObjects.Json, which describes a value object
+/// alike in a JSON Schema System.Text.Json exports.
 /// </para>
 /// <para>
 /// A value object written by hand is documented as well, from the schema it declares, through the descriptor the
@@ -290,7 +293,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         var nullable = AllowsNull(schema);
         schema.Type = (asText ? jsonType | JsonSchemaType.String : jsonType) | (nullable ? JsonSchemaType.Null : default);
         schema.Format = declared.Format;
-        schema.Pattern = declared.Pattern ?? WirePattern(descriptor.ValueType, asText);
+        schema.Pattern = declared.Pattern ?? ValueObjectSchemaKeywords.WirePattern(descriptor.ValueType, asText);
 
         if (declared.MinLength is { } minLength)
         {
@@ -305,12 +308,12 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         string? bounds = null;
         if (numeric)
         {
-            if (declared.Minimum is { } minimum && FormatBound(minimum, descriptor.ValueType) is { } min)
+            if (declared.Minimum is { } minimum && ValueObjectSchemaKeywords.FormatBound(minimum, descriptor.ValueType) is { } min)
             {
                 schema.Minimum = min;
             }
 
-            if (declared.Maximum is { } maximum && FormatBound(maximum, descriptor.ValueType) is { } max)
+            if (declared.Maximum is { } maximum && ValueObjectSchemaKeywords.FormatBound(maximum, descriptor.ValueType) is { } max)
             {
                 schema.Maximum = max;
             }
@@ -337,18 +340,18 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
 
         if (!string.IsNullOrEmpty(declared.Example))
         {
-            schema.Examples = [WriteText(declared.Example, descriptor, options)];
+            schema.Examples = [ValueObjectSchemaKeywords.WriteText(declared.Example, descriptor, options)];
         }
 
         if (declared.IsClosedValueSet && !declared.KnownValues.IsEmpty)
         {
-            schema.Enum = [.. declared.KnownValues.Select(value => WriteKnownValue(value, descriptor, options))];
+            schema.Enum = [.. declared.KnownValues.Select(value => ValueObjectSchemaKeywords.WriteKnownValue(value, descriptor, options))];
             NameKnownValues(schema, declared, EnumName(schema, descriptor, options));
         }
 
         if ((options.NumberHandling & JsonNumberHandling.AllowNamedFloatingPointLiterals) != 0
             && (descriptor.ValueType == typeof(double) || descriptor.ValueType == typeof(float))
-            && NamedLiterals(declared) is { Count: > 0 } literals)
+            && ValueObjectSchemaKeywords.NamedLiterals(declared) is { Count: > 0 } literals)
         {
             AllowNamedLiterals(schema, literals);
         }
@@ -377,13 +380,12 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     /// </remarks>
     private static void NameKnownValues(OpenApiSchema schema, ValueObjectSchema declared, string enumName)
     {
-        var details = declared.KnownValueDetails;
-        if (details.IsDefaultOrEmpty
-            || details.Length != declared.KnownValues.Length
-            || details.Where((detail, index) => !Equals(detail.Value, declared.KnownValues[index])).Any())
+        if (!ValueObjectSchemaKeywords.DetailsListTheKnownValues(declared))
         {
             return;
         }
+
+        var details = declared.KnownValueDetails;
 
         var varNames = new JsonArray();
         var enumNames = new JsonArray();
@@ -471,33 +473,6 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     private const string SchemaIdentifier = "x-schema-id";
 
     /// <summary>
-    /// Lists the named literals of a real a value object's bounds let through: <c>NaN</c>, which a bound compares
-    /// false with and so refuses, only when it has none, and each infinity when no bound stands on its side.
-    /// </summary>
-    /// <param name="declared">The declared rules.</param>
-    /// <returns>The literals, as System.Text.Json writes them.</returns>
-    private static List<JsonNode> NamedLiterals(ValueObjectSchema declared)
-    {
-        var literals = new List<JsonNode>(3);
-        if (declared.Minimum is null && declared.Maximum is null)
-        {
-            literals.Add(JsonValue.Create("NaN"));
-        }
-
-        if (declared.Maximum is null)
-        {
-            literals.Add(JsonValue.Create("Infinity"));
-        }
-
-        if (declared.Minimum is null)
-        {
-            literals.Add(JsonValue.Create("-Infinity"));
-        }
-
-        return literals;
-    }
-
-    /// <summary>
     /// Documents a real as System.Text.Json documents one under <c>AllowNamedFloatingPointLiterals</c>: the number, or
     /// one of the named literals.
     /// </summary>
@@ -527,45 +502,6 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     }
 
     /// <summary>
-    /// Gets the pattern a value object that declares none is held to on the wire, as System.Text.Json documents its
-    /// underlying type: a number written as text, and a duration, which no <c>format</c> describes.
-    /// </summary>
-    /// <param name="valueType">Underlying type of the value object.</param>
-    /// <param name="asText">Whether a number may be written or read as text.</param>
-    /// <returns>The pattern, or <see langword="null"/> for a value the type alone describes.</returns>
-    /// <remarks>
-    /// A duration is written in the invariant constant form <c>[-][d.]hh:mm:ss[.fffffff]</c>. The <c>duration</c>
-    /// format of JSON Schema is ISO 8601, <c>PT1H30M</c>, which the type does not read: a client taking the document
-    /// at its word would send a value the server refuses.
-    /// </remarks>
-    private static string? WirePattern(Type valueType, bool asText)
-    {
-        if (asText)
-        {
-            return NumberPattern(valueType);
-        }
-
-        return valueType == typeof(TimeSpan) ? DurationPattern : null;
-    }
-
-    /// <summary>
-    /// The pattern System.Text.Json documents a <see cref="TimeSpan"/> with: its invariant constant form.
-    /// </summary>
-    private const string DurationPattern = @"^-?(\d+\.)?\d{2}:\d{2}:\d{2}(\.\d{1,7})?$";
-
-    /// <summary>
-    /// Gets the pattern System.Text.Json holds a number written as text to.
-    /// </summary>
-    /// <param name="valueType">Underlying type of the value object, a number.</param>
-    /// <returns>The pattern.</returns>
-    private static string NumberPattern(Type valueType) => Type.GetTypeCode(valueType) switch
-    {
-        TypeCode.Double or TypeCode.Single => @"^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$",
-        TypeCode.Decimal => @"^-?(?:0|[1-9]\d*)(?:\.\d+)?$",
-        _ => @"^-?(?:0|[1-9]\d*)$",
-    };
-
-    /// <summary>
     /// Publishes the bounds of a value object that may be written as a JSON string, which <c>minimum</c> and
     /// <c>maximum</c> cannot carry.
     /// </summary>
@@ -588,8 +524,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         ValueObjectDescriptor descriptor,
         JsonSerializerOptions options)
     {
-        var minimum = declared.Minimum is { } low ? WriteBound(low, descriptor, options) : null;
-        var maximum = declared.Maximum is { } high ? WriteBound(high, descriptor, options) : null;
+        var (minimum, maximum) = ValueObjectSchemaKeywords.WriteBounds(declared, descriptor, options);
 
         schema.Extensions ??= new Dictionary<string, IOpenApiExtension>();
         if (minimum is not null)
@@ -602,173 +537,19 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
             schema.Extensions["x-maximum"] = new JsonNodeExtension(maximum);
         }
 
-        return (minimum, maximum) switch
-        {
-            ({ } from, { } to) => $"Between {Quote(from)} and {Quote(to)}, inclusive.",
-            ({ } from, null) => $"At least {Quote(from)}.",
-            _ => $"At most {Quote(maximum!)}.",
-        };
-
-        static string Quote(JsonNode value)
-            => value is JsonValue text && text.TryGetValue<string>(out var written) ? written : value.ToJsonString();
+        return ValueObjectSchemaKeywords.BoundsSentence(minimum, maximum);
     }
 
     /// <summary>
-    /// Writes the example declared on the type as the type writes the value in JSON.
+    /// Gets the JSON type a value object is documented as, the one its underlying type travels as.
     /// </summary>
-    /// <param name="text">The example, as declared.</param>
-    /// <param name="descriptor">Descriptor of the value object.</param>
-    /// <param name="options">The options the document describes the wire with.</param>
-    /// <returns>The value as JSON.</returns>
-    /// <remarks>
-    /// The example is an input, parsed the way the type parses text, then written by the type's own converter, so that
-    /// a client or a mock server checking it against the schema finds a number where the schema says number. An example
-    /// the type refuses, which nothing checks when the type compiles, or one its converter cannot write under the
-    /// options, as a real cannot write <c>NaN</c> without the named literals, is written as it was declared.
-    /// </remarks>
-    private static JsonNode WriteText(string text, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
-        => descriptor.TryParse(text, CultureInfo.InvariantCulture, out var parsed, out _)
-            ? Write(parsed!, descriptor, options) ?? JsonValue.Create(text)
-            : JsonValue.Create(text);
-
-    /// <summary>
-    /// Writes a bound declared on the type as the type writes the value in JSON.
-    /// </summary>
-    /// <param name="text">The bound, as the schema holds it.</param>
-    /// <param name="descriptor">Descriptor of the value object.</param>
-    /// <param name="options">The options the document describes the wire with.</param>
-    /// <returns>The value as JSON.</returns>
-    /// <remarks>
-    /// The check compares the normalized value with the bound as declared, so the bound is read as the underlying value
-    /// and written as it is, never normalized or validated: a normalizer converting a date to UTC would otherwise publish
-    /// a bound that moves with the time zone of the server. A bound the underlying type cannot read, as a schema made by
-    /// hand may hold, is written as it was declared.
-    /// </remarks>
-    private static JsonNode WriteBound(string text, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
-        => ParseUnderlying(text, descriptor.ValueType) is { } value
-            ? Write(descriptor.CreateUnchecked(value), descriptor, options) ?? JsonValue.Create(text)
-            : JsonValue.Create(text);
-
-    /// <summary>
-    /// Writes a value object through its converter, or answers <see langword="null"/> when the converter cannot write
-    /// it under the options, rather than failing the whole document.
-    /// </summary>
-    /// <param name="valueObject">The value object.</param>
-    /// <param name="descriptor">Descriptor of the value object.</param>
-    /// <param name="options">The options the document describes the wire with.</param>
-    /// <returns>The value as JSON, or <see langword="null"/>.</returns>
-    /// <remarks>
-    /// The options may hold no contract for the value object: a resolver generated for the types an application
-    /// serializes knows nothing of one that only ever is a route or query parameter.
-    /// </remarks>
-    private static JsonNode? Write(object valueObject, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
-    {
-        try
-        {
-            return JsonSerializer.SerializeToNode(valueObject, options.GetTypeInfo(descriptor.ValueObjectType));
-        }
-        catch (Exception exception) when (exception is ArgumentException or JsonException or NotSupportedException or InvalidOperationException)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Reads a bound as the underlying value, in the invariant form the schema holds it in.
-    /// </summary>
-    /// <param name="text">The bound.</param>
-    /// <param name="valueType">The underlying type.</param>
-    /// <returns>
-    /// The value, or <see langword="null"/> when the type cannot read the text, or takes no bound, as text, written
-    /// as it is read, does not.
-    /// </returns>
-    private static object? ParseUnderlying(string text, Type valueType)
-        => UnderlyingParsers.TryGetValue(valueType, out var parse) ? parse(text) : null;
-
-    /// <summary>
-    /// Reads text as a value of a type that parses itself, in the invariant culture.
-    /// </summary>
-    private static object? Parse<TValue>(string text)
-        where TValue : IParsable<TValue>
-        => TValue.TryParse(text, CultureInfo.InvariantCulture, out var value) ? value : null;
-
-    /// <summary>
-    /// Writes one known value of a closed set as the type writes it in JSON.
-    /// </summary>
-    /// <param name="value">The known value, as the schema holds it.</param>
-    /// <param name="descriptor">Descriptor of the value object.</param>
-    /// <param name="options">The options the document describes the wire with.</param>
-    /// <returns>The value as JSON.</returns>
-    /// <remarks>
-    /// A value of the underlying type is written by the type's own converter, so that a client checks a payload
-    /// against exactly what the type writes: a number of any width as a number, a date in its round-trip form. A
-    /// generated registration guarantees that type. A value of any other type, which a schema written by hand may hold,
-    /// and one the converter cannot write under the options, is written as its text.
-    /// </remarks>
-    private static JsonNode WriteKnownValue(object value, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
-        => (descriptor.ValueType.IsInstanceOfType(value) ? Write(descriptor.CreateUnchecked(value), descriptor, options) : null)
-           ?? JsonValue.Create(Convert.ToString(value, CultureInfo.InvariantCulture))!;
-
-    /// <summary>
-    /// Reads a declared bound as the number the type enforces, in the form the document writes it.
-    /// </summary>
-    /// <param name="bound">The bound, as declared.</param>
     /// <param name="valueType">Underlying type of the value object.</param>
-    /// <returns>The number, or <see langword="null"/> when the bound is not one, as a date's is not.</returns>
-    /// <remarks>
-    /// A double or a float bound may be written with an exponent, and may lie beyond the range of decimal or below
-    /// its precision, so it is read as a double; every other numeric type has bounds decimal carries exactly.
-    /// </remarks>
-    private static string? FormatBound(string bound, Type valueType)
+    /// <returns>The type.</returns>
+    private static JsonSchemaType MapType(Type valueType) => ValueObjectSchemaKeywords.TypeOf(valueType) switch
     {
-        if (valueType == typeof(double) || valueType == typeof(float))
-        {
-            // The document is JSON, which has no number for an infinity.
-            return double.TryParse(bound, NumberStyles.Float, CultureInfo.InvariantCulture, out var real) && double.IsFinite(real)
-                ? real.ToString("R", CultureInfo.InvariantCulture)
-                : null;
-        }
-
-        return decimal.TryParse(bound, NumberStyles.Float, CultureInfo.InvariantCulture, out var exact)
-            ? exact.ToString(CultureInfo.InvariantCulture)
-            : null;
-    }
-
-    /// <summary>
-    /// How each underlying type is read from the text of a bound: a <see cref="DateTime"/> keeping the kind its text
-    /// names, as the type's own parser reads it.
-    /// </summary>
-    private static readonly Dictionary<Type, Func<string, object?>> UnderlyingParsers = new()
-    {
-        [typeof(bool)] = Parse<bool>,
-        [typeof(char)] = Parse<char>,
-        [typeof(sbyte)] = Parse<sbyte>,
-        [typeof(byte)] = Parse<byte>,
-        [typeof(short)] = Parse<short>,
-        [typeof(ushort)] = Parse<ushort>,
-        [typeof(int)] = Parse<int>,
-        [typeof(uint)] = Parse<uint>,
-        [typeof(long)] = Parse<long>,
-        [typeof(ulong)] = Parse<ulong>,
-        [typeof(Int128)] = Parse<Int128>,
-        [typeof(UInt128)] = Parse<UInt128>,
-        [typeof(decimal)] = Parse<decimal>,
-        [typeof(double)] = Parse<double>,
-        [typeof(float)] = Parse<float>,
-        [typeof(DateOnly)] = Parse<DateOnly>,
-        [typeof(TimeOnly)] = Parse<TimeOnly>,
-        [typeof(DateTimeOffset)] = Parse<DateTimeOffset>,
-        [typeof(TimeSpan)] = Parse<TimeSpan>,
-        [typeof(DateTime)] = static text
-            => DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var instant) ? instant : null,
-    };
-
-    private static JsonSchemaType MapType(Type valueType) => Type.GetTypeCode(valueType) switch
-    {
-        TypeCode.Boolean => JsonSchemaType.Boolean,
-        TypeCode.SByte or TypeCode.Byte or TypeCode.Int16 or TypeCode.UInt16
-            or TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Int64 or TypeCode.UInt64 => JsonSchemaType.Integer,
-        TypeCode.Decimal or TypeCode.Double or TypeCode.Single => JsonSchemaType.Number,
+        ValueObjectSchemaKeywords.Boolean => JsonSchemaType.Boolean,
+        ValueObjectSchemaKeywords.Integer => JsonSchemaType.Integer,
+        ValueObjectSchemaKeywords.Number => JsonSchemaType.Number,
         _ => JsonSchemaType.String,
     };
 }

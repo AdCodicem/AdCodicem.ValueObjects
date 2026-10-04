@@ -29,6 +29,9 @@ object is then documented as what it is on the wire — its underlying type — 
 | `Example` | an example, written as the type writes it in JSON; one the type refuses fails the build (`VO0031`) or the [contract kit](./test-value-objects.md#what-it-checks) |
 | `Description`, or the type's XML `<summary>` as plain text | `description` |
 
+The same rules reach a JSON Schema exported by System.Text.Json, for a tool, structured output or a contract, through
+[`ValueObjectJsonSchema`](./json.md#json-schema), which describes a value object as this document does.
+
 So this declaration:
 
 ```csharp

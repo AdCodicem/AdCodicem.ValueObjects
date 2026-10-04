@@ -2,12 +2,17 @@
 
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.Json</RootNamespace>
-    <Description>System.Text.Json support for AdCodicem value objects: a converter factory that covers source-generated serializer contexts and hand-written value objects, plus JsonSerializerOptions extensions.</Description>
-    <PackageTags>$(PackageTags);json;system.text.json</PackageTags>
+    <Description>System.Text.Json support for AdCodicem value objects: a converter factory that covers source-generated serializer contexts and hand-written value objects, JsonSerializerOptions extensions, and a transform that describes each value object in the JSON Schema System.Text.Json exports.</Description>
+    <PackageTags>$(PackageTags);json;system.text.json;json-schema</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- What a value object's rules become in a JSON Schema, compiled into every package that describes one. -->
+    <Compile Include="..\Shared\ValueObjectSchemaKeywords.cs" Link="Shared\ValueObjectSchemaKeywords.cs" />
   </ItemGroup>
 
 </Project>

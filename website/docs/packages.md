@@ -14,7 +14,7 @@ application actually has.
 | --- | --- |
 | **`AdCodicem.ValueObjects`** | The one to install: contracts, source generator and analyzers. |
 | `AdCodicem.ValueObjects.Abstractions` | The contracts alone, with no dependency at all. |
-| `AdCodicem.ValueObjects.Json` | Covers source-generated serializer contexts and hand-written value objects. |
+| `AdCodicem.ValueObjects.Json` | Covers source-generated serializer contexts and hand-written value objects, and fills in the JSON Schema System.Text.Json exports. |
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, and a convention that maps a whole assembly. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |

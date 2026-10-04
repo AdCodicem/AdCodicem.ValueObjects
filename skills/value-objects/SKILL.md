@@ -214,7 +214,8 @@ declared in the project that maps the endpoints lists its contract on its declar
 Every exception an integration throws for a refused value carries the rule's code: read it with
 `ValueObjectErrors.TryGetCode(exception, out var code)`, and see `references/integrations.md` for where each keeps it.
 Reflection-based `System.Text.Json` needs nothing either; a source-generated `JsonSerializerContext` needs the
-`AdCodicem.ValueObjects.Json` package. Per-package details, EF `strict` mode and problem-details payloads:
+`AdCodicem.ValueObjects.Json` package, and so does a JSON Schema exported for a tool, structured output or an MCP server
+(`ValueObjectJsonSchema.TransformSchemaNode`), which otherwise describes every value object as `true`. Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.
 
 ## Test with the contract kit
@@ -237,7 +238,7 @@ behaviour that is actually yours.
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, closed value sets, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON, Dapper, FluentValidation, OpenAPI, Newtonsoft. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, FluentValidation, OpenAPI, Newtonsoft. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0030`, with the fix for each. |
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Schema;
 using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Json;
 using AdCodicem.ValueObjects.NewtonsoftJson;
@@ -58,6 +59,36 @@ public sealed class SerializationTests
             CompatJsonContext.Default.OrderPlaced);
 
         read.Should().Throw<JsonException>();
+    }
+
+    /// <summary>
+    /// The exporter of the next major still describes a value object as the schema that accepts anything, and the
+    /// transform fills it in from the rules the type declares, for OpenAPI and for a language model.
+    /// </summary>
+    [Fact]
+    public void The_exported_JSON_Schema_describes_each_value_object_as_its_underlying_value()
+    {
+        var openApi = JsonSchemaExporter.GetJsonSchemaAsNode(
+            CompatJsonContext.Default.Options,
+            typeof(OrderPlaced),
+            new JsonSchemaExporterOptions { TransformSchemaNode = ValueObjectJsonSchema.TransformSchemaNode })["properties"]!;
+        var languageModel = JsonSchemaExporter.GetJsonSchemaAsNode(
+            CompatJsonContext.Default.Options,
+            typeof(OrderPlaced),
+            new JsonSchemaExporterOptions
+            {
+                TransformSchemaNode = ValueObjectJsonSchema.CreateTransform(ValueObjectJsonSchemaProfile.LanguageModel),
+            })["properties"]!;
+
+        openApi["customer"]!.ToJsonString().Should().Be("""{"description":"A Guid value object, with a rule the default value breaks.","type":"string","format":"uuid"}""");
+        openApi["email"]!["maxLength"]!.GetValue<int>().Should().Be(254);
+        openApi["email"]!["format"]!.GetValue<string>().Should().Be("email");
+        openApi["amount"]!["type"]!.ToJsonString().Should().Be("""["string","number"]""");
+        openApi["amount"]!["minimum"]!.ToJsonString().Should().Be("0");
+        openApi["country"]!["enum"]!.ToJsonString().Should().Be("""["FR","BE","LU"]""");
+        openApi["purchase"]!["maxLength"]!.GetValue<int>().Should().Be(12);
+        languageModel["amount"]!["type"]!.ToJsonString().Should().Be("\"number\"");
+        languageModel["country"]!["description"]!.GetValue<string>().Should().Be("A closed set of reference data.\n\nFR: France\nBE: Belgium\nLU: Luxembourg");
     }
 
     [Fact]

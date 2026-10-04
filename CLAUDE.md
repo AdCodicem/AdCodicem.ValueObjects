@@ -217,7 +217,10 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI
   `maxLength`. Anything added to `[ValueObject<T>]` should feed all three. A hook can feed the schema too: the
   `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off the attribute at
-  compile time, becomes the OpenAPI `pattern`.
+  compile time, becomes the OpenAPI `pattern`. The OpenAPI transformer and the JSON Schema transform
+  (`ValueObjectJsonSchema`, in the Json package) take what a rule becomes in a schema from
+  `src/Shared/ValueObjectSchemaKeywords.cs`, an internal file each package links and compiles, not a project: a
+  keyword changes there, for both.
 - **`default(T)` is a build error** (`VO0010`). Tests that deliberately construct one need a targeted
   `#pragma warning disable VO0010` with a comment.
 
