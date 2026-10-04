@@ -77,7 +77,8 @@ jobs:
 
       # Auto-merge is a queue, not an immediate merge: GitHub waits for the
       # status checks the "Default" ruleset requires on main -- "build and test"
-      # (ci.yml) and "workflows" (lint.yml) -- so a red build or a broken
+      # and "native AOT" (ci.yml), and "workflows" (lint.yml) -- so a red build,
+      # a native AOT publish that warns or behaves differently, or a broken
       # workflow blocks the merge. A pull request nothing blocks is merged at
       # once, failing checks the ruleset does not require included ("compat
       # (.NET 11)", "documentation site"). It needs "Allow auto-merge" in the

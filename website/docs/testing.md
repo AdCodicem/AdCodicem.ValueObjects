@@ -52,7 +52,8 @@ value objects cover each of the 22 underlying types, a pattern hook, a closed se
 object registered by hand. It runs a fixed script over every one of them — the typed path, the descriptor, JSON,
 FluentValidation, and requests over Kestrel to minimal API endpoints the Request Delegate Generator binds — once under
 the JIT and once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT warning in the publish,
-and on any difference between the two outputs, so the claim of AOT compatibility is run, not only analysed.
+and on any difference between the two outputs, and a pull request merges only once it passes, so the claim of AOT
+compatibility is run, not only analysed.
 
 The second holds an Entity Framework Core context mapping every value object the conventions map, required and
 optional, a generic one and an identifier as the key, beside a strict context. `dotnet ef dbcontext optimize`

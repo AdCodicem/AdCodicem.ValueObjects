@@ -71,7 +71,9 @@ A pull request lands with *Rebase and merge*, so that each of its commits reache
 at most 100 commits: past that it refuses, and its web UI blames conflicts that do not exist. Keep a pull request to
 100 commits or fewer, and split larger work into pull requests stacked on one another.
 
-Two checks must pass before a pull request merges: **build and test**, and **workflows**, which runs
+Three checks must pass before a pull request merges: **build and test**; **native AOT**, which publishes an
+application using every AOT-compatible package with native AOT and fails on a trimming or AOT warning, or on any
+difference between the native binary and the JIT; and **workflows**, which runs
 [actionlint](https://github.com/rhysd/actionlint) over every workflow, including those that never run on a pull
 request. CI also builds this site and runs the packages in a .NET 11 application, in jobs that do not block the
 merge.

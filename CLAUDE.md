@@ -319,9 +319,9 @@ These are all load-bearing, and each cost real debugging time:
 - **Trusted Publishing is keyed on a workflow file and an environment.** The nuget.org policies name `preview.yml`
   with the `nuget` environment and `release.yml` with `nuget-stable`. Renaming either file, or moving its publish job
   to another environment, breaks the OIDC exchange: change the policy on nuget.org first.
-- **Required checks are job names.** The `Default` ruleset on `main` requires `build and test` (`ci.yml`) and
-  `workflows` (`lint.yml`). Renaming either job leaves every pull request waiting for a check that never reports.
-  `compat (.NET 11)` becomes required when .NET 11 ships, not before; `native AOT` is not required.
+- **Required checks are job names.** The `Default` ruleset on `main` requires `build and test` and `native AOT`
+  (`ci.yml`), and `workflows` (`lint.yml`). Renaming any of them leaves every pull request waiting for a check that
+  never reports. `compat (.NET 11)` becomes required when .NET 11 ships, not before.
 - **`src/AdCodicem.ValueObjects.Packages.slnf` must list every project under `src/`.** A solution filter cannot
   glob, and previews and releases pack through it: a project left out is a package that never ships. `ci.yml` packs
   through it and fails when a packable project is missing from the result. It sits under `src/`, not beside the
@@ -422,16 +422,16 @@ Beside them, in the solution but no suite, `tests/NativeAot` holds applications 
 CI publishes rather than tests. None imports `tests/Directory.Build.props`, so the trimming and AOT analyzers stay
 on where they apply.
 
-- `AdCodicem.ValueObjects.NativeAot` is a minimal API referencing every package that claims to be AOT-compatible,
-  with its value objects in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
-  `Domain/UnderlyingTypes.cs`. `ci.yml`'s `native AOT` job (`.github/scripts/native-aot.sh`) runs its fixed script once
-  under the JIT and once as the native binary, and fails on a trimming or AOT warning or on any difference between the
-  two outputs. The JIT run turns on the RDG and turns off reflection-based serialization, as `PublishAot` does, so
-  that the outputs differ only where native AOT changes something. A value object added to `UnderlyingTypes.cs` goes
-  into its `AppJsonContext` too, or the script reports it missing. `PublishAot` is set by the project when `NativeAot`
-  is true, never as `-p:PublishAot`, which would reach the `netstandard2.0` generator. A `#pragma` silences only the
-  analyzers that run with the compiler: the AOT compiler reads the compiled code, so a warning the library suppresses
-  takes `[UnconditionalSuppressMessage]` and a guard, as `MustParseAs` found out.
+- `AdCodicem.ValueObjects.NativeAot` is a minimal API referencing every package that claims to be AOT-compatible, with
+  its value objects in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
+  `Domain/UnderlyingTypes.cs`. `ci.yml`'s `native AOT` job (`.github/scripts/native-aot.sh`), a required check, runs
+  its fixed script once under the JIT and once as the native binary, and fails on a trimming or AOT warning or on any
+  difference between the two outputs. The JIT run turns on the RDG and turns off reflection-based serialization, as
+  `PublishAot` does, so that the outputs differ only where native AOT changes something. A value object added to
+  `UnderlyingTypes.cs` goes into its `AppJsonContext` too, or the script reports it missing. `PublishAot` is set by
+  the project when `NativeAot` is true, never as `-p:PublishAot`, which would reach the `netstandard2.0` generator. A
+  `#pragma` silences only the analyzers that run with the compiler: the AOT compiler reads the compiled code, so a
+  warning the library suppresses takes `[UnconditionalSuppressMessage]` and a guard, as `MustParseAs` found out.
 - `AdCodicem.ValueObjects.CompiledModel` holds a context mapping every value object the EF Core convention maps,
   required and optional, a generic one and an `[EntityId]` key, and a strict context beside it.
   `.github/scripts/compiled-model.sh` writes their model with `dotnet ef dbcontext optimize` under

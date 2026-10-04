@@ -136,9 +136,9 @@ than `MakeGenericType`, which native AOT cannot run for a struct, as
 [Run-time lookup](./how-to/runtime-lookup.md#back-to-the-typed-path) shows; the Dapper integration registers its handlers
 that way. The contracts, the generated code, the JSON package, FluentValidation and identifiers are marked
 AOT-compatible and built with the trimming and AOT analyzers on, and CI publishes an application using them all with
-native AOT on every pull request: it fails on any trimming or AOT warning, and unless the native binary does exactly
-what the application does under the JIT. The EF Core, ASP.NET Core, OpenAPI, Dapper and Newtonsoft.Json integrations
-are not AOT-compatible, because the frameworks they plug into are not.
+native AOT on every pull request, which merges only once that passes: it fails on any trimming or AOT warning, and
+unless the native binary does exactly what the application does under the JIT. The EF Core, ASP.NET Core, OpenAPI,
+Dapper and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not.
 
 ### Does a pattern run compiled under native AOT?
 
