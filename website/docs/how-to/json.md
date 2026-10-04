@@ -147,10 +147,10 @@ var schema = JsonSchemaExporter.GetJsonSchemaAsNode(
 
 | Declared | Keyword |
 | --- | --- |
-| Underlying type | `type`: `boolean`, `integer`, `number`, or `string` for text, a character, a `Guid`, a date or a time, and `Int128` or `UInt128`, which travel as strings |
+| Underlying type | `type`: `boolean`, `integer`, `number`, or `string` for text, a character, a `Guid`, a date or a time, and `Int128` or `UInt128`, which travel as strings; a character is `minLength` and `maxLength` 1 |
 | A nullable value object | `"null"` added to `type`, and to `enum` |
 | `MinLength`, `MaxLength` | `minLength`, `maxLength` |
-| `IValueObjectPatternValidator` | `pattern`; a `TimeSpan` declaring none gets the pattern of the constant form it is written in |
+| `IValueObjectPatternValidator` | `pattern`; a `TimeSpan`, a `TimeOnly` and a `DateTime`, which declare none, get the pattern of the form they are written in, see [below](#times-without-an-offset) |
 | `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>` | `minimum`, `maximum` on a number; a sentence of the `description` on anything written as a string, a date or a character, which those keywords cannot bound |
 | A closed set of `[KnownValue]` | `enum`, each value written by the type's own converter |
 | The summary, or `Description` | `description` |
@@ -158,8 +158,10 @@ var schema = JsonSchemaExporter.GetJsonSchemaAsNode(
 | `SchemaFormat`, or the type's own | `format`, as the profile below says |
 
 A collection or a dictionary of value objects gets its `items` or `additionalProperties`, which the exporter leaves
-out, and a dictionary keyed by a value object written as a string gets the key's rules in `propertyNames`. A value
-object is described in place, never as a `$ref`. The schema the exporter, or a host, hands over is completed rather
+out, and a dictionary keyed by a value object gets the key's rules in `propertyNames`, as the key is written: always
+text, so a key over a number is a `string` held to the pattern of that number's text, `"4"` or `"-Infinity"`, its bounds
+in a sentence of the description, and a key over a `bool` is `True` or `False`. A value object is described in place,
+never as a `$ref`. The schema the exporter, or a host, hands over is completed rather
 than replaced: a description already there, from a `[Description]` on a tool's parameter for instance, comes first,
 the value object's after it, and a keyword the value object does not declare, such as a `default`, stays.
 
@@ -173,8 +175,8 @@ written in, and a format such as `int32`, `decimal` or `iban` stays in `format`.
 `ValueObjectJsonSchemaProfile.LanguageModel` describes what a model should send. A number is a number alone, which the
 serializer reads under any options, and its example and known values are numbers. A format JSON Schema defines,
 `uuid`, `date`, `date-time`, `email` and the others, stays; any other moves into the description, where a model reads
-it and a provider that refuses an unknown format does not see it. A closed set names each of its values there too, with
-the description the value was declared with:
+it and a provider that refuses an unknown format does not see it. A closed set lists its values in `enum`, which the
+description does not repeat:
 
 ```csharp skip
 var options = new JsonSchemaExporterOptions
@@ -185,11 +187,22 @@ var options = new JsonSchemaExporterOptions
 
 ```json
 "vat": {
-  "description": "A value-added tax rate, in percent.\n\nFormat: decimal.\n\n20.0: Standard\n5.5: Reduced — Food, books and medicine.",
+  "description": "A value-added tax rate, in percent.\n\nFormat: decimal.",
   "type": "number",
   "enum": [20.0, 5.5]
 }
 ```
+
+### Times without an offset
+
+JSON Schema's `time` and `date-time` formats are RFC 3339's, which requires an offset. A `TimeOnly` never has one,
+`08:30:00.0000000`, and a `DateTime` of `DateTimeKind.Unspecified` is written without one, `2024-01-31T08:30:00`: a
+validator that asserts formats, as a gateway or a provider of structured output may, would refuse what the type writes.
+Neither type has a natural format therefore. A `TimeOnly` is held to the pattern of the forms it reads,
+`^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,7})?)?$`, and a `DateTime` to a date, followed by a time of day and
+the offset its kind gives it, `Z`, `+01:00` or none. A `DateTimeOffset` keeps `date-time` and a `DateOnly` `date`,
+which hold. A value object over `DateTime` whose normalizer guarantees a kind, `DateTimeKind.Utc` for instance, may
+declare `SchemaFormat = "date-time"`, which is then published beside the pattern.
 
 ### In a host
 

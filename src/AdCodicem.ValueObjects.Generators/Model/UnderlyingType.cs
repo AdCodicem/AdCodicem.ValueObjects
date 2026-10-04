@@ -217,14 +217,17 @@ internal sealed class UnderlyingType
             JsonReadExpression = "ReadDateOnly(ref reader)", RoundTripFormat = "O", SchemaFormat = "date", FormatBufferSize = 10,
             LiteralForm = "yyyy-MM-dd, such as \"2024-01-31\"",
         },
+        // No format for a time of day nor for a DateTime: JSON Schema's time and date-time are RFC 3339's, which requires an
+        // offset, and a TimeOnly has none, as a DateTime of DateTimeKind.Unspecified is written without one. The schema
+        // hosts hold each to the pattern of the form it is written in instead (ValueObjectSchemaKeywords.WirePattern).
         new(UnderlyingKind.TimeOnly, "global::System.TimeOnly", "System.TimeOnly")
         {
-            JsonReadExpression = "ReadTimeOnly(ref reader)", RoundTripFormat = "O", SchemaFormat = "time", FormatBufferSize = 16,
+            JsonReadExpression = "ReadTimeOnly(ref reader)", RoundTripFormat = "O", FormatBufferSize = 16,
             LiteralForm = "HH:mm, HH:mm:ss or HH:mm:ss.fffffff, such as \"08:30\"",
         },
         new(UnderlyingKind.DateTime, "global::System.DateTime", "System.DateTime")
         {
-            JsonReadExpression = "reader.GetDateTime()", JsonTryReadMethod = "TryGetDateTime", RoundTripFormat = "O", SchemaFormat = "date-time", FormatBufferSize = 33,
+            JsonReadExpression = "reader.GetDateTime()", JsonTryReadMethod = "TryGetDateTime", RoundTripFormat = "O", FormatBufferSize = 33,
             LiteralForm = "yyyy-MM-dd or yyyy-MM-ddTHH:mm[:ss[.fffffff]], without an offset, such as \"2024-01-31T08:30\"",
         },
         new(UnderlyingKind.DateTimeOffset, "global::System.DateTimeOffset", "System.DateTimeOffset")
@@ -233,7 +236,7 @@ internal sealed class UnderlyingType
             LiteralForm = "yyyy-MM-ddTHH:mm[:ss[.fffffff]] followed by Z, +HH:mm or -HH:mm, such as \"2024-01-31T08:30+01:00\"",
         },
         // No format: JSON Schema's duration is ISO 8601, PT1H30M, and a duration is written in the constant form, which
-        // the OpenAPI transformer documents with the pattern System.Text.Json documents a bare TimeSpan with.
+        // the schema hosts document with the pattern System.Text.Json documents a bare TimeSpan with.
         new(UnderlyingKind.TimeSpan, "global::System.TimeSpan", "System.TimeSpan")
         {
             JsonReadExpression = "ReadTimeSpan(ref reader)", RoundTripFormat = "c", FormatBufferSize = 26,

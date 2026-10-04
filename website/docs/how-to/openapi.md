@@ -21,8 +21,8 @@ object is then documented as what it is on the wire — its underlying type — 
 | Declared on the type | In the schema |
 | --- | --- |
 | The underlying type | `type` |
-| `SchemaFormat`, or the natural format of the type (`uuid`, `date`, `int64`…; none for a `TimeSpan`, see below) | `format` |
-| `MinLength`, `MaxLength` | `minLength`, `maxLength` |
+| `SchemaFormat`, or the natural format of the type (`uuid`, `date`, `int64`…; none for a `TimeSpan`, a `TimeOnly` or a `DateTime`, see below) | `format` |
+| `MinLength`, `MaxLength` | `minLength`, `maxLength`; 1 both for a `char`, which is written as one character |
 | `IValueObjectPatternValidator`, or the deprecated `Pattern` option | `pattern` |
 | `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>`, or the deprecated `Minimum` and `Maximum` options | `minimum`, `maximum` for a number; for a value written as a string, see below |
 | `[KnownValue]` on a closed set | `enum`, each value as the type writes it in JSON; the names in `x-enum-varnames`, `x-enumNames` and `x-ms-enum`, with the descriptions declared, see [below](#names-of-known-values) |
@@ -73,6 +73,15 @@ stack documents a plain `TimeSpan`, a `string` held to the pattern `^-?(\d+\.)?\
 its example and its bounds match. A client generator types such a property as a string rather than a duration, as it
 types a plain `TimeSpan` of the same document. `SchemaFormat` still sets a `format`, and a pattern declared on the type
 replaces this one.
+
+A `TimeOnly` and a `DateTime` have no natural format either. The `time` and `date-time` formats are RFC 3339's, which
+requires an offset: a time of day never has one, `08:30:00.0000000`, and a `DateTime` of `DateTimeKind.Unspecified` is
+written without one, `2024-01-31T08:30:00`, so a client or a gateway taking the format at its word would refuse what the
+server writes. Each is documented as a `string` held to the pattern of the form it is written in, the one
+[the JSON Schema transform](./json.md#times-without-an-offset) publishes: `HH:mm`, `HH:mm:ss` or `HH:mm:ss.fffffff` for
+a time of day, and a date, followed by a time of day and the offset the kind gives it, `Z`, `+01:00` or none, for a
+`DateTime`. A `DateTimeOffset` keeps `date-time` and a `DateOnly` `date`. A value object over `DateTime` whose
+normalizer guarantees a kind, `DateTimeKind.Utc` for instance, may declare `SchemaFormat = "date-time"`.
 
 A bound is published as it is declared and enforced, never normalized as an input would be: the check compares the
 normalized value with the bound itself. An example is an input, parsed and normalized as the type parses text, then
@@ -156,10 +165,11 @@ A value object is described the same way wherever it appears, not only as a prop
   value object's component, as a property of that type does. System.Text.Json leaves them out for a type with a
   converter of its own, so they would otherwise be an array or an object of anything. An element of a nullable value
   object, `List<Quantity?>`, is described in place instead, with `null` added to its type.
-- **A key of a dictionary**, `Dictionary<CountryCode, int>`, when the value object is documented as a string: a key is
-  written as text, so its rules go to `propertyNames`, which an OpenAPI 3.0 document carries as the
-  `x-jsonschema-propertyNames` extension. A key over a number or a boolean is left undescribed, since the name of a
-  member is neither.
+- **A key of a dictionary**, `Dictionary<CountryCode, int>` or `Dictionary<Quantity, int>`: a key is written as text,
+  so its rules go to `propertyNames`, which an OpenAPI 3.0 document carries as the `x-jsonschema-propertyNames`
+  extension, as the key is written. A value object documented as a string is described as its component is; one over a
+  number is a `string` held to the pattern of that number's text, `"4"`, its bounds in `x-minimum`, `x-maximum` and a
+  sentence, and one over a `bool` is `True` or `False`.
 
 ## Numbers written as text
 

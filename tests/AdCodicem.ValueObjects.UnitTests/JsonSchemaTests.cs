@@ -62,6 +62,8 @@ public partial class JsonSchemaTests
         Dictionary<string, Amount> Totals,
         Dictionary<CountryCode, int> PerCountry,
         Dictionary<Quantity, int> PerQuantity,
+        Dictionary<Tolerance, int> PerTolerance,
+        Dictionary<Consent, int> PerConsent,
         List<List<Port>> Ports,
         string Note,
         int Count);
@@ -82,7 +84,8 @@ public partial class JsonSchemaTests
     public static TheoryData<string, ValueObjectJsonSchemaProfile, string> Rules => new()
     {
         { "Consent", OpenApi, """{"description":"Whether a customer agreed to be contacted.","type":"boolean","examples":[true]}""" },
-        { "Grade", OpenApi, """{"description":"A school grade, from A to F.\n\nBetween A and F, inclusive.","type":"string"}""" },
+        { "Grade", OpenApi, """{"description":"A school grade, from A to F.\n\nBetween A and F, inclusive.","type":"string","minLength":1,"maxLength":1}""" },
+        { "Grade", LanguageModel, """{"description":"A school grade, from A to F.\n\nBetween A and F, inclusive.","type":"string","minLength":1,"maxLength":1}""" },
         { "Adjustment", OpenApi, """{"description":"A thermostat adjustment, in degrees.","type":"integer","format":"int32","minimum":-10,"maximum":10}""" },
         { "Adjustment", LanguageModel, """{"description":"A thermostat adjustment, in degrees.\n\nFormat: int32.","type":"integer","minimum":-10,"maximum":10}""" },
         { "Score", OpenApi, """{"description":"A score out of a hundred.","type":"integer","format":"int32","maximum":100}""" },
@@ -96,9 +99,10 @@ public partial class JsonSchemaTests
         { "Latitude", OpenApi, """{"description":"A latitude, in degrees.","type":"number","format":"double","minimum":-90,"maximum":90}""" },
         { "Latitude", LanguageModel, """{"description":"A latitude, in degrees.\n\nFormat: double.","type":"number","minimum":-90,"maximum":90}""" },
         { "Ratio", OpenApi, """{"description":"A ratio between zero and one.","type":"number","format":"float","minimum":0,"maximum":1}""" },
-        { "Opening", OpenApi, """{"description":"The time a shop opens.\n\nBetween 06:00:00.0000000 and 12:00:00.0000000, inclusive.","type":"string","format":"time"}""" },
-        { "Recorded", OpenApi, """{"description":"When a record was written.\n\nBetween 2000-01-01T00:00:00 and 2099-12-31T00:00:00, inclusive.","type":"string","format":"date-time"}""" },
-        { "Recorded", LanguageModel, """{"description":"When a record was written.\n\nBetween 2000-01-01T00:00:00 and 2099-12-31T00:00:00, inclusive.","type":"string","format":"date-time"}""" },
+        { "Opening", OpenApi, $$"""{"description":"The time a shop opens.\n\nBetween 06:00:00.0000000 and 12:00:00.0000000, inclusive.","type":"string","pattern":{{Text(TimePattern)}}}""" },
+        { "Opening", LanguageModel, $$"""{"description":"The time a shop opens.\n\nBetween 06:00:00.0000000 and 12:00:00.0000000, inclusive.","type":"string","pattern":{{Text(TimePattern)}}}""" },
+        { "Recorded", OpenApi, $$"""{"description":"When a record was written.\n\nBetween 2000-01-01T00:00:00 and 2099-12-31T00:00:00, inclusive.","type":"string","pattern":{{Text(DateTimePattern)}}}""" },
+        { "Recorded", LanguageModel, $$"""{"description":"When a record was written.\n\nBetween 2000-01-01T00:00:00 and 2099-12-31T00:00:00, inclusive.","type":"string","pattern":{{Text(DateTimePattern)}}}""" },
         { "Occurred", OpenApi, """{"description":"When an event occurred, with the offset it occurred at.\n\nAt least 2000-01-01T00:00:00+00:00.","type":"string","format":"date-time"}""" },
         { "Duration", OpenApi, """{"description":"How long a task took.\n\nBetween 00:00:00 and 1.00:00:00, inclusive.","type":"string","pattern":"^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$","examples":["01:30:00"]}""" },
         { "Duration", LanguageModel, """{"description":"How long a task took.\n\nBetween 00:00:00 and 1.00:00:00, inclusive.","type":"string","pattern":"^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$","examples":["01:30:00"]}""" },
@@ -107,17 +111,17 @@ public partial class JsonSchemaTests
         { "Phone", OpenApi, """{"description":"An international phone number, printed in groups by its own formatter.","type":"string","pattern":"^\\+[0-9]{6,15}$"}""" },
         { "Label", OpenApi, """{"description":"A free-text label, which may be empty, and whose wide formats outgrow the emitted stack buffer.","type":"string","maxLength":200}""" },
         { "Status", OpenApi, """{"description":"The status of a document, from a closed set whose spelling does not matter.","type":"string","enum":["draft","final"]}""" },
-        { "Status", LanguageModel, """{"description":"The status of a document, from a closed set whose spelling does not matter.\n\ndraft: Draft\nfinal: Final","type":"string","enum":["draft","final"]}""" },
+        { "Status", LanguageModel, """{"description":"The status of a document, from a closed set whose spelling does not matter.","type":"string","enum":["draft","final"]}""" },
         { "Iban", OpenApi, """{"description":"An International Bank Account Number, stored in its electronic form.","type":"string","format":"iban","pattern":"^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$","minLength":15,"maxLength":34,"examples":["FR7630006000011234567890189"]}""" },
         { "Iban", LanguageModel, """{"description":"An International Bank Account Number, stored in its electronic form.\n\nFormat: iban.","type":"string","pattern":"^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$","minLength":15,"maxLength":34,"examples":["FR7630006000011234567890189"]}""" },
         { "Amount", OpenApi, """{"description":"A monetary amount in the ambient currency, never negative.","type":"number","format":"decimal","minimum":0,"examples":[1250.00]}""" },
         { "Customer", OpenApi, """{"description":"The identifier of a customer.","type":"string","format":"uuid"}""" },
         { "Customer", LanguageModel, """{"description":"The identifier of a customer.","type":"string","format":"uuid"}""" },
         { "Country", OpenApi, """{"description":"An ISO 3166-1 alpha-2 country code restricted to the countries the application serves.","type":"string","minLength":2,"maxLength":2,"enum":["FR","BE","LU"]}""" },
-        { "Country", LanguageModel, """{"description":"An ISO 3166-1 alpha-2 country code restricted to the countries the application serves.\n\nFR: France\nBE: Belgium\nLU: Luxembourg","type":"string","minLength":2,"maxLength":2,"enum":["FR","BE","LU"]}""" },
+        { "Country", LanguageModel, """{"description":"An ISO 3166-1 alpha-2 country code restricted to the countries the application serves.","type":"string","minLength":2,"maxLength":2,"enum":["FR","BE","LU"]}""" },
         { "Share", OpenApi, """{"description":"A share of a whole, between 0 and 100.","type":"number","format":"percentage","minimum":0,"maximum":100}""" },
         { "Share", LanguageModel, """{"description":"A share of a whole, between 0 and 100.\n\nFormat: percentage.","type":"number","minimum":0,"maximum":100}""" },
-        { "Vat", LanguageModel, """{"description":"A value-added tax rate, in percent.\n\nFormat: decimal.\n\n20.0: Standard\n5.5: Reduced — Food, books and medicine.","type":"number","enum":[20.0,5.5]}""" },
+        { "Vat", LanguageModel, """{"description":"A value-added tax rate, in percent.\n\nFormat: decimal.","type":"number","enum":[20.0,5.5]}""" },
         { "Order", OpenApi, """{"description":"A reference to a document, whose owner is part of its type: a purchase order's and a sales invoice's are not interchangeable.","type":"string","maxLength":12,"examples":["PO-1042"]}""" },
         { "Birth", OpenApi, """{"description":"A date of birth, which must be in the past and within a plausible human lifespan.\n\nBetween 1900-01-01 and 2100-12-31, inclusive.","type":["string","null"],"format":"date"}""" },
         { "Quantity", OpenApi, """{"description":"A quantity of items, tested to cover the narrow integer promotion path.","type":["integer","null"],"format":"int32","minimum":0,"maximum":1000}""" },
@@ -125,14 +129,28 @@ public partial class JsonSchemaTests
         { "Alternates", OpenApi, """{"type":"array","items":{"description":"An International Bank Account Number, stored in its electronic form.","type":"string","format":"iban","pattern":"^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$","minLength":15,"maxLength":34,"examples":["FR7630006000011234567890189"]}}""" },
         { "Optional", OpenApi, """{"type":"array","items":{"description":"An International Bank Account Number, stored in its electronic form.","type":["string","null"],"format":"iban","pattern":"^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$","minLength":15,"maxLength":34,"examples":["FR7630006000011234567890189"]}}""" },
         { "Totals", OpenApi, """{"type":"object","additionalProperties":{"description":"A monetary amount in the ambient currency, never negative.","type":"number","format":"decimal","minimum":0,"examples":[1250.00]}}""" },
-        { "PerCountry", LanguageModel, """{"type":"object","additionalProperties":{"type":"integer"},"propertyNames":{"description":"An ISO 3166-1 alpha-2 country code restricted to the countries the application serves.\n\nFR: France\nBE: Belgium\nLU: Luxembourg","type":"string","minLength":2,"maxLength":2,"enum":["FR","BE","LU"]}}""" },
-        { "PerQuantity", OpenApi, """{"type":"object","additionalProperties":{"type":"integer"}}""" },
+        { "PerCountry", LanguageModel, """{"type":"object","additionalProperties":{"type":"integer"},"propertyNames":{"description":"An ISO 3166-1 alpha-2 country code restricted to the countries the application serves.","type":"string","minLength":2,"maxLength":2,"enum":["FR","BE","LU"]}}""" },
+        { "PerQuantity", OpenApi, """{"type":"object","additionalProperties":{"type":"integer"},"propertyNames":{"description":"A quantity of items, tested to cover the narrow integer promotion path.\n\nBetween 0 and 1000, inclusive.","type":"string","format":"int32","pattern":"^-?(?:0|[1-9]\\d*)$"}}""" },
+        { "PerQuantity", LanguageModel, """{"type":"object","additionalProperties":{"type":"integer"},"propertyNames":{"description":"A quantity of items, tested to cover the narrow integer promotion path.\n\nBetween 0 and 1000, inclusive.\n\nFormat: int32.","type":"string","pattern":"^-?(?:0|[1-9]\\d*)$"}}""" },
+        { "PerTolerance", OpenApi, """{"type":"object","additionalProperties":{"type":"integer"},"propertyNames":{"description":"A measuring tolerance, as a fraction no larger than one.\n\nAt most 1.","type":"string","format":"double","pattern":"^(?:-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?|-Infinity)$"}}""" },
+        { "PerConsent", OpenApi, """{"type":"object","additionalProperties":{"type":"integer"},"propertyNames":{"description":"Whether a customer agreed to be contacted.","type":"string","pattern":"^(?:[Tt]rue|[Ff]alse)$","examples":["True"]}}""" },
         { "Ports", OpenApi, """{"type":"array","items":{"type":["array","null"],"items":{"description":"A TCP port.","type":"integer","format":"int32","minimum":1,"examples":[8080]}}}""" },
         { "Note", OpenApi, """{"type":"string"}""" },
         { "Count", LanguageModel, """{"type":"integer"}""" },
     };
 
     private const ValueObjectJsonSchemaProfile OpenApi = ValueObjectJsonSchemaProfile.OpenApi;
+
+    /// <summary>
+    /// The pattern of a time of day, in the forms the type reads, the last of which it writes.
+    /// </summary>
+    private const string TimePattern = @"^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,7})?)?$";
+
+    /// <summary>
+    /// The pattern of a <see cref="DateTime"/>, with the offset its kind gives it, none for an unspecified one.
+    /// </summary>
+    private const string DateTimePattern =
+        @"^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?:T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,7})?)?(?:Z|[+-]\d{2}:\d{2})?)?$";
 
     private const ValueObjectJsonSchemaProfile LanguageModel = ValueObjectJsonSchemaProfile.LanguageModel;
 
@@ -453,11 +471,11 @@ public partial class JsonSchemaTests
     }
 
     /// <summary>
-    /// A closed set whose schema, built by hand, does not detail its values one for one names none of them: a name
-    /// beside the wrong value would mislead the model.
+    /// A closed set lists its values in <c>enum</c> alone for a language model, never again in the description, whether
+    /// its details name them one for one or, as a schema built by hand may, out of step with them.
     /// </summary>
     [Fact]
-    public void A_closed_set_whose_details_do_not_list_its_values_names_none()
+    public void A_closed_set_lists_its_values_in_the_enum_alone_for_a_language_model()
     {
         ValueObjectRegistry.EnsureAssemblyRegistered(typeof(Shade).Assembly);
         ValueObjectRegistry.Register(ValueObjectDescriptor.For<Shade, string>(new ValueObjectSchema
@@ -468,8 +486,126 @@ public partial class JsonSchemaTests
         }));
 
         var schema = Export(OptionsFor("reflection"), typeof(Shade), LanguageModel);
+        var named = Export(OptionsFor("reflection"), typeof(VatRate), LanguageModel);
 
         ShouldDescribe(schema, """{"type":"string","enum":["light","dark"]}""");
+        ShouldDescribe(named, """{"description":"A value-added tax rate, in percent.\n\nFormat: decimal.","type":"number","enum":[20.0,5.5]}""");
+    }
+
+    /// <summary>
+    /// A time of day and a <see cref="DateTime"/> are written without the offset RFC 3339 requires of the <c>time</c>
+    /// and <c>date-time</c> formats, the second whenever its kind is unspecified. Neither format is published: each is
+    /// held to the pattern of the form it is written in, which every value the type writes matches, as a value and as
+    /// the key of a dictionary, whatever its kind, and every text that pattern lets through is one the type reads.
+    /// </summary>
+    [Fact]
+    public void A_time_of_day_and_a_DateTime_are_held_to_the_form_they_are_written_in_rather_than_to_an_RFC_3339_format()
+    {
+        var options = OptionsFor("reflection");
+        TimeOnly[] times = [TimeOnly.MinValue, new(8, 30), new(23, 59, 59, 999), TimeOnly.MaxValue];
+        DateTime[] instants =
+        [
+            DateTime.MinValue,
+            new(2024, 1, 31, 8, 30, 0, DateTimeKind.Unspecified),
+            new(2024, 1, 31, 8, 30, 0, 500, DateTimeKind.Utc),
+            new(2024, 1, 31, 8, 30, 0, DateTimeKind.Local),
+            DateTime.MaxValue,
+        ];
+
+        ShouldDescribe(Export(options, typeof(Alarm), OpenApi), $$"""{"description":"A time of day nothing bounds.","type":"string","pattern":{{Text(TimePattern)}}}""");
+        ShouldDescribe(
+            Export(options, typeof(Moment), LanguageModel),
+            $$"""{"description":"An instant nothing bounds, of whatever kind it was created with.","type":"string","pattern":{{Text(DateTimePattern)}}}""");
+        foreach (var time in times)
+        {
+            WrittenAsValueAndKey(Alarm.Create(time), options).Should().AllSatisfy(text => text.Should().MatchRegex(TimePattern));
+        }
+
+        foreach (var instant in instants)
+        {
+            WrittenAsValueAndKey(Moment.Create(instant), options).Should().AllSatisfy(text => text.Should().MatchRegex(DateTimePattern));
+        }
+
+        foreach (var text in (string[])["08:30", "08:30:00", "08:30:00.5", "23:59:59.9999999"])
+        {
+            text.Should().MatchRegex(TimePattern);
+            JsonSerializer.Deserialize(Text(text), options.GetTypeInfo(typeof(Alarm))).Should().BeOfType<Alarm>();
+        }
+
+        foreach (var text in (string[])["2024-01-31", "2024-01-31T08:30", "2024-01-31T08:30Z", "2024-01-31T08:30:00.1234567+01:00", "2024-12-31T23:59:59-05:00"])
+        {
+            text.Should().MatchRegex(DateTimePattern);
+            JsonSerializer.Deserialize(Text(text), options.GetTypeInfo(typeof(Moment))).Should().BeOfType<Moment>();
+        }
+
+        static string[] WrittenAsValueAndKey<TSelf>(TSelf value, JsonSerializerOptions options)
+            where TSelf : notnull
+            => [
+                JsonSerializer.SerializeToElement(value, options.GetTypeInfo(typeof(TSelf))).GetString()!,
+                JsonSerializer.SerializeToNode(new Dictionary<TSelf, int> { [value] = 0 }, options.GetTypeInfo(typeof(Dictionary<TSelf, int>)))!
+                    .AsObject().Single().Key,
+            ];
+    }
+
+    /// <summary>
+    /// A validator that asserts formats, as a gateway or a provider of structured output may, accepts what the serializer
+    /// writes for a time of day, and for a <see cref="DateTime"/> of any kind, as a value or as a key, which the RFC 3339
+    /// formats refused; the formats a date and an instant with its offset are published with still hold.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    [Theory]
+    [InlineData(ValueObjectJsonSchemaProfile.OpenApi)]
+    [InlineData(ValueObjectJsonSchemaProfile.LanguageModel)]
+    public void What_the_serializer_writes_for_times_and_instants_is_valid_where_formats_are_asserted(ValueObjectJsonSchemaProfile profile)
+    {
+        var options = OptionsFor("reflection");
+        var moments = new Moments(
+            OpeningTime.Create(new TimeOnly(8, 30)),
+            Alarm.Create(new TimeOnly(23, 59, 59)),
+            Moment.Create(new DateTime(2024, 1, 31, 8, 30, 0, DateTimeKind.Unspecified)),
+            Moment.Create(new DateTime(2024, 1, 31, 8, 30, 0, DateTimeKind.Utc)),
+            OccurredAt.Create(new DateTimeOffset(2024, 1, 31, 8, 30, 0, TimeSpan.FromHours(1))),
+            EffectiveDate.Create(new DateOnly(2024, 1, 31)),
+            new() { [Moment.Create(new DateTime(2024, 1, 31, 8, 30, 0, DateTimeKind.Unspecified))] = 1 });
+        var written = JsonSerializer.SerializeToElement(moments, options.GetTypeInfo(typeof(Moments)));
+        var schema = Export(options, typeof(Moments), profile);
+
+        Evaluate(Validator(schema), written, assertFormats: true).Should().BeEmpty();
+        Member(schema, "Occurred")["format"]!.GetValue<string>().Should().Be("date-time");
+        Member(schema, "Effective")["format"]!.GetValue<string>().Should().Be("date");
+        Evaluate(Validator(schema), With(written, "Occurred", "2024-01-31T08:30:00"), assertFormats: true)
+            .Should().ContainSingle().Which.Should().Contain("Occurred");
+    }
+
+    /// <summary>
+    /// A key is described as its converter writes it, whatever the options say of a value: a real as its text, with each
+    /// named literal its bounds let through, none for one bounded on both sides, and never as a number that may be text
+    /// or a named literal beside one; and, where the converter writes no key, as the text the type was declared with, its
+    /// example and its bounds as they were written.
+    /// </summary>
+    [Fact]
+    public void A_key_is_described_as_its_converter_writes_it()
+    {
+        var options = OptionsFor("reflection");
+        var literals = new JsonSerializerOptions
+        {
+            NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals | JsonNumberHandling.AllowReadingFromString,
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
+        };
+        var valueOnly = new JsonSerializerOptions { Converters = { new RankValueConverter() }, TypeInfoResolver = new DefaultJsonTypeInfoResolver() };
+
+        var bounded = Export(options, typeof(Dictionary<Latitude, int>), OpenApi)["propertyNames"]!;
+        var unbounded = Export(literals, typeof(Dictionary<Reading, int>), OpenApi)["propertyNames"]!;
+        var rank = Export(valueOnly, typeof(Dictionary<Rank, int>), LanguageModel)["propertyNames"]!;
+
+        bounded["pattern"]!.GetValue<string>().Should().Be(@"^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$");
+        bounded["description"]!.GetValue<string>().Should().Be("A latitude, in degrees.\n\nBetween -90 and 90, inclusive.");
+        unbounded["pattern"]!.GetValue<string>().Should().Be(@"^(?:-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|NaN|Infinity|-Infinity)$");
+        unbounded["examples"]!.ToJsonString().Should().Be("""["NaN"]""");
+        unbounded.AsObject().ContainsKey("anyOf").Should().BeFalse("a key is text, never a named literal beside a number");
+        unbounded["type"]!.GetValue<string>().Should().Be("string", "a key is never a number, whatever the options read");
+        ShouldDescribe(rank,
+            """{"description":"A rank no other test uses, whose converter writes no key.\n\nBetween 1 and 9, inclusive.\n\nFormat: int32.","type":"string","pattern":"^-?(?:0|[1-9]\\d*)$","examples":["03"]}""");
     }
 
     /// <summary>
@@ -492,7 +628,7 @@ public partial class JsonSchemaTests
             TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
         };
 
-        ShouldDescribe(Export(options, typeof(Stamp), OpenApi), """{"description":"At least soon.","type":"string"}""");
+        ShouldDescribe(Export(options, typeof(Stamp), OpenApi), $$"""{"description":"At least soon.","type":"string","pattern":{{Text(DateTimePattern)}}}""");
         ShouldDescribe(Export(options, typeof(Fee), LanguageModel), """{"type":"number"}""");
         ShouldDescribe(Export(options, typeof(Tag), OpenApi), """{"description":"Between a and z, inclusive.","type":"string"}""");
         ShouldDescribe(
@@ -549,6 +685,8 @@ public partial class JsonSchemaTests
             Evaluate(schema, With(written, "Quantity", 5000)).Should().ContainSingle(profile.ToString()).Which.Should().Contain("Quantity");
             Evaluate(schema, With(written, "Country", "DE")).Should().ContainSingle(profile.ToString()).Which.Should().Contain("Country");
             Evaluate(schema, With(written, "Iban", "FR76")).Should().ContainSingle(profile.ToString()).Which.Should().Contain("Iban");
+            Evaluate(schema, With(written, "PerQuantity", new JsonObject { ["four"] = 1 })).Should().NotBeEmpty(profile.ToString())
+                .And.AllSatisfy(error => error.Should().Contain("PerQuantity"));
         }
     }
 
@@ -584,6 +722,47 @@ public partial class JsonSchemaTests
     /// <summary>A reading nothing bounds, which an instrument may fail to take.</summary>
     [ValueObject<double>(Example = "NaN")]
     public readonly partial struct Reading;
+
+    /// <summary>
+    /// Times and instants, the two that are written without an offset beside the two that are written with a format.
+    /// </summary>
+    internal sealed record Moments(
+        OpeningTime Opening,
+        Alarm Alarm,
+        Moment Local,
+        Moment Universal,
+        OccurredAt Occurred,
+        EffectiveDate Effective,
+        Dictionary<Moment, int> PerMoment);
+
+    /// <summary>A time of day nothing bounds.</summary>
+    [ValueObject<TimeOnly>]
+    public readonly partial struct Alarm;
+
+    /// <summary>An instant nothing bounds, of whatever kind it was created with.</summary>
+    [ValueObject<DateTime>]
+    public readonly partial struct Moment;
+
+    /// <summary>A rank no other test uses, whose converter writes no key.</summary>
+    [ValueObject<int>(Example = "03")]
+    public readonly partial struct Rank : IValueObjectMinimum<int>, IValueObjectMaximum<int>
+    {
+        public static int Minimum => 1;
+
+        public static int Maximum => 9;
+    }
+
+    /// <summary>
+    /// Writes a rank as a value and reads it, and writes no key, as a converter written by hand may not.
+    /// </summary>
+    private sealed class RankValueConverter : JsonConverter<Rank>
+    {
+        public override Rank Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => Rank.Create(reader.GetInt32());
+
+        public override void Write(Utf8JsonWriter writer, Rank value, JsonSerializerOptions options)
+            => writer.WriteNumberValue(value.Value);
+    }
 
     /// <summary>A shade no other test uses, whose registration one test replaces.</summary>
     [ValueObject<string>]
@@ -647,6 +826,8 @@ public partial class JsonSchemaTests
         new() { ["net"] = Amount.Create(10m) },
         new() { [CountryCode.Luxembourg] = 2 },
         new() { [Domain.Quantity.Create(4)] = 1 },
+        new() { [Tolerance.Create(double.NegativeInfinity)] = 1, [Tolerance.Create(1e-5)] = 2 },
+        new() { [Consent.Create(true)] = 3 },
         [[Port.Create(443)]],
         "Shelf B",
         7);
@@ -664,6 +845,11 @@ public partial class JsonSchemaTests
     private static JsonNode Member(JsonNode schema, string name) => schema["properties"]![name]!;
 
     /// <summary>
+    /// Writes text as the JSON string that holds it, for a schema spelled out in a test.
+    /// </summary>
+    private static string Text(string text) => JsonValue.Create(text).ToJsonString();
+
+    /// <summary>
     /// Asserts that a schema holds exactly the keywords expected, in whatever order.
     /// </summary>
     private static void ShouldDescribe(JsonNode schema, string expected)
@@ -677,11 +863,12 @@ public partial class JsonSchemaTests
         => JsonSchema.FromText(schema.ToJsonString(), new BuildOptions { Dialect = Dialect.Draft202012 });
 
     /// <summary>
-    /// Evaluates a payload against a schema, answering where each failing keyword stands, or nothing for a valid one.
+    /// Evaluates a payload against a schema, answering where each failing keyword stands, or nothing for a valid one,
+    /// with <c>format</c> asserted when asked, as a validator may assert it whatever the draft says.
     /// </summary>
-    private static List<string> Evaluate(JsonSchema schema, JsonElement payload)
+    private static List<string> Evaluate(JsonSchema schema, JsonElement payload, bool assertFormats = false)
     {
-        var results = schema.Evaluate(payload, new EvaluationOptions { OutputFormat = OutputFormat.List });
+        var results = schema.Evaluate(payload, new EvaluationOptions { OutputFormat = OutputFormat.List, RequireFormatValidation = assertFormats });
         if (results.IsValid)
         {
             // The alternatives of an anyOf the payload did not take report errors of their own.
