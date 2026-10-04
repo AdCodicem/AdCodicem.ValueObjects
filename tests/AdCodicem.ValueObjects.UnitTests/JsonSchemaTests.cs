@@ -6,11 +6,11 @@ using System.Text.Json.Serialization.Metadata;
 using AdCodicem.ValueObjects.Json;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
-using BuildOptions = Json.Schema.BuildOptions;
-using Dialect = Json.Schema.Dialect;
-using EvaluationOptions = Json.Schema.EvaluationOptions;
-using JsonSchema = Json.Schema.JsonSchema;
-using OutputFormat = Json.Schema.OutputFormat;
+using DialectKind = LateApexEarlySpeed.Json.Schema.Keywords.DialectKind;
+using JsonSchemaOptions = LateApexEarlySpeed.Json.Schema.Common.JsonSchemaOptions;
+using JsonValidator = LateApexEarlySpeed.Json.Schema.JsonValidator;
+using JsonValidatorOptions = LateApexEarlySpeed.Json.Schema.JsonValidatorOptions;
+using OutputFormat = LateApexEarlySpeed.Json.Schema.Common.OutputFormat;
 
 namespace AdCodicem.ValueObjects.UnitTests;
 
@@ -856,28 +856,34 @@ public partial class JsonSchemaTests
         => JsonNode.DeepEquals(schema, JsonNode.Parse(expected)).Should().BeTrue($"the schema is {schema.ToJsonString()}");
 
     /// <summary>
-    /// Reads an exported schema as the draft System.Text.Json writes, 2020-12, in which <c>format</c> annotates rather
-    /// than asserts.
+    /// Reads an exported schema as the draft System.Text.Json writes, 2020-12, which names no <c>$schema</c>.
     /// </summary>
-    private static JsonSchema Validator(JsonNode schema)
-        => JsonSchema.FromText(schema.ToJsonString(), new BuildOptions { Dialect = Dialect.Draft202012 });
+    private static JsonValidator Validator(JsonNode schema)
+        => new(schema.ToJsonString(), new JsonValidatorOptions { DefaultDialect = DialectKind.Draft202012 });
 
     /// <summary>
-    /// Evaluates a payload against a schema, answering where each failing keyword stands, or nothing for a valid one,
-    /// with <c>format</c> asserted when asked, as a validator may assert it whatever the draft says.
+    /// Evaluates a payload against a schema, answering where each failing keyword stands, one entry per schema that
+    /// fails, or nothing for a valid one. <c>format</c> annotates, as draft 2020-12 has it, unless asked to assert, as a
+    /// gateway or a provider of structured output may.
     /// </summary>
-    private static List<string> Evaluate(JsonSchema schema, JsonElement payload, bool assertFormats = false)
+    private static List<string> Evaluate(JsonValidator schema, JsonElement payload, bool assertFormats = false)
     {
-        var results = schema.Evaluate(payload, new EvaluationOptions { OutputFormat = OutputFormat.List, RequireFormatValidation = assertFormats });
-        if (results.IsValid)
+        var result = schema.Validate(payload, new JsonSchemaOptions { OutputFormat = OutputFormat.List, ValidateFormat = assertFormats });
+        if (result.IsValid)
         {
             // The alternatives of an anyOf the payload did not take report errors of their own.
             return [];
         }
 
-        return [.. results.Details!
-            .Where(detail => detail.Errors is { Count: > 0 })
-            .Select(detail => $"{detail.InstanceLocation}: {string.Join(", ", detail.Errors!.Keys)}")];
+        // A keyword's location ends with the keyword: what precedes it names the schema, and the member, it applies to,
+        // which the location in the payload does not for the name of a member that propertyNames refuses.
+        return [.. result.ValidationErrors
+            .GroupBy(error =>
+            {
+                var keyword = error.RelativeKeywordLocation!.ToString();
+                return (Instance: error.InstanceLocation!.ToString(), Schema: keyword[..keyword.LastIndexOf('/')]);
+            })
+            .Select(failure => $"{failure.Key.Instance} ({failure.Key.Schema}): {string.Join(", ", failure.Select(error => error.Keyword))}")];
     }
 
     /// <summary>
