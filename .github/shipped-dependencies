@@ -21,9 +21,11 @@ Newtonsoft.Json
 xunit.v3.assert
 xunit.v3.extensibility.core
 
-# Compiled into a shipped assembly, the generator AdCodicem.ValueObjects bundles: the Roslyn API it is built
-# against, which sets the oldest compiler that loads it, and the polyfills PolySharp writes into it.
+# Compiled into a shipped assembly, the generator or the code fix assembly AdCodicem.ValueObjects bundles beside
+# it: the Roslyn API each is built against, which sets the oldest compiler, or the oldest IDE for the code fix's
+# workspace layer, that loads it, and the polyfills PolySharp writes into both.
 Microsoft.CodeAnalysis.CSharp
+Microsoft.CodeAnalysis.CSharp.Workspaces
 PolySharp
 
 # Referenced by a project under src/ but shipping nothing, marked `!`: MinVer and Microsoft.SourceLink.GitHub
