@@ -97,10 +97,13 @@ pip install pre-commit && pre-commit install
    before pushing — CI enforces both, with `--verify-no-changes`.
 6. Open the PR and fill in the template.
 
-Two checks must pass before a pull request merges: **build and test** (`ci.yml`), and **workflows** (`lint.yml`),
-which runs [actionlint](https://github.com/rhysd/actionlint) over every workflow, the ones that never run on a pull
-request included; `CLAUDE.md` has the command to run it locally. `ci.yml` also builds the documentation site and
-runs the packages in a .NET 11 application, in jobs that are worth a look when red but do not block the merge.
+Three checks must pass before a pull request merges: **build and test** (`ci.yml`); **native AOT** (`ci.yml`), which
+publishes the applications of `tests/NativeAot` with native AOT and fails on a trimming or AOT warning, or on any
+difference between the native binary and the JIT; and **workflows** (`lint.yml`), which runs
+[actionlint](https://github.com/rhysd/actionlint) over every workflow, the ones that never run on a pull request
+included. `CLAUDE.md` has the commands to run the last two locally; the native AOT scripts need clang and zlib.
+`ci.yml` also builds the documentation site and runs the packages in a .NET 11 application, in jobs that are worth a
+look when red but do not block the merge.
 
 Releases are cut manually by the maintainer from `main`, so a merged pull request publishes nothing by itself: if it
 changes what ships in a package, the next weekly preview carries it, and the next stable release ships it.

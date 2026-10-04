@@ -211,7 +211,8 @@ jobs:
   # compiled model of the build job, written for native AOT with its queries
   # precompiled, and published: never run, since two bugs of Entity Framework
   # Core stop its queries. Beside build rather than after it, as a native
-  # publish takes minutes. Not a required check.
+  # publish takes minutes. A required check of the "Default" ruleset on main,
+  # by its name: renaming the job leaves every pull request waiting for it.
   native-aot:
     name: native AOT
     runs-on: ubuntu-latest
