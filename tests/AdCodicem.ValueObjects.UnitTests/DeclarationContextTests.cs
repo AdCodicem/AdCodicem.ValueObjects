@@ -109,10 +109,10 @@ public partial class DeclarationContextTests
 
     /// <summary>
     /// A generic value object written by hand registers its definition by hand. Its constructions carry no generated
-    /// schema or converter, so each is described from its annotations, as any hand-written value object is.
+    /// converter, so each is described from the schema it declares alone, as any hand-written value object is.
     /// </summary>
     [Fact]
-    public void A_hand_written_generic_definition_is_described_from_its_annotations()
+    public void A_hand_written_generic_definition_is_described_from_the_schema_it_declares()
     {
         ValueObjectRegistry.RegisterGenericDefinition(typeof(HandWrittenTag<>));
 

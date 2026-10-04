@@ -1,4 +1,5 @@
 using System.Globalization;
+using AdCodicem.ValueObjects.Metadata;
 
 namespace AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
@@ -16,6 +17,9 @@ public readonly struct HandWrittenItemCount : IValueObject<HandWrittenItemCount,
     private readonly int _value;
 
     private HandWrittenItemCount(int value) => _value = value;
+
+    /// <summary>Declares no rule a reflection-driven caller could publish.</summary>
+    public static ValueObjectSchema Schema => ValueObjectSchema.Unconstrained;
 
     public int Value => _value;
 

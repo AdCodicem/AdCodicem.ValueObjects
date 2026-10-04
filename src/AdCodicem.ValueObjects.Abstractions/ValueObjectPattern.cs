@@ -5,7 +5,7 @@ namespace AdCodicem.ValueObjects;
 
 /// <summary>
 /// A generic bridge to the pattern a value object declares through <see cref="IValueObjectPatternValidator"/>,
-/// used by generated code and by the registry.
+/// used by generated code.
 /// </summary>
 /// <remarks>
 /// A static abstract member is reached through a type parameter, which finds it however the value object implements

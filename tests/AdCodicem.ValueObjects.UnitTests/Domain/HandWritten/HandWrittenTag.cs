@@ -1,3 +1,5 @@
+using AdCodicem.ValueObjects.Metadata;
+
 namespace AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
 #pragma warning disable CA1000 // The static members are the contract of IValueObject<TSelf, TValue>, on a generic type.
@@ -15,6 +17,9 @@ public readonly struct HandWrittenTag<TOwner> : IValueObject<HandWrittenTag<TOwn
     private readonly string? _value;
 
     private HandWrittenTag(string value) => _value = value;
+
+    /// <summary>Declares no rule a reflection-driven caller could publish.</summary>
+    public static ValueObjectSchema Schema => ValueObjectSchema.Unconstrained;
 
     public string Value => _value ?? string.Empty;
 

@@ -21,9 +21,9 @@ namespace AdCodicem.ValueObjects.OpenApi;
 /// values published in the document are literally the ones the type enforces — they cannot drift.
 /// </para>
 /// <para>
-/// A value object written by hand is documented as well, from its annotation, through the descriptor the registry
-/// builds by reflection when nothing registered the type, as the model binder and the FluentValidation rules resolve
-/// it. It runs while the document is built, not per request.
+/// A value object written by hand is documented as well, from the schema it declares, through the descriptor the
+/// registry builds by reflection when nothing registered the type, as the model binder and the FluentValidation rules
+/// resolve it. It runs while the document is built, not per request.
 /// </para>
 /// <para>
 /// A value object over a number honours <see cref="JsonSerializerOptions.NumberHandling"/> as the built-in converter of
@@ -580,9 +580,8 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     /// <remarks>
     /// A value of the underlying type is written by the type's own converter, so that a client checks a payload
     /// against exactly what the type writes: a number of any width as a number, a date in its round-trip form. A
-    /// generated registration guarantees that type, and a schema read from an annotation holds it for every known
-    /// value the type parses. A value of any other type, from an annotation the type cannot parse or from a schema made
-    /// by hand, and one the converter cannot write under the options, is written as its text.
+    /// generated registration guarantees that type. A value of any other type, which a schema written by hand may hold,
+    /// and one the converter cannot write under the options, is written as its text.
     /// </remarks>
     private static JsonNode WriteKnownValue(object value, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
         => (descriptor.ValueType.IsInstanceOfType(value) ? Write(descriptor.CreateUnchecked(value), descriptor, options) : null)

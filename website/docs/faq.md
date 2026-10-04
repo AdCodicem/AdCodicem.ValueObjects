@@ -130,7 +130,11 @@ Not in the generated code, and not to find value objects: a generated module ini
 at start-up. The one exception is a generic value object, whose registration knows none of the constructions an
 application uses: the registry describes each one by reflection, the first time it is asked for it, and under native
 AOT each construction is registered by hand instead, as
-[Where a value object can be declared](./authoring-guide.md#where-a-value-object-can-be-declared) shows. The contracts, the generated code, the JSON package, FluentValidation and identifiers are marked
+[Where a value object can be declared](./authoring-guide.md#where-a-value-object-can-be-declared) shows. Code that
+finds a value object by its `Type` and closes a generic adapter over it does so through the descriptor's visitor rather
+than `MakeGenericType`, which native AOT cannot run for a struct, as
+[Run-time lookup](./how-to/runtime-lookup.md#back-to-the-typed-path) shows; the Dapper integration registers its handlers
+that way. The contracts, the generated code, the JSON package, FluentValidation and identifiers are marked
 AOT-compatible and built with the trimming and AOT analyzers on. The EF Core, ASP.NET Core, OpenAPI, Dapper and
 Newtonsoft.Json integrations are not, because the frameworks they plug into are not.
 

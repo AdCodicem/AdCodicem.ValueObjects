@@ -138,14 +138,9 @@ public static class ValueObjectConventionExtensions
                 : new ValueObjectConverter<TSelf, TValue>(),
             new ValueObjectComparer<TSelf>());
 
-        // A construction of a generic value object is never registered as such: the registry describes it the first
-        // time it is asked, which happens here, so that the column does not depend on what else asked first.
-#pragma warning disable IL2026, IL3050 // Model building is reflection-based already; EF Core is not trim compatible.
-        var described = typeof(TSelf).IsConstructedGenericType
-            ? ValueObjectRegistry.TryResolve(typeof(TSelf), out var descriptor)
-            : ValueObjectRegistry.TryGet(typeof(TSelf), out descriptor);
-#pragma warning restore IL2026, IL3050
-        if (described && descriptor!.Schema.MaxLength is { } maxLength)
+        // The length the value object declares, read off the type rather than out of the registry, which would describe
+        // a construction of a generic value object by reflection.
+        if (TSelf.Schema.MaxLength is { } maxLength)
         {
             builder.HasMaxLength(maxLength);
         }

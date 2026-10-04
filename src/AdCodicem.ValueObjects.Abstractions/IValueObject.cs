@@ -82,6 +82,24 @@ public interface IValueObject<TSelf, TValue> :
     bool IsDefault { get; }
 
     /// <summary>
+    /// Gets the declarative constraints of the value object, shared by validation, OpenAPI and persistence.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The generator emits it from the options and hooks the value object declares, and registers the same instance as
+    /// the <see cref="Metadata.ValueObjectDescriptor.Schema"/> of its descriptor. Generic code constrained on this
+    /// interface reads it through its type parameter, <c>TSelf.Schema.MaxLength</c>, with no registry to look the type up
+    /// in: a construction of a generic value object, which the registry describes by reflection, included.
+    /// </para>
+    /// <para>
+    /// A value object written by hand declares it, with the rules its <c>Validate</c> enforces, or
+    /// <see cref="Metadata.ValueObjectSchema.Unconstrained"/> when it publishes none. The registry describes such a type
+    /// from this property, whatever annotation it carries.
+    /// </para>
+    /// </remarks>
+    static abstract Metadata.ValueObjectSchema Schema { get; }
+
+    /// <summary>
     /// Normalizes a candidate value into its canonical form.
     /// </summary>
     /// <param name="value">Candidate value.</param>

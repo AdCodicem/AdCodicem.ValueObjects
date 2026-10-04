@@ -41,10 +41,8 @@ public partial class SchemaTransformerTests
     }
 
     /// <summary>
-    /// A known value is typed as the underlying value where the generator wrote the registration, and where the
-    /// registry read an annotation and the type parsed the value. A hand-made schema holds whatever it was built with,
-    /// and an annotation read by reflection keeps what the type could not parse. Such a value is listed as its text,
-    /// rather than failing the document.
+    /// A known value is typed as the underlying value where the generator wrote the schema. A hand-made schema holds
+    /// whatever it was built with, and a value of another type is listed as its text, rather than failing the document.
     /// </summary>
     [Fact]
     public async Task A_known_value_that_is_not_of_the_underlying_type_is_listed_as_its_text()

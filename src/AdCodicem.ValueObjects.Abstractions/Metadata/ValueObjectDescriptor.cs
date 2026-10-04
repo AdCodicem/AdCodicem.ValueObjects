@@ -36,6 +36,10 @@ public delegate bool BoxedTryParse(ReadOnlySpan<char> text, IFormatProvider? pro
 /// Descriptors are produced by <see cref="For{TSelf, TValue}(ValueObjectSchema, Func{JsonConverter{TSelf}})"/>, which is fully generic and therefore free
 /// of reflection: the source generator emits one call per value object in a module initializer.
 /// </para>
+/// <para>
+/// A caller that needs the type arguments themselves, to close an adapter of its own over the value object, gets them
+/// back through <see cref="Accept{TResult}(IValueObjectVisitor{TResult})"/>, again without reflection.
+/// </para>
 /// </remarks>
 public sealed class ValueObjectDescriptor
 {
@@ -45,6 +49,8 @@ public sealed class ValueObjectDescriptor
     private const string RequiredMessage = "A value is required.";
 
     private readonly Func<JsonConverter>? _jsonConverterFactory;
+
+    private readonly TypedAccess _access;
 
     private JsonConverter? _jsonConverter;
 
@@ -59,7 +65,8 @@ public sealed class ValueObjectDescriptor
         Func<object, object?> getValue,
         Func<object, ValidationResult> validateWrite,
         Func<object, string> format,
-        Func<JsonConverter>? jsonConverter)
+        Func<JsonConverter>? jsonConverter,
+        TypedAccess access)
     {
         ValueObjectType = valueObjectType;
         ValueType = valueType;
@@ -72,6 +79,7 @@ public sealed class ValueObjectDescriptor
         ValidateWrite = validateWrite;
         Format = format;
         _jsonConverterFactory = jsonConverter;
+        _access = access;
     }
 
     /// <summary>
@@ -295,7 +303,45 @@ public sealed class ValueObjectDescriptor
             getValue: static valueObject => ((TSelf)valueObject).Value,
             validateWrite: static valueObject => ValidateWritten<TSelf, TValue>((TSelf)valueObject),
             format: static valueObject => ((TSelf)valueObject).ToString(null, CultureInfo.InvariantCulture),
-            jsonConverter);
+            jsonConverter,
+            TypedAccess<TSelf, TValue>.Instance);
+    }
+
+    /// <summary>
+    /// Hands the type arguments the descriptor was built with to a visitor, which closes its own generic code over them.
+    /// </summary>
+    /// <typeparam name="TResult">What the visitor hands back.</typeparam>
+    /// <param name="visitor">The visitor, whose <see cref="IValueObjectVisitor{TResult}.Visit{TSelf, TValue}"/> is called
+    /// with <see cref="ValueObjectType"/> and <see cref="ValueType"/>.</param>
+    /// <returns>What the visitor returned.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="visitor"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// <para>
+    /// This is the typed way out of a descriptor. An integration that finds value objects by <see cref="Type"/> creates its
+    /// adapter in the visitor, closed at compile time, where <see cref="Type.MakeGenericType(Type[])"/> would close it at
+    /// run time, which native AOT cannot do for a struct:
+    /// </para>
+    /// <code>
+    /// sealed class FormatterFor : IValueObjectVisitor&lt;IFormatter&gt;
+    /// {
+    ///     public IFormatter Visit&lt;TSelf, TValue&gt;() where TSelf : struct, IValueObject&lt;TSelf, TValue&gt;
+    ///         => new ValueObjectFormatter&lt;TSelf, TValue&gt;();
+    /// }
+    ///
+    /// var formatter = descriptor.Accept(new FormatterFor());
+    /// </code>
+    /// <para>
+    /// Every descriptor carries its type arguments, whoever built it: the generated registration, a registration by hand,
+    /// or <see cref="ValueObjectRegistry.TryResolve"/> describing a type by reflection, whose descriptor only the JIT can
+    /// visit. A descriptor built for a value object over <see cref="Int128"/> is visited like any other: a visitor
+    /// skips what its host cannot carry.
+    /// </para>
+    /// </remarks>
+    public TResult Accept<TResult>(IValueObjectVisitor<TResult> visitor)
+    {
+        ArgumentNullException.ThrowIfNull(visitor);
+
+        return _access.Accept(visitor);
     }
 
     private static TValue Unbox<TValue>(object? value)
@@ -379,4 +425,27 @@ public sealed class ValueObjectDescriptor
         object key,
         [NotNullWhen(true)] out object? cached)
         => cache.TryGetValue(key, out cached);
+
+    /// <summary>
+    /// Keeps the type arguments of a descriptor, which no field of a non-generic class can hold, behind a generic virtual
+    /// method that hands them to a visitor.
+    /// </summary>
+    private abstract class TypedAccess
+    {
+        public abstract TResult Accept<TResult>(IValueObjectVisitor<TResult> visitor);
+    }
+
+    /// <summary>
+    /// The type arguments of one value object, created where both are known at compile time, in
+    /// <see cref="For{TSelf, TValue}(ValueObjectSchema, Func{JsonConverter{TSelf}})"/>.
+    /// </summary>
+    /// <typeparam name="TSelf">Value object type.</typeparam>
+    /// <typeparam name="TValue">Underlying value type.</typeparam>
+    private sealed class TypedAccess<TSelf, TValue> : TypedAccess
+        where TSelf : struct, IValueObject<TSelf, TValue>
+    {
+        public static readonly TypedAccess<TSelf, TValue> Instance = new();
+
+        public override TResult Accept<TResult>(IValueObjectVisitor<TResult> visitor) => visitor.Visit<TSelf, TValue>();
+    }
 }

@@ -1,17 +1,18 @@
 using AdCodicem.ValueObjects.Annotations;
+using AdCodicem.ValueObjects.Metadata;
 
 namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 
 /// <summary>
-/// The color of a traffic light, from a closed set, written by hand and declaring every option the registry reads
-/// back from an annotation.
+/// The color of a traffic light, from a closed set, written by hand and declaring every option an annotation can carry,
+/// which its schema restates.
 /// </summary>
 /// <remarks>
-/// The rules are restated in the body because nothing generates them from the annotation here; the annotation is
-/// what a reflection-driven caller reads, and the body is what validates. It keeps the deprecated Pattern option,
-/// the only witness that the registry still reads it back, until the option is removed.
+/// The rules are restated in the schema and the body because nothing generates them from the annotation here; the
+/// schema is what a reflection-driven caller reads, and the body is what validates. It keeps the deprecated Pattern
+/// option, which nothing reads at run time, until the option is removed.
 /// </remarks>
-#pragma warning disable VO0021 // The deprecated option is what this fixture holds the registry to.
+#pragma warning disable VO0021 // The deprecated option is what this fixture holds its schema to.
 [ValueObject<string>(
     ValueSet = ValueSetKind.Closed,
     MaxLength = 6,
@@ -28,6 +29,17 @@ public readonly struct LightColor : IValueObject<LightColor, string>
     private readonly string? _value;
 
     private LightColor(string value) => _value = value;
+
+    public static ValueObjectSchema Schema { get; } = new()
+    {
+        Pattern = "^[a-z]+$",
+        MaxLength = 6,
+        Format = "color",
+        Description = "The color of a traffic light.",
+        Example = "red",
+        IsClosedValueSet = true,
+        KnownValues = ["red", "green"],
+    };
 
     public string Value => _value ?? string.Empty;
 

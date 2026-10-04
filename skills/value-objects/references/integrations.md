@@ -264,15 +264,33 @@ if (ValueObjectRegistry.TryGet(type, out var descriptor)
     && descriptor.TryParse(text, CultureInfo.InvariantCulture, out var boxed, out var validation))
 {
     // descriptor.ValueObjectType, .ValueType, .Schema, .Create, .CreateUnchecked, .TryCreate, .GetValue, .Format,
-    // .ValidateWrite (refuses the default of a type that rejects it, as the writers do)
+    // .ValidateWrite (refuses the default of a type that rejects it, as the writers do), .Accept(visitor)
 }
 ```
+
+To close a generic adapter of your own over a value object known only by its descriptor, hand it a visitor rather than
+calling `MakeGenericType`, which fails under native AOT for a struct:
+
+```csharp skip
+sealed class FormatterFor : IValueObjectVisitor<IFormatter>
+{
+    public IFormatter Visit<TSelf, TValue>()
+        where TSelf : struct, IValueObject<TSelf, TValue>
+        => new ValueObjectFormatter<TSelf, TValue>(); // reads TSelf.Schema, calls TSelf.TryCreate
+}
+
+var formatter = descriptor.Accept(new FormatterFor());
+```
+
+Inside typed code, the rules are `TSelf.Schema` (`TSelf.Schema.MaxLength`), a static member of
+`IValueObject<TSelf, TValue>`: no registry lookup.
 
 Registration happens through a generated `[ModuleInitializer]`, so nothing needs registering by hand — but a
 module initializer only runs once its assembly is loaded, which is what `EnsureAssemblyRegistered(assembly)`
 forces (the EF Core and Dapper entry points already call it). A generic value object registers its definition
 (`GetRegisteredGenericDefinitions()`), and `TryResolve` describes a construction, by reflection, once asked for it;
-`TryGet` finds it from then on. `TryGet` and `TryResolve` also unwrap `Nullable<T>`, and return the descriptor of the
+`TryGet` finds it from then on. Under native AOT, register each construction instead:
+`ValueObjectRegistry.Register<Code<Order>, string>(static () => new Code<Order>.ValueJsonConverter())`. `TryGet` and `TryResolve` also unwrap `Nullable<T>`, and return the descriptor of the
 value object itself: close a generic type over `descriptor.ValueObjectType`, never over the type asked for, and handle
 `null` before calling `GetValue`, `Format` or `ValidateWrite`, which take a non-null instance (leave it to the host's
 nullable wrapper where it has one). `IsValueObject` and `GetUnderlyingType` answer the cheap questions. A value

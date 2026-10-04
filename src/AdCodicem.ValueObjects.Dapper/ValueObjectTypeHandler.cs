@@ -1,6 +1,5 @@
 using System.Data;
 using System.Globalization;
-using AdCodicem.ValueObjects.Metadata;
 using Dapper;
 
 namespace AdCodicem.ValueObjects.Dapper;
@@ -162,17 +161,14 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
     /// replace the characters its code page lacks.
     /// </para>
     /// <para>
-    /// A construction of a generic value object is never registered as such: the registry describes it the first time
-    /// it is asked, which happens here, so that the column does not depend on what else asked first.
+    /// The length is the one the value object declares, read off <see cref="IValueObject{TSelf, TValue}.Schema"/>
+    /// rather than out of the registry, so that a construction of a generic value object, which the registry would
+    /// describe by reflection, is sized as any other value object is.
     /// </para>
     /// </remarks>
     private static (DbType Type, int Length)? DeclaredColumn()
     {
-        if (typeof(TValue) != typeof(string)
-            || !(typeof(TSelf).IsConstructedGenericType
-                ? ValueObjectRegistry.TryResolve(typeof(TSelf), out var descriptor)
-                : ValueObjectRegistry.TryGet(typeof(TSelf), out descriptor))
-            || descriptor.Schema.MaxLength is not { } maxLength)
+        if (typeof(TValue) != typeof(string) || TSelf.Schema.MaxLength is not { } maxLength)
         {
             return null;
         }

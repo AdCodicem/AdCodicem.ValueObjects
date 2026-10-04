@@ -55,6 +55,8 @@ public abstract class Sample
 
     public abstract void CarriesTheCodeOfEveryJsonRefusal();
 
+    public abstract void HandsItsTypeArgumentsToAVisitor();
+
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
 
@@ -391,6 +393,22 @@ public class Sample<TSelf, TValue> : Sample
         IsDefault(default(TSelf)).Should().BeTrue();
         IsDefault(Small).Should().Be(Small.Equals(default(TSelf)));
         IsDefault(Large).Should().Be(Large.Equals(default(TSelf)));
+    }
+
+    public override void HandsItsTypeArgumentsToAVisitor()
+    {
+        ValueObjectRegistry.TryGet(typeof(TSelf), out var descriptor).Should().BeTrue();
+
+        descriptor!.Accept(TypeArgumentsVisitor.Instance).Should().Be((typeof(TSelf), typeof(TValue)));
+
+        // The generated registration hands over the schema the type declares, which generic code reads through TSelf.
+        descriptor.Accept(SchemaVisitor.Instance).Should().BeSameAs(descriptor.Schema);
+        TSelf.Schema.Should().BeSameAs(descriptor.Schema);
+
+        var adapter = descriptor.Accept(AdapterVisitor.Instance);
+        adapter.Should().BeOfType<TypedAdapter<TSelf, TValue>>();
+        adapter.MaxLength.Should().Be(descriptor.Schema.MaxLength);
+        adapter.Parse(Text).Should().Be(Small);
     }
 
     public override void WritesNoJsonItsTypeRejects()

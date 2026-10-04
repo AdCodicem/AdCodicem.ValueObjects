@@ -44,7 +44,7 @@ public class RegistryResolutionTests
 
         counter!.ValueObjectType.Should().Be<HandWrittenCounter>();
         counter.ValueType.Should().Be<int>();
-        counter.Schema.Should().BeSameAs(ValueObjectSchema.Unconstrained, "a type without an annotation declares no rule");
+        counter.Schema.Should().BeSameAs(ValueObjectSchema.Unconstrained, "the counter's schema declares no rule");
         counter.Create(5).Should().Be(HandWrittenCounter.Create(5));
 
         code!.ValueType.Should().Be<string>();
@@ -77,16 +77,18 @@ public class RegistryResolutionTests
     }
 
     /// <summary>
-    /// Where the generator does not run, an annotated value object written by hand registers nothing, and the
-    /// registry reads its rules back from the annotation.
+    /// Where the generator does not run, a value object written by hand registers nothing, and the registry describes
+    /// it with the schema it declares, the one generic code constrained on it reads.
     /// </summary>
     [Fact]
-    public void A_hand_written_value_object_annotated_where_no_generator_runs_is_described_from_its_annotation()
+    public void A_hand_written_value_object_where_no_generator_runs_is_described_from_the_schema_it_declares()
     {
         ValueObjectRegistry.TryResolve(typeof(LightColor), out var color).Should().BeTrue();
         ValueObjectRegistry.TryResolve(typeof(FloorNumber), out var floor).Should().BeTrue();
 
-        color!.Schema.IsClosedValueSet.Should().BeTrue();
+        color!.Schema.Should().BeSameAs(LightColor.Schema);
+        floor!.Schema.Should().BeSameAs(FloorNumber.Schema);
+        color.Schema.IsClosedValueSet.Should().BeTrue();
         color.Schema.KnownValues.Should().Equal("red", "green");
         color.Schema.MinLength.Should().BeNull();
         color.Schema.MaxLength.Should().Be(6);
@@ -96,7 +98,7 @@ public class RegistryResolutionTests
         color.Schema.Description.Should().Be("The color of a traffic light.");
         color.Create("red").Should().BeSameAs(color.Create("red"), "the members of a closed set are boxed once");
 
-        floor!.ValueType.Should().Be<int>();
+        floor.ValueType.Should().Be<int>();
         floor.Schema.Minimum.Should().Be("1");
         floor.Schema.Maximum.Should().Be("10");
         floor.Schema.Pattern.Should().BeNull();
@@ -106,13 +108,14 @@ public class RegistryResolutionTests
     }
 
     /// <summary>
-    /// The generated schema publishes each known value as the type holds it, normalized. Read back from an
-    /// annotation, a known value goes through the type the same way: normalized when it is of the underlying type,
-    /// parsed when it is text for a type no attribute argument can carry, and left as written when the type cannot
-    /// parse it, which nothing checked where no generator runs.
+    /// Where no generator runs, nothing holds the annotation of a value object written by hand to the schema it declares.
+    /// When the two disagree, the registry describes the type from its schema, the one generic code constrained on it
+    /// reads, so that the typed path and the boxed path publish the same rules: the known value the annotation declares
+    /// and no decimal parses is left out, as the schema leaves it out. A closed set publishing its known values as the
+    /// type holds them shares a box per value, found under the normalized value.
     /// </summary>
     [Fact]
-    public void A_hand_written_value_object_publishes_its_known_values_as_the_type_holds_them()
+    public void A_hand_written_value_object_whose_annotation_disagrees_with_its_schema_is_described_from_its_schema()
     {
         ValueObjectRegistry.TryResolve(typeof(ShirtSize), out var size).Should().BeTrue();
         ValueObjectRegistry.TryResolve(typeof(SalesTaxRate), out var rate).Should().BeTrue();
@@ -120,16 +123,19 @@ public class RegistryResolutionTests
         size!.Schema.KnownValues.Should().Equal("S", "M");
         size.Create("s").Should().BeSameAs(size.Create("S"), "the shared box is found under the normalized value");
 
-        rate!.Schema.KnownValues.Should().Equal(20.0m, 5.5m, "twenty");
-        rate.Schema.Minimum.Should().Be("0", "the registry reads the bounds off the hooks the type implements");
+        typeof(SalesTaxRate).GetCustomAttributes<KnownValueAttribute>().Select(known => known.Value)
+            .Should().Equal("20.0", "5.50", "twenty");
+        rate!.Schema.Should().BeSameAs(SalesTaxRate.Schema);
+        rate.Schema.KnownValues.Should().Equal(20.0m, 5.5m);
+        rate.Schema.Minimum.Should().Be("0");
         rate.Schema.Maximum.Should().Be("100");
         rate.Schema.KnownValues[1].Should().BeOfType<decimal>().Which.ToString(CultureInfo.InvariantCulture)
-            .Should().Be("5.5", "the declared 5.50 is normalized to one decimal");
+            .Should().Be("5.5");
     }
 
     /// <summary>
-    /// A pattern declared through <see cref="IValueObjectPatternValidator"/> is an interface the type implements,
-    /// read through it whether the type carries an annotation, whose other rules are read too, or none at all.
+    /// A pattern declared through <see cref="IValueObjectPatternValidator"/> reaches the descriptor through the schema
+    /// that publishes it, whether the type carries an annotation, whose other rules the schema restates, or none at all.
     /// </summary>
     [Fact]
     public void A_hand_written_value_object_publishes_the_pattern_of_its_hook()
@@ -138,7 +144,7 @@ public class RegistryResolutionTests
         ValueObjectRegistry.TryResolve(typeof(DepartmentCode), out var department).Should().BeTrue();
 
         postal!.Schema.Pattern.Should().Be("^[0-9]{5}$");
-        postal.Schema.MaxLength.Should().Be(5, "the annotation is still read beside the hook");
+        postal.Schema.MaxLength.Should().Be(5, "the schema publishes the annotation's length beside the hook's pattern");
 
         department!.Schema.Pattern.Should().Be("^[0-9]{2}$");
         department.Schema.MaxLength.Should().BeNull();

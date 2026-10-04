@@ -1,10 +1,7 @@
 using System.Collections.Concurrent;
-using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Reflection;
 using System.Text.Json.Serialization;
-using AdCodicem.ValueObjects.Annotations;
 
 namespace AdCodicem.ValueObjects.Metadata;
 
@@ -20,8 +17,9 @@ namespace AdCodicem.ValueObjects.Metadata;
 /// <para>
 /// <see cref="TryResolve"/> additionally falls back to reflection for hand-written value objects, for modules whose
 /// initializer has not run yet, and for the constructions of a generic value object, whose generic definition is all
-/// the initializer can register. It is annotated as requiring dynamic code, and its result is cached, so a given type
-/// pays that cost at most once.
+/// the initializer can register. It describes each of them from the <see cref="IValueObject{TSelf, TValue}.Schema"/>
+/// the type declares. It is annotated as requiring dynamic code, and its result is cached, so a given type pays that
+/// cost at most once.
 /// </para>
 /// </remarks>
 public static class ValueObjectRegistry
@@ -62,8 +60,8 @@ public static class ValueObjectRegistry
     /// <param name="jsonConverter">The converter of the value object.</param>
     /// <remarks>
     /// A source-generated serializer context finds the converter through the descriptor, whatever the assembly declaring
-    /// the value object references. This is the registration native AOT asks of a construction of a generic value
-    /// object: <c>Register&lt;Code&lt;Order&gt;, string&gt;(Code&lt;Order&gt;.Schema, new Code&lt;Order&gt;.ValueJsonConverter())</c>.
+    /// the value object references. A construction of a generic value object registered by hand under native AOT takes
+    /// the shorter <see cref="Register{TSelf, TValue}(Func{JsonConverter{TSelf}})"/>, which reads its schema off the type.
     /// </remarks>
     public static void Register<TSelf, TValue>(ValueObjectSchema schema, JsonConverter<TSelf> jsonConverter)
         where TSelf : struct, IValueObject<TSelf, TValue>
@@ -93,6 +91,29 @@ public static class ValueObjectRegistry
     }
 
     /// <summary>
+    /// Registers a value object with the schema it declares and the factory of its System.Text.Json converter, without
+    /// reflection.
+    /// </summary>
+    /// <typeparam name="TSelf">Value object type.</typeparam>
+    /// <typeparam name="TValue">Underlying value type.</typeparam>
+    /// <param name="jsonConverter">Creates the converter of the value object, the first time it is asked for.</param>
+    /// <remarks>
+    /// The schema is <see cref="IValueObject{TSelf, TValue}.Schema"/>, the one the generated registration hands over. This
+    /// is the registration native AOT asks of each construction of a generic value object that a type-driven integration
+    /// needs: <c>Register&lt;Code&lt;Order&gt;, string&gt;(static () =&gt; new Code&lt;Order&gt;.ValueJsonConverter())</c>.
+    /// Its descriptor is built in code, where the AOT compiler sees both type arguments, so a visitor
+    /// (<see cref="ValueObjectDescriptor.Accept{TResult}(IValueObjectVisitor{TResult})"/>) runs on it as on any generated
+    /// value object.
+    /// </remarks>
+    public static void Register<TSelf, TValue>(Func<JsonConverter<TSelf>> jsonConverter)
+        where TSelf : struct, IValueObject<TSelf, TValue>
+    {
+        ArgumentNullException.ThrowIfNull(jsonConverter);
+
+        Register(ValueObjectDescriptor.For<TSelf, TValue>(TSelf.Schema, jsonConverter));
+    }
+
+    /// <summary>
     /// Registers the definition of a generic value object, whose constructions the registry describes on demand.
     /// </summary>
     /// <param name="definition">
@@ -112,7 +133,7 @@ public static class ValueObjectRegistry
     /// <para>
     /// That takes reflection and dynamic code. Under native AOT, register each construction a type-driven integration
     /// needs instead, which takes neither:
-    /// <c>ValueObjectRegistry.Register&lt;Code&lt;Order&gt;, string&gt;(Code&lt;Order&gt;.Schema, new Code&lt;Order&gt;.ValueJsonConverter())</c>.
+    /// <c>ValueObjectRegistry.Register&lt;Code&lt;Order&gt;, string&gt;(static () =&gt; new Code&lt;Order&gt;.ValueJsonConverter())</c>.
     /// </para>
     /// <para>
     /// The definition is checked without reading its interfaces, which native AOT does not keep for a generic type
@@ -184,11 +205,17 @@ public static class ValueObjectRegistry
     /// one.
     /// </returns>
     /// <remarks>
+    /// <para>
     /// Asked for <c>Iban?</c>, it returns the descriptor of <c>Iban</c>, as <see cref="TryGet"/> does, and the caller
     /// handles <see cref="Nullable{T}"/> and <see langword="null"/> as <see cref="TryGet"/> says.
+    /// </para>
+    /// <para>
+    /// A type nothing registered is described with the <see cref="IValueObject{TSelf, TValue}.Schema"/> it declares, the
+    /// one generic code constrained on it reads, whatever annotation it carries.
+    /// </para>
     /// </remarks>
     [RequiresDynamicCode("Building a descriptor for an unregistered value object instantiates a generic method at run time.")]
-    [RequiresUnreferencedCode("Building a descriptor for an unregistered value object inspects its interfaces and attributes.")]
+    [RequiresUnreferencedCode("Building a descriptor for an unregistered value object inspects its interfaces and generated members.")]
     public static bool TryResolve(Type type, [NotNullWhen(true)] out ValueObjectDescriptor? descriptor)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -320,236 +347,49 @@ public static class ValueObjectRegistry
         return false;
     }
 
-    [RequiresDynamicCode("Instantiates ValueObjectDescriptor.For<,> for the resolved type arguments.")]
-    [RequiresUnreferencedCode("Reads the value object interfaces and annotations of the type.")]
+    /// <summary>
+    /// Describes a value object nothing registered, from the schema it declares and, for a construction of a generated
+    /// generic value object, the converter the generator wrote on it.
+    /// </summary>
+    /// <param name="valueObjectType">The value object, <c>Code&lt;Order&gt;</c> or one written by hand.</param>
+    /// <param name="valueType">Its underlying type.</param>
+    /// <returns>The descriptor.</returns>
+    /// <remarks>
+    /// The schema is <c>TSelf.Schema</c>, the one the typed path reads, so that a type known only at run time is
+    /// described with the rules generic code constrained on it sees: for a construction, the one the generated
+    /// registration would have handed over; for a value object written by hand, the one it declares, whatever annotation
+    /// it carries. The converter of a construction is nested in the generic type, and so is generic itself: it is closed
+    /// over the type arguments of the construction. A value object written by hand carries none the registry knows of.
+    /// </remarks>
+    [RequiresDynamicCode("Closes the generated converter and ValueObjectDescriptor.For<,> over the type.")]
+    [RequiresUnreferencedCode("Reads the generated members of the type.")]
     private static ValueObjectDescriptor BuildByReflection(Type valueObjectType, Type valueType)
     {
-        if (valueObjectType.IsConstructedGenericType
-            && GenericDefinitions.ContainsKey(valueObjectType.GetGenericTypeDefinition())
-            && BuildConstruction(valueObjectType, valueType) is { } construction)
-        {
-            return construction;
-        }
-
-        var schema = ReadSchema(valueObjectType, valueType);
-        if (!schema.KnownValues.IsDefaultOrEmpty)
-        {
-            var normalize = typeof(ValueObjectRegistry)
-                .GetMethod(nameof(NormalizeKnownValues), BindingFlags.NonPublic | BindingFlags.Static)!
-                .MakeGenericMethod(valueObjectType, valueType);
-
-            schema = schema with { KnownValues = (ImmutableArray<object>)normalize.Invoke(null, [schema.KnownValues])! };
-        }
-
-        var factory = typeof(ValueObjectDescriptor)
-            .GetMethod(nameof(ValueObjectDescriptor.For), 2, BindingFlags.Public | BindingFlags.Static, [typeof(ValueObjectSchema)])!
-            .MakeGenericMethod(valueObjectType, valueType);
-
-        return (ValueObjectDescriptor)factory.Invoke(null, [schema])!;
-    }
-
-    /// <summary>
-    /// Describes a construction of a generated generic value object from the members the generator wrote on it.
-    /// </summary>
-    /// <param name="valueObjectType">The construction, <c>Code&lt;Order&gt;</c>.</param>
-    /// <param name="valueType">Its underlying type.</param>
-    /// <returns>
-    /// The descriptor, carrying the generated schema and converter, or <see langword="null"/> when the type carries no
-    /// generated schema, as a definition registered by hand may not.
-    /// </returns>
-    /// <remarks>
-    /// The schema is the one the generated registration would have handed over, so the construction is described
-    /// exactly as a value object that is not generic is. The converter is nested in the generic type, and so is
-    /// generic itself: it is closed over the type arguments of the construction.
-    /// </remarks>
-    [RequiresDynamicCode("Closes the generated converter and ValueObjectDescriptor.For<,> over the construction.")]
-    [RequiresUnreferencedCode("Reads the generated members of the construction.")]
-    private static ValueObjectDescriptor? BuildConstruction(Type valueObjectType, Type valueType)
-    {
-        if (valueObjectType.GetProperty("Schema", BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
-            is not ValueObjectSchema schema)
-        {
-            return null;
-        }
-
-        var converterType = valueObjectType.GetNestedType("ValueJsonConverter", BindingFlags.Public)
-            ?.MakeGenericType(valueObjectType.GetGenericArguments());
+        var converterType = valueObjectType.IsConstructedGenericType
+                            && GenericDefinitions.ContainsKey(valueObjectType.GetGenericTypeDefinition())
+            ? valueObjectType.GetNestedType("ValueJsonConverter", BindingFlags.Public)
+                ?.MakeGenericType(valueObjectType.GetGenericArguments())
+            : null;
 
         return (ValueObjectDescriptor)typeof(ValueObjectRegistry)
-            .GetMethod(nameof(Construct), BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetMethod(nameof(Describe), BindingFlags.NonPublic | BindingFlags.Static)!
             .MakeGenericMethod(valueObjectType, valueType)
-            .Invoke(null, [schema, converterType])!;
+            .Invoke(null, [converterType])!;
     }
 
     /// <summary>
-    /// Builds the descriptor of a construction from its schema and the type of its converter.
-    /// </summary>
-    /// <typeparam name="TSelf">The construction.</typeparam>
-    /// <typeparam name="TValue">Its underlying type.</typeparam>
-    /// <param name="schema">Its generated schema.</param>
-    /// <param name="converterType">Its generated converter, closed over it, created the first time it is asked for.</param>
-    /// <returns>The descriptor.</returns>
-    [RequiresUnreferencedCode("Creates the generated converter of the construction by reflection.")]
-    private static ValueObjectDescriptor Construct<TSelf, TValue>(ValueObjectSchema schema, Type? converterType)
-        where TSelf : struct, IValueObject<TSelf, TValue>
-        => ValueObjectDescriptor.For<TSelf, TValue>(
-            schema,
-            converterType is null ? null : () => (JsonConverter<TSelf>)Activator.CreateInstance(converterType)!);
-
-    /// <summary>
-    /// Turns the known values an annotation declares into the values the type holds, as the generated schema
-    /// publishes them.
+    /// Builds the descriptor of a value object from the schema it declares and the type of its converter.
     /// </summary>
     /// <typeparam name="TSelf">Value object type.</typeparam>
     /// <typeparam name="TValue">Underlying value type.</typeparam>
-    /// <param name="declared">The known values, as the attributes hold them.</param>
-    /// <returns>The known values, normalized.</returns>
-    /// <remarks>
-    /// A value of the underlying type is normalized. Any other, text for a type no attribute argument can carry
-    /// first among them, is parsed the way the type parses text. What the type cannot parse stays as written: the
-    /// generator would have refused it, but nothing checks an annotation where no generator runs.
-    /// </remarks>
-    private static ImmutableArray<object> NormalizeKnownValues<TSelf, TValue>(ImmutableArray<object> declared)
+    /// <param name="converterType">
+    /// Its generated converter, closed over it, created the first time it is asked for; <see langword="null"/> for none.
+    /// </param>
+    /// <returns>The descriptor.</returns>
+    [RequiresUnreferencedCode("Creates the generated converter of the construction by reflection.")]
+    private static ValueObjectDescriptor Describe<TSelf, TValue>(Type? converterType)
         where TSelf : struct, IValueObject<TSelf, TValue>
-    {
-        var normalized = ImmutableArray.CreateBuilder<object>(declared.Length);
-        foreach (var known in declared)
-        {
-            if (known is TValue typed)
-            {
-                normalized.Add(TSelf.Normalize(typed)!);
-            }
-            else if (TSelf.TryParse(Convert.ToString(known, CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, out var parsed, out _))
-            {
-                normalized.Add(parsed.Value!);
-            }
-            else
-            {
-                normalized.Add(known);
-            }
-        }
-
-        return normalized.MoveToImmutable();
-    }
-
-    /// <summary>
-    /// The name of the deprecated <c>Pattern</c> option, read by name: naming the obsolete property would report
-    /// <c>VO0021</c> here, and once the property is removed the read finds nothing instead of failing to compile.
-    /// </summary>
-    private const string PatternOption = "Pattern";
-
-    /// <summary>
-    /// The names of the deprecated <c>Minimum</c> and <c>Maximum</c> options, read by name for the reason
-    /// <see cref="PatternOption"/> is: naming the obsolete properties would report <c>VO0028</c> here.
-    /// </summary>
-    private const string MinimumOption = "Minimum";
-
-    /// <inheritdoc cref="MinimumOption"/>
-    private const string MaximumOption = "Maximum";
-
-    [RequiresDynamicCode("Instantiates the generic readers of the hooks for the type.")]
-    [RequiresUnreferencedCode("Reads the annotations of the value object type.")]
-    private static ValueObjectSchema ReadSchema(Type valueObjectType, Type valueType)
-    {
-        var attribute = valueObjectType
-            .GetCustomAttributes(inherit: false)
-            .FirstOrDefault(candidate => candidate.GetType().IsGenericType
-                                         && candidate.GetType().GetGenericTypeDefinition() == typeof(ValueObjectAttribute<>));
-
-        // The hooks describe a type with no annotation as well: each is an interface the type implements.
-        var hookPattern = ReadPatternHook(valueObjectType);
-        var hookMinimum = ReadBoundHook(valueObjectType, valueType, typeof(IValueObjectMinimum<>), nameof(ValueObjectBound.Minimum));
-        var hookMaximum = ReadBoundHook(valueObjectType, valueType, typeof(IValueObjectMaximum<>), nameof(ValueObjectBound.Maximum));
-
-        if (attribute is null)
-        {
-            return hookPattern is null && hookMinimum is null && hookMaximum is null
-                ? ValueObjectSchema.Unconstrained
-                : new ValueObjectSchema { Pattern = hookPattern, Minimum = hookMinimum, Maximum = hookMaximum };
-        }
-
-        var knownValues = valueObjectType
-            .GetCustomAttributes<KnownValueAttribute>(inherit: false)
-            .Select(known => known.Value)
-            .ToImmutableArray();
-
-        var type = attribute.GetType();
-
-        return new ValueObjectSchema
-        {
-            Pattern = hookPattern ?? ReadString(type, attribute, PatternOption),
-            MinLength = NormalizeLength(ReadInt32(type, attribute, nameof(ValueObjectAttribute<object>.MinLength))),
-            MaxLength = NormalizeLength(ReadInt32(type, attribute, nameof(ValueObjectAttribute<object>.MaxLength))),
-            Minimum = hookMinimum ?? ReadString(type, attribute, MinimumOption),
-            Maximum = hookMaximum ?? ReadString(type, attribute, MaximumOption),
-            Format = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.SchemaFormat)),
-            Description = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.Description)),
-            Example = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.Example)),
-            IsClosedValueSet = ReadString(type, attribute, nameof(ValueObjectAttribute<object>.ValueSet)) == nameof(ValueSetKind.Closed),
-            KnownValues = knownValues,
-        };
-
-        static int? NormalizeLength(int value) => value < 0 ? null : value;
-    }
-
-    /// <summary>
-    /// Reads the text of the pattern a type declares through <see cref="IValueObjectPatternValidator"/>, or
-    /// <see langword="null"/> when it implements none.
-    /// </summary>
-    /// <remarks>
-    /// A static abstract member is reachable through a type parameter only, so the read goes through
-    /// <see cref="ValueObjectPattern.Of{TSelf}"/> closed over the type, as generated code does, rather than through a
-    /// property lookup that would miss an explicit implementation.
-    /// </remarks>
-    [RequiresDynamicCode("Instantiates ValueObjectPattern.Of for the type.")]
-    [UnconditionalSuppressMessage(
-        "Trimming",
-        "IL2060:MakeGenericMethod",
-        Justification = "ValueObjectPattern.Of has no requirement on its type parameter beyond the interface the check above proves.")]
-    private static string? ReadPatternHook(Type valueObjectType)
-        => typeof(IValueObjectPatternValidator).IsAssignableFrom(valueObjectType)
-            ? typeof(ValueObjectPattern)
-                .GetMethod(nameof(ValueObjectPattern.Of), BindingFlags.Public | BindingFlags.Static)!
-                .MakeGenericMethod(valueObjectType)
-                .Invoke(null, null)?
-                .ToString()
-            : null;
-
-    /// <summary>
-    /// Reads a bound a type declares through <see cref="IValueObjectMinimum{TValue}"/> or
-    /// <see cref="IValueObjectMaximum{TValue}"/>, as text, or <see langword="null"/> when it implements neither.
-    /// </summary>
-    /// <param name="valueObjectType">The value object.</param>
-    /// <param name="valueType">Its underlying type, the one a hook bounds it with.</param>
-    /// <param name="hook">The generic definition of the hook.</param>
-    /// <param name="bridge">The member of <see cref="ValueObjectBound"/> that reads the hook.</param>
-    /// <returns>The bound, in the form <see cref="ValueObjectBound.Text{TValue}"/> writes it.</returns>
-    /// <remarks>
-    /// As for the pattern, the bound is read through <see cref="ValueObjectBound"/> closed over the type, which reaches
-    /// an explicit implementation too.
-    /// </remarks>
-    [RequiresDynamicCode("Instantiates the generic reader of the bound for the type.")]
-    [UnconditionalSuppressMessage(
-        "Trimming",
-        "IL2060:MakeGenericMethod",
-        Justification = "ValueObjectBound has no requirement on its type parameters beyond the interface the check above proves.")]
-    [UnconditionalSuppressMessage(
-        "Trimming",
-        "IL2055:MakeGenericType",
-        Justification = "The hook interfaces have no requirement on their type parameter.")]
-    private static string? ReadBoundHook(Type valueObjectType, Type valueType, Type hook, string bridge)
-        => hook.MakeGenericType(valueType).IsAssignableFrom(valueObjectType)
-            ? ValueObjectBound.Text(typeof(ValueObjectBound)
-                .GetMethod(bridge, BindingFlags.Public | BindingFlags.Static)!
-                .MakeGenericMethod(valueObjectType, valueType)
-                .Invoke(null, null))
-            : null;
-
-    [RequiresUnreferencedCode("Reads a property of the value object annotation.")]
-    private static string? ReadString(Type attributeType, object attribute, string propertyName)
-        => attributeType.GetProperty(propertyName)?.GetValue(attribute)?.ToString();
-
-    [RequiresUnreferencedCode("Reads a property of the value object annotation.")]
-    private static int ReadInt32(Type attributeType, object attribute, string propertyName)
-        => attributeType.GetProperty(propertyName)?.GetValue(attribute) is int value ? value : -1;
+        => ValueObjectDescriptor.For<TSelf, TValue>(
+            TSelf.Schema,
+            converterType is null ? null : () => (JsonConverter<TSelf>)Activator.CreateInstance(converterType)!);
 }

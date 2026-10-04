@@ -1,4 +1,6 @@
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using AdCodicem.ValueObjects.Dapper;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
@@ -139,7 +141,8 @@ public class DapperTests
 
     /// <summary>
     /// A construction declares the column of its parameter as the value object it is built from does, whatever resolved
-    /// it first: nothing else in the process resolves this one.
+    /// it first: nothing else in the process resolves this one. The length is read off the type, so the registry is never
+    /// asked to describe the construction, which would take reflection.
     /// </summary>
     [Fact]
     public void A_construction_of_a_generic_value_object_declares_its_column()
@@ -151,6 +154,22 @@ public class DapperTests
 
         parameter.DbType.Should().Be(DbType.String);
         parameter.Size.Should().Be(12);
+        ValueObjectRegistry.TryGet(typeof(Reference<FixedIbanHandler>), out _).Should().BeFalse("nothing described it");
+    }
+
+    /// <summary>
+    /// Every handler is closed over its value object through the type arguments the descriptor hands a visitor, never
+    /// with MakeGenericType, so building them asks for no dynamic code on this package's side; locating the generated
+    /// registration of an assembly still reads its metadata. Dapper's own registration is not compatible with native AOT,
+    /// which the package's documentation says.
+    /// </summary>
+    [Fact]
+    public void Registering_the_handlers_asks_for_no_dynamic_code()
+    {
+        var register = typeof(ValueObjectDapper).GetMethod(nameof(ValueObjectDapper.AddValueObjectHandlers))!;
+
+        register.GetCustomAttribute<RequiresDynamicCodeAttribute>().Should().BeNull();
+        register.GetCustomAttribute<RequiresUnreferencedCodeAttribute>().Should().NotBeNull();
     }
 
     /// <summary>

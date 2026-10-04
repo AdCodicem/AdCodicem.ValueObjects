@@ -350,7 +350,7 @@ changes is how the integrations meet the constructions:
 
 - The registration registers the generic definition, and `ValueObjectRegistry.TryResolve` describes each construction
   the first time it is asked for it, by reflection. Under native AOT, register each construction a type-driven
-  integration needs: `ValueObjectRegistry.Register<Reference<PurchaseOrder>, string>(Reference<PurchaseOrder>.Schema, new Reference<PurchaseOrder>.ValueJsonConverter());`.
+  integration needs: `ValueObjectRegistry.Register<Reference<PurchaseOrder>, string>(static () => new Reference<PurchaseOrder>.ValueJsonConverter());`.
 - `ConfigureValueObjects()` maps every construction an entity holds.
 - Dapper needs a handler per construction, before any query:
   `ValueObjectDapper.AddValueObjectHandler<Reference<PurchaseOrder>, string>();`.

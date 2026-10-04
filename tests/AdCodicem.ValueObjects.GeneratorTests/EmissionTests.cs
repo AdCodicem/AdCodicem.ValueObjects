@@ -104,6 +104,41 @@ public sealed class EmissionTests
     }
 
     /// <summary>
+    /// The schema the generator emits is the static member the contract declares, so generic code reads it through its
+    /// type parameter, over a value object and over a construction of a generic one, with no registry.
+    /// </summary>
+    [Fact]
+    public void The_emitted_schema_implements_the_static_member_of_the_contract()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>(MaxLength = 12)]
+            public readonly partial struct Code;
+
+            [ValueObject<int>]
+            public readonly partial struct Box<TOwner>;
+
+            public static class Reader
+            {
+                public static int? MaxLength<TSelf, TValue>()
+                    where TSelf : struct, IValueObject<TSelf, TValue>
+                    => TSelf.Schema.MaxLength;
+
+                public static int? OfCode() => MaxLength<Code, string>();
+
+                public static int? OfBox() => MaxLength<Box<Code>, int>();
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.Files.Where(file => !file.HintName.Contains("Registration", StringComparison.Ordinal))
+            .Should().HaveCount(2)
+            .And.OnlyContain(file => file.Text.Contains(
+                "public static global::AdCodicem.ValueObjects.Metadata.ValueObjectSchema Schema { get; } = new()",
+                StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// A tool reading the public instance properties of a type publishes each as data, so <c>IsDefault</c>, a guard
     /// for code, is implemented explicitly: over a string it tells an instance holding no string, over a value type an
     /// instance equal to the type's zero.
