@@ -160,8 +160,9 @@ var schema = JsonSchemaExporter.GetJsonSchemaAsNode(
 A collection or a dictionary of value objects gets its `items` or `additionalProperties`, which the exporter leaves
 out, and a dictionary keyed by a value object gets the key's rules in `propertyNames`, as the key is written: always
 text, so a key over a number is a `string` held to the pattern of that number's text, `"4"` or `"-Infinity"`, its bounds
-in a sentence of the description, and a key over a `bool` is `True` or `False`. A value object is described in place,
-never as a `$ref`. The schema the exporter, or a host, hands over is completed rather
+in a sentence of the description, and a key over a `bool` is `True` or `False`, as the generated converter writes it,
+or `true` or `false`, as System.Text.Json writes the key of a `bool`. A value object is described in place, never as a
+`$ref`. The schema the exporter, or a host, hands over is completed rather
 than replaced: a description already there, from a `[Description]` on a tool's parameter for instance, comes first,
 the value object's after it, and a keyword the value object does not declare, such as a `default`, stays.
 

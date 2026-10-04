@@ -256,22 +256,29 @@ public abstract class ValueObjectContract<TSelf, TValue>
     /// and readers take at its word: the type must accept it, read as the document's transformer reads it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The generator refuses at compile time an example its rules refuse when it can evaluate them (<c>VO0031</c>).
     /// This checks the rest: a pattern, a validator, a bound computed at run time, a normalization, the format of an
     /// entity identifier, and an example written in a form the generator does not evaluate.
+    /// </para>
+    /// <para>
+    /// The check reads <c>TSelf.Schema</c>, as the declaration checks below do, so it runs on a value object written by
+    /// hand whether anything registered it or not.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_declared_example_is_accepted()
     {
-        var descriptor = Descriptor("example");
-        var example = descriptor.Schema.Example;
+        Initialize();
+
+        var example = TSelf.Schema.Example;
         if (example is null)
         {
             Assert.Skip($"'{typeof(TSelf).Name}' declares no example.");
         }
 
         Assert.True(
-            descriptor.TryParse(example, CultureInfo.InvariantCulture, out _, out var validation),
+            TSelf.TryParse(example, CultureInfo.InvariantCulture, out _, out var validation),
             $"The example '{example}' declared on '{typeof(TSelf).Name}' is refused ({validation.ErrorCode}): {validation.ErrorMessage}");
     }
 
@@ -291,11 +298,18 @@ public abstract class ValueObjectContract<TSelf, TValue>
     /// type and the rule. A construction of a generic value object, and a value object written by hand, initialize
     /// when first used, which this check does.
     /// </para>
+    /// <para>
+    /// The check reads <c>TSelf.Schema</c>, so it runs on a value object written by hand whether anything registered it
+    /// or not. Known values left at the default of their array are none, and one that is not of the underlying type, as
+    /// a schema written by hand may hold, is reported as such.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_declared_known_value_is_accepted()
     {
-        var knownValues = Descriptor("known value").Schema.KnownValues;
+        Initialize();
+
+        var knownValues = TSelf.Schema.KnownValues.AsSpan();
         if (knownValues.IsEmpty)
         {
             Assert.Skip($"'{typeof(TSelf).Name}' declares no known value.");
@@ -303,6 +317,11 @@ public abstract class ValueObjectContract<TSelf, TValue>
 
         foreach (var known in knownValues)
         {
+            Assert.True(
+                known is TValue,
+                $"The known value {DescribeTyped(known)} declared on '{typeof(TSelf).Name}' is not of its underlying type, "
+                + $"{typeof(TValue).Name}.");
+
             Assert.True(
                 TSelf.TryCreate((TValue)known, out _, out var validation),
                 $"The known value '{known}' declared on '{typeof(TSelf).Name}' is refused ({validation.ErrorCode}): {validation.ErrorMessage}");
@@ -316,16 +335,16 @@ public abstract class ValueObjectContract<TSelf, TValue>
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The generator writes them so. A schema written by hand is where they drift apart, and the OpenAPI integration then
-    /// publishes no name at all, rather than one beside the wrong value. The values are compared as that integration
-    /// compares them, with <see cref="object.Equals(object, object)"/>, so a value boxed as another type than its
-    /// counterpart is out of step.
+    /// The generator writes them so. A schema written by hand is where they drift apart, or are left out, and the
+    /// OpenAPI integration then publishes no name at all, rather than one beside the wrong value. The values are
+    /// compared as that integration compares them, with <see cref="object.Equals(object, object)"/>, so a value boxed as
+    /// another type than its counterpart is out of step.
     /// </para>
     /// <para>
     /// The check reads <c>TSelf.Schema</c>, the schema the type declares, which generic code reads and the registry
     /// describes the type with unless it was registered with another, so it runs on a value object written by hand
-    /// whether anything registered it or not. A type that declares no known value, or one whose schema details none of
-    /// them, as a schema written by hand may, reports the check skipped.
+    /// whether anything registered it or not. A type that declares no known value reports the check skipped; one that
+    /// declares known values and details none of them fails it.
     /// </para>
     /// </remarks>
     [Fact]
@@ -336,12 +355,9 @@ public abstract class ValueObjectContract<TSelf, TValue>
         var schema = TSelf.Schema;
         var knownValues = schema.KnownValues.AsSpan();
         var details = schema.KnownValueDetails.AsSpan();
-        if (details.IsEmpty)
+        if (details.IsEmpty && knownValues.IsEmpty)
         {
-            Assert.Skip(
-                knownValues.IsEmpty
-                    ? $"'{typeof(TSelf).Name}' declares no known value."
-                    : $"'{typeof(TSelf).Name}' details none of its known values.");
+            Assert.Skip($"'{typeof(TSelf).Name}' declares no known value.");
         }
 
         Assert.True(
@@ -378,27 +394,9 @@ public abstract class ValueObjectContract<TSelf, TValue>
             : $"'{value}'";
 
     /// <summary>
-    /// Initializes the type and gets its descriptor, reporting a type that cannot initialize because a value it creates
-    /// as it does, such as a known value, is refused, and skipping the check when the type did not register itself.
+    /// Writes a value as a failure names it, with its type.
     /// </summary>
-    /// <param name="declaration">What the check reads off the schema, as the skip names it.</param>
-    /// <returns>The descriptor.</returns>
-    /// <remarks>
-    /// The type is initialized first, as <see cref="Initialize"/> says, before anything asks the registry for it.
-    /// </remarks>
-    private static ValueObjectDescriptor Descriptor(string declaration)
-    {
-        Initialize();
-        EnsureRegistered();
-        if (!ValueObjectRegistry.TryGet(typeof(TSelf), out var descriptor))
-        {
-            Assert.Skip(
-                $"'{typeof(TSelf).Name}' did not register itself, so it has no declared {declaration} to check. "
-                + "The_type_is_discoverable_at_run_time says why.");
-        }
-
-        return descriptor;
-    }
+    private static string DescribeTyped(object? value) => value is null ? "null" : $"'{value}' ({value.GetType().Name})";
 
     /// <summary>
     /// Initializes the type, reporting one that cannot because a value it creates as it does, such as a known value, is

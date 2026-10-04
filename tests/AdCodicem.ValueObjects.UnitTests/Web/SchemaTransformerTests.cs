@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -448,6 +449,43 @@ public partial class SchemaTransformerTests
         Extension(named, "x-enumNames").ToJsonString().Should().Be("""["Pass","Merit"]""");
         Extension(named, "x-ms-enum").ToJsonString().Should().Be(
             """{"name":"Grading","modelAsString":false,"values":[{"value":1,"name":"Pass"},{"value":2,"name":"Merit","description":"With distinction."}]}""");
+    }
+
+    /// <summary>
+    /// A schema built by hand may hold details the generator never writes: a null entry, an entry built without its
+    /// constructor, which has no name, or details beside known values left at the default of their array, which hold
+    /// none. None of them lines up, so no value is named, and the schema is still written, with the enum the known values
+    /// make, rather than failing the document.
+    /// </summary>
+    [Fact]
+    public async Task Details_only_a_schema_built_by_hand_holds_name_no_value_rather_than_failing_the_document()
+    {
+        ValueObjectRegistry.EnsureAssemblyRegistered(typeof(Grading).Assembly);
+        (ValueObjectSchema Declared, string? Enum)[] cases =
+        [
+            (new() { IsClosedValueSet = true, KnownValues = [1, 2], KnownValueDetails = [new KnownValueInfo(1, "Pass"), null!] }, "1,2"),
+            (
+                new()
+                {
+                    IsClosedValueSet = true,
+                    KnownValues = [null!, 2],
+                    KnownValueDetails = [(KnownValueInfo)RuntimeHelpers.GetUninitializedObject(typeof(KnownValueInfo)), new KnownValueInfo(2, "Merit")],
+                },
+                "\"\",2"),
+            (new() { IsClosedValueSet = true, KnownValues = default, KnownValueDetails = [new KnownValueInfo(1, "Pass")] }, null),
+        ];
+
+        foreach (var (declared, values) in cases)
+        {
+            ValueObjectRegistry.Register(ValueObjectDescriptor.For<Grading, int>(declared));
+            var schema = new OpenApiSchema();
+
+            await new ValueObjectSchemaTransformer().TransformAsync(schema, ContextFor<Grading>(), TestContext.Current.CancellationToken);
+
+            schema.Type.Should().Be(JsonSchemaType.Integer);
+            (schema.Enum is null ? null : string.Join(',', schema.Enum.Select(value => value.ToJsonString()))).Should().Be(values);
+            (schema.Extensions?.Keys ?? []).Should().NotContain(["x-enum-varnames", "x-enumNames", "x-ms-enum"]);
+        }
     }
 
     /// <summary>
