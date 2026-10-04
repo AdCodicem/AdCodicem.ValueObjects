@@ -75,6 +75,10 @@ builds its API reference category from `website/docs/api/`, which is generated a
 
 Integration tests start PostgreSQL and SQL Server through Testcontainers.
 
+In a Claude Code on the web session, `.claude/hooks/session-start.sh` (registered in `.claude/settings.json`)
+installs the newest SDK of the major `global.json` names into `~/.dotnet`, as `actions/setup-dotnet` resolves it in
+CI, puts it on `PATH` and restores the solution. It does nothing on a laptop.
+
 `TreatWarningsAsErrors` is on repository-wide, so a warning fails the build.
 
 ## Releases
