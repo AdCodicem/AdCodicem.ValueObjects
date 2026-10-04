@@ -102,7 +102,7 @@ public sealed class RequestDelegateGeneratorAnalyzer : DiagnosticAnalyzer
             var compilation = compilationContext.Compilation;
             if (IsEnabled(compilationContext.Options.AnalyzerConfigOptionsProvider.GlobalOptions)
                 && !compilation.GetTypesByMetadataName(EndpointRouteBuilderName).IsEmpty
-                && compilation.GetTypeByMetadataName(ParsableName) is { } parsable)
+                && Reachable(compilation, ParsableName) is { } parsable)
             {
                 compilationContext.RegisterSymbolStartAction(
                     symbolContext => AnalyzeType(symbolContext, parsable),
@@ -135,7 +135,7 @@ public sealed class RequestDelegateGeneratorAnalyzer : DiagnosticAnalyzer
         // Both annotations on one type is VO0018, and nothing is generated for it.
         if (entityId)
         {
-            return valueObject is null ? compilation.GetTypeByMetadataName(EntityIdContractName)?.Construct(type) : null;
+            return valueObject is null ? Reachable(compilation, EntityIdContractName)?.Construct(type) : null;
         }
 
         if (valueObject?.AttributeClass?.TypeArguments.FirstOrDefault() is not { } value
@@ -148,8 +148,50 @@ public sealed class RequestDelegateGeneratorAnalyzer : DiagnosticAnalyzer
         var arithmetic = underlying.IsNumeric
             && valueObject.NamedArguments.Any(argument => argument.Key == "Arithmetic" && argument.Value.Value is true);
 
-        return compilation.GetTypeByMetadataName(arithmetic ? NumericContractName : ValueObjectContractName)
+        return Reachable(compilation, arithmetic ? NumericContractName : ValueObjectContractName)
             ?.Construct(type, value);
+    }
+
+    /// <summary>
+    /// Resolves a type by its full name as the compiler binds it from the compilation's own code, the generated partial
+    /// included: a declaration of the compilation itself wins, as it does for the compiler (CS0436), and otherwise the
+    /// one declaration the compilation can reach.
+    /// </summary>
+    /// <remarks>
+    /// <c>GetTypeByMetadataName</c> answers <see langword="null"/> as soon as two assemblies declare the name, an
+    /// internal copy in a referenced assembly included, while the generated code still binds the public type, the
+    /// only one it can reach, and the RDG still misses it.
+    /// </remarks>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="metadataName">The type's full metadata name.</param>
+    /// <returns>
+    /// The type, or <see langword="null"/> when the compilation reaches none, or more than one, which the compiler
+    /// refuses as ambiguous (CS0433).
+    /// </returns>
+    private static INamedTypeSymbol? Reachable(Compilation compilation, string metadataName)
+    {
+        INamedTypeSymbol? reachable = null;
+        foreach (var candidate in compilation.GetTypesByMetadataName(metadataName))
+        {
+            if (SymbolEqualityComparer.Default.Equals(candidate.ContainingAssembly, compilation.Assembly))
+            {
+                return candidate;
+            }
+
+            if (!compilation.IsSymbolAccessibleWithin(candidate, compilation.Assembly))
+            {
+                continue;
+            }
+
+            if (reachable is not null)
+            {
+                return null;
+            }
+
+            reachable = candidate;
+        }
+
+        return reachable;
     }
 
     private static bool IsEnabled(AnalyzerConfigOptions options)
