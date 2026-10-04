@@ -465,6 +465,20 @@ public class NewtonsoftJsonTests
     }
 
     /// <summary>
+    /// A hand-written value object can refuse a number without naming the rule; the refusal still carries a code, the
+    /// one a token that cannot be read at all carries.
+    /// </summary>
+    [Fact]
+    public void A_number_refused_without_a_reason_is_refused_as_not_parsable()
+    {
+        var act = () => JsonConvert.DeserializeObject<HandWrittenRating>("9", Defaults);
+
+        JsonConvert.DeserializeObject<HandWrittenRating>("4", Defaults).Should().Be(HandWrittenRating.Create(4));
+        act.Should().Throw<JsonSerializationException>().WithMessage("The value is not a valid HandWrittenRating: ")
+            .Which.ShouldCarry(ValueObjectErrorCodes.NotParsable);
+    }
+
+    /// <summary>
     /// Under its default date handling, Newtonsoft.Json reads a string that looks like a date as a date before the
     /// converter sees it, and the text is gone: a string value object refuses the date rather than take another
     /// text, and reads the text itself once the settings leave strings alone.
