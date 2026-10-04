@@ -26,7 +26,7 @@ Every value object implements `IValueObject<TSelf, TValue>`, which brings:
 | --- | --- |
 | `TValue Value` | The underlying value, normalized and valid on any constructed instance. For a `string` value object, an uninitialized instance reads as `""`. |
 | `bool IValueObject<TSelf, TValue>.IsDefault` | `true` for an instance equal to `default(TSelf)`: over a `string`, exactly one that never went through `Create`; over a value type, also a constructed instance holding the type's zero (`0`, `Guid.Empty`, …), which only `VO0010` and validation tell apart. The run-time guard where `VO0010` cannot see. Implemented explicitly, so a tool reading public properties finds `Value` alone: generic code constrained on the interface reads it without boxing, code holding the concrete type through a cast to the interface, which boxes. |
-| `static ValueObjectSchema Schema` | The declared rules as data: lengths, pattern, bounds, format, known values, description. On a type implementing `IValueObjectPatternValidator`, the pattern is the text of its `[GeneratedRegex]`, read when the type compiles. |
+| `static ValueObjectSchema Schema` | The declared rules as data: lengths, pattern, bounds, format, known values, description. On a type implementing `IValueObjectPatternValidator`, the pattern is the text of its `[GeneratedRegex]`, read when the type compiles. It implements the static member of `IValueObject<TSelf, TValue>`, so generic code reads it as `TSelf.Schema`, and it is the instance the registration hands the descriptor. |
 
 ## Construction
 

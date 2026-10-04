@@ -6,9 +6,16 @@ namespace AdCodicem.ValueObjects.Metadata;
 /// The declarative constraints of a value object, captured once at compile time.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The generator fills this from the <c>ValueObjectAttribute</c> so that the rules enforced by
 /// <c>Validate</c> and the rules published in the OpenAPI schema or applied to an EF Core column can never
 /// drift apart: they all read the same instance.
+/// </para>
+/// <para>
+/// That instance is the value object's <see cref="IValueObject{TSelf, TValue}.Schema"/>, which generic code reads through
+/// its type parameter and the registration hands the descriptor. A value object written by hand builds its own, stating
+/// the rules its <c>Validate</c> enforces.
+/// </para>
 /// </remarks>
 public sealed record ValueObjectSchema
 {

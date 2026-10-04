@@ -25,11 +25,44 @@ A descriptor exposes what the type declares and how to build one:
 - `ValueObjectType` and `ValueType`, the value object and its underlying type;
 - `Schema`, the declared rules — lengths, pattern, bounds, format, known values — as data;
 - `Create`, `TryCreate`, `CreateUnchecked` and `TryParse`, which take and return boxed values;
-- `GetValue` and `Format`, to read an instance back.
+- `GetValue` and `Format`, to read an instance back;
+- `Accept`, which hands the type arguments back to code of your own, as the next section shows.
 
 A rejection carries the same `ValidationResult` as the typed path, with the code of the rule that fired. `Create`
 and `TryCreate` reject a `null` as `value_object.required` whatever the underlying type: a decimal value object
 does not read it as zero.
+
+## Back to the typed path
+
+A boxed delegate suits a call or two at start-up. An integration that keeps working with the value object — a
+formatter, a serializer, a type handler — wants an adapter closed over it, `MyFormatter<TSelf, TValue>`, which runs on
+the typed path. Closing it from a `Type` with `MakeGenericType` and `Activator.CreateInstance` works under the JIT, and
+fails under native AOT, which has no code for a generic closed over a struct at run time. The descriptor hands the type
+arguments back instead, to an `IValueObjectVisitor<TResult>`:
+
+```csharp skip
+sealed class FormatterFor : IValueObjectVisitor<IFormatter>
+{
+    public IFormatter Visit<TSelf, TValue>()
+        where TSelf : struct, IValueObject<TSelf, TValue>
+        => new ValueObjectFormatter<TSelf, TValue>();
+}
+
+foreach (var descriptor in ValueObjectRegistry.GetRegistered())
+{
+    formatters.Add(descriptor.ValueObjectType, descriptor.Accept(new FormatterFor()));
+}
+```
+
+`Accept` calls `Visit` with the type arguments the descriptor was built with, so the adapter is closed at compile time.
+Under native AOT, the compiler generates `Visit` for each value object a descriptor is built for in code: every one the
+generator registers, and every construction of a generic value object registered by hand. A visitor needing context —
+a builder, a flag — holds it in fields. Each `Visit` is compiled once per value object, since a struct type argument
+shares no code, and only for the visitors the application creates. The Dapper integration registers its handlers this
+way.
+
+Inside the adapter, the rules are `TSelf.Schema`, the static member of `IValueObject<TSelf, TValue>` that the generator
+emits and registers as the descriptor's `Schema`: `TSelf.Schema.MaxLength` sizes a column with no registry to ask.
 
 ## Cheaper questions
 
@@ -65,8 +98,17 @@ that wrapper deal with `null`.
 A generic value object registers its generic definition, since its registration knows none of its constructions:
 `ValueObjectRegistry.GetRegisteredGenericDefinitions()` lists them. `TryResolve` describes a construction the first time
 it is asked for it, from the schema and the converter the generator wrote on it, and caches the descriptor;
-`TryGet` finds it from then on. Describing it takes reflection and dynamic code, so under native AOT, register each
-construction you look up with `ValueObjectRegistry.Register<TSelf, TValue>(TSelf.Schema, new TSelf.ValueJsonConverter())`.
+`TryGet` finds it from then on. Describing it takes reflection and dynamic code, and so does visiting the descriptor it
+builds, so under native AOT, register each construction you look up, which reads its schema off the type:
+`ValueObjectRegistry.Register<Code<Order>, string>(static () => new Code<Order>.ValueJsonConverter())`.
+
+## Value objects written by hand
+
+A value object written by hand implements `IValueObject<TSelf, TValue>` in full, `static ValueObjectSchema Schema`
+included: the rules its `Validate` enforces, as data, or `ValueObjectSchema.Unconstrained` when it publishes none.
+Nothing registers it, so `TryResolve` describes it by reflection, the first time it is asked, with that schema, the one
+generic code constrained on it reads, whatever `[ValueObject<T>]` or `[KnownValue]` annotation it also carries. Where no
+generator runs, nothing reads an annotation: state each rule in the schema.
 
 ## When a type is not found
 

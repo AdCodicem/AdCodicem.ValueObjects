@@ -276,12 +276,11 @@ factory, the OpenAPI transformer and the model binder find one as they find any 
 [Entity Framework Core](./how-to/ef-core.md#generic-value-objects) maps each construction a property holds, and
 [Dapper](./how-to/dapper.md#generic-value-objects) needs a handler per construction, before any query. Under native
 AOT, where describing a construction by reflection is out of reach, register each construction a type-driven
-integration needs:
+integration needs; the registration reads its schema off the type:
 
 ```csharp skip
 ValueObjectRegistry.Register<Reference<PurchaseOrder>, string>(
-    Reference<PurchaseOrder>.Schema,
-    new Reference<PurchaseOrder>.ValueJsonConverter());
+    static () => new Reference<PurchaseOrder>.ValueJsonConverter());
 ```
 
 An `[EntityId]` is never generic, nor nested in a generic type: its prefix names one type, which every construction

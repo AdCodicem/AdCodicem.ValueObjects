@@ -1,16 +1,20 @@
 using System.Text.RegularExpressions;
+using AdCodicem.ValueObjects.Metadata;
 
 namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 
 /// <summary>
-/// A French department code written by hand, with no annotation, declaring its pattern through the hook: the
-/// registry describes it from the hook alone.
+/// A French department code written by hand, with no annotation, declaring its pattern through the hook and publishing
+/// it in its schema alone.
 /// </summary>
 public readonly partial struct DepartmentCode : IValueObject<DepartmentCode, string>, IValueObjectPatternValidator
 {
     private readonly string? _value;
 
     private DepartmentCode(string value) => _value = value;
+
+    /// <summary>Publishes the text of the pattern its hook matches, as the generator writes it from the attribute.</summary>
+    public static ValueObjectSchema Schema { get; } = new() { Pattern = "^[0-9]{2}$" };
 
     [GeneratedRegex("^[0-9]{2}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     public static partial Regex Pattern { get; }

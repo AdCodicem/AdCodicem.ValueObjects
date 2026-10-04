@@ -1,11 +1,12 @@
 using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects.Annotations;
+using AdCodicem.ValueObjects.Metadata;
 
 namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 
 /// <summary>
-/// A five-digit postal code written by hand, annotated and declaring its pattern through the hook: the registry
-/// reads the length from the annotation and the pattern from the hook.
+/// A five-digit postal code written by hand, annotated and declaring its pattern through the hook: its schema
+/// publishes the length of the one and the pattern of the other.
 /// </summary>
 [ValueObject<string>(MaxLength = 5)]
 public readonly partial struct PostalCode : IValueObject<PostalCode, string>, IValueObjectPatternValidator
@@ -13,6 +14,8 @@ public readonly partial struct PostalCode : IValueObject<PostalCode, string>, IV
     private readonly string? _value;
 
     private PostalCode(string value) => _value = value;
+
+    public static ValueObjectSchema Schema { get; } = new() { Pattern = "^[0-9]{5}$", MaxLength = 5 };
 
     [GeneratedRegex("^[0-9]{5}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     public static partial Regex Pattern { get; }

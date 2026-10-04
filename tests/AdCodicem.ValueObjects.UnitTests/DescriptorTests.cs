@@ -1,6 +1,10 @@
 using System.Globalization;
+using System.Reflection;
+using System.Text.Json.Serialization;
+using AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
+using AdCodicem.ValueObjects.UnitTests.GeneratedSurface;
 
 namespace AdCodicem.ValueObjects.UnitTests;
 
@@ -348,4 +352,147 @@ public sealed class DescriptorTests
         descriptor.Format(iban).Should().Be("FR7630006000011234567890189");
         descriptor.ValueType.Should().Be<string>();
     }
+
+    public static TheoryData<string> Every => Samples.Names;
+
+    /// <summary>
+    /// A visitor receives the type arguments the descriptor was built with, for every value object of the domain, one
+    /// per underlying type and hook: enough to close an adapter over them, which reads the schema off its type parameter
+    /// and parses through the static members, with no reflection.
+    /// </summary>
+    /// <param name="type">The value object.</param>
+    [Theory]
+    [MemberData(nameof(Every))]
+    public void Every_descriptor_hands_a_visitor_the_type_arguments_it_was_built_with(string type)
+        => Samples.All[type].HandsItsTypeArgumentsToAVisitor();
+
+    /// <summary>
+    /// The descriptor the registry builds by reflection for what nothing registered carries the type arguments too: a
+    /// value object written by hand, over a type the generator does not support, and a construction of a generic value
+    /// object, generated or written by hand.
+    /// </summary>
+    [Fact]
+    public void A_descriptor_built_by_reflection_hands_a_visitor_its_type_arguments()
+    {
+        ValueObjectRegistry.RegisterGenericDefinition(typeof(HandWrittenTag<>));
+
+        ValueObjectRegistry.TryResolve(typeof(HandWrittenCode), out var code).Should().BeTrue();
+        ValueObjectRegistry.TryResolve(typeof(HandWrittenLink), out var link).Should().BeTrue();
+        ValueObjectRegistry.TryResolve(typeof(Reference<SalesInvoice>), out var reference).Should().BeTrue();
+        ValueObjectRegistry.TryResolve(typeof(HandWrittenTag<SalesInvoice>), out var tag).Should().BeTrue();
+
+        code!.Accept(TypeArgumentsVisitor.Instance).Should().Be((typeof(HandWrittenCode), typeof(string)));
+        link!.Accept(TypeArgumentsVisitor.Instance).Should().Be((typeof(HandWrittenLink), typeof(Uri)));
+        reference!.Accept(TypeArgumentsVisitor.Instance).Should().Be((typeof(Reference<SalesInvoice>), typeof(string)));
+        tag!.Accept(TypeArgumentsVisitor.Instance).Should().Be((typeof(HandWrittenTag<SalesInvoice>), typeof(string)));
+
+        reference.Schema.Should().BeSameAs(Reference<SalesInvoice>.Schema, "a construction is described with the schema its type declares");
+        reference.Accept(AdapterVisitor.Instance).Parse("si-1").Should().Be(Reference<SalesInvoice>.Create("SI-1"));
+    }
+
+    /// <summary>
+    /// The registration native AOT asks of a construction takes its converter alone and reads the schema off the type;
+    /// its descriptor, built in code, hands a visitor its type arguments like a generated one.
+    /// </summary>
+    [Fact]
+    public void A_construction_registered_by_hand_reads_its_schema_off_the_type_and_hands_a_visitor_its_type_arguments()
+    {
+        ValueObjectRegistry.Register<Reference<HandRegisteredOwner>, string>(
+            static () => new Reference<HandRegisteredOwner>.ValueJsonConverter());
+
+        ValueObjectRegistry.TryGet(typeof(Reference<HandRegisteredOwner>), out var descriptor).Should().BeTrue();
+
+        descriptor!.Schema.Should().BeSameAs(Reference<HandRegisteredOwner>.Schema);
+        descriptor.JsonConverter.Should().BeOfType<Reference<HandRegisteredOwner>.ValueJsonConverter>();
+        descriptor.Accept(TypeArgumentsVisitor.Instance).Should().Be((typeof(Reference<HandRegisteredOwner>), typeof(string)));
+        descriptor.Accept(SchemaVisitor.Instance).MaxLength.Should().Be(12);
+
+        var missing = () => ValueObjectRegistry.Register<Reference<HandRegisteredOwner>, string>(
+            (Func<JsonConverter<Reference<HandRegisteredOwner>>>)null!);
+        missing.Should().Throw<ArgumentNullException>().WithParameterName("jsonConverter");
+    }
+
+    /// <summary>
+    /// A visitor is covariant in what it returns: one building an adapter serves where a visitor of a base type of that
+    /// adapter is asked for.
+    /// </summary>
+    [Fact]
+    public void A_visitor_serves_where_a_visitor_of_a_base_type_of_its_result_is_asked_for()
+    {
+        IValueObjectVisitor<object> visitor = AdapterVisitor.Instance;
+
+        Descriptor<Iban>().Accept(visitor).Should().BeOfType<TypedAdapter<Iban, string>>();
+    }
+
+    [Fact]
+    public void Accepting_no_visitor_is_refused()
+    {
+        var accept = () => Descriptor<Iban>().Accept<bool>(null!);
+
+        accept.Should().Throw<ArgumentNullException>().WithParameterName("visitor");
+    }
+
+    /// <summary>
+    /// Code closed over a value object reads its rules through the type parameter. A construction of a generic value
+    /// object is never described in the registry for it, which would take reflection.
+    /// </summary>
+    [Fact]
+    public void A_typed_adapter_reads_the_rules_off_its_type_parameter_without_the_registry()
+    {
+        new TypedAdapter<Iban, string>().MaxLength.Should().Be(34);
+        new TypedAdapter<Reference<NeverDescribedOwner>, string>().MaxLength.Should().Be(12);
+        new TypedAdapter<Amount, decimal>().MaxLength.Should().BeNull();
+        MinimumOf<HandWrittenLevel, int>().Should().Be("1");
+
+        ValueObjectRegistry.TryGet(typeof(Reference<NeverDescribedOwner>), out _).Should().BeFalse("nothing asked the registry");
+    }
+
+    /// <summary>
+    /// Where no generator runs, a value object written by hand states its rules twice: in the annotation and hooks a
+    /// reader sees, and in the schema the registry and generic code read. The repository's own hand-written value objects
+    /// state the same rules both ways; the one that does not, <see cref="SalesTaxRate"/>, is the witness that the schema
+    /// wins (<see cref="RegistryResolutionTests"/>).
+    /// </summary>
+    /// <param name="type">A value object written by hand.</param>
+    [Theory]
+    [InlineData(typeof(HandWrittenCode))]
+    [InlineData(typeof(HandWrittenCounter))]
+    [InlineData(typeof(HandWrittenItemCount))]
+    [InlineData(typeof(HandWrittenLevel))]
+    [InlineData(typeof(HandWrittenLink))]
+    [InlineData(typeof(HandWrittenTag<PurchaseOrder>))]
+    [InlineData(typeof(HandWrittenId<ImpostorProfile>))]
+    [InlineData(typeof(UnregisteredCode))]
+    [InlineData(typeof(DepartmentCode))]
+    [InlineData(typeof(FloorNumber))]
+    [InlineData(typeof(LightColor))]
+    [InlineData(typeof(PostalCode))]
+    [InlineData(typeof(ShirtSize))]
+    public void Every_hand_written_value_object_declares_in_its_schema_the_rules_it_states_elsewhere(Type type)
+    {
+        var valueType = ValueObjectRegistry.GetUnderlyingType(type)!;
+        var declared = (ValueObjectSchema)typeof(DescriptorTests)
+            .GetMethod(nameof(SchemaOf), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(type, valueType)
+            .Invoke(null, null)!;
+
+        var stated = DeclaredRules.Read(type, valueType);
+
+        (declared with { KnownValues = [] }).Should().Be(stated with { KnownValues = [] });
+        declared.KnownValues.Should().Equal(stated.KnownValues);
+    }
+
+    private static ValueObjectSchema SchemaOf<TSelf, TValue>()
+        where TSelf : struct, IValueObject<TSelf, TValue>
+        => TSelf.Schema;
+
+    private static string? MinimumOf<TSelf, TValue>()
+        where TSelf : struct, IValueObject<TSelf, TValue>
+        => TSelf.Schema.Minimum;
+
+    /// <summary>The owner of a construction only registered by hand, which nothing else resolves.</summary>
+    private sealed class HandRegisteredOwner;
+
+    /// <summary>The owner of a construction nothing ever describes.</summary>
+    private sealed class NeverDescribedOwner;
 }

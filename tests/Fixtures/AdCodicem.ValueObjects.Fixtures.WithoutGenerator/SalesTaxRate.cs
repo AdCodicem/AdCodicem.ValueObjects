@@ -1,5 +1,6 @@
 using System.Globalization;
 using AdCodicem.ValueObjects.Annotations;
+using AdCodicem.ValueObjects.Metadata;
 
 namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 
@@ -8,9 +9,10 @@ namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 /// written as text.
 /// </summary>
 /// <remarks>
-/// It declares its bounds through the hooks, which the registry reads back from the interfaces. Its last known value
-/// is text no decimal parses. Where no generator runs, nothing checks the annotation when the type
-/// compiles, and the registry has to describe such a value as it was written.
+/// It declares its bounds through the hooks, which its schema publishes. Its last known value is text no decimal parses.
+/// Where no generator runs, nothing checks the annotation when the type compiles, so the annotation and the schema can
+/// disagree, as they do here: the schema leaves that value out, and the registry describes the type from the schema, the
+/// source the typed path reads.
 /// </remarks>
 [ValueObject<decimal>]
 [KnownValue("Standard", "20.0")]
@@ -21,6 +23,16 @@ public readonly struct SalesTaxRate : IValueObject<SalesTaxRate, decimal>, IValu
     public static decimal Minimum => 0m;
 
     public static decimal Maximum => 100m;
+
+    /// <summary>
+    /// Publishes the bounds of the hooks and the known values the type holds, which leaves out the one no decimal parses.
+    /// </summary>
+    public static ValueObjectSchema Schema { get; } = new()
+    {
+        Minimum = ValueObjectBound.Text(Minimum),
+        Maximum = ValueObjectBound.Text(Maximum),
+        KnownValues = [20.0m, 5.5m],
+    };
 
     private readonly decimal _value;
 

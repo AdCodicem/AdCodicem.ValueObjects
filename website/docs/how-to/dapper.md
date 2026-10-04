@@ -28,7 +28,11 @@ Dapper keeps its handlers in a process-wide table, so the call belongs at start-
 Pass several assemblies if the value objects live in more than one. Calling it again changes nothing: a value object
 Dapper already has a handler for keeps it, including one the application registered itself. What is handled is read
 from Dapper's own table, so after `SqlMapper.ResetTypeHandlers()` — between tests, say — calling it again registers
-every handler anew.
+every handler anew. Each handler is closed over its value object at compile time, through the type arguments the
+value object's descriptor hands back ([Run-time lookup](runtime-lookup.md#back-to-the-typed-path)), so this package
+builds them without dynamic code. Dapper itself does not: it files each handler in a cache it closes over the type at
+run time, and reads rows through code it emits, so under native AOT the registration still fails inside Dapper. Native
+AOT goes through [Dapper.AOT](#dapperaot).
 
 ## Parameters
 
@@ -86,7 +90,8 @@ ValueObjectDapper.AddValueObjectHandler<Reference<PurchaseOrder>, string>();
 
 It registers the same handler, for the value object and its nullable form, closed at compile time with no assembly
 scan, and keeps a handler the application registered itself. It works for a value object that is not generic too. The
-parameter of a construction declares its column as any other value object's does.
+parameter of a construction declares its column as any other value object's does, from the length the type declares,
+`TSelf.Schema`, without asking the registry.
 
 ## 128-bit value objects
 

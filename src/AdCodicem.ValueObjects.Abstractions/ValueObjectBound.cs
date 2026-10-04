@@ -5,7 +5,7 @@ namespace AdCodicem.ValueObjects;
 
 /// <summary>
 /// A generic bridge to the bounds a value object declares through <see cref="IValueObjectMinimum{TValue}"/> and
-/// <see cref="IValueObjectMaximum{TValue}"/>, used by generated code and by the registry.
+/// <see cref="IValueObjectMaximum{TValue}"/>, used by generated code.
 /// </summary>
 /// <remarks>
 /// <para>

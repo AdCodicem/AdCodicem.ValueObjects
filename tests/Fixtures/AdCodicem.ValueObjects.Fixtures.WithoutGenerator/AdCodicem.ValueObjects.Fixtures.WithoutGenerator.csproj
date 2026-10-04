@@ -2,8 +2,9 @@
 
   <!--
     Value objects written by hand, in an assembly the generator does not run on, so nothing registers them: the
-    registry can only describe them by reflection, from their [ValueObject<T>] annotation and from the
-    IValueObjectPatternValidator they implement. The regex generator does run here, as in any project.
+    registry can only describe them by reflection, from the Schema each declares. Most also carry the
+    [ValueObject<T>] annotation their schema restates, which nothing reads at run time. The regex generator does run
+    here, as in any project.
   -->
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.Fixtures.WithoutGenerator</RootNamespace>

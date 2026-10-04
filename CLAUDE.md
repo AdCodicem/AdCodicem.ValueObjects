@@ -184,11 +184,17 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
 ### Two ways to reach a value object — and why bugs hide in one of them
 
 - **Typed path.** The static abstract members of `IValueObject<TSelf, TValue>` (`Create`, `TryCreate`,
-  `TryParse`, `Normalize`, `Validate`). This is what domain code and the generic integrations use — the ASP.NET
-  binder, the EF converter and the Dapper handler are all generic and closed over the concrete types at startup,
-  so per-request work is fully typed and allocates nothing extra.
+  `TryParse`, `Normalize`, `Validate`, and `Schema`, the rules as data). This is what domain code and the generic
+  integrations use — the ASP.NET binder, the EF converter and the Dapper handler are all generic and closed over the
+  concrete types at startup, so per-request work is fully typed and allocates nothing extra. A typed adapter reads
+  `TSelf.Schema`, never the registry, which would describe a construction of a generic value object by reflection.
 - **Boxed path.** `ValueObjectDescriptor`, resolved from `ValueObjectRegistry`, for callers that only know a
-  `Type` at run time — `MustParseAs(Type)`, the OpenAPI transformer, model-binder resolution.
+  `Type` at run time — `MustParseAs(Type)`, the OpenAPI transformer, model-binder resolution. `descriptor.Accept`
+  hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
+  time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's `AddValueObjectHandlers`
+  does; EF Core's convention, the MVC binder provider and the JSON fallback converter still call `MakeGenericType`,
+  and migrate one package at a time. A hand-written value object declares `Schema` too, and the registry describes it
+  from that alone: an annotation on it is read by nothing at run time.
 
 The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them. That is
 exactly how the descriptor once flattened every rejection into a generic `not_parsable`, discarding the rule

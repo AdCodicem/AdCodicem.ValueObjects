@@ -37,9 +37,16 @@ public static class ValueObjectDapper
     /// exact type, ahead of any query: register each construction with
     /// <see cref="AddValueObjectHandler{TSelf, TValue}"/>.
     /// </para>
+    /// <para>
+    /// Each handler is closed over its value object at compile time, through the type arguments the descriptor hands
+    /// back to a visitor (<see cref="ValueObjectDescriptor.Accept{TResult}(IValueObjectVisitor{TResult})"/>), never at
+    /// run time with <see cref="Type.MakeGenericType(Type[])"/>, so building them takes no dynamic code. Locating the
+    /// generated registration of an assembly given by name reads its metadata, which trimming may remove. Dapper itself
+    /// is not compatible with native AOT: it files each handler in a cache it closes over the type at run time, and reads
+    /// rows through code it emits.
+    /// </para>
     /// </remarks>
-    [RequiresUnreferencedCode("Closes the generic type handler over each value object type.")]
-    [RequiresDynamicCode("Closes the generic type handler over each value object type.")]
+    [RequiresUnreferencedCode("Locates the generated registration of each assembly given by its metadata.")]
     public static void AddValueObjectHandlers(params Assembly[] assemblies)
     {
         ArgumentNullException.ThrowIfNull(assemblies);
@@ -53,18 +60,7 @@ public static class ValueObjectDapper
         {
             foreach (var descriptor in ValueObjectRegistry.GetRegistered())
             {
-                if (SqlMapper.HasTypeHandler(descriptor.ValueObjectType) || Is128Bit(descriptor.ValueType))
-                {
-                    continue;
-                }
-
-                var handlerType = typeof(ValueObjectTypeHandler<,>)
-                    .MakeGenericType(descriptor.ValueObjectType, descriptor.ValueType);
-
-                var handler = (SqlMapper.ITypeHandler)Activator.CreateInstance(handlerType)!;
-
-                SqlMapper.AddTypeHandler(descriptor.ValueObjectType, handler);
-                SqlMapper.AddTypeHandler(typeof(Nullable<>).MakeGenericType(descriptor.ValueObjectType), handler);
+                descriptor.Accept(HandlerRegistration.Instance);
             }
         }
     }
@@ -80,8 +76,9 @@ public static class ValueObjectDapper
     /// <remarks>
     /// The handler is the one <see cref="AddValueObjectHandlers"/> registers, for the value object and its nullable
     /// form, and a value object Dapper already has a handler for keeps it. Closed at compile time, it needs no dynamic
-    /// code to be built; Dapper reflects over the handlers it is given, and the handler of a construction reads the
-    /// column the construction declares from the registry, which describes the construction by reflection.
+    /// code to be built, and it reads the column the value object declares off
+    /// <see cref="IValueObject{TSelf, TValue}.Schema"/>, without asking the registry, which would describe a construction
+    /// by reflection; Dapper reflects over the handlers it is given.
     /// </remarks>
     public static void AddValueObjectHandler<TSelf, TValue>()
         where TSelf : struct, IValueObject<TSelf, TValue>
@@ -95,14 +92,27 @@ public static class ValueObjectDapper
 
         lock (Gate)
         {
-            if (SqlMapper.HasTypeHandler(typeof(TSelf)))
-            {
-                return;
-            }
-
-            // Dapper registers a handler for a value type under its nullable form as well.
-            SqlMapper.AddTypeHandler(new ValueObjectTypeHandler<TSelf, TValue>());
+            TryAdd<TSelf, TValue>();
         }
+    }
+
+    /// <summary>
+    /// Registers the handler of a value object, unless Dapper already has one for it. The caller holds the lock.
+    /// </summary>
+    /// <typeparam name="TSelf">Value object type.</typeparam>
+    /// <typeparam name="TValue">Underlying value type.</typeparam>
+    /// <returns><see langword="true"/> when the handler was registered.</returns>
+    private static bool TryAdd<TSelf, TValue>()
+        where TSelf : struct, IValueObject<TSelf, TValue>
+    {
+        if (SqlMapper.HasTypeHandler(typeof(TSelf)))
+        {
+            return false;
+        }
+
+        // Dapper registers a handler for a value type under its nullable form as well.
+        SqlMapper.AddTypeHandler(new ValueObjectTypeHandler<TSelf, TValue>());
+        return true;
     }
 
     /// <summary>
@@ -111,4 +121,23 @@ public static class ValueObjectDapper
     /// <param name="valueType">Underlying type of a value object.</param>
     /// <returns><see langword="true"/> for <see cref="Int128"/> and <see cref="UInt128"/>.</returns>
     private static bool Is128Bit(Type valueType) => valueType == typeof(Int128) || valueType == typeof(UInt128);
+
+    /// <summary>
+    /// Registers the handler of the value object a descriptor stands for, closed over the type arguments it hands back.
+    /// </summary>
+    private sealed class HandlerRegistration : IValueObjectVisitor<bool>
+    {
+        public static readonly HandlerRegistration Instance = new();
+
+        /// <summary>
+        /// Registers the handler of the value object, unless it is over a 128-bit integer, which no provider carries, or
+        /// Dapper already has a handler for it.
+        /// </summary>
+        /// <typeparam name="TSelf">Value object type.</typeparam>
+        /// <typeparam name="TValue">Underlying value type.</typeparam>
+        /// <returns><see langword="true"/> when the handler was registered.</returns>
+        public bool Visit<TSelf, TValue>()
+            where TSelf : struct, IValueObject<TSelf, TValue>
+            => !Is128Bit(typeof(TValue)) && TryAdd<TSelf, TValue>();
+    }
 }

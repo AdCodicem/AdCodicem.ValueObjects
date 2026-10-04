@@ -119,10 +119,8 @@ with the pattern a number written as text is held to, as a bare `int` property o
 
 ## Value objects written by hand
 
-A value object written by hand where no generator runs is described from its annotation, as the registry describes
-it by reflection the first time it meets the type, unless it was registered with a schema of its own, which is
-published as it was built. Read from the annotation, each known value goes through the type too, normalized, or
-parsed when the attribute had to take it as text — a decimal, a `Guid`, a date — and only one the type cannot parse
-is listed as written; a known value of another type in a schema built by hand is listed as its text. Its description
-is the annotation's `Description` alone: the XML summary a generated value object falls back on is not there to read
-at run time.
+A value object written by hand where no generator runs is described from the `Schema` it declares, as the registry
+describes it by reflection the first time it meets the type, unless it was registered with a schema of its own, which is
+published as it was built. An annotation it also carries is not read: nothing generates from it there, so its rules,
+its known values as the type holds them and its description belong in the schema. A known value of another type than
+the underlying one is listed as its text.

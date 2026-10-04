@@ -1,3 +1,5 @@
+using AdCodicem.ValueObjects.Metadata;
+
 namespace AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
 /// <summary>
@@ -13,6 +15,9 @@ public readonly struct HandWrittenCode : IValueObject<HandWrittenCode, string>
     private readonly string? _value;
 
     private HandWrittenCode(string value) => _value = value;
+
+    /// <summary>Declares no rule a reflection-driven caller could publish.</summary>
+    public static ValueObjectSchema Schema => ValueObjectSchema.Unconstrained;
 
     public string Value => _value ?? string.Empty;
 

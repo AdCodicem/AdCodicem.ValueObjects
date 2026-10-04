@@ -1,15 +1,18 @@
 using System.Globalization;
+using AdCodicem.ValueObjects.Metadata;
 
 namespace AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
 /// <summary>
 /// A level of a game written by hand, which nothing registers and only the OpenAPI schema transformer is given, so the
 /// registry has not described it when the transformer meets it. It carries no annotation, and declares its lower bound
-/// through the hook, which the registry reads back from the interface.
+/// through the hook, which its schema publishes in the form the generator writes a bound in.
 /// </summary>
 public readonly struct HandWrittenLevel : IValueObject<HandWrittenLevel, int>, IValueObjectMinimum<int>
 {
     public static int Minimum => 1;
+
+    public static ValueObjectSchema Schema { get; } = new() { Minimum = ValueObjectBound.Text(Minimum) };
 
     private readonly int _value;
 

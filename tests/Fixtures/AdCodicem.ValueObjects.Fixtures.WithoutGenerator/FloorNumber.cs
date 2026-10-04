@@ -1,5 +1,6 @@
 using System.Globalization;
 using AdCodicem.ValueObjects.Annotations;
+using AdCodicem.ValueObjects.Metadata;
 
 namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 
@@ -8,11 +9,11 @@ namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 /// </summary>
 /// <remarks>
 /// It carries the consumer's own generic attribute ahead of its annotation, and <see cref="LightColor"/> after it,
-/// so the registry looks past one whatever order the attributes are read back in. It keeps the deprecated Minimum and
-/// Maximum options, the only witness that the registry still reads them back, until they are removed.
+/// so a reader of the annotation looks past one whatever order the attributes are read back in. It keeps the deprecated
+/// Minimum and Maximum options, which its schema restates and nothing reads at run time, until they are removed.
 /// </remarks>
 [Reviewed<FloorNumber>]
-#pragma warning disable VO0028 // The deprecated options are what this fixture holds the registry to.
+#pragma warning disable VO0028 // The deprecated options are what this fixture holds its schema to.
 [ValueObject<int>(Minimum = "1", Maximum = "10")]
 #pragma warning restore VO0028
 public readonly struct FloorNumber : IValueObject<FloorNumber, int>
@@ -20,6 +21,8 @@ public readonly struct FloorNumber : IValueObject<FloorNumber, int>
     private readonly int _value;
 
     private FloorNumber(int value) => _value = value;
+
+    public static ValueObjectSchema Schema { get; } = new() { Minimum = "1", Maximum = "10" };
 
     public int Value => _value;
 

@@ -110,7 +110,8 @@ public class EntityFrameworkCoreTests
 
     /// <summary>
     /// Mapped one by one, without the convention, a construction sizes its column as the value object it is built from
-    /// does, whatever resolved it first: nothing else in the process resolves this one.
+    /// does, whatever resolved it first: nothing else in the process resolves this one. The length is read off the
+    /// type, so the registry is never asked to describe the construction, which would take reflection.
     /// </summary>
     [Fact]
     public void A_construction_mapped_one_by_one_sizes_its_column()
@@ -122,6 +123,7 @@ public class EntityFrameworkCoreTests
 
         builder.Model.FindEntityType(typeof(ExplicitShipment))!.FindProperty(nameof(ExplicitShipment.Order))!
             .GetMaxLength().Should().Be(12);
+        ValueObjectRegistry.TryGet(typeof(Reference<ExplicitShipment>), out _).Should().BeFalse("nothing described it");
     }
 
     [Fact]
@@ -164,7 +166,7 @@ public class EntityFrameworkCoreTests
         balance.GetValueConverter().Should().BeOfType<StrictValueObjectConverter<Amount, decimal>>();
         balance.GetMaxLength().Should().BeNull();
 
-        // A value object written by hand registers no rules, and declares no length the column could take.
+        // A value object written by hand whose schema declares no length leaves the column to the provider.
         var code = ledger.FindProperty(nameof(Ledger.Code))!;
         code.GetValueConverter().Should().BeOfType<ValueObjectConverter<UnregisteredCode, string>>();
         code.GetMaxLength().Should().BeNull();

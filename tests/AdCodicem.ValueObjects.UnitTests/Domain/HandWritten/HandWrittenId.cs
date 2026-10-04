@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using AdCodicem.ValueObjects.Identifiers;
+using AdCodicem.ValueObjects.Metadata;
 
 namespace AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
@@ -40,6 +41,9 @@ public readonly struct HandWrittenId<TProfile> : IEntityId<HandWrittenId<TProfil
     private readonly string? _value;
 
     private HandWrittenId(string value) => _value = value;
+
+    /// <summary>Declares no rule a reflection-driven caller could publish.</summary>
+    public static ValueObjectSchema Schema => ValueObjectSchema.Unconstrained;
 
     public static string Prefix => TProfile.Prefix;
 
