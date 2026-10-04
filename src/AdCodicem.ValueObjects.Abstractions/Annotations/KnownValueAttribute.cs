@@ -4,9 +4,18 @@ namespace AdCodicem.ValueObjects.Annotations;
 /// Declares a named constant of a value object, exposed as a static property on the generated type.
 /// </summary>
 /// <remarks>
+/// <para>
 /// <c>[KnownValue("France", "FR")]</c> on a <c>CountryCode</c> value object generates <c>CountryCode.France</c>,
 /// adds the value to <c>CountryCode.KnownValues</c>, and surfaces it in the OpenAPI schema. Combined with
 /// <see cref="ValueSetKind.Closed"/> the declared values also become the validation rule of the type.
+/// </para>
+/// <para>
+/// The schema keeps the name and the description beside the value
+/// (<see cref="Metadata.ValueObjectSchema.KnownValueDetails"/>), and the OpenAPI integration publishes them beside the
+/// <c>enum</c> of a closed set, so that a client generated from the document names the member of its enumeration
+/// <c>France</c> rather than <c>FR</c>. The name is therefore part of that client's contract: renaming a known value
+/// renames its member in every client generated afterwards.
+/// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
 public sealed class KnownValueAttribute : Attribute
@@ -49,5 +58,9 @@ public sealed class KnownValueAttribute : Attribute
     /// <summary>
     /// Gets or sets the documentation of the generated static property.
     /// </summary>
+    /// <remarks>
+    /// Also kept in <see cref="Metadata.ValueObjectSchema.KnownValueDetails"/>, unless it is blank, and published with
+    /// the value in the OpenAPI document, where client generators turn it into the documentation of the member.
+    /// </remarks>
     public string? Description { get; set; }
 }

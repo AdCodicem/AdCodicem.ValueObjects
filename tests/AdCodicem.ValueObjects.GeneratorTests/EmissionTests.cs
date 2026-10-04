@@ -342,6 +342,43 @@ public sealed class EmissionTests
         generated.Should().Contain("FrozenSet");
     }
 
+    /// <summary>
+    /// The schema lists each known value again, in the same order, with the name of its property and its description,
+    /// which the OpenAPI document publishes for the clients generated from it. A description is a string literal of the
+    /// generated code, escaped for C#; a blank one is none, as a blank option is.
+    /// </summary>
+    [Fact]
+    public void The_schema_keeps_the_name_and_the_description_of_each_known_value()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
+            [KnownValue("France", "FR", Description = "The \"French\" Republic,\nC:\\Paris")]
+            [KnownValue("Belgium", "BE")]
+            [KnownValue("Spain", "ES", Description = " ")]
+            public readonly partial struct Country;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain(
+            "KnownValueDetails = global::System.Collections.Immutable.ImmutableArray.Create("
+            + "new global::AdCodicem.ValueObjects.Metadata.KnownValueInfo(France.Value, \"France\", \"The \\\"French\\\" Republic,\\nC:\\\\Paris\"), "
+            + "new global::AdCodicem.ValueObjects.Metadata.KnownValueInfo(Belgium.Value, \"Belgium\", null), "
+            + "new global::AdCodicem.ValueObjects.Metadata.KnownValueInfo(Spain.Value, \"Spain\", null)),");
+    }
+
+    [Fact]
+    public void A_value_object_without_known_values_details_none()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>]
+            public readonly partial struct Code;
+            """);
+
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().NotContain("KnownValueDetails").And.NotContain("KnownValues =");
+    }
+
     [Fact]
     public void A_nested_value_object_reopens_every_containing_type()
     {

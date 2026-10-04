@@ -16,12 +16,13 @@ public readonly struct ShirtSize : IValueObject<ShirtSize, string>
 
     private ShirtSize(string value) => _value = value;
 
-    /// <summary>Publishes the known values as the type holds them, normalized.</summary>
+    /// <summary>Publishes the known values as the type holds them, normalized, with their names.</summary>
     public static ValueObjectSchema Schema { get; } = new()
     {
         MaxLength = 2,
         IsClosedValueSet = true,
         KnownValues = ["S", "M"],
+        KnownValueDetails = [new KnownValueInfo("S", "Small"), new KnownValueInfo("M", "Medium")],
     };
 
     public string Value => _value ?? string.Empty;

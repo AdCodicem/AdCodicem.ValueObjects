@@ -37,6 +37,11 @@ namespace AdCodicem.ValueObjects.OpenApi;
 /// dictionary, which System.Text.Json leaves out, with a reference to its component; and as the key of a dictionary,
 /// when it is written as a string, in <c>propertyNames</c>.
 /// </para>
+/// <para>
+/// A closed value set lists its values in <c>enum</c>, and their names, the names of the known values, in the
+/// <c>x-enum-varnames</c>, <c>x-enumNames</c> and <c>x-ms-enum</c> extensions, which client generators name the
+/// members of their enumeration after; <c>x-ms-enum</c> carries the description of each value declared with one.
+/// </para>
 /// </remarks>
 public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
 {
@@ -338,6 +343,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         if (declared.IsClosedValueSet && !declared.KnownValues.IsEmpty)
         {
             schema.Enum = [.. declared.KnownValues.Select(value => WriteKnownValue(value, descriptor, options))];
+            NameKnownValues(schema, declared, EnumName(schema, descriptor, options));
         }
 
         if ((options.NumberHandling & JsonNumberHandling.AllowNamedFloatingPointLiterals) != 0
@@ -347,6 +353,122 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
             AllowNamedLiterals(schema, literals);
         }
     }
+
+    /// <summary>
+    /// Publishes the name of each value of a closed set, and its description where one was declared, beside the
+    /// <c>enum</c>, so that a client generated from the document names the members of its enumeration as the server code
+    /// names its known values.
+    /// </summary>
+    /// <param name="schema">The schema, whose <c>enum</c> lists the values as the type writes them.</param>
+    /// <param name="declared">The declared rules.</param>
+    /// <param name="enumName">The name of the enumeration, for <c>x-ms-enum</c>.</param>
+    /// <remarks>
+    /// <para>
+    /// Each extension is read by other tools: <c>x-enum-varnames</c> by openapi-generator and Scalar,
+    /// <c>x-enumNames</c> by NSwag, and <c>x-ms-enum</c> by Kiota and AutoRest, which take each value's description
+    /// from it too. A value in <c>x-ms-enum</c> is written as the <c>enum</c> writes it, and has a description only
+    /// where one was declared. The object form of <c>x-enum-descriptions</c>, keyed by value, is never written: NSwag
+    /// refuses the whole document over it.
+    /// </para>
+    /// <para>
+    /// Nothing is written when the details do not list the values of the <c>enum</c> one for one, as a schema built by
+    /// hand may not: a name beside the wrong value would mislead every client.
+    /// </para>
+    /// </remarks>
+    private static void NameKnownValues(OpenApiSchema schema, ValueObjectSchema declared, string enumName)
+    {
+        var details = declared.KnownValueDetails;
+        if (details.IsDefaultOrEmpty
+            || details.Length != declared.KnownValues.Length
+            || details.Where((detail, index) => !Equals(detail.Value, declared.KnownValues[index])).Any())
+        {
+            return;
+        }
+
+        var varNames = new JsonArray();
+        var enumNames = new JsonArray();
+        var values = new JsonArray();
+        for (var index = 0; index < details.Length; index++)
+        {
+            var detail = details[index];
+            varNames.Add(JsonValue.Create(detail.Name));
+            enumNames.Add(JsonValue.Create(detail.Name));
+
+            var value = new JsonObject
+            {
+                ["value"] = schema.Enum![index].DeepClone(),
+                ["name"] = JsonValue.Create(detail.Name),
+            };
+            if (!string.IsNullOrWhiteSpace(detail.Description))
+            {
+                value["description"] = JsonValue.Create(detail.Description);
+            }
+
+            values.Add(value);
+        }
+
+        schema.Extensions ??= new Dictionary<string, IOpenApiExtension>();
+        schema.Extensions["x-enum-varnames"] = new JsonNodeExtension(varNames);
+        schema.Extensions["x-enumNames"] = new JsonNodeExtension(enumNames);
+        schema.Extensions["x-ms-enum"] = new JsonNodeExtension(new JsonObject
+        {
+            ["name"] = JsonValue.Create(enumName),
+            ["modelAsString"] = JsonValue.Create(false),
+            ["values"] = values,
+        });
+    }
+
+    /// <summary>
+    /// Gets the name a client generator gives the enumeration of a closed set: the identifier of the value object's
+    /// component, the one a reference to it names.
+    /// </summary>
+    /// <param name="schema">The schema of the value object.</param>
+    /// <param name="descriptor">Descriptor of the value object.</param>
+    /// <param name="options">The options the document describes the wire with.</param>
+    /// <returns>The name.</returns>
+    /// <remarks>
+    /// ASP.NET Core marks a schema it makes a component with its identifier, which an application may choose through
+    /// <see cref="OpenApiOptions.CreateSchemaReferenceId"/>. A value object described in place, as a parameter or the key
+    /// of a dictionary, carries none, and takes the identifier its component has by default: its type's name, or, for a
+    /// construction of a generic value object, that name followed by <c>Of</c> and its type arguments,
+    /// <c>ReferenceOfPurchaseOrder</c>.
+    /// </remarks>
+    private static string EnumName(OpenApiSchema schema, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
+    {
+        if (schema.Metadata is { } metadata && metadata.TryGetValue(SchemaIdentifier, out var identifier) && identifier is string { Length: > 0 } component)
+        {
+            return component;
+        }
+
+        string? byDefault;
+        try
+        {
+            byDefault = OpenApiOptions.CreateDefaultSchemaReferenceId(options.GetTypeInfo(descriptor.ValueObjectType));
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or InvalidOperationException)
+        {
+            // The options hold no contract for the value object: the name is built from its type alone.
+            byDefault = null;
+        }
+
+        return string.IsNullOrEmpty(byDefault) ? ComponentName(descriptor.ValueObjectType) : byDefault;
+    }
+
+    /// <summary>
+    /// Builds the identifier ASP.NET Core gives a type's component by default from the type alone, which differs from it
+    /// only where a type argument is a primitive, which ASP.NET Core names by its keyword.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <returns>Its name, or, for a generic type, its name followed by <c>Of</c> and its type arguments.</returns>
+    private static string ComponentName(Type type)
+        => type.IsGenericType
+            ? $"{type.Name.Split('`')[0]}Of{string.Join("And", type.GetGenericArguments().Select(ComponentName))}"
+            : type.Name;
+
+    /// <summary>
+    /// The key under which ASP.NET Core keeps, in a schema's metadata, the identifier of the component it makes of it.
+    /// </summary>
+    private const string SchemaIdentifier = "x-schema-id";
 
     /// <summary>
     /// Lists the named literals of a real a value object's bounds let through: <c>NaN</c>, which a bound compares

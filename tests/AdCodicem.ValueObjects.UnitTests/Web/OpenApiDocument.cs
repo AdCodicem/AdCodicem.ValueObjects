@@ -90,6 +90,7 @@ public sealed class OpenApiDocument : IAsyncLifetime
                 CountryCode? country,
                 [FromHeader(Name = "X-Page")] PageNumber page,
                 Duration? within,
+                NoticeChannel<AccountFilter> notice,
                 string note,
                 int count) => Results.Ok());
         application.MapGet("/ledgers/{account}", static ([AsParameters] LedgerQuery query) => Results.Ok());
@@ -226,7 +227,8 @@ public sealed record EveryValueObject(
     List<Quantity?> Optional,
     Dictionary<CountryCode, Quantity> StockPerCountry,
     Dictionary<Quantity, int> CountPerQuantity,
-    List<ServiceHour> Hours);
+    List<ServiceHour> Hours,
+    NoticeChannel<AccountFilter> Notice);
 
 // No summary, so no description: its bounds, written as text, are all its description says.
 [ValueObject<TimeOnly>]
@@ -236,3 +238,10 @@ public readonly partial struct ServiceHour : IValueObjectMinimum<TimeOnly>, IVal
 
     public static TimeOnly Maximum => new(18, 0);
 }
+
+/// <summary>The channel a notice about a record of one kind goes out on.</summary>
+/// <typeparam name="TRecord">The kind of record.</typeparam>
+[ValueObject<string>(ValueSet = ValueSetKind.Closed)]
+[KnownValue("Email", "email", Description = "Sent to the address on file.")]
+[KnownValue("Sms", "sms")]
+public readonly partial struct NoticeChannel<TRecord>;

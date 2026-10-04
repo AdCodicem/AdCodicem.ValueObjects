@@ -47,7 +47,7 @@ also writes to.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, and becomes the
 `maxLength` keyword of the OpenAPI schema. `[KnownValue]` entries become named constants, a frozen membership
-lookup, and the `enum` keyword of the schema.
+lookup, and the `enum` keyword of the schema, whose values generated clients name after them.
 
 ## Constraints that shape the generated code
 

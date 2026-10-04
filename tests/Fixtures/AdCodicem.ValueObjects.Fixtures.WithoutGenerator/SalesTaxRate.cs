@@ -25,13 +25,15 @@ public readonly struct SalesTaxRate : IValueObject<SalesTaxRate, decimal>, IValu
     public static decimal Maximum => 100m;
 
     /// <summary>
-    /// Publishes the bounds of the hooks and the known values the type holds, which leaves out the one no decimal parses.
+    /// Publishes the bounds of the hooks and the known values the type holds, with their names, which leaves out the one no
+    /// decimal parses.
     /// </summary>
     public static ValueObjectSchema Schema { get; } = new()
     {
         Minimum = ValueObjectBound.Text(Minimum),
         Maximum = ValueObjectBound.Text(Maximum),
         KnownValues = [20.0m, 5.5m],
+        KnownValueDetails = [new KnownValueInfo(20.0m, "Standard"), new KnownValueInfo(5.5m, "Reduced")],
     };
 
     private readonly decimal _value;

@@ -30,7 +30,10 @@ Each `[KnownValue]` takes a member name and a value. The generator turns them in
 - **`CountryCode.KnownValues`**: every known value, as an `ImmutableArray<CountryCode>` in declaration order.
 - **A membership check**: with `ValueSet = ValueSetKind.Closed`, anything else is rejected with
   `value_object.not_a_known_value`, through a frozen lookup.
-- **An OpenAPI `enum`**: `["FR", "BE", "LU"]`, so clients see the accepted values without anyone restating them.
+- **An OpenAPI `enum`**: `["FR", "BE", "LU"]`, so clients see the accepted values without anyone restating them,
+  with the names beside them, `France`, `Belgium`, `Luxembourg`, which a generated client names the members of its
+  enumeration after, and each `Description` ([names of known values](../how-to/openapi.md#names-of-known-values)).
+  Renaming a known value therefore renames that member in every client generated afterwards.
 
 ## Use it
 

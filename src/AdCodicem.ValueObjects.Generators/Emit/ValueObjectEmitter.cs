@@ -460,6 +460,16 @@ internal static class ValueObjectEmitter
         {
             var boxed = string.Join(", ", model.KnownValues.Select(known => $"{known.Name}.Value"));
             properties.Add($"KnownValues = global::System.Collections.Immutable.ImmutableArray.Create<object>({boxed}),");
+
+            // The same values in the same order, with the name and the description each was declared with, which the
+            // OpenAPI document publishes for the clients generated from it. A blank description is absent, as a blank
+            // option is.
+            var details = string.Join(
+                ", ",
+                model.KnownValues.Select(known =>
+                    $"new global::AdCodicem.ValueObjects.Metadata.KnownValueInfo({known.Name}.Value, {LiteralFactory.Quote(known.Name)}, "
+                    + $"{(string.IsNullOrWhiteSpace(known.Description) ? "null" : LiteralFactory.Quote(known.Description!))})"));
+            properties.Add($"KnownValueDetails = global::System.Collections.Immutable.ImmutableArray.Create({details}),");
         }
 
         writer.Line("/// <summary>The declarative constraints of this value object, shared by validation, OpenAPI and persistence.</summary>");

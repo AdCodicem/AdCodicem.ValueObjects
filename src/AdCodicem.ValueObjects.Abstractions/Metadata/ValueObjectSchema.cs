@@ -73,6 +73,28 @@ public sealed record ValueObjectSchema
     /// <summary>
     /// Gets the declared known underlying values, boxed, in declaration order.
     /// </summary>
-    /// <remarks>Surfaced as the <c>enum</c> keyword of the OpenAPI schema.</remarks>
+    /// <remarks>
+    /// Surfaced as the <c>enum</c> keyword of the OpenAPI schema. <see cref="KnownValueDetails"/> lists the same values
+    /// with their names and descriptions.
+    /// </remarks>
     public ImmutableArray<object> KnownValues { get; init; } = [];
+
+    /// <summary>
+    /// Gets the declared known values with the name and the description each was declared with, in declaration order.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The generator lists here the values of <see cref="KnownValues"/>, in the same order, each the same value, with
+    /// the name of the static property it creates for it and the <c>Description</c> its attribute gives, if any. The
+    /// OpenAPI integration publishes the names of a closed value set beside its <c>enum</c>, as
+    /// <c>x-enum-varnames</c>, <c>x-enumNames</c> and <c>x-ms-enum</c>, which client generators name the members of
+    /// their enumeration after.
+    /// </para>
+    /// <para>
+    /// A schema built by hand may leave it empty. One that fills it lists the values of <see cref="KnownValues"/> in the
+    /// same order, each equal to its counterpart; the OpenAPI integration publishes no name otherwise, rather than one
+    /// beside the wrong value.
+    /// </para>
+    /// </remarks>
+    public ImmutableArray<KnownValueInfo> KnownValueDetails { get; init; } = [];
 }

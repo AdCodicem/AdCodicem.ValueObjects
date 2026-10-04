@@ -1,5 +1,15 @@
+using System.Net.Http.Json;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Schema;
+using AdCodicem.ValueObjects.OpenApi;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OpenApi;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AdCodicem.ValueObjects.UnitTests.Web;
 
@@ -54,6 +64,7 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
         [nameof(ShiftStart)] = [ShiftStart.Early, ShiftStart.Late],
         [nameof(LaunchMoment)] = [LaunchMoment.Launch, LaunchMoment.Relaunch],
         [nameof(Answer)] = [Answer.Yes, Answer.No],
+        ["NoticeChannelOfAccountFilter"] = [NoticeChannel<AccountFilter>.Email, NoticeChannel<AccountFilter>.Sms],
     };
 
     public static TheoryData<string> EveryClosedSet => [.. ClosedSets.Keys];
@@ -221,6 +232,87 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
         listed.Should().Equal(ClosedSets[name].Select(value => JsonSerializer.Serialize(value, value.GetType())));
     }
 
+    /// <summary>
+    /// A client generator names the members of its enumeration after the raw values unless the document names them:
+    /// <c>FR</c> where the server says <c>France</c>, and a value such as <c>01</c> is no identifier at all. Each
+    /// closed set names its values after its known values, in the order of its <c>enum</c>, in the extension each
+    /// generator reads: <c>x-enum-varnames</c> for openapi-generator and Scalar, <c>x-enumNames</c> for NSwag, and
+    /// <c>x-ms-enum</c> for Kiota and AutoRest, which names the enumeration as the component is named, a construction
+    /// of a generic value object included.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryClosedSet))]
+    public void A_closed_value_set_names_its_values_for_the_clients_generated_from_the_document(string name)
+    {
+        var schema = document.Schema(name);
+        var names = ClosedSets[name].Select(NameOf).ToArray();
+
+        schema.GetProperty("x-enum-varnames").EnumerateArray().Select(each => each.GetString()).Should().Equal(names);
+        schema.GetProperty("x-enumNames").EnumerateArray().Select(each => each.GetString()).Should().Equal(names);
+
+        var named = schema.GetProperty("x-ms-enum");
+        named.GetProperty("name").GetString().Should().Be(name, "the enumeration is named as the component is");
+        named.GetProperty("modelAsString").GetBoolean().Should().BeFalse("the set is closed");
+        var values = named.GetProperty("values").EnumerateArray().ToArray();
+        values.Select(value => value.GetProperty("value").GetRawText())
+            .Should().Equal(schema.GetProperty("enum").EnumerateArray().Select(value => value.GetRawText()));
+        values.Select(value => value.GetProperty("name").GetString()).Should().Equal(names);
+    }
+
+    /// <summary>
+    /// A value carries the description its known value declares, and none where it declares none: repeating the name
+    /// would tell nothing. No description is written in the object form keyed by value, which NSwag refuses the whole
+    /// document over, and an open value set, which lists no <c>enum</c>, names nothing either.
+    /// </summary>
+    [Fact]
+    public void A_value_of_a_closed_set_carries_its_description_where_one_is_declared_and_nowhere_else()
+    {
+        var rates = document.Schema(nameof(VatRate)).GetProperty("x-ms-enum").GetProperty("values");
+        var channels = document.Schema("NoticeChannelOfAccountFilter").GetProperty("x-ms-enum").GetProperty("values");
+
+        rates[0].TryGetProperty("description", out _).Should().BeFalse("Standard declares no description");
+        rates[1].GetProperty("description").GetString().Should().Be("Food, books and medicine.");
+        channels[0].GetProperty("description").GetString().Should().Be("Sent to the address on file.");
+        channels[1].TryGetProperty("description", out _).Should().BeFalse("Sms declares no description");
+
+        foreach (var component in document.Schemas.EnumerateObject())
+        {
+            component.Value.TryGetProperty("x-enum-descriptions", out _).Should().BeFalse(component.Name);
+            component.Value.TryGetProperty("x-enumDescriptions", out _).Should().BeFalse(component.Name);
+        }
+
+        document.Schema(nameof(PageNumber)).TryGetProperty("x-ms-enum", out _).Should().BeFalse("its known value is one of many");
+        document.Schema(nameof(PageNumber)).TryGetProperty("x-enum-varnames", out _).Should().BeFalse("its known value is one of many");
+    }
+
+    /// <summary>
+    /// An application may name its components its own way, and the enumeration is named as the component is, so that
+    /// a client generator reading <c>x-ms-enum</c> and one reading the reference agree.
+    /// </summary>
+    [Fact]
+    public async Task A_closed_value_set_is_named_as_the_application_names_its_component()
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Services.AddOpenApi(static options =>
+        {
+            options.CreateSchemaReferenceId = static info
+                => info.Type == typeof(CountryCode) ? "Country" : OpenApiOptions.CreateDefaultSchemaReferenceId(info);
+            options.AddValueObjects();
+        });
+        await using var application = builder.Build();
+        application.MapPost("/countries", static ([FromBody] CountryCode country) => Results.Ok());
+        application.MapOpenApi();
+        await application.StartAsync(TestContext.Current.CancellationToken);
+
+        using var client = application.GetTestClient();
+        var openApi = await client.GetFromJsonAsync<JsonElement>("/openapi/v1.json", TestContext.Current.CancellationToken);
+        await application.StopAsync(TestContext.Current.CancellationToken);
+
+        openApi.GetProperty("components").GetProperty("schemas").GetProperty("Country")
+            .GetProperty("x-ms-enum").GetProperty("name").GetString().Should().Be("Country");
+    }
+
     [Fact]
     public void A_closed_set_of_narrow_integers_lists_numbers_and_one_of_dates_lists_their_ISO_form()
     {
@@ -314,6 +406,7 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
     [InlineData("/accounts/{iban}", "country", nameof(CountryCode))]
     [InlineData("/accounts/{iban}", "X-Page", nameof(PageNumber))]
     [InlineData("/accounts/{iban}", "within", nameof(Duration))]
+    [InlineData("/accounts/{iban}", "notice", "NoticeChannelOfAccountFilter")]
     [InlineData("/ledgers/{account}", "account", nameof(AccountId))]
     [InlineData("/ledgers/{account}", "Above", nameof(Amount))]
     [InlineData("/ledgers/{account}", "X-Grade", nameof(Grade))]
@@ -448,6 +541,12 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
         document.Schema(nameof(ServiceHour)).GetProperty("description").GetString()
             .Should().Be("Between 08:00:00.0000000 and 18:00:00.0000000, inclusive.");
     }
+
+    /// <summary>Finds the name of the static property of a value object that holds one of its known values.</summary>
+    private static string NameOf(object known)
+        => known.GetType().GetProperties(BindingFlags.Public | BindingFlags.Static)
+            .Single(property => property.PropertyType == known.GetType() && Equals(property.GetValue(null), known))
+            .Name;
 
     /// <summary>Follows a reference to a component, or answers the schema itself.</summary>
     private JsonElement Resolve(JsonElement schema)

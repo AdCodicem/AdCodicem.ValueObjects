@@ -223,8 +223,10 @@ public readonly partial struct CountryCode : IValueObjectNormalizer<string>
 
 Generates `CountryCode.France`, `CountryCode.KnownValues` (an `ImmutableArray<CountryCode>` in declaration
 order), a `FrozenSet` membership check rejecting anything else with `value_object.not_a_known_value`, and the
-OpenAPI `enum`. This is how reference-data codes are modelled: a C# `enum` can carry neither validation nor a
-stable wire format.
+OpenAPI `enum`, with each name and `Description` in `x-enum-varnames`, `x-enumNames` and `x-ms-enum`, which client
+generators name their enum members after (`Schema.KnownValueDetails` holds them). Renaming a known value renames that
+member in every generated client. This is how reference-data codes are modelled: a C# `enum` can carry neither
+validation nor a stable wire format.
 
 Values that cannot appear as an attribute argument (`Guid`, `decimal`, `DateOnly`) are written as text, in the
 form of their type ([table](#bounds-and-known-values-written-as-text)), and parsed at compile time (`VO0013`

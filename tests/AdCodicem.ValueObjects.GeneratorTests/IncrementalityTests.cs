@@ -109,6 +109,8 @@ public sealed class IncrementalityTests
     [Theory]
     [InlineData("""[KnownValue("Belgium", "BE")]""", """[KnownValue("Belgium", "BE")][KnownValue("Spain", "ES")]""")]
     [InlineData("""[KnownValue("Belgium", "BE")]""", """[KnownValue("Belgium", "BX")]""")]
+    [InlineData("""[KnownValue("Belgium", "BE")]""", """[KnownValue("Kingdom", "BE")]""")]
+    [InlineData("""[KnownValue("Belgium", "BE")]""", """[KnownValue("Belgium", "BE", Description = "The Kingdom of Belgium.")]""")]
     public void Adding_or_changing_a_known_value_does_re_run_the_model(string declared, string edited)
     {
         var reasons = GeneratorHarness.RunTwice(

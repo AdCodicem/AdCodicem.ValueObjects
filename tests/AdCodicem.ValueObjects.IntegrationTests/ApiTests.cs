@@ -270,6 +270,10 @@ public abstract class ApiTests<TFixture>(TFixture database) : IClassFixture<TFix
         iban.TryGetProperty("properties", out _).Should().BeFalse("a value object is not an object on the wire");
     }
 
+    /// <summary>
+    /// A closed set lists its values, and names them after its known values for the clients generated from the
+    /// document, in the extension each generator reads.
+    /// </summary>
     [Fact]
     public async Task The_OpenAPI_document_lists_the_accepted_values_of_a_closed_set()
     {
@@ -279,6 +283,14 @@ public abstract class ApiTests<TFixture>(TFixture database) : IClassFixture<TFix
 
         country.GetProperty("enum").EnumerateArray().Select(value => value.GetString())
             .Should().Equal("FR", "BE", "LU", "DE");
+        country.GetProperty("x-enum-varnames").EnumerateArray().Select(name => name.GetString())
+            .Should().Equal("France", "Belgium", "Luxembourg", "Germany");
+        country.GetProperty("x-enumNames").EnumerateArray().Select(name => name.GetString())
+            .Should().Equal("France", "Belgium", "Luxembourg", "Germany");
+        country.GetProperty("x-ms-enum").GetProperty("name").GetString().Should().Be("CountryCode");
+        country.GetProperty("x-ms-enum").GetProperty("values").EnumerateArray()
+            .Select(value => (value.GetProperty("value").GetString(), value.GetProperty("name").GetString()))
+            .Should().Equal(("FR", "France"), ("BE", "Belgium"), ("LU", "Luxembourg"), ("DE", "Germany"));
     }
 
     /// <summary>

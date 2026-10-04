@@ -191,7 +191,7 @@ also writes to.
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, and becomes the
 `maxLength` keyword of the OpenAPI schema. The `[GeneratedRegex]` behind `IValueObjectPatternValidator`
 validates the value, and its text becomes the `pattern` keyword. `[KnownValue]` entries become named constants,
-a frozen membership lookup, and the `enum` keyword of the schema.
+a frozen membership lookup, and the `enum` keyword of the schema, with their names beside it for generated clients.
 
 ## Compared with other libraries
 
@@ -260,7 +260,7 @@ strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `Dat
 | `Pattern` | Deprecated (`VO0021`): a regular expression built at run time, which native AOT interprets. Implement `IValueObjectPatternValidator` instead. Any minor version may remove it before 1.0.0. |
 | `Minimum`, `Maximum` | Deprecated (`VO0028`): inclusive bounds written as text in the one form of the underlying type. Implement `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>` instead. Any minor version may remove them before 1.0.0. |
 | `Comparison` | Equality, ordering and hashing for string value objects. Ordinal by default. |
-| `ValueSet = Closed` + `[KnownValue]` | Reference-data codes with a frozen lookup and a schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. |
+| `ValueSet = Closed` + `[KnownValue]` | Reference-data codes with a frozen lookup and a schema `enum`, whose values a generated client names after the known values (`x-enum-varnames`, `x-enumNames`, `x-ms-enum`), so renaming one renames its member there. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. |
 | `Arithmetic` | Operators and generic math for numeric value objects. Every result is re-validated. |
 | `ImplicitConversionToValue`, `ExplicitConversionFromValue` | Conversions, opt-in per type. |
 | `AllowEmpty`, `AllowDefault` | Loosen the two defaults that exist to catch mistakes. |

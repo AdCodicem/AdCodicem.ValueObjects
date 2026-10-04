@@ -57,6 +57,8 @@ public abstract class Sample
 
     public abstract void HandsItsTypeArgumentsToAVisitor();
 
+    public abstract void DetailsEachKnownValueInItsSchema();
+
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
 
@@ -409,6 +411,22 @@ public class Sample<TSelf, TValue> : Sample
         adapter.Should().BeOfType<TypedAdapter<TSelf, TValue>>();
         adapter.MaxLength.Should().Be(descriptor.Schema.MaxLength);
         adapter.Parse(Text).Should().Be(Small);
+    }
+
+    public override void DetailsEachKnownValueInItsSchema()
+    {
+        var schema = TSelf.Schema;
+
+        // The values the enum of the document lists, in its order, so that a name stands beside its own value.
+        schema.KnownValueDetails.Select(detail => detail.Value).Should().Equal(schema.KnownValues);
+
+        // Each named after the static property that holds it.
+        foreach (var detail in schema.KnownValueDetails)
+        {
+            var property = typeof(TSelf).GetProperty(detail.Name, BindingFlags.Public | BindingFlags.Static);
+            property.Should().NotBeNull($"{detail.Name} is a known value of {typeof(TSelf).Name}");
+            ((TSelf)property!.GetValue(null)!).Value.Should().Be(detail.Value);
+        }
     }
 
     public override void WritesNoJsonItsTypeRejects()

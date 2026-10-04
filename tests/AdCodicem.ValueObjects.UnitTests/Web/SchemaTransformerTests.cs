@@ -2,6 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
+using AdCodicem.ValueObjects.Json;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.OpenApi;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
@@ -350,6 +352,123 @@ public partial class SchemaTransformerTests
     }
 
     /// <summary>
+    /// A closed set described in place, as a parameter is, holds no identifier of a component, and is named as ASP.NET
+    /// Core names the component of its type by default: a construction of a generic value object after its type and
+    /// its type arguments, a primitive one by its keyword.
+    /// </summary>
+    [Fact]
+    public async Task A_closed_set_described_in_place_is_named_as_its_component_is_by_default()
+    {
+        var finish = new OpenApiSchema { Type = JsonSchemaType.String };
+
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            finish,
+            ContextFor<string>(parameter: new ApiParameterDescription { Name = "finish", Type = typeof(Finish<int>) }),
+            TestContext.Current.CancellationToken);
+
+        Extension(finish, "x-ms-enum")["name"]!.GetValue<string>().Should().Be("FinishOfint");
+    }
+
+    /// <summary>
+    /// A closed set the options hold no contract for is still named as its component would be: after its type, and, for
+    /// a construction of a generic value object, after its type and its type arguments, each by the name of its type.
+    /// </summary>
+    [Fact]
+    public async Task A_closed_set_the_options_hold_no_contract_for_is_named_after_its_type()
+    {
+        var options = new JsonSerializerOptions { TypeInfoResolver = new TextOnlyResolver() };
+        var tier = new OpenApiSchema { Type = JsonSchemaType.String };
+        var finish = new OpenApiSchema { Type = JsonSchemaType.String };
+        var primitive = new OpenApiSchema { Type = JsonSchemaType.String };
+
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            tier,
+            ContextFor<string>(options, new ApiParameterDescription { Name = "tier", Type = typeof(Tier) }),
+            TestContext.Current.CancellationToken);
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            finish,
+            ContextFor<string>(options, new ApiParameterDescription { Name = "finish", Type = typeof(Finish<Tier>) }),
+            TestContext.Current.CancellationToken);
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            primitive,
+            ContextFor<string>(options, new ApiParameterDescription { Name = "finish", Type = typeof(Finish<int>) }),
+            TestContext.Current.CancellationToken);
+
+        Extension(tier, "x-ms-enum")["name"]!.GetValue<string>().Should().Be("Tier");
+        Extension(tier, "x-ms-enum")["values"]![1]!["value"]!.ToJsonString().Should().Be("\"10\"", "the value is the enum's, as text");
+        Extension(finish, "x-ms-enum")["name"]!.GetValue<string>().Should().Be("FinishOfTier");
+        Extension(finish, "x-enum-varnames").ToJsonString().Should().Be("""["Matte","Gloss"]""");
+        Extension(primitive, "x-ms-enum")["name"]!.GetValue<string>().Should().Be("FinishOfInt32");
+    }
+
+    /// <summary>
+    /// A name stands beside its value, one for one, or not at all: a schema built by hand whose details list no value,
+    /// fewer values than the enum or other values than its own publishes the enum alone, rather than a name beside the
+    /// wrong value. One whose details list its values names them, and a blank description is none.
+    /// </summary>
+    [Fact]
+    public async Task A_closed_set_whose_details_do_not_list_its_values_one_for_one_names_none_of_them()
+    {
+        ValueObjectRegistry.EnsureAssemblyRegistered(typeof(Grading).Assembly);
+        ValueObjectSchema[] unnamed =
+        [
+            new() { IsClosedValueSet = true, KnownValues = [1, 2] },
+            new() { IsClosedValueSet = true, KnownValues = [1, 2], KnownValueDetails = default },
+            new() { IsClosedValueSet = true, KnownValues = [1, 2], KnownValueDetails = [new KnownValueInfo(1, "Pass")] },
+            new()
+            {
+                IsClosedValueSet = true,
+                KnownValues = [1, 2],
+                KnownValueDetails = [new KnownValueInfo(1, "Pass"), new KnownValueInfo(3, "Merit")],
+            },
+        ];
+
+        foreach (var declared in unnamed)
+        {
+            ValueObjectRegistry.Register(ValueObjectDescriptor.For<Grading, int>(declared));
+            var schema = new OpenApiSchema();
+
+            await new ValueObjectSchemaTransformer().TransformAsync(schema, ContextFor<Grading>(), TestContext.Current.CancellationToken);
+
+            schema.Enum.Should().HaveCount(2);
+            (schema.Extensions?.Keys ?? []).Should().NotContain(["x-enum-varnames", "x-enumNames", "x-ms-enum"]);
+        }
+
+        ValueObjectRegistry.Register(ValueObjectDescriptor.For<Grading, int>(new ValueObjectSchema
+        {
+            IsClosedValueSet = true,
+            KnownValues = [1, 2],
+            KnownValueDetails = [new KnownValueInfo(1, "Pass", " "), new KnownValueInfo(2, "Merit", "With distinction.")],
+        }));
+        var named = new OpenApiSchema();
+
+        await new ValueObjectSchemaTransformer().TransformAsync(named, ContextFor<Grading>(), TestContext.Current.CancellationToken);
+
+        Extension(named, "x-enum-varnames").ToJsonString().Should().Be("""["Pass","Merit"]""");
+        Extension(named, "x-enumNames").ToJsonString().Should().Be("""["Pass","Merit"]""");
+        Extension(named, "x-ms-enum").ToJsonString().Should().Be(
+            """{"name":"Grading","modelAsString":false,"values":[{"value":1,"name":"Pass"},{"value":2,"name":"Merit","description":"With distinction."}]}""");
+    }
+
+    /// <summary>
+    /// A value object written by hand names the values of its closed set from the schema it declares, which the registry
+    /// describes it with, each beside the value its converter writes.
+    /// </summary>
+    [Fact]
+    public async Task A_hand_written_closed_set_names_its_values_from_the_schema_it_declares()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerOptions.Default) { Converters = { new ValueObjectJsonConverterFactory() } };
+        var schema = new OpenApiSchema();
+
+        await new ValueObjectSchemaTransformer().TransformAsync(schema, ContextFor<LightColor>(options), TestContext.Current.CancellationToken);
+
+        schema.Enum!.Select(value => value.ToJsonString()).Should().Equal("\"red\"", "\"green\"");
+        Extension(schema, "x-enumNames").ToJsonString().Should().Be("""["Red","Green"]""");
+        Extension(schema, "x-ms-enum").ToJsonString().Should().Be(
+            """{"name":"LightColor","modelAsString":false,"values":[{"value":"red","name":"Red","description":"Stop."},{"value":"green","name":"Green"}]}""");
+    }
+
+    /// <summary>
     /// Outside a document there is no component to refer to: the elements of a collection, and the values and keys of
     /// a dictionary, are described in place.
     /// </summary>
@@ -480,6 +599,10 @@ public partial class SchemaTransformerTests
             ApplicationServices = new ServiceCollection().BuildServiceProvider(),
         };
 
+    /// <summary>Reads an extension the transformer wrote.</summary>
+    private static JsonNode Extension(OpenApiSchema schema, string name)
+        => ((JsonNodeExtension)schema.Extensions![name]).Node;
+
     /// <summary>A resolver that holds the contract of text alone, as a generated one may hold no value object's.</summary>
     private sealed class TextOnlyResolver : IJsonTypeInfoResolver
     {
@@ -552,4 +675,15 @@ public partial class SchemaTransformerTests
     /// <summary>A tally no other test uses, whose registration one test replaces.</summary>
     [ValueObject<int>]
     public readonly partial struct Tally;
+
+    /// <summary>A grading no other test uses, whose registration one test replaces with closed sets.</summary>
+    [ValueObject<int>]
+    public readonly partial struct Grading;
+
+    /// <summary>The finish of a surface of one kind, from a closed set.</summary>
+    /// <typeparam name="TSurface">The kind of surface.</typeparam>
+    [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
+    [KnownValue("Matte", "matte")]
+    [KnownValue("Gloss", "gloss")]
+    public readonly partial struct Finish<TSurface>;
 }

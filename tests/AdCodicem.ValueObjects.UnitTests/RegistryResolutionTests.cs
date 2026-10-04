@@ -90,6 +90,7 @@ public class RegistryResolutionTests
         floor!.Schema.Should().BeSameAs(FloorNumber.Schema);
         color.Schema.IsClosedValueSet.Should().BeTrue();
         color.Schema.KnownValues.Should().Equal("red", "green");
+        color.Schema.KnownValueDetails.Should().Equal(new KnownValueInfo("red", "Red", "Stop."), new KnownValueInfo("green", "Green"));
         color.Schema.MinLength.Should().BeNull();
         color.Schema.MaxLength.Should().Be(6);
         color.Schema.Pattern.Should().Be("^[a-z]+$");
@@ -105,6 +106,7 @@ public class RegistryResolutionTests
         floor.Schema.MaxLength.Should().BeNull();
         floor.Schema.IsClosedValueSet.Should().BeFalse();
         floor.Schema.KnownValues.Should().BeEmpty();
+        floor.Schema.KnownValueDetails.Should().BeEmpty();
     }
 
     /// <summary>
@@ -121,12 +123,14 @@ public class RegistryResolutionTests
         ValueObjectRegistry.TryResolve(typeof(SalesTaxRate), out var rate).Should().BeTrue();
 
         size!.Schema.KnownValues.Should().Equal("S", "M");
+        size.Schema.KnownValueDetails.Select(known => (known.Value, known.Name)).Should().Equal(("S", "Small"), ("M", "Medium"));
         size.Create("s").Should().BeSameAs(size.Create("S"), "the shared box is found under the normalized value");
 
         typeof(SalesTaxRate).GetCustomAttributes<KnownValueAttribute>().Select(known => known.Value)
             .Should().Equal("20.0", "5.50", "twenty");
         rate!.Schema.Should().BeSameAs(SalesTaxRate.Schema);
         rate.Schema.KnownValues.Should().Equal(20.0m, 5.5m);
+        rate.Schema.KnownValueDetails.Select(known => known.Name).Should().Equal("Standard", "Reduced");
         rate.Schema.Minimum.Should().Be("0");
         rate.Schema.Maximum.Should().Be("100");
         rate.Schema.KnownValues[1].Should().BeOfType<decimal>().Which.ToString(CultureInfo.InvariantCulture)

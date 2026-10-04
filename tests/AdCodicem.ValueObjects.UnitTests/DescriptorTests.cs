@@ -478,8 +478,9 @@ public sealed class DescriptorTests
 
         var stated = DeclaredRules.Read(type, valueType);
 
-        (declared with { KnownValues = [] }).Should().Be(stated with { KnownValues = [] });
+        (declared with { KnownValues = [], KnownValueDetails = [] }).Should().Be(stated with { KnownValues = [], KnownValueDetails = [] });
         declared.KnownValues.Should().Equal(stated.KnownValues);
+        declared.KnownValueDetails.Should().Equal(stated.KnownValueDetails);
     }
 
     private static ValueObjectSchema SchemaOf<TSelf, TValue>()

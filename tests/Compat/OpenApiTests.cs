@@ -95,6 +95,21 @@ public sealed class OpenApiTests : IAsyncLifetime
             .Should().Equal("FR", "BE", "LU");
 
     [Fact]
+    public void A_closed_set_names_its_values_after_its_known_values()
+    {
+        var country = _schemas.GetProperty(nameof(CountryCode));
+
+        country.GetProperty("x-enum-varnames").EnumerateArray().Select(static name => name.GetString())
+            .Should().Equal("France", "Belgium", "Luxembourg");
+        country.GetProperty("x-enumNames").EnumerateArray().Select(static name => name.GetString())
+            .Should().Equal("France", "Belgium", "Luxembourg");
+        country.GetProperty("x-ms-enum").GetProperty("name").GetString().Should().Be(nameof(CountryCode));
+        country.GetProperty("x-ms-enum").GetProperty("values").EnumerateArray()
+            .Select(static value => (value.GetProperty("value").GetString(), value.GetProperty("name").GetString()))
+            .Should().Equal(("FR", "France"), ("BE", "Belgium"), ("LU", "Luxembourg"));
+    }
+
+    [Fact]
     public void An_entity_identifier_publishes_its_format_and_an_example()
     {
         var payment = _schemas.GetProperty(nameof(PaymentId));
