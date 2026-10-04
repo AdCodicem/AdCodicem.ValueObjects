@@ -25,8 +25,9 @@ public enum ValueObjectJsonSchemaProfile
     /// A number is a number, whatever the options let the serializer read, as a tool's schema describes a bare number,
     /// and its example and known values are written as numbers. A <c>format</c> JSON Schema defines, such as
     /// <c>uuid</c>, <c>date</c> or <c>date-time</c>, stays; any other, such as <c>int32</c>, <c>decimal</c> or
-    /// <c>iban</c>, which a model or its provider may not know or may refuse, becomes a sentence of the description. The
-    /// description of a closed set also names each of its values, with the description each was declared with.
+    /// <c>iban</c>, which a model or its provider may not know or may refuse, becomes a sentence of the description. A
+    /// closed set lists its values in <c>enum</c> alone, as under the OpenAPI profile: the description does not repeat
+    /// them.
     /// </remarks>
     LanguageModel,
 }

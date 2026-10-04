@@ -178,9 +178,19 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     /// Gets or sets the value of the OpenAPI <c>format</c> keyword for the generated schema.
     /// </summary>
     /// <remarks>
-    /// Defaults to the natural format of the underlying type, such as <c>uuid</c>, <c>date</c> or <c>int64</c>. A
-    /// <see cref="TimeSpan"/> has none: it is written in the invariant constant form <c>[-][d.]hh:mm:ss[.fffffff]</c>,
-    /// not the ISO 8601 form the <c>duration</c> format names, and is documented with a pattern instead.
+    /// <para>
+    /// Defaults to the natural format of the underlying type, such as <c>uuid</c>, <c>date</c>, <c>date-time</c> for a
+    /// <see cref="DateTimeOffset"/>, or <c>int64</c>. Three types have none, and are documented with the pattern of the
+    /// form they are written in instead. A <see cref="TimeSpan"/> is written in the invariant constant form
+    /// <c>[-][d.]hh:mm:ss[.fffffff]</c>, not the ISO 8601 form the <c>duration</c> format names. A
+    /// <see cref="TimeOnly"/> and a <see cref="DateTime"/> are written without the offset RFC 3339 requires of the
+    /// <c>time</c> and <c>date-time</c> formats: a time of day never has one, and a <see cref="DateTime"/> of
+    /// <see cref="DateTimeKind.Unspecified"/> is written without one.
+    /// </para>
+    /// <para>
+    /// Set it to <c>date-time</c> on a value object over <see cref="DateTime"/> whose normalizer guarantees a kind, such
+    /// as <see cref="DateTimeKind.Utc"/>, which is written with its offset.
+    /// </para>
     /// </remarks>
     public string? SchemaFormat { get; set; }
 

@@ -88,7 +88,8 @@ public sealed class SerializationTests
         openApi["country"]!["enum"]!.ToJsonString().Should().Be("""["FR","BE","LU"]""");
         openApi["purchase"]!["maxLength"]!.GetValue<int>().Should().Be(12);
         languageModel["amount"]!["type"]!.ToJsonString().Should().Be("\"number\"");
-        languageModel["country"]!["description"]!.GetValue<string>().Should().Be("A closed set of reference data.\n\nFR: France\nBE: Belgium\nLU: Luxembourg");
+        languageModel["country"]!["description"]!.GetValue<string>().Should().Be("A closed set of reference data.");
+        languageModel["country"]!["enum"]!.ToJsonString().Should().Be("""["FR","BE","LU"]""");
     }
 
     [Fact]

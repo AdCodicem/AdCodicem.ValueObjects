@@ -55,17 +55,17 @@ cannot be `null` `value_object.required`. An integration of your own sets
 **JSON Schema** (`JsonSchemaExporter`, and every host built on it: Microsoft.Extensions.AI tools and structured
 output, the MCP SDK, Semantic Kernel) describes a value object as `true` and a `List<Iban>` without `items`. Plug
 `ValueObjectJsonSchema.TransformSchemaNode` into `JsonSchemaExporterOptions.TransformSchemaNode` to describe each one as
-its underlying value with its rules (`type`, `null` for a nullable one, lengths, `pattern`, `minimum`/`maximum` or a
-sentence for a date, `enum`, `examples`, `description`, `format`), elements, dictionary values and string keys
-included:
+its underlying value with its rules (`type`, `null` for a nullable one, lengths, 1 for a `char`, `pattern`,
+`minimum`/`maximum` or a sentence for a date, `enum`, `examples`, `description`, `format`), elements, dictionary values
+and keys included; a key is described as the text it is written in, a number's text for a key over a number:
 
 ```csharp skip
 var schema = JsonSchemaExporter.GetJsonSchemaAsNode(
     ApiJsonContext.Default.Options, typeof(Order),
     new JsonSchemaExporterOptions { TransformSchemaNode = ValueObjectJsonSchema.TransformSchemaNode });
 
-// For a language model: the number alone, formats JSON Schema does not define moved into the description, and the
-// values of a closed set named there. A host's own transform hands over the node's JsonTypeInfo:
+// For a language model: the number alone, and formats JSON Schema does not define moved into the description.
+// A host's own transform hands over the node's JsonTypeInfo:
 var forTools = new AIJsonSchemaCreateOptions
 {
     TransformSchemaNode = (context, node) => ValueObjectJsonSchema.Apply(
@@ -75,7 +75,8 @@ var forTools = new AIJsonSchemaCreateOptions
 
 `ValueObjectJsonSchema.CreateTransform(profile)` gives the exporter's delegate for a profile. The default profile,
 `OpenApi`, follows `NumberHandling` as the OpenAPI document does. A host's description comes first and the value
-object's follows; nothing is turned into a `$ref`.
+object's follows; nothing is turned into a `$ref`. A `TimeOnly` or a `DateTime` gets no `time`/`date-time` format, which
+RFC 3339 gives an offset it is written without, but the pattern of the form it is written in.
 
 `Int128` and `UInt128` value objects travel as JSON **strings**, because JSON numbers cannot carry them. A numeric
 value object follows `JsonSerializerOptions.NumberHandling` as its underlying type does: `AllowReadingFromString`,
@@ -291,10 +292,12 @@ annotation — and nothing to keep in sync, since the schema comes from the same
 compiles; its `RegexOptions` are not part of it (`VO0025`). A value written as a JSON string (`Int128`, `UInt128`,
 `char`, dates, times) gets no inert `minimum`/`maximum`: its bounds go to `x-minimum`/`x-maximum` and a sentence of
 the description. A `TimeSpan` gets no `format` (`duration` is ISO 8601, which it does not read) but the pattern of its
-constant form, as the built-in stack documents a plain `TimeSpan`. Route, query and header parameters (minimal APIs,
-MVC, `[AsParameters]`) carry the same schema in place, keeping the stricter bound or length of a route constraint;
-`items` of a collection and `additionalProperties` of a dictionary refer to the component; a key documented as a
-string goes to `propertyNames`.
+constant form, as the built-in stack documents a plain `TimeSpan`; a `TimeOnly` and a `DateTime` get no `time` or
+`date-time` (RFC 3339 requires an offset they are written without) but the pattern of the form they are written in; a
+`char` gets `minLength` and `maxLength` 1. Route, query and header parameters (minimal APIs, MVC, `[AsParameters]`)
+carry the same schema in place, keeping the stricter bound or length of a route constraint; `items` of a collection
+and `additionalProperties` of a dictionary refer to the component; a key goes to `propertyNames` as the text it is
+written in, a string held to a number's pattern for a key over a number.
 
 ## Run-time lookup, when only a `Type` is known
 

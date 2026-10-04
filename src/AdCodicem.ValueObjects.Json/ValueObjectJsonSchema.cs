@@ -30,16 +30,19 @@ namespace AdCodicem.ValueObjects.Json;
 /// </code>
 /// <para>
 /// The underlying type gives <c>type</c>, and <c>"null"</c> joins it, and the <c>enum</c>, for a nullable value object.
-/// <c>MinLength</c> and <c>MaxLength</c> give <c>minLength</c> and <c>maxLength</c>, a pattern <c>pattern</c>, and a
-/// bound <c>minimum</c> or <c>maximum</c> on a number; on a value written as a string, a date, a time or a character,
-/// which those keywords cannot bound, a sentence of the description states it. A closed set lists its values in
-/// <c>enum</c>, and the example goes to <c>examples</c>, each written by the value object's own converter. The
-/// description and the format follow, the format as the profile says (<see cref="ValueObjectJsonSchemaProfile"/>).
+/// <c>MinLength</c> and <c>MaxLength</c> give <c>minLength</c> and <c>maxLength</c>, one character both for a
+/// <see cref="char"/>, a pattern <c>pattern</c>, and a bound <c>minimum</c> or <c>maximum</c> on a number; on a value
+/// written as a string, a date, a time or a character, which those keywords cannot bound, a sentence of the description
+/// states it. A duration, a <see cref="TimeOnly"/> and a <see cref="DateTime"/> are held to the pattern of the form they
+/// are written in, which no format of JSON Schema describes. A closed set lists its values in <c>enum</c>, and the
+/// example goes to <c>examples</c>, each written by the value object's own converter. The description and the format
+/// follow, the format as the profile says (<see cref="ValueObjectJsonSchemaProfile"/>).
 /// </para>
 /// <para>
 /// A collection or a dictionary of value objects gets its <c>items</c> or <c>additionalProperties</c>, which the
-/// exporter leaves out when the element's schema is <c>true</c>, and a dictionary keyed by a value object written as a
-/// string gets the key's rules in <c>propertyNames</c>. A value object is described in place, never as a reference.
+/// exporter leaves out when the element's schema is <c>true</c>, and a dictionary keyed by a value object gets the key's
+/// rules in <c>propertyNames</c>, as the key is written: always text, the text of a number for a value object over a
+/// number. A value object is described in place, never as a reference.
 /// </para>
 /// <para>
 /// The schema a host hands over is completed rather than replaced: a description it already wrote comes first, the
@@ -152,7 +155,7 @@ public static class ValueObjectJsonSchema
         switch (typeInfo.Kind)
         {
             case JsonTypeInfoKind.None when ConvertedAsValue(typeInfo) && TryDescribe(typeInfo.Type, out var descriptor):
-                return Describe(schema, descriptor, IsNullable(typeInfo.Type), typeInfo.Options, profile);
+                return Describe(schema, descriptor, IsNullable(typeInfo.Type), asKey: false, typeInfo.Options, profile);
             case JsonTypeInfoKind.Enumerable or JsonTypeInfoKind.Dictionary when schema is JsonObject container:
                 DescribeContainer(container, typeInfo, profile);
                 return schema;
@@ -216,8 +219,8 @@ public static class ValueObjectJsonSchema
     /// The exporter leaves <c>items</c> and <c>additionalProperties</c> out when the element's schema is <c>true</c>, and
     /// never calls the transform for that element: the value object is described here, from the container's contract,
     /// completing what a host may have written there instead, such as the <c>{}</c> Microsoft.Extensions.AI writes. A
-    /// key is written as text, so only a value object written as a string describes it, in <c>propertyNames</c>: the text
-    /// of a property name is never a number or a boolean.
+    /// key is written as text, which <c>propertyNames</c> describes: a value object over a number or a boolean as the
+    /// text its converter writes the key in, held to the pattern of that text, its bounds stated in a sentence.
     /// </remarks>
     private static void DescribeContainer(JsonObject container, JsonTypeInfo typeInfo, ValueObjectJsonSchemaProfile profile)
     {
@@ -225,14 +228,12 @@ public static class ValueObjectJsonSchema
         if (typeInfo.ElementType is { } elementType && TryDescribe(elementType, out var element))
         {
             var keyword = typeInfo.Kind == JsonTypeInfoKind.Dictionary ? "additionalProperties" : "items";
-            Complete(container, keyword, element, IsNullable(elementType), options, profile);
+            Complete(container, keyword, element, IsNullable(elementType), asKey: false, options, profile);
         }
 
-        if (typeInfo.KeyType is { } keyType
-            && TryDescribe(keyType, out var key)
-            && ValueObjectSchemaKeywords.TypeOf(key.ValueType) == ValueObjectSchemaKeywords.String)
+        if (typeInfo.KeyType is { } keyType && TryDescribe(keyType, out var key))
         {
-            Complete(container, "propertyNames", key, nullable: false, options, profile);
+            Complete(container, "propertyNames", key, nullable: false, asKey: true, options, profile);
         }
     }
 
@@ -244,11 +245,12 @@ public static class ValueObjectJsonSchema
         string keyword,
         ValueObjectDescriptor descriptor,
         bool nullable,
+        bool asKey,
         JsonSerializerOptions options,
         ValueObjectJsonSchemaProfile profile)
     {
         var existing = container[keyword];
-        var described = Describe(existing ?? new JsonObject(), descriptor, nullable, options, profile);
+        var described = Describe(existing ?? new JsonObject(), descriptor, nullable, asKey, options, profile);
         if (!ReferenceEquals(described, existing))
         {
             container[keyword] = described;
@@ -261,6 +263,8 @@ public static class ValueObjectJsonSchema
     /// <param name="schema">The schema built so far, <c>true</c> or an object.</param>
     /// <param name="descriptor">Descriptor of the value object.</param>
     /// <param name="nullable">Whether the node is a nullable value object.</param>
+    /// <param name="asKey">Whether the node is the key of a dictionary, which is written as text whatever the
+    /// underlying type.</param>
     /// <param name="options">The options the schema describes the wire with.</param>
     /// <param name="profile">Whom the schema describes a value object for.</param>
     /// <returns>The schema completed.</returns>
@@ -268,6 +272,7 @@ public static class ValueObjectJsonSchema
         JsonNode schema,
         ValueObjectDescriptor descriptor,
         bool nullable,
+        bool asKey,
         JsonSerializerOptions options,
         ValueObjectJsonSchemaProfile profile)
     {
@@ -288,7 +293,9 @@ public static class ValueObjectJsonSchema
 
         var declared = descriptor.Schema;
         var openApi = profile == ValueObjectJsonSchemaProfile.OpenApi;
-        var jsonType = ValueObjectSchemaKeywords.TypeOf(descriptor.ValueType);
+
+        // A key is the text the converter writes it in, a number's included, which minimum and maximum cannot bound.
+        var jsonType = asKey ? ValueObjectSchemaKeywords.String : ValueObjectSchemaKeywords.TypeOf(descriptor.ValueType);
         var numeric = jsonType is ValueObjectSchemaKeywords.Integer or ValueObjectSchemaKeywords.Number;
         var handling = options.NumberHandling;
 
@@ -311,7 +318,7 @@ public static class ValueObjectJsonSchema
 
         if (writtenAsText && (declared.Minimum is not null || declared.Maximum is not null))
         {
-            var (minimum, maximum) = ValueObjectSchemaKeywords.WriteBounds(declared, descriptor, options);
+            var (minimum, maximum) = ValueObjectSchemaKeywords.WriteBounds(declared, descriptor, options, asKey);
             description.Add(ValueObjectSchemaKeywords.BoundsSentence(minimum, maximum));
         }
 
@@ -321,18 +328,15 @@ public static class ValueObjectJsonSchema
             format = null;
         }
 
+        // The enum names the values of a closed set; repeating them in the description would only lengthen it.
         JsonArray? values = null;
         if (declared.IsClosedValueSet && !declared.KnownValues.IsDefaultOrEmpty)
         {
             values =
             [
                 .. declared.KnownValues.Select(value
-                    => Written(ValueObjectSchemaKeywords.WriteKnownValue(value, descriptor, options), numeric, openApi)),
+                    => Written(ValueObjectSchemaKeywords.WriteKnownValue(value, descriptor, options, asKey), numeric, openApi)),
             ];
-            if (!openApi && ValueObjectSchemaKeywords.DetailsListTheKnownValues(declared))
-            {
-                description.Add(NameValues(declared, values));
-            }
         }
 
         // Whatever was inferred about the wrapper type is wrong by construction: it is the underlying value that goes on
@@ -348,14 +352,17 @@ public static class ValueObjectJsonSchema
 
         node["type"] = TypeOf(jsonType, asText, nullable);
         Set(node, "format", format);
-        Set(node, "pattern", declared.Pattern ?? ValueObjectSchemaKeywords.WirePattern(descriptor.ValueType, asText));
+        Set(node, "pattern", declared.Pattern ?? (asKey
+            ? ValueObjectSchemaKeywords.KeyPattern(descriptor.ValueType, declared)
+            : ValueObjectSchemaKeywords.WirePattern(descriptor.ValueType, asText)));
 
-        if (declared.MinLength is { } minLength)
+        var (minLength, maxLength) = ValueObjectSchemaKeywords.Lengths(declared, descriptor.ValueType);
+        if (minLength is not null)
         {
             node["minLength"] = minLength;
         }
 
-        if (declared.MaxLength is { } maxLength)
+        if (maxLength is not null)
         {
             node["maxLength"] = maxLength;
         }
@@ -378,11 +385,12 @@ public static class ValueObjectJsonSchema
 
         if (!string.IsNullOrEmpty(declared.Example))
         {
-            var example = ValueObjectSchemaKeywords.WriteText(declared.Example, descriptor, options);
+            var example = ValueObjectSchemaKeywords.WriteText(declared.Example, descriptor, options, asKey);
             node["examples"] = new JsonArray(Written(example, numeric, openApi));
         }
 
         if (openApi
+            && !asKey
             && (handling & JsonNumberHandling.AllowNamedFloatingPointLiterals) != 0
             && (descriptor.ValueType == typeof(double) || descriptor.ValueType == typeof(float))
             && ValueObjectSchemaKeywords.NamedLiterals(declared) is { Count: > 0 } literals)
@@ -467,23 +475,6 @@ public static class ValueObjectJsonSchema
             return value;
         }
     }
-
-    /// <summary>
-    /// Names each value of a closed set, with the description it was declared with, one line per value.
-    /// </summary>
-    /// <param name="declared">The declared rules, whose details list the known values one for one.</param>
-    /// <param name="values">The values, as the type writes them.</param>
-    /// <returns>The lines.</returns>
-    private static string NameValues(ValueObjectSchema declared, JsonArray values)
-        => string.Join(
-            "\n",
-            declared.KnownValueDetails.Select((detail, index) =>
-            {
-                var line = $"{ValueObjectSchemaKeywords.Quote(values[index]!)}: {detail.Name}";
-                return string.IsNullOrWhiteSpace(detail.Description) || detail.Description == detail.Name
-                    ? line
-                    : $"{line} — {detail.Description}";
-            }));
 
     /// <summary>
     /// Appends a paragraph to the description, after the one a host already wrote, unless it holds it already.

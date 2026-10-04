@@ -64,6 +64,7 @@ namespace AdCodicem.ValueObjects.NativeAot;
 [JsonSerializable(typeof(AnyEntityId))]
 [JsonSerializable(typeof(Order))]
 [JsonSerializable(typeof(Page))]
+[JsonSerializable(typeof(Tally))]
 internal sealed partial class AppJsonContext : JsonSerializerContext;
 
 /// <summary>An order, as a request body carries it and as the endpoint answers it.</summary>
@@ -80,3 +81,9 @@ internal sealed record Order(
 
 /// <summary>The page a request asked for, if any.</summary>
 internal sealed record Page(PageNumber? Number);
+
+/// <summary>
+/// Counts keyed by value objects over a number and a boolean, whose keys the JSON Schema describes as the text the
+/// converter writes them in, and an instant, held to the pattern of the form it is written in.
+/// </summary>
+internal sealed record Tally(Dictionary<Quantity, int> PerQuantity, Dictionary<Consent, int> PerConsent, RecordedAt Recorded);

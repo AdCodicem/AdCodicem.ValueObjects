@@ -1,13 +1,16 @@
+using System.Buffers;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Metadata;
 
 namespace AdCodicem.ValueObjects.Shared;
 
 /// <summary>
 /// What the rules declared on a value object become in a JSON Schema: its JSON type, the pattern of its wire form, its
-/// bounds, its example and its known values, each written as the type writes the value.
+/// lengths, its bounds, its example and its known values, each written as the type writes the value, or the key of a
+/// dictionary.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -47,6 +50,27 @@ internal static class ValueObjectSchemaKeywords
     /// The pattern System.Text.Json documents a <see cref="TimeSpan"/> with: its invariant constant form.
     /// </summary>
     internal const string DurationPattern = @"^-?(\d+\.)?\d{2}:\d{2}:\d{2}(\.\d{1,7})?$";
+
+    /// <summary>
+    /// The pattern of a <see cref="TimeOnly"/>: <c>HH:mm</c>, <c>HH:mm:ss</c> or <c>HH:mm:ss.fffffff</c>, the last of
+    /// which it is written in, with no offset.
+    /// </summary>
+    internal const string TimePattern = @"^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,7})?)?$";
+
+    /// <summary>
+    /// The pattern of a <see cref="DateTime"/>: a date, followed by a time of day and the offset its kind gives it,
+    /// <c>Z</c> for <see cref="DateTimeKind.Utc"/>, <c>+HH:mm</c> or <c>-HH:mm</c> for <see cref="DateTimeKind.Local"/>,
+    /// and none for <see cref="DateTimeKind.Unspecified"/>.
+    /// </summary>
+    internal const string DateTimePattern =
+        @"^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?:T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,7})?)?(?:Z|[+-]\d{2}:\d{2})?)?$";
+
+    /// <summary>
+    /// The pattern of a boolean written as the key of a dictionary: <c>True</c> or <c>False</c>, the invariant text of
+    /// <see cref="bool"/> the generated converter writes, or <c>true</c> or <c>false</c>, as System.Text.Json writes the
+    /// key of a <see cref="bool"/>, which a converter written by hand may defer to.
+    /// </summary>
+    internal const string BooleanKeyPattern = "^(?:[Tt]rue|[Ff]alse)$";
 
     /// <summary>
     /// How each underlying type is read from the text of a bound: a <see cref="DateTime"/> keeping the kind its text
@@ -98,15 +122,23 @@ internal static class ValueObjectSchemaKeywords
 
     /// <summary>
     /// Gets the pattern a value object that declares none is held to on the wire, as System.Text.Json documents its
-    /// underlying type: a number written as text, and a duration, which no <c>format</c> describes.
+    /// underlying type, or as no <c>format</c> does: a number written as text, a duration, a time of day and an instant.
     /// </summary>
     /// <param name="valueType">Underlying type of the value object.</param>
     /// <param name="asText">Whether a number may be written or read as text.</param>
     /// <returns>The pattern, or <see langword="null"/> for a value the type alone describes.</returns>
     /// <remarks>
+    /// <para>
     /// A duration is written in the invariant constant form <c>[-][d.]hh:mm:ss[.fffffff]</c>. The <c>duration</c>
     /// format of JSON Schema is ISO 8601, <c>PT1H30M</c>, which the type does not read: a client taking the schema at
     /// its word would send a value the type refuses.
+    /// </para>
+    /// <para>
+    /// A time of day and a <see cref="DateTime"/> are no <c>time</c> or <c>date-time</c> either: RFC 3339, which those
+    /// formats name, requires an offset, which a <see cref="TimeOnly"/> never has and a <see cref="DateTime"/> of
+    /// <see cref="DateTimeKind.Unspecified"/> is written without. A client or a validator taking the format at its word
+    /// would refuse what the type writes. Each is held to the pattern of the form it is written in, which the type reads.
+    /// </para>
     /// </remarks>
     internal static string? WirePattern(Type valueType, bool asText)
     {
@@ -115,8 +147,64 @@ internal static class ValueObjectSchemaKeywords
             return NumberPattern(valueType);
         }
 
-        return valueType == typeof(TimeSpan) ? DurationPattern : null;
+        if (valueType == typeof(TimeSpan))
+        {
+            return DurationPattern;
+        }
+
+        if (valueType == typeof(TimeOnly))
+        {
+            return TimePattern;
+        }
+
+        return valueType == typeof(DateTime) ? DateTimePattern : null;
     }
+
+    /// <summary>
+    /// Gets the pattern the key of a dictionary is held to when the value object declares none: the text the type writes
+    /// a key in, which is a number's or a boolean's text for a value written otherwise as a number or a boolean.
+    /// </summary>
+    /// <param name="valueType">Underlying type of the value object.</param>
+    /// <param name="declared">The declared rules.</param>
+    /// <returns>The pattern, or <see langword="null"/> for a key the type alone describes.</returns>
+    /// <remarks>
+    /// A real is written as a key in its invariant text, a named literal included, whatever the options say of values:
+    /// each named literal its bounds let through is a key the type writes and reads.
+    /// </remarks>
+    internal static string? KeyPattern(Type valueType, ValueObjectSchema declared)
+    {
+        var jsonType = TypeOf(valueType);
+        if (jsonType == String)
+        {
+            return WirePattern(valueType, asText: false);
+        }
+
+        if (jsonType == Boolean)
+        {
+            return BooleanKeyPattern;
+        }
+
+        var number = NumberPattern(valueType);
+        if ((valueType != typeof(double) && valueType != typeof(float)) || NamedLiterals(declared) is not { Count: > 0 } literals)
+        {
+            return number;
+        }
+
+        // The number's own anchors move to the alternation, of which the literals are the other branches.
+        return $"^(?:{number[1..^1]}|{string.Join('|', literals.Select(Quote))})$";
+    }
+
+    /// <summary>
+    /// Gets the lengths a value object holds its text to: those it declares, and, for a character, the one character it
+    /// is written as.
+    /// </summary>
+    /// <param name="declared">The declared rules.</param>
+    /// <param name="valueType">Underlying type of the value object.</param>
+    /// <returns>Each length, or <see langword="null"/> for one the type does not hold.</returns>
+    internal static (int? MinLength, int? MaxLength) Lengths(ValueObjectSchema declared, Type valueType)
+        => valueType == typeof(char)
+            ? (declared.MinLength ?? 1, declared.MaxLength ?? 1)
+            : (declared.MinLength, declared.MaxLength);
 
     /// <summary>
     /// Reads a declared bound as the number the type enforces, in the form a schema writes it.
@@ -149,13 +237,15 @@ internal static class ValueObjectSchemaKeywords
     /// <param name="declared">The declared rules.</param>
     /// <param name="descriptor">Descriptor of the value object.</param>
     /// <param name="options">The options the schema describes the wire with.</param>
+    /// <param name="asKey">Whether to write each bound as the key of a dictionary, rather than as a value.</param>
     /// <returns>Each bound as JSON, or <see langword="null"/> for one the type does not declare.</returns>
     internal static (JsonNode? Minimum, JsonNode? Maximum) WriteBounds(
         ValueObjectSchema declared,
         ValueObjectDescriptor descriptor,
-        JsonSerializerOptions options)
-        => (declared.Minimum is { } low ? WriteBound(low, descriptor, options) : null,
-            declared.Maximum is { } high ? WriteBound(high, descriptor, options) : null);
+        JsonSerializerOptions options,
+        bool asKey = false)
+        => (declared.Minimum is { } low ? WriteBound(low, descriptor, options, asKey) : null,
+            declared.Maximum is { } high ? WriteBound(high, descriptor, options, asKey) : null);
 
     /// <summary>
     /// States bounds in a sentence, for a value <c>minimum</c> and <c>maximum</c> cannot bound: a string, a 128-bit
@@ -178,6 +268,7 @@ internal static class ValueObjectSchemaKeywords
     /// <param name="text">The example, as declared.</param>
     /// <param name="descriptor">Descriptor of the value object.</param>
     /// <param name="options">The options the schema describes the wire with.</param>
+    /// <param name="asKey">Whether to write the example as the key of a dictionary, rather than as a value.</param>
     /// <returns>The value as JSON.</returns>
     /// <remarks>
     /// The example is an input, parsed the way the type parses text, then written by the type's own converter, so that
@@ -185,9 +276,9 @@ internal static class ValueObjectSchemaKeywords
     /// the type refuses, which nothing checks when the type compiles, or one its converter cannot write under the
     /// options, as a real cannot write <c>NaN</c> without the named literals, is written as it was declared.
     /// </remarks>
-    internal static JsonNode WriteText(string text, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
+    internal static JsonNode WriteText(string text, ValueObjectDescriptor descriptor, JsonSerializerOptions options, bool asKey = false)
         => descriptor.TryParse(text, CultureInfo.InvariantCulture, out var parsed, out _)
-            ? Write(parsed!, descriptor, options) ?? JsonValue.Create(text)
+            ? Write(parsed!, descriptor, options, asKey) ?? JsonValue.Create(text)
             : JsonValue.Create(text);
 
     /// <summary>
@@ -196,6 +287,7 @@ internal static class ValueObjectSchemaKeywords
     /// <param name="value">The known value, as the schema holds it.</param>
     /// <param name="descriptor">Descriptor of the value object.</param>
     /// <param name="options">The options the schema describes the wire with.</param>
+    /// <param name="asKey">Whether to write the value as the key of a dictionary, rather than as a value.</param>
     /// <returns>The value as JSON.</returns>
     /// <remarks>
     /// A value of the underlying type is written by the type's own converter, so that a client checks a payload
@@ -203,8 +295,8 @@ internal static class ValueObjectSchemaKeywords
     /// generated registration guarantees that type. A value of any other type, which a schema written by hand may hold,
     /// and one the converter cannot write under the options, is written as its text.
     /// </remarks>
-    internal static JsonNode WriteKnownValue(object value, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
-        => (descriptor.ValueType.IsInstanceOfType(value) ? Write(descriptor.CreateUnchecked(value), descriptor, options) : null)
+    internal static JsonNode WriteKnownValue(object value, ValueObjectDescriptor descriptor, JsonSerializerOptions options, bool asKey = false)
+        => (descriptor.ValueType.IsInstanceOfType(value) ? Write(descriptor.CreateUnchecked(value), descriptor, options, asKey) : null)
            ?? JsonValue.Create(Convert.ToString(value, CultureInfo.InvariantCulture))!;
 
     /// <summary>
@@ -279,6 +371,7 @@ internal static class ValueObjectSchemaKeywords
     /// <param name="text">The bound, as the schema holds it.</param>
     /// <param name="descriptor">Descriptor of the value object.</param>
     /// <param name="options">The options the schema describes the wire with.</param>
+    /// <param name="asKey">Whether to write the bound as the key of a dictionary, rather than as a value.</param>
     /// <returns>The value as JSON.</returns>
     /// <remarks>
     /// The check compares the normalized value with the bound as declared, so the bound is read as the underlying value
@@ -286,28 +379,34 @@ internal static class ValueObjectSchemaKeywords
     /// a bound that moves with the time zone of the server. A bound the underlying type cannot read, as a schema made by
     /// hand may hold, is written as it was declared.
     /// </remarks>
-    private static JsonNode WriteBound(string text, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
+    private static JsonNode WriteBound(string text, ValueObjectDescriptor descriptor, JsonSerializerOptions options, bool asKey)
         => ParseUnderlying(text, descriptor.ValueType) is { } value
-            ? Write(descriptor.CreateUnchecked(value), descriptor, options) ?? JsonValue.Create(text)
+            ? Write(descriptor.CreateUnchecked(value), descriptor, options, asKey) ?? JsonValue.Create(text)
             : JsonValue.Create(text);
 
     /// <summary>
-    /// Writes a value object through its converter, or answers <see langword="null"/> when the converter cannot write
-    /// it under the options, rather than failing the whole schema.
+    /// Writes a value object through its converter, as a value or as the key of a dictionary, or answers
+    /// <see langword="null"/> when the converter cannot write it under the options, rather than failing the whole schema.
     /// </summary>
     /// <param name="valueObject">The value object.</param>
     /// <param name="descriptor">Descriptor of the value object.</param>
     /// <param name="options">The options the schema describes the wire with.</param>
-    /// <returns>The value as JSON, or <see langword="null"/>.</returns>
+    /// <param name="asKey">Whether to write it as the key of a dictionary, rather than as a value.</param>
+    /// <returns>The value as JSON, a string for a key, or <see langword="null"/>.</returns>
     /// <remarks>
     /// The options may hold no contract for the value object: a resolver generated for the types an application
-    /// serializes knows nothing of one that only ever is a route or query parameter.
+    /// serializes knows nothing of one that only ever is a route or query parameter. A converter written by hand may
+    /// write no key at all.
     /// </remarks>
-    private static JsonNode? Write(object valueObject, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
+    private static JsonNode? Write(object valueObject, ValueObjectDescriptor descriptor, JsonSerializerOptions options, bool asKey)
     {
         try
         {
-            return JsonSerializer.SerializeToNode(valueObject, options.GetTypeInfo(descriptor.ValueObjectType));
+            var typeInfo = options.GetTypeInfo(descriptor.ValueObjectType);
+
+            return asKey
+                ? descriptor.Accept(new KeyWriter(typeInfo.Converter, valueObject, options))
+                : JsonSerializer.SerializeToNode(valueObject, typeInfo);
         }
         catch (Exception exception) when (exception is ArgumentException or JsonException or NotSupportedException or InvalidOperationException)
         {
@@ -333,4 +432,36 @@ internal static class ValueObjectSchemaKeywords
     private static object? Parse<TValue>(string text)
         where TValue : IParsable<TValue>
         => TValue.TryParse(text, CultureInfo.InvariantCulture, out var value) ? value : null;
+
+    /// <summary>
+    /// Writes a value object as the key of a dictionary, through the converter the options hold for it, as the
+    /// serializer writes it: the text of the property name.
+    /// </summary>
+    /// <param name="converter">The converter of the value object, which System.Text.Json resolves for the type it
+    /// converts: a <see cref="JsonConverter{T}"/> of it, never a factory.</param>
+    /// <param name="valueObject">The value object, boxed.</param>
+    /// <param name="options">The options the schema describes the wire with.</param>
+    private sealed class KeyWriter(JsonConverter converter, object valueObject, JsonSerializerOptions options)
+        : IValueObjectVisitor<JsonNode?>
+    {
+        /// <inheritdoc />
+        public JsonNode? Visit<TSelf, TValue>()
+            where TSelf : struct, IValueObject<TSelf, TValue>
+        {
+            var buffer = new ArrayBufferWriter<byte>();
+            using (var writer = new Utf8JsonWriter(buffer))
+            {
+                writer.WriteStartObject();
+                ((JsonConverter<TSelf>)converter).WriteAsPropertyName(writer, (TSelf)valueObject, options);
+                writer.WriteNullValue();
+                writer.WriteEndObject();
+            }
+
+            var reader = new Utf8JsonReader(buffer.WrittenSpan);
+            reader.Read();
+            reader.Read();
+
+            return JsonValue.Create(reader.GetString());
+        }
+    }
 }

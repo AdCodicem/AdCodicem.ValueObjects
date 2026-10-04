@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Schema;
+using AdCodicem.ValueObjects.Json;
 using AdCodicem.ValueObjects.OpenApi;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -158,6 +159,57 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
         written.Should().AllSatisfy(value => value.Should().MatchRegex(duration.GetProperty("pattern").GetString()!));
         JsonSerializer.Serialize(Duration.Create(new TimeSpan(0, 23, 59, 59, 999)), WebOptions)
             .Trim('"').Should().MatchRegex(duration.GetProperty("pattern").GetString()!);
+    }
+
+    /// <summary>
+    /// A time of day is written without an offset, and so is a <see cref="DateTime"/> of an unspecified kind, which
+    /// RFC 3339 requires of the <c>time</c> and <c>date-time</c> formats: a client or a gateway taking either format at
+    /// its word would refuse what the server writes. Each is documented with the pattern of the form it is written in,
+    /// the one the JSON Schema of the Json package publishes, which its bounds, its known values and what it writes match.
+    /// A date and an instant with its offset keep their format.
+    /// </summary>
+    /// <param name="name">The value object.</param>
+    [Theory]
+    [InlineData(nameof(OpeningTime))]
+    [InlineData(nameof(ShiftStart))]
+    [InlineData(nameof(RecordedAt))]
+    public void A_time_of_day_and_a_DateTime_are_documented_in_the_form_they_are_written_in_rather_than_as_RFC_3339(string name)
+    {
+        var schema = document.Schema(name);
+        var type = Instances.TryGetValue(name, out var instance) ? instance.GetType() : ClosedSets[name][0].GetType();
+        var exported = JsonSchemaExporter.GetJsonSchemaAsNode(
+            WebOptions,
+            type,
+            new JsonSchemaExporterOptions { TransformSchemaNode = ValueObjectJsonSchema.TransformSchemaNode });
+        var pattern = schema.GetProperty("pattern").GetString()!;
+        var written = (instance is null ? ClosedSets[name] : [instance])
+            .Select(value => JsonSerializer.SerializeToElement(value, type, WebOptions).GetString()!)
+            .Concat(schema.TryGetProperty("x-minimum", out var minimum) ? [minimum.GetString()!, schema.GetProperty("x-maximum").GetString()!] : [])
+            .Concat(schema.TryGetProperty("enum", out var values) ? values.EnumerateArray().Select(value => value.GetString()!) : []);
+
+        schema.TryGetProperty("format", out _).Should().BeFalse("RFC 3339 requires an offset the type does not write");
+        schema.GetProperty("type").GetString().Should().Be("string");
+        pattern.Should().Be(exported["pattern"]!.GetValue<string>());
+        written.Should().NotBeEmpty().And.AllSatisfy(text => text.Should().MatchRegex(pattern));
+        document.Schema(nameof(OccurredAt)).GetProperty("format").GetString().Should().Be("date-time");
+        document.Schema(nameof(BirthDate)).GetProperty("format").GetString().Should().Be("date");
+    }
+
+    /// <summary>
+    /// A character is written as a string of one character, which the schema states, as System.Text.Json documents a
+    /// bare <see cref="char"/>.
+    /// </summary>
+    /// <param name="name">The value object.</param>
+    [Theory]
+    [InlineData(nameof(Grade))]
+    [InlineData(nameof(Answer))]
+    public void A_character_is_documented_as_a_string_of_one_character(string name)
+    {
+        var schema = document.Schema(name);
+        var expected = JsonSchemaExporter.GetJsonSchemaAsNode(WebOptions, typeof(char));
+
+        schema.GetProperty("minLength").GetInt32().Should().Be(1).And.Be(expected["minLength"]!.GetValue<int>());
+        schema.GetProperty("maxLength").GetInt32().Should().Be(1).And.Be(expected["maxLength"]!.GetValue<int>());
     }
 
     [Fact]
@@ -516,17 +568,28 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
 
     /// <summary>
     /// A value object keys a dictionary as the text it writes, so the key's rules hold for the names of its members,
-    /// which <c>propertyNames</c> states. A number or a boolean is no such text, and its schema would refuse every name.
+    /// which <c>propertyNames</c> states. A value object over a number is described as the text it writes a key in: a
+    /// string held to the pattern of that number, its bounds, which <c>minimum</c> and <c>maximum</c> cannot hold on a
+    /// string, in extensions and in a sentence; the keys it writes match it.
     /// </summary>
     [Fact]
-    public void A_dictionary_keyed_by_a_value_object_written_as_text_states_its_rules_in_propertyNames()
+    public void A_dictionary_keyed_by_a_value_object_states_its_rules_in_propertyNames_as_the_key_is_written()
     {
         var stock = document.BodyProperty("stockPerCountry");
-        var counts = document.BodyProperty("countPerQuantity");
+        var counts = document.BodyProperty("countPerQuantity").GetProperty("propertyNames");
+        var keys = JsonSerializer.SerializeToNode(
+            new Dictionary<Quantity, int> { [Quantity.Create(0)] = 1, [Quantity.Create(1000)] = 2 },
+            WebOptions)!.AsObject().Select(member => member.Key);
 
         JsonElement.DeepEquals(stock.GetProperty("propertyNames"), document.Schema(nameof(CountryCode))).Should().BeTrue();
         stock.GetProperty("additionalProperties").GetProperty("$ref").GetString().Should().Be("#/components/schemas/Quantity");
-        counts.TryGetProperty("propertyNames", out _).Should().BeFalse("the name of a member is text, never a number");
+        counts.GetProperty("type").GetString().Should().Be("string", "the name of a member is text, never a number");
+        counts.GetProperty("pattern").GetString().Should().Be(@"^-?(?:0|[1-9]\d*)$");
+        counts.TryGetProperty("minimum", out _).Should().BeFalse("JSON Schema applies minimum to numbers only");
+        counts.GetProperty("x-minimum").GetString().Should().Be("0");
+        counts.GetProperty("x-maximum").GetString().Should().Be("1000");
+        counts.GetProperty("description").GetString().Should().EndWith("\n\nBetween 0 and 1000, inclusive.");
+        keys.Should().Equal("0", "1000").And.AllSatisfy(key => key.Should().MatchRegex(counts.GetProperty("pattern").GetString()!));
     }
 
     /// <summary>

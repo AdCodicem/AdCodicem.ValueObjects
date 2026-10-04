@@ -1172,6 +1172,45 @@ public sealed class EmissionTests
     }
 
     /// <summary>
+    /// A time of day is written without an offset, as a <see cref="System.DateTime"/> of an unspecified kind is, and
+    /// JSON Schema's <c>time</c> and <c>date-time</c> are RFC 3339's, which requires one: a client or a validator
+    /// trusting either format would refuse what the type writes. Neither type therefore has a natural format, and each
+    /// keeps one it declares, as one whose normalizer guarantees a kind may; a date and an instant with its offset keep
+    /// theirs.
+    /// </summary>
+    /// <param name="underlying">The underlying type.</param>
+    /// <param name="natural">Its natural format, if any.</param>
+    [Theory]
+    [InlineData("System.TimeOnly", null)]
+    [InlineData("System.DateTime", null)]
+    [InlineData("System.DateOnly", "date")]
+    [InlineData("System.DateTimeOffset", "date-time")]
+    public void A_time_of_day_and_a_DateTime_have_no_natural_format_and_keep_the_one_they_declare(string underlying, string? natural)
+    {
+        var bare = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>]
+            public readonly partial struct When;
+            """);
+        var declared = GeneratorHarness.Run($$"""
+            [ValueObject<{{underlying}}>(SchemaFormat = "date-time")]
+            public readonly partial struct When;
+            """);
+
+        bare.CompilationDiagnostics.Should().BeEmpty();
+        if (natural is null)
+        {
+            bare.SingleValueObject.Should().NotContain("Format =");
+        }
+        else
+        {
+            bare.SingleValueObject.Should().Contain($"Format = \"{natural}\",");
+        }
+
+        declared.CompilationDiagnostics.Should().BeEmpty();
+        declared.SingleValueObject.Should().Contain("Format = \"date-time\",");
+    }
+
+    /// <summary>
     /// A blank pattern is no blank text option: <c>" "</c> is a regular expression, matching any text that holds a
     /// space, and it validates and is published as written. An empty one matches everything, and is absent.
     /// </summary>

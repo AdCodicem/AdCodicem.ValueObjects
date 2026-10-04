@@ -495,6 +495,42 @@ public partial class SchemaTransformerTests
     }
 
     /// <summary>
+    /// A key over a number or a boolean is described as the text its converter writes it in, whatever the options say of
+    /// a value: a string, never a number that may be text nor a named literal beside one, held to the pattern of its
+    /// text, a real's named literals included where its bounds let them through, its bounds in extensions.
+    /// </summary>
+    [Fact]
+    public async Task A_key_over_a_number_or_a_boolean_is_described_as_the_text_it_is_written_in()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerOptions.Default)
+        {
+            NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals | JsonNumberHandling.AllowReadingFromString,
+        };
+        var tolerances = new OpenApiSchema { Type = JsonSchemaType.Object };
+        var consents = new OpenApiSchema { Type = JsonSchemaType.Object };
+
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            tolerances,
+            ContextFor<Dictionary<Tolerance, int>>(options),
+            TestContext.Current.CancellationToken);
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            consents,
+            ContextFor<Dictionary<Consent, int>>(options),
+            TestContext.Current.CancellationToken);
+
+        var tolerance = tolerances.PropertyNames.Should().BeOfType<OpenApiSchema>().Subject;
+        tolerance.Type.Should().Be(JsonSchemaType.String);
+        tolerance.AnyOf.Should().BeNull();
+        tolerance.Pattern.Should().Be(@"^(?:-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|-Infinity)$");
+        tolerance.Maximum.Should().BeNull();
+        Extension(tolerance, "x-maximum").GetValue<string>().Should().Be("1");
+        var consent = consents.PropertyNames.Should().BeOfType<OpenApiSchema>().Subject;
+        consent.Type.Should().Be(JsonSchemaType.String);
+        consent.Pattern.Should().Be("^(?:[Tt]rue|[Ff]alse)$");
+        consent.Examples.Should().ContainSingle().Which!.GetValue<string>().Should().Be("True");
+    }
+
+    /// <summary>
     /// What describes a collection already, the element System.Text.Json found or the key another transformer
     /// described, is kept; and a collection of anything but value objects is left as it is.
     /// </summary>

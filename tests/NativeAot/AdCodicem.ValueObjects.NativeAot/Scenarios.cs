@@ -106,10 +106,16 @@ internal static class Scenarios
 
         report.Line("record Page", $"written {JsonSerializer.Serialize(new Page(null), AppJsonContext.Default.Page)} and {JsonSerializer.Serialize(new Page(PageNumber.First), AppJsonContext.Default.Page)}");
 
+        var tally = new Tally(
+            new() { [Quantity.Create(4)] = 1 },
+            new() { [Consent.Create(true)] = 2 },
+            RecordedAt.Create(new DateTime(2024, 1, 31, 8, 30, 0, DateTimeKind.Unspecified)));
+        report.Line("record Tally", $"written {JsonSerializer.Serialize(tally, AppJsonContext.Default.Tally)}");
+
         foreach (var profile in (ReadOnlySpan<ValueObjectJsonSchemaProfile>)[ValueObjectJsonSchemaProfile.OpenApi, ValueObjectJsonSchemaProfile.LanguageModel])
         {
             var options = new JsonSchemaExporterOptions { TransformSchemaNode = ValueObjectJsonSchema.CreateTransform(profile) };
-            foreach (var typeInfo in (JsonTypeInfo[])[AppJsonContext.Default.Order, AppJsonContext.Default.Page])
+            foreach (var typeInfo in (JsonTypeInfo[])[AppJsonContext.Default.Order, AppJsonContext.Default.Page, AppJsonContext.Default.Tally])
             {
                 report.Line($"record {Names.Of(typeInfo.Type)}", $"JSON Schema for {profile}: {JsonSchemaExporter.GetJsonSchemaAsNode(typeInfo, options).ToJsonString()}");
             }

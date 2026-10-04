@@ -38,7 +38,7 @@ namespace AdCodicem.ValueObjects.OpenApi;
 /// A value object is described wherever it appears: as a route, query or header parameter, which ASP.NET Core hands
 /// over as text, with the value object's schema in place; as the element of a collection or the value of a
 /// dictionary, which System.Text.Json leaves out, with a reference to its component; and as the key of a dictionary,
-/// when it is written as a string, in <c>propertyNames</c>.
+/// in <c>propertyNames</c>, as the text the key is written in.
 /// </para>
 /// <para>
 /// A closed value set lists its values in <c>enum</c>, and their names, the names of the known values, in the
@@ -184,10 +184,11 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     /// in place instead, a value object or <c>null</c>, which a reference could not say.
     /// </para>
     /// <para>
-    /// A key is written as text, so a dictionary keyed by a value object documented as a string states the key's
-    /// rules in <c>propertyNames</c>, a keyword of OpenAPI 3.1 that an OpenAPI 3.0 document carries as the
-    /// <c>x-jsonschema-propertyNames</c> extension. A key documented as a number or a boolean is not described: the
-    /// text of a property name is neither.
+    /// A key is written as text, so a dictionary keyed by a value object states the key's rules in
+    /// <c>propertyNames</c>, a keyword of OpenAPI 3.1 that an OpenAPI 3.0 document carries as the
+    /// <c>x-jsonschema-propertyNames</c> extension, as the key is written: a value object documented as a string as its
+    /// component is, and one over a number or a boolean as the text its converter writes the key in, a string held to
+    /// the pattern of that text, its bounds in <c>x-minimum</c>, <c>x-maximum</c> and a sentence.
     /// </para>
     /// </remarks>
     private static async Task DescribeContainerAsync(
@@ -214,11 +215,10 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
 
         if (schema.PropertyNames is null
             && info.KeyType is { } keyType
-            && ValueObjectRegistry.TryResolve(keyType, out var key)
-            && MapType(key.ValueType) == JsonSchemaType.String)
+            && ValueObjectRegistry.TryResolve(keyType, out var key))
         {
             var names = new OpenApiSchema();
-            Describe(names, key, info.Options);
+            Describe(names, key, info.Options, asKey: true);
             schema.PropertyNames = names;
         }
     }
@@ -270,15 +270,19 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     /// <param name="schema">The schema to fill in.</param>
     /// <param name="descriptor">Descriptor of the value object.</param>
     /// <param name="options">The options the document describes the wire with.</param>
+    /// <param name="asKey">Whether the schema describes the key of a dictionary, which is written as text whatever the
+    /// underlying type.</param>
     /// <remarks>
     /// Describing a schema a second time leaves it as the first time did: ASP.NET Core hands the element of a
     /// collection back to the transformers after this one gave it its schema. A schema that allows <c>null</c> keeps
     /// allowing it.
     /// </remarks>
-    private static void Describe(OpenApiSchema schema, ValueObjectDescriptor descriptor, JsonSerializerOptions options)
+    private static void Describe(OpenApiSchema schema, ValueObjectDescriptor descriptor, JsonSerializerOptions options, bool asKey = false)
     {
         var declared = descriptor.Schema;
-        var jsonType = MapType(descriptor.ValueType);
+
+        // A key is the text the converter writes it in, a number's included, which minimum and maximum cannot bound.
+        var jsonType = asKey ? JsonSchemaType.String : MapType(descriptor.ValueType);
         var numeric = jsonType is JsonSchemaType.Integer or JsonSchemaType.Number;
 
         // A number the options let be written or read as text is a number or a string, as System.Text.Json documents
@@ -293,14 +297,17 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         var nullable = AllowsNull(schema);
         schema.Type = (asText ? jsonType | JsonSchemaType.String : jsonType) | (nullable ? JsonSchemaType.Null : default);
         schema.Format = declared.Format;
-        schema.Pattern = declared.Pattern ?? ValueObjectSchemaKeywords.WirePattern(descriptor.ValueType, asText);
+        schema.Pattern = declared.Pattern ?? (asKey
+            ? ValueObjectSchemaKeywords.KeyPattern(descriptor.ValueType, declared)
+            : ValueObjectSchemaKeywords.WirePattern(descriptor.ValueType, asText));
 
-        if (declared.MinLength is { } minLength)
+        var (minLength, maxLength) = ValueObjectSchemaKeywords.Lengths(declared, descriptor.ValueType);
+        if (minLength is not null)
         {
             schema.MinLength = minLength;
         }
 
-        if (declared.MaxLength is { } maxLength)
+        if (maxLength is not null)
         {
             schema.MaxLength = maxLength;
         }
@@ -324,7 +331,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         var writtenAsText = !numeric || (options.NumberHandling & JsonNumberHandling.WriteAsString) != 0;
         if (writtenAsText && (declared.Minimum is not null || declared.Maximum is not null))
         {
-            bounds = DescribeBounds(schema, declared, descriptor, options);
+            bounds = DescribeBounds(schema, declared, descriptor, options, asKey);
         }
 
         if (!string.IsNullOrEmpty(declared.Description))
@@ -340,16 +347,17 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
 
         if (!string.IsNullOrEmpty(declared.Example))
         {
-            schema.Examples = [ValueObjectSchemaKeywords.WriteText(declared.Example, descriptor, options)];
+            schema.Examples = [ValueObjectSchemaKeywords.WriteText(declared.Example, descriptor, options, asKey)];
         }
 
         if (declared.IsClosedValueSet && !declared.KnownValues.IsEmpty)
         {
-            schema.Enum = [.. declared.KnownValues.Select(value => ValueObjectSchemaKeywords.WriteKnownValue(value, descriptor, options))];
+            schema.Enum = [.. declared.KnownValues.Select(value => ValueObjectSchemaKeywords.WriteKnownValue(value, descriptor, options, asKey))];
             NameKnownValues(schema, declared, EnumName(schema, descriptor, options));
         }
 
-        if ((options.NumberHandling & JsonNumberHandling.AllowNamedFloatingPointLiterals) != 0
+        if (!asKey
+            && (options.NumberHandling & JsonNumberHandling.AllowNamedFloatingPointLiterals) != 0
             && (descriptor.ValueType == typeof(double) || descriptor.ValueType == typeof(float))
             && ValueObjectSchemaKeywords.NamedLiterals(declared) is { Count: > 0 } literals)
         {
@@ -509,6 +517,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     /// <param name="declared">The declared rules.</param>
     /// <param name="descriptor">Descriptor of the value object.</param>
     /// <param name="options">The options the document describes the wire with.</param>
+    /// <param name="asKey">Whether the schema describes the key of a dictionary, whose bounds are written as the key.</param>
     /// <returns>The sentence stating the bounds, for the description.</returns>
     /// <remarks>
     /// JSON Schema applies <c>minimum</c> and <c>maximum</c> to numbers only, so on a string, a 128-bit integer, a
@@ -522,9 +531,10 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
         OpenApiSchema schema,
         ValueObjectSchema declared,
         ValueObjectDescriptor descriptor,
-        JsonSerializerOptions options)
+        JsonSerializerOptions options,
+        bool asKey)
     {
-        var (minimum, maximum) = ValueObjectSchemaKeywords.WriteBounds(declared, descriptor, options);
+        var (minimum, maximum) = ValueObjectSchemaKeywords.WriteBounds(declared, descriptor, options, asKey);
 
         schema.Extensions ??= new Dictionary<string, IOpenApiExtension>();
         if (minimum is not null)
