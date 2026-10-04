@@ -230,7 +230,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
 
-        var arguments = attribute.NamedArguments.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        var arguments = NamedArguments(attribute);
 
         var arithmetic = GetBool(arguments, "Arithmetic");
         if (arithmetic && !underlying.IsNumeric)
@@ -518,7 +518,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             FormatsThroughSpanHook(symbol));
         var usableName = ValidateName(symbol, members, location, diagnostics);
 
-        var arguments = attribute.NamedArguments.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        var arguments = NamedArguments(attribute);
         if (!TryGetEnumName(arguments, "Granularity", symbol, location, diagnostics, out var declaredGranularity)
             || !usableName)
         {
@@ -1984,6 +1984,31 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 
         parts.Add(text.Substring(start).Trim());
         return parts;
+    }
+
+    /// <summary>
+    /// Reads the named arguments of an annotation by name, the first of a name when it is written twice.
+    /// </summary>
+    /// <remarks>
+    /// The compiler refuses a repeated named argument (CS0643) but still hands both to the generator, in the IDE as it
+    /// is typed. Keeping the first, as the <c>Description</c> of a <c>[KnownValue]</c> is read, lets the generator
+    /// produce every value object meanwhile, where throwing would drop its whole output and bury the compiler's error
+    /// under the missing members of every other type.
+    /// </remarks>
+    /// <param name="attribute">The annotation.</param>
+    /// <returns>Each named argument's value, by name.</returns>
+    private static Dictionary<string, TypedConstant> NamedArguments(AttributeData attribute)
+    {
+        var arguments = new Dictionary<string, TypedConstant>(attribute.NamedArguments.Length, StringComparer.Ordinal);
+        foreach (var argument in attribute.NamedArguments)
+        {
+            if (!arguments.ContainsKey(argument.Key))
+            {
+                arguments.Add(argument.Key, argument.Value);
+            }
+        }
+
+        return arguments;
     }
 
     private static bool GetBool(Dictionary<string, TypedConstant> arguments, string name)
