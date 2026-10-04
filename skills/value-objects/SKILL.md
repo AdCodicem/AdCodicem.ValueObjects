@@ -229,9 +229,10 @@ public sealed class IbanContract : ValueObjectContract<Iban, string>   // AdCodi
 ```
 
 That derives over a dozen checks: normalization settles after one pass, equality agrees with the hash code, ordering
-agrees with equality, text and JSON round-trip, every entry point rejects a bad value the same way, and the type
-accepts its declared `Example` and every known value. Write it for every value object, then test only the domain
-behaviour that is actually yours.
+agrees with equality, text and JSON round-trip, every entry point rejects a bad value the same way, the type
+accepts its declared `Example` and every known value, and `Schema.KnownValueDetails` lists those known values one for
+one, in order, each named (checked on a hand-written type too). Write it for every value object, then test only the
+domain behaviour that is actually yours.
 
 ## Reference files
 

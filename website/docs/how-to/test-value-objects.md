@@ -51,13 +51,20 @@ Each is an xUnit test in your suite:
 - the declared `Example` is a value the type accepts, parsed in the invariant culture as the OpenAPI document reads
   it, and reported with the code and the message of the rule it breaks. A type that declares none reports the check
   skipped;
-- every known value is a value the type accepts. A type that declares none reports the check skipped.
+- every known value is a value the type accepts. A type that declares none reports the check skipped;
+- the details of the known values, `Schema.KnownValueDetails`, list them one for one, in the same order, each under
+  a name. They hold the names the [OpenAPI document](./openapi.md#names-of-known-values) publishes beside a closed
+  set's `enum`, none of which it publishes when they are out of step. A type that declares no known value, or whose
+  schema written by hand details none, reports the check skipped.
 
-The last four read the registry. They run the generated registration of the type's assembly first, so they do not
-depend on another test having used that assembly, which matters for contracts kept in a test project of their own.
+The four before the last read the registry. They run the generated registration of the type's assembly first, so they
+do not depend on another test having used that assembly, which matters for contracts kept in a test project of their
+own. The last reads the schema the type declares, `TSelf.Schema`, so it checks a
+[value object written by hand](./runtime-lookup.md#value-objects-written-by-hand) whether anything registered it or
+not: the generator always writes the details in step, and a schema written by hand is where they drift apart.
 
 The generator already refuses an example or a known value its rules refuse wherever it can evaluate them, with
-[`VO0031`](../reference/diagnostics.md). The two checks cover what only runs at run time: a pattern, a validator, a
+[`VO0031`](../reference/diagnostics.md). The example and known value checks cover what only runs at run time: a pattern, a validator, a
 bound computed by its hook, a normalization, the format of an `[EntityId]`, and an example written in another form
 than the one a known value takes. A refused known value throws from the type initializer. On a construction of a
 generic value object, which initializes when first used, the check names the rule and the value object behind the

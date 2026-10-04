@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects.Annotations;
@@ -9,8 +11,8 @@ using Xunit.Sdk;
 namespace AdCodicem.ValueObjects.UnitTests;
 
 /// <summary>
-/// The contract kit on what the contracts of this assembly never meet: a value object it cannot fully check, and one
-/// from a module nothing has used yet.
+/// The contract kit on what the contracts of this assembly never meet: a value object it cannot fully check, one written
+/// by hand whose schema is out of step with itself, and one from a module nothing has used yet.
 /// </summary>
 public partial class ContractKitTests
 {
@@ -115,6 +117,8 @@ public partial class ContractKitTests
                     + "(value_object.invalid_format): 'Shade`1' rejected the supplied value: The shade is not lower case.");
             contract.Invoking(checks => checks.The_declared_example_is_accepted()).Should().Throw<XunitException>()
                 .WithMessage("'Shade' cannot initialize*");
+            contract.Invoking(checks => checks.The_known_value_details_line_up_with_the_known_values())
+                .Should().Throw<XunitException>().WithMessage("'Shade' cannot initialize*");
         }
     }
 
@@ -144,6 +148,81 @@ public partial class ContractKitTests
             .WithMessage("*'Silent' declares no example.");
         silent.Invoking(checks => checks.Every_declared_known_value_is_accepted()).Should().Throw<SkipException>()
             .WithMessage("*'Silent' declares no known value.");
+    }
+
+    /// <summary>
+    /// The details of the known values name the members of the enumeration a client generated from the OpenAPI document
+    /// holds. A schema written by hand may list them out of step with the known values, and the kit says where they part,
+    /// reading the schema the type declares, which takes no registration.
+    /// </summary>
+    /// <param name="declared">The schema the value object written by hand declares.</param>
+    /// <param name="failure">What the kit reports.</param>
+    [Theory]
+    [MemberData(nameof(DetailsOutOfStep))]
+    public void Known_value_details_out_of_step_with_the_known_values_fail_the_contract_with_where_they_part(
+        Type declared,
+        string failure)
+    {
+        var speed = typeof(FanSpeed<>).MakeGenericType(declared);
+        var contract = (IDetailCheck)Activator.CreateInstance(typeof(FanSpeedContract<>).MakeGenericType(declared))!;
+
+        contract.Invoking(checks => checks.The_known_value_details_line_up_with_the_known_values())
+            .Should().Throw<XunitException>().WithMessage(failure);
+        ValueObjectRegistry.TryGet(speed, out _).Should().BeFalse("nothing registers a value object written by hand");
+    }
+
+    /// <summary>Schemas written by hand whose known value details are out of step, and what the kit reports on each.</summary>
+    public static TheoryData<Type, string> DetailsOutOfStep => new()
+    {
+        {
+            typeof(OneShort),
+            "'FanSpeed`1' has 1 known value details for 2 known values: KnownValueDetails lists the values of KnownValues "
+            + "one for one, in the same order."
+        },
+        {
+            typeof(Unlisted),
+            "'FanSpeed`1' has 1 known value details for 0 known values: KnownValueDetails lists the values of KnownValues "
+            + "one for one, in the same order."
+        },
+        {
+            typeof(Swapped),
+            "The known value detail 'High' of 'FanSpeed`1' is of the value '2', where the known value at index 0 is '1': "
+            + "KnownValueDetails lists the values of KnownValues one for one, in the same order."
+        },
+        {
+            typeof(Widened),
+            "The known value detail 'Low' of 'FanSpeed`1' is of the value '1' (Int64), where the known value at index 0 is "
+            + "'1' (Int32): KnownValueDetails lists the values of KnownValues one for one, in the same order."
+        },
+        {
+            typeof(Unknown),
+            "The known value detail 'High' of 'FanSpeed`1' is of the value '2', where the known value at index 1 is null: "
+            + "KnownValueDetails lists the values of KnownValues one for one, in the same order."
+        },
+        {
+            typeof(Missing),
+            "The known value detail at index 1 of 'FanSpeed`1' has no name, which the OpenAPI document names the value after."
+        },
+        {
+            typeof(Nameless),
+            "The known value detail at index 0 of 'FanSpeed`1' has no name, which the OpenAPI document names the value after."
+        },
+    };
+
+    /// <summary>
+    /// Details that line up pass, on a value object written by hand as on a generated one. A type that details no known
+    /// value, because it declares none or because its schema written by hand leaves the details out, has nothing to check.
+    /// </summary>
+    [Fact]
+    public void The_detail_check_passes_on_details_that_line_up_and_skips_a_type_that_details_no_known_value()
+    {
+        new FanSpeedContract<LinedUp>().The_known_value_details_line_up_with_the_known_values();
+        new DigitsContract().The_known_value_details_line_up_with_the_known_values();
+
+        new FanSpeedContract<Undetailed>().Invoking(checks => checks.The_known_value_details_line_up_with_the_known_values())
+            .Should().Throw<SkipException>().WithMessage("*'FanSpeed`1' details none of its known values.");
+        new SilentContract().Invoking(checks => checks.The_known_value_details_line_up_with_the_known_values())
+            .Should().Throw<SkipException>().WithMessage("*'Silent' declares no known value.");
     }
 
     /// <summary>A code of digits, whose example is not one, and whose known value is.</summary>
@@ -229,6 +308,219 @@ public partial class ContractKitTests
         protected override IEnumerable<string> AcceptedValues => ["one", "two"];
 
         protected override IEnumerable<string> RejectedValues => [string.Empty];
+    }
+
+    /// <summary>
+    /// Private, so the runner does not discover it: the schemas it is used with are out of step on purpose.
+    /// </summary>
+    /// <typeparam name="TDeclared">The schema the fan speed declares.</typeparam>
+    private sealed class FanSpeedContract<TDeclared> : ValueObjectContract<FanSpeed<TDeclared>, int>, IDetailCheck
+        where TDeclared : IDeclaredSchema
+    {
+        protected override IEnumerable<int> AcceptedValues => [1, 2];
+
+        protected override IEnumerable<int> RejectedValues => [0, 3];
+    }
+
+    /// <summary>The check of the kit on the details of the known values.</summary>
+    private interface IDetailCheck
+    {
+        void The_known_value_details_line_up_with_the_known_values();
+    }
+
+    /// <summary>A schema a value object written by hand declares.</summary>
+    private interface IDeclaredSchema
+    {
+        static abstract ValueObjectSchema Schema { get; }
+    }
+
+    /// <summary>Low and high, each detailed in its place.</summary>
+    private sealed class LinedUp : IDeclaredSchema
+    {
+        public static ValueObjectSchema Schema { get; } = new()
+        {
+            IsClosedValueSet = true,
+            KnownValues = [1, 2],
+            KnownValueDetails = [new KnownValueInfo(1, "Low", "Quiet."), new KnownValueInfo(2, "High")],
+        };
+    }
+
+    /// <summary>Low and high, with no detail, as a schema written by hand may leave them.</summary>
+    private sealed class Undetailed : IDeclaredSchema
+    {
+        public static ValueObjectSchema Schema { get; } = new() { IsClosedValueSet = true, KnownValues = [1, 2] };
+    }
+
+    /// <summary>Low and high, of which only low is detailed.</summary>
+    private sealed class OneShort : IDeclaredSchema
+    {
+        public static ValueObjectSchema Schema { get; } = new()
+        {
+            KnownValues = [1, 2],
+            KnownValueDetails = [new KnownValueInfo(1, "Low")],
+        };
+    }
+
+    /// <summary>A detail of low, with the known values left at their default, an array that holds nothing.</summary>
+    private sealed class Unlisted : IDeclaredSchema
+    {
+        public static ValueObjectSchema Schema { get; } = new()
+        {
+            KnownValues = default,
+            KnownValueDetails = [new KnownValueInfo(1, "Low")],
+        };
+    }
+
+    /// <summary>Low and high, detailed high first.</summary>
+    private sealed class Swapped : IDeclaredSchema
+    {
+        public static ValueObjectSchema Schema { get; } = new()
+        {
+            KnownValues = [1, 2],
+            KnownValueDetails = [new KnownValueInfo(2, "High"), new KnownValueInfo(1, "Low")],
+        };
+    }
+
+    /// <summary>Low and high, detailed as numbers of another type, which are other values once boxed.</summary>
+    private sealed class Widened : IDeclaredSchema
+    {
+        public static ValueObjectSchema Schema { get; } = new()
+        {
+            KnownValues = [1, 2],
+            KnownValueDetails = [new KnownValueInfo(1L, "Low"), new KnownValueInfo(2L, "High")],
+        };
+    }
+
+    /// <summary>Low and a known value left null, detailed as low and high.</summary>
+    private sealed class Unknown : IDeclaredSchema
+    {
+        public static ValueObjectSchema Schema { get; } = new()
+        {
+            KnownValues = [1, null!],
+            KnownValueDetails = [new KnownValueInfo(1, "Low"), new KnownValueInfo(2, "High")],
+        };
+    }
+
+    /// <summary>Low and high, the detail of high left null.</summary>
+    private sealed class Missing : IDeclaredSchema
+    {
+        public static ValueObjectSchema Schema { get; } = new()
+        {
+            KnownValues = [1, 2],
+            KnownValueDetails = [new KnownValueInfo(1, "Low"), null!],
+        };
+    }
+
+    /// <summary>
+    /// Low and high, the detail of low built without its constructor, as a serializer may build one, so that it has no
+    /// name: the constructor refuses one.
+    /// </summary>
+    private sealed class Nameless : IDeclaredSchema
+    {
+        public static ValueObjectSchema Schema { get; } = new()
+        {
+            KnownValues = [1, 2],
+            KnownValueDetails =
+            [
+                (KnownValueInfo)RuntimeHelpers.GetUninitializedObject(typeof(KnownValueInfo)),
+                new KnownValueInfo(2, "High"),
+            ],
+        };
+    }
+
+    /// <summary>
+    /// The speed of a fan, low or high, written by hand, whose schema <typeparamref name="TDeclared"/> declares. Nothing
+    /// registers it, and nothing in the kit's check on the details of its known values does either.
+    /// </summary>
+    /// <typeparam name="TDeclared">The schema it declares.</typeparam>
+    private readonly struct FanSpeed<TDeclared> : IValueObject<FanSpeed<TDeclared>, int>
+        where TDeclared : IDeclaredSchema
+    {
+        private readonly int _value;
+
+        private FanSpeed(int value) => _value = value;
+
+        public static ValueObjectSchema Schema => TDeclared.Schema;
+
+        public int Value => _value;
+
+        public bool IsDefault => _value == 0;
+
+        public static int Normalize(int value) => value;
+
+        public static ValidationResult Validate(in int value)
+            => value is 1 or 2 ? ValidationResult.Success : ValidationResult.OutOfRange("A fan runs low or high.");
+
+        public static FanSpeed<TDeclared> Create(int value)
+        {
+            Validate(value).ThrowIfInvalid(typeof(FanSpeed<TDeclared>), value);
+
+            return new FanSpeed<TDeclared>(value);
+        }
+
+        public static bool TryCreate(int value, out FanSpeed<TDeclared> result) => TryCreate(value, out result, out _);
+
+        public static bool TryCreate(int value, out FanSpeed<TDeclared> result, out ValidationResult validation)
+        {
+            validation = Validate(value);
+            result = validation.IsValid ? new FanSpeed<TDeclared>(value) : default;
+
+            return validation.IsValid;
+        }
+
+        public static FanSpeed<TDeclared> CreateUnchecked(int value) => new(value);
+
+        public static bool TryParse(ReadOnlySpan<char> text, IFormatProvider? provider, out FanSpeed<TDeclared> result, out ValidationResult validation)
+        {
+            if (int.TryParse(text, NumberStyles.None, provider, out var raw))
+            {
+                return TryCreate(raw, out result, out validation);
+            }
+
+            result = default;
+            validation = ValidationResult.Failure(ValueObjectErrorCodes.NotParsable, "The text is not a fan speed.");
+
+            return false;
+        }
+
+        public static bool TryParse(ReadOnlySpan<char> s, IFormatProvider? provider, out FanSpeed<TDeclared> result)
+            => TryParse(s, provider, out result, out _);
+
+        public static bool TryParse(string? s, IFormatProvider? provider, out FanSpeed<TDeclared> result)
+            => TryParse(s.AsSpan(), provider, out result, out _);
+
+        public static FanSpeed<TDeclared> Parse(ReadOnlySpan<char> s, IFormatProvider? provider)
+            => TryParse(s, provider, out var result) ? result : throw new FormatException($"'{s}' is not a fan speed.");
+
+        public static FanSpeed<TDeclared> Parse(string s, IFormatProvider? provider) => Parse(s.AsSpan(), provider);
+
+        public bool Equals(FanSpeed<TDeclared> other) => _value == other._value;
+
+        public override bool Equals(object? obj) => obj is FanSpeed<TDeclared> other && Equals(other);
+
+        public override int GetHashCode() => _value;
+
+        public int CompareTo(FanSpeed<TDeclared> other) => _value.CompareTo(other._value);
+
+        public override string ToString() => ToString(null, null);
+
+        public string ToString(string? format, IFormatProvider? formatProvider)
+            => _value.ToString(CultureInfo.InvariantCulture);
+
+        public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
+            => _value.TryFormat(destination, out charsWritten, default, CultureInfo.InvariantCulture);
+
+        public static bool operator ==(FanSpeed<TDeclared> left, FanSpeed<TDeclared> right) => left.Equals(right);
+
+        public static bool operator !=(FanSpeed<TDeclared> left, FanSpeed<TDeclared> right) => !left.Equals(right);
+
+        public static bool operator <(FanSpeed<TDeclared> left, FanSpeed<TDeclared> right) => left.CompareTo(right) < 0;
+
+        public static bool operator >(FanSpeed<TDeclared> left, FanSpeed<TDeclared> right) => left.CompareTo(right) > 0;
+
+        public static bool operator <=(FanSpeed<TDeclared> left, FanSpeed<TDeclared> right) => left.CompareTo(right) <= 0;
+
+        public static bool operator >=(FanSpeed<TDeclared> left, FanSpeed<TDeclared> right) => left.CompareTo(right) >= 0;
     }
 
     /// <summary>The two checks of the kit that read the registry.</summary>

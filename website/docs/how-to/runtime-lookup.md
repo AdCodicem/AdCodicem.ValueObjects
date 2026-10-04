@@ -107,7 +107,8 @@ builds, so under native AOT, register each construction you look up, which reads
 A value object written by hand implements `IValueObject<TSelf, TValue>` in full, `static ValueObjectSchema Schema`
 included: the rules its `Validate` enforces, as data, or `ValueObjectSchema.Unconstrained` when it publishes none. Its
 known values go in `KnownValues`, and their names, which the OpenAPI document publishes, in `KnownValueDetails`, one
-`KnownValueInfo` per value, in the same order.
+`KnownValueInfo` per value, in the same order, which the [contract kit](./test-value-objects.md#what-it-checks)
+checks.
 Nothing registers it, so `TryResolve` describes it by reflection, the first time it is asked, with that schema, the one
 generic code constrained on it reads, whatever `[ValueObject<T>]` or `[KnownValue]` annotation it also carries. Where no
 generator runs, nothing reads an annotation: state each rule in the schema.
