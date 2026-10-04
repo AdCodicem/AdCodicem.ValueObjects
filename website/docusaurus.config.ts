@@ -3,6 +3,7 @@ import path from 'node:path';
 import type {Config, Plugin} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 import type {PluginOptions as SearchOptions} from '@easyops-cn/docusaurus-search-local';
+import {apiContext} from './src/components/SearchScope/context';
 import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 import sidebars from './sidebars';
 import {adcodicem} from './src/prism-adcodicem';
@@ -296,6 +297,8 @@ const config: Config = {
   // in. The preview is noIndex once a stable line exists, which keeps it out of search engines but must not keep it
   // out of its own search. Of the API reference, only the page titles and member headings are indexed: a member is
   // still found by name, and the index is 40 % lighter than with the summaries, parameter tables and signatures in.
+  // The API reference has an index of its own in the version served at /docs/; src/components/SearchScope says why
+  // only there, and lets the reader pick the index.
   themes: [
     [
       '@easyops-cn/docusaurus-search-local',
@@ -307,6 +310,7 @@ const config: Config = {
         explicitSearchResultPath: true,
         forceIgnoreNoIndex: true,
         ignoreCssSelectors: ["html[class*='docs-doc-id-api/'] article :is(p, li, table, .theme-code-block)"],
+        searchContextByPaths: [{label: 'API reference', path: apiContext}],
       } satisfies SearchOptions,
     ],
   ],

@@ -117,7 +117,14 @@ site only by being copied again.
   served with the site, so a search reaches no third party, searches the version the reader is in, and covers the API
   reference by its page titles and member headings: its summaries, parameter tables and signatures are left out
   through the `docs-doc-id-api/` class Docusaurus puts on `<html>`, which makes the index 40 % lighter.
-  `forceIgnoreNoIndex` keeps the preview searchable once it is `noIndex`. The plugin takes its colours
+  `forceIgnoreNoIndex` keeps the preview searchable once it is `noIndex`.
+- **The guides and the API reference are searched apart** in the version served at `/docs/`: `searchContextByPaths`
+  gives the API reference an index of its own, so a guide page searches the guides and an API page the API. The
+  search bar says which index it searches, and `src/components/SearchScope`, beside it, picks the index; choosing
+  the other one opens the results page in it, where the plugin's own picker, which cannot offer the guides, is
+  hidden. The preview and the older lines keep one index for both: the plugin resolves a context against the root
+  of the site when it builds but against the version's path in the browser, so below `/docs/<version>/` it would
+  never find one again. The plugin takes its colours
   from `--search-local-*` variables set in `custom.css`; the few rules they cannot reach match its CSS-module class
   names on their stable prefix (`[class*='suggestion_']`), which a release of the plugin may rename.
 - **The homepage and the 404 page** follow the design system's docs kit; the 404 page is an ejected `NotFound`, a
