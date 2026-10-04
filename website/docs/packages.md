@@ -52,6 +52,15 @@ next major is supported by these same packages, never by a package per framework
 application ([How the library is tested](./testing.md#the-compatibility-island)). It informs and blocks nothing until
 .NET 11 ships.
 
+## Versioning
+
+The packages follow semantic versioning from 1.0.0 on: from then, only a major version breaks the public API or
+removes a member. Before 1.0.0, the version is `0.<minor>.<patch>`, and a minor version may break part of the public
+API, or deprecate or remove part of it, without waiting for a major: read the
+[changelog](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.md) before taking a new minor. A
+patch never breaks anything, before 1.0.0 or after. A member deprecated rather than removed outright is reported by
+the compiler wherever it is used, with a diagnostic naming its replacement (`VO0021`, `VO0028`).
+
 ## Trying a preview
 
 Between stable releases, a preview of every package is published to nuget.org when something a package ships has

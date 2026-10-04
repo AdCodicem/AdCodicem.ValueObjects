@@ -4,9 +4,9 @@
 
 | Option | Type | Default | Effect |
 | --- | --- | --- | --- |
-| `Pattern` | `string?` | none | **Deprecated** (`VO0021`, removed in the next major): implement `IValueObjectPatternValidator` instead ([below](#pattern)). Regular expression the **normalized** value must match, built at run time, which native AOT interprets. Also the OpenAPI `pattern`. Malformed → `VO0014`; set beside the hook → `VO0022`. |
+| `Pattern` | `string?` | none | **Deprecated** (`VO0021`, any minor may remove it before 1.0.0): implement `IValueObjectPatternValidator` instead ([below](#pattern)). Regular expression the **normalized** value must match, built at run time, which native AOT interprets. Also the OpenAPI `pattern`. Malformed → `VO0014`; set beside the hook → `VO0022`. |
 | `MinLength` / `MaxLength` | `int` | `-1` (unconstrained) | `string` only (`VO0008` otherwise). Validation, OpenAPI `minLength`/`maxLength`, and the EF Core column size. |
-| `Minimum` / `Maximum` | `string?` | none | **Deprecated** (`VO0028`, removed in the next major): implement `IValueObjectMinimum<T>` / `IValueObjectMaximum<T>` instead ([below](#bounds)). Inclusive bounds written as **text**, in the one form of the underlying type ([below](#bounds-and-known-values-written-as-text)). Numbers, `char`, dates, times and durations only: on `string`, `Guid` or `bool` → `VO0004`. Parsed at compile time; any other text, or a value outside the type → `VO0004`; set beside the hook → `VO0029`. |
+| `Minimum` / `Maximum` | `string?` | none | **Deprecated** (`VO0028`, any minor may remove them before 1.0.0): implement `IValueObjectMinimum<T>` / `IValueObjectMaximum<T>` instead ([below](#bounds)). Inclusive bounds written as **text**, in the one form of the underlying type ([below](#bounds-and-known-values-written-as-text)). Numbers, `char`, dates, times and durations only: on `string`, `Guid` or `bool` → `VO0004`. Parsed at compile time; any other text, or a value outside the type → `VO0004`; set beside the hook → `VO0029`. |
 | `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering, hashing. Pick `OrdinalIgnoreCase` only when the value is not case-normalized, and make the database collation agree. A value the enum does not define → `VO0020`. |
 | `ValueSet` | `ValueSetKind` | `Open` | `Closed` accepts only the declared `[KnownValue]`s. Empty closed set → `VO0005`; a value the enum does not define → `VO0020`. |
 | `Arithmetic` | `bool` | `false` | Numeric types only (`VO0007` otherwise). Operators, generic math, `Zero`, `One`, `IsZero`, `Min`, `Max`. |
@@ -164,7 +164,7 @@ same text, `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`:
 timeout the option used, so behaviour is unchanged. Before:
 
 ```csharp skip
-// Reported as VO0021, and removed in the next major.
+// Reported as VO0021; any minor version may remove it before 1.0.0.
 [ValueObject<string>(MaxLength = 3, Pattern = "^[A-Z]{3}$")]
 public readonly partial struct CurrencyCode : IValueObjectNormalizer<string>
 {

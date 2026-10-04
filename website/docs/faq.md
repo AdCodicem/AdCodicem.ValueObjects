@@ -33,8 +33,9 @@ major in a release that says so, and an application on the older one keeps the v
 
 ### Is it ready for production?
 
-It follows semantic versioning and is still at 0.x, which means the public surface may change between minor
-releases; every change is recorded in the
+It is still at 0.x. Semantic versioning holds from 1.0.0 on, where only a major version breaks the public API;
+until then, a minor version may break, deprecate or remove part of it, so read the changelog before taking a new
+minor ([Versioning](./packages.md#versioning)). Every change is recorded in the
 [changelog](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.md). Stable releases are
 cut by hand; in between, a preview is published in any week in which something that ships has changed
 ([Trying a preview](./packages.md#trying-a-preview)).
@@ -139,6 +140,6 @@ Through `IValueObjectPatternValidator`, yes. Its `Pattern` is a `[GeneratedRegex
 regex source generator turns into code at build time, so it runs the same under native AOT as under the JIT and
 costs nothing until it first runs. The deprecated `Pattern` option of `[ValueObject<T>]` does not: it builds its
 `Regex` at start-up with `RegexOptions.Compiled`, which native AOT cannot honour, so there the expression is
-interpreted. The option is reported as `VO0021` and removed in the next major version;
+interpreted. The option is reported as `VO0021`, and any minor version may remove it before 1.0.0;
 [Diagnostics](./reference/diagnostics.md#moving-off-pattern) shows the change. [Benchmarks](./benchmarks.md)
 has the measurements.

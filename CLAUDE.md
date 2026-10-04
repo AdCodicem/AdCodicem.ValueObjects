@@ -129,8 +129,10 @@ README is its nuget.org page — so a change to either reaches users only throug
 accordingly, or the change waits for the next `feat` or `fix`. While the major is 0, a breaking change (`!`, or a
 `BREAKING CHANGE:` footer) releases a minor: the first of the `releaseRules` is
 `{ "breaking": true, "release": "minor" }`. At 1.0 that rule is replaced by `{ "breaking": true, "release": "major" }`,
-not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. "Removed in the next major version",
-in a deprecation, means 1.0.0. The twelve packages share one version, never aligned with .NET's or EF Core's, and a
+not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
+deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
+"any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
+a breaking change wait for a major. The twelve packages share one version, never aligned with .NET's or EF Core's, and a
 framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 

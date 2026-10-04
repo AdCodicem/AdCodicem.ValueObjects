@@ -171,8 +171,8 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   Dapper, EF Core `SaveChanges`); an EF Core `Iban?` column stores `NULL` instead.
 - `NormalizeCore` / `ValidateCore` / `TryFormatCore` — the pre-interface names. They compile, they never run.
 - `Pattern = "..."` on `[ValueObject<T>]` — deprecated (`VO0021`, an error under `TreatWarningsAsErrors`) and
-  removed in the next major: it builds its `Regex` at run time, which native AOT interprets. Move the text to
-  the hook, with `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`; behaviour is unchanged.
+  any minor may remove it before 1.0.0: it builds its `Regex` at run time, which native AOT interprets. Move the
+  text to the hook, with `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`; behaviour is unchanged.
   Never keep both: that is `VO0022`.
 - A `static Regex Pattern` without `IValueObjectPatternValidator` — `VO0011`. It never runs as the declared
   pattern and never reaches the schema.
