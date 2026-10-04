@@ -1,6 +1,7 @@
 using System.Data;
 using AdCodicem.ValueObjects.Dapper;
 using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 using Dapper;
 
 namespace AdCodicem.ValueObjects.UnitTests.Persistence;
@@ -274,9 +275,11 @@ public class DapperTests
         new ValueObjectTypeHandler<Amount, decimal>().SetValue(zero, default);
 #pragma warning restore VO0010
 
-        country.Should().Throw<DataException>().WithMessage("The value to write is not a valid CountryCode: ?*");
+        country.Should().Throw<DataException>().WithMessage("The value to write is not a valid CountryCode: ?*")
+            .Which.ShouldCarry(CodeCarrying.CodeOfDefault<CountryCode, string>());
         customer.Should().Throw<DataException>()
-            .WithMessage("The value to write is not a valid CustomerId: A customer identifier must not be empty.");
+            .WithMessage("The value to write is not a valid CustomerId: A customer identifier must not be empty.")
+            .Which.ShouldCarry(CodeCarrying.CodeOfDefault<CustomerId, Guid>());
         parameter.DidNotReceive().Value = Arg.Any<object>();
         zero.Value.Should().Be(0m, "zero is an amount");
     }
@@ -358,7 +361,7 @@ public class DapperTests
     {
         var act = () => Read(typeof(Iban), DBNull.Value);
 
-        act.Should().Throw<DataException>().WithMessage("*NULL*Iban*");
+        act.Should().Throw<DataException>().WithMessage("*NULL*Iban*").Which.ShouldCarry(ValueObjectErrorCodes.Required);
     }
 
     /// <summary>
@@ -417,7 +420,8 @@ public class DapperTests
         var act = () => Read(type, cell);
 
         act.Should().Throw<DataException>()
-            .WithMessage($"The {cell.GetType().Name} read cannot be converted to {type.Name}, a value object over *.");
+            .WithMessage($"The {cell.GetType().Name} read cannot be converted to {type.Name}, a value object over *.")
+            .Which.ShouldCarry(ValueObjectErrorCodes.NotParsable);
     }
 
     /// <summary>
@@ -430,7 +434,8 @@ public class DapperTests
         var act = () => Read(typeof(OccurredAt), new DateTime(2024, 5, 17, 10, 0, 0, DateTimeKind.Unspecified));
 
         act.Should().Throw<DataException>()
-            .WithMessage("The DateTime read names no zone*cannot be converted to OccurredAt, a value object over DateTimeOffset.");
+            .WithMessage("The DateTime read names no zone*cannot be converted to OccurredAt, a value object over DateTimeOffset.")
+            .Which.ShouldCarry(ValueObjectErrorCodes.NotParsable);
     }
 
     /// <summary>
@@ -447,14 +452,26 @@ public class DapperTests
     }
 
     [Theory]
-    [InlineData(typeof(CustomerId), "00000000-0000-0000-0000-000000000000", "*not a valid CustomerId*must not be empty*")]
-    [InlineData(typeof(Amount), "-5", "*not a valid Amount*greater than or equal to 0*")]
-    [InlineData(typeof(Amount), "five", "*not a valid Amount*")]
-    public void Text_the_value_object_refuses_is_a_DataException_carrying_the_rule(Type type, string text, string message)
+    [InlineData(typeof(CustomerId), "00000000-0000-0000-0000-000000000000", "*not a valid CustomerId*must not be empty*", ValueObjectErrorCodes.Required)]
+    [InlineData(typeof(Amount), "-5", "*not a valid Amount*greater than or equal to 0*", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData(typeof(Amount), "five", "*not a valid Amount*", ValueObjectErrorCodes.NotParsable)]
+    public void Text_the_value_object_refuses_is_a_DataException_carrying_the_rule(Type type, string text, string message, string code)
     {
         var act = () => Read(type, text);
 
-        act.Should().Throw<DataException>().WithMessage(message);
+        act.Should().Throw<DataException>().WithMessage(message).Which.ShouldCarry(code);
+    }
+
+    /// <summary>
+    /// A parser written by hand may refuse text without saying why: the refusal still carries a code.
+    /// </summary>
+    [Fact]
+    public void Text_a_hand_written_parser_refuses_without_a_reason_is_refused_as_not_parsable()
+    {
+        var act = () => new ValueObjectTypeHandler<HandWrittenCounter, int>().Parse("abc");
+
+        act.Should().Throw<DataException>().WithMessage("The value read is not a valid HandWrittenCounter: ")
+            .Which.ShouldCarry(ValueObjectErrorCodes.NotParsable);
     }
 
     /// <summary>
@@ -483,16 +500,17 @@ public class DapperTests
     }
 
     [Theory]
-    [InlineData(typeof(Iban), 7630006000L, "The value read is not a valid Iban: *")]
-    [InlineData(typeof(Ordering.OrderReference), 12, "The value read is not a valid OrderReference: *at least 3*")]
+    [InlineData(typeof(Iban), 7630006000L, "The value read is not a valid Iban: *", ValueObjectErrorCodes.TooShort)]
+    [InlineData(typeof(Ordering.OrderReference), 12, "The value read is not a valid OrderReference: *at least 3*", ValueObjectErrorCodes.TooShort)]
     public void A_value_converted_into_a_string_value_object_it_refuses_is_a_DataException_carrying_the_rule(
         Type type,
         object cell,
-        string message)
+        string message,
+        string code)
     {
         var act = () => Read(type, cell);
 
-        act.Should().Throw<DataException>().WithMessage(message);
+        act.Should().Throw<DataException>().WithMessage(message).Which.ShouldCarry(code);
     }
 
     [Fact]
@@ -500,7 +518,8 @@ public class DapperTests
     {
         var act = () => Read(typeof(Ordering.OrderReference), Guid.Parse("0192f4a0-0000-7000-8000-000000000001"));
 
-        act.Should().Throw<DataException>().WithMessage("The value read is not a valid OrderReference: *at most 20*");
+        act.Should().Throw<DataException>().WithMessage("The value read is not a valid OrderReference: *at most 20*")
+            .Which.ShouldCarry(ValueObjectErrorCodes.TooLong);
     }
 
     /// <summary>
@@ -514,7 +533,7 @@ public class DapperTests
 
         var act = () => handler.Parse(null!);
 
-        act.Should().Throw<DataException>().WithMessage("*NULL*Iban*");
+        act.Should().Throw<DataException>().WithMessage("*NULL*Iban*").Which.ShouldCarry(ValueObjectErrorCodes.Required);
     }
 
     [Fact]

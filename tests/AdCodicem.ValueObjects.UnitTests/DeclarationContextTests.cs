@@ -62,7 +62,10 @@ public partial class DeclarationContextTests
         JsonSerializer.Deserialize<Shipment>("""{"Order":"po-1042","Stock":12,"Carrier":"UPS"}""").Should().Be(Sample);
 
         var refused = () => JsonSerializer.Deserialize<Shipment>("""{"Order":"po-1042","Stock":-1,"Carrier":"UPS"}""");
-        refused.Should().Throw<JsonException>().WithMessage("*not a valid Stock*");
+        var refusal = refused.Should().Throw<ValueObjectJsonException>().WithMessage("*not a valid Stock*").Which;
+        refusal.ValueObjectType.Should().Be<Catalog<string>.Stock>("the converter names the construction it was closed over");
+        refusal.ErrorCode.Should().Be(ValueObjectErrorCodes.OutOfRange);
+        refusal.Path.Should().Be("$.Stock");
     }
 
     /// <summary>
@@ -76,6 +79,12 @@ public partial class DeclarationContextTests
 
         json.Should().Be("""{"Order":"PO-1042","Stock":12,"Carrier":"UPS"}""");
         JsonSerializer.Deserialize(json, ShipmentContext.Default.Shipment).Should().Be(Sample);
+
+        var refused = () => JsonSerializer.Deserialize("""{"Order":"PO-1042-TOO-LONG","Stock":12,"Carrier":"UPS"}""", ShipmentContext.Default.Shipment);
+        var refusal = refused.Should().Throw<ValueObjectJsonException>().Which;
+        refusal.ValueObjectType.Should().Be<Reference<PurchaseOrder>>();
+        refusal.ErrorCode.Should().Be(ValueObjectErrorCodes.TooLong);
+        refusal.Path.Should().Be("$.Order");
     }
 
     /// <summary>

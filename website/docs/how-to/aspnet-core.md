@@ -2,7 +2,7 @@
 title: Use with ASP.NET Core
 sidebar_label: ASP.NET Core
 slug: /how-to/aspnet-core
-description: Bind value objects from routes, query strings, headers and bodies in MVC and minimal APIs, know what a rejection answers in each, and return RFC 9457 problem details carrying the violated rule from MVC controllers.
+description: Bind value objects from routes, query strings, headers and bodies in MVC and minimal APIs, know what a rejection answers in each, and return RFC 9457 problem details carrying the violated rule, for a body as for a route or query value, from MVC controllers.
 ---
 
 # Use with ASP.NET Core
@@ -20,9 +20,13 @@ A value the value object rejects is answered with a 400 before the handler runs,
 It names no parameter and carries no message and no code: its body is empty, or holds bare problem details, a title
 and a status, once `AddProblemDetails()` is registered, and `AddValidation()` adds nothing to it. In Development,
 minimal APIs throw a `BadHttpRequestException` instead (`RouteHandlerOptions.ThrowOnBadRequest`), which
-`UseExceptionHandler` answers with a 500. The [problem details carrying the rule](#problem-details-carrying-the-rule)
-are MVC's, so a client of an application that also validates DataAnnotations meets two shapes of 400: a full
-validation problem for those, and the bare one for a rejected value object.
+`UseExceptionHandler` answers with a 500. For a body, it wraps the exception the converter refused the value with,
+from which `ValueObjectErrors.TryGetCode` reads the code
+([the code in an exception](../reference/errors.md#the-code-in-an-exception)); a route or query value is refused
+through `TryParse`, which throws nothing, and the exception then carries no code. The
+[problem details carrying the rule](#problem-details-carrying-the-rule) are MVC's, so a client of an application that
+also validates DataAnnotations meets two shapes of 400: a full validation problem for those, and the bare one for a
+rejected value object.
 
 Empty text is not MVC's rule either. Under the reflection-based binding, `?country=` for a `CountryCode?` is a 400,
 as it is for an `int?` or a `Guid?`, where [MVC](#mvc-controllers) binds it as absent.
@@ -78,8 +82,9 @@ builder.Services.AddControllers().AddValueObjects();
 ```
 
 That registers a model binder for value objects — routes, query strings, headers, forms — and the JSON options
-for bodies. The binder is closed over each concrete type, so binding costs one `TryParse`. An application that
-configures MVC directly can call `AddValueObjects()` on `MvcOptions` instead; that one adds the binder only.
+for bodies, and records the code of a value a body refuses, as the next section shows. The binder is closed over each
+concrete type, so binding costs one `TryParse`. An application that configures MVC directly can call
+`AddValueObjects()` on `MvcOptions` instead; that one adds the binder only.
 
 Nullable value objects bind as you would expect: `[FromQuery] CountryCode? country` is `null` when the parameter
 is absent, and a 400 when it is present and rejected. Empty or white-space text, `?country=` or `?country=%20`, binds
@@ -96,7 +101,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options => options.AddValueObject
 ```
 
 When model binding rejects a value, the automatic 400 response gains an `errorCodes` member mapping each rejected
-parameter to the stable code of the rule it violated:
+member to the stable code of the rule it violated:
 
 ```json
 {
@@ -110,9 +115,27 @@ parameter to the stable code of the rule it violated:
 A client branches on `value_object.not_a_known_value`, not on English. The member name is available as
 `ValueObjectProblemDetails.ExtensionName`.
 
-This covers what the MVC model binder rejects: route values, query strings, headers and forms. A value inside a JSON
-body is rejected by the serializer, and the 400 carries its message but no code. `ApiBehaviorOptions` is MVC's, and
-minimal APIs never read it, so their rejections keep the [bare 400](#minimal-apis).
+This covers what the MVC model binder rejects, route values, query strings, headers and forms, under the name of the
+parameter, and a value inside a JSON body, under its JSON path, the key MVC gives its error:
+
+```json
+{
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": { "$.email": ["The value is not a valid EmailAddress: The value does not match the expected format."] },
+  "errorCodes": { "$.email": "value_object.invalid_format" }
+}
+```
+
+A body is read by the serializer, whose exception MVC keeps the message of and drops: `AddValueObjects()` on the MVC
+builder puts in place of MVC's System.Text.Json input formatter the framework's own, configured as the application
+configures it, which reads the code off that exception before the exception is dropped. The `errors` member is the one
+MVC writes without the package, whatever `JsonOptions.AllowInputFormatterExceptionMessages` says: the message of the
+exception by default, "The input was not valid." when it is turned off. A body read by Newtonsoft.Json, after
+`AddNewtonsoftJson()`, has no System.Text.Json formatter to replace, and records no code; neither does a body when
+the binder alone was added, through `AddValueObjects()` on `MvcOptions`.
+
+`ApiBehaviorOptions` is MVC's, and minimal APIs never read it, so their rejections keep the [bare 400](#minimal-apis).
 
 ## Codes for a payload you validate yourself
 

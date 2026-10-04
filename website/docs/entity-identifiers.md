@@ -240,7 +240,8 @@ links, audit logs and heterogeneous references.
 
 Its `Value` is the identifier's own value, even where the identifier type declares a formatting hook that writes it
 differently, so it always parses back. In JSON it is that bare text, as a value or as a dictionary key. A `null` is
-refused with a `JsonException`, as it is for every identifier; a reference that may be absent is declared
+refused with a `ValueObjectJsonException` carrying `value_object.required`, as it is for every identifier, and a
+prefix no type claims with `value_object.id.unknown_prefix`; a reference that may be absent is declared
 `AnyEntityId?`.
 
 It deliberately does **not** implement `IValueObject`, which is what makes it non-persistable by construction:

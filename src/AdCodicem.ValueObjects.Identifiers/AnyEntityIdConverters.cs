@@ -21,7 +21,11 @@ namespace AdCodicem.ValueObjects.Identifiers;
 /// </para>
 /// <para>
 /// The message of a refusal leaves out the text it refused, as every converter of the library does: a message is what
-/// every log records.
+/// every log records. A refusal is a <see cref="ValueObjectJsonException"/> carrying the code: the one
+/// <see cref="AnyEntityId.TryParse(ReadOnlySpan{char}, IFormatProvider?, out AnyEntityId, out ValidationResult)"/>
+/// reports, such as <see cref="IdentifierErrorCodes.UnknownPrefix"/> for a prefix no type claims,
+/// <see cref="ValueObjectErrorCodes.Required"/> for a <c>null</c>, and <see cref="ValueObjectErrorCodes.NotParsable"/>
+/// for any other token that is not a string.
 /// </para>
 /// </remarks>
 public sealed class AnyEntityIdJsonConverter : JsonConverter<AnyEntityId>
@@ -31,14 +35,20 @@ public sealed class AnyEntityIdJsonConverter : JsonConverter<AnyEntityId>
     {
         if (reader.TokenType != JsonTokenType.String)
         {
-            throw new JsonException($"Expected a string holding an entity identifier, found {reader.TokenType}.");
+            throw new ValueObjectJsonException(
+                $"Expected a string holding an entity identifier, found {reader.TokenType}.",
+                typeof(AnyEntityId),
+                reader.TokenType == JsonTokenType.Null ? ValueObjectErrorCodes.Required : ValueObjectErrorCodes.NotParsable);
         }
 
         var text = reader.GetString();
 
-        if (!AnyEntityId.TryParse(text, null, out var result))
+        if (!AnyEntityId.TryParse(text, null, out var result, out var validation))
         {
-            throw new JsonException("The value is not an identifier of any registered type.");
+            throw new ValueObjectJsonException(
+                "The value is not an identifier of any registered type.",
+                typeof(AnyEntityId),
+                validation.ErrorCode ?? ValueObjectErrorCodes.NotParsable);
         }
 
         return result;
@@ -57,9 +67,12 @@ public sealed class AnyEntityIdJsonConverter : JsonConverter<AnyEntityId>
     {
         var text = reader.GetString();
 
-        if (!AnyEntityId.TryParse(text, CultureInfo.InvariantCulture, out var result))
+        if (!AnyEntityId.TryParse(text, CultureInfo.InvariantCulture, out var result, out var validation))
         {
-            throw new JsonException("The dictionary key is not an identifier of any registered type.");
+            throw new ValueObjectJsonException(
+                "The dictionary key is not an identifier of any registered type.",
+                typeof(AnyEntityId),
+                validation.ErrorCode ?? ValueObjectErrorCodes.NotParsable);
         }
 
         return result;

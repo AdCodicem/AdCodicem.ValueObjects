@@ -27,6 +27,15 @@ namespace AdCodicem.ValueObjects.NewtonsoftJson;
 /// <see cref="ValueObjectJsonSerializerSettingsExtensions.AddValueObjects(JsonSerializerSettings, bool)"/> adds it to
 /// the serializer settings with the two settings it reads value objects best under.
 /// </para>
+/// <para>
+/// A value it refuses is a <see cref="JsonSerializationException"/>, the exception Newtonsoft.Json's own converters
+/// throw, carrying the code of the rule in <see cref="Exception.Data"/> under
+/// <see cref="ValueObjectErrors.ErrorCodeKey"/>, where <see cref="ValueObjectErrors.TryGetCode"/> reads it: the rule's
+/// own code, <see cref="ValueObjectErrorCodes.NotParsable"/> for a token that is not of the underlying type at all, and
+/// <see cref="ValueObjectErrorCodes.Required"/> for a <c>null</c> read into a value object that cannot be
+/// <see langword="null"/>. A value object written by hand over a type the generator does not support has its value
+/// read by Newtonsoft.Json, whose own exception carries no code.
+/// </para>
 /// </remarks>
 public sealed class ValueObjectConverter : JsonConverter
 {
@@ -107,7 +116,7 @@ public sealed class ValueObjectConverter : JsonConverter
         {
             return Nullable.GetUnderlyingType(objectType) is not null
                 ? null
-                : throw new JsonSerializationException($"Cannot convert null to '{objectType.Name}'.");
+                : throw Refusal($"Cannot convert null to '{objectType.Name}'.", ValueObjectErrorCodes.Required);
         }
 
         var descriptor = Resolve(objectType);
@@ -151,8 +160,9 @@ public sealed class ValueObjectConverter : JsonConverter
         var descriptor = Resolve(value.GetType());
         if (descriptor.ValidateWrite(value) is { IsValid: false } refusal)
         {
-            throw new JsonSerializationException(
-                $"The value to write is not a valid {descriptor.ValueObjectType.Name}: {refusal.ErrorMessage}");
+            throw Refusal(
+                $"The value to write is not a valid {descriptor.ValueObjectType.Name}: {refusal.ErrorMessage}",
+                refusal.ErrorCode);
         }
 
         var raw = descriptor.GetValue(value);
@@ -205,10 +215,11 @@ public sealed class ValueObjectConverter : JsonConverter
                 return Create(descriptor, new DateTimeOffset(date));
 
             case DateTime or DateTimeOffset:
-                throw new JsonSerializationException(
+                throw Refusal(
                     "Newtonsoft.Json read the string as a date before the converter saw it, and "
                     + $"{descriptor.ValueObjectType.Name} cannot be read back from that date. "
-                    + "Set DateParseHandling to None in the serializer settings.");
+                    + "Set DateParseHandling to None in the serializer settings.",
+                    ValueObjectErrorCodes.NotParsable);
 
             default:
                 throw Expected(descriptor, "string", reader);
@@ -247,7 +258,9 @@ public sealed class ValueObjectConverter : JsonConverter
             _ => throw Expected(descriptor, "number", reader),
         };
 
-        return number ?? throw new JsonSerializationException($"The value could not be read as {descriptor.ValueObjectType.Name}.");
+        return number ?? throw Refusal(
+            $"The value could not be read as {descriptor.ValueObjectType.Name}.",
+            ValueObjectErrorCodes.NotParsable);
     }
 
     /// <summary>
@@ -273,10 +286,29 @@ public sealed class ValueObjectConverter : JsonConverter
         => descriptor.TryCreate(raw, out var created, out var validation) ? created! : throw Invalid(descriptor, validation);
 
     private static JsonSerializationException Invalid(ValueObjectDescriptor descriptor, ValidationResult validation)
-        => new($"The value is not a valid {descriptor.ValueObjectType.Name}: {validation.ErrorMessage}");
+        => Refusal(
+            $"The value is not a valid {descriptor.ValueObjectType.Name}: {validation.ErrorMessage}",
+            validation.ErrorCode ?? ValueObjectErrorCodes.NotParsable);
 
     private static JsonSerializationException Expected(ValueObjectDescriptor descriptor, string token, JsonReader reader)
-        => new($"Expected a JSON {token} for {descriptor.ValueObjectType.Name} but found {reader.TokenType}.");
+        => Refusal(
+            $"Expected a JSON {token} for {descriptor.ValueObjectType.Name} but found {reader.TokenType}.",
+            ValueObjectErrorCodes.NotParsable);
+
+    /// <summary>
+    /// Builds the exception refusing a value, carrying the code of the rule where
+    /// <see cref="ValueObjectErrors.TryGetCode"/> reads it.
+    /// </summary>
+    /// <param name="message">The message, naming the value object and the rule, never the value.</param>
+    /// <param name="code">The code of the rule.</param>
+    /// <returns>The exception to throw.</returns>
+    private static JsonSerializationException Refusal(string message, string code)
+    {
+        var exception = new JsonSerializationException(message);
+        exception.Data[ValueObjectErrors.ErrorCodeKey] = code;
+
+        return exception;
+    }
 
     /// <summary>
     /// Formats a value System.Text.Json writes as a string, in the form it writes it in.

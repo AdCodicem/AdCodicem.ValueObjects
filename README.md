@@ -176,7 +176,9 @@ converters refuse an uninitialized instance whose value its type rejects, and an
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
-their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`.
+their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`. Each
+carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
+the problem details of an MVC controller carry for a JSON body as for a query value.
 `Create` throws `ValueObjectException`, and is for the call sites that want it; a strict EF Core read goes through
 it, and fails the query. Validation is fail-fast: the first violated rule wins.
 

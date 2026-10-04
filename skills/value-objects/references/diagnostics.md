@@ -68,8 +68,9 @@ actually generated, and what does it call?".
   as `value_object.required`: guard with `NotDefault` over a `string`, or where the rules refuse the zero anyway.
 - `The value to write is not a valid Iban: …` — a writer met an uninitialized instance (an entity property never
   set, a default array element, a message built from raw values) whose default value the type rejects, and refused
-  it: `JsonException` from System.Text.Json, `JsonSerializationException` from Newtonsoft.Json, `DataException` from
-  Dapper, `DbUpdateException` around a `ValueObjectException` from EF Core `SaveChanges`. Set the value, or declare
+  it: `ValueObjectJsonException` (a `JsonException`) from System.Text.Json, `JsonSerializationException` from
+  Newtonsoft.Json, `DataException` from Dapper, `DbUpdateException` around a `ValueObjectException` from EF Core
+  `SaveChanges`, each carrying the code `ValueObjectErrors.TryGetCode` reads. Set the value, or declare
   the member `Iban?`: EF Core stores a refused optional one as `NULL`, and a `null` one is written as `null` or `NULL`
   everywhere.
 - `'Iban' does not contain a definition for 'IsDefault'` (CS1061) — the generated implementation is explicit. Read

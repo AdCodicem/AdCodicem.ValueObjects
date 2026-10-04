@@ -93,8 +93,24 @@ internal sealed class UnderlyingType
     /// <summary>Gets a value indicating whether the JSON representation is a boolean literal.</summary>
     public bool IsJsonBoolean => Kind == UnderlyingKind.Boolean;
 
-    /// <summary>Gets the expression reading the value from a <c>Utf8JsonReader</c> named <c>reader</c>.</summary>
+    /// <summary>
+    /// Gets the expression reading the value from a <c>Utf8JsonReader</c> named <c>reader</c>, which the converter
+    /// emits for a type with no <see cref="JsonTryReadMethod"/>.
+    /// </summary>
     public string JsonReadExpression { get; private init; } = "reader.GetString()!";
+
+    /// <summary>
+    /// Gets the <c>Utf8JsonReader</c> method that reads the value without throwing, such as <c>TryGetInt32</c>, or
+    /// <see langword="null"/> for a type whose read cannot fail on the token it is handed, or throws an exception of its
+    /// own.
+    /// </summary>
+    /// <remarks>
+    /// The reader's <c>Get</c> method throws a <c>FormatException</c> for a number the type cannot hold or text that is
+    /// not of its shape, which System.Text.Json turns into an exception of its own, carrying no code. The converter
+    /// calls the <c>TryGet</c> method instead, and refuses what it cannot read with the code
+    /// <c>value_object.not_parsable</c>.
+    /// </remarks>
+    public string? JsonTryReadMethod { get; private init; }
 
     /// <summary>Gets the round-trip format string used when the value is written as JSON text.</summary>
     public string? RoundTripFormat { get; private init; }
@@ -142,7 +158,7 @@ internal sealed class UnderlyingType
         String,
         new(UnderlyingKind.Guid, "global::System.Guid", "System.Guid")
         {
-            JsonReadExpression = "reader.GetGuid()", SchemaFormat = "uuid", FormatBufferSize = 36,
+            JsonReadExpression = "reader.GetGuid()", JsonTryReadMethod = "TryGetGuid", SchemaFormat = "uuid", FormatBufferSize = 36,
             LiteralForm = "a GUID, such as \"6f9619ff-8b86-d011-b42d-00c04fc964ff\"",
         },
         new(UnderlyingKind.Boolean, "global::System.Boolean", "bool")
@@ -155,14 +171,14 @@ internal sealed class UnderlyingType
             JsonReadExpression = "ReadChar(ref reader)", FormatBufferSize = 1,
             LiteralForm = "exactly one character",
         },
-        Integral(UnderlyingKind.SByte, "global::System.SByte", "sbyte", "reader.GetSByte()", signed: true, "int32"),
-        Integral(UnderlyingKind.Byte, "global::System.Byte", "byte", "reader.GetByte()", signed: false, "int32"),
-        Integral(UnderlyingKind.Int16, "global::System.Int16", "short", "reader.GetInt16()", signed: true, "int32"),
-        Integral(UnderlyingKind.UInt16, "global::System.UInt16", "ushort", "reader.GetUInt16()", signed: false, "int32"),
-        Integral(UnderlyingKind.Int32, "global::System.Int32", "int", "reader.GetInt32()", signed: true, "int32"),
-        Integral(UnderlyingKind.UInt32, "global::System.UInt32", "uint", "reader.GetUInt32()", signed: false, "int64"),
-        Integral(UnderlyingKind.Int64, "global::System.Int64", "long", "reader.GetInt64()", signed: true, "int64"),
-        Integral(UnderlyingKind.UInt64, "global::System.UInt64", "ulong", "reader.GetUInt64()", signed: false, "int64"),
+        Integral(UnderlyingKind.SByte, "global::System.SByte", "sbyte", "SByte", signed: true, "int32"),
+        Integral(UnderlyingKind.Byte, "global::System.Byte", "byte", "Byte", signed: false, "int32"),
+        Integral(UnderlyingKind.Int16, "global::System.Int16", "short", "Int16", signed: true, "int32"),
+        Integral(UnderlyingKind.UInt16, "global::System.UInt16", "ushort", "UInt16", signed: false, "int32"),
+        Integral(UnderlyingKind.Int32, "global::System.Int32", "int", "Int32", signed: true, "int32"),
+        Integral(UnderlyingKind.UInt32, "global::System.UInt32", "uint", "UInt32", signed: false, "int64"),
+        Integral(UnderlyingKind.Int64, "global::System.Int64", "long", "Int64", signed: true, "int64"),
+        Integral(UnderlyingKind.UInt64, "global::System.UInt64", "ulong", "UInt64", signed: false, "int64"),
         // 128-bit integers travel as JSON strings: no JSON consumer can hold them in a number without losing
         // precision, and every JSON number reader in System.Text.Json tops out at 64 bits.
         new(UnderlyingKind.Int128, "global::System.Int128", "System.Int128")
@@ -178,21 +194,21 @@ internal sealed class UnderlyingType
         new(UnderlyingKind.Decimal, "global::System.Decimal", "decimal")
         {
             IsNumeric = true, IsSigned = true, IsJsonNumber = true,
-            JsonReadExpression = "reader.GetDecimal()", SchemaType = "number", SchemaFormat = "decimal",
+            JsonReadExpression = "reader.GetDecimal()", JsonTryReadMethod = "TryGetDecimal", SchemaType = "number", SchemaFormat = "decimal",
             InvariantNumberStyles = NumberStyles + ".Number & ~" + NumberStyles + ".AllowThousands",
             LiteralForm = "digits with an optional leading '-' and an optional fraction after '.', such as \"-19.99\"",
         },
         new(UnderlyingKind.Double, "global::System.Double", "double")
         {
             IsNumeric = true, IsSigned = true, IsJsonNumber = true,
-            JsonReadExpression = "reader.GetDouble()", SchemaType = "number", SchemaFormat = "double",
+            JsonReadExpression = "reader.GetDouble()", JsonTryReadMethod = "TryGetDouble", SchemaType = "number", SchemaFormat = "double",
             InvariantNumberStyles = NumberStyles + ".Float",
             LiteralForm = RealForm,
         },
         new(UnderlyingKind.Single, "global::System.Single", "float")
         {
             IsNumeric = true, IsSigned = true, IsJsonNumber = true,
-            JsonReadExpression = "reader.GetSingle()", SchemaType = "number", SchemaFormat = "float",
+            JsonReadExpression = "reader.GetSingle()", JsonTryReadMethod = "TryGetSingle", SchemaType = "number", SchemaFormat = "float",
             InvariantNumberStyles = NumberStyles + ".Float",
             LiteralForm = RealForm,
         },
@@ -208,12 +224,12 @@ internal sealed class UnderlyingType
         },
         new(UnderlyingKind.DateTime, "global::System.DateTime", "System.DateTime")
         {
-            JsonReadExpression = "reader.GetDateTime()", RoundTripFormat = "O", SchemaFormat = "date-time", FormatBufferSize = 33,
+            JsonReadExpression = "reader.GetDateTime()", JsonTryReadMethod = "TryGetDateTime", RoundTripFormat = "O", SchemaFormat = "date-time", FormatBufferSize = 33,
             LiteralForm = "yyyy-MM-dd or yyyy-MM-ddTHH:mm[:ss[.fffffff]], without an offset, such as \"2024-01-31T08:30\"",
         },
         new(UnderlyingKind.DateTimeOffset, "global::System.DateTimeOffset", "System.DateTimeOffset")
         {
-            JsonReadExpression = "reader.GetDateTimeOffset()", RoundTripFormat = "O", SchemaFormat = "date-time", FormatBufferSize = 33,
+            JsonReadExpression = "reader.GetDateTimeOffset()", JsonTryReadMethod = "TryGetDateTimeOffset", RoundTripFormat = "O", SchemaFormat = "date-time", FormatBufferSize = 33,
             LiteralForm = "yyyy-MM-ddTHH:mm[:ss[.fffffff]] followed by Z, +HH:mm or -HH:mm, such as \"2024-01-31T08:30+01:00\"",
         },
         // No format: JSON Schema's duration is ISO 8601, PT1H30M, and a duration is written in the constant form, which
@@ -260,7 +276,7 @@ internal sealed class UnderlyingType
         UnderlyingKind kind,
         string fullName,
         string keyword,
-        string jsonReadExpression,
+        string readerType,
         bool signed,
         string? schemaFormat)
         => new(kind, fullName, keyword)
@@ -268,7 +284,8 @@ internal sealed class UnderlyingType
             IsNumeric = true,
             IsSigned = signed,
             IsJsonNumber = true,
-            JsonReadExpression = jsonReadExpression,
+            JsonReadExpression = $"reader.Get{readerType}()",
+            JsonTryReadMethod = $"TryGet{readerType}",
             SchemaType = "integer",
             SchemaFormat = schemaFormat,
             FormatBufferSize = 40,

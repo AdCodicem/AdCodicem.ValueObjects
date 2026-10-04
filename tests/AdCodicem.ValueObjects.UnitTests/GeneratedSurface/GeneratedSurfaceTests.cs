@@ -98,6 +98,17 @@ public class GeneratedSurfaceTests
     public void No_JSON_writer_writes_a_value_the_type_rejects(string type)
         => Samples.All[type].WritesNoJsonItsTypeRejects();
 
+    /// <summary>
+    /// Every refusal of the JSON converter is a <see cref="ValueObjectJsonException"/> carrying the type and a code: the
+    /// rule's for a value, a key or a value to write it rejects, <c>value_object.not_parsable</c> for a token that is not
+    /// of the underlying type at all, and <c>value_object.required</c> for a null. System.Text.Json sets the path of the
+    /// member on it, as on any exception a converter throws.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Every))]
+    public void Every_JSON_refusal_carries_the_type_and_the_code_of_the_rule(string type)
+        => Samples.All[type].CarriesTheCodeOfEveryJsonRefusal();
+
     [Theory]
     [MemberData(nameof(EveryArithmetic))]
     public void Every_arithmetic_member_validates_its_result(string type)

@@ -21,16 +21,18 @@ JsonSerializer.Serialize(new { iban = Iban.Create("FR7630006000011234567890189")
 ```
 
 Reading goes through `TryCreate`, so an incoming value is normalized and validated like any other. A rejected
-value, or a token of the wrong kind, throws a `JsonException` naming the type and the reason. A value object
-also works as a dictionary key. The key carries the underlying value too, in the form the value travels in, whatever a
-formatting hook writes, and it is read back the same way and validated like a value: a key the value object rejects
-throws a `JsonException` as well.
+value, or a token of the wrong kind, throws a `ValueObjectJsonException`, a `JsonException` naming the type and the
+reason, and carrying the code of the rule ([the code in an exception](../reference/errors.md#the-code-in-an-exception)).
+A value object also works as a dictionary key. The key carries the underlying value too, in the form the value travels
+in, whatever a formatting hook writes, and it is read back the same way and validated like a value: a key the value
+object rejects throws a `ValueObjectJsonException` as well.
 
 Writing refuses what reading would. An instance that never went through `Create` — a default array element, a member
 of a message no one set — holds the default value, and when its type rejects it, the converter throws a
-`JsonException`, "The value to write is not a valid Iban: …", from a value and from a key alike, rather than put on the
-wire a value the service reading it would refuse. Over a value type, nothing tells the default from a constructed
-zero, so a type that accepts its zero, an `Amount` with a minimum of 0 or an unconstrained `Guid`, writes it.
+`ValueObjectJsonException`, "The value to write is not a valid Iban: …", from a value and from a key alike, rather
+than put on the wire a value the service reading it would refuse. Over a value type, nothing tells the default from a
+constructed zero, so a type that accepts its zero, an `Amount` with a minimum of 0 or an unconstrained `Guid`, writes
+it.
 
 ## System.Text.Json, source-generated
 
@@ -147,7 +149,8 @@ value. A number written as a string is read as well, `"7"` as `7`, as System.Tex
 refused. `NaN` and the infinities are refused, in a string or not. Otherwise the converter reads only the kind of
 token it writes, so a string where a boolean belongs, or a number where a string belongs, is refused as JSON rather
 than converted. A rejected value throws a `JsonSerializationException` naming the type and the rule, and so does a
-value the type rejects on its way out, as System.Text.Json refuses to write it.
+value the type rejects on its way out, as System.Text.Json refuses to write it; the code of the rule travels in its
+`Data`, where `ValueObjectErrors.TryGetCode` reads it.
 
 Newtonsoft.Json reads each token before a converter sees it, under the serializer's settings, and its defaults
 change what the converter is handed.

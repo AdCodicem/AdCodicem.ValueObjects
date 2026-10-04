@@ -210,6 +210,8 @@ value with a bare 400, with no parameter, message or code: problem details carry
 Request Delegate Generator runs (`PublishAot`, `PublishTrimmed`, `EnableRequestDelegateGenerator`), a value object
 declared in the project that maps the endpoints lists its contract on its declaration, `: IValueObject<Sku, string>`
 (`VO0033`).
+Every exception an integration throws for a refused value carries the rule's code: read it with
+`ValueObjectErrors.TryGetCode(exception, out var code)`, and see `references/integrations.md` for where each keeps it.
 Reflection-based `System.Text.Json` needs nothing either; a source-generated `JsonSerializerContext` needs the
 `AdCodicem.ValueObjects.Json` package. Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.

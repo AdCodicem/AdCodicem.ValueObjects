@@ -38,9 +38,19 @@ var options = new JsonSerializerOptions().AddValueObjects();
 ```
 
 Writing refuses what reading would: an uninitialized instance (a member never set, a default array element) whose
-default value its type rejects throws `JsonException` from System.Text.Json and `JsonSerializationException` from
-Newtonsoft.Json, as a value or a dictionary key. A type whose zero is valid (`Amount` with `Minimum` 0, an
-unconstrained `Guid`) writes it.
+default value its type rejects throws `ValueObjectJsonException` (a `JsonException`) from System.Text.Json and
+`JsonSerializationException` from Newtonsoft.Json, as a value or a dictionary key. A type whose zero is valid (`Amount`
+with `Minimum` 0, an unconstrained `Guid`) writes it.
+
+**Every exception an integration throws for a refused value carries the rule's code.** System.Text.Json:
+`ValueObjectJsonException.ErrorCode`, beside `ValueObjectType`. Newtonsoft.Json's `JsonSerializationException` and
+Dapper's `DataException`: `exception.Data[ValueObjectErrors.ErrorCodeKey]`. EF Core: the `ValueObjectException` inside
+`DbUpdateException`. Read any of them, wrapped or not, with `ValueObjectErrors.TryGetCode(exception, out var code)`.
+A token or column not of the underlying type carries `value_object.not_parsable`, a `null` for a value object that
+cannot be `null` `value_object.required`. An integration of your own sets
+`exception.Data[ValueObjectErrors.ErrorCodeKey] = code`. For a gRPC `ErrorInfo.reason`, map the code with
+`ValueObjectErrorCodes.ToUpperSnakeCase(code)` (`value_object.too_long` → `VALUE_OBJECT_TOO_LONG`); it throws
+`ArgumentException` for a code that maps to no valid reason.
 
 `Int128` and `UInt128` value objects travel as JSON **strings**, because JSON numbers cannot carry them. A numeric
 value object follows `JsonSerializerOptions.NumberHandling` as its underlying type does: `AllowReadingFromString`,
@@ -83,7 +93,11 @@ builder.Services.AddControllers().AddValueObjects();                            
 builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetails()); // error codes in 400s
 ```
 
-`AddValueObjects()` also exists on `MvcOptions` for an application that configures MVC directly. The MVC binder
+A value refused inside a JSON body is reported under its JSON path, `"errorCodes": { "$.email":
+"value_object.invalid_format" }`, by the builder overload above, which replaces MVC's System.Text.Json input formatter
+and leaves the model state messages as MVC writes them; not once `AddNewtonsoftJson()` reads bodies.
+`AddValueObjects()` also exists on `MvcOptions` for an application that configures MVC directly; it adds the binder
+alone, and records no code for a body. The MVC binder
 treats white-space text as it treats empty text, as absent: `?country=%20` binds `CountryCode?` to `null`, while a
 value object that cannot be `null` is a 400 with `value_object.required`, as MVC answers blank text for an `int`.
 
@@ -95,7 +109,9 @@ app.MapGet("/accounts/{iban}", (Iban iban) => ...);
 ```
 
 A rejected value is a bare 400 there: no parameter name, no message, no code, `AddProblemDetails()` and
-`AddValidation()` notwithstanding, and a 500 in Development behind `UseExceptionHandler`. Empty text follows the
+`AddValidation()` notwithstanding, and a 500 in Development behind `UseExceptionHandler`, where the
+`BadHttpRequestException` of a body wraps the converter's exception: `ValueObjectErrors.TryGetCode` reads the code from
+it. Empty text follows the
 framework's rule, not MVC's: `?country=` for a `CountryCode?` is a 400 under the reflection-based binding.
 
 **Under the Request Delegate Generator** (RDG), on in every build of a project setting `PublishAot`, `PublishTrimmed`
@@ -195,7 +211,7 @@ Dapper looks one up by the exact type, ahead of any query. Register each constru
   `DataException` naming the type read and the value object.
 - Text read into a non-string value object is parsed and validated, and a number or a `Guid` read into a string
   value object is turned into text (a `Guid` in its lowercase `D` form) and validated through `TryCreate`; a refusal
-  throws `DataException` carrying the rule.
+  throws `DataException` carrying the rule, and its code in `Data`.
 - A parameter holding an uninitialized value object whose default its type rejects throws `DataException` before the
   command runs, from an `Iban` and an `Iban?` alike: the handler cannot see the column. A `null` `Iban?` goes out as
   `NULL`.
