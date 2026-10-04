@@ -373,6 +373,126 @@ public sealed class RequestDelegateGeneratorTests
     }
 
     /// <summary>
+    /// A referenced assembly holding internal copies of the contracts, and of <c>IParsable&lt;T&gt;</c>, under their full
+    /// names hides nothing: the generated code binds the public ones, the only ones it can reach, and the RDG still
+    /// misses them, so every value object is reported as it is without the copies.
+    /// </summary>
+    [Fact]
+    public async Task Internal_copies_of_the_contracts_in_a_referenced_assembly_hide_no_value_object()
+    {
+        var copies = MetadataReference.CreateFromImage(GeneratorHarness.Emit(
+            """
+            namespace System
+            {
+                internal interface IParsable<TSelf>
+                {
+                }
+            }
+
+            namespace AdCodicem.ValueObjects
+            {
+                internal interface IValueObject<TSelf, TValue>
+                {
+                }
+
+                internal interface INumericValueObject<TSelf, TValue>
+                {
+                }
+            }
+
+            namespace AdCodicem.ValueObjects.Identifiers
+            {
+                internal interface IEntityId<TSelf>
+                {
+                }
+            }
+            """,
+            "Copies",
+            GeneratorHarness.FrameworkReferences));
+
+        var diagnostics = await RunAsync(
+            """
+            using AdCodicem.ValueObjects.Identifiers;
+
+            [ValueObject<string>]
+            public readonly partial struct Sku;
+
+            [ValueObject<int>(Arithmetic = true)]
+            public readonly partial struct Quantity;
+
+            [EntityId("cus")]
+            public readonly partial struct CustomerId;
+            """,
+            references: WithRouting.Add(copies));
+
+        diagnostics.Select(diagnostic => diagnostic.Id).Should().Equal("VO0033", "VO0033", "VO0033");
+    }
+
+    /// <summary>
+    /// A referenced assembly declaring the contract publicly, beside the real one, leaves the generated code ambiguous
+    /// (CS0433): there is no one contract the fix could list, so nothing is reported, where the real one alone is.
+    /// </summary>
+    [Fact]
+    public async Task Two_public_declarations_of_the_contract_leave_nothing_to_list()
+    {
+        var copy = MetadataReference.CreateFromImage(GeneratorHarness.Emit(
+            """
+            namespace AdCodicem.ValueObjects
+            {
+                public interface IValueObject<TSelf, TValue>
+                {
+                }
+            }
+            """,
+            "PublicCopy",
+            GeneratorHarness.FrameworkReferences));
+        const string source = """
+            [ValueObject<string>]
+            public readonly partial struct Sku;
+            """;
+
+        var ambiguous = await RunAsync(source, references: WithRouting.Add(copy));
+        var single = await RunAsync(source);
+
+        ambiguous.Should().BeEmpty();
+        single.Should().ContainSingle().Which.Id.Should().Be("VO0033");
+    }
+
+    /// <summary>
+    /// A contract the project declares in its own source is the one the compiler binds the generated code to (CS0436),
+    /// so it is the one the declaration has to list.
+    /// </summary>
+    [Fact]
+    public async Task A_contract_declared_in_the_project_itself_is_the_one_to_list()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<RequestDelegateGeneratorAnalyzer>(
+            """
+            namespace AdCodicem.ValueObjects
+            {
+                public interface IValueObject<TSelf, TValue> : System.IParsable<TSelf>
+                    where TSelf : IValueObject<TSelf, TValue>
+                {
+                }
+            }
+
+            namespace Shop
+            {
+                using AdCodicem.ValueObjects.Annotations;
+
+                [ValueObject<string>]
+                public readonly partial struct Listed : AdCodicem.ValueObjects.IValueObject<Listed, string>;
+
+                [ValueObject<string>]
+                public readonly partial struct Bare;
+            }
+            """,
+            WithRouting,
+            Enabled);
+
+        diagnostics.Should().ContainSingle().Which.GetMessage(System.Globalization.CultureInfo.InvariantCulture).Should().Contain("Bare");
+    }
+
+    /// <summary>
     /// A value object compiled into another assembly reaches the RDG as metadata, where its interfaces are.
     /// </summary>
     [Fact]
