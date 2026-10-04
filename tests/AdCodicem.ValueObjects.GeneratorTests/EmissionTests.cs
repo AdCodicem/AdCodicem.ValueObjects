@@ -1336,4 +1336,30 @@ public sealed class EmissionTests
 
         return generated[start..];
     }
+
+    /// <summary>
+    /// A named argument written twice is the compiler's error (CS0643), which it reports while the generator still
+    /// runs, in the IDE as it is typed: the generator reads the first and keeps producing every value object, rather
+    /// than throwing and dropping its whole output (#136).
+    /// </summary>
+    [Fact]
+    public void A_named_argument_written_twice_leaves_the_compiler_error_alone()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>(Example = "1", Example = "2")]
+            public readonly partial struct Quantity;
+
+            [EntityId("cus", Granularity = IdGranularity.Hour, Granularity = IdGranularity.Day)]
+            public readonly partial struct CustomerId;
+
+            [ValueObject<string>]
+            public readonly partial struct Sku;
+            """);
+
+        run.CompilationDiagnostics.Select(diagnostic => diagnostic.Id).Should().Equal("CS0643", "CS0643");
+        run.Files.Select(file => file.HintName).Should()
+            .Contain(name => name.Contains("Quantity", StringComparison.Ordinal))
+            .And.Contain(name => name.Contains("CustomerId", StringComparison.Ordinal))
+            .And.Contain(name => name.Contains("Sku", StringComparison.Ordinal));
+    }
 }
