@@ -120,6 +120,39 @@ public class KnownValueTests
         CountryCode.Schema.KnownValues.Should().Equal("FR", "BE", "LU");
     }
 
+    /// <summary>
+    /// The schema keeps what the attribute declares beside each value: the name of its property, which a client
+    /// generated from the OpenAPI document names its member after, and its description, where one was declared.
+    /// </summary>
+    [Fact]
+    public void The_schema_keeps_the_name_and_the_description_of_each_known_value()
+    {
+        CountryCode.Schema.KnownValueDetails.Should().Equal(
+            new KnownValueInfo("FR", nameof(CountryCode.France), "France"),
+            new KnownValueInfo("BE", nameof(CountryCode.Belgium), "Belgium"),
+            new KnownValueInfo("LU", nameof(CountryCode.Luxembourg), "Luxembourg"));
+        VatRate.Schema.KnownValueDetails.Should().Equal(
+            new KnownValueInfo(20.0m, nameof(VatRate.Standard)),
+            new KnownValueInfo(5.5m, nameof(VatRate.Reduced), "Food, books and medicine."));
+        PageNumber.Schema.KnownValueDetails.Should().ContainSingle()
+            .Which.Should().Be(new KnownValueInfo(1, nameof(PageNumber.First), "The first page."));
+        Iban.Schema.KnownValueDetails.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A known value is a value with a name, which a schema written by hand states as the generator does.
+    /// </summary>
+    [Fact]
+    public void A_known_value_needs_a_value_and_a_name()
+    {
+        var create = static (object? value, string? name) => new KnownValueInfo(value!, name!);
+
+        create.Invoking(build => build(null, "France")).Should().Throw<ArgumentNullException>().WithParameterName("value");
+        create.Invoking(build => build("FR", null)).Should().Throw<ArgumentNullException>().WithParameterName("name");
+        create.Invoking(build => build("FR", " ")).Should().Throw<ArgumentException>().WithParameterName("name");
+        new KnownValueInfo("FR", "France").Description.Should().BeNull();
+    }
+
     [Fact]
     public void The_schema_carries_the_declarative_rules_once_for_every_consumer()
     {

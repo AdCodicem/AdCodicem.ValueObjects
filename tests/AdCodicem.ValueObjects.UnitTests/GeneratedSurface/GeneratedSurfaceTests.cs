@@ -109,6 +109,16 @@ public class GeneratedSurfaceTests
     public void Every_JSON_refusal_carries_the_type_and_the_code_of_the_rule(string type)
         => Samples.All[type].CarriesTheCodeOfEveryJsonRefusal();
 
+    /// <summary>
+    /// The schema lists each known value again with the name of its static property and its description, which the
+    /// OpenAPI document publishes beside the enum: the same values, in the same order, or a client would put a name
+    /// beside the wrong value.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Every))]
+    public void Every_known_value_is_detailed_in_the_schema_under_the_name_of_its_property(string type)
+        => Samples.All[type].DetailsEachKnownValueInItsSchema();
+
     [Theory]
     [MemberData(nameof(EveryArithmetic))]
     public void Every_arithmetic_member_validates_its_result(string type)

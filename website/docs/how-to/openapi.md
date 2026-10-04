@@ -25,7 +25,7 @@ object is then documented as what it is on the wire — its underlying type — 
 | `MinLength`, `MaxLength` | `minLength`, `maxLength` |
 | `IValueObjectPatternValidator`, or the deprecated `Pattern` option | `pattern` |
 | `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>`, or the deprecated `Minimum` and `Maximum` options | `minimum`, `maximum` for a number; for a value written as a string, see below |
-| `[KnownValue]` on a closed set | `enum`, each value as the type writes it in JSON |
+| `[KnownValue]` on a closed set | `enum`, each value as the type writes it in JSON; the names in `x-enum-varnames`, `x-enumNames` and `x-ms-enum`, with the descriptions declared, see [below](#names-of-known-values) |
 | `Example` | an example, written as the type writes it in JSON; one the type refuses fails the build (`VO0031`) or the [contract kit](./test-value-objects.md#what-it-checks) |
 | `Description`, or the type's XML `<summary>` as plain text | `description` |
 
@@ -79,6 +79,62 @@ type's converter, as the type holds it once normalized.
 
 The transformer targets the built-in OpenAPI stack. Swashbuckle is not supported.
 
+## Names of known values
+
+A closed set's `enum` lists values, and a client generator names the members of the enumeration it makes from them:
+`FR` and `DE` where the server code says `France` and `Germany`, and something mangled for a value such as `01` or
+`credit-card`, which is no identifier at all. The transformer publishes the name of each known value beside the
+`enum`, in the extension each generator reads:
+
+| Extension | Shape | Read by |
+| --- | --- | --- |
+| `x-enum-varnames` | the names, in `enum` order | openapi-generator, Scalar |
+| `x-enumNames` | the names, in `enum` order | NSwag |
+| `x-ms-enum` | `{ "name", "modelAsString": false, "values": [{ "value", "name", "description" }] }` | Kiota, AutoRest |
+
+So this closed set:
+
+```csharp
+[ValueObject<string>(ValueSet = ValueSetKind.Closed)]
+[KnownValue("France", "FR", Description = "Mainland France and its overseas departments.")]
+[KnownValue("Germany", "DE")]
+public readonly partial struct CountryCode;
+```
+
+is published as:
+
+```json
+{
+  "enum": ["FR", "DE"],
+  "type": "string",
+  "x-enum-varnames": ["France", "Germany"],
+  "x-enumNames": ["France", "Germany"],
+  "x-ms-enum": {
+    "name": "CountryCode",
+    "modelAsString": false,
+    "values": [
+      { "value": "FR", "name": "France", "description": "Mainland France and its overseas departments." },
+      { "value": "DE", "name": "Germany" }
+    ]
+  }
+}
+```
+
+A value in `x-ms-enum` is written as the `enum` writes it, a number as a number and a date in its round-trip form,
+and carries a description only where its `[KnownValue]` declares one. The enumeration is named as the value object's
+component is, `ReferenceOfPurchaseOrder` for a construction of a generic one, and as that component would be when the
+value object is described in place, as a parameter. The object form of `x-enum-descriptions`, keyed by value, which
+Scalar and Redocly read, is never written: NSwag refuses the whole document over it.
+
+Kiota 1.35.0 and NSwag 14.7.1, run against such a document, name the members after the known values, `France` rather
+than `FR`, Kiota with the description as the member's summary; see [HTTP clients](./http-clients.md). An open value
+set has no `enum`, and its known values are not published.
+
+The names are a contract of every client generated from the document: renaming a known value renames the member of
+its enumeration in each of them, as renaming the member of a C# `enum` would. There is no option to leave the
+extensions out, since a tool that does not know them ignores them. The names come from the schema the type declares,
+`Schema.KnownValueDetails`, which the generator fills from the `[KnownValue]` attributes.
+
 ## Parameters, collections and dictionaries
 
 A value object is described the same way wherever it appears, not only as a property of a body:
@@ -123,4 +179,6 @@ A value object written by hand where no generator runs is described from the `Sc
 describes it by reflection the first time it meets the type, unless it was registered with a schema of its own, which is
 published as it was built. An annotation it also carries is not read: nothing generates from it there, so its rules,
 its known values as the type holds them and its description belong in the schema. A known value of another type than
-the underlying one is listed as its text.
+the underlying one is listed as its text. The names of its known values belong there too, in `KnownValueDetails`, one
+`KnownValueInfo` per value of `KnownValues`, in the same order: names that do not list those values one for one are
+not published, rather than published beside the wrong value.

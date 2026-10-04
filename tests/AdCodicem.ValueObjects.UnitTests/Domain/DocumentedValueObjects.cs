@@ -35,7 +35,7 @@ public readonly partial struct StorageQuota;
 /// <summary>A value-added tax rate, in percent.</summary>
 [ValueObject<decimal>(ValueSet = ValueSetKind.Closed)]
 [KnownValue("Standard", "20.0")]
-[KnownValue("Reduced", "5.5")]
+[KnownValue("Reduced", "5.5", Description = "Food, books and medicine.")]
 public readonly partial struct VatRate;
 
 /// <summary>The weight of a vote.</summary>

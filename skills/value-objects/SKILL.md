@@ -64,7 +64,7 @@ and still become the OpenAPI bounds. Each is a declared rule all the same: writt
 | `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI `minLength`/`maxLength`. |
 | `Minimum`, `Maximum` | **Deprecated** (`VO0028`): implement `IValueObjectMinimum<T>` / `IValueObjectMaximum<T>` instead. |
 | `Comparison` | Equality, ordering and hashing for `string` value objects. `Ordinal` by default. |
-| `ValueSet = ValueSetKind.Closed` + `[KnownValue]` | Reference-data codes: frozen membership lookup, named constants, schema `enum`. |
+| `ValueSet = ValueSetKind.Closed` + `[KnownValue]` | Reference-data codes: frozen membership lookup, named constants, schema `enum` whose values generated clients name after the known values. |
 | `Arithmetic = true` | Operators and generic math on a numeric type. Every result is re-validated. |
 | `ImplicitConversionToValue`, `ExplicitConversionFromValue` | Conversions, opt-in per type. |
 | `AllowEmpty`, `AllowDefault` | Loosen the two defaults that exist to catch mistakes. |

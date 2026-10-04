@@ -21,7 +21,7 @@ namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
     Example = "red",
     Description = "The color of a traffic light.")]
 #pragma warning restore VO0021
-[KnownValue("Red", "red")]
+[KnownValue("Red", "red", Description = "Stop.")]
 [KnownValue("Green", "green")]
 [Reviewed<LightColor>]
 public readonly struct LightColor : IValueObject<LightColor, string>
@@ -39,6 +39,7 @@ public readonly struct LightColor : IValueObject<LightColor, string>
         Example = "red",
         IsClosedValueSet = true,
         KnownValues = ["red", "green"],
+        KnownValueDetails = [new KnownValueInfo("red", "Red", "Stop."), new KnownValueInfo("green", "Green")],
     };
 
     public string Value => _value ?? string.Empty;

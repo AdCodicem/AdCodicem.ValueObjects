@@ -19,9 +19,12 @@ surfaces as an `ApiException` wrapping the `JsonException`.
 
 ## Kiota
 
-Kiota 1.35.0 generates primitives with no constraint, `string? From` and `int? Qty`, a C# enum for a closed set, and
-has no option to map a schema onto a type of your own. Its models are `partial`, so typed accessors can be added
-beside them:
+Kiota 1.35.0 generates primitives with no constraint, `string? From` and `int? Qty`, a C# enum for a closed set of
+strings, and has no option to map a schema onto a type of your own. Run against a document of this version, it names
+the members of that enum after the [known values](./openapi.md#names-of-known-values), `France` rather than `FR`, with
+a declared description as the member's summary; a closed set of numbers stays a number. A closed set taken as a
+parameter becomes an enum named after the operation, such as `GetCountryQueryParameterType`, beside the one named
+after the component. Its models are `partial`, so typed accessors can be added beside them:
 
 ```csharp skip
 public partial class Transfer
@@ -39,8 +42,10 @@ so a generated client types them from it; that was not re-run.
 ## NSwag
 
 From the OpenAPI 3.1 document, NSwag 14.7.1 generates primitives carrying the rules as DataAnnotations:
-`[StringLength(34, MinimumLength = 15)]`, `[RegularExpression]`, `[Range(1, 100)]`. A client in the same solution
-can map the components back to the shared value objects with a type resolver, which was run end to end:
+`[StringLength(34, MinimumLength = 15)]`, `[RegularExpression]`, `[Range(1, 100)]`, and an enum for a closed set,
+strings and numbers alike, whose members it names after the [known values](./openapi.md#names-of-known-values). A
+client in the same solution can map the components back to the shared value objects with a type resolver, which was
+run end to end:
 
 ```csharp skip
 sealed class ValueObjectTypeResolver(CSharpGeneratorSettings settings, OpenApiDocument document, Dictionary<string, Type> valueObjects)

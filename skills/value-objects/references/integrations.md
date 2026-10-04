@@ -246,7 +246,11 @@ builder.Services.AddOpenApi(o => o.AddValueObjects());
 ```
 
 A value object is documented as its underlying type carrying the rules declared on it: `maxLength`, `pattern`,
-`minimum`, `format`, `enum` for a closed set, plus `Example` and `Description`. Nothing to restate in an
+`minimum`, `format`, `enum` for a closed set, plus `Example` and `Description`. A closed set names its values after
+its known values in `x-enum-varnames` (openapi-generator, Scalar), `x-enumNames` (NSwag) and `x-ms-enum` (Kiota,
+AutoRest; named as the component, with each declared `Description`), never in the object form of
+`x-enum-descriptions`, which NSwag refuses. A hand-written value object lists the names in
+`Schema.KnownValueDetails`, one `KnownValueInfo` per value of `KnownValues`, in order. Nothing to restate in an
 annotation — and nothing to keep in sync, since the schema comes from the same declaration that validates.
 `pattern` is the text of the `[GeneratedRegex]` behind `IValueObjectPatternValidator`, read when the type
 compiles; its `RegexOptions` are not part of it (`VO0025`). A value written as a JSON string (`Int128`, `UInt128`,

@@ -13,7 +13,8 @@ namespace AdCodicem.ValueObjects.UnitTests;
 /// <remarks>
 /// The registry read a hand-written type this way until <see cref="IValueObject{TSelf, TValue}.Schema"/> joined the
 /// contract; it now reads the schema alone. Known values are normalized through the type, or parsed when the attribute
-/// had to take them as text, as the generator publishes them.
+/// had to take them as text, as the generator publishes them, and keep their names and descriptions, a blank description
+/// being none.
 /// </remarks>
 internal static class DeclaredRules
 {
@@ -34,7 +35,10 @@ internal static class DeclaredRules
             : Option(attribute, "Maximum");
 
         var known = valueObjectType.GetCustomAttributes<KnownValueAttribute>(inherit: false)
-            .Select(declared => Normalize(valueObjectType, declared.Value))
+            .Select(declared => new KnownValueInfo(
+                Normalize(valueObjectType, declared.Value),
+                declared.Name,
+                string.IsNullOrWhiteSpace(declared.Description) ? null : declared.Description))
             .ToImmutableArray();
 
         return new ValueObjectSchema
@@ -48,7 +52,8 @@ internal static class DeclaredRules
             Description = Option(attribute, nameof(ValueObjectAttribute<object>.Description)),
             Example = Option(attribute, nameof(ValueObjectAttribute<object>.Example)),
             IsClosedValueSet = Option(attribute, nameof(ValueObjectAttribute<object>.ValueSet)) == nameof(ValueSetKind.Closed),
-            KnownValues = known,
+            KnownValues = [.. known.Select(declared => declared.Value)],
+            KnownValueDetails = known,
         };
     }
 

@@ -37,7 +37,7 @@ be corrected.
 | EF Core reads validate | on request (`strict: true`) | by default | — | no, reads use the constructor |
 | ASP.NET Core model binding | yes | through the `TypeConverter` | through the `TypeConverter` | yes |
 | Problem details carry the violated rule's code | MVC controllers | no | no | no |
-| OpenAPI | built-in stack, with lengths, pattern, bounds, `enum` | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
+| OpenAPI | built-in stack, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
 | FluentValidation | yes | third-party package | no | no |
 | Dapper | yes | yes | through a template | no |
 | Other serializers and stores | Newtonsoft.Json | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
@@ -51,7 +51,8 @@ be corrected.
 
 **A rule is declared once and reaches every boundary.** `MaxLength = 34` validates, sizes the EF Core column and
 becomes the OpenAPI `maxLength`; the bound of `IValueObjectMinimum<T>`, and the `[GeneratedRegex]` behind
-`IValueObjectPatternValidator`, do the same for the schema; known values become the `enum`. In the other three, a length or a pattern is code inside
+`IValueObjectPatternValidator`, do the same for the schema; known values become the `enum`, under the names a
+generated client gives its members. In the other three, a length or a pattern is code inside
 a validation method, so the column and the schema have to be told separately — which is exactly the drift that
 primitive obsession produces.
 
