@@ -37,9 +37,11 @@ dotnet tool restore
 dotnet restore "$project"
 
 # The queries are precompiled once, for the relaxed context: they are the same calls for both, and a second run would
-# intercept each of them twice.
+# intercept each of them twice. Precompiling compiles the project again, in a workspace Entity Framework Core opens
+# without --configuration, which would then look for the generator in its Debug output; MSBuild reads the environment
+# as properties, so the variable sets the configuration that option does not.
 echo "::group::Compile the models"
-dotnet ef dbcontext optimize --project "$project" --configuration Release \
+Configuration=Release dotnet ef dbcontext optimize --project "$project" --configuration Release \
   --context ShopContext --output-dir "$out/Relaxed" --namespace "$namespace.Relaxed" "${relaxed[@]}"
 dotnet ef dbcontext optimize --project "$project" --configuration Release --no-build \
   --context StrictShopContext --output-dir "$out/Strict" --namespace "$namespace.Strict" "${strict[@]}"
