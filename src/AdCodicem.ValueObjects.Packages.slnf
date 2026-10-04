@@ -5,6 +5,7 @@
       "src/AdCodicem.ValueObjects/AdCodicem.ValueObjects.csproj",
       "src/AdCodicem.ValueObjects.Abstractions/AdCodicem.ValueObjects.Abstractions.csproj",
       "src/AdCodicem.ValueObjects.AspNetCore/AdCodicem.ValueObjects.AspNetCore.csproj",
+      "src/AdCodicem.ValueObjects.CodeFixes/AdCodicem.ValueObjects.CodeFixes.csproj",
       "src/AdCodicem.ValueObjects.Dapper/AdCodicem.ValueObjects.Dapper.csproj",
       "src/AdCodicem.ValueObjects.EntityFrameworkCore/AdCodicem.ValueObjects.EntityFrameworkCore.csproj",
       "src/AdCodicem.ValueObjects.FluentValidation/AdCodicem.ValueObjects.FluentValidation.csproj",
