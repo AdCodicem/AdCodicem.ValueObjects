@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The model `dotnet ef dbcontext optimize` compiles in CI, of a context mapping every value object of the domain, each
+    underlying type but the 128-bit ones, required and optional, a generic one and an entity identifier as the key, and
+    of a strict context beside it (ci.yml). The model is written under artifacts/compiled-model/, never committed, and
+    compiled only when CompiledModel names it: "jit" for the model `optimize` writes, which Program.cs takes on a round
+    trip through SQL Server, "aot" for the one it writes for native AOT, with the queries of Program.cs precompiled,
+    published with native AOT and never run: two bugs of Entity Framework Core stop its queries there.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AdCodicem.ValueObjects.CompiledModel</RootNamespace>
+
+    <!-- Entity Framework Core is not trim-compatible, so the analyzers are off, as for the package that integrates it. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+
+    <!-- Microsoft.EntityFrameworkCore.Design depends on a later Roslyn than the one the generator is built against, which
+         Directory.Packages.props pins, and pinning it here would downgrade it (NU1109). Nothing of this project ships. -->
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+
+    <CompiledModel Condition="'$(CompiledModel)' == ''">none</CompiledModel>
+    <CompiledModelDirectory>$(ArtifactsPath)/compiled-model/$(CompiledModel)/</CompiledModelDirectory>
+    <DefineConstants Condition="'$(CompiledModel)' != 'none'">$(DefineConstants);COMPILED_MODEL</DefineConstants>
+    <DefineConstants Condition="'$(CompiledModel)' == 'jit'">$(DefineConstants);UNTRACKED_READS</DefineConstants>
+
+    <!-- Set as a property of this project, not as -p:PublishAot, which would reach the netstandard2.0 generator too. -->
+    <PublishAot Condition="'$(CompiledModel)' == 'aot'">true</PublishAot>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.EntityFrameworkCore.GeneratedInterceptors</InterceptorsNamespaces>
+
+    <!-- The warnings the precompiled queries Entity Framework Core 10 writes raise, in its code: the file-path form of
+         InterceptsLocation the compiler deprecates (CS9270), a type test it knows the answer to (CS0184), and nullable
+         annotations outside a nullable context (CS8669). -->
+    <NoWarn Condition="'$(CompiledModel)' == 'aot'">$(NoWarn);CS9270;CS0184;CS8669</NoWarn>
+
+    <!-- Entity Framework Core is neither trim- nor AOT-compatible: its assemblies, SqlClient's, and this program's calls
+         into them, warn when it is published with native AOT. ci.yml fails on a warning about this library's code. -->
+    <IlcTreatWarningsAsErrors Condition="'$(CompiledModel)' == 'aot'">false</IlcTreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(CompiledModel)' != 'none'">
+    <Compile Include="$(CompiledModelDirectory)**/*.cs" Link="CompiledModel/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\AdCodicem.ValueObjects.NativeAot.Domain\AdCodicem.ValueObjects.NativeAot.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Testcontainers.MsSql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="AdCodicem.ValueObjects" />
+    <Using Include="AdCodicem.ValueObjects.Identifiers" />
+    <Using Include="AdCodicem.ValueObjects.NativeAot.Domain" />
+    <Using Include="AdCodicem.ValueObjects.UnitTests.Domain" />
+  </ItemGroup>
+
+</Project>

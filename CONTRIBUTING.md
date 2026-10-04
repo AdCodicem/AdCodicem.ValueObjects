@@ -18,12 +18,13 @@ dotnet test -c Release
 ```
 
 The integration suite starts real PostgreSQL and SQL Server containers through
-[Testcontainers](https://dotnet.testcontainers.org/), so Docker must be running. Without it, run the two suites
+[Testcontainers](https://dotnet.testcontainers.org/), so Docker must be running. Without it, run the three suites
 that do not need it:
 
 ```bash
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests
 dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests
+dotnet test --project tests/AdCodicem.ValueObjects.RdgTests
 ```
 
 `TreatWarningsAsErrors` is on repository-wide — a warning fails the build, including in your editor.
@@ -84,7 +85,7 @@ pip install pre-commit && pre-commit install
    so that each Conventional Commit reaches the changelog. GitHub refuses to rebase more than 100 commits, and its
    web UI reports that as a conflict that does not exist. Split larger work into pull requests stacked on one
    another.
-4. Add or update tests. The three suites have distinct jobs, described in
+4. Add or update tests. The four suites have distinct jobs, described in
    [Testing](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/testing); a defect confined to the descriptor
    is invisible to the typed-path unit tests, so check which surface your change actually touches.
    Codecov reports on each pull request: 95 % of the lines it changes covered, the project's coverage down by half

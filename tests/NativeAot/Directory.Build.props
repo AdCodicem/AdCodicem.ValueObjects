@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    An application published with native AOT in CI, and the domain it references. Neither is a test project nor a
+    package, so they skip tests/Directory.Build.props, which turns the trimming and AOT analyzers off, and import the
+    repository's settings directly: those analyzers stay on, as for a shipped assembly.
+  -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../../'))" />
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>

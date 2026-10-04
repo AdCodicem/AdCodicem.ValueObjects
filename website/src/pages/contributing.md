@@ -9,7 +9,8 @@ description: How to build, test and change AdCodicem.ValueObjects, its agent ski
 
 ```
 src/          the shipped packages
-tests/        unit tests, generator tests, and integration tests on real database engines
+tests/        unit tests, generator tests, integration tests on real database engines, and minimal APIs bound by the RDG
+  NativeAot/  applications CI publishes with native AOT and compiles an EF Core model for
   Compat/     the packed packages in a .NET 11 application, outside the solution
 samples/      a showcase API exercising the whole chain end to end
 benchmarks/   the measurements behind the design decisions
@@ -23,6 +24,7 @@ website/      this documentation site
 dotnet build
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests        # no Docker needed
 dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests   # no Docker needed
+dotnet test --project tests/AdCodicem.ValueObjects.RdgTests         # no Docker needed
 dotnet test                                                          # everything, Docker required
 dotnet pack -c Release
 ```
@@ -35,7 +37,7 @@ Integration tests start PostgreSQL and SQL Server through Testcontainers, so the
 
 ## Coverage
 
-CI uploads the coverage of all three suites to [Codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects),
+CI uploads the coverage of all four suites to [Codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects),
 which reports on each pull request against two floors set in `codecov.yml`: 95 % of the lines the pull request
 changes, a partial line counting as missed, and the project's coverage down by half a point at most. Only `src/` is
 measured. The floor is not the aim; 100 % of each patch is, under a rule that keeps the number honest

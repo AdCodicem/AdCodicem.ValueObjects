@@ -6,6 +6,10 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain;
 // chosen to reach the emitted branches; the names only keep the tests readable. Every bound here is declared through
 // IValueObjectMinimum<T> or IValueObjectMaximum<T>; the rest of the domain keeps the deprecated text options, the
 // witnesses of the code they generate until they are removed.
+//
+// tests/NativeAot links this file into the domain of an application CI publishes with native AOT, and of a model it
+// compiles with `dotnet ef dbcontext optimize`: a value object added here goes into that application's AppJsonContext
+// too, which reports one it lacks.
 
 /// <summary>Whether a customer agreed to be contacted.</summary>
 [ValueObject<bool>(Example = "true")]

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace AdCodicem.ValueObjects.EntityFrameworkCore;
@@ -18,8 +19,12 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// Two absent values are equal, an absent value equals no present one, and two present ones are equal when the value
 /// object says they are. A value object is immutable, so the snapshot is the value itself.
 /// </para>
+/// <para>
+/// <typeparamref name="TSelf"/> carries the annotation <see cref="ValueComparer{T}"/> puts on its own type argument, so
+/// that an application trimmed or published with native AOT gets no warning for the comparer its model names.
+/// </para>
 /// </remarks>
-public sealed class NullableValueObjectComparer<TSelf> : ValueComparer<TSelf?>
+public sealed class NullableValueObjectComparer<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.PublicProperties)] TSelf> : ValueComparer<TSelf?>
     where TSelf : struct, IEquatable<TSelf>
 {
     /// <summary>

@@ -51,6 +51,11 @@ So with `NotEmpty()` chained before it, empty text fails both rules, and would b
 The type is passed as a `Type` rather than a type argument so the rule stays readable: C# cannot infer one type
 argument while another is given explicitly.
 
+A construction of a generic value object, `Reference<PurchaseOrder>`, is described by reflection the first time a
+rule names it, as anywhere else. Under native AOT, which cannot, register it before the validator is built, as
+[Where a value object can be declared](../authoring-guide.md#where-a-value-object-can-be-declared) shows: a rule
+naming one nothing registered fails with an `ArgumentException` when it is built.
+
 ## Your own code, message or severity
 
 By default a failure carries the code and the message of the value object's rule that refused the value. The options

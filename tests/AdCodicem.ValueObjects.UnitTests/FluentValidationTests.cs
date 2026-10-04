@@ -1,4 +1,5 @@
 using AdCodicem.ValueObjects.FluentValidation;
+using AdCodicem.ValueObjects.Metadata;
 using FluentValidation;
 
 namespace AdCodicem.ValueObjects.UnitTests;
@@ -201,6 +202,21 @@ public class FluentValidationTests
                 thrown.ParamName == "valueObjectType" && thrown.Message.StartsWith("'String' is not a value object.", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// A construction of a generic value object that nothing registered is described by reflection where the runtime
+    /// supports dynamic code, as it does under the JIT. Native AOT, which does not, needs the construction registered.
+    /// </summary>
+    [Fact]
+    public void MustParseAs_takes_a_construction_of_a_generic_value_object_nothing_registered()
+    {
+        ValueObjectRegistry.TryGet(typeof(Reference<Waybill>), out _).Should().BeFalse();
+
+        var validator = new InlineValidator<ImportCommand> { v => v.RuleFor(x => x.Iban).MustParseAs(typeof(Reference<Waybill>)) };
+
+        validator.Validate(new ImportCommand(" wb-7 ")).IsValid.Should().BeTrue();
+        validator.Validate(new ImportCommand("WB-1234567890")).Errors.Single().ErrorCode.Should().Be(ValueObjectErrorCodes.TooLong);
+    }
+
     [Theory]
     [InlineData(-1, false)]
     [InlineData(10, true)]
@@ -254,6 +270,9 @@ public class FluentValidationTests
     /// <summary>A command carrying raw text, as an inbound message from another system would.</summary>
     /// <param name="Iban">The account number, as text.</param>
     public sealed record ImportCommand(string? Iban);
+
+    /// <summary>The owner of a <see cref="Reference{TOwner}"/> that no other test constructs, so that nothing registered it.</summary>
+    private sealed class Waybill;
 
     /// <summary>Commands imported together.</summary>
     /// <param name="Lines">The commands.</param>

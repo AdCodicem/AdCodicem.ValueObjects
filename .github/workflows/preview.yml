@@ -174,6 +174,9 @@ jobs:
       - name: Integration tests
         run: dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests --no-build -c Release
 
+      - name: Request Delegate Generator tests
+        run: dotnet test --project tests/AdCodicem.ValueObjects.RdgTests --no-build -c Release
+
   # Restores, builds and packs the packable projects under src/ and nothing else
   # (src/AdCodicem.ValueObjects.Packages.slnf): no test project, no Testcontainers,
   # no Codecov in the job whose output is published.

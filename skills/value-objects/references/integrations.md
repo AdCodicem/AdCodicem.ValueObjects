@@ -207,7 +207,10 @@ per row.
   `builder.Properties<LedgerBalance?>().HaveConversion<MyConverter, NullableValueObjectComparer<LedgerBalance>>()`.
 - **Compiled models** (`dotnet ef dbcontext optimize`) hold everything the conventions map. Regenerate after
   changing a rule that shapes a column. A `string` value object property with a database default is written, not
-  defaulted, when left unset under a compiled model: declare it `Iban?` to let the default apply. `--nativeaot`
+  defaulted, when left unset under a compiled model: declare it `Iban?` to let the default apply. A strict context
+  (`ConfigureValueObjects(strict: true, …)`) cannot track an entity on a compiled model when one of its value objects
+  refuses the default of its underlying type (`0`, `""`, `Guid.Empty`): keep it on the model built at run time, or
+  read through it with `AsNoTracking()`. `--nativeaot`
   builds and publishes, but EF Core's precompiled queries fail on a converted key or parameter, value object or not:
   do not ship EF Core under native AOT yet. Never call the converters' `ToProvider`/`FromProvider`; they are public
   only for the generated model.
@@ -263,6 +266,8 @@ everywhere. Options chained on `MustParseAs` or `MustSatisfy` (`WithErrorCode`, 
 `WithState`, `WithName`) replace the value object's code or message; `{Reason}` quotes the value object's message. `MustParseAs` and `MustSatisfy` let `null` through: chain `NotEmpty()` when the member is required.
 Empty text reaching `MustParseAs` is the value object's to judge: `value_object.required` for a string value object,
 `value_object.not_parsable` for one over another type, and a pass for one declaring `AllowEmpty = true`.
+Under native AOT, register a construction of a generic value object (`ValueObjectRegistry.Register<TSelf, TValue>`)
+before a rule names it in `MustParseAs`, or building the rule throws `ArgumentException`.
 
 ## OpenAPI
 

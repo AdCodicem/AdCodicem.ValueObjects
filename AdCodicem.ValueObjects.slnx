@@ -19,11 +19,17 @@
     <Project Path="tests/AdCodicem.ValueObjects.UnitTests/AdCodicem.ValueObjects.UnitTests.csproj" />
     <Project Path="tests/AdCodicem.ValueObjects.IntegrationTests/AdCodicem.ValueObjects.IntegrationTests.csproj" />
     <Project Path="tests/AdCodicem.ValueObjects.GeneratorTests/AdCodicem.ValueObjects.GeneratorTests.csproj" />
+    <Project Path="tests/AdCodicem.ValueObjects.RdgTests/AdCodicem.ValueObjects.RdgTests.csproj" />
   </Folder>
   <Folder Name="/tests/Fixtures/">
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Untouched/AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WithoutGenerator/AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WithoutJson/AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />
+  </Folder>
+  <Folder Name="/tests/NativeAot/">
+    <Project Path="tests/NativeAot/AdCodicem.ValueObjects.CompiledModel/AdCodicem.ValueObjects.CompiledModel.csproj" />
+    <Project Path="tests/NativeAot/AdCodicem.ValueObjects.NativeAot/AdCodicem.ValueObjects.NativeAot.csproj" />
+    <Project Path="tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Domain/AdCodicem.ValueObjects.NativeAot.Domain.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/AdCodicem.ValueObjects.Benchmarks/AdCodicem.ValueObjects.Benchmarks.csproj" />

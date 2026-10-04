@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The value objects the native AOT application publishes, in a project of their own, where the Request Delegate
+    Generator sees the interfaces the generator adds to them. The unit suite's UnderlyingTypes.cs declares one for each
+    underlying type and each option or hook the rest of its domain leaves out; Domain.cs adds the three underlying types
+    it does not cover, a pattern hook, an entity identifier, a closed set of numbers and a generic value object.
+  -->
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.NativeAot.Domain</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\AdCodicem.ValueObjects.UnitTests\Domain\UnderlyingTypes.cs" Link="UnitTests\UnderlyingTypes.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="AdCodicem.ValueObjects" />
+    <Using Include="AdCodicem.ValueObjects.Annotations" />
+    <Using Include="AdCodicem.ValueObjects.Identifiers" />
+  </ItemGroup>
+
+</Project>

@@ -157,6 +157,16 @@ which gives an instance unequal to `default(T)`, so it writes the property: the 
 it, or a [refusal](#validation-on-write), for one that does not. An optional property, `Currency?`, is not affected,
 and neither is a value object over a value type.
 
+A [strict context](#validation-on-read) does not run on a compiled model yet when one of its value objects refuses the
+default of its underlying type: `0` for a quantity of at least one, the empty text for a required string, an empty
+`Guid`, any identifier. A compiled model rebuilds the sentinel of every property from that default, through the
+property's converter, which in a strict context validates it, so the first entity the context tracks, read by a query
+or passed to `Add`, fails with a `ValueObjectException`. A query with `AsNoTracking()` reads and validates as on a
+model built at run time. Keep a strict context on the model built at run time, or read through it untracked.
+
+CI compiles both models, for the JIT and for native AOT, of a context mapping every value object the conventions map,
+required and optional, beside a strict one, and takes the first on a round trip through SQL Server.
+
 ### Native AOT
 
 `dotnet ef dbcontext optimize --precompile-queries --nativeaot` writes a model whose code calls the conversions of
@@ -167,6 +177,10 @@ queries, which any converted type reproduces without this library, fail a query 
 has a converter, and a query that takes a parameter of a converted type. Until they are fixed, native AOT is out of
 reach for an application reading value objects through Entity Framework Core, and the package does not claim to be
 AOT-compatible.
+
+The code it writes does not always compile either, with or without this library: Entity Framework Core 10 writes
+precompiled code that does not compile for an untracked query and for a sealed entity type, and model code that
+cannot tell a type of the model named as one of its own internal types, `Reference<T>` among them, from that type.
 
 ## Complex types and JSON columns
 
