@@ -120,7 +120,12 @@ builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetai
 
 A value refused inside a JSON body is reported under its JSON path, `"errorCodes": { "$.email":
 "value_object.invalid_format" }`, by the builder overload above, which replaces MVC's System.Text.Json input formatter
-and leaves the model state messages as MVC writes them; not once `AddNewtonsoftJson()` reads bodies.
+with one deriving from it, reading with the same `JsonSerializerOptions` instance, and leaves the model state messages
+as MVC writes them; not once `AddNewtonsoftJson()` reads bodies, nor through a System.Text.Json input formatter the
+application built with options of its own or derived, which is left as it is. To remove the System.Text.Json input
+formatter, call `InputFormatters.RemoveType<SystemTextJsonInputFormatter>()` in `AddMvcOptions` or
+`Configure<MvcOptions>`; a `PostConfigure<MvcOptions>` registered after `AddValueObjects()` must remove every
+formatter that `is SystemTextJsonInputFormatter`, since `RemoveType` matches the exact type and misses the package's.
 `AddValueObjects()` also exists on `MvcOptions` for an application that configures MVC directly; it adds the binder
 alone, and records no code for a body. The MVC binder
 treats white-space text as it treats empty text, as absent: `?country=%20` binds `CountryCode?` to `null`, while a

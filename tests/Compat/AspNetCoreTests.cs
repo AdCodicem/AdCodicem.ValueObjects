@@ -96,6 +96,28 @@ public sealed class AspNetCoreTests : IAsyncLifetime
         (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().Be("ada@example.com");
     }
 
+    /// <summary>
+    /// The package's System.Text.Json input formatter reads the body as the framework's of this major does, and records
+    /// the code of a refused value under its JSON path, beside the message the framework keeps.
+    /// </summary>
+    [Fact]
+    public async Task A_value_a_request_body_refuses_is_answered_with_the_code_under_its_path()
+    {
+        using var body = new StringContent(
+            $$"""{"customer":"0193b1c0-0000-7000-8000-000000000001","email":"not an address","amount":1,"country":"fr","payment":"{{PaymentId.New()}}","purchase":"po-1"}""",
+            System.Text.Encoding.UTF8,
+            "application/json");
+
+        using var response = await _client.PostAsync("/customers/orders", body, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        problem.GetProperty(ValueObjectProblemDetails.ExtensionName).GetProperty("$.email").GetString()
+            .Should().Be(ValueObjectErrorCodes.InvalidFormat);
+        problem.GetProperty("errors").GetProperty("$.email")[0].GetString()
+            .Should().Be("The value is not a valid EmailAddress: The value does not match the expected format.");
+    }
+
     [Fact]
     public async Task A_minimal_API_binds_a_value_object_with_nothing_registered()
         => (await _client.GetStringAsync("/minimal/fr7630006000011234567890189", TestContext.Current.CancellationToken))

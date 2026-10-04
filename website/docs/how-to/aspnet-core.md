@@ -128,12 +128,32 @@ parameter, and a value inside a JSON body, under its JSON path, the key MVC give
 ```
 
 A body is read by the serializer, whose exception MVC keeps the message of and drops: `AddValueObjects()` on the MVC
-builder puts in place of MVC's System.Text.Json input formatter the framework's own, configured as the application
-configures it, which reads the code off that exception before the exception is dropped. The `errors` member is the one
-MVC writes without the package, whatever `JsonOptions.AllowInputFormatterExceptionMessages` says: the message of the
-exception by default, "The input was not valid." when it is turned off. A body read by Newtonsoft.Json, after
-`AddNewtonsoftJson()`, has no System.Text.Json formatter to replace, and records no code; neither does a body when
-the binder alone was added, through `AddValueObjects()` on `MvcOptions`.
+builder puts in place of MVC's System.Text.Json input formatter, at its index, one deriving from it, which reads with
+the very `JsonSerializerOptions` the framework's formatter read with and reads the code off that exception before the
+exception is dropped. The `errors` member is the one MVC writes without the package, whatever
+`JsonOptions.AllowInputFormatterExceptionMessages` says: the message of the exception by default, "The input was not
+valid." when it is turned off. A change made to the JSON options once the application runs reaches it as it reaches
+the framework's, and the media types and encodings the application gave the framework's formatter are kept. A
+System.Text.Json input formatter the application built with options of its own, or derived, is left as it is, and
+records no code. A body read by Newtonsoft.Json, after `AddNewtonsoftJson()`, has no System.Text.Json formatter to
+replace, and records no code; neither does a body when the binder alone was added, through `AddValueObjects()` on
+`MvcOptions`.
+
+The swap is a post-configuration of `MvcOptions`. To take the System.Text.Json input formatter out,
+`InputFormatters.RemoveType<SystemTextJsonInputFormatter>()` still works in `AddMvcOptions`, in
+`Configure<MvcOptions>` or in a `PostConfigure<MvcOptions>` registered before `AddValueObjects()`. In a
+`PostConfigure<MvcOptions>` registered after it, that call matches the exact type alone and misses the package's
+formatter: remove every formatter that is a `SystemTextJsonInputFormatter` there instead.
+
+```csharp skip
+builder.Services.PostConfigure<MvcOptions>(options =>
+{
+    foreach (var formatter in options.InputFormatters.OfType<SystemTextJsonInputFormatter>().ToList())
+    {
+        options.InputFormatters.Remove(formatter);
+    }
+});
+```
 
 `ApiBehaviorOptions` is MVC's, and minimal APIs never read it, so their rejections keep the [bare 400](#minimal-apis).
 
