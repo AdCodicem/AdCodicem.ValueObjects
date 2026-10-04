@@ -451,6 +451,27 @@ public partial class SchemaTransformerTests
         unbounded.Minimum.Should().Be("1", "the parameter's is no number");
     }
 
+    /// <summary>
+    /// A real under named literals moves its own bounds into the alternative that describes the number, which leaves the
+    /// parameter's bound nothing to compare with at the top of the schema: it is kept there, where it holds the number as
+    /// the value object's holds it in the alternative, so that a request satisfies both.
+    /// </summary>
+    [Fact]
+    public async Task A_parameter_bound_is_kept_beside_the_named_literals_of_a_real()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerOptions.Default) { NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals };
+        var depth = new OpenApiSchema { Type = JsonSchemaType.String, Minimum = "5" };
+
+        await new ValueObjectSchemaTransformer().TransformAsync(
+            depth,
+            ContextFor<string>(options, new ApiParameterDescription { Name = "depth", Type = typeof(Depth) }),
+            TestContext.Current.CancellationToken);
+
+        depth.Minimum.Should().Be("5", "the parameter's bound is kept");
+        depth.AnyOf![0].Minimum.Should().Be("0", "the value object's bound holds the number");
+        depth.AnyOf[1].Enum!.Select(value => value.ToJsonString()).Should().Equal("\"Infinity\"");
+    }
+
     private static OpenApiSchemaTransformerContext ContextFor<T>(JsonSerializerOptions? options = null, ApiParameterDescription? parameter = null)
         => new()
         {

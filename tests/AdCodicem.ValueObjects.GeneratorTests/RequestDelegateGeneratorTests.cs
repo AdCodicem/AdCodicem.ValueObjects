@@ -262,6 +262,28 @@ public sealed class RequestDelegateGeneratorTests
     }
 
     /// <summary>
+    /// An <c>Arithmetic</c> argument the compiler refuses, which the IDE analyzes all the same, holds no value: the
+    /// generator reads it as <see langword="false"/> and implements the plain contract, which is what the message names.
+    /// </summary>
+    [Fact]
+    public async Task An_Arithmetic_argument_the_compiler_refuses_names_the_plain_contract()
+    {
+        const string source = """
+            [ValueObject<int>(Arithmetic = 1)]
+            public readonly partial struct Quantity;
+            """;
+
+        var run = GeneratorHarness.Run(source);
+        run.CompilationDiagnostics.Select(diagnostic => diagnostic.Id).Should().Equal("CS0029");
+        run.SingleValueObject.Should().Contain("partial struct Quantity : global::AdCodicem.ValueObjects.IValueObject<");
+
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<RequestDelegateGeneratorAnalyzer>(source, WithRouting, Enabled);
+
+        diagnostics.Should().ContainSingle().Which.GetMessage(System.Globalization.CultureInfo.InvariantCulture)
+            .Should().Contain("List 'IValueObject<Quantity, int>'");
+    }
+
+    /// <summary>
     /// Where the generator implements no contract, it writes no <c>IParsable&lt;T&gt;</c> the RDG could miss, and the
     /// type already carries an error of its own.
     /// </summary>
@@ -314,6 +336,40 @@ public sealed class RequestDelegateGeneratorTests
             Enabled);
 
         diagnostics.Should().ContainSingle().Which.Id.Should().Be("VO0033");
+    }
+
+    /// <summary>
+    /// The analyzer ships inside the package, but nothing stops a project from loading it without the contracts, with
+    /// annotations of the same names declared in its own source: no contract can then be resolved for a value object or
+    /// an entity identifier, so there is none the fix could list, and nothing is reported. The same source compiled
+    /// against the contracts is reported.
+    /// </summary>
+    [Fact]
+    public async Task Nothing_is_reported_where_the_contracts_are_not_referenced()
+    {
+        const string source = UninitializedValueObjectTests.AnnotationCopies + """
+
+            namespace Shop
+            {
+                using AdCodicem.ValueObjects.Annotations;
+                using AdCodicem.ValueObjects.Identifiers;
+
+                [ValueObject<string>]
+                public readonly partial struct Sku;
+
+                [EntityId("cus")]
+                public readonly partial struct CustomerId;
+            }
+            """;
+
+        var without = await GeneratorHarness.RunAnalyzerAsync<RequestDelegateGeneratorAnalyzer>(
+            source,
+            GeneratorHarness.FrameworkReferences.Add(Routing),
+            Enabled);
+        var with = await GeneratorHarness.RunAnalyzerAsync<RequestDelegateGeneratorAnalyzer>(source, WithRouting, Enabled);
+
+        without.Should().BeEmpty();
+        with.Select(diagnostic => diagnostic.Id).Should().Equal("VO0033", "VO0033");
     }
 
     /// <summary>

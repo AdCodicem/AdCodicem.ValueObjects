@@ -279,7 +279,8 @@ public sealed class DeclaredValueTests
     /// Any other getter runs only at run time, a body of more than a return included, and so does an initialized
     /// property, which a static constructor may assign again. A constant the form of the type has no text for, an
     /// infinity, bounds nothing a value can break. A hook the type does not implement, or implements with a getter that
-    /// returns nothing, leaves the type uncompiled, and its bound unread.
+    /// returns nothing, or with an accessor list beside an expression body, whose arrow the compiler never binds, leaves
+    /// the type uncompiled, and its bound unread.
     /// </summary>
     [Theory]
     [InlineData("int", "public static int Maximum { get; } = 100;", "")]
@@ -290,6 +291,7 @@ public sealed class DeclaredValueTests
     [InlineData("int", "", "CS0535")]
     [InlineData("int", "public static int Maximum { get { return; } }", "CS0126")]
     [InlineData("int", "public static int Maximum { set { } }", "CS0535")]
+    [InlineData("int", "public static int Maximum { get; } => 100;", "CS8057")]
     public void A_known_value_out_of_a_bound_computed_at_run_time_is_left_to_run_time(string underlying, string bound, string compilerError)
     {
         var run = GeneratorHarness.Run($$"""
