@@ -45,6 +45,8 @@
          FsCheck.Xunit, whose xunit.extensibility.execution [2.4.1, 3.0.0) dependency conflicts with
          xunit.v3; the properties run from plain [Fact]s through Check(Config) instead. -->
     <PackageReference Include="FsCheck" />
+    <!-- A JSON Schema validator, which checks that what the serializer writes is what the exported schema describes. -->
+    <PackageReference Include="JsonSchema.Net" />
     <!-- A provider, so that a DbContext can build the model the Entity Framework Core conventions shape; building it
          opens no connection. Round trips through a real engine stay in the integration suite. -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />

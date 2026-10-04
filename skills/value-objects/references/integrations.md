@@ -7,7 +7,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | --- | --- |
 | `AdCodicem.ValueObjects` | Contracts, source generator, analyzers. The one to install. |
 | `AdCodicem.ValueObjects.Abstractions` | The contracts alone, no dependency. For a domain assembly that must stay bare. |
-| `AdCodicem.ValueObjects.Json` | Source-generated `JsonSerializerContext` support, and hand-written value objects. |
+| `AdCodicem.ValueObjects.Json` | Source-generated `JsonSerializerContext` support, hand-written value objects, and the JSON Schema transform. |
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, an assembly-wide convention. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
@@ -51,6 +51,31 @@ cannot be `null` `value_object.required`. An integration of your own sets
 `exception.Data[ValueObjectErrors.ErrorCodeKey] = code`. For a gRPC `ErrorInfo.reason`, map the code with
 `ValueObjectErrorCodes.ToUpperSnakeCase(code)` (`value_object.too_long` → `VALUE_OBJECT_TOO_LONG`); it throws
 `ArgumentException` for a code that maps to no valid reason.
+
+**JSON Schema** (`JsonSchemaExporter`, and every host built on it: Microsoft.Extensions.AI tools and structured
+output, the MCP SDK, Semantic Kernel) describes a value object as `true` and a `List<Iban>` without `items`. Plug
+`ValueObjectJsonSchema.TransformSchemaNode` into `JsonSchemaExporterOptions.TransformSchemaNode` to describe each one as
+its underlying value with its rules (`type`, `null` for a nullable one, lengths, `pattern`, `minimum`/`maximum` or a
+sentence for a date, `enum`, `examples`, `description`, `format`), elements, dictionary values and string keys
+included:
+
+```csharp skip
+var schema = JsonSchemaExporter.GetJsonSchemaAsNode(
+    ApiJsonContext.Default.Options, typeof(Order),
+    new JsonSchemaExporterOptions { TransformSchemaNode = ValueObjectJsonSchema.TransformSchemaNode });
+
+// For a language model: the number alone, formats JSON Schema does not define moved into the description, and the
+// values of a closed set named there. A host's own transform hands over the node's JsonTypeInfo:
+var forTools = new AIJsonSchemaCreateOptions
+{
+    TransformSchemaNode = (context, node) => ValueObjectJsonSchema.Apply(
+        context.TypeInfo, node, ValueObjectJsonSchemaProfile.LanguageModel),
+};
+```
+
+`ValueObjectJsonSchema.CreateTransform(profile)` gives the exporter's delegate for a profile. The default profile,
+`OpenApi`, follows `NumberHandling` as the OpenAPI document does. A host's description comes first and the value
+object's follows; nothing is turned into a `$ref`.
 
 `Int128` and `UInt128` value objects travel as JSON **strings**, because JSON numbers cannot carry them. A numeric
 value object follows `JsonSerializerOptions.NumberHandling` as its underlying type does: `AllowReadingFromString`,
