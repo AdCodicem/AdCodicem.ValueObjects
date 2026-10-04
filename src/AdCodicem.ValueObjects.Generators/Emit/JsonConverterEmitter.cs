@@ -24,12 +24,19 @@ namespace AdCodicem.ValueObjects.Generators.Emit;
 /// </para>
 /// <para>
 /// <c>null</c> needs no case of its own. System.Text.Json hands a null token to the converter of a value type, and
-/// the generated <c>Read</c> refuses it from its default arm with a <c>JsonException</c>; for an optional value
-/// object, the nullable wrapper System.Text.Json puts around the converter answers the null itself.
+/// the generated <c>Read</c> refuses it from its default arm, with the code <c>value_object.required</c>; for an
+/// optional value object, the nullable wrapper System.Text.Json puts around the converter answers the null itself.
 /// </para>
 /// <para>
-/// The writers refuse what the reader would: an instance equal to the default whose value the type rejects is a
-/// <c>JsonException</c> naming the type and the rule, rather than a value that faults the service reading it.
+/// The writers refuse what the reader would: an instance equal to the default whose value the type rejects is
+/// refused, naming the type and the rule, rather than written for the service reading it to fault on.
+/// </para>
+/// <para>
+/// Every refusal is a <c>ValueObjectJsonException</c>, a <c>JsonException</c> carrying the type and the code of the
+/// rule: the rule's own code, <c>value_object.not_parsable</c> for a token that is not of the underlying type at all,
+/// and <c>value_object.required</c> for a JSON <c>null</c>. The messages are those of a plain <c>JsonException</c>. A
+/// token the reader's <c>TryGet</c> method cannot read leaves the message to System.Text.Json, which writes the one it
+/// writes for a token it cannot read, path included.
 /// </para>
 /// </remarks>
 internal static class JsonConverterEmitter
@@ -40,7 +47,9 @@ internal static class JsonConverterEmitter
     private const string Options = Json + ".JsonSerializerOptions";
     private const string TokenType = Json + ".JsonTokenType";
     private const string Handling = Json + ".Serialization.JsonNumberHandling";
-    private const string JsonException = Json + ".JsonException";
+    private const string Refusal = "global::AdCodicem.ValueObjects.ValueObjectJsonException";
+    private const string ErrorCodes = "global::AdCodicem.ValueObjects.ValueObjectErrorCodes";
+    private const string NotParsable = ErrorCodes + ".NotParsable";
     private const string Invariant = "global::System.Globalization.CultureInfo.InvariantCulture";
     private const string ValidationResult = "global::AdCodicem.ValueObjects.ValidationResult";
 
@@ -59,7 +68,7 @@ internal static class JsonConverterEmitter
         EmitWrite(writer, underlying, value, self);
         EmitPropertyName(writer, model, underlying, self);
         EmitWriteCheck(writer, model, underlying, value, self);
-        EmitHelpers(writer, underlying, value);
+        EmitHelpers(writer, underlying, value, self);
 
         writer.Close();
         writer.Line();
@@ -84,7 +93,7 @@ internal static class JsonConverterEmitter
             writer.Line($"global::System.Span<char> buffer = stackalloc char[{StackBufferSize}];");
             writer.Line("int written = reader.CopyString(buffer);");
             writer.Open($"if (!{self}.TryCreateFrom(buffer[..written], out {self} scoped, out {ValidationResult} scopedValidation))");
-            writer.Line($"throw new {JsonException}($\"The value is not a valid {model.TypeName}: {{scopedValidation.ErrorMessage}}\");");
+            writer.Line(Throw($"$\"The value is not a valid {model.TypeName}: {{scopedValidation.ErrorMessage}}\"", self, $"scopedValidation.ErrorCode ?? {NotParsable}"));
             writer.Close();
             writer.Line();
             writer.Line("return scoped;");
@@ -100,12 +109,12 @@ internal static class JsonConverterEmitter
         {
             writer.Line($"case {TokenType}.True:");
             writer.Line($"case {TokenType}.False:");
-            writer.Indent().Line($"raw = {underlying.JsonReadExpression};").Line("break;").Unindent();
+            EmitTokenRead(writer, underlying, self);
         }
         else if (underlying.IsJsonNumber && IsFloatingPoint(underlying))
         {
             writer.Line($"case {TokenType}.Number:");
-            writer.Indent().Line($"raw = {underlying.JsonReadExpression};").Line("break;").Unindent();
+            EmitTokenRead(writer, underlying, self);
             writer.Line();
             writer.Line("// Honour JsonNumberHandling as the built-in converter of the underlying type does: either option reads NaN");
             writer.Line("// and the infinities, spelled exactly so, and AllowReadingFromString a finite number written as text.");
@@ -125,7 +134,7 @@ internal static class JsonConverterEmitter
                 $"else if ((options.NumberHandling & {Handling}.AllowReadingFromString) == 0\n"
                 + "    || !TryReadQuoted(ref reader, out raw)\n"
                 + $"    || !{value}.IsFinite(raw))");
-            writer.Line($"throw new {JsonException}($\"The value could not be read as {model.TypeName}.\");");
+            writer.Line(Throw($"$\"The value could not be read as {model.TypeName}.\"", self, NotParsable));
             writer.Close();
             writer.Line();
             writer.Line("break;");
@@ -134,13 +143,13 @@ internal static class JsonConverterEmitter
         else if (underlying.IsJsonNumber)
         {
             writer.Line($"case {TokenType}.Number:");
-            writer.Indent().Line($"raw = {underlying.JsonReadExpression};").Line("break;").Unindent();
+            EmitTokenRead(writer, underlying, self);
             writer.Line();
             writer.Line($"// Honour JsonNumberHandling.AllowReadingFromString, which many APIs turn on for interop.");
             writer.Line($"case {TokenType}.String when (options.NumberHandling & {Handling}.AllowReadingFromString) != 0:");
             writer.Indent();
             writer.Open("if (!TryReadQuoted(ref reader, out raw))");
-            writer.Line($"throw new {JsonException}($\"The value could not be read as {model.TypeName}.\");");
+            writer.Line(Throw($"$\"The value could not be read as {model.TypeName}.\"", self, NotParsable));
             writer.Close();
             writer.Line();
             writer.Line("break;");
@@ -149,19 +158,23 @@ internal static class JsonConverterEmitter
         else
         {
             writer.Line($"case {TokenType}.String:");
-            writer.Indent().Line($"raw = {underlying.JsonReadExpression};").Line("break;").Unindent();
+            EmitTokenRead(writer, underlying, self);
         }
 
         writer.Line();
         writer.Line("default:");
         writer.Indent();
-        writer.Line($"throw new {JsonException}($\"Expected a JSON {DescribeJson(underlying)} for {model.TypeName} but found {{reader.TokenType}}.\");");
+        writer.Line("// Only a value object that cannot be null is handed a null, which says that no value was supplied.");
+        writer.Line(Throw(
+            $"$\"Expected a JSON {DescribeJson(underlying)} for {model.TypeName} but found {{reader.TokenType}}.\"",
+            self,
+            $"reader.TokenType == {TokenType}.Null ? {ErrorCodes}.Required : {NotParsable}"));
         writer.Unindent();
         writer.Close();
         writer.Line();
 
         writer.Open($"if (!{self}.TryCreate(raw, out {self} result, out {ValidationResult} validation))");
-        writer.Line($"throw new {JsonException}($\"The value is not a valid {model.TypeName}: {{validation.ErrorMessage}}\");");
+        writer.Line(Throw($"$\"The value is not a valid {model.TypeName}: {{validation.ErrorMessage}}\"", self, $"validation.ErrorCode ?? {NotParsable}"));
         writer.Close();
         writer.Line();
         writer.Line("return result;");
@@ -261,7 +274,7 @@ internal static class JsonConverterEmitter
         writer.Line("/// <inheritdoc />");
         writer.Open($"public override {self} ReadAsPropertyName(ref {Reader} reader, global::System.Type typeToConvert, {Options} options)");
         writer.Open($"if (!{self}.TryParse(reader.GetString(), {Invariant}, out {self} result, out {ValidationResult} validation))");
-        writer.Line($"throw new {JsonException}($\"The dictionary key is not a valid {model.TypeName}: {{validation.ErrorMessage}}\");");
+        writer.Line(Throw($"$\"The dictionary key is not a valid {model.TypeName}: {{validation.ErrorMessage}}\"", self, $"validation.ErrorCode ?? {NotParsable}"));
         writer.Close();
         writer.Line();
         writer.Line("return result;");
@@ -321,21 +334,25 @@ internal static class JsonConverterEmitter
         writer.Line($"{value} current = value.Value;");
         writer.Line($"{ValidationResult} validation = {self}.Validate(in current);");
         writer.Open("if (!validation.IsValid)");
-        writer.Line($"throw new {JsonException}($\"The value to write is not a valid {model.TypeName}: {{validation.ErrorMessage}}\");");
+        writer.Line(Throw($"$\"The value to write is not a valid {model.TypeName}: {{validation.ErrorMessage}}\"", self, "validation.ErrorCode"));
         writer.Close();
         writer.Close();
         writer.Close();
         writer.Line();
     }
 
-    private static void EmitHelpers(CodeWriter writer, UnderlyingType underlying, string value)
+    private static void EmitHelpers(CodeWriter writer, UnderlyingType underlying, string value, string self)
     {
         switch (underlying.Kind)
         {
             case UnderlyingKind.Char:
                 writer.Open($"private static char ReadChar(ref {Reader} reader)");
                 writer.Line("string? text = reader.GetString();");
-                writer.Line($"return text is {{ Length: 1 }} ? text[0] : throw new {JsonException}(\"Expected a single character.\");");
+                writer.Open("if (text is not { Length: 1 })");
+                writer.Line(Throw("\"Expected a single character.\"", self, NotParsable));
+                writer.Close();
+                writer.Line();
+                writer.Line("return text[0];");
                 writer.Close();
                 writer.Line();
                 break;
@@ -344,7 +361,7 @@ internal static class JsonConverterEmitter
                 or UnderlyingKind.Int128 or UnderlyingKind.UInt128:
                 writer.Open($"private static {value} {HelperName(underlying)}(ref {Reader} reader)");
                 writer.Open($"if (!global::AdCodicem.ValueObjects.UnderlyingValue.TryParse<{value}>(reader.GetString(), {Invariant}, out {value} parsed))");
-                writer.Line($"throw new {JsonException}(\"The value is not in the expected format.\");");
+                writer.Line(Throw("\"The value is not in the expected format.\"", self, NotParsable));
                 writer.Close();
                 writer.Line();
                 writer.Line("return parsed;");
@@ -371,6 +388,42 @@ internal static class JsonConverterEmitter
             writer.Line();
         }
     }
+
+    /// <summary>
+    /// Emits the arm of the token switch reading the underlying value from the token.
+    /// </summary>
+    /// <remarks>
+    /// The reader's <c>TryGet</c> method refuses a number the type cannot hold and text not of its shape. The message
+    /// is left to System.Text.Json, which gives an exception thrown without one the message it gives the reader's own
+    /// <c>FormatException</c>, path included, so that only the code is added.
+    /// </remarks>
+    private static void EmitTokenRead(CodeWriter writer, UnderlyingType underlying, string self)
+    {
+        writer.Indent();
+        if (underlying.JsonTryReadMethod is { } tryRead)
+        {
+            writer.Open($"if (!reader.{tryRead}(out raw))");
+            writer.Line(Throw("null", self, NotParsable));
+            writer.Close();
+            writer.Line();
+        }
+        else
+        {
+            writer.Line($"raw = {underlying.JsonReadExpression};");
+        }
+
+        writer.Line("break;").Unindent();
+    }
+
+    /// <summary>
+    /// Writes the statement throwing a refusal, carrying the value object type and the code of the rule.
+    /// </summary>
+    /// <param name="message">The message, as a C# expression, or <c>null</c>.</param>
+    /// <param name="self">The value object type.</param>
+    /// <param name="code">The code, as a C# expression.</param>
+    /// <returns>The statement.</returns>
+    private static string Throw(string message, string self, string code)
+        => $"throw new {Refusal}({message}, typeof({self}), {code});";
 
     private static bool IsFloatingPoint(UnderlyingType underlying)
         => underlying.Kind is UnderlyingKind.Double or UnderlyingKind.Single;

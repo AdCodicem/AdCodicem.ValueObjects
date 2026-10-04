@@ -47,6 +47,14 @@ public sealed class ProbeController : ControllerBase
     /// <returns>Its reference.</returns>
     [HttpPost("orders")]
     public IActionResult Order([FromBody] ProbeOrder order) => Ok(order?.Reference.Value);
+
+    /// <summary>Echoes an order read from a JSON body, for the country read from the query string.</summary>
+    /// <param name="country">The country, if any.</param>
+    /// <param name="order">The order.</param>
+    /// <returns>Both values.</returns>
+    [HttpPost("orders/by-country")]
+    public IActionResult OrderByCountry([FromQuery] CountryCode? country, [FromBody] ProbeOrder order)
+        => Ok($"{country}|{order?.Reference}");
 }
 
 /// <summary>A request body holding a value object.</summary>

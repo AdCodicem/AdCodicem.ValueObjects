@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AdCodicem.ValueObjects.Identifiers;
 using AdCodicem.ValueObjects.Json;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
@@ -25,8 +26,12 @@ public class HandWrittenJsonTests
         var invalid = () => JsonSerializer.Deserialize<HandWrittenCode>("\"ab1\"", Options);
         var missing = () => JsonSerializer.Deserialize<HandWrittenCode>("null", Options);
 
-        invalid.Should().Throw<JsonException>().WithMessage("The value is not a valid HandWrittenCode: A code holds ASCII letters only.");
-        missing.Should().Throw<JsonException>().WithMessage("The value is not a valid HandWrittenCode: A code is required.");
+        var refusal = invalid.Should().Throw<ValueObjectJsonException>()
+            .WithMessage("The value is not a valid HandWrittenCode: A code holds ASCII letters only.").Which;
+        refusal.ErrorCode.Should().Be(ValueObjectErrorCodes.InvalidFormat);
+        refusal.ValueObjectType.Should().Be<HandWrittenCode>();
+        missing.Should().Throw<ValueObjectJsonException>().WithMessage("The value is not a valid HandWrittenCode: A code is required.")
+            .Which.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
     }
 
     /// <summary>
@@ -79,8 +84,12 @@ public class HandWrittenJsonTests
         var code = () => JsonSerializer.Deserialize<Dictionary<HandWrittenCode, int>>("""{"ab1":1}""", Options);
         var count = () => JsonSerializer.Deserialize<Dictionary<HandWrittenItemCount, int>>("""{"0":1}""", Options);
 
-        code.Should().Throw<JsonException>().WithMessage("The dictionary key is not a valid HandWrittenCode: A code holds ASCII letters only.");
-        count.Should().Throw<JsonException>().WithMessage("The dictionary key is not a valid HandWrittenItemCount: A count of items is positive.");
+        code.Should().Throw<ValueObjectJsonException>()
+            .WithMessage("The dictionary key is not a valid HandWrittenCode: A code holds ASCII letters only.")
+            .Which.ErrorCode.Should().Be(ValueObjectErrorCodes.InvalidFormat);
+        count.Should().Throw<ValueObjectJsonException>()
+            .WithMessage("The dictionary key is not a valid HandWrittenItemCount: A count of items is positive.")
+            .Which.ErrorCode.Should().Be(ValueObjectErrorCodes.OutOfRange);
     }
 
     /// <summary>
@@ -97,9 +106,29 @@ public class HandWrittenJsonTests
         var counter = JsonSerializer.Serialize(default(HandWrittenCounter), Options);
 #pragma warning restore VO0010
 
-        code.Should().Throw<JsonException>().WithMessage("The value to write is not a valid HandWrittenCode: A code is required.");
-        key.Should().Throw<JsonException>().WithMessage("The value to write is not a valid HandWrittenItemCount: A count of items is positive.");
+        code.Should().Throw<ValueObjectJsonException>()
+            .WithMessage("The value to write is not a valid HandWrittenCode: A code is required.")
+            .Which.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
+        key.Should().Throw<ValueObjectJsonException>()
+            .WithMessage("The value to write is not a valid HandWrittenItemCount: A count of items is positive.")
+            .Which.ErrorCode.Should().Be(ValueObjectErrorCodes.OutOfRange);
         counter.Should().Be("0", "the counter accepts its zero");
+    }
+
+    /// <summary>
+    /// A factory written by hand may refuse a value without saying why: the refusal still carries a code, as a value and
+    /// as a key.
+    /// </summary>
+    [Fact]
+    public void A_value_a_hand_written_factory_refuses_without_a_reason_is_refused_as_not_parsable()
+    {
+        var text = EntityIdFormat.Create(MuteProfile.Prefix, IdGranularity.Hour, TimeProvider.System, IdEntropySource.System);
+
+        var value = () => JsonSerializer.Deserialize<HandWrittenId<MuteProfile>>(JsonSerializer.Serialize(text), Options);
+        var key = () => JsonSerializer.Deserialize<Dictionary<HandWrittenId<MuteProfile>, int>>($$"""{"{{text}}":1}""", Options);
+
+        value.Should().Throw<ValueObjectJsonException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        key.Should().Throw<ValueObjectJsonException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
     }
 
     /// <summary>

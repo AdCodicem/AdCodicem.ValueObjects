@@ -53,6 +53,8 @@ public abstract class Sample
 
     public abstract void WritesNoJsonItsTypeRejects();
 
+    public abstract void CarriesTheCodeOfEveryJsonRefusal();
+
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
 
@@ -419,6 +421,75 @@ public class Sample<TSelf, TValue> : Sample
         JsonSerializer.Serialize(Small).Should().NotBeNullOrEmpty("a created instance is written without a second look");
     }
 
+    public override void CarriesTheCodeOfEveryJsonRefusal()
+    {
+        var json = JsonSerializer.Serialize(Small);
+        var isText = json.StartsWith('"');
+        var isNumber = !isText && json is not ("true" or "false");
+
+        // A token of the wrong kind is not of the underlying type at all, and a null, which only a value object that
+        // cannot be null is handed, says no value was supplied.
+        ExpectRefusal(isText ? "42" : "\"not a value\"", ValueObjectErrorCodes.NotParsable);
+        ExpectRefusal("{}", ValueObjectErrorCodes.NotParsable);
+        ExpectRefusal("null", ValueObjectErrorCodes.Required);
+
+        // A token of the right kind that the underlying type cannot hold. Where the reader reads it, the message is the
+        // one System.Text.Json gives the reader's own refusal, as it was before the code was added. A double or a float
+        // holds every JSON number, reading one beyond its range as an infinity, which the rules then judge.
+        if (isNumber && typeof(TValue) != typeof(double) && typeof(TValue) != typeof(float))
+        {
+            ExpectRefusal("1e400", ValueObjectErrorCodes.NotParsable)
+                .Message.Should().StartWith("The JSON value could not be converted to ").And.Contain(" Path: $.Value | LineNumber: ");
+        }
+
+        if (isNumber)
+        {
+            ExpectRefusal("\"not a number\"", ValueObjectErrorCodes.NotParsable, LenientNumbers)
+                .Message.Should().Be($"The value could not be read as {typeof(TSelf).Name}.");
+        }
+        else if (typeof(TValue) != typeof(string) && typeof(TValue) != typeof(bool))
+        {
+            ExpectRefusal($"\"{Unparsable}\"", ValueObjectErrorCodes.NotParsable);
+        }
+
+        // A value or a key a rule rejects carries the code the parser reports for the same text.
+        TSelf.TryParse(Refused, CultureInfo.InvariantCulture, out _, out var expected).Should().BeFalse();
+        var refused = isText ? JsonSerializer.Serialize(Refused) : isNumber && IsJsonNumber(Refused) ? Refused : null;
+        if (refused is not null)
+        {
+            var refusal = ExpectRefusal(refused, expected.ErrorCode!);
+            if (expected.ErrorCode != ValueObjectErrorCodes.NotParsable)
+            {
+                refusal.Message.Should().StartWith($"The value is not a valid {typeof(TSelf).Name}: ");
+            }
+        }
+
+        var key = JsonSerializer.Serialize(new Dictionary<string, int> { [Refused] = 1 });
+        var keyRefusal = FluentActions.Invoking(() => JsonSerializer.Deserialize<Dictionary<TSelf, int>>(key))
+            .Should().Throw<ValueObjectJsonException>().Which;
+        keyRefusal.ErrorCode.Should().Be(expected.ErrorCode);
+        keyRefusal.ValueObjectType.Should().Be<TSelf>();
+        keyRefusal.Path.Should().StartWith("$");
+
+        // A value to write that the type rejects, as a value and as a key.
+        var uninitialized = default(TSelf);
+        var value = uninitialized.Value;
+        var validation = TSelf.Validate(in value);
+        if (!validation.IsValid)
+        {
+            foreach (var write in new Action[]
+            {
+                () => JsonSerializer.Serialize(uninitialized),
+                () => JsonSerializer.Serialize(new Dictionary<TSelf, int> { [uninitialized] = 1 }),
+            })
+            {
+                var refusal = write.Should().Throw<ValueObjectJsonException>().Which;
+                refusal.ErrorCode.Should().Be(validation.ErrorCode);
+                refusal.ValueObjectType.Should().Be<TSelf>();
+            }
+        }
+    }
+
     protected static TDelegate Method<TDelegate>(string name, params Type[] parameters)
         where TDelegate : Delegate
         => typeof(TSelf).GetMethod(name, BindingFlags.Public | BindingFlags.Static, parameters)!.CreateDelegate<TDelegate>();
@@ -434,6 +505,42 @@ public class Sample<TSelf, TValue> : Sample
         => T.TryParse(text, null, out result!);
 
     private static bool IsDefault(TSelf value) => value.IsDefault;
+
+    /// <summary>
+    /// Reads a value object from a JSON value inside an object, and asserts the refusal carries the type, the code,
+    /// where <see cref="ValueObjectErrors.TryGetCode"/> reads it, and the path of the member.
+    /// </summary>
+    private static ValueObjectJsonException ExpectRefusal(string value, string code, JsonSerializerOptions? options = null)
+    {
+        var refusal = FluentActions.Invoking(() => JsonSerializer.Deserialize<Holder>($"{{\"Value\":{value}}}", options))
+            .Should().Throw<ValueObjectJsonException>("{0} is refused", value).Which;
+
+        refusal.ValueObjectType.Should().Be<TSelf>();
+        refusal.ErrorCode.Should().Be(code, "{0} is refused with {1}", value, code);
+        refusal.Path.Should().Be("$.Value");
+        refusal.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(code);
+        ValueObjectErrors.TryGetCode(refusal, out var read).Should().BeTrue();
+        read.Should().Be(code);
+
+        return refusal;
+    }
+
+    private static bool IsJsonNumber(string text)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(text);
+            return document.RootElement.ValueKind == JsonValueKind.Number;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>An object holding the value object under test, so that a refusal has a member to name.</summary>
+    /// <param name="Value">The value object.</param>
+    private sealed record Holder(TSelf Value);
 
     private static Func<TSelf, TSelf, bool> Operator(string name)
         => Method<Func<TSelf, TSelf, bool>>(name, typeof(TSelf), typeof(TSelf));

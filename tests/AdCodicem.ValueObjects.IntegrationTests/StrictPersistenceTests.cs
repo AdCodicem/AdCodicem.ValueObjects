@@ -46,9 +46,11 @@ public abstract class StrictPersistenceTests<TFixture>(TFixture fixture) : IClas
             account => account.CustomerId == owner,
             TestContext.Current.CancellationToken);
 
-        // Entity Framework Core may wrap what a converter throws while it materializes a row.
+        // Entity Framework Core may wrap what a converter throws while it materializes a row; the code is read through it.
         var thrown = await read.Should().ThrowAsync<Exception>();
         Chain(thrown.Which).Should().ContainItemsAssignableTo<ValueObjectException>();
+        ValueObjectErrors.TryGetCode(thrown.Which, out var code).Should().BeTrue();
+        code.Should().Be(ValueObjectErrorCodes.InvalidFormat, "the check digits of the IBAN are wrong");
     }
 
     /// <summary>

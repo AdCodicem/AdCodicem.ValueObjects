@@ -137,8 +137,12 @@ public partial class AnyEntityIdTests
         var text = EntityIdFormat.Create(MuteProfile.Prefix, IdGranularity.Hour, TimeProvider.System, IdEntropySource.System);
 
         var act = () => AnyEntityId.Parse(text);
+        var value = () => JsonSerializer.Deserialize<AnyEntityId>(JsonSerializer.Serialize(text));
+        var key = () => JsonSerializer.Deserialize<Dictionary<AnyEntityId, int>>($$"""{"{{text}}":1}""");
 
         act.Should().Throw<ValueObjectException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        value.Should().Throw<ValueObjectJsonException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        key.Should().Throw<ValueObjectJsonException>().Which.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
     }
 
     /// <summary>
@@ -311,7 +315,9 @@ public partial class AnyEntityIdTests
     {
         var act = () => JsonSerializer.Deserialize<AnyEntityId>("42");
 
-        act.Should().Throw<JsonException>().WithMessage("*found Number*");
+        var refusal = act.Should().Throw<ValueObjectJsonException>().WithMessage("*found Number*").Which;
+        refusal.ErrorCode.Should().Be(ValueObjectErrorCodes.NotParsable);
+        refusal.ValueObjectType.Should().Be<AnyEntityId>();
     }
 
     /// <summary>
@@ -322,9 +328,11 @@ public partial class AnyEntityIdTests
     {
         var act = () => JsonSerializer.Deserialize<AnyEntityId>("\"zzz_nope\"");
 
-        act.Should().Throw<JsonException>()
-            .WithMessage("The value is not an identifier of any registered type.")
-            .Which.Message.Should().NotContain("zzz_nope");
+        var refusal = act.Should().Throw<ValueObjectJsonException>()
+            .WithMessage("The value is not an identifier of any registered type.").Which;
+        refusal.Message.Should().NotContain("zzz_nope");
+        refusal.ErrorCode.Should().Be(IdentifierErrorCodes.UnknownPrefix, "the code is the one AnyEntityId.TryParse reports");
+        refusal.Path.Should().Be("$");
     }
 
     /// <summary>
@@ -336,7 +344,8 @@ public partial class AnyEntityIdTests
     {
         var act = () => JsonSerializer.Deserialize<AnyEntityId>("null");
 
-        act.Should().Throw<JsonException>().WithMessage("*found Null*");
+        act.Should().Throw<ValueObjectJsonException>().WithMessage("*found Null*")
+            .Which.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
         JsonSerializer.Deserialize<AnyEntityId?>("null").Should().BeNull();
     }
 
@@ -349,9 +358,10 @@ public partial class AnyEntityIdTests
     {
         var act = () => JsonSerializer.Deserialize<Dictionary<AnyEntityId, int>>("""{"zzz_nope":1}""");
 
-        act.Should().Throw<JsonException>()
-            .WithMessage("The dictionary key is not an identifier of any registered type.")
-            .Which.Message.Should().NotContain("zzz_nope", "a key is the text of a value, which a log must not record");
+        var refusal = act.Should().Throw<ValueObjectJsonException>()
+            .WithMessage("The dictionary key is not an identifier of any registered type.").Which;
+        refusal.Message.Should().NotContain("zzz_nope", "a key is the text of a value, which a log must not record");
+        refusal.ErrorCode.Should().Be(IdentifierErrorCodes.UnknownPrefix);
     }
 
     [Fact]

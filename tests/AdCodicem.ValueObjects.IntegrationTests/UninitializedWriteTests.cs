@@ -35,8 +35,11 @@ public abstract class UninitializedWriteTests<TFixture>(TFixture fixture) : ICla
             write.Customers.Add(customer);
             var save = () => write.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-            // Entity Framework Core wraps what a converter throws while it saves.
-            var refusal = (await save.Should().ThrowAsync<DbUpdateException>()).WithInnerException<ValueObjectException>().Which;
+            // Entity Framework Core wraps what a converter throws while it saves; the code is read through it.
+            var thrown = await save.Should().ThrowAsync<DbUpdateException>();
+            ValueObjectErrors.TryGetCode(thrown.Which, out var code).Should().BeTrue();
+            code.Should().Be(ValueObjectErrorCodes.Required);
+            var refusal = thrown.WithInnerException<ValueObjectException>().Which;
             refusal.ValueObjectType.Should().Be<CountryCode>();
             refusal.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
             refusal.Message.Should().StartWith("The value to write is not a valid CountryCode: ");

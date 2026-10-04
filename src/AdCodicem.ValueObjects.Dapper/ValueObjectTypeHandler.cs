@@ -38,6 +38,13 @@ namespace AdCodicem.ValueObjects.Dapper;
 /// <c>NULL</c> before it calls the handler, and never calls it: a required value object is left uninitialized,
 /// <c>default(TSelf)</c>, and nothing throws. A column that can be <c>NULL</c> belongs in a <c>TSelf?</c> member.
 /// </para>
+/// <para>
+/// Every <see cref="DataException"/> the handler throws for a value it refuses carries the code of the rule in
+/// <see cref="Exception.Data"/> under <see cref="ValueObjectErrors.ErrorCodeKey"/>, where
+/// <see cref="ValueObjectErrors.TryGetCode"/> reads it: the rule's own code,
+/// <see cref="ValueObjectErrorCodes.NotParsable"/> for a value that cannot be converted to
+/// <typeparamref name="TValue"/>, and <see cref="ValueObjectErrorCodes.Required"/> for a <c>NULL</c>.
+/// </para>
 /// </remarks>
 public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandler<TSelf>, SqlMapper.ITypeHandler
     where TSelf : struct, IValueObject<TSelf, TValue>
@@ -74,7 +81,9 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
             var validation = TSelf.Validate(in current);
             if (!validation.IsValid)
             {
-                throw new DataException($"The value to write is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}");
+                throw Refusal(
+                    $"The value to write is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}",
+                    validation.ErrorCode);
             }
         }
 
@@ -97,8 +106,9 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
 
         if (value is null or DBNull)
         {
-            throw new DataException(
-                $"A NULL cannot be read as {typeof(TSelf).Name}; read the column as a nullable {typeof(TSelf).Name}? instead.");
+            throw Refusal(
+                $"A NULL cannot be read as {typeof(TSelf).Name}; read the column as a nullable {typeof(TSelf).Name}? instead.",
+                ValueObjectErrorCodes.Required);
         }
 
         // A legacy schema may keep a Guid or a number in a text column. Text goes through the value object's own
@@ -178,7 +188,25 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
     /// <param name="validation">The refusal.</param>
     /// <returns>The exception to throw.</returns>
     private static DataException Refused(ValidationResult validation)
-        => new($"The value read is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}");
+        => Refusal(
+            $"The value read is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}",
+            validation.ErrorCode ?? ValueObjectErrorCodes.NotParsable);
+
+    /// <summary>
+    /// Builds the exception refusing a value, carrying the code of the rule where
+    /// <see cref="ValueObjectErrors.TryGetCode"/> reads it.
+    /// </summary>
+    /// <param name="message">The message, naming the value object and the rule, never the value.</param>
+    /// <param name="code">The code of the rule.</param>
+    /// <param name="innerException">What the conversion threw, if anything.</param>
+    /// <returns>The exception to throw.</returns>
+    private static DataException Refusal(string message, string code, Exception? innerException = null)
+    {
+        var exception = new DataException(message, innerException);
+        exception.Data[ValueObjectErrors.ErrorCodeKey] = code;
+
+        return exception;
+    }
 
     /// <summary>
     /// Converts what the provider returned into the underlying type, when it returned another type.
@@ -212,9 +240,10 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
                 TimeSpan time when typeof(TValue) == typeof(TimeOnly) => (TValue)(object)TimeOnly.FromTimeSpan(time),
                 TimeOnly time when typeof(TValue) == typeof(TimeSpan) => (TValue)(object)time.ToTimeSpan(),
                 DateTime { Kind: DateTimeKind.Unspecified } when typeof(TValue) == typeof(DateTimeOffset)
-                    => throw new DataException(
+                    => throw Refusal(
                         "The DateTime read names no zone, and so no offset: it cannot be converted to "
-                        + $"{typeof(TSelf).Name}, a value object over DateTimeOffset."),
+                        + $"{typeof(TSelf).Name}, a value object over DateTimeOffset.",
+                        ValueObjectErrorCodes.NotParsable),
                 DateTime instant when typeof(TValue) == typeof(DateTimeOffset)
                     => (TValue)(object)new DateTimeOffset(instant),
                 Guid guid when typeof(TValue) == typeof(string) => (TValue)(object)guid.ToString("D"),
@@ -242,9 +271,10 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
     /// <param name="exception">What the conversion threw.</param>
     /// <returns>The exception to throw.</returns>
     private static DataException Unconvertible(object value, Exception exception)
-        => new(
+        => Refusal(
             $"The {value.GetType().Name} read cannot be converted to {typeof(TSelf).Name}, a value object over "
             + $"{typeof(TValue).Name}.",
+            ValueObjectErrorCodes.NotParsable,
             exception);
 
     /// <inheritdoc />

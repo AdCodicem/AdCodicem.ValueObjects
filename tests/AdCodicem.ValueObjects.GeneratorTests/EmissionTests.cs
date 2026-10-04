@@ -135,7 +135,7 @@ public sealed class EmissionTests
     /// <summary>
     /// Both writers of the System.Text.Json converter first refuse a value the type rejects, which only an instance
     /// equal to the default can hold: the check compares the field as <c>IsDefault</c> does, then validates the value as
-    /// it stands, and throws a <c>JsonException</c> naming the type and the rule.
+    /// it stands, and throws a <c>ValueObjectJsonException</c> naming the type and the rule, and carrying its code.
     /// </summary>
     /// <param name="declaration">The declaration.</param>
     /// <param name="name">The name of the value object, as messages quote it.</param>
@@ -172,7 +172,77 @@ public sealed class EmissionTests
         check.Body!.Statements.Should().ContainSingle().Which.Should().BeOfType<IfStatementSyntax>()
             .Which.Condition.ToString().Should().Be(condition);
         check.ToString().Should().Contain(".Validate(in current);")
-            .And.Contain($"throw new global::System.Text.Json.JsonException($\"The value to write is not a valid {name}: {{validation.ErrorMessage}}\");");
+            .And.Contain($"throw new global::AdCodicem.ValueObjects.ValueObjectJsonException($\"The value to write is not a valid {name}: {{validation.ErrorMessage}}\", typeof(");
+    }
+
+    /// <summary>
+    /// Every refusal of the System.Text.Json converter, at each of its throw sites, is a <c>ValueObjectJsonException</c>
+    /// naming the value object and carrying a code, and no plain <c>JsonException</c> is left. A token the reader's
+    /// <c>TryGet</c> method cannot read is refused without a message, which System.Text.Json writes as it writes one for
+    /// the reader's own refusal; a null, which the default arm alone receives, is <c>value_object.required</c>.
+    /// </summary>
+    /// <param name="declaration">The declaration.</param>
+    /// <param name="self">The value object, fully qualified.</param>
+    /// <param name="throws">The throw sites of the converter.</param>
+    /// <param name="tryRead">The reader method the converter reads a token with, if it cannot fail on its own.</param>
+    [Theory]
+    [InlineData("[ValueObject<string>(MaxLength = 12)] public readonly partial struct Code;", "global::Test.Code", 4, null)]
+    [InlineData("[ValueObject<string>] public readonly partial struct Name : IValueObjectSpanNormalizer { public static string NormalizeValue(global::System.ReadOnlySpan<char> value) => value.ToString(); }", "global::Test.Name", 5, null)]
+    [InlineData("[ValueObject<bool>] public readonly partial struct Flag;", "global::Test.Flag", 4, null)]
+    [InlineData("[ValueObject<int>(Arithmetic = true)] public readonly partial struct Count;", "global::Test.Count", 6, "TryGetInt32")]
+    [InlineData("[ValueObject<byte>] public readonly partial struct Level;", "global::Test.Level", 6, "TryGetByte")]
+    [InlineData("[ValueObject<double>] public readonly partial struct Ratio;", "global::Test.Ratio", 6, "TryGetDouble")]
+    [InlineData("[ValueObject<decimal>] public readonly partial struct Price<TCurrency>;", "global::Test.Price<TCurrency>", 6, "TryGetDecimal")]
+    [InlineData("[ValueObject<global::System.Guid>] public readonly partial struct OrderId;", "global::Test.OrderId", 5, "TryGetGuid")]
+    [InlineData("[ValueObject<global::System.DateTimeOffset>] public readonly partial struct At;", "global::Test.At", 5, "TryGetDateTimeOffset")]
+    [InlineData("[ValueObject<char>] public readonly partial struct Grade;", "global::Test.Grade", 5, null)]
+    [InlineData("[ValueObject<global::System.DateOnly>] public readonly partial struct Day;", "global::Test.Day", 5, null)]
+    [InlineData("[ValueObject<global::System.Int128>] public readonly partial struct Balance;", "global::Test.Balance", 5, null)]
+    [InlineData("[EntityId(\"acc\")] public readonly partial struct AccountId;", "global::Test.AccountId", 4, null)]
+    public void Every_refusal_of_the_JSON_converter_carries_the_type_and_a_code(string declaration, string self, int throws, string? tryRead)
+    {
+        var run = GeneratorHarness.Run(declaration);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+
+        var converter = CSharpSyntaxTree.ParseText(run.SingleValueObject, cancellationToken: TestContext.Current.CancellationToken)
+            .GetRoot(TestContext.Current.CancellationToken)
+            .DescendantNodes()
+            .OfType<ClassDeclarationSyntax>()
+            .Should().ContainSingle(candidate => candidate.Identifier.Text == "ValueJsonConverter").Subject;
+        var refusals = converter.DescendantNodes().OfType<ThrowStatementSyntax>().Select(statement => statement.Expression!)
+            .Concat(converter.DescendantNodes().OfType<ThrowExpressionSyntax>().Select(expression => expression.Expression))
+            .ToList();
+
+        converter.ToString().Should().NotContain("global::System.Text.Json.JsonException");
+        refusals.Should().HaveCount(throws);
+        foreach (var refusal in refusals)
+        {
+            var creation = refusal.Should().BeOfType<ObjectCreationExpressionSyntax>().Subject;
+            creation.Type.ToString().Should().Be("global::AdCodicem.ValueObjects.ValueObjectJsonException");
+            var arguments = creation.ArgumentList!.Arguments.Select(argument => argument.ToString()).ToList();
+            arguments.Should().HaveCount(3);
+            arguments[1].Should().Be($"typeof({self})");
+            arguments[2].Should().Match(
+                code => code == "validation.ErrorCode" || code.Contains("global::AdCodicem.ValueObjects.ValueObjectErrorCodes."),
+                "a refusal carries the code of the rule, which the write check has from a failed validation, or a code of the framework");
+        }
+
+        refusals.Select(refusal => ((ObjectCreationExpressionSyntax)refusal).ArgumentList!.Arguments[2].ToString())
+            .Should().Contain("reader.TokenType == global::System.Text.Json.JsonTokenType.Null ? global::AdCodicem.ValueObjects.ValueObjectErrorCodes.Required : global::AdCodicem.ValueObjects.ValueObjectErrorCodes.NotParsable", "a null is no value supplied");
+
+        if (tryRead is null)
+        {
+            converter.ToString().Should().NotContain("reader.TryGet");
+            return;
+        }
+
+        var read = converter.DescendantNodes().OfType<IfStatementSyntax>()
+            .Should().ContainSingle(statement => statement.Condition.ToString() == $"!reader.{tryRead}(out raw)").Subject;
+        read.Statement.DescendantNodes().OfType<ObjectCreationExpressionSyntax>().Single().ArgumentList!.ToString()
+            .Should().Be($"(null, typeof({self}), global::AdCodicem.ValueObjects.ValueObjectErrorCodes.NotParsable)");
+        converter.ToString().Should().NotContain($"reader.{tryRead.Replace("TryGet", "Get", StringComparison.Ordinal)}()");
     }
 
     [Fact]

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace AdCodicem.ValueObjects.UnitTests.Web;
 
@@ -145,20 +146,83 @@ public sealed class ModelBindingTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// A value inside a JSON body is refused by the serializer, which records no code: the response is the
+    /// A body that fails for a reason no value object gave, here JSON cut short, carries no code: the response is the
     /// framework's own, with no empty extension added to it.
     /// </summary>
     [Fact]
-    public async Task A_rejection_no_binder_recorded_leaves_the_response_without_codes()
+    public async Task A_rejection_no_value_object_gave_leaves_the_response_without_codes()
     {
-        using var body = new StringContent("""{"reference":"no"}""", Encoding.UTF8, "application/json");
+        var problem = await PostProblemAsync(_client, "/probe/orders", """{"reference":""");
 
-        using var response = await _client.PostAsync("/probe/orders", body, TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         problem.GetProperty("errors").EnumerateObject().Should().NotBeEmpty();
         problem.TryGetProperty(ValueObjectProblemDetails.ExtensionName, out _).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// A value a JSON body holds is refused by the converter, and the code of its rule is recorded under the JSON path
+    /// MVC keys the error with, as the code of a route or query value is recorded under the parameter.
+    /// </summary>
+    /// <param name="json">The body.</param>
+    /// <param name="path">The path of the refused member.</param>
+    /// <param name="code">The code of the rule it breaks.</param>
+    [Theory]
+    [InlineData("""{"reference":"no"}""", "$.reference", ValueObjectErrorCodes.TooShort)]
+    [InlineData("""{"reference":42}""", "$.reference", ValueObjectErrorCodes.NotParsable)]
+    [InlineData("""{"reference":null}""", "$.reference", ValueObjectErrorCodes.Required)]
+    public async Task A_value_a_JSON_body_refuses_is_answered_with_the_code_under_its_path(string json, string path, string code)
+    {
+        var problem = await PostProblemAsync(_client, "/probe/orders", json);
+
+        problem.GetProperty("errorCodes").GetProperty(path).GetString().Should().Be(code);
+        problem.GetProperty("errors").GetProperty(path).GetArrayLength().Should().Be(1);
+    }
+
+    /// <summary>
+    /// The model state of a body holds what it holds without the package, whatever the application says of exception
+    /// messages: the message of the exception where it keeps them, and the framework's "The input was not valid."
+    /// where it does not. The codes are recorded either way. The global option keeps the value the application gave it.
+    /// </summary>
+    /// <param name="allowMessages">The application's <c>AllowInputFormatterExceptionMessages</c>.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task The_messages_of_a_body_are_the_framework_s_whatever_exception_messages_are_allowed(bool allowMessages)
+    {
+        await using var with = await StartAsync(static _ => { }, json: options => options.AllowInputFormatterExceptionMessages = allowMessages);
+        await using var without = await StartAsync(static _ => { }, withValueObjectBinder: false, json: options => options.AllowInputFormatterExceptionMessages = allowMessages);
+        using var withClient = with.GetTestClient();
+        using var withoutClient = without.GetTestClient();
+
+        foreach (var json in new[] { """{"reference":"no"}""", """{"reference":42}""", """{"reference":""" })
+        {
+            var expected = await PostProblemAsync(withoutClient, "/probe/orders", json);
+            var actual = await PostProblemAsync(withClient, "/probe/orders", json);
+
+            actual.GetProperty("errors").Deserialize<Dictionary<string, string[]>>().Should()
+                .BeEquivalentTo(expected.GetProperty("errors").Deserialize<Dictionary<string, string[]>>(), "the errors of {0}", json);
+        }
+
+        var refused = await PostProblemAsync(withClient, "/probe/orders", """{"reference":"no"}""");
+        refused.GetProperty("errorCodes").GetProperty("$.reference").GetString().Should().Be(ValueObjectErrorCodes.TooShort);
+        refused.GetProperty("errors").GetProperty("$.reference")[0].GetString().Should().Be(allowMessages
+            ? "The value is not a valid OrderReference: The value must be at least 3 characters long."
+            : "The input was not valid.");
+        with.Services.GetRequiredService<IOptions<JsonOptions>>().Value.AllowInputFormatterExceptionMessages.Should().Be(allowMessages);
+    }
+
+    /// <summary>
+    /// A request whose query string and body are both refused answers with both codes, each under its own key.
+    /// </summary>
+    [Fact]
+    public async Task A_refused_query_value_and_a_refused_body_keep_their_own_codes()
+    {
+        var problem = await PostProblemAsync(_client, "/probe/orders/by-country?country=ZZ", """{"reference":"no"}""");
+
+        problem.GetProperty("errorCodes").Deserialize<Dictionary<string, string>>().Should().Equal(new Dictionary<string, string>
+        {
+            ["country"] = ValueObjectErrorCodes.NotAKnownValue,
+            ["$.reference"] = ValueObjectErrorCodes.TooShort,
+        });
     }
 
     /// <summary>
@@ -186,7 +250,10 @@ public sealed class ModelBindingTests : IAsyncLifetime
     /// Starts an MVC application holding <see cref="ProbeController"/> alone, configured as the ASP.NET Core how-to
     /// says, after the application's own API behaviour, or without the value object binder.
     /// </summary>
-    private static async Task<WebApplication> StartAsync(Action<ApiBehaviorOptions> configure, bool withValueObjectBinder = true)
+    private static async Task<WebApplication> StartAsync(
+        Action<ApiBehaviorOptions> configure,
+        bool withValueObjectBinder = true,
+        Action<JsonOptions>? json = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
@@ -196,6 +263,11 @@ public sealed class ModelBindingTests : IAsyncLifetime
                 manager.ApplicationParts.Clear();
                 manager.ApplicationParts.Add(new AssemblyPart(typeof(ProbeController).Assembly));
             });
+        if (json is not null)
+        {
+            mvc.AddJsonOptions(json);
+        }
+
         if (withValueObjectBinder)
         {
             mvc.AddValueObjects();
@@ -212,6 +284,16 @@ public sealed class ModelBindingTests : IAsyncLifetime
         await application.StartAsync(TestContext.Current.CancellationToken);
 
         return application;
+    }
+
+    private static async Task<JsonElement> PostProblemAsync(HttpClient client, string url, string json)
+    {
+        using var body = new StringContent(json, Encoding.UTF8, "application/json");
+        using var response = await client.PostAsync(url, body, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        return await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
     }
 
     private async Task<JsonElement> GetProblemAsync(string url)

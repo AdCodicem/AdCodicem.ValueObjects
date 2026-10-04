@@ -81,8 +81,10 @@ public abstract class DapperTests<TFixture>(TFixture fixture) : IClassFixture<TF
             Command(insert, new { Id = id, Email = email, Country = (CountryCode?)default(CountryCode) }));
 #pragma warning restore VO0010
 
-        await required.Should().ThrowAsync<DataException>().WithMessage("The value to write is not a valid CountryCode: ?*");
-        await optional.Should().ThrowAsync<DataException>().WithMessage("The value to write is not a valid CountryCode: ?*");
+        (await required.Should().ThrowAsync<DataException>().WithMessage("The value to write is not a valid CountryCode: ?*"))
+            .Which.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(ValueObjectErrorCodes.Required);
+        (await optional.Should().ThrowAsync<DataException>().WithMessage("The value to write is not a valid CountryCode: ?*"))
+            .Which.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(ValueObjectErrorCodes.Required);
 
         var written = await connection.QuerySingleAsync<int>(
             Command($"SELECT COUNT(*) FROM {Q("customers")} WHERE {Q("Id")} = @id", new { id }));
@@ -171,7 +173,8 @@ public abstract class DapperTests<TFixture>(TFixture fixture) : IClassFixture<TF
         var required = () => connection.QuerySingleAsync<Iban>(Command(sql, new { id = customer.Id }));
 
         optional.Should().BeNull();
-        await required.Should().ThrowAsync<DataException>().WithMessage("*NULL*Iban*");
+        (await required.Should().ThrowAsync<DataException>().WithMessage("*NULL*Iban*"))
+            .Which.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(ValueObjectErrorCodes.Required);
     }
 
     /// <summary>
@@ -213,7 +216,8 @@ public abstract class DapperTests<TFixture>(TFixture fixture) : IClassFixture<TF
             Command("SELECT CAST('00000000-0000-0000-0000-000000000000' AS varchar(36))"));
 
         parsed.Should().Be(id);
-        await refused.Should().ThrowAsync<DataException>().WithMessage("*not a valid CustomerId*must not be empty*");
+        (await refused.Should().ThrowAsync<DataException>().WithMessage("*not a valid CustomerId*must not be empty*"))
+            .Which.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(ValueObjectErrorCodes.Required);
     }
 
     /// <summary>
@@ -227,7 +231,8 @@ public abstract class DapperTests<TFixture>(TFixture fixture) : IClassFixture<TF
 
         var refused = () => connection.QuerySingleAsync<Iban>(Command("SELECT CAST(7630006000 AS bigint)"));
 
-        await refused.Should().ThrowAsync<DataException>().WithMessage("The value read is not a valid Iban: *");
+        (await refused.Should().ThrowAsync<DataException>().WithMessage("The value read is not a valid Iban: *"))
+            .Which.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(ValueObjectErrorCodes.TooShort);
     }
 
     /// <summary>
@@ -311,8 +316,9 @@ public abstract class DapperTests<TFixture>(TFixture fixture) : IClassFixture<TF
         await using var connection = fixture.CreateConnection();
         var read = () => connection.QuerySingleAsync<ReceivedAt>(Command(sql));
 
-        await read.Should().ThrowAsync<DataException>()
-            .WithMessage("The DateTime read names no zone*ReceivedAt, a value object over DateTimeOffset.");
+        (await read.Should().ThrowAsync<DataException>()
+            .WithMessage("The DateTime read names no zone*ReceivedAt, a value object over DateTimeOffset."))
+            .Which.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(ValueObjectErrorCodes.NotParsable);
     }
 
     private static Customer NewCustomer(string email) => new()

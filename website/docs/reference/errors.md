@@ -2,14 +2,15 @@
 title: Error Codes and Exceptions
 sidebar_label: Error codes and exceptions
 slug: /reference/errors
-description: The stable error codes a rejected value carries, the ValidationResult that holds them, and the exception Create throws.
+description: The stable error codes a rejected value carries, the ValidationResult that holds them, the exception Create throws, and how every integration's exception carries the code.
 ---
 
 # Error codes and exceptions
 
 A rejected value always carries two things: a stable, machine-readable **code**, and a human-readable
-**message**. The code is the contract — it reaches the problem details of MVC controllers and FluentValidation
-failures, and a client may branch on it. The message is for people, and may change.
+**message**. The code is the contract — it reaches the problem details of MVC controllers, FluentValidation
+failures and [every exception an integration throws](#the-code-in-an-exception), and a client may branch on it. The
+message is for people, and may change.
 
 ## Framework codes
 
@@ -115,13 +116,13 @@ that treats a rejected value as a bug, for a strict EF Core read, and for an EF 
 
 | Integration | A rejected value |
 | --- | --- |
-| The System.Text.Json converters | `JsonException`, with the message of the rule. |
-| The Newtonsoft.Json converter | `JsonSerializationException`, with the message of the rule. |
+| The System.Text.Json converters | `ValueObjectJsonException`, a `JsonException` with the message of the rule, carrying the type and the code. |
+| The Newtonsoft.Json converter | `JsonSerializationException`, with the message of the rule, carrying the code in its `Data`. |
 | Newtonsoft.Json [without the converter](../how-to/json.md#without-the-converter) | `JsonSerializationException`, "Error converting value…", around an `ArgumentException` that names neither the rule nor its code. |
-| ASP.NET Core MVC model binding | A model state error; the [problem details](../how-to/aspnet-core.md#problem-details-carrying-the-rule) carry its code. Without the package's binder, MVC binds through the type converter, which throws `ValueObjectException`, and reports it with the message it gives bad input for an `int`, such as "The value 'ZZ' is not valid.", and no code. |
-| Minimal API parameter binding | A [bare 400](../how-to/aspnet-core.md#minimal-apis), naming neither the parameter nor the rule; in Development, a `BadHttpRequestException`, which `UseExceptionHandler` answers with a 500. |
+| ASP.NET Core MVC model binding | A model state error; the [problem details](../how-to/aspnet-core.md#problem-details-carrying-the-rule) carry its code, for a route, query, header or form value and for a value inside a JSON body. Without the package's binder, MVC binds through the type converter, which throws `ValueObjectException`, and reports it with the message it gives bad input for an `int`, such as "The value 'ZZ' is not valid.", and no code. |
+| Minimal API parameter binding | A [bare 400](../how-to/aspnet-core.md#minimal-apis), naming neither the parameter nor the rule; in Development, a `BadHttpRequestException`, which `UseExceptionHandler` answers with a 500, and which wraps the converter's exception for a body. |
 | FluentValidation, `MustParseAs` and `MustSatisfy` | A validation failure carrying the code. |
-| Dapper | `DataException`, for a value it cannot convert, and for text read into a value object over another type, or a number or a `Guid` read into one over `string`, that the value object refuses. |
+| Dapper | `DataException`, carrying the code in its `Data`, for a value it cannot convert, and for text read into a value object over another type, or a number or a `Guid` read into one over `string`, that the value object refuses. |
 | EF Core with `strict: true` | `ValueObjectException`, from `Create`: the query fails. |
 
 The other reads do not validate. EF Core by default, and Dapper for a value the provider returns as the underlying
@@ -143,13 +144,69 @@ without being validated again.
 
 | Integration | A refused write |
 | --- | --- |
-| The System.Text.Json converters | `JsonException`, "The value to write is not a valid Iban: …", from a value and from a dictionary key. |
+| The System.Text.Json converters | `ValueObjectJsonException`, "The value to write is not a valid Iban: …", from a value and from a dictionary key. |
 | The Newtonsoft.Json converter | `JsonSerializationException`, with the same message. |
 | Dapper | `DataException`, with the same message, before the command is sent. Dapper hands the handler the value object whether the parameter is an `Iban` or an `Iban?` holding one, so the handler cannot tell whether the column takes a `NULL`, and refuses either way; an `Iban?` holding nothing is written as `NULL`. |
 | EF Core, a property of the value object's type | `SaveChanges` throws a `DbUpdateException` whose inner exception is the `ValueObjectException`, with the same message, the code and the type, and no `AttemptedValue`. Nothing is written. |
 | EF Core, an optional property (`Iban?`) | Nothing is thrown: the column takes a `NULL`, and stores one. |
 
-The message names the type and the rule, never the value.
+The message names the type and the rule, never the value, and each exception carries the code of the rule, as
+[below](#the-code-in-an-exception).
+
+## The code in an exception
+
+Every exception an integration throws for a value it refuses carries the code of the rule, in the exception type its
+ecosystem expects, so that code which catches it can tell `value_object.too_short` from `iban.check_digits` without
+reading English:
+
+| Integration | Exception | The code |
+| --- | --- | --- |
+| The System.Text.Json converters: the generated one, the one for a value object written by hand, and `AnyEntityId`'s | `ValueObjectJsonException`, a sealed `JsonException` | `ErrorCode`, beside `ValueObjectType`, and in `Data` |
+| The Newtonsoft.Json converter | `JsonSerializationException` | In `Data` |
+| Dapper | `DataException` | In `Data` |
+| EF Core, a refused write or a strict read | `ValueObjectException`, inside the `DbUpdateException` or the exception the query fails with | `ErrorCode` |
+
+The code is the one the rule reports. A value that is not of the underlying type at all carries
+`value_object.not_parsable`: a JSON token of the wrong kind, a number the underlying type cannot hold, text not of its
+shape, a column the Dapper handler cannot convert. A `null` where a value object that cannot be `null` is expected
+carries `value_object.required`: a JSON `null`, a SQL `NULL` read into an `Iban` rather than an `Iban?`. The messages
+are the ones the exceptions carried before; where the System.Text.Json reader itself cannot read a token, as for a
+number beyond the range of an `int`, the message is still the serializer's own, "The JSON value could not be converted
+to …", followed by the path. No exception carries the refused value.
+
+`ValueObjectErrors.TryGetCode` reads the code from any of these, and from an exception that wraps one: ASP.NET Core
+wraps a body it cannot read in a `BadHttpRequestException`, and Entity Framework Core a refused write in a
+`DbUpdateException`. It reads `ValueObjectException.ErrorCode`, then `ValueObjectJsonException.ErrorCode`, then
+`Data` under `ValueObjectErrors.ErrorCodeKey`, on each exception of the chain in turn, and the first code found wins.
+An exception no value object raised carries none.
+
+```csharp skip
+catch (Exception exception) when (ValueObjectErrors.TryGetCode(exception, out var code))
+{
+    logger.LogWarning(exception, "A value was refused: {Code}", code);
+}
+```
+
+A logger that writes out the data of an exception finds the code there too, under the key
+`AdCodicem.ValueObjects.ErrorCode`. An integration of your own stores a code the same way,
+`exception.Data[ValueObjectErrors.ErrorCodeKey] = code`, and its exceptions are read like the library's.
+
+### A code for gRPC
+
+gRPC's error model takes a reason in upper snake case: `google.rpc.ErrorInfo.reason` and
+`google.rpc.BadRequest.FieldViolation.reason` must match `[A-Z][A-Z0-9_]+[A-Z0-9]`, and an `ErrorInfo` reason is at
+most 63 characters long. `ValueObjectErrorCodes.ToUpperSnakeCase` maps a code to one, the same way in every service,
+so a client in another language branches on the result:
+
+| Code | Reason |
+| --- | --- |
+| `value_object.too_long` | `VALUE_OBJECT_TOO_LONG` |
+| `iban.check_digits` | `IBAN_CHECK_DIGITS` |
+
+ASCII letters are upper-cased and digits kept, any run of other characters becomes one underscore, and an underscore
+left at either end is dropped. A code that maps to no valid reason, one that starts with a digit or that comes out
+longer than 63 characters, throws an `ArgumentException` rather than being truncated or given a prefix, which could
+make two codes one.
 
 ## Detecting an uninitialized instance
 

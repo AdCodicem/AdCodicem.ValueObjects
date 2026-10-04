@@ -152,10 +152,10 @@ response carries the stable code next to the message:
 }
 ```
 
-`errorCodes` covers values bound from the route, the query string, headers and forms. A value inside a JSON
-body is rejected by the serializer instead: the 400 names the member but carries no code. When a client needs
-codes for a payload, validate it with [FluentValidation](../how-to/fluentvalidation.md), which reports the value
-object's own codes.
+`errorCodes` covers values bound from the route, the query string, headers and forms, and a value inside a JSON
+body, under its JSON path: `{"email": "not-an-email"}` answers with `"errorCodes": { "$.email":
+"value_object.invalid_format" }`. A payload that carries raw text rather than value objects is validated with
+[FluentValidation](../how-to/fluentvalidation.md), which reports the value object's own codes.
 
 **The OpenAPI document states the rules.** `EmailAddress` is documented as
 `{"type": "string", "format": "email", "maxLength": 254, "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"}` and

@@ -97,6 +97,8 @@ public abstract class ApiTests<TFixture>(TFixture database) : IClassFixture<TFix
 
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         problem.GetProperty("errors").ToString().Should().Contain("email", Exactly.Once());
+        problem.GetProperty("errorCodes").GetProperty("$.email").GetString()
+            .Should().Be(ValueObjectErrorCodes.InvalidFormat, "the code of a value refused in a body is keyed by its JSON path");
     }
 
     [Fact]

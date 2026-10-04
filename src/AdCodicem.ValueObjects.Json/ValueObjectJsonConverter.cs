@@ -11,9 +11,17 @@ namespace AdCodicem.ValueObjects.Json;
 /// <typeparam name="TSelf">Value object type.</typeparam>
 /// <typeparam name="TValue">Underlying value type.</typeparam>
 /// <remarks>
+/// <para>
 /// This is the general-purpose converter, used for value objects written by hand. A generated value object
 /// carries its own converter, which writes the value directly instead of going back through the serializer, and
 /// is the one the factory hands out whenever it is available.
+/// </para>
+/// <para>
+/// A value or a key the value object rejects, and a value to write that it rejects, are refused with a
+/// <see cref="ValueObjectJsonException"/> carrying the code of the rule, as the generated converter refuses them. The
+/// underlying value itself is read by System.Text.Json, whose own exception, for a token that is not one of
+/// <typeparamref name="TValue"/>, carries no code.
+/// </para>
 /// </remarks>
 [RequiresUnreferencedCode("Delegating the underlying value to the serializer needs its metadata, which trimming may remove. Generated value objects carry their own converter and do not go through this one.")]
 [RequiresDynamicCode("Delegating the underlying value to the serializer may need run-time code generation. Generated value objects carry their own converter and do not go through this one.")]
@@ -27,7 +35,10 @@ public sealed class ValueObjectJsonConverter<TSelf, TValue> : JsonConverter<TSel
 
         if (!TSelf.TryCreate(value, out var result, out var validation))
         {
-            throw new JsonException($"The value is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}");
+            throw new ValueObjectJsonException(
+                $"The value is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}",
+                typeof(TSelf),
+                validation.ErrorCode ?? ValueObjectErrorCodes.NotParsable);
         }
 
         return result;
@@ -36,8 +47,8 @@ public sealed class ValueObjectJsonConverter<TSelf, TValue> : JsonConverter<TSel
     /// <inheritdoc />
     /// <remarks>
     /// An instance equal to the default whose value the value object rejects is refused with a
-    /// <see cref="JsonException"/> naming the rule, as the converter the generator emits refuses it, rather than written
-    /// for a reader to refuse.
+    /// <see cref="ValueObjectJsonException"/> naming the rule and carrying its code, as the converter the generator
+    /// emits refuses it, rather than written for a reader to refuse.
     /// </remarks>
     public override void Write(Utf8JsonWriter writer, TSelf value, JsonSerializerOptions options)
     {
@@ -50,7 +61,8 @@ public sealed class ValueObjectJsonConverter<TSelf, TValue> : JsonConverter<TSel
     /// The key is read as System.Text.Json reads a key of <typeparamref name="TValue"/>, then validated through
     /// <c>TryCreate</c>, as a value is: the reverse of <see cref="WriteAsPropertyName"/>, whatever text the value
     /// object's own parser reads. A key that is not one of <typeparamref name="TValue"/> is refused as it is in a
-    /// dictionary of its own, and a key the value object rejects with a <see cref="JsonException"/> naming the rule.
+    /// dictionary of its own, and a key the value object rejects with a <see cref="ValueObjectJsonException"/> naming the
+    /// rule and carrying its code.
     /// </remarks>
     public override TSelf ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -58,7 +70,10 @@ public sealed class ValueObjectJsonConverter<TSelf, TValue> : JsonConverter<TSel
 
         if (!TSelf.TryCreate(value, out var result, out var validation))
         {
-            throw new JsonException($"The dictionary key is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}");
+            throw new ValueObjectJsonException(
+                $"The dictionary key is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}",
+                typeof(TSelf),
+                validation.ErrorCode ?? ValueObjectErrorCodes.NotParsable);
         }
 
         return result;
@@ -70,7 +85,8 @@ public sealed class ValueObjectJsonConverter<TSelf, TValue> : JsonConverter<TSel
     /// the form the value itself travels in. The value object's own formatting, which may print something its
     /// parser does not read, never reaches the wire. An underlying type System.Text.Json cannot write as a key is
     /// refused as it is in a dictionary of its own, with a <see cref="NotSupportedException"/>, and a key the value
-    /// object rejects, as <see cref="Write"/> refuses a value, with a <see cref="JsonException"/> naming the rule.
+    /// object rejects, as <see cref="Write"/> refuses a value, with a <see cref="ValueObjectJsonException"/> naming the
+    /// rule.
     /// </remarks>
     public override void WriteAsPropertyName(Utf8JsonWriter writer, TSelf value, JsonSerializerOptions options)
     {
@@ -84,7 +100,7 @@ public sealed class ValueObjectJsonConverter<TSelf, TValue> : JsonConverter<TSel
     /// tells a valid zero from a refused one.
     /// </summary>
     /// <param name="value">Value object about to be written.</param>
-    /// <exception cref="JsonException">The value object rejects the value.</exception>
+    /// <exception cref="ValueObjectJsonException">The value object rejects the value.</exception>
     private static void ThrowIfRefused(TSelf value)
     {
         if (!value.IsDefault)
@@ -96,7 +112,10 @@ public sealed class ValueObjectJsonConverter<TSelf, TValue> : JsonConverter<TSel
         var validation = TSelf.Validate(in current);
         if (!validation.IsValid)
         {
-            throw new JsonException($"The value to write is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}");
+            throw new ValueObjectJsonException(
+                $"The value to write is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}",
+                typeof(TSelf),
+                validation.ErrorCode);
         }
     }
 

@@ -69,6 +69,42 @@ public partial class JsonSourceGenerationTests
     }
 
     /// <summary>
+    /// A serializer context reaches the generated converter through the factory, so a refusal carries the type, the
+    /// code and the path as it does through the attribute, including from an assembly that does not reference the JSON
+    /// package, and for a number the underlying type cannot hold, whose message is still System.Text.Json's own.
+    /// </summary>
+    /// <param name="json">The payload.</param>
+    /// <param name="type">The value object that refuses it.</param>
+    /// <param name="path">The path of the refused member.</param>
+    /// <param name="code">The code of the refusal.</param>
+    [Theory]
+    [InlineData("""{"Account":"DE89370400440532013000","Total":-1,"Country":"BE","Birth":"1980-05-17"}""", typeof(Amount), "$.Total", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData("""{"Account":"DE89370400440532013000","Total":1e400,"Country":"BE","Birth":"1980-05-17"}""", typeof(Amount), "$.Total", ValueObjectErrorCodes.NotParsable)]
+    [InlineData("""{"Account":"DE89370400440532013000","Total":1,"Country":"ZZ","Birth":"1980-05-17"}""", typeof(CountryCode), "$.Country", ValueObjectErrorCodes.NotAKnownValue)]
+    [InlineData("""{"Account":"DE00370400440532013000","Total":1,"Country":"BE","Birth":"1980-05-17"}""", typeof(Iban), "$.Account", ValueObjectErrorCodes.InvalidFormat)]
+    [InlineData("""{"Account":null,"Total":1,"Country":"BE","Birth":"1980-05-17"}""", typeof(Iban), "$.Account", ValueObjectErrorCodes.Required)]
+    public void A_serializer_context_refuses_with_the_type_the_code_and_the_path(string json, Type type, string path, string code)
+    {
+        var refusal = FluentActions.Invoking(() => JsonSerializer.Deserialize(json, TransferContext.Default.Transfer))
+            .Should().Throw<ValueObjectJsonException>().Which;
+
+        refusal.ValueObjectType.Should().Be(type);
+        refusal.ErrorCode.Should().Be(code);
+        refusal.Path.Should().Be(path);
+    }
+
+    [Fact]
+    public void A_value_object_of_an_assembly_without_the_JSON_package_refuses_with_its_code()
+    {
+        var refusal = FluentActions.Invoking(() => JsonSerializer.Deserialize("""{"Amount":"1","Item":"TOO-LONG-FOR-A-SKU"}""", TransferContext.Default.Grant))
+            .Should().Throw<ValueObjectJsonException>().Which;
+
+        refusal.ValueObjectType.Should().Be<Sku>();
+        refusal.ErrorCode.Should().Be(ValueObjectErrorCodes.TooLong);
+        refusal.Path.Should().Be("$.Item");
+    }
+
+    /// <summary>
     /// The converter travels with the descriptor, created the first time it is asked for and the same from then on. An
     /// assembly referencing the JSON package, as this one does, also publishes it to the package's own registry, which an
     /// older package reads alone, and which comes first.

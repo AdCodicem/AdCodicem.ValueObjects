@@ -150,7 +150,8 @@ public class NewtonsoftJsonTests
         var required = () => JsonConvert.DeserializeObject<Iban>("null", Defaults);
 
         JsonConvert.DeserializeObject<Payment>(json, Defaults)!.Birth.Should().BeNull();
-        required.Should().Throw<JsonSerializationException>().WithMessage("Cannot convert null to 'Iban'.");
+        required.Should().Throw<JsonSerializationException>().WithMessage("Cannot convert null to 'Iban'.")
+            .Which.ShouldCarry(ValueObjectErrorCodes.Required);
     }
 
     /// <summary>
@@ -169,7 +170,8 @@ public class NewtonsoftJsonTests
         json.Should().Be("\"https://example.com/a\"");
         JsonConvert.DeserializeObject<HandWrittenLink>(json, Defaults).Should().Be(link);
         relative.Should().Throw<JsonSerializationException>()
-            .WithMessage("The value is not a valid HandWrittenLink: A link is an absolute URI.");
+            .WithMessage("The value is not a valid HandWrittenLink: A link is an absolute URI.")
+            .Which.ShouldCarry(ValueObjectErrorCodes.InvalidFormat);
     }
 
     /// <summary>
@@ -189,10 +191,13 @@ public class NewtonsoftJsonTests
         var amount = JsonConvert.SerializeObject(default(Amount), Defaults);
 #pragma warning restore VO0010
 
-        country.Should().Throw<JsonSerializationException>().WithMessage("The value to write is not a valid CountryCode: ?*");
-        birth.Should().Throw<JsonSerializationException>().WithMessage("The value to write is not a valid BirthDate: ?*");
+        country.Should().Throw<JsonSerializationException>().WithMessage("The value to write is not a valid CountryCode: ?*")
+            .Which.ShouldCarry(CodeCarrying.CodeOfDefault<CountryCode, string>());
+        birth.Should().Throw<JsonSerializationException>().WithMessage("The value to write is not a valid BirthDate: ?*")
+            .Which.ShouldCarry(CodeCarrying.CodeOfDefault<BirthDate, DateOnly>());
         payment.Should().Throw<JsonSerializationException>()
-            .WithMessage("The value to write is not a valid CustomerId: A customer identifier must not be empty.");
+            .WithMessage("The value to write is not a valid CustomerId: A customer identifier must not be empty.")
+            .Which.ShouldCarry(CodeCarrying.CodeOfDefault<CustomerId, Guid>());
         amount.Should().Be("0.0", "zero is an amount");
     }
 
@@ -331,7 +336,8 @@ public class NewtonsoftJsonTests
         JsonConvert.DeserializeObject<Mass>(smallJson, decimals).Value
             .Should().NotBe(small.Value, "a decimal keeps 28 places, and so nine digits of this one");
         readLightest.Should().Throw<JsonSerializationException>()
-            .WithMessage("The value is not a valid Mass: *", "read as zero, the lightest mass is below its own minimum");
+            .WithMessage("The value is not a valid Mass: *", "read as zero, the lightest mass is below its own minimum")
+            .Which.ShouldCarry(ValueObjectErrorCodes.OutOfRange);
         JsonConvert.DeserializeObject<Ratio>(tinyJson, decimals).Value.Should().Be(0f);
     }
 
@@ -358,7 +364,8 @@ public class NewtonsoftJsonTests
     {
         var act = () => JsonConvert.DeserializeObject(json, type, Defaults);
 
-        act.Should().Throw<JsonSerializationException>().WithMessage($"The value could not be read as {type.Name}.");
+        act.Should().Throw<JsonSerializationException>().WithMessage($"The value could not be read as {type.Name}.")
+            .Which.ShouldCarry(ValueObjectErrorCodes.NotParsable);
     }
 
     /// <summary>
@@ -376,7 +383,8 @@ public class NewtonsoftJsonTests
         var act = () => JsonConvert.DeserializeObject(json, type, Defaults);
 
         act.Should().Throw<JsonSerializationException>()
-            .WithMessage($"Expected a JSON {expected} for {type.Name} but found {found}.");
+            .WithMessage($"Expected a JSON {expected} for {type.Name} but found {found}.")
+            .Which.ShouldCarry(ValueObjectErrorCodes.NotParsable);
     }
 
     /// <summary>
@@ -416,7 +424,8 @@ public class NewtonsoftJsonTests
         var newtonsoft = () => JsonConvert.DeserializeObject(json, type, Defaults);
         var systemTextJson = () => StjSerializer.Deserialize(json, type, NumbersFromText);
 
-        newtonsoft.Should().Throw<JsonSerializationException>().WithMessage($"The value could not be read as {type.Name}.");
+        newtonsoft.Should().Throw<JsonSerializationException>().WithMessage($"The value could not be read as {type.Name}.")
+            .Which.ShouldCarry(ValueObjectErrorCodes.NotParsable);
         systemTextJson.Should().Throw<System.Text.Json.JsonException>();
     }
 
@@ -451,7 +460,8 @@ public class NewtonsoftJsonTests
 
         JsonConvert.DeserializeObject<Amount>("12.345", Recommended).Value.Should().Be(12.34m, "the amount normalizes");
         JsonConvert.DeserializeObject<Consent>("false", Defaults).Value.Should().BeFalse();
-        act.Should().Throw<JsonSerializationException>().WithMessage("The value is not a valid Amount: *greater than or equal to 0*");
+        act.Should().Throw<JsonSerializationException>().WithMessage("The value is not a valid Amount: *greater than or equal to 0*")
+            .Which.ShouldCarry(ValueObjectErrorCodes.OutOfRange);
     }
 
     /// <summary>
@@ -466,7 +476,8 @@ public class NewtonsoftJsonTests
 
         var act = () => JsonConvert.DeserializeObject<Label>(json, Defaults);
 
-        act.Should().Throw<JsonSerializationException>().WithMessage("*Label*DateParseHandling*None*");
+        act.Should().Throw<JsonSerializationException>().WithMessage("*Label*DateParseHandling*None*")
+            .Which.ShouldCarry(ValueObjectErrorCodes.NotParsable);
         JsonConvert.DeserializeObject<Label>(json, Recommended).Value.Should().Be("2024-05-17T10:00:00Z");
     }
 
@@ -533,7 +544,8 @@ public class NewtonsoftJsonTests
         var read = () => JsonConvert.DeserializeObject<OccurredAt>(json, Defaults);
 
         json.Should().MatchRegex("""^"2024-06-01T12:30:45[+-]\d\d:\d\d"$""");
-        read.Should().Throw<JsonSerializationException>().WithMessage("*OccurredAt*DateParseHandling to None*");
+        read.Should().Throw<JsonSerializationException>().WithMessage("*OccurredAt*DateParseHandling to None*")
+            .Which.ShouldCarry(ValueObjectErrorCodes.NotParsable);
     }
 
     [Theory]
@@ -563,7 +575,8 @@ public class NewtonsoftJsonTests
         var act = () => JsonConvert.DeserializeObject(json, type, Defaults);
 
         act.Should().Throw<JsonSerializationException>()
-            .WithMessage($"Expected a JSON string for {type.Name} but found {found}.");
+            .WithMessage($"Expected a JSON string for {type.Name} but found {found}.")
+            .Which.ShouldCarry(ValueObjectErrorCodes.NotParsable);
     }
 
     [Fact]
@@ -575,9 +588,12 @@ public class NewtonsoftJsonTests
 
         JsonConvert.DeserializeObject<Iban>("\"fr76 3000 6000 0112 3456 7890 189\"", Defaults).Value
             .Should().Be("FR7630006000011234567890189");
-        wrongDigits.Should().Throw<JsonSerializationException>().WithMessage("The value is not a valid Iban: *check digits*");
-        notADate.Should().Throw<JsonSerializationException>().WithMessage("The value is not a valid RecordedAt: *not a valid*DateTime*");
-        tooEarly.Should().Throw<JsonSerializationException>().WithMessage("The value is not a valid RecordedAt: *greater than*");
+        wrongDigits.Should().Throw<JsonSerializationException>().WithMessage("The value is not a valid Iban: *check digits*")
+            .Which.ShouldCarry(ValueObjectErrorCodes.InvalidFormat);
+        notADate.Should().Throw<JsonSerializationException>().WithMessage("The value is not a valid RecordedAt: *not a valid*DateTime*")
+            .Which.ShouldCarry(ValueObjectErrorCodes.NotParsable);
+        tooEarly.Should().Throw<JsonSerializationException>().WithMessage("The value is not a valid RecordedAt: *greater than*")
+            .Which.ShouldCarry(ValueObjectErrorCodes.OutOfRange);
     }
 
     /// <summary>

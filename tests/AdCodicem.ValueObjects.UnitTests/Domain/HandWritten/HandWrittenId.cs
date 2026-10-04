@@ -11,7 +11,7 @@ public interface IHandWrittenIdProfile
     /// <summary>Gets the prefix the identifier claims.</summary>
     static abstract string Prefix { get; }
 
-    /// <summary>Gets a value indicating whether the parser refuses every text without giving a reason.</summary>
+    /// <summary>Gets a value indicating whether the parser and the factory refuse everything without giving a reason.</summary>
     static virtual bool RefusesSilently => false;
 
     /// <summary>Gets a value indicating whether <c>Value</c> answers <see langword="null"/>, which its contract rules out.</summary>
@@ -73,6 +73,13 @@ public readonly struct HandWrittenId<TProfile> : IEntityId<HandWrittenId<TProfil
 
     public static bool TryCreate(string value, out HandWrittenId<TProfile> result, out ValidationResult validation)
     {
+        if (TProfile.RefusesSilently)
+        {
+            result = default;
+            validation = ValidationResult.Success;
+            return false;
+        }
+
         var normalized = Normalize(value);
         validation = Validate(normalized);
         result = validation.IsValid ? new HandWrittenId<TProfile>(normalized) : default;
@@ -147,7 +154,7 @@ public sealed class ImpostorProfile : IHandWrittenIdProfile
     public static string Prefix => "acc";
 }
 
-/// <summary>Refuses every text and never says why.</summary>
+/// <summary>Refuses every text and every value, and never says why.</summary>
 public sealed class MuteProfile : IHandWrittenIdProfile
 {
     public static string Prefix => "mute";

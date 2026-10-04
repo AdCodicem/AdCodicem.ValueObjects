@@ -101,7 +101,8 @@ It parses whichever registered prefix arrives. It implements neither `IValueObje
 what keeps it out of the EF Core convention: a polymorphic column cannot be mapped by accident.
 
 Its `Value` is the identifier's own value, never what a formatting hook writes. In JSON it is that bare text. A
-JSON `null` throws a `JsonException`: declare `AnyEntityId?` for a reference that may be absent.
+JSON `null` throws a `ValueObjectJsonException` carrying `value_object.required`: declare `AnyEntityId?` for a
+reference that may be absent. A prefix no type claims carries `value_object.id.unknown_prefix`.
 
 ## Deterministic tests
 
