@@ -194,4 +194,5 @@ published as it was built. An annotation it also carries is not read: nothing ge
 its known values as the type holds them and its description belong in the schema. A known value of another type than
 the underlying one is listed as its text. The names of its known values belong there too, in `KnownValueDetails`, one
 `KnownValueInfo` per value of `KnownValues`, in the same order: names that do not list those values one for one are
-not published, rather than published beside the wrong value.
+not published, rather than published beside the wrong value, and the
+[contract kit](./test-value-objects.md#what-it-checks) fails on them.

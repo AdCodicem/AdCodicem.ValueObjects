@@ -244,8 +244,8 @@ public sealed class IbanContract : ValueObjectContract<Iban, string>
 ```
 
 That derives over a dozen checks: normalization settles, equality and ordering agree, text and JSON round-trip,
-rejected values are rejected the same way by every entry point, and the declared example and known values are
-values the type accepts.
+rejected values are rejected the same way by every entry point, the declared example and known values are
+values the type accepts, and the schema names each known value in its place.
 
 ## Authoring reference
 

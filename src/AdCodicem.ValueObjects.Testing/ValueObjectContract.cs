@@ -18,7 +18,8 @@ namespace AdCodicem.ValueObjects.Testing;
 /// Derive from it, supply a handful of accepted and rejected values, and the properties that are easy to get
 /// subtly wrong are all checked: that normalization settles, that equality and ordering agree, that a value
 /// survives a round-trip through text and through JSON, that a rejected value is rejected the same way by
-/// every entry point, and that the example and the known values the type declares are values it accepts.
+/// every entry point, that the example and the known values the type declares are values it accepts, and that the
+/// details of its known values name each of them in its place.
 /// </para>
 /// <para>
 /// <code>
@@ -308,7 +309,73 @@ public abstract class ValueObjectContract<TSelf, TValue>
         }
     }
 
+    /// <summary>
+    /// The details of the known values hold the names the OpenAPI document publishes beside the <c>enum</c> of a closed
+    /// set, which a client generated from it names the members of its enumeration after: they list the known values one
+    /// for one, in the same order, each under a name.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The generator writes them so. A schema written by hand is where they drift apart, and the OpenAPI integration then
+    /// publishes no name at all, rather than one beside the wrong value. The values are compared as that integration
+    /// compares them, with <see cref="object.Equals(object, object)"/>, so a value boxed as another type than its
+    /// counterpart is out of step.
+    /// </para>
+    /// <para>
+    /// The check reads <c>TSelf.Schema</c>, the schema the type declares, which generic code reads and the registry
+    /// describes the type with unless it was registered with another, so it runs on a value object written by hand
+    /// whether anything registered it or not. A type that declares no known value, or one whose schema details none of
+    /// them, as a schema written by hand may, reports the check skipped.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_known_value_details_line_up_with_the_known_values()
+    {
+        Initialize();
+
+        var schema = TSelf.Schema;
+        var knownValues = schema.KnownValues.AsSpan();
+        var details = schema.KnownValueDetails.AsSpan();
+        if (details.IsEmpty)
+        {
+            Assert.Skip(
+                knownValues.IsEmpty
+                    ? $"'{typeof(TSelf).Name}' declares no known value."
+                    : $"'{typeof(TSelf).Name}' details none of its known values.");
+        }
+
+        Assert.True(
+            details.Length == knownValues.Length,
+            $"'{typeof(TSelf).Name}' has {details.Length} known value details for {knownValues.Length} known values: "
+            + "KnownValueDetails lists the values of KnownValues one for one, in the same order.");
+
+        for (var index = 0; index < details.Length; index++)
+        {
+            var detail = details[index];
+            Assert.True(
+                detail is not null && !string.IsNullOrWhiteSpace(detail.Name),
+                $"The known value detail at index {index} of '{typeof(TSelf).Name}' has no name, which the OpenAPI document "
+                + "names the value after.");
+
+            var known = knownValues[index];
+            Assert.True(
+                Equals(detail.Value, known),
+                $"The known value detail '{detail.Name}' of '{typeof(TSelf).Name}' is of the value "
+                + $"{Describe(detail.Value, known)}, where the known value at index {index} is {Describe(known, detail.Value)}: "
+                + "KnownValueDetails lists the values of KnownValues one for one, in the same order.");
+        }
+    }
+
     private IEnumerable<TSelf> Accepted() => AcceptedValues.Select(TSelf.Create);
+
+    /// <summary>
+    /// Writes a value as a failure names it, with its type when the value it is compared with is of another, which two
+    /// values written alike would otherwise hide.
+    /// </summary>
+    private static string Describe(object? value, object? other)
+        => value is null ? "null"
+            : other is not null && value.GetType() != other.GetType() ? $"'{value}' ({value.GetType().Name})"
+            : $"'{value}'";
 
     /// <summary>
     /// Initializes the type and gets its descriptor, reporting a type that cannot initialize because a value it creates
@@ -317,10 +384,31 @@ public abstract class ValueObjectContract<TSelf, TValue>
     /// <param name="declaration">What the check reads off the schema, as the skip names it.</param>
     /// <returns>The descriptor.</returns>
     /// <remarks>
-    /// The type is initialized first, directly rather than through the reflection the registry describes a construction
-    /// of a generic value object with, so that its failure reaches the kit as it happened.
+    /// The type is initialized first, as <see cref="Initialize"/> says, before anything asks the registry for it.
     /// </remarks>
     private static ValueObjectDescriptor Descriptor(string declaration)
+    {
+        Initialize();
+        EnsureRegistered();
+        if (!ValueObjectRegistry.TryGet(typeof(TSelf), out var descriptor))
+        {
+            Assert.Skip(
+                $"'{typeof(TSelf).Name}' did not register itself, so it has no declared {declaration} to check. "
+                + "The_type_is_discoverable_at_run_time says why.");
+        }
+
+        return descriptor;
+    }
+
+    /// <summary>
+    /// Initializes the type, reporting one that cannot because a value it creates as it does, such as a known value, is
+    /// refused.
+    /// </summary>
+    /// <remarks>
+    /// The type is initialized directly rather than through the reflection the registry describes a construction of a
+    /// generic value object with, so that its failure reaches the kit as it happened.
+    /// </remarks>
+    private static void Initialize()
     {
         try
         {
@@ -332,16 +420,6 @@ public abstract class ValueObjectContract<TSelf, TValue>
                 $"'{typeof(TSelf).Name.Split('`')[0]}' cannot initialize: a value it creates as it does, a known value most "
                 + $"likely, is refused ({refusal.ErrorCode}): {refusal.Message}");
         }
-
-        EnsureRegistered();
-        if (!ValueObjectRegistry.TryGet(typeof(TSelf), out var descriptor))
-        {
-            Assert.Skip(
-                $"'{typeof(TSelf).Name}' did not register itself, so it has no declared {declaration} to check. "
-                + "The_type_is_discoverable_at_run_time says why.");
-        }
-
-        return descriptor;
     }
 
     /// <summary>

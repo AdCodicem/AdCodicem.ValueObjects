@@ -93,7 +93,7 @@ public sealed record ValueObjectSchema
     /// <para>
     /// A schema built by hand may leave it empty. One that fills it lists the values of <see cref="KnownValues"/> in the
     /// same order, each equal to its counterpart; the OpenAPI integration publishes no name otherwise, rather than one
-    /// beside the wrong value.
+    /// beside the wrong value. The contract kit of <c>AdCodicem.ValueObjects.Testing</c> checks it.
     /// </para>
     /// </remarks>
     public ImmutableArray<KnownValueInfo> KnownValueDetails { get; init; } = [];
