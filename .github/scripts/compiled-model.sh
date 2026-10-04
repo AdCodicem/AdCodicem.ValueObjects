@@ -32,6 +32,9 @@ esac
 
 rm -rf "$out"
 dotnet tool restore
+# `dotnet ef` reads the project's metadata before it builds, which needs its assets file: restore the project here
+# rather than rely on a solution restore run before, which the build job has and the native AOT job has not.
+dotnet restore "$project"
 
 # The queries are precompiled once, for the relaxed context: they are the same calls for both, and a second run would
 # intercept each of them twice.
