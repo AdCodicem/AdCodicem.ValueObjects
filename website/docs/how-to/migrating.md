@@ -143,9 +143,9 @@ templates.
 
 ## From the `Pattern` option of an earlier version
 
-The `Pattern` option of `[ValueObject<T>]` is deprecated and removed in the next major version. It builds its
-`Regex` at run time, which native AOT interprets, and the compiler reports each use as `VO0021`: a warning, so an
-error under `TreatWarningsAsErrors`. Move each pattern to `IValueObjectPatternValidator`, one type at a time.
+The `Pattern` option of `[ValueObject<T>]` is deprecated, and any minor version may remove it before 1.0.0. It
+builds its `Regex` at run time, which native AOT interprets, and the compiler reports each use as `VO0021`: a
+warning, so an error under `TreatWarningsAsErrors`. Move each pattern to `IValueObjectPatternValidator`, one type at a time.
 
 ```csharp skip
 [ValueObject<string>(MinLength = 15, MaxLength = 34, Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$")]

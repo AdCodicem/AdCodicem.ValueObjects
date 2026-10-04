@@ -97,13 +97,14 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     /// </para>
     /// <para>
     /// <see cref="IValueObjectPatternValidator"/> takes a <c>[GeneratedRegex]</c> the author writes, which the regex
-    /// generator compiles. Setting both is <c>VO0022</c>. This option is reported as <c>VO0021</c> and will be
-    /// removed in the next major version.
+    /// generator compiles. Setting both is <c>VO0022</c>. This option is reported as <c>VO0021</c>, and any
+    /// minor version may remove it before 1.0.0.
     /// </para>
     /// </remarks>
     [Obsolete(
         "Implement IValueObjectPatternValidator with a [GeneratedRegex] partial property instead. Pattern compiles its "
-        + "regular expression at run time, which native AOT interprets, and will be removed in the next major version.",
+        + "regular expression at run time, which native AOT interprets, and any minor version may remove it before "
+        + "1.0.0.",
         DiagnosticId = "VO0021")]
     [StringSyntax(StringSyntaxAttribute.Regex)]
     public string? Pattern { get; set; }
@@ -147,14 +148,14 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     /// </para>
     /// <para>
     /// <see cref="IValueObjectMinimum{TValue}"/> declares the bound as a value of the underlying type, which the
-    /// compiler checks. Setting both is <c>VO0029</c>. This option is reported as <c>VO0028</c> and will be removed in
-    /// the next major version.
+    /// compiler checks. Setting both is <c>VO0029</c>. This option is reported as <c>VO0028</c>, and any minor
+    /// version may remove it before 1.0.0.
     /// </para>
     /// </remarks>
     [Obsolete(
         "Implement IValueObjectMinimum<T> with a static Minimum property of the underlying type instead. A bound written "
-        + "as text is read under one grammar per type the compiler cannot check, and will be removed in the next major "
-        + "version.",
+        + "as text is read under one grammar per type the compiler cannot check, and any minor version may "
+        + "remove it before 1.0.0.",
         DiagnosticId = "VO0028")]
     public string? Minimum { get; set; }
 
@@ -164,12 +165,12 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     /// <remarks>
     /// Read as <see cref="Minimum"/> is. <see cref="IValueObjectMaximum{TValue}"/> declares the bound as a value of
     /// the underlying type, which the compiler checks. Setting both is <c>VO0029</c>. This option is reported as
-    /// <c>VO0028</c> and will be removed in the next major version.
+    /// <c>VO0028</c>, and any minor version may remove it before 1.0.0.
     /// </remarks>
     [Obsolete(
         "Implement IValueObjectMaximum<T> with a static Maximum property of the underlying type instead. A bound written "
-        + "as text is read under one grammar per type the compiler cannot check, and will be removed in the next major "
-        + "version.",
+        + "as text is read under one grammar per type the compiler cannot check, and any minor version may "
+        + "remove it before 1.0.0.",
         DiagnosticId = "VO0028")]
     public string? Maximum { get; set; }
 

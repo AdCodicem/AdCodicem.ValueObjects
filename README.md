@@ -129,6 +129,15 @@ next major is supported by these same packages, never by a package per framework
 ¹ On the .NET 11 release candidate, by a CI job that installs the packages each commit builds into a `net11.0`
 application. It informs and blocks nothing until .NET 11 ships.
 
+## Versioning
+
+The packages follow semantic versioning from 1.0.0 on: from then, only a major version breaks the public API or
+removes a member. Before 1.0.0, the version is `0.<minor>.<patch>`, and a minor version may break part of the public
+API, or deprecate or remove part of it, without waiting for a major: read the
+[changelog](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.md) before taking a new minor. A
+patch never breaks anything, before 1.0.0 or after. A member deprecated rather than removed outright is reported by
+the compiler wherever it is used, with a diagnostic naming its replacement (`VO0021`, `VO0028`).
+
 ## Trying a preview
 
 Between stable releases, a preview of every package is published to nuget.org when something a package ships has
@@ -246,8 +255,8 @@ strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `Dat
 | Option | Effect |
 | --- | --- |
 | `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI schema. |
-| `Pattern` | Deprecated (`VO0021`): a regular expression built at run time, which native AOT interprets. Implement `IValueObjectPatternValidator` instead. Removed in the next major version. |
-| `Minimum`, `Maximum` | Deprecated (`VO0028`): inclusive bounds written as text in the one form of the underlying type. Implement `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>` instead. Removed in the next major version. |
+| `Pattern` | Deprecated (`VO0021`): a regular expression built at run time, which native AOT interprets. Implement `IValueObjectPatternValidator` instead. Any minor version may remove it before 1.0.0. |
+| `Minimum`, `Maximum` | Deprecated (`VO0028`): inclusive bounds written as text in the one form of the underlying type. Implement `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>` instead. Any minor version may remove them before 1.0.0. |
 | `Comparison` | Equality, ordering and hashing for string value objects. Ordinal by default. |
 | `ValueSet = Closed` + `[KnownValue]` | Reference-data codes with a frozen lookup and a schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. |
 | `Arithmetic` | Operators and generic math for numeric value objects. Every result is re-validated. |
@@ -319,8 +328,8 @@ when the type compiles, is also the OpenAPI `pattern`. That text carries no `Reg
 is not among the implicit usings.
 
 The hook replaces the `Pattern` option, which builds its regular expression at run time, where native AOT
-interprets it. The option is deprecated (`VO0021`) and removed in the next major version. To migrate, move the
-expression from `Pattern = "X"` into
+interprets it. The option is deprecated (`VO0021`), and any minor version may remove it before 1.0.0. To migrate,
+move the expression from `Pattern = "X"` into
 `[GeneratedRegex("X", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }`:
 those are the options and the timeout the option used, so behaviour does not change. Declaring both is `VO0022`.
 
@@ -343,8 +352,8 @@ extensions for a type JSON writes as a string. A bound is a constant, written as
 check reads it each time and the schema once, as the assembly loads, so a bound relative to the clock is a rule for
 `ValidateValue`. Over a `string`, a `Guid`, a `bool`, an
 `[EntityId]` or another type than the underlying one, the hooks are `VO0030`. They replace the `Minimum` and
-`Maximum` options, deprecated (`VO0028`) and removed in the next major version; declaring an option and its hook is
-`VO0029`, and the hook wins.
+`Maximum` options, deprecated (`VO0028`), which any minor version may remove before 1.0.0; declaring an option and
+its hook is `VO0029`, and the hook wins.
 
 The rules are public because a static interface member cannot be anything else. `Normalize` remains the member
 callers use: it guards against a null underlying value and then defers to `NormalizeValue`.
@@ -442,14 +451,14 @@ an internal surrogate key alongside it.
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
 | `VO0019` | Error | The generated code cannot reopen, reach or name the type: it, or a type around it, is `file`-local; it is `private` or `protected`, or nested in such a type, inside a generic type; it is a generic `[EntityId]`, or one in a generic type; it has a type parameter it cannot use; or it is named after a member the generator writes on it. |
 | `VO0020` | Error | `Comparison`, `ValueSet` or `Granularity` holds a value its enum does not define. |
-| `VO0021` | Warning | The deprecated `Pattern` option of `[ValueObject<T>]`, reported by the compiler. Implement `IValueObjectPatternValidator` with `[GeneratedRegex("X", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }` and remove `Pattern = "X"`. The option builds its regular expression at run time, which native AOT interprets, and is removed in the next major. |
+| `VO0021` | Warning | The deprecated `Pattern` option of `[ValueObject<T>]`, reported by the compiler. Implement `IValueObjectPatternValidator` with `[GeneratedRegex("X", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }` and remove `Pattern = "X"`. The option builds its regular expression at run time, which native AOT interprets, and any minor version may remove it before 1.0.0. |
 | `VO0022` | Error | Both the `Pattern` option and `IValueObjectPatternValidator` on one type. The hook wins. |
 | `VO0023` | Error | `IValueObjectPatternValidator` on a value object whose underlying type is not `string`. |
 | `VO0024` | Error | `IValueObjectPatternValidator` on an `[EntityId]`, which validates and publishes its own format. |
 | `VO0025` | Warning | The `[GeneratedRegex]` behind `Pattern` sets `IgnoreCase`, `Multiline`, `Singleline` or `IgnorePatternWhitespace`, which the OpenAPI `pattern` cannot carry. |
 | `VO0026` | Warning | The `[GeneratedRegex]` behind `Pattern` sets no `matchTimeoutMilliseconds`. |
 | `VO0027` | Error | `[KnownValue]` on an `[EntityId]`, which generates no known values. |
-| `VO0028` | Warning | The deprecated `Minimum` or `Maximum` option of `[ValueObject<T>]`, reported by the compiler. Implement `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` with a static property of the underlying type and remove the option. It is removed in the next major. |
+| `VO0028` | Warning | The deprecated `Minimum` or `Maximum` option of `[ValueObject<T>]`, reported by the compiler. Implement `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` with a static property of the underlying type and remove the option. Any minor version may remove it before 1.0.0. |
 | `VO0029` | Error | Both the `Minimum` (or `Maximum`) option and its hook on one type. The hook wins. |
 | `VO0030` | Error | `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` over a type that takes no bound, or over another type than the underlying one. |
 | `VO0031` | Error | The `Example` or a known value declared on the type is one its own rules refuse, wherever the generator can evaluate them: an example no form of the underlying type reads, a length, an empty string, a bound returned as a constant, a closed value set. The contract kit checks the rest at run time. |

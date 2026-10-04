@@ -76,7 +76,8 @@ merge.
 
 Nothing you merge publishes a package by itself. A preview of every package goes to nuget.org each week in which
 something a package ships has changed, and a stable release is cut by hand; while the version is 0.x, a breaking
-change releases a minor.
+change releases a minor, so a minor may break, deprecate or remove part of the public API; only from 1.0.0 on does
+a breaking change wait for a major.
 
 ## The agent skill
 

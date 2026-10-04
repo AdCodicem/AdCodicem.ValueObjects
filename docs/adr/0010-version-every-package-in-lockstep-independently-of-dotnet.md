@@ -85,9 +85,10 @@ framework major.
   `releaseRules` in `.releaserc.json` is `{ "breaking": true, "release": "minor" }`: a `feat!`, a `fix(deps)!` or a
   `BREAKING CHANGE:` footer releases `0.y+1.0`. At 1.0 the rule is **replaced** by
   `{ "breaking": true, "release": "major" }`, not deleted: without a breaking rule of its own, `build(pack)!` and
-  `docs(readme)!` would fall back to the patch their scope is rated. "Removed in the next major version", which the
-  deprecated `Pattern`, `Minimum` and `Maximum` options say, means 1.0.0: a breaking change is a minor while the
-  version is 0.x, but a deprecated option stays until 1.0.0.
+  `docs(readme)!` would fall back to the patch their scope is rated. Before 1.0.0, a minor may therefore break,
+  deprecate or remove part of the public API, deprecated members included: the deprecated `Pattern`, `Minimum` and
+  `Maximum` options say that any minor version may remove them before 1.0.0. *(Amended: this bullet first promised
+  that a deprecated option would stay until 1.0.0.)* Only from 1.0.0 on does a breaking change wait for a major.
 - **Dependabot follows the same lines.**
   - A new major of a framework is supported by a decision, a floor or a target framework, never by a bump: the
     `nuget` entry ignores semver-major updates of `Microsoft.EntityFrameworkCore*`, `Microsoft.AspNetCore.*`,
