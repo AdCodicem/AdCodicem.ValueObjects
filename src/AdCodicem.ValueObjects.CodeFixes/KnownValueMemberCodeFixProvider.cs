@@ -111,7 +111,6 @@ public sealed class KnownValueMemberCodeFixProvider : CodeFixProvider
     {
         var editor = await DocumentEditor.CreateAsync(document, cancellationToken).ConfigureAwait(false);
         var model = editor.SemanticModel;
-        var newLine = SyntaxFactory.EndOfLine(editor.OriginalRoot.ToFullString().Contains("\r\n") ? "\r\n" : "\n");
 
         foreach (var declaration in declarations)
         {
@@ -155,7 +154,7 @@ public sealed class KnownValueMemberCodeFixProvider : CodeFixProvider
             if (members.Count > 0)
             {
                 // Replaced last, so that the attributes removed above are already gone from the node it is handed.
-                editor.ReplaceNode(declaration, (current, _) => WithMembers((TypeDeclarationSyntax)current, members, newLine));
+                editor.ReplaceNode(declaration, (current, _) => WithMembers((TypeDeclarationSyntax)current, members));
             }
         }
 
@@ -166,10 +165,11 @@ public sealed class KnownValueMemberCodeFixProvider : CodeFixProvider
     /// Puts the members a fix writes at the top of a type, each separated from the next by a blank line, and gives the
     /// type a body when it was declared without one.
     /// </summary>
-    private static TypeDeclarationSyntax WithMembers(
-        TypeDeclarationSyntax type,
-        List<MemberDeclarationSyntax> members,
-        SyntaxTrivia newLine)
+    /// <remarks>
+    /// The line breaks are the formatter's to write: it lays out each member it is handed with the line ending the
+    /// document's options give, whatever ending the break was created with.
+    /// </remarks>
+    private static TypeDeclarationSyntax WithMembers(TypeDeclarationSyntax type, List<MemberDeclarationSyntax> members)
     {
         var separated = new List<MemberDeclarationSyntax>();
         for (var index = 0; index < members.Count; index++)
@@ -177,7 +177,7 @@ public sealed class KnownValueMemberCodeFixProvider : CodeFixProvider
             var member = members[index];
             if (index < members.Count - 1 || type.Members.Count > 0)
             {
-                member = member.WithTrailingTrivia(newLine, newLine);
+                member = member.WithTrailingTrivia(SyntaxFactory.LineFeed, SyntaxFactory.LineFeed);
             }
 
             separated.Add(member);
