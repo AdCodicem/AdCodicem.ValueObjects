@@ -451,7 +451,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         {
             diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.EntityIdTakesNoKnownValue,
-                known.Member.Locations.FirstOrDefault() ?? location,
+                known.Member.Locations[0],
                 symbol.Name,
                 known.Member.Name));
         }
@@ -1090,7 +1090,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             {
                 diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.InvalidKnownValueMember,
-                    member.Locations.FirstOrDefault() ?? Location.None,
+                    member.Locations[0],
                     member.Name,
                     symbol.Name,
                     refusal));
@@ -1101,9 +1101,11 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             var description = attribute.NamedArguments
                 .FirstOrDefault(static pair => string.Equals(pair.Key, "Description", StringComparison.Ordinal))
                 .Value.Value as string;
+
+            // A member accepted as a known value has an initializer, read off the declaration that holds it.
             if (string.IsNullOrWhiteSpace(description))
             {
-                description = declaration is null ? null : ExtractSummary(member, declaration);
+                description = ExtractSummary(member, declaration!);
             }
 
             knownValues.Add(new KnownValueModel(member.Name, EscapedName(member.Name), description));
