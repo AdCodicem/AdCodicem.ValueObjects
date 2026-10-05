@@ -16,18 +16,18 @@ JSON strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`,
 
 | Option | Type | Default | Effect |
 | --- | --- | --- | --- |
-| `Pattern` | `string?` | none | **Deprecated** (`VO0021`), and any minor version may remove it before 1.0.0: implement [`IValueObjectPatternValidator`](#a-pattern) instead. Regular expression the **normalized** value must match, built at run time. Also the OpenAPI `pattern`. Read as written, white space included; an empty one is absent. Invalid → `VO0014`. |
+| `Pattern` | `string?` | none | **Removed**: setting it is a compile error (`VO0021`), and nothing reads it. Implement [`IValueObjectPatternValidator`](#a-pattern) instead. Any minor version may remove the property before 1.0.0. |
 | `MinLength`, `MaxLength` | `int` | `-1`, unconstrained | `string` only (`VO0008` otherwise). Validation, OpenAPI `minLength` / `maxLength`, and the EF Core column size. |
-| `Minimum`, `Maximum` | `string?` | none | **Deprecated** (`VO0028`), and any minor version may remove them before 1.0.0: implement [`IValueObjectMinimum<T>` and `IValueObjectMaximum<T>`](#bounds) instead. Inclusive bounds written as **text**, in the [one form of the underlying type](#bounds-and-known-values-written-as-text), so `decimal`, `DateOnly` and `TimeSpan` keep full precision. Numbers, `char`, dates, times and durations only: a bound on `string`, `Guid` or `bool` → `VO0004`. Parsed at compile time; any other text, or a value outside the type → `VO0004`. Also OpenAPI `minimum` / `maximum`, or `x-minimum` / `x-maximum` and a sentence of the description for a value written as a JSON string. |
+| `Minimum`, `Maximum` | `string?` | none | **Removed**: setting either is a compile error (`VO0028`), and nothing reads it. Implement [`IValueObjectMinimum<T>` and `IValueObjectMaximum<T>`](#bounds) instead. Any minor version may remove the properties before 1.0.0. |
 | `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering and hashing together. A value the enum does not define → `VO0020`. |
-| `ValueSet` | `ValueSetKind` | `Open` | `Closed` accepts only the declared `[KnownValue]`s, through a frozen lookup, and becomes the schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. A value the enum does not define → `VO0020`. |
+| `ValueSet` | `ValueSetKind` | `Open` | `Closed` accepts only the [known values](#known-values), through a frozen lookup, and becomes the schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. A value the enum does not define → `VO0020`. |
 | `Arithmetic` | `bool` | `false` | Numeric types only (`VO0007` otherwise). Operators and generic math; every result is validated again. |
 | `ImplicitConversionToValue` | `bool` | `false` | `string s = iban;` |
 | `ExplicitConversionFromValue` | `bool` | `false` | `(Iban)text`, validating like `Create`. |
 | `AllowEmpty` | `bool` | `false` | `string` only. Accepts `""`; `null` is still rejected, since absence is `T?`. |
 | `AllowDefault` | `bool` | `false` | Silences `VO0010`, and `VO0032` in the code another generator writes, for a type whose zero state is meaningful. |
 | `SchemaFormat` | `string?` | the natural format of the type | OpenAPI `format`: `uuid`, `date`, `int64`, or your own such as `iban` or `email`. A `TimeSpan` has none: it is documented with the pattern of its constant form, not as an ISO 8601 `duration`. Nor do a `TimeOnly` and a `DateTime`, written without the offset RFC 3339's `time` and `date-time` require: each is documented with the pattern of the form it is written in. Set `date-time` on a `DateTime` whose normalizer guarantees a kind, such as UTC. |
-| `Example` | `string?` | none | OpenAPI example, written as text the type parses in the invariant culture. A value the type's own rules refuse → `VO0031`: see [declared values](#declared-values-the-type-must-accept). |
+| `Example` | `string?` | none | **Removed**: setting it is a compile error (`VO0035`), and nothing reads it. Implement [`IValueObjectExample<TSelf>`](#an-example) instead. Any minor version may remove the property before 1.0.0. |
 | `Description` | `string?` | the type's XML `<summary>`, as plain text: a `<see cref>` reads as the name it refers to, a `<c>` as its text | OpenAPI description. |
 
 Declared rules, and then the pattern, run before `ValidateValue`, so a validator only ever sees values that
@@ -35,72 +35,65 @@ already satisfy them.
 [Validation and normalization](./tutorials/validation-and-normalization.md#the-order-things-run-in) gives the
 exact order.
 
-## Bounds and known values written as text
+## Known values
 
-An attribute argument can only be a constant of a few types, so the deprecated `Minimum` and `Maximum` options and
-the known value of a `Guid`, a `decimal` or a date are written as text and read at compile time. Each underlying type reads **one
-form**, and no other: no culture, no time zone, no white space around the value. The same declaration then
-compiles to the same value on every machine. Any other text is `VO0004` for a bound and `VO0013` for a known
-value, and the message names the form the type expects.
+A known value is a member of the type, marked `[KnownValue]`: a `static readonly` field, or a static property with a
+getter alone, of the value object's own type, of any accessibility, initialized through `Known` with the value as its
+one argument. `Known` is generated on the type, so the compiler checks the type of the value, and a `Guid`, a
+`decimal` or a date is written as itself:
 
-| Underlying type | Form | Example |
-| --- | --- | --- |
-| `sbyte`, `short`, `int`, `long`, `Int128` | Digits, with `-` in front when negative. | `"-42"` |
-| `byte`, `ushort`, `uint`, `ulong`, `UInt128` | Digits alone. | `"42"` |
-| `decimal` | Digits, an optional `-` in front, an optional fraction after `.`. No exponent. | `"-19.99"` |
-| `double`, `float` | As `decimal`, plus an optional exponent: `e` or `E`, an optional sign, digits. A finite value, and zero only when written as zero. | `"9.1e-31"` |
-| `char` | Exactly one character. | `"A"` |
-| `DateOnly` | `yyyy-MM-dd` | `"2024-01-31"` |
-| `TimeOnly` | `HH:mm`, `HH:mm:ss` or `HH:mm:ss.fffffff`, with one to seven digits of fraction. | `"08:30"` |
-| `DateTime` | `yyyy-MM-dd`, or `yyyy-MM-ddTHH:mm` with optional seconds and fraction. Never an offset or `Z`. | `"2024-01-31T08:30"` |
-| `DateTimeOffset` | `yyyy-MM-ddTHH:mm` with optional seconds and fraction, then `Z`, `+HH:mm` or `-HH:mm`, always. | `"2024-01-31T08:30+01:00"` |
-| `TimeSpan` | `[-][d.]hh:mm:ss[.fffffff]`, the invariant constant format `"c"`. | `"1.12:00:00"` |
-| `string` | Any text. Known values only. | `"FR"` |
-| `Guid` | Any form `Guid.Parse` reads. Known values only. | `"6f9619ff-8b86-d011-b42d-00c04fc964ff"` |
-| `bool` | `true` or `false`, in any case. Known values only. | `"true"` |
+```csharp
+[ValueObject<DateOnly>(ValueSet = ValueSetKind.Closed)]
+public readonly partial struct FiscalYearStart
+{
+    /// <summary>The calendar year.</summary>
+    [KnownValue]
+    public static readonly FiscalYearStart January = Known(new DateOnly(2024, 1, 1));
 
-The value must also exist in the type: `"300"` is no `byte`, `"2023-02-29"` no date, `"25:00"` no time of day,
-and `"1e-400"`, which reads as zero, no `double`.
-A time of day written alone is neither a `DateTime` nor a `DateTimeOffset`, since it would take the date of the
-day the project is built; [date and time bounds](./reference/diagnostics.md#date-and-time-bounds) explains the
-rest. A `string`, a `Guid` and a `bool` have no order, and take no bound.
+    [KnownValue(Description = "The UK tax year.")]
+    public static FiscalYearStart April { get; } = Known(new DateOnly(2024, 4, 6));
+}
+```
 
-A known value may also be a C# constant, such as `200`, `0.5`, `'A'` or `true`. It is held to the same form
-through its invariant text, a `double` or a `float` in its round-trip form, so `[KnownValue("Ok", 200)]` suits a
-`short` and `[KnownValue("Half", 0.5)]` a `decimal`. A `typeof(...)`, an enum member, an array and `null` are not
-values, and are `VO0013`.
+`Known` normalizes the value and applies every rule of the type but membership, which a known value satisfies by
+declaration; it is `private`, and calling it anywhere but in the initializer of a known value is `VO0037`. The
+generator reads the members in declaration order, the partial declarations in the order the compiler reads them, and
+lists them in `KnownValues`, in the schema, and in the frozen lookup of a closed set, which it builds after them. A
+member it cannot read as a known value is `VO0036`, and the message names the rule it breaks.
+[Known values](./tutorials/known-values.md) walks through a closed set from declaration to OpenAPI document.
 
 ## Declared values the type must accept
 
 The example and every known value are values the type must accept. The example is the OpenAPI example, which
-generated clients, mock servers and readers take at its word. A known value is created through `Create` as the type
-initializes, which the registration of the assembly does before `Main`, so a refused one stops the application.
+generated clients, mock servers and readers take at its word. A known value is created through `Known` as the type
+initializes, which the registration of the assembly does as it loads, so a refused one stops the application.
 
 `VO0031` refuses either at compile time wherever the generator can evaluate the rule on its own, and names the value,
-the code and the message of the rule as the type would answer at run time:
+the code and the message of the rule as the type would answer at run time. It reads a value the compiler evaluates
+to a constant, `Known("FR")` or an example whose getter returns `Create(42)`, against:
 
-- an example no form of the underlying type reads, such as `"lots"` on an `int`;
 - `MinLength`, `MaxLength`, and an empty string without `AllowEmpty`;
-- a bound returned as a constant, `public static int Maximum => 100;`, or set through the deprecated options;
-- a closed value set, compared under the type's `Comparison`.
+- a bound returned as a constant, `public static int Maximum => 100;`;
+- a closed value set, compared under the type's `Comparison`, for the example.
 
-An example is held to these rules when it is written in the [form of a known value](#bounds-and-known-values-written-as-text).
-Written in another form the type parses, such as `NaN` or a date and time with `Z`, it is left to run time. So is
-what only runs there: a pattern, a validator, a bound computed by its hook, the format of an `[EntityId]`, and every
-rule of a type with a normalization hook, which may turn a refused value into an accepted one. The
+What only runs at run time is left there: a value the compiler does not evaluate, such as `new DateOnly(2024, 1, 31)`,
+a pattern, a validator, a bound computed by its hook, the format of an `[EntityId]`, and every rule of a type with a
+normalization hook, which may turn a refused value into an accepted one. The
 [contract kit](./how-to/test-value-objects.md#what-it-checks) checks the example and every known value at run time.
 
 ```csharp
-[ValueObject<int>(Example = "40")]
-public readonly partial struct Quantity : IValueObjectMinimum<int>, IValueObjectMaximum<int>
+[ValueObject<int>]
+public readonly partial struct Quantity : IValueObjectMinimum<int>, IValueObjectMaximum<int>, IValueObjectExample<Quantity>
 {
     public static int Minimum => 1;
 
     public static int Maximum => 100;
+
+    public static Quantity Example => Create(40);
 }
 ```
 
-With `Example = "5000"`, the build fails: `The Example '5000' declared on 'Quantity' is refused by its own type
+With `Create(5000)`, the build fails: `The Example '5000' declared on 'Quantity' is refused by its own type
 (value_object.out_of_range): The value must be less than or equal to 100.`
 
 ## Hooks
@@ -119,6 +112,7 @@ rule written without its interface — the one mistake the compiler cannot catch
 | `IValueObjectMaximum<TValue>` | `static TValue Maximum { get; }` — numbers, `char`, dates, times and durations |
 | `IValueObjectFormatter<TValue>` | `static bool TryFormatValue(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 | `IValueObjectStringFormatter<TValue>` | `static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
+| `IValueObjectExample<TSelf>` | `static TSelf Example { get; }` — the OpenAPI example, an instance of the type itself |
 
 `NormalizeValue` must be idempotent and must not reject: an unnormalizable value is rejected by
 `ValidateValue`. A formatting hook, when present, takes over formatting entirely, including the default format:
@@ -186,9 +180,9 @@ The hook applies to `string` value objects only: on any other underlying type it
 `[EntityId]`, which owns its format, `VO0024`. A public static `Regex Pattern` written without the interface is
 `VO0011`, unless the type implements another hook, which may already run it.
 
-The hook replaces the `Pattern` option, which builds its `Regex` at run time with `RegexOptions.Compiled`. Native
-AOT cannot compile a regular expression at run time and interprets it instead. Declaring both on one type is
-`VO0022`, and the hook wins. To migrate, move the option's text into a `[GeneratedRegex]` with
+The hook replaces the `Pattern` option, which built its `Regex` at run time with `RegexOptions.Compiled`. Native
+AOT cannot compile a regular expression at run time and interprets it instead. Setting the option is now a compile
+error, `VO0021`. To migrate, move the option's text into a `[GeneratedRegex]` with
 `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`: those are the options and the timeout the
 option used, so behaviour does not change. [Moving off `Pattern`](./reference/diagnostics.md#moving-off-pattern)
 shows the change.
@@ -237,9 +231,32 @@ The hooks apply to numbers, `char`, dates, times and durations, and over the und
 without its interface is `VO0011`, unless the type implements `IValueObjectValidator<T>`, which may already check
 it.
 
-The hooks replace the `Minimum` and `Maximum` options, whose bound is text read under a grammar of its own for each
-type. Declaring an option and its hook on one type is `VO0029`, and the hook wins.
+The hooks replace the `Minimum` and `Maximum` options, whose bound was text read under a grammar of its own for each
+type. Setting either is now a compile error, `VO0028`.
 [Moving off `Minimum` and `Maximum`](./reference/diagnostics.md#moving-off-minimum-and-maximum) shows the change.
+
+### An example
+
+`IValueObjectExample<TSelf>` declares the example the OpenAPI document publishes, as an instance of the type:
+
+```csharp
+[ValueObject<string>(MinLength = 3, MaxLength = 3)]
+public readonly partial struct CurrencyCode : IValueObjectExample<CurrencyCode>
+{
+    public static CurrencyCode Example => Create("EUR");
+}
+```
+
+The schema reads it once, as the type initializes, and publishes its underlying value as the JSON converter writes
+it. It is created through the type's own rules, so it cannot be a value the type refuses; one that is a constant is
+checked at compile time as well ([declared values](#declared-values-the-type-must-accept)). A known value serves as
+well, `public static CountryCode Example => France;`. Without the hook, a value object publishes no example, and an
+`[EntityId]` one of the right shape, derived from its prefix.
+
+The hook is over the value object itself: `IValueObjectExample<Other>` is `VO0038`, since its example would be
+published nowhere. A public static `Example` property of the type written without the interface is `VO0011`. The hook
+replaces the `Example` option of `[ValueObject<T>]` and `[EntityId]`, which held the example as text: setting it is
+now a compile error, `VO0035`.
 
 ## Where a value object can be declared
 
@@ -291,7 +308,7 @@ generated converter inherits.
 
 ## Diagnostics
 
-The generator and the analyzers report `VO0001` to `VO0030`. [Diagnostics](./reference/diagnostics.md) lists
-each one with its fix.
+The generator, the analyzers and the compiler report `VO0001` to `VO0038`. [Diagnostics](./reference/diagnostics.md)
+lists each one with its fix.
 
 Next: [Generated members](./reference/generated-members.md), for what the generator writes from all of this.

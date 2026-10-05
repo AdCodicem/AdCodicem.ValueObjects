@@ -11,7 +11,7 @@ param([int] $Samples = 41)
 $ErrorActionPreference = 'Stop'
 $project = Join-Path $PSScriptRoot 'AdCodicem.ValueObjects.Benchmarks.FirstCall'
 $output = Join-Path $PSScriptRoot '..' 'artifacts' 'first-call'
-$variants = 'IbanByPattern', 'Iban', 'IbanByHand', 'PostalCodeByPattern', 'PostalCode', 'PostalCodeByHand'
+$variants = 'IbanByRuntimeRegex', 'Iban', 'IbanByHand', 'PostalCodeByRuntimeRegex', 'PostalCode', 'PostalCodeByHand'
 
 if ($IsWindows) {
     $env:PATH = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer;$env:PATH"

@@ -648,7 +648,7 @@ public partial class JsonSchemaTests
         unbounded.AsObject().ContainsKey("anyOf").Should().BeFalse("a key is text, never a named literal beside a number");
         unbounded["type"]!.GetValue<string>().Should().Be("string", "a key is never a number, whatever the options read");
         ShouldDescribe(rank,
-            """{"description":"A rank no other test uses, whose converter writes no key.\n\nBetween 1 and 9, inclusive.\n\nFormat: int32.","type":"string","pattern":"^-?(?:0|[1-9]\\d*)$","examples":["03"]}""");
+            """{"description":"A rank no other test uses, whose converter writes no key.\n\nBetween 1 and 9, inclusive.\n\nFormat: int32.","type":"string","pattern":"^-?(?:0|[1-9]\\d*)$","examples":["3"]}""");
     }
 
     /// <summary>
@@ -763,8 +763,11 @@ public partial class JsonSchemaTests
     internal sealed class Journal;
 
     /// <summary>A reading nothing bounds, which an instrument may fail to take.</summary>
-    [ValueObject<double>(Example = "NaN")]
-    public readonly partial struct Reading;
+    [ValueObject<double>]
+    public readonly partial struct Reading : IValueObjectExample<Reading>
+    {
+        public static Reading Example => Create(double.NaN);
+    }
 
     /// <summary>
     /// Times and instants, the two that are written without an offset beside the two that are written with a format.
@@ -787,9 +790,11 @@ public partial class JsonSchemaTests
     public readonly partial struct Moment;
 
     /// <summary>A rank no other test uses, whose converter writes no key.</summary>
-    [ValueObject<int>(Example = "03")]
-    public readonly partial struct Rank : IValueObjectMinimum<int>, IValueObjectMaximum<int>
+    [ValueObject<int>]
+    public readonly partial struct Rank : IValueObjectMinimum<int>, IValueObjectMaximum<int>, IValueObjectExample<Rank>
     {
+        public static Rank Example => Create(3);
+
         public static int Minimum => 1;
 
         public static int Maximum => 9;

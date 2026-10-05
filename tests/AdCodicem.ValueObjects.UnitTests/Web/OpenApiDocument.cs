@@ -242,6 +242,11 @@ public readonly partial struct ServiceHour : IValueObjectMinimum<TimeOnly>, IVal
 /// <summary>The channel a notice about a record of one kind goes out on.</summary>
 /// <typeparam name="TRecord">The kind of record.</typeparam>
 [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
-[KnownValue("Email", "email", Description = "Sent to the address on file.")]
-[KnownValue("Sms", "sms")]
-public readonly partial struct NoticeChannel<TRecord>;
+public readonly partial struct NoticeChannel<TRecord>
+{
+    [KnownValue(Description = "Sent to the address on file.")]
+    public static readonly NoticeChannel<TRecord> Email = Known("email");
+
+    [KnownValue]
+    public static readonly NoticeChannel<TRecord> Sms = Known("sms");
+}

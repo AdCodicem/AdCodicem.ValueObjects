@@ -108,29 +108,6 @@ public sealed class PatternHookTests
     }
 
     [Fact]
-    public void A_pattern_declared_both_ways_is_reported_and_the_hook_wins()
-    {
-        var run = GeneratorHarness.Run("""
-            #pragma warning disable VO0021 // The deprecated option is what this test declares.
-            [ValueObject<string>(Pattern = "^[a-z]+$")]
-            public readonly partial struct Code : IValueObjectPatternValidator
-            {
-                [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
-                public static partial Regex Pattern { get; }
-            }
-            """);
-
-        var diagnostic = run.Diagnostics.Should().ContainSingle().Subject;
-        diagnostic.Id.Should().Be("VO0022");
-        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
-        diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().StartWith(
-            "'Code' sets the Pattern option and implements IValueObjectPatternValidator.");
-
-        run.CompilationDiagnostics.Should().BeEmpty("the type still generates, so its uses do not fail as well");
-        run.SingleValueObject.Should().NotContain("DeclaredPattern").And.Contain("""Pattern = "^[A-Z]+$",""");
-    }
-
-    [Fact]
     public void A_pattern_on_a_value_object_that_is_not_a_string_is_reported()
     {
         var run = GeneratorHarness.Run("""
@@ -218,22 +195,4 @@ public sealed class PatternHookTests
             "The [GeneratedRegex] behind 'Code.Pattern' sets no matchTimeoutMilliseconds");
     }
 
-    /// <summary>
-    /// The author's <c>Pattern</c> is a member they declared, so a known value cannot take its name either.
-    /// </summary>
-    [Fact]
-    public void A_known_value_cannot_take_the_name_of_the_pattern()
-    {
-        var run = GeneratorHarness.Run("""
-            [ValueObject<string>]
-            [KnownValue("Pattern", "P")]
-            public readonly partial struct Code : IValueObjectPatternValidator
-            {
-                [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
-                public static partial Regex Pattern { get; }
-            }
-            """);
-
-        run.Ids.Should().Equal("VO0006");
-    }
 }

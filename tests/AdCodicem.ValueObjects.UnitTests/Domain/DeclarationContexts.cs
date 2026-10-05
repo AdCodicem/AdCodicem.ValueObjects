@@ -21,11 +21,13 @@ public sealed class SalesInvoice;
 /// interchangeable.
 /// </summary>
 /// <typeparam name="TOwner">The kind of document referenced.</typeparam>
-[ValueObject<string>(MaxLength = 12, Example = "PO-1042")]
-public readonly partial struct Reference<TOwner> : IValueObjectNormalizer<string>
+[ValueObject<string>(MaxLength = 12)]
+public readonly partial struct Reference<TOwner> : IValueObjectNormalizer<string>, IValueObjectExample<Reference<TOwner>>
     where TOwner : class
 {
 #pragma warning disable CA1000 // A hook is a static member, and the generic type is the point of the declaration.
+    public static Reference<TOwner> Example => Create("PO-1042");
+
     public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
 #pragma warning restore CA1000
 }

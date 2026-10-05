@@ -74,59 +74,6 @@ public sealed class BoundHookTests
     }
 
     /// <summary>
-    /// The hook replaces the deprecated option. Declaring both is an error, after which the hook wins, so that every
-    /// use of the type does not fail as well.
-    /// </summary>
-    [Fact]
-    public void A_bound_declared_twice_is_reported_and_the_hook_wins()
-    {
-        var run = GeneratorHarness.Run("""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<int>(Minimum = "0", Maximum = "9")]
-            public readonly partial struct Digit : IValueObjectMinimum<int>
-            {
-                public static int Minimum => 1;
-            }
-            """);
-
-        var diagnostic = run.Diagnostics.Should().ContainSingle().Subject;
-        diagnostic.Id.Should().Be("VO0029");
-        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
-        diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
-            "'Digit' sets the Minimum option and implements IValueObjectMinimum<int>. The hook replaces the option: "
-            + "remove Minimum = \"...\" and keep the Minimum property.");
-        run.CompilationDiagnostics.Should().BeEmpty();
-        run.SingleValueObject.Should()
-            .Contain("ValueObjectBound.Minimum<global::Test.Digit, global::System.Int32>()")
-            .And.NotContain("Minimum = \"0\"")
-            .And.Contain("Maximum = \"9\"", "the other bound is still the option's");
-    }
-
-    [Fact]
-    public void A_maximum_declared_twice_is_reported_and_the_hook_wins()
-    {
-        var run = GeneratorHarness.Run("""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<int>(Maximum = "9")]
-            public readonly partial struct Digit : IValueObjectMaximum<int>
-            {
-                public static int Maximum => 8;
-            }
-            """);
-
-        var diagnostic = run.Diagnostics.Should().ContainSingle().Subject;
-        diagnostic.Id.Should().Be("VO0029");
-        diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
-            "'Digit' sets the Maximum option and implements IValueObjectMaximum<int>. The hook replaces the option: "
-            + "remove Maximum = \"...\" and keep the Maximum property.");
-        run.CompilationDiagnostics.Should().BeEmpty();
-        run.SingleValueObject.Should()
-            .Contain("ValueObjectBound.Maximum<global::Test.Digit, global::System.Int32>()")
-            .And.NotContain("Maximum = \"9\"")
-            .And.NotContain("Minimum =");
-    }
-
-    /// <summary>
     /// The compiler accepts the interface over any type, on any value object. A bound over a type that takes none, or
     /// over another type than the underlying one, would be declared and never checked: it is reported instead.
     /// </summary>
@@ -281,13 +228,11 @@ public sealed class BoundHookTests
                 public static double NormalizeValue(double value) => Math.Clamp(value, Minimum, Maximum);
             }
 
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
             [ValueObject<int>(Maximum = "100")]
             public readonly partial struct Percentage
             {
                 public static int Maximum => 100;
             }
-            #pragma warning restore VO0028
 
             [ValueObject<int>]
             public readonly partial struct PageSize

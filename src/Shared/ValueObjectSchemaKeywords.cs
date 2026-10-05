@@ -263,18 +263,36 @@ internal static class ValueObjectSchemaKeywords
         };
 
     /// <summary>
-    /// Writes the example declared on the type as the type writes the value in JSON.
+    /// Writes the example a schema holds as the type writes the value in JSON.
     /// </summary>
-    /// <param name="text">The example, as declared.</param>
+    /// <param name="example">The example, as the schema holds it.</param>
     /// <param name="descriptor">Descriptor of the value object.</param>
     /// <param name="options">The options the schema describes the wire with.</param>
     /// <param name="asKey">Whether to write the example as the key of a dictionary, rather than as a value.</param>
     /// <returns>The value as JSON.</returns>
     /// <remarks>
-    /// The example is an input, parsed the way the type parses text, then written by the type's own converter, so that
-    /// a client or a mock server checking it against the schema finds a number where the schema says number. An example
-    /// the type refuses, which nothing checks when the type compiles, or one its converter cannot write under the
-    /// options, as a real cannot write <c>NaN</c> without the named literals, is written as it was declared.
+    /// A generated schema holds the underlying value of the example the type declares, which is written as a known value
+    /// is. Text, which a schema written by hand may hold, is read as the type parses text first: for a string value
+    /// object, the two are the same value.
+    /// </remarks>
+    internal static JsonNode WriteExample(object example, ValueObjectDescriptor descriptor, JsonSerializerOptions options, bool asKey = false)
+        => example is string text
+            ? WriteText(text, descriptor, options, asKey)
+            : WriteKnownValue(example, descriptor, options, asKey);
+
+    /// <summary>
+    /// Writes text as the type writes the value it parses to in JSON.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="descriptor">Descriptor of the value object.</param>
+    /// <param name="options">The options the schema describes the wire with.</param>
+    /// <param name="asKey">Whether to write the example as the key of a dictionary, rather than as a value.</param>
+    /// <returns>The value as JSON.</returns>
+    /// <remarks>
+    /// The text is an input, parsed the way the type parses text, then written by the type's own converter, so that
+    /// a client or a mock server checking it against the schema finds a number where the schema says number. Text the
+    /// type refuses, or a value its converter cannot write under the options, as a real cannot write <c>NaN</c> without
+    /// the named literals, is written as it was declared.
     /// </remarks>
     internal static JsonNode WriteText(string text, ValueObjectDescriptor descriptor, JsonSerializerOptions options, bool asKey = false)
         => descriptor.TryParse(text, CultureInfo.InvariantCulture, out var parsed, out _)

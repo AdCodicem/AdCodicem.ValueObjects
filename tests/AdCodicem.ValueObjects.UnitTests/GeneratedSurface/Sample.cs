@@ -420,12 +420,16 @@ public class Sample<TSelf, TValue> : Sample
         // The values the enum of the document lists, in its order, so that a name stands beside its own value.
         schema.KnownValueDetails.Select(detail => detail.Value).Should().Equal(schema.KnownValues);
 
-        // Each named after the static property that holds it.
+        // Each named after the member that holds it, which the type marks [KnownValue].
         foreach (var detail in schema.KnownValueDetails)
         {
-            var property = typeof(TSelf).GetProperty(detail.Name, BindingFlags.Public | BindingFlags.Static);
-            property.Should().NotBeNull($"{detail.Name} is a known value of {typeof(TSelf).Name}");
-            ((TSelf)property!.GetValue(null)!).Value.Should().Be(detail.Value);
+            var member = typeof(TSelf).GetMember(detail.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .SingleOrDefault(candidate => candidate is FieldInfo or PropertyInfo);
+            member.Should().NotBeNull($"{detail.Name} is a known value of {typeof(TSelf).Name}");
+            member!.IsDefined(typeof(KnownValueAttribute)).Should().BeTrue();
+
+            var known = member is FieldInfo field ? field.GetValue(null) : ((PropertyInfo)member).GetValue(null);
+            ((TSelf)known!).Value.Should().Be(detail.Value);
         }
     }
 

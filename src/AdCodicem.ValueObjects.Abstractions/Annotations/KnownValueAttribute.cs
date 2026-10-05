@@ -1,66 +1,72 @@
 namespace AdCodicem.ValueObjects.Annotations;
 
 /// <summary>
-/// Declares a named constant of a value object, exposed as a static property on the generated type.
+/// Marks a static member of a value object as one of its known values.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>[KnownValue("France", "FR")]</c> on a <c>CountryCode</c> value object generates <c>CountryCode.France</c>,
-/// adds the value to <c>CountryCode.KnownValues</c>, and surfaces it in the OpenAPI schema. Combined with
-/// <see cref="ValueSetKind.Closed"/> the declared values also become the validation rule of the type.
+/// The member is the author's own: a <c>static readonly</c> field, or a static get-only auto-property, of the value
+/// object's type, initialized through <c>Known</c>, a factory the generator writes on every value object.
+/// <c>[KnownValue] public static readonly CountryCode France = Known("FR");</c> adds the value to
+/// <c>CountryCode.KnownValues</c> and surfaces it in the OpenAPI schema. Combined with <see cref="ValueSetKind.Closed"/>
+/// the declared values also become the validation rule of the type. The compiler checks the name of the member and the
+/// type of its value, which any expression of the underlying type can give:
+/// <c>Known(new DateOnly(1970, 1, 1))</c>.
 /// </para>
 /// <para>
-/// The schema keeps the name and the description beside the value
+/// <c>Known</c> normalizes the value and applies every rule of the type but membership, which the value satisfies by
+/// declaration. A value the rules refuse throws as the type initializes: it is reported at compile time when the argument
+/// of <c>Known</c> is a constant the generator can evaluate, and would otherwise stop the application before it starts.
+/// <c>Known</c> may be called nowhere else (<c>VO0037</c>), and a member that is not static, can be written, is of
+/// another type or is not initialized through <c>Known</c> is <c>VO0036</c>.
+/// </para>
+/// <para>
+/// The schema keeps the name of the member and the description beside the value
 /// (<see cref="Metadata.ValueObjectSchema.KnownValueDetails"/>), and the OpenAPI integration publishes them beside the
 /// <c>enum</c> of a closed set, so that a client generated from the document names the member of its enumeration
 /// <c>France</c> rather than <c>FR</c>. The name is therefore part of that client's contract: renaming a known value
 /// renames its member in every client generated afterwards.
 /// </para>
 /// </remarks>
-[AttributeUsage(AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
+[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
 public sealed class KnownValueAttribute : Attribute
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="KnownValueAttribute"/> class.
+    /// Initializes a new instance of the <see cref="KnownValueAttribute"/> class, for the member it is applied to.
     /// </summary>
-    /// <param name="name">
-    /// Name of the generated static property. Must be a valid C# identifier, not a keyword, and a name the type does
-    /// not already have: neither a member it declares nor one the generated code uses, the metadata names of its
-    /// operators and the getters of its properties included, nor the name of another known value. The property's own
-    /// getter, <c>get_</c> followed by the name, must be free too: no field, nested type or method without
-    /// parameters of the type takes it. Any other name is reported with the rule it breaks.
-    /// </param>
-    /// <param name="value">
-    /// The underlying value. Types that cannot appear as an attribute argument, such as <see cref="Guid"/>,
-    /// <see cref="decimal"/> or <see cref="DateOnly"/>, are written as text and parsed at compile time, in the one
-    /// form of the type that a bound is written in (<see cref="ValueObjectAttribute{TValue}.Minimum"/>). A constant
-    /// of a C# type is held to the same form through its invariant text. A type, an enum member, an array and
-    /// <see langword="null"/> are not values, and are reported. The value is created through <c>Create</c> as the type
-    /// initializes, so it must be one the type's own rules accept: one they refuse is reported at compile time wherever
-    /// the generator can evaluate the rule, and would otherwise stop the application before it starts.
-    /// </param>
-    public KnownValueAttribute(string name, object value)
+    public KnownValueAttribute()
     {
-        Name = name;
-        Value = value;
     }
 
     /// <summary>
-    /// Gets the name of the generated static property.
+    /// Declared a known value on the type, by name and value. Removed: declare the member instead.
     /// </summary>
-    public string Name { get; }
+    /// <param name="name">The name the generated property took.</param>
+    /// <param name="value">The underlying value, written as text for a type an attribute argument cannot carry.</param>
+    /// <remarks>
+    /// The name was an identifier the generator created and the value a constant or text it read under a grammar of its
+    /// own. A member the author declares is checked by the compiler instead. <c>[KnownValue("France", "FR")]</c> on the
+    /// type becomes <c>[KnownValue] public static readonly CountryCode France = Known("FR");</c> in it, which a code fix
+    /// writes. Any minor version may remove this constructor before 1.0.0.
+    /// </remarks>
+    [Obsolete(
+        "Declare the known value as a member of the value object, [KnownValue] public static readonly TSelf Name = "
+        + "Known(value), which a code fix writes. Any minor version may remove this constructor before 1.0.0.",
+        error: true,
+        DiagnosticId = "VO0034")]
+    public KnownValueAttribute(string name, object value)
+    {
+        _ = name;
+        _ = value;
+    }
 
     /// <summary>
-    /// Gets the underlying value.
-    /// </summary>
-    public object Value { get; }
-
-    /// <summary>
-    /// Gets or sets the documentation of the generated static property.
+    /// Gets or sets the description of the known value.
     /// </summary>
     /// <remarks>
-    /// Also kept in <see cref="Metadata.ValueObjectSchema.KnownValueDetails"/>, unless it is blank, and published with
-    /// the value in the OpenAPI document, where client generators turn it into the documentation of the member.
+    /// Kept in <see cref="Metadata.ValueObjectSchema.KnownValueDetails"/>, unless it is blank, and published with the
+    /// value in the OpenAPI document, where client generators turn it into the documentation of the member. Without it,
+    /// the <c>&lt;summary&gt;</c> of the member describes the value, as the summary of a value object describes it.
     /// </remarks>
     public string? Description { get; set; }
 }

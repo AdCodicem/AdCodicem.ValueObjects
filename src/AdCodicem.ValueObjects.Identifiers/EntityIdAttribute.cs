@@ -75,11 +75,17 @@ public sealed class EntityIdAttribute : Attribute
     public string? Description { get; set; }
 
     /// <summary>
-    /// Gets or sets an example value surfaced in the OpenAPI schema.
+    /// Was an example value surfaced in the OpenAPI schema, written as text. Removed: implement
+    /// <see cref="IValueObjectExample{TSelf}"/> instead.
     /// </summary>
     /// <remarks>
-    /// Defaults to an identifier of the right shape, built at compile time from the profile. One declared here must be an
-    /// identifier of the type: the contract kit of <c>AdCodicem.ValueObjects.Testing</c> checks it at run time.
+    /// Setting it is <c>VO0035</c>, a compile error, and nothing reads it. Without the hook, the schema publishes an
+    /// identifier of the right shape, built from the profile. Any minor version may remove it before 1.0.0.
     /// </remarks>
+    [Obsolete(
+        "Implement IValueObjectExample<TSelf> with a static Example property of the identifier's type instead. Example "
+        + "is no longer read, and any minor version may remove it before 1.0.0.",
+        error: true,
+        DiagnosticId = "VO0035")]
     public string? Example { get; set; }
 }

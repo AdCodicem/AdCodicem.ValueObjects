@@ -216,8 +216,11 @@ public sealed class RequestDelegateGeneratorTests
         public readonly partial struct Quantity;
         """, "Quantity", "INumericValueObject<Quantity, int>")]
     [InlineData("""
-        [ValueObject<int>(Example = "5", Arithmetic = false)]
-        public readonly partial struct Quantity;
+        [ValueObject<int>(Arithmetic = false)]
+        public readonly partial struct Quantity : IValueObjectExample<Quantity>
+        {
+            public static Quantity Example => Create(5);
+        }
         """, "Quantity", "IValueObject<Quantity, int>")]
     [InlineData("""
         [EntityId("cus")]

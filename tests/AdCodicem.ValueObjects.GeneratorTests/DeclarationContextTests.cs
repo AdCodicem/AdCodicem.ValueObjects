@@ -26,20 +26,24 @@ public sealed class DeclarationContextTests
     [InlineData(
         """
         [ValueObject<int>(Arithmetic = true, ImplicitConversionToValue = true, ExplicitConversionFromValue = true)]
-        [KnownValue("Dozen", 12)]
         public readonly partial struct Count<TUnit, TScale> : IValueObjectMinimum<int>
             where TUnit : struct
             where TScale : class, new()
         {
+            [KnownValue]
+            public static readonly Count<TUnit, TScale> Dozen = Known(12);
+
             public static int Minimum => 0;
         }
         """)]
     [InlineData(
         """
         [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
-        [KnownValue("France", "FR")]
         public readonly partial struct Country<@class> : IValueObjectNormalizer<string>, IValueObjectPatternValidator
         {
+            [KnownValue]
+            public static readonly Country<@class> France = Known("FR");
+
             public static string NormalizeValue(string value) => value.ToUpperInvariant();
 
             [System.Text.RegularExpressions.GeneratedRegex("^[A-Z]{2}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant, 1000)]
@@ -494,8 +498,8 @@ public sealed class DeclarationContextTests
     }
 
     /// <summary>
-    /// A type parameter shares the declaration space of the members of its type, so neither a generated member nor a
-    /// known value can take its name.
+    /// A type parameter shares the declaration space of the members of its type, so a generated member cannot take its
+    /// name. A known value is the author's member, which the compiler holds to the same rule.
     /// </summary>
     [Fact]
     public void A_name_a_type_parameter_takes_is_left_to_it()
@@ -505,22 +509,16 @@ public sealed class DeclarationContextTests
             public readonly partial struct Code<Value>;
 
             [ValueObject<string>]
-            [KnownValue("T", "t")]
-            public readonly partial struct Label<T>;
-
-            [ValueObject<string>]
-            [KnownValue("Foo", "foo")]
-            public readonly partial struct Tag<get_Foo>;
+            public readonly partial struct Label<Known>;
             """);
 
         run.Diagnostics.Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture)).Should().BeEquivalentTo(
             "'Code' has a type parameter, 'Value', named after a member the generated code writes on it, which the "
             + "generator does not support. Rename the type parameter: C# does not let a member take the name of a type "
             + "parameter of its type.",
-            "'T' is not usable as the name of a generated member on 'Label': a type parameter of the type already takes "
-            + "that name",
-            "'Foo' is not usable as the name of a generated member on 'Tag': a type parameter of the type already takes "
-            + "the name get_Foo, which the property's getter would take");
+            "'Label' has a type parameter, 'Known', named after a member the generated code writes on it, which the "
+            + "generator does not support. Rename the type parameter: C# does not let a member take the name of a type "
+            + "parameter of its type.");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 

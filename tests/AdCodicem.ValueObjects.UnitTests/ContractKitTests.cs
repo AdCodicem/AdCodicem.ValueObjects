@@ -297,11 +297,18 @@ public partial class ContractKitTests
             .Should().Throw<SkipException>().WithMessage("*'Silent' declares no known value.");
     }
 
-    /// <summary>A code of digits, whose example is not one, and whose known value is.</summary>
-    [ValueObject<string>(Example = "abc")]
-    [KnownValue("Zero", "0")]
-    public readonly partial struct Digits : IValueObjectPatternValidator
+    /// <summary>
+    /// A code of digits, whose example is not one, and whose known value is. Its example is created unchecked: created
+    /// through Create, it would stop the type from initializing.
+    /// </summary>
+    [ValueObject<string>]
+    public readonly partial struct Digits : IValueObjectPatternValidator, IValueObjectExample<Digits>
     {
+        [KnownValue]
+        public static readonly Digits Zero = Known("0");
+
+        public static Digits Example => CreateUnchecked("abc");
+
         [GeneratedRegex("^[0-9]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
         public static partial Regex Pattern { get; }
     }
@@ -353,10 +360,14 @@ public partial class ContractKitTests
     /// </summary>
     /// <typeparam name="TSurface">The surface shaded.</typeparam>
     [ValueObject<string>]
-    [KnownValue("Light", "light")]
-    [KnownValue("Dark", "DARK")]
     private readonly partial struct Shade<TSurface> : IValueObjectValidator<string>
     {
+        [KnownValue]
+        public static readonly Shade<TSurface> Light = Known("light");
+
+        [KnownValue]
+        public static readonly Shade<TSurface> Dark = Known("DARK");
+
         public static ValidationResult ValidateValue(in string value)
             => string.Equals(value, value.ToLowerInvariant(), StringComparison.Ordinal)
                 ? ValidationResult.Success

@@ -3,22 +3,22 @@ using System.Text.RegularExpressions;
 namespace AdCodicem.ValueObjects.Benchmarks.Domain;
 
 /// <summary>
-/// The IBAN of <see cref="Iban"/>, its shape checked by the deprecated <c>Pattern</c> option, which compiles a
-/// <see cref="Regex"/> at run time.
+/// The IBAN of <see cref="Iban"/>, its shape checked by a <see cref="Regex"/> built at run time, as the
+/// <c>Pattern</c> option built it before 0.3.0 removed it.
 /// </summary>
-#pragma warning disable VO0021 // The deprecated option is what this type measures, against the hook.
-[ValueObject<string>(MinLength = 15, MaxLength = 34, Pattern = Shapes.Iban)]
-#pragma warning restore VO0021
-public readonly partial struct IbanByPattern : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectValidator<string>
+[ValueObject<string>(MinLength = 15, MaxLength = 34)]
+public readonly partial struct IbanByRuntimeRegex : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectValidator<string>
 {
     public static string NormalizeValue(string value) => Normalization.Strip(value.AsSpan());
 
     public static string NormalizeValue(ReadOnlySpan<char> value) => Normalization.Strip(value);
 
     public static ValidationResult ValidateValue(in string value)
-        => Normalization.HasValidCheckDigits(value)
-            ? ValidationResult.Success
-            : ValidationResult.InvalidFormat("The IBAN check digits are incorrect.");
+        => !Shapes.CompiledIban.IsMatch(value)
+            ? ValidationResult.InvalidFormat("The value does not match the expected format.")
+            : Normalization.HasValidCheckDigits(value)
+                ? ValidationResult.Success
+                : ValidationResult.InvalidFormat("The IBAN check digits are incorrect.");
 }
 
 /// <summary>
@@ -66,12 +66,17 @@ public readonly partial struct PostalCode : IValueObjectPatternValidator
 }
 
 /// <summary>
-/// The postal code of <see cref="PostalCode"/>, its shape checked by the deprecated <c>Pattern</c> option.
+/// The postal code of <see cref="PostalCode"/>, its shape checked by a <see cref="Regex"/> built at run time, as the
+/// <c>Pattern</c> option built it.
 /// </summary>
-#pragma warning disable VO0021 // The deprecated option is what this type measures, against the hook.
-[ValueObject<string>(MinLength = 5, MaxLength = 5, Pattern = Shapes.PostalCode)]
-#pragma warning restore VO0021
-public readonly partial struct PostalCodeByPattern;
+[ValueObject<string>(MinLength = 5, MaxLength = 5)]
+public readonly partial struct PostalCodeByRuntimeRegex : IValueObjectValidator<string>
+{
+    public static ValidationResult ValidateValue(in string value)
+        => Shapes.CompiledPostalCode.IsMatch(value)
+            ? ValidationResult.Success
+            : ValidationResult.InvalidFormat("The value does not match the expected format.");
+}
 
 /// <summary>
 /// The postal code of <see cref="PostalCode"/>, its digits checked by hand.
@@ -106,9 +111,13 @@ public static partial class Shapes
     [GeneratedRegex(Iban, RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     public static partial Regex GeneratedIban { get; }
 
-    /// <summary>The IBAN shape compiled at run time, as the deprecated option compiles it.</summary>
+    /// <summary>The IBAN shape compiled at run time, with the options and the timeout the removed option used.</summary>
     public static Regex CompiledIban { get; } =
         new(Iban, RegexOptions.Compiled | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
+    /// <summary>The postal code shape compiled at run time, as <see cref="CompiledIban"/> is.</summary>
+    public static Regex CompiledPostalCode { get; } =
+        new(PostalCode, RegexOptions.Compiled | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
     /// <summary>Checks the IBAN shape by hand.</summary>
     /// <param name="value">Normalized IBAN.</param>

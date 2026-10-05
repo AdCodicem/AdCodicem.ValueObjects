@@ -38,10 +38,15 @@ public sealed class IncrementalityTests
 
         namespace Test;
 
-        [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
-        [KnownValue("France", "FR")]
-        [KnownValue("Belgium", "BE")]
-        public readonly partial struct Country;
+        [ValueObject<string>(ValueSet = ValueSetKind.Closed, MaxLength = 2)]
+        public readonly partial struct Country
+        {
+            [KnownValue]
+            public static readonly Country France = Known("FR");
+
+            [KnownValue]
+            public static readonly Country Belgium = Known("BE");
+        }
         """;
 
     [Fact]
@@ -107,18 +112,40 @@ public sealed class IncrementalityTests
     }
 
     [Theory]
-    [InlineData("""[KnownValue("Belgium", "BE")]""", """[KnownValue("Belgium", "BE")][KnownValue("Spain", "ES")]""")]
-    [InlineData("""[KnownValue("Belgium", "BE")]""", """[KnownValue("Belgium", "BX")]""")]
-    [InlineData("""[KnownValue("Belgium", "BE")]""", """[KnownValue("Kingdom", "BE")]""")]
-    [InlineData("""[KnownValue("Belgium", "BE")]""", """[KnownValue("Belgium", "BE", Description = "The Kingdom of Belgium.")]""")]
+    [InlineData("""Belgium = Known("BE");""", """Belgium = Known("BE"); [KnownValue] public static readonly Country Spain = Known("ES");""")]
+    [InlineData("""Belgium = Known("BE");""", """Kingdom = Known("BE");""")]
+    [InlineData(
+        "[KnownValue]\n    public static readonly Country Belgium",
+        "[KnownValue(Description = \"The Kingdom of Belgium.\")]\n    public static readonly Country Belgium")]
+    [InlineData(
+        "[KnownValue]\n    public static readonly Country Belgium",
+        "/// <summary>The Kingdom of Belgium.</summary>\n    [KnownValue]\n    public static readonly Country Belgium")]
+    [InlineData("""Belgium = Known("BE");""", """Belgium = Known("BELGIUM");""")]
     public void Adding_or_changing_a_known_value_does_re_run_the_model(string declared, string edited)
+    {
+        var source = KnownValues.Replace("\r\n", "\n", StringComparison.Ordinal);
+        source.Should().Contain(declared);
+
+        var reasons = GeneratorHarness.RunTwice(source, source.Replace(declared, edited, StringComparison.Ordinal), "ValueObjects");
+
+        reasons.Should().Contain(IncrementalStepRunReason.Modified);
+    }
+
+    /// <summary>
+    /// The generated code reads the value of a known value at run time, off the member, so changing it changes nothing
+    /// the generator writes, and the model is not re-run, unless the generator now refuses the value at compile time.
+    /// </summary>
+    [Fact]
+    public void Changing_the_value_of_a_known_value_does_not_re_run_the_model()
     {
         var reasons = GeneratorHarness.RunTwice(
             KnownValues,
-            KnownValues.Replace(declared, edited, StringComparison.Ordinal),
+            KnownValues.Replace("""Known("BE")""", """Known("BX")""", StringComparison.Ordinal),
             "ValueObjects");
 
-        reasons.Should().Contain(IncrementalStepRunReason.Modified);
+        reasons.Should().NotBeEmpty();
+        reasons.Should().OnlyContain(reason =>
+            reason == IncrementalStepRunReason.Cached || reason == IncrementalStepRunReason.Unchanged);
     }
 
     [Fact]

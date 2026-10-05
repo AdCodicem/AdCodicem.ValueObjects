@@ -40,7 +40,7 @@ public readonly partial struct Quantity : IValueObjectMinimum<int>, IValueObject
 `Quantity.TryCreate(0, out _)` fails with `value_object.out_of_range`, and the OpenAPI schema publishes both bounds
 as `minimum` and `maximum`. A bound is a constant, written as an expression-bodied property; a bound relative to the
 clock is a rule, and belongs in a validator, [below](#rules-that-need-code). The `Minimum` and `Maximum`
-options of `[ValueObject<T>]` once did this job, with the bound written as text; they are deprecated (`VO0028`).
+options of `[ValueObject<T>]` once did this job, with the bound written as text; they no longer compile (`VO0028`).
 
 ## A pattern
 
@@ -63,7 +63,7 @@ pattern's text off `[GeneratedRegex]` when the type compiles, and the OpenAPI sc
 lengths. Keep both arguments: `CultureInvariant` makes the match independent of the culture, and without
 `matchTimeoutMilliseconds` a pathological input could hold a thread, which `VO0026` reports. The
 [authoring reference](../authoring-guide.md#a-pattern) covers the rest. The `Pattern` option of
-`[ValueObject<T>]` once did this job; it builds its regular expression at run time, and is deprecated (`VO0021`).
+`[ValueObject<T>]` once did this job; it built its regular expression at run time, and no longer compiles (`VO0021`).
 
 ## Normalizing what comes in
 
@@ -128,9 +128,8 @@ stops at the first rule that fails:
 2. `null` is rejected with `value_object.required`, and so is an empty string unless `AllowEmpty = true` — which
    includes a string that normalization emptied, such as `"   "` after a `Trim`.
 3. `MinLength`, then `MaxLength`.
-4. The pattern of `IValueObjectPatternValidator`, or of the deprecated `Pattern` option.
-5. The bound of `IValueObjectMinimum<T>`, then of `IValueObjectMaximum<T>`, or of the deprecated `Minimum` and
-   `Maximum` options.
+4. The pattern of `IValueObjectPatternValidator`.
+5. The bound of `IValueObjectMinimum<T>`, then of `IValueObjectMaximum<T>`.
 6. Membership of a closed set of [known values](./known-values.md).
 7. `ValidateValue`, if the type declares it.
 

@@ -110,11 +110,11 @@ public class RegistryResolutionTests
     }
 
     /// <summary>
-    /// Where no generator runs, nothing holds the annotation of a value object written by hand to the schema it declares.
-    /// When the two disagree, the registry describes the type from its schema, the one generic code constrained on it
-    /// reads, so that the typed path and the boxed path publish the same rules: the known value the annotation declares
-    /// and no decimal parses is left out, as the schema leaves it out. A closed set publishing its known values as the
-    /// type holds them shares a box per value, found under the normalized value.
+    /// Where no generator runs, nothing holds the members a value object written by hand marks <c>[KnownValue]</c> to
+    /// the schema it declares. When the two disagree, the registry describes the type from its schema, the one generic
+    /// code constrained on it reads, so that the typed path and the boxed path publish the same rules: the known value the
+    /// schema leaves out is left out. A closed set publishing its known values as the type holds them shares a box per
+    /// value, found under the normalized value.
     /// </summary>
     [Fact]
     public void A_hand_written_value_object_whose_annotation_disagrees_with_its_schema_is_described_from_its_schema()
@@ -126,8 +126,10 @@ public class RegistryResolutionTests
         size.Schema.KnownValueDetails.Select(known => (known.Value, known.Name)).Should().Equal(("S", "Small"), ("M", "Medium"));
         size.Create("s").Should().BeSameAs(size.Create("S"), "the shared box is found under the normalized value");
 
-        typeof(SalesTaxRate).GetCustomAttributes<KnownValueAttribute>().Select(known => known.Value)
-            .Should().Equal("20.0", "5.50", "twenty");
+        typeof(SalesTaxRate).GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => field.IsDefined(typeof(KnownValueAttribute)))
+            .Select(field => ((SalesTaxRate)field.GetValue(null)!).Value)
+            .Should().Equal(20.0m, 5.5m, 0m);
         rate!.Schema.Should().BeSameAs(SalesTaxRate.Schema);
         rate.Schema.KnownValues.Should().Equal(20.0m, 5.5m);
         rate.Schema.KnownValueDetails.Select(known => known.Name).Should().Equal("Standard", "Reduced");

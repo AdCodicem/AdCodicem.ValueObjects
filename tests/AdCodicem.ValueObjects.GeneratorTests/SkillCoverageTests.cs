@@ -134,7 +134,10 @@ public sealed class SkillCoverageTests
            && type.Name.StartsWith("IValueObject", StringComparison.Ordinal)
            && (type.Name.EndsWith("Normalizer", StringComparison.Ordinal)
                || type.Name.EndsWith("Validator", StringComparison.Ordinal)
-               || type.Name.EndsWith("Formatter", StringComparison.Ordinal));
+               || type.Name.EndsWith("Formatter", StringComparison.Ordinal)
+               || type.Name.StartsWith("IValueObjectMinimum", StringComparison.Ordinal)
+               || type.Name.StartsWith("IValueObjectMaximum", StringComparison.Ordinal)
+               || type.Name.StartsWith("IValueObjectExample", StringComparison.Ordinal));
 
     private static IEnumerable<string> Options(Type attribute)
         => attribute

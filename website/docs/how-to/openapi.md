@@ -23,10 +23,10 @@ object is then documented as what it is on the wire — its underlying type — 
 | The underlying type | `type` |
 | `SchemaFormat`, or the natural format of the type (`uuid`, `date`, `int64`…; none for a `TimeSpan`, a `TimeOnly` or a `DateTime`, see below) | `format` |
 | `MinLength`, `MaxLength` | `minLength`, `maxLength`; 1 both for a `char`, which is written as one character |
-| `IValueObjectPatternValidator`, or the deprecated `Pattern` option | `pattern` |
-| `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>`, or the deprecated `Minimum` and `Maximum` options | `minimum`, `maximum` for a number; for a value written as a string, see below |
-| `[KnownValue]` on a closed set | `enum`, each value as the type writes it in JSON; the names in `x-enum-varnames`, `x-enumNames` and `x-ms-enum`, with the descriptions declared, see [below](#names-of-known-values) |
-| `Example` | an example, written as the type writes it in JSON; one the type refuses fails the build (`VO0031`) or the [contract kit](./test-value-objects.md#what-it-checks) |
+| `IValueObjectPatternValidator` | `pattern` |
+| `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>` | `minimum`, `maximum` for a number; for a value written as a string, see below |
+| The members marked `[KnownValue]` of a closed set | `enum`, each value as the type writes it in JSON; the names in `x-enum-varnames`, `x-enumNames` and `x-ms-enum`, with the descriptions declared, see [below](#names-of-known-values) |
+| `IValueObjectExample<TSelf>` | an example, the instance's underlying value written as the type writes it in JSON; one the type refuses fails the build (`VO0031`), its creation or the [contract kit](./test-value-objects.md#what-it-checks) |
 | `Description`, or the type's XML `<summary>` as plain text | `description` |
 
 The same rules reach a JSON Schema exported by System.Text.Json, for a tool, structured output or a contract, through
@@ -37,15 +37,13 @@ So this declaration:
 ```csharp
 using System.Text.RegularExpressions;
 
-[ValueObject<string>(
-    MinLength = 15,
-    MaxLength = 34,
-    SchemaFormat = "iban",
-    Example = "FR7630006000011234567890189")]
-public readonly partial struct Iban : IValueObjectPatternValidator
+[ValueObject<string>(MinLength = 15, MaxLength = 34, SchemaFormat = "iban")]
+public readonly partial struct Iban : IValueObjectPatternValidator, IValueObjectExample<Iban>
 {
     [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     public static partial Regex Pattern { get; }
+
+    public static Iban Example => Create("FR7630006000011234567890189");
 }
 ```
 
@@ -108,9 +106,14 @@ So this closed set:
 
 ```csharp
 [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
-[KnownValue("France", "FR", Description = "Mainland France and its overseas departments.")]
-[KnownValue("Germany", "DE")]
-public readonly partial struct CountryCode;
+public readonly partial struct CountryCode
+{
+    [KnownValue(Description = "Mainland France and its overseas departments.")]
+    public static readonly CountryCode France = Known("FR");
+
+    [KnownValue]
+    public static readonly CountryCode Germany = Known("DE");
+}
 ```
 
 is published as:
@@ -133,7 +136,8 @@ is published as:
 ```
 
 A value in `x-ms-enum` is written as the `enum` writes it, a number as a number and a date in its round-trip form,
-and carries a description only where its `[KnownValue]` declares one. The enumeration is named as the value object's
+and carries a description only where its member declares one, through the `Description` of its `[KnownValue]` or
+its `<summary>`. The enumeration is named as the value object's
 component is, `ReferenceOfPurchaseOrder` for a construction of a generic one, and as that component would be when the
 value object is described in place, as a parameter. The object form of `x-enum-descriptions`, keyed by value, which
 Scalar and Redocly read, is never written: NSwag refuses the whole document over it.
@@ -145,7 +149,7 @@ set has no `enum`, and its known values are not published.
 The names are a contract of every client generated from the document: renaming a known value renames the member of
 its enumeration in each of them, as renaming the member of a C# `enum` would. There is no option to leave the
 extensions out, since a tool that does not know them ignores them. The names come from the schema the type declares,
-`Schema.KnownValueDetails`, which the generator fills from the `[KnownValue]` attributes.
+`Schema.KnownValueDetails`, which the generator fills from the members marked `[KnownValue]`.
 
 ## Parameters, collections and dictionaries
 

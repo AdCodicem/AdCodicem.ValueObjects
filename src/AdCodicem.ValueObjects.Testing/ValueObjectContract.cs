@@ -257,9 +257,10 @@ public abstract class ValueObjectContract<TSelf, TValue>
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The generator refuses at compile time an example its rules refuse when it can evaluate them (<c>VO0031</c>).
-    /// This checks the rest: a pattern, a validator, a bound computed at run time, a normalization, the format of an
-    /// entity identifier, and an example written in a form the generator does not evaluate.
+    /// A generated value object declares its example through <see cref="IValueObjectExample{TSelf}"/>, as an instance
+    /// that went through its rules, whose underlying value the schema holds: created again here, it must still be
+    /// accepted. The generator refuses at compile time an example its rules refuse when it can evaluate them
+    /// (<c>VO0031</c>). A schema written by hand may hold text instead, which is parsed as the transformer parses it.
     /// </para>
     /// <para>
     /// The check reads <c>TSelf.Schema</c>, as the declaration checks below do, so it runs on a value object written by
@@ -277,8 +278,13 @@ public abstract class ValueObjectContract<TSelf, TValue>
             Assert.Skip($"'{typeof(TSelf).Name}' declares no example.");
         }
 
+        ValidationResult validation;
+        var accepted = example is TValue value
+            ? TSelf.TryCreate(value, out _, out validation)
+            : TSelf.TryParse(Convert.ToString(example, CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, out _, out validation);
+
         Assert.True(
-            TSelf.TryParse(example, CultureInfo.InvariantCulture, out _, out var validation),
+            accepted,
             $"The example '{example}' declared on '{typeof(TSelf).Name}' is refused ({validation.ErrorCode}): {validation.ErrorMessage}");
     }
 

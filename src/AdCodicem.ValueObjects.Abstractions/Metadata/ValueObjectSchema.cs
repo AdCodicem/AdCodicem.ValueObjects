@@ -61,9 +61,15 @@ public sealed record ValueObjectSchema
     public string? Description { get; init; }
 
     /// <summary>
-    /// Gets an example value, if any.
+    /// Gets an example value, boxed, if any.
     /// </summary>
-    public string? Example { get; init; }
+    /// <remarks>
+    /// The generator holds here the underlying value of the example the value object declares through
+    /// <see cref="IValueObjectExample{TSelf}"/>, as <see cref="KnownValues"/> holds its known values, and the schemas
+    /// write it as the type writes it in JSON. A schema built by hand may hold the text of the value instead, which they
+    /// read in the invariant culture as the type parses it.
+    /// </remarks>
+    public object? Example { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether only <see cref="KnownValues"/> are accepted.

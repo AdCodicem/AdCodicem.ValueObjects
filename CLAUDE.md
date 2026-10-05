@@ -231,12 +231,21 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   keyword changes there, for both.
 - **`default(T)` is a build error** (`VO0010`). Tests that deliberately construct one need a targeted
   `#pragma warning disable VO0010` with a comment.
+- **A known value is the author's member, created before the lookup it belongs to.** `[KnownValue]` marks a
+  `static readonly` field or a get-only auto-property initialized through the generated, private `Known`, which
+  applies every rule but membership. The author's part of a type initializes before the generated part (Roslyn orders
+  the trees), so a closed set's `FrozenSet` is built from the members after they exist, and `Validate` throws
+  `InvalidOperationException`, with the reason, when a static initializer reaches it before then through `Create`.
+  `VO0036` reports a member the generator cannot read as a known value, `VO0037` a call to `Known` anywhere else.
+  The rules a value is checked against at compile time (`VO0031`) are read off constants only: `Known("FR")`, an
+  `Example` getter returning `Create(42)`, a bound returned as a constant. An attribute option written as text is no
+  longer read anywhere (`docs/adr/0011-declare-known-values-and-examples-as-typed-members.md`).
 
 ### Hooks are interfaces
 
 A value object declares a rule by implementing `IValueObjectNormalizer<T>`, `IValueObjectSpanNormalizer`,
 `IValueObjectPatternValidator`, `IValueObjectValidator<T>`, `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>`,
-`IValueObjectFormatter<T>` or `IValueObjectStringFormatter<T>`
+`IValueObjectFormatter<T>`, `IValueObjectStringFormatter<T>` or `IValueObjectExample<TSelf>`
 (`src/AdCodicem.ValueObjects.Abstractions/ValueObjectHooks.cs`). The compiler
 then checks the signature. The rules are public because a static abstract interface member cannot be anything
 else; `Normalize` remains the member callers use, guarding null before deferring to `NormalizeValue`. `VO0011`
@@ -246,20 +255,25 @@ public one only, and stays quiet on a type that implements another hook, which m
 `IValueObjectPatternValidator` is the one hook whose member is half written by another generator: the consumer
 declares `[GeneratedRegex(...)] public static partial Regex Pattern { get; }` and the framework's regex generator
 supplies the body. It applies to string value objects only (`VO0023`), never to an `[EntityId]` (`VO0024`), and
-replaces the deprecated `Pattern` option (`VO0021`); declaring both is `VO0022`, and the hook wins. The generator
+replaces the `Pattern` option, now a compile error read by nothing (`VO0021`). The generator
 reads the pattern text off the attribute for the schema, so `VO0025` warns on a `RegexOptions` that text cannot
 carry, and `VO0026` on a missing `matchTimeoutMilliseconds`.
 
-`IValueObjectMinimum<T>` and `IValueObjectMaximum<T>` replace the deprecated `Minimum` and `Maximum` options
-(`VO0028`), whose bound is text read under one grammar per type; declaring an option and its hook is `VO0029`, and
-the hook wins. The generated code reads a bound through `ValueObjectBound`, a bridge that reaches it however the
+`IValueObjectMinimum<T>` and `IValueObjectMaximum<T>` replace the `Minimum` and `Maximum` options, which held the
+bound as text and are now a compile error read by nothing (`VO0028`). The generated code reads a bound through `ValueObjectBound`, a bridge that reaches it however the
 type implements it and that keeps nothing: a copy taken while the type initializes would keep the default for good.
 The schema publishes it through `ValueObjectBound.Text`, which the schema transformer re-writes in the converter's
 form. A hook over a type that takes no bound, or over another type than the underlying one, is `VO0030`. `VO0011`
 reports a public static `Minimum` or `Maximum` property of the underlying type without its interface, and stays
 quiet on a field, which could not implement it, on a type that implements `IValueObjectValidator<T>` or
-`IValueObjectNormalizer<T>`, which may already check it or clamp to it, and on a type still setting the option.
+`IValueObjectNormalizer<T>`, which may already check it or clamp to it.
 `docs/adr/0008-deprecate-text-bounds-for-typed-bound-hooks.md` records why a bound is a constant that nothing caches.
+
+`IValueObjectExample<TSelf>` declares the OpenAPI example as an instance of the type, which the schema reads through
+`ValueObjectExample.Of<TSelf>()`, a bridge that reaches an explicit implementation too, and publishes as its
+underlying value: `ValueObjectSchema.Example` is an `object?`, written by `ValueObjectSchemaKeywords.WriteExample`.
+It replaces the `Example` options of `[ValueObject<T>]` and `[EntityId]`, now a compile error (`VO0035`). A hook over
+another type is `VO0038`, and a public static `Example` property of the type without the interface is `VO0011`.
 
 ## Constraints that will bite you
 
@@ -276,9 +290,9 @@ These are all load-bearing, and each cost real debugging time:
   a hand-written `ValueObjectJsonConverterFactory` the STJ generator *can* see, named via
   `[JsonSourceGenerationOptions(Converters = ...)]`. The same constraint rules out `[GeneratedRegex]` in emitted
   code, which is why the pattern is now a hook the consumer writes: `IValueObjectPatternValidator` takes a
-  `[GeneratedRegex]` partial property the regex generator *can* see. The `Pattern` option it replaces compiles a
-  `Regex` at run time with `RegexOptions.Compiled`, which native AOT interprets; it is deprecated (`VO0021`) and
-  goes at the next major. `docs/adr/0007-deprecate-pattern-for-a-source-generated-regex-hook.md` has the numbers.
+  `[GeneratedRegex]` partial property the regex generator *can* see. The `Pattern` option it replaces compiled a
+  `Regex` at run time with `RegexOptions.Compiled`, which native AOT interprets; it is now a compile error (`VO0021`)
+  that any minor may remove. `docs/adr/0007-deprecate-pattern-for-a-source-generated-regex-hook.md` has the numbers.
   The Request Delegate Generator, on in every build under `PublishAot` or `PublishTrimmed`, is the case a consumer
   meets: it binds a value object of its own project from the request body unless the declaration lists its
   contract, which `VO0033` reports. That analyzer reads `EnableRequestDelegateGenerator` through the
@@ -298,10 +312,13 @@ These are all load-bearing, and each cost real debugging time:
 - **The syntax predicate admits any `TypeDeclarationSyntax`**, not just structs, so a value object written as a
   class or a record struct reaches `VO0002` instead of silently generating nothing.
 - **Analyzer release tracking** (`AnalyzerReleases.Shipped.md` / `.Unshipped.md`) must list every diagnostic, or
-  RS2008 fails the build. `VO0021` and `VO0028` are the exceptions: they are the `DiagnosticId` of the `[Obsolete]`
-  on `Pattern`, and on `Minimum` and `Maximum`, which the compiler reports, so no descriptor declares them and they
-  have to be documented by hand. A test that exercises a deprecated option disables its diagnostic on the spot,
-  `#pragma warning disable VO0021` or `VO0028` with a comment.
+  RS2008 fails the build. `VO0021`, `VO0028`, `VO0034` and `VO0035` are the exceptions: they are the `DiagnosticId`
+  of an `[Obsolete(error: true)]`, on `Pattern`, on `Minimum` and `Maximum`, on the constructor of `[KnownValue]`
+  that takes a name and a value (which `KnownValueMemberCodeFixProvider` rewrites) and on the `Example` options,
+  which the compiler reports, so no descriptor declares them and they have to be documented by hand. No `#pragma`
+  silences such an error, and the compiler does not report it inside a member or a type itself `[Obsolete]`: a test
+  that exercises one compiles it in a generator test and reads it among the compilation's diagnostics. Retired
+  identifiers (`VO0004`, `VO0006`, `VO0013`, `VO0014`, `VO0022`, `VO0029`) are never reused.
 - **Every action in `.github/workflows` and `.github/actions` is pinned to a commit SHA**, with the release as a
   same-line comment (`uses: actions/checkout@3d3c42e... # v7.0.1`). Dependabot reads that comment to derive the
   semver bump, so a pin without one falls out of the `actions` group and may auto-merge as a non-major. Its

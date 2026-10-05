@@ -9,8 +9,10 @@ namespace AdCodicem.ValueObjects.GeneratorTests;
 /// </summary>
 /// <remarks>
 /// A refused example is published as the OpenAPI example, which clients and mock servers take at its word, and a refused
-/// known value throws from the type initializer, before <c>Main</c>. What only runs at run time — a pattern, a validator,
-/// a bound computed by its hook, a normalization — is the contract kit's to check.
+/// known value or example throws from the type initializer, before <c>Main</c>. The generator evaluates a value the
+/// compiler does: a constant passed to <c>Known</c>, or to <c>Create</c> in the getter of the example. What only runs at run
+/// time — a value built by any other expression, a pattern, a validator, a bound computed by its hook, a normalization —
+/// is the contract kit's to check.
 /// </remarks>
 public sealed class DeclaredValueTests
 {
@@ -18,12 +20,14 @@ public sealed class DeclaredValueTests
     public void An_example_out_of_the_bounds_of_its_hooks_is_reported_where_it_is_written()
     {
         var run = GeneratorHarness.Run("""
-            [ValueObject<int>(Example = "5000")]
-            public readonly partial struct Quantity : IValueObjectMinimum<int>, IValueObjectMaximum<int>
+            [ValueObject<int>]
+            public readonly partial struct Quantity : IValueObjectMinimum<int>, IValueObjectMaximum<int>, IValueObjectExample<Quantity>
             {
                 public static int Minimum => 1;
 
                 public static int Maximum => 100;
+
+                public static Quantity Example => Create(5000);
             }
             """);
 
@@ -33,73 +37,60 @@ public sealed class DeclaredValueTests
         diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
             "The Example '5000' declared on 'Quantity' is refused by its own type (value_object.out_of_range): "
             + "The value must be less than or equal to 100.");
-        run.Locate(diagnostic).Text.Should().Be("Example = \"5000\"");
+        run.Locate(diagnostic).Text.Should().Be("5000");
         run.Files.Should().Contain(file => file.HintName.Contains("Quantity", StringComparison.Ordinal), "the type still generates");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The example is read however its getter is written: an arrow, an accessor, a body returning it, an initializer, and
+    /// an explicit implementation, which keeps it off the public surface of the type.
+    /// </summary>
     [Theory]
-    [InlineData("int", "lots", "The text is not a valid int.")]
-    [InlineData("int", "1,000", "The text is not a valid int.")]
-    [InlineData("sbyte", "128", "The text is not a valid sbyte.")]
-    [InlineData("byte", "-1", "The text is not a valid byte.")]
-    [InlineData("short", "40000", "The text is not a valid short.")]
-    [InlineData("ushort", "70000", "The text is not a valid ushort.")]
-    [InlineData("uint", "4294967296", "The text is not a valid uint.")]
-    [InlineData("long", "9223372036854775808", "The text is not a valid long.")]
-    [InlineData("ulong", "-5", "The text is not a valid ulong.")]
-    [InlineData("Int128", "170141183460469231731687303715884105728", "The text is not a valid System.Int128.")]
-    [InlineData("UInt128", "-1", "The text is not a valid System.UInt128.")]
-    [InlineData("decimal", "12,5", "The text is not a valid decimal.")]
-    [InlineData("double", "lots", "The text is not a valid double.")]
-    [InlineData("double", "+-1", "The text is not a valid double.")]
-    [InlineData("double", "-x", "The text is not a valid double.")]
-    [InlineData("float", "+x", "The text is not a valid float.")]
-    [InlineData("char", "ab", "The text is not a valid char.")]
-    [InlineData("bool", "yes", "The text is not a valid bool.")]
-    [InlineData("Guid", "not-a-guid", "The text is not a valid System.Guid.")]
-    [InlineData("DateOnly", "2023-02-29", "The text is not a valid System.DateOnly.")]
-    [InlineData("TimeOnly", "25:00", "The text is not a valid System.TimeOnly.")]
-    [InlineData("DateTime", "yesterday", "The text is not a valid System.DateTime.")]
-    [InlineData("DateTimeOffset", "tomorrow", "The text is not a valid System.DateTimeOffset.")]
-    [InlineData("TimeSpan", "an hour", "The text is not a valid System.TimeSpan.")]
-    public void An_example_no_form_of_its_type_reads_is_reported(string underlying, string example, string rule)
+    [InlineData("public static Quantity Example => Create(5000);")]
+    [InlineData("public static Quantity Example { get => Create(5000); }")]
+    [InlineData("public static Quantity Example { get { return Create(5000); } }")]
+    [InlineData("public static Quantity Example { get; } = Create(5000);")]
+    [InlineData("static Quantity IValueObjectExample<Quantity>.Example => Create(5000);")]
+    public void An_example_created_from_a_constant_is_checked_however_its_getter_is_written(string example)
     {
         var run = GeneratorHarness.Run($$"""
-            [ValueObject<{{underlying}}>(Example = "{{example}}")]
-            public readonly partial struct Sample;
+            [ValueObject<int>]
+            public readonly partial struct Quantity : IValueObjectMaximum<int>, IValueObjectExample<Quantity>
+            {
+                public static int Maximum => 100;
+
+                {{example}}
+            }
             """);
 
         run.Ids.Should().Equal("VO0031");
-        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Be(
-            $"The Example '{example}' declared on 'Sample' is refused by its own type (value_object.not_parsable): {rule}");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
     /// <summary>
-    /// The generated <c>Parse</c> reads more forms than the one a known value is written in: white space, a sign,
-    /// <c>NaN</c>, a date written another way, a date and time with an offset. Such an example is no mistake, and its
-    /// rules are left to the contract kit, which parses it as the type does.
+    /// An example built by any other expression runs only at run time: the type initializer creates it as the schema reads
+    /// it, and the contract kit checks it. A known value returned as the example is checked as a known value.
     /// </summary>
     [Theory]
-    [InlineData("int", " 42")]
-    [InlineData("Int128", "+5")]
-    [InlineData("UInt128", " 5")]
-    [InlineData("decimal", ".5")]
-    [InlineData("double", "NaN")]
-    [InlineData("float", "Infinity")]
-    [InlineData("bool", " true")]
-    [InlineData("Guid", " 6f9619ff-8b86-d011-b42d-00c04fc964ff ")]
-    [InlineData("DateOnly", "01/31/2024")]
-    [InlineData("TimeOnly", "8:30 AM")]
-    [InlineData("DateTime", "2024-01-31T08:30:00Z")]
-    [InlineData("DateTimeOffset", "2024-01-31T08:30:00")]
-    [InlineData("TimeSpan", "1:30:00")]
-    public void An_example_in_another_form_its_type_reads_is_left_to_run_time(string underlying, string example)
+    [InlineData("public static Quantity Example => Create(int.Parse(\"5000\", System.Globalization.CultureInfo.InvariantCulture));")]
+    [InlineData("public static Quantity Example => CreateUnchecked(5000);")]
+    [InlineData("public static Quantity Example => Parse(\"5000\", null);")]
+    [InlineData("public static Quantity Example => Ceiling;")]
+    [InlineData("public static Quantity Example { get { var value = Create(5000); return value; } }")]
+    public void An_example_the_compiler_does_not_evaluate_is_left_to_run_time(string example)
     {
         var run = GeneratorHarness.Run($$"""
-            [ValueObject<{{underlying}}>(Example = "{{example}}")]
-            public readonly partial struct Sample;
+            [ValueObject<int>]
+            public readonly partial struct Quantity : IValueObjectMaximum<int>, IValueObjectExample<Quantity>
+            {
+                public static int Maximum => 100;
+
+                [KnownValue]
+                public static readonly Quantity Ceiling = Known(100);
+
+                {{example}}
+            }
             """);
 
         run.Diagnostics.Should().BeEmpty();
@@ -112,53 +103,16 @@ public sealed class DeclaredValueTests
     public void An_example_of_a_length_its_type_refuses_is_reported(string option, string example, string code, string rule)
     {
         var run = GeneratorHarness.Run($$"""
-            [ValueObject<string>({{option}}, Example = "{{example}}")]
-            public readonly partial struct Code;
+            [ValueObject<string>({{option}})]
+            public readonly partial struct Code : IValueObjectExample<Code>
+            {
+                public static Code Example => Create("{{example}}");
+            }
             """);
 
         run.Ids.Should().Equal("VO0031");
         run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Be(
             $"The Example '{example}' declared on 'Code' is refused by its own type ({code}): {rule}");
-    }
-
-    /// <summary>
-    /// A bound declared through the deprecated options is the text the generator already converts, and the message quotes
-    /// it as written, as the generated one does. A <c>DateTimeOffset</c> compares the instant it names, whatever its offset.
-    /// </summary>
-    [Theory]
-    [InlineData("DateOnly", "Minimum = \"2020-01-01\"", "2019-12-31", "The value must be greater than or equal to 2020-01-01.")]
-    [InlineData("decimal", "Maximum = \"9.99\"", "10", "The value must be less than or equal to 9.99.")]
-    [InlineData("DateTimeOffset", "Minimum = \"2024-01-01T00:00+00:00\"", "2024-01-01T01:00+02:00", "The value must be greater than or equal to 2024-01-01T00:00+00:00.")]
-    [InlineData("TimeSpan", "Maximum = \"08:00:00\"", "1.00:00:00", "The value must be less than or equal to 08:00:00.")]
-    [InlineData("char", "Minimum = \"b\"", "a", "The value must be greater than or equal to b.")]
-    public void An_example_out_of_the_bounds_of_the_deprecated_options_is_reported(string underlying, string option, string example, string rule)
-    {
-        var run = GeneratorHarness.Run($$"""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<{{underlying}}>({{option}}, Example = "{{example}}")]
-            public readonly partial struct Sample;
-            #pragma warning restore VO0028
-            """);
-
-        run.Ids.Should().Equal("VO0031");
-        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Be(
-            $"The Example '{example}' declared on 'Sample' is refused by its own type (value_object.out_of_range): {rule}");
-    }
-
-    [Theory]
-    [InlineData("DateOnly", "Minimum = \"2020-01-01\"", "2020-01-01")]
-    [InlineData("DateTimeOffset", "Minimum = \"2024-01-01T00:00+00:00\"", "2024-01-01T02:00+02:00")]
-    [InlineData("double", "Maximum = \"1.5\"", "1.5")]
-    public void An_example_on_the_bound_of_its_type_is_accepted(string underlying, string option, string example)
-    {
-        var run = GeneratorHarness.Run($$"""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<{{underlying}}>({{option}}, Example = "{{example}}")]
-            public readonly partial struct Sample;
-            #pragma warning restore VO0028
-            """);
-
-        run.Diagnostics.Should().BeEmpty();
     }
 
     [Theory]
@@ -173,10 +127,17 @@ public sealed class DeclaredValueTests
     public void An_example_outside_a_closed_set_is_reported_under_the_comparison_of_its_type(string comparison, string example, bool reported)
     {
         var run = GeneratorHarness.Run($$"""
-            [ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.{{comparison}}, Example = "{{example}}")]
-            [KnownValue("Euro", "EUR")]
-            [KnownValue("Dollar", "USD")]
-            public readonly partial struct Currency;
+            [ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.{{comparison}})]
+            public readonly partial struct Currency : IValueObjectExample<Currency>
+            {
+                [KnownValue]
+                public static readonly Currency Euro = Known("EUR");
+
+                [KnownValue]
+                public static readonly Currency Dollar = Known("USD");
+
+                public static Currency Example => Create("{{example}}");
+            }
             """);
 
         if (reported)
@@ -197,23 +158,59 @@ public sealed class DeclaredValueTests
     public void An_example_outside_a_closed_set_of_numbers_is_reported(string example, bool reported)
     {
         var run = GeneratorHarness.Run($$"""
-            [ValueObject<int>(ValueSet = ValueSetKind.Closed, Example = "{{example}}")]
-            [KnownValue("Low", 1)]
-            [KnownValue("High", 10)]
-            public readonly partial struct Tier;
+            [ValueObject<int>(ValueSet = ValueSetKind.Closed)]
+            public readonly partial struct Tier : IValueObjectExample<Tier>
+            {
+                [KnownValue]
+                public static readonly Tier Low = Known(1);
+
+                [KnownValue]
+                public static readonly Tier High = Known(10);
+
+                public static Tier Example => Create({{example}});
+            }
             """);
 
         run.Ids.Should().HaveCount(reported ? 1 : 0);
     }
 
+    /// <summary>
+    /// The membership the generator evaluates is the set of every known value, which it knows only when each is a
+    /// constant: beside one built by another expression, an example is left to run time.
+    /// </summary>
     [Fact]
-    public void A_known_value_its_type_refuses_is_reported_on_its_attribute()
+    public void An_example_beside_a_known_value_the_compiler_does_not_evaluate_is_left_to_run_time()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>(ValueSet = ValueSetKind.Closed)]
+            public readonly partial struct Tier : IValueObjectExample<Tier>
+            {
+                [KnownValue]
+                public static readonly Tier Low = Known(1);
+
+                [KnownValue]
+                public static readonly Tier High = Known(int.Parse("10", System.Globalization.CultureInfo.InvariantCulture));
+
+                public static Tier Example => Create(5);
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_known_value_its_type_refuses_is_reported_at_its_value()
     {
         var run = GeneratorHarness.Run("""
             [ValueObject<string>(ValueSet = ValueSetKind.Closed, MaxLength = 3)]
-            [KnownValue("Eur", "EUR")]
-            [KnownValue("Euro", "EURO")]
-            public readonly partial struct Currency;
+            public readonly partial struct Currency
+            {
+                [KnownValue]
+                public static readonly Currency Eur = Known("EUR");
+
+                [KnownValue]
+                public static Currency Euro { get; } = Known("EURO");
+            }
             """);
 
         run.Ids.Should().Equal("VO0031");
@@ -221,7 +218,7 @@ public sealed class DeclaredValueTests
         diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
             "The known value Euro 'EURO' declared on 'Currency' is refused by its own type (value_object.too_long): "
             + "The value must be at most 3 characters long.");
-        run.Locate(diagnostic).Text.Should().Be("KnownValue(\"Euro\", \"EURO\")");
+        run.Locate(diagnostic).Text.Should().Be("\"EURO\"");
         run.CompilationDiagnostics.Should().BeEmpty();
     }
 
@@ -232,13 +229,19 @@ public sealed class DeclaredValueTests
     {
         var refused = GeneratorHarness.Run($$"""
             [ValueObject<string>(MaxLength = 3{{options}})]
-            [KnownValue("None", "")]
-            public readonly partial struct Code;
+            public readonly partial struct Code
+            {
+                [KnownValue]
+                public static readonly Code None = Known("");
+            }
             """);
         var allowed = GeneratorHarness.Run("""
             [ValueObject<string>(AllowEmpty = true)]
-            [KnownValue("None", "")]
-            public readonly partial struct Code;
+            public readonly partial struct Code
+            {
+                [KnownValue]
+                public static readonly Code None = Known(string.Empty);
+            }
             """);
 
         refused.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Be(
@@ -260,10 +263,14 @@ public sealed class DeclaredValueTests
     {
         var run = GeneratorHarness.Run($$"""
             [ValueObject<int>]
-            [KnownValue("Ceiling", 100)]
-            [KnownValue("Overflow", 500)]
             public readonly partial struct Quantity : IValueObjectMaximum<int>
             {
+                [KnownValue]
+                public static readonly Quantity Ceiling = Known(100);
+
+                [KnownValue]
+                public static readonly Quantity Overflow = Known(500);
+
                 {{bound}}
             }
             """);
@@ -295,10 +302,14 @@ public sealed class DeclaredValueTests
     public void A_known_value_out_of_a_bound_computed_at_run_time_is_left_to_run_time(string underlying, string bound, string compilerError)
     {
         var run = GeneratorHarness.Run($$"""
-            [ValueObject<{{underlying}}>(Example = "500")]
-            [KnownValue("Overflow", 500)]
-            public readonly partial struct Quantity : IValueObjectMaximum<{{underlying}}>
+            [ValueObject<{{underlying}}>]
+            public readonly partial struct Quantity : IValueObjectMaximum<{{underlying}}>, IValueObjectExample<Quantity>
             {
+                [KnownValue]
+                public static readonly Quantity Overflow = Known(500);
+
+                public static Quantity Example => Create(500);
+
                 {{bound}}
             }
             """);
@@ -315,12 +326,14 @@ public sealed class DeclaredValueTests
     public void A_bound_declared_as_a_partial_property_is_read_off_its_implementation()
     {
         var run = GeneratorHarness.Run("""
-            [ValueObject<int>(Example = "500")]
-            public readonly partial struct Quantity : IValueObjectMinimum<int>
+            [ValueObject<int>]
+            public readonly partial struct Quantity : IValueObjectMinimum<int>, IValueObjectExample<Quantity>
             {
                 public static partial int Minimum { get; }
 
                 public static partial int Minimum => 1000;
+
+                public static Quantity Example => Create(500);
             }
             """);
 
@@ -336,17 +349,24 @@ public sealed class DeclaredValueTests
     public void A_bound_converted_by_its_getter_is_compared_as_converted()
     {
         var run = GeneratorHarness.Run("""
-            [ValueObject<double>(Example = "0.10000000149")]
-            [KnownValue("Above", 0.1000000015)]
+            [ValueObject<double>]
             public readonly partial struct Share : IValueObjectMaximum<double>
             {
+                [KnownValue]
+                public static readonly Share Above = Known(0.1000000015);
+
+                [KnownValue]
+                public static readonly Share Below = Known(0.10000000149);
+
                 public static double Maximum => 0.1f;
             }
 
-            [ValueObject<float>(Example = "1.6")]
-            public readonly partial struct Ratio : IValueObjectMaximum<float>
+            [ValueObject<float>]
+            public readonly partial struct Ratio : IValueObjectMaximum<float>, IValueObjectExample<Ratio>
             {
                 public static float Maximum => 1.5f;
+
+                public static Ratio Example => Create(1.6f);
             }
             """);
 
@@ -358,37 +378,86 @@ public sealed class DeclaredValueTests
     }
 
     /// <summary>
+    /// The argument of <c>Known</c> and <c>Create</c> is evaluated alone, the call not being bound, so a constant is read
+    /// only where the conversion the call applies changes nothing the generator tells apart. A <c>float</c> widened to a
+    /// <c>double</c> names another value than its text, a <c>char</c> converted to a number is no text of it, and a value
+    /// built by a constructor is no constant: each is left to run time.
+    /// </summary>
+    [Fact]
+    public void A_value_the_conversion_of_the_call_would_change_is_left_to_run_time()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<double>]
+            public readonly partial struct Share : IValueObjectMaximum<double>
+            {
+                [KnownValue]
+                public static readonly Share Widened = Known(0.1f);
+
+                public static double Maximum => 0.1;
+            }
+
+            [ValueObject<int>]
+            public readonly partial struct Code : IValueObjectMaximum<int>
+            {
+                [KnownValue]
+                public static readonly Code Letter = Known('A');
+
+                public static int Maximum => 10;
+            }
+
+            [ValueObject<DateOnly>]
+            public readonly partial struct Day : IValueObjectMaximum<DateOnly>
+            {
+                [KnownValue]
+                public static readonly Day Late = Known(new DateOnly(2100, 1, 1));
+
+                public static DateOnly Maximum => new(2000, 1, 1);
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// A normalization may turn a value the rules refuse into one they accept, so a type that normalizes is left to the
-    /// contract kit. Text no form of the type reads is refused before any normalization, and stays reported.
+    /// type initializer and the contract kit.
     /// </summary>
     [Fact]
     public void A_type_that_normalizes_is_held_to_its_rules_only_at_run_time()
     {
         var run = GeneratorHarness.Run("""
-            [ValueObject<string>(MaxLength = 4, Example = "fr76 3000")]
-            [KnownValue("Spaced", "a b c d e")]
-            public readonly partial struct Compact : IValueObjectNormalizer<string>
+            [ValueObject<string>(MaxLength = 4)]
+            public readonly partial struct Compact : IValueObjectNormalizer<string>, IValueObjectExample<Compact>
             {
+                [KnownValue]
+                public static readonly Compact Spaced = Known("a b c d e");
+
+                public static Compact Example => Create("fr76 3000");
+
                 public static string NormalizeValue(string value) => value.Replace(" ", string.Empty).Substring(0, 4);
             }
 
-            [ValueObject<string>(MaxLength = 4, Example = "fr76 3000")]
-            public readonly partial struct SpanCompact : IValueObjectSpanNormalizer
+            [ValueObject<string>(MaxLength = 4)]
+            public readonly partial struct SpanCompact : IValueObjectSpanNormalizer, IValueObjectExample<SpanCompact>
             {
+                public static SpanCompact Example => Create("fr76 3000");
+
                 public static string NormalizeValue(ReadOnlySpan<char> value) => value.Slice(0, 4).ToString();
             }
 
-            [ValueObject<int>(Example = "lots")]
-            public readonly partial struct Rounded : IValueObjectNormalizer<int>, IValueObjectMaximum<int>
+            [ValueObject<int>]
+            public readonly partial struct Rounded : IValueObjectNormalizer<int>, IValueObjectMaximum<int>, IValueObjectExample<Rounded>
             {
                 public static int Maximum => 10;
+
+                public static Rounded Example => Create(50);
 
                 public static int NormalizeValue(int value) => Math.Min(value, 10);
             }
             """);
 
-        run.Ids.Should().Equal("VO0031");
-        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Contain("'Rounded'").And.Contain("value_object.not_parsable");
+        run.Diagnostics.Should().BeEmpty();
     }
 
     /// <summary>
@@ -401,15 +470,19 @@ public sealed class DeclaredValueTests
         var run = GeneratorHarness.Run("""
             using System.Text.RegularExpressions;
 
-            [ValueObject<string>(MaxLength = 3, Example = "ABCD")]
-            public readonly partial struct Checked : IValueObjectValidator<string>
+            [ValueObject<string>(MaxLength = 3)]
+            public readonly partial struct Checked : IValueObjectValidator<string>, IValueObjectExample<Checked>
             {
+                public static Checked Example => Create("ABCD");
+
                 public static ValidationResult ValidateValue(in string value) => ValidationResult.Success;
             }
 
-            [ValueObject<string>(Example = "abc")]
-            public readonly partial struct Digits : IValueObjectPatternValidator
+            [ValueObject<string>]
+            public readonly partial struct Digits : IValueObjectPatternValidator, IValueObjectExample<Digits>
             {
+                public static Digits Example => Create("abc");
+
                 [GeneratedRegex("^[0-9]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
                 public static partial Regex Pattern { get; }
             }
@@ -427,10 +500,14 @@ public sealed class DeclaredValueTests
     public void The_example_of_an_entity_identifier_is_left_to_run_time()
     {
         var run = GeneratorHarness.Run("""
-            [EntityId("cus", Example = "not-an-identifier")]
-            public readonly partial struct CustomerId;
+            [EntityId("cus")]
+            public readonly partial struct CustomerId : IValueObjectExample<CustomerId>
+            {
+                public static CustomerId Example => Create("not-an-identifier");
+            }
             """);
 
         run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
     }
 }

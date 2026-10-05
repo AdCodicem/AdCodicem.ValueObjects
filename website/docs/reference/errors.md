@@ -21,8 +21,8 @@ Defined as constants on `ValueObjectErrorCodes`:
 | `value_object.required` | The value is `null`, or an empty string on a type without `AllowEmpty`. |
 | `value_object.too_short` | A string is shorter than `MinLength`. |
 | `value_object.too_long` | A string is longer than `MaxLength`. |
-| `value_object.invalid_format` | The value does not match the `Pattern` of `IValueObjectPatternValidator`, or of the deprecated option of the same name; also the code of `ValidationResult.InvalidFormat`. |
-| `value_object.out_of_range` | The value is below the bound of `IValueObjectMinimum<T>` or above that of `IValueObjectMaximum<T>`, or of the deprecated options of the same names; also the code of `ValidationResult.OutOfRange`. |
+| `value_object.invalid_format` | The value does not match the `Pattern` of `IValueObjectPatternValidator`; also the code of `ValidationResult.InvalidFormat`. |
+| `value_object.out_of_range` | The value is below the bound of `IValueObjectMinimum<T>` or above that of `IValueObjectMaximum<T>`; also the code of `ValidationResult.OutOfRange`. |
 | `value_object.not_a_known_value` | The value is not one of the known values of a closed set. |
 | `value_object.not_parsable` | The text does not even have the shape of the underlying type, so no rule of the type ran. That includes a group separator in a `decimal`, a `double` or a `float` read with no provider or the invariant culture: `12,5` is not 125. The type converter reports it too for a number of another numeric type that the underlying type cannot hold whole: out of its range, or with a fraction for an integer. |
 

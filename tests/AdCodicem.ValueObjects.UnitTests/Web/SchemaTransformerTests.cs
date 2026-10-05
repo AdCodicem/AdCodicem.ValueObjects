@@ -699,8 +699,11 @@ public partial class SchemaTransformerTests
     public readonly partial struct Deadline;
 
     /// <summary>A gauge over a double nothing bounds, whose example JSON has no number for.</summary>
-    [ValueObject<double>(Example = "NaN")]
-    public readonly partial struct Gauge;
+    [ValueObject<double>]
+    public readonly partial struct Gauge : IValueObjectExample<Gauge>
+    {
+        public static Gauge Example => Create(double.NaN);
+    }
 
     /// <summary>A depth, never negative, so it holds positive infinity and no other literal.</summary>
     [ValueObject<double>]
@@ -727,17 +730,24 @@ public partial class SchemaTransformerTests
     public readonly partial struct Moment;
 
     /// <summary>A socket's port, never zero.</summary>
-    [ValueObject<ushort>(Example = "8080")]
-    public readonly partial struct Socket : IValueObjectMinimum<ushort>
+    [ValueObject<ushort>]
+    public readonly partial struct Socket : IValueObjectMinimum<ushort>, IValueObjectExample<Socket>
     {
+        public static Socket Example => Create(8080);
+
         public static ushort Minimum => 1;
     }
 
     /// <summary>A tier, one of two numbers.</summary>
     [ValueObject<int>(ValueSet = ValueSetKind.Closed)]
-    [KnownValue("Low", 1)]
-    [KnownValue("High", 10)]
-    public readonly partial struct Tier;
+    public readonly partial struct Tier
+    {
+        [KnownValue]
+        public static readonly Tier Low = Known(1);
+
+        [KnownValue]
+        public static readonly Tier High = Known(10);
+    }
 
     /// <summary>A distance in metres, bounded beyond what a decimal holds.</summary>
     [ValueObject<double>]
@@ -757,7 +767,12 @@ public partial class SchemaTransformerTests
     /// <summary>The finish of a surface of one kind, from a closed set.</summary>
     /// <typeparam name="TSurface">The kind of surface.</typeparam>
     [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
-    [KnownValue("Matte", "matte")]
-    [KnownValue("Gloss", "gloss")]
-    public readonly partial struct Finish<TSurface>;
+    public readonly partial struct Finish<TSurface>
+    {
+        [KnownValue]
+        public static readonly Finish<TSurface> Matte = Known("matte");
+
+        [KnownValue]
+        public static readonly Finish<TSurface> Gloss = Known("gloss");
+    }
 }

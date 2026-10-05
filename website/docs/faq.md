@@ -144,8 +144,8 @@ Dapper and Newtonsoft.Json integrations are not AOT-compatible, because the fram
 
 Through `IValueObjectPatternValidator`, yes. Its `Pattern` is a `[GeneratedRegex]` property you write, which the
 regex source generator turns into code at build time, so it runs the same under native AOT as under the JIT and
-costs nothing until it first runs. The deprecated `Pattern` option of `[ValueObject<T>]` does not: it builds its
-`Regex` at start-up with `RegexOptions.Compiled`, which native AOT cannot honour, so there the expression is
-interpreted. The option is reported as `VO0021`, and any minor version may remove it before 1.0.0;
+costs nothing until it first runs. The `Pattern` option of `[ValueObject<T>]` did not: it built its `Regex` at
+start-up with `RegexOptions.Compiled`, which native AOT cannot honour, so there the expression was interpreted. The
+option no longer compiles (`VO0021`), and any minor version may remove it before 1.0.0;
 [Diagnostics](./reference/diagnostics.md#moving-off-pattern) shows the change. [Benchmarks](./benchmarks.md)
 has the measurements.

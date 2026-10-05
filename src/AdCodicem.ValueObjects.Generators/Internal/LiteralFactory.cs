@@ -6,20 +6,21 @@ using AdCodicem.ValueObjects.Generators.Model;
 namespace AdCodicem.ValueObjects.Generators.Internal;
 
 /// <summary>
-/// Turns attribute arguments into C# literal expressions of the underlying type.
+/// Turns a constant, or the text a value was once written in, into a C# literal expression of the underlying type and the
+/// value it names.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Attribute arguments can only carry a handful of constant types, so bounds and known values of types such as
-/// <c>Guid</c>, <c>decimal</c> or <c>DateOnly</c> are written as text. They are parsed here, at compile time,
-/// which means a malformed bound is a build error rather than a start-up exception.
+/// The generator hands it the constants the compiler evaluates, the argument of <c>Known</c> or of <c>Create</c> and
+/// the value a bound hook returns, to hold them to the rules of the type at compile time. The code fix of <c>VO0034</c>
+/// hands it the text an attribute took for a type no attribute argument can carry, a <c>Guid</c>, a <c>decimal</c> or a
+/// <c>DateOnly</c>, to rewrite a known value declared on the type as the member that declares it now.
 /// </para>
 /// <para>
-/// Each type is read in one canonical form, the one <see cref="UnderlyingType.LiteralForm"/> describes, and in no
-/// other: no white space around it, no culture, no time zone, and nothing a parser would fill in from the build
-/// machine, such as today's date for a time written alone. The same text therefore compiles to the same literal
-/// on every machine. A <c>string</c>, a <c>Guid</c> and a <c>bool</c> keep every form they read, short of the white
-/// space around it.
+/// Each type is read in one canonical form and in no other: no white space around it, no culture, no time zone, and
+/// nothing a parser would fill in from the build machine, such as today's date for a time written alone. The same text
+/// therefore converts to the same literal on every machine. A <c>string</c>, a <c>Guid</c> and a <c>bool</c> keep
+/// every form they read, short of the white space around it. A constant is read through its invariant text.
 /// </para>
 /// </remarks>
 internal static class LiteralFactory
@@ -282,47 +283,6 @@ internal static class LiteralFactory
         float single => RoundTrip(single),
         _ => Convert.ToString(value, CultureInfo.InvariantCulture),
     };
-
-    /// <summary>
-    /// Whether the parser the generated <c>Parse</c> calls in the invariant culture can read the text, in any of the
-    /// forms it takes, not only the one form <see cref="TryCreate(UnderlyingType, object?, out string)"/> reads.
-    /// </summary>
-    /// <remarks>
-    /// The generator targets netstandard2.0, which has neither <c>DateOnly</c> nor <c>TimeOnly</c>, so a date and a time
-    /// of day are read as a <see cref="DateTime"/>, whose parser reads every form theirs do, and more: text it refuses
-    /// they refuse too. A real too large for its type reads as an infinity on .NET and does not read at all on
-    /// .NET Framework, where the compiler may run, so a number written as digits is readable whatever it holds.
-    /// </remarks>
-    /// <param name="underlying">Underlying type descriptor.</param>
-    /// <param name="text">The text, as written.</param>
-    /// <returns><see langword="false"/> when no form of the type is the text.</returns>
-    public static bool IsReadable(UnderlyingType underlying, string text)
-    {
-        var invariant = CultureInfo.InvariantCulture;
-        return underlying.Kind switch
-        {
-            UnderlyingKind.String => true,
-            UnderlyingKind.Char => text.Length == 1,
-            UnderlyingKind.Boolean => bool.TryParse(text, out _),
-            UnderlyingKind.Guid => Guid.TryParse(text, out _),
-            UnderlyingKind.SByte => IsIntegerWithin(text, sbyte.MinValue, sbyte.MaxValue),
-            UnderlyingKind.Byte => IsIntegerWithin(text, byte.MinValue, byte.MaxValue),
-            UnderlyingKind.Int16 => IsIntegerWithin(text, short.MinValue, short.MaxValue),
-            UnderlyingKind.UInt16 => IsIntegerWithin(text, ushort.MinValue, ushort.MaxValue),
-            UnderlyingKind.Int32 => IsIntegerWithin(text, int.MinValue, int.MaxValue),
-            UnderlyingKind.UInt32 => IsIntegerWithin(text, uint.MinValue, uint.MaxValue),
-            UnderlyingKind.Int64 => IsIntegerWithin(text, long.MinValue, long.MaxValue),
-            UnderlyingKind.UInt64 => IsIntegerWithin(text, ulong.MinValue, ulong.MaxValue),
-            UnderlyingKind.Int128 => IsIntegerWithin(text, Int128Minimum, Int128Maximum),
-            UnderlyingKind.UInt128 => IsIntegerWithin(text, BigInteger.Zero, UInt128Maximum),
-            UnderlyingKind.Decimal => decimal.TryParse(text, NumberStyles.Number & ~NumberStyles.AllowThousands, invariant, out _),
-            UnderlyingKind.Double => double.TryParse(text, NumberStyles.Float, invariant, out _) || IsWrittenAsReal(text),
-            UnderlyingKind.Single => float.TryParse(text, NumberStyles.Float, invariant, out _) || IsWrittenAsReal(text),
-            UnderlyingKind.DateTimeOffset => DateTimeOffset.TryParse(text, invariant, DateTimeStyles.None, out _),
-            UnderlyingKind.TimeSpan => TimeSpan.TryParse(text, invariant, out _),
-            _ => DateTime.TryParse(text, invariant, DateTimeStyles.RoundtripKind, out _),
-        };
-    }
 
     /// <summary>
     /// Writes a double in a form that reads back as the same value, whatever runtime the compiler runs on.
@@ -730,29 +690,6 @@ internal static class LiteralFactory
 
         number = BigInteger.Parse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
         return number >= minimum && number <= maximum;
-    }
-
-    /// <summary>
-    /// Whether the text is an integer in the form the integer types read in the invariant culture, white space and a
-    /// sign included, within the range of the type.
-    /// </summary>
-    private static bool IsIntegerWithin(string text, BigInteger minimum, BigInteger maximum)
-        => BigInteger.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)
-           && number >= minimum
-           && number <= maximum;
-
-    /// <summary>
-    /// Whether the text is a real written as digits, white space and a leading sign included, whatever it holds: one
-    /// too large for its type does not read at all on .NET Framework, where it reads as an infinity on .NET.
-    /// </summary>
-    private static bool IsWrittenAsReal(string text)
-    {
-        var trimmed = text.Trim();
-        var unsigned = trimmed.StartsWith("+", StringComparison.Ordinal) || trimmed.StartsWith("-", StringComparison.Ordinal)
-            ? trimmed.Substring(1)
-            : trimmed;
-
-        return !unsigned.StartsWith("-", StringComparison.Ordinal) && IsNumber(unsigned, exponent: true);
     }
 
     private static string Escape(string value)

@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Globalization;
 using System.Reflection;
 using AdCodicem.ValueObjects.Metadata;
 
@@ -7,17 +6,19 @@ namespace AdCodicem.ValueObjects.UnitTests;
 
 /// <summary>
 /// Reads the rules a value object written by hand states outside its schema - its <c>[ValueObject&lt;T&gt;]</c>
-/// annotation, its <c>[KnownValue]</c> attributes and the hooks it implements - into a schema, so that a test can hold
-/// the schema the type declares to them.
+/// annotation, its members marked <c>[KnownValue]</c> and the hooks it implements - into a schema, so that a test can
+/// hold the schema the type declares to them.
 /// </summary>
 /// <remarks>
 /// The registry read a hand-written type this way until <see cref="IValueObject{TSelf, TValue}.Schema"/> joined the
-/// contract; it now reads the schema alone. Known values are normalized through the type, or parsed when the attribute
-/// had to take them as text, as the generator publishes them, and keep their names and descriptions, a blank description
-/// being none.
+/// contract; it now reads the schema alone. Known values are the values the members hold, in declaration order, and keep
+/// their names and descriptions, a blank description being none. The example is the underlying value of the instance the
+/// hook returns, as the generator publishes it.
 /// </remarks>
 internal static class DeclaredRules
 {
+    private const BindingFlags Static = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly;
+
     public static ValueObjectSchema Read(Type valueObjectType, Type valueType)
     {
         var attribute = valueObjectType.GetCustomAttributes(inherit: false)
@@ -26,19 +27,25 @@ internal static class DeclaredRules
 
         var pattern = typeof(IValueObjectPatternValidator).IsAssignableFrom(valueObjectType)
             ? Invoke(typeof(ValueObjectPattern), nameof(ValueObjectPattern.Of), [valueObjectType])!.ToString()
-            : Option(attribute, "Pattern");
+            : null;
         var minimum = typeof(IValueObjectMinimum<>).MakeGenericType(valueType).IsAssignableFrom(valueObjectType)
             ? ValueObjectBound.Text(Invoke(typeof(ValueObjectBound), nameof(ValueObjectBound.Minimum), [valueObjectType, valueType]))
-            : Option(attribute, "Minimum");
+            : null;
         var maximum = typeof(IValueObjectMaximum<>).MakeGenericType(valueType).IsAssignableFrom(valueObjectType)
             ? ValueObjectBound.Text(Invoke(typeof(ValueObjectBound), nameof(ValueObjectBound.Maximum), [valueObjectType, valueType]))
-            : Option(attribute, "Maximum");
+            : null;
+        var example = typeof(IValueObjectExample<>).MakeGenericType(valueObjectType).IsAssignableFrom(valueObjectType)
+            ? ((IValueObject)Invoke(typeof(ValueObjectExample), nameof(ValueObjectExample.Of), [valueObjectType])!).GetBoxedValue()
+            : null;
 
-        var known = valueObjectType.GetCustomAttributes<KnownValueAttribute>(inherit: false)
+        var known = valueObjectType.GetMembers(Static)
+            .Where(member => member is FieldInfo or PropertyInfo)
+            .Select(member => (Member: member, Attribute: member.GetCustomAttribute<KnownValueAttribute>()))
+            .Where(declared => declared.Attribute is not null)
             .Select(declared => new KnownValueInfo(
-                Normalize(valueObjectType, declared.Value),
-                declared.Name,
-                string.IsNullOrWhiteSpace(declared.Description) ? null : declared.Description))
+                ((IValueObject)(declared.Member is FieldInfo field ? field.GetValue(null) : ((PropertyInfo)declared.Member).GetValue(null))!).GetBoxedValue()!,
+                declared.Member.Name,
+                string.IsNullOrWhiteSpace(declared.Attribute!.Description) ? null : declared.Attribute.Description))
             .ToImmutableArray();
 
         return new ValueObjectSchema
@@ -50,14 +57,14 @@ internal static class DeclaredRules
             Maximum = maximum,
             Format = Option(attribute, nameof(ValueObjectAttribute<object>.SchemaFormat)),
             Description = Option(attribute, nameof(ValueObjectAttribute<object>.Description)),
-            Example = Option(attribute, nameof(ValueObjectAttribute<object>.Example)),
+            Example = example,
             IsClosedValueSet = Option(attribute, nameof(ValueObjectAttribute<object>.ValueSet)) == nameof(ValueSetKind.Closed),
             KnownValues = [.. known.Select(declared => declared.Value)],
             KnownValueDetails = known,
         };
     }
 
-    /// <summary>Reads an option of the annotation by name, the deprecated ones included, which naming would report.</summary>
+    /// <summary>Reads an option of the annotation by name.</summary>
     private static string? Option(object? attribute, string name)
         => attribute?.GetType().GetProperty(name)!.GetValue(attribute)?.ToString();
 
@@ -66,16 +73,4 @@ internal static class DeclaredRules
 
     private static object? Invoke(Type owner, string method, Type[] typeArguments)
         => owner.GetMethod(method, BindingFlags.Public | BindingFlags.Static)!.MakeGenericMethod(typeArguments).Invoke(null, null);
-
-    /// <summary>Turns a declared known value into the value the type holds, or leaves what the type refuses as written.</summary>
-    private static object Normalize(Type valueObjectType, object declared)
-    {
-        ValueObjectRegistry.TryResolve(valueObjectType, out var descriptor).Should().BeTrue();
-
-        var accepted = declared.GetType() == descriptor!.ValueType
-            ? descriptor.TryCreate(declared, out var created, out _)
-            : descriptor.TryParse(Convert.ToString(declared, CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, out created, out _);
-
-        return accepted ? descriptor.GetValue(created!)! : declared;
-    }
 }

@@ -15,8 +15,10 @@ namespace AdCodicem.ValueObjects.Annotations;
 /// its signature: <see cref="IValueObjectNormalizer{TValue}"/>, <see cref="IValueObjectSpanNormalizer"/>,
 /// <see cref="IValueObjectPatternValidator"/>, <see cref="IValueObjectMinimum{TValue}"/>,
 /// <see cref="IValueObjectMaximum{TValue}"/>, <see cref="IValueObjectValidator{TValue}"/>,
-/// <see cref="IValueObjectFormatter{TValue}"/> and <see cref="IValueObjectStringFormatter{TValue}"/>. All are
-/// optional, and a rule written without its interface is reported as <c>VO0011</c> rather than silently ignored.
+/// <see cref="IValueObjectFormatter{TValue}"/>, <see cref="IValueObjectStringFormatter{TValue}"/> and
+/// <see cref="IValueObjectExample{TSelf}"/>. All are optional, and a rule written without its interface is reported as
+/// <c>VO0011</c> rather than silently ignored. Its known values are static members it declares, marked
+/// <see cref="KnownValueAttribute"/>.
 /// </para>
 /// <para>
 /// Declarative constraints set on this attribute (<see cref="MinLength"/>, <see cref="MaxLength"/>), like the pattern
@@ -58,7 +60,7 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     public bool Arithmetic { get; set; }
 
     /// <summary>
-    /// Gets or sets whether the type accepts any valid value or only the declared <see cref="KnownValueAttribute"/> ones.
+    /// Gets or sets whether the type accepts any valid value or only the members it marks <see cref="KnownValueAttribute"/>.
     /// </summary>
     public ValueSetKind ValueSet { get; set; } = ValueSetKind.Open;
 
@@ -85,26 +87,19 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     public bool AllowDefault { get; set; }
 
     /// <summary>
-    /// Gets or sets a regular expression the normalized value must match. Deprecated: implement
+    /// Was a regular expression the normalized value had to match. Removed: implement
     /// <see cref="IValueObjectPatternValidator"/> instead.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Compiled once into a static <c>Regex</c> with <c>RegexOptions.Compiled</c>: one source generator cannot
-    /// see another's output, so <c>[GeneratedRegex]</c> is not reachable from emitted code. Native AOT cannot compile
-    /// a regular expression at run time and interprets it, about twice as slowly. Also emitted as the
-    /// <c>pattern</c> keyword of the OpenAPI schema.
-    /// </para>
-    /// <para>
-    /// <see cref="IValueObjectPatternValidator"/> takes a <c>[GeneratedRegex]</c> the author writes, which the regex
-    /// generator compiles. Setting both is <c>VO0022</c>. This option is reported as <c>VO0021</c>, and any
-    /// minor version may remove it before 1.0.0.
-    /// </para>
+    /// The option compiled its regular expression at run time, which native AOT interprets. Setting it is
+    /// <c>VO0021</c>, a compile error, and nothing reads it: <see cref="IValueObjectPatternValidator"/> takes a
+    /// <c>[GeneratedRegex]</c> the author writes, which the regex generator compiles. Any minor version may remove it
+    /// before 1.0.0.
     /// </remarks>
     [Obsolete(
-        "Implement IValueObjectPatternValidator with a [GeneratedRegex] partial property instead. Pattern compiles its "
-        + "regular expression at run time, which native AOT interprets, and any minor version may remove it before "
-        + "1.0.0.",
+        "Implement IValueObjectPatternValidator with a [GeneratedRegex] partial property instead. Pattern is no longer "
+        + "read, and any minor version may remove it before 1.0.0.",
+        error: true,
         DiagnosticId = "VO0021")]
     [StringSyntax(StringSyntaxAttribute.Regex)]
     public string? Pattern { get; set; }
@@ -126,51 +121,33 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     public int MaxLength { get; set; } = -1;
 
     /// <summary>
-    /// Gets or sets the inclusive lower bound, written as text in the one form of the underlying type.
+    /// Was the inclusive lower bound, written as text. Removed: implement <see cref="IValueObjectMinimum{TValue}"/>
+    /// instead.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Expressed as text so that <see cref="decimal"/>, <see cref="DateOnly"/> or <see cref="TimeSpan"/> bounds
-    /// keep full precision; attribute arguments cannot carry those types. Each type reads one form, with no white
-    /// space around it and nothing taken from the culture or the time zone of the build machine: digits, with
-    /// <c>-</c> in front of a negative integer; a <see cref="decimal"/> with an optional fraction after
-    /// <c>.</c>; a <see cref="double"/> or a <see cref="float"/> with an optional exponent as well, finite, and zero
-    /// only when written as zero; one character; <c>yyyy-MM-dd</c>; <c>HH:mm</c>, <c>HH:mm:ss</c> or
-    /// <c>HH:mm:ss.fffffff</c>; a <see cref="DateTime"/> as a date, or a date and a time after <c>T</c>, without an
-    /// offset; a <see cref="DateTimeOffset"/> as a date and a time after <c>T</c>, always followed by <c>Z</c>,
-    /// <c>+HH:mm</c> or <c>-HH:mm</c>; and a <see cref="TimeSpan"/> as <c>[-][d.]hh:mm:ss[.fffffff]</c>.
-    /// </para>
-    /// <para>
-    /// Only meaningful for numbers, characters, dates, times and durations: a <see cref="string"/>, a
-    /// <see cref="Guid"/> or a <see cref="bool"/> takes no bound. Parsed at compile time, and reported as a
-    /// diagnostic when written in any other form, outside the type, or on a type that takes none. Also emitted
-    /// as the <c>minimum</c> OpenAPI keyword.
-    /// </para>
-    /// <para>
-    /// <see cref="IValueObjectMinimum{TValue}"/> declares the bound as a value of the underlying type, which the
-    /// compiler checks. Setting both is <c>VO0029</c>. This option is reported as <c>VO0028</c>, and any minor
-    /// version may remove it before 1.0.0.
-    /// </para>
+    /// The text was read under a grammar of one form per underlying type, which the compiler could not check. Setting
+    /// it is <c>VO0028</c>, a compile error, and nothing reads it: <see cref="IValueObjectMinimum{TValue}"/> declares
+    /// the bound as a value of the underlying type. Any minor version may remove it before 1.0.0.
     /// </remarks>
     [Obsolete(
-        "Implement IValueObjectMinimum<T> with a static Minimum property of the underlying type instead. A bound written "
-        + "as text is read under one grammar per type the compiler cannot check, and any minor version may "
-        + "remove it before 1.0.0.",
+        "Implement IValueObjectMinimum<T> with a static Minimum property of the underlying type instead. Minimum is no "
+        + "longer read, and any minor version may remove it before 1.0.0.",
+        error: true,
         DiagnosticId = "VO0028")]
     public string? Minimum { get; set; }
 
     /// <summary>
-    /// Gets or sets the inclusive upper bound, written as text in the one form of the underlying type.
+    /// Was the inclusive upper bound, written as text. Removed: implement <see cref="IValueObjectMaximum{TValue}"/>
+    /// instead.
     /// </summary>
     /// <remarks>
-    /// Read as <see cref="Minimum"/> is. <see cref="IValueObjectMaximum{TValue}"/> declares the bound as a value of
-    /// the underlying type, which the compiler checks. Setting both is <c>VO0029</c>. This option is reported as
-    /// <c>VO0028</c>, and any minor version may remove it before 1.0.0.
+    /// Setting it is <c>VO0028</c>, a compile error, and nothing reads it, as for <see cref="Minimum"/>. Any minor
+    /// version may remove it before 1.0.0.
     /// </remarks>
     [Obsolete(
-        "Implement IValueObjectMaximum<T> with a static Maximum property of the underlying type instead. A bound written "
-        + "as text is read under one grammar per type the compiler cannot check, and any minor version may "
-        + "remove it before 1.0.0.",
+        "Implement IValueObjectMaximum<T> with a static Maximum property of the underlying type instead. Maximum is no "
+        + "longer read, and any minor version may remove it before 1.0.0.",
+        error: true,
         DiagnosticId = "VO0028")]
     public string? Maximum { get; set; }
 
@@ -195,13 +172,19 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     public string? SchemaFormat { get; set; }
 
     /// <summary>
-    /// Gets or sets an example value surfaced in the OpenAPI schema.
+    /// Was an example value surfaced in the OpenAPI schema, written as text. Removed: implement
+    /// <see cref="IValueObjectExample{TSelf}"/> instead.
     /// </summary>
     /// <remarks>
-    /// Written as text the type parses in the invariant culture, and published as the type writes the value in JSON. It
-    /// must be a value the type accepts: one its own rules refuse is reported at compile time wherever the generator can
-    /// evaluate the rule, and the contract kit of <c>AdCodicem.ValueObjects.Testing</c> checks it at run time.
+    /// The text was parsed at compile time and again at run time. Setting it is <c>VO0035</c>, a compile error, and
+    /// nothing reads it: <see cref="IValueObjectExample{TSelf}"/> declares the example as an instance of the value
+    /// object. Any minor version may remove it before 1.0.0.
     /// </remarks>
+    [Obsolete(
+        "Implement IValueObjectExample<TSelf> with a static Example property of the value object's type instead. Example "
+        + "is no longer read, and any minor version may remove it before 1.0.0.",
+        error: true,
+        DiagnosticId = "VO0035")]
     public string? Example { get; set; }
 
     /// <summary>

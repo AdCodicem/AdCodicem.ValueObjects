@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects.Annotations;
 using AdCodicem.ValueObjects.Metadata;
 
@@ -5,30 +6,35 @@ namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 
 /// <summary>
 /// The color of a traffic light, from a closed set, written by hand and declaring every option an annotation can carry,
-/// which its schema restates.
+/// every hook a schema publishes and its known values, which its schema restates.
 /// </summary>
 /// <remarks>
 /// The rules are restated in the schema and the body because nothing generates them from the annotation here; the
-/// schema is what a reflection-driven caller reads, and the body is what validates. It keeps the deprecated Pattern
-/// option, which nothing reads at run time, until the option is removed.
+/// schema is what a reflection-driven caller reads, and the body is what validates. Its known values are created through
+/// <c>Create</c>: the <c>Known</c> factory is the generator's.
 /// </remarks>
-#pragma warning disable VO0021 // The deprecated option is what this fixture holds its schema to.
 [ValueObject<string>(
     ValueSet = ValueSetKind.Closed,
     MaxLength = 6,
-    Pattern = "^[a-z]+$",
     SchemaFormat = "color",
-    Example = "red",
     Description = "The color of a traffic light.")]
-#pragma warning restore VO0021
-[KnownValue("Red", "red", Description = "Stop.")]
-[KnownValue("Green", "green")]
 [Reviewed<LightColor>]
-public readonly struct LightColor : IValueObject<LightColor, string>
+public readonly partial struct LightColor : IValueObject<LightColor, string>, IValueObjectPatternValidator, IValueObjectExample<LightColor>
 {
     private readonly string? _value;
 
     private LightColor(string value) => _value = value;
+
+    [KnownValue(Description = "Stop.")]
+    public static readonly LightColor Red = Create("red");
+
+    [KnownValue]
+    public static readonly LightColor Green = Create("green");
+
+    public static LightColor Example => Red;
+
+    [GeneratedRegex("^[a-z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
 
     public static ValueObjectSchema Schema { get; } = new()
     {

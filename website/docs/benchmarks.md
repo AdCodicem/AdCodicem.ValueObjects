@@ -79,8 +79,8 @@ hundred nanoseconds is the trade the whole library exists to make.
 | IBAN                    |         290.5 ns |     213.3 ns | 181.1 ns |
 | Five-digit postal code  |          72.4 ns |      37.2 ns |   3.2 ns |
 
-The deprecated `Pattern` option compiles its regular expression at run time, which native AOT cannot do: there the
-expression is interpreted. The [pattern hook](./authoring-guide.md#a-pattern) takes a `[GeneratedRegex]` compiled
+The `Pattern` option, which no longer compiles, built its regular expression at run time, which native AOT cannot
+do: there the expression is interpreted. The [pattern hook](./authoring-guide.md#a-pattern) takes a `[GeneratedRegex]` compiled
 with the type, and halves what the expression costs. Under the JIT, which compiles both, the difference is a few
 nanoseconds. A shape checked by hand in a validator is cheaper still, by 1.6 to 12 times; the hook is the one that
 also publishes the rule to the OpenAPI schema.

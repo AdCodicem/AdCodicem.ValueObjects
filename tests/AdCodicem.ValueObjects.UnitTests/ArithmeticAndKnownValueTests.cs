@@ -74,7 +74,7 @@ public class ArithmeticTests
     }
 }
 
-public class KnownValueTests
+public partial class KnownValueTests
 {
     [Fact]
     public void The_named_constants_are_exposed_as_static_members()
@@ -85,9 +85,10 @@ public class KnownValueTests
     }
 
     /// <summary>
-    /// The named constants go through <c>Create</c>, and so through the pattern, while the type initializes. The
-    /// pattern therefore has to exist before them: the other way round, the type initializer threw inside the
-    /// module initializer, and the whole assembly failed to load before any code ran.
+    /// The known values go through <c>Known</c>, and so through the pattern, while the type initializes. The pattern
+    /// therefore has to be ready before them, which a source-generated one is: the option it replaced compiled a field,
+    /// which, initialized after them, made the type initializer throw inside the module initializer, and the whole
+    /// assembly fail to load before any code ran.
     /// </summary>
     [Fact]
     public void A_pattern_is_ready_before_the_named_constants_go_through_it()
@@ -98,6 +99,34 @@ public class KnownValueTests
 
         CurrencyCode.TryCreate("EURO", out _, out var validation).Should().BeFalse();
         validation.ErrorCode.Should().Be(ValueObjectErrorCodes.InvalidFormat);
+    }
+
+    /// <summary>
+    /// The generated part of a type initializes after the author's, so the membership lookup of a closed set, built from
+    /// the known values, holds the values they were created with rather than their defaults, a property's as a field's.
+    /// </summary>
+    [Fact]
+    public void A_closed_value_set_builds_its_lookup_from_the_known_values_once_they_are_created()
+    {
+        DocumentStatus.KnownValues.Should().Equal(DocumentStatus.Draft, DocumentStatus.Final);
+        DocumentStatus.KnownValues.Select(known => known.Value).Should().Equal("draft", "final");
+        DocumentStatus.Create("FINAL").Should().Be(DocumentStatus.Final);
+        DocumentStatus.Schema.KnownValues.Should().Equal("draft", "final");
+    }
+
+    /// <summary>
+    /// A static member of a closed value object created through <c>Create</c> is validated before the lookup of its
+    /// known values exists, and is refused with the reason, which the type initializer carries out. Generic, so that
+    /// nothing initializes a construction but the test asking for it.
+    /// </summary>
+    [Fact]
+    public void A_closed_value_set_refuses_a_static_member_created_through_Create_before_its_lookup_exists()
+    {
+        var act = () => EarlyBird<KnownValueTests>.Dawn;
+
+        act.Should().Throw<TypeInitializationException>()
+            .WithInnerException<InvalidOperationException>()
+            .WithMessage("'EarlyBird' was validated while its type initializes, before the lookup of its known values exists*");
     }
 
     [Fact]
@@ -136,7 +165,24 @@ public class KnownValueTests
             new KnownValueInfo(5.5m, nameof(VatRate.Reduced), "Food, books and medicine."));
         PageNumber.Schema.KnownValueDetails.Should().ContainSingle()
             .Which.Should().Be(new KnownValueInfo(1, nameof(PageNumber.First), "The first page."));
+        DocumentStatus.Schema.KnownValueDetails.Should().Equal(
+            new KnownValueInfo("draft", nameof(DocumentStatus.Draft)),
+            new KnownValueInfo("final", nameof(DocumentStatus.Final), "Signed off, and no longer edited."));
         Iban.Schema.KnownValueDetails.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The schema holds the underlying value of the example a type declares, read through the hook however the type
+    /// implements it, explicitly included.
+    /// </summary>
+    [Fact]
+    public void The_schema_holds_the_underlying_value_of_the_declared_example()
+    {
+        Iban.Schema.Example.Should().Be("FR7630006000011234567890189");
+        Amount.Schema.Example.Should().Be(1250.00m);
+        Consent.Schema.Example.Should().Be(true);
+        Duration.Schema.Example.Should().Be(new TimeSpan(1, 30, 0));
+        CountryCode.Schema.Example.Should().BeNull("it declares no example");
     }
 
     /// <summary>
@@ -170,6 +216,17 @@ public class KnownValueTests
     public void The_schema_description_falls_back_to_the_XML_summary()
     {
         Iban.Schema.Description.Should().Be("An International Bank Account Number, stored in its electronic form.");
+    }
+
+    /// <summary>A closed set one of whose static members is created through <c>Create</c> while the type initializes.</summary>
+    /// <typeparam name="TOwner">The owner of the value.</typeparam>
+    [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
+    private readonly partial struct EarlyBird<TOwner>
+    {
+        [KnownValue]
+        public static readonly EarlyBird<TOwner> Dawn = Known("dawn");
+
+        public static readonly EarlyBird<TOwner> Default = Create("dawn");
     }
 }
 
@@ -230,4 +287,5 @@ public class RegistryTests
         ValueObjectRegistry.GetUnderlyingType(typeof(Iban)).Should().Be<string>();
         ValueObjectRegistry.GetUnderlyingType(typeof(Guid)).Should().BeNull();
     }
+
 }

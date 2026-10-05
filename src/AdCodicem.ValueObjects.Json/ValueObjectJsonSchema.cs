@@ -383,9 +383,9 @@ public static class ValueObjectJsonSchema
             node["enum"] = values;
         }
 
-        if (!string.IsNullOrEmpty(declared.Example))
+        if (declared.Example is { } declaredExample && declaredExample is not "")
         {
-            var example = ValueObjectSchemaKeywords.WriteText(declared.Example, descriptor, options, asKey);
+            var example = ValueObjectSchemaKeywords.WriteExample(declaredExample, descriptor, options, asKey);
             node["examples"] = new JsonArray(Written(example, numeric, openApi));
         }
 

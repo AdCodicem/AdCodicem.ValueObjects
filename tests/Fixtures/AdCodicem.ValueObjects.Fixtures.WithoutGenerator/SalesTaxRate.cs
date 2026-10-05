@@ -5,28 +5,31 @@ using AdCodicem.ValueObjects.Metadata;
 namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 
 /// <summary>
-/// A sales tax rate, in percent, written by hand, whose known values a decimal attribute argument cannot carry, so they are
-/// written as text.
+/// A sales tax rate, in percent, written by hand, whose schema leaves out one of the known values it marks.
 /// </summary>
 /// <remarks>
-/// It declares its bounds through the hooks, which its schema publishes. Its last known value is text no decimal parses.
-/// Where no generator runs, nothing checks the annotation when the type compiles, so the annotation and the schema can
-/// disagree, as they do here: the schema leaves that value out, and the registry describes the type from the schema, the
-/// source the typed path reads.
+/// It declares its bounds through the hooks, which its schema publishes. Where no generator runs, nothing reads the
+/// members marked <c>[KnownValue]</c> when the type compiles, so they and the schema can disagree, as they do here: the
+/// schema leaves the last one out, and the registry describes the type from the schema, the source the typed path reads.
 /// </remarks>
 [ValueObject<decimal>]
-[KnownValue("Standard", "20.0")]
-[KnownValue("Reduced", "5.50")]
-[KnownValue("Unreadable", "twenty")]
 public readonly struct SalesTaxRate : IValueObject<SalesTaxRate, decimal>, IValueObjectMinimum<decimal>, IValueObjectMaximum<decimal>
 {
     public static decimal Minimum => 0m;
 
     public static decimal Maximum => 100m;
 
+    [KnownValue]
+    public static readonly SalesTaxRate Standard = Create(20.0m);
+
+    [KnownValue]
+    public static readonly SalesTaxRate Reduced = Create(5.50m);
+
+    [KnownValue]
+    public static readonly SalesTaxRate Exempt = Create(0m);
+
     /// <summary>
-    /// Publishes the bounds of the hooks and the known values the type holds, with their names, which leaves out the one no
-    /// decimal parses.
+    /// Publishes the bounds of the hooks and the known values the type holds, with their names, all but the last.
     /// </summary>
     public static ValueObjectSchema Schema { get; } = new()
     {

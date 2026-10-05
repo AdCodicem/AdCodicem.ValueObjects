@@ -135,20 +135,7 @@ internal sealed class UnderlyingType
     /// </remarks>
     public string? InvariantNumberStyles { get; private init; }
 
-    /// <summary>
-    /// Gets the one form a bound or a known value of the type is written in as text, for the diagnostic that
-    /// refuses any other.
-    /// </summary>
-    public string LiteralForm { get; private init; } = "text";
-
     private const string NumberStyles = "global::System.Globalization.NumberStyles";
-
-    private const string SignedIntegerForm = "digits, with a leading '-' when negative, such as \"-42\"";
-
-    private const string UnsignedIntegerForm = "digits alone, such as \"42\"";
-
-    private const string RealForm =
-        "digits with an optional leading '-', an optional fraction after '.' and an optional exponent, such as \"-1.5e-3\"";
 
     public static readonly UnderlyingType String =
         new(UnderlyingKind.String, "global::System.String", "string");
@@ -159,17 +146,14 @@ internal sealed class UnderlyingType
         new(UnderlyingKind.Guid, "global::System.Guid", "System.Guid")
         {
             JsonReadExpression = "reader.GetGuid()", JsonTryReadMethod = "TryGetGuid", SchemaFormat = "uuid", FormatBufferSize = 36,
-            LiteralForm = "a GUID, such as \"6f9619ff-8b86-d011-b42d-00c04fc964ff\"",
         },
         new(UnderlyingKind.Boolean, "global::System.Boolean", "bool")
         {
             JsonReadExpression = "reader.GetBoolean()", SchemaType = "boolean", FormatBufferSize = 5,
-            LiteralForm = "true or false",
         },
         new(UnderlyingKind.Char, "global::System.Char", "char")
         {
             JsonReadExpression = "ReadChar(ref reader)", FormatBufferSize = 1,
-            LiteralForm = "exactly one character",
         },
         Integral(UnderlyingKind.SByte, "global::System.SByte", "sbyte", "SByte", signed: true, "int32"),
         Integral(UnderlyingKind.Byte, "global::System.Byte", "byte", "Byte", signed: false, "int32"),
@@ -184,38 +168,32 @@ internal sealed class UnderlyingType
         new(UnderlyingKind.Int128, "global::System.Int128", "System.Int128")
         {
             IsNumeric = true, IsSigned = true, JsonReadExpression = "ReadInt128(ref reader)", FormatBufferSize = 40,
-            LiteralForm = SignedIntegerForm,
         },
         new(UnderlyingKind.UInt128, "global::System.UInt128", "System.UInt128")
         {
             IsNumeric = true, JsonReadExpression = "ReadUInt128(ref reader)", FormatBufferSize = 40,
-            LiteralForm = UnsignedIntegerForm,
         },
         new(UnderlyingKind.Decimal, "global::System.Decimal", "decimal")
         {
             IsNumeric = true, IsSigned = true, IsJsonNumber = true,
             JsonReadExpression = "reader.GetDecimal()", JsonTryReadMethod = "TryGetDecimal", SchemaType = "number", SchemaFormat = "decimal",
             InvariantNumberStyles = NumberStyles + ".Number & ~" + NumberStyles + ".AllowThousands",
-            LiteralForm = "digits with an optional leading '-' and an optional fraction after '.', such as \"-19.99\"",
         },
         new(UnderlyingKind.Double, "global::System.Double", "double")
         {
             IsNumeric = true, IsSigned = true, IsJsonNumber = true,
             JsonReadExpression = "reader.GetDouble()", JsonTryReadMethod = "TryGetDouble", SchemaType = "number", SchemaFormat = "double",
             InvariantNumberStyles = NumberStyles + ".Float",
-            LiteralForm = RealForm,
         },
         new(UnderlyingKind.Single, "global::System.Single", "float")
         {
             IsNumeric = true, IsSigned = true, IsJsonNumber = true,
             JsonReadExpression = "reader.GetSingle()", JsonTryReadMethod = "TryGetSingle", SchemaType = "number", SchemaFormat = "float",
             InvariantNumberStyles = NumberStyles + ".Float",
-            LiteralForm = RealForm,
         },
         new(UnderlyingKind.DateOnly, "global::System.DateOnly", "System.DateOnly")
         {
             JsonReadExpression = "ReadDateOnly(ref reader)", RoundTripFormat = "O", SchemaFormat = "date", FormatBufferSize = 10,
-            LiteralForm = "yyyy-MM-dd, such as \"2024-01-31\"",
         },
         // No format for a time of day nor for a DateTime: JSON Schema's time and date-time are RFC 3339's, which requires an
         // offset, and a TimeOnly has none, as a DateTime of DateTimeKind.Unspecified is written without one. The schema
@@ -223,24 +201,20 @@ internal sealed class UnderlyingType
         new(UnderlyingKind.TimeOnly, "global::System.TimeOnly", "System.TimeOnly")
         {
             JsonReadExpression = "ReadTimeOnly(ref reader)", RoundTripFormat = "O", FormatBufferSize = 16,
-            LiteralForm = "HH:mm, HH:mm:ss or HH:mm:ss.fffffff, such as \"08:30\"",
         },
         new(UnderlyingKind.DateTime, "global::System.DateTime", "System.DateTime")
         {
             JsonReadExpression = "reader.GetDateTime()", JsonTryReadMethod = "TryGetDateTime", RoundTripFormat = "O", FormatBufferSize = 33,
-            LiteralForm = "yyyy-MM-dd or yyyy-MM-ddTHH:mm[:ss[.fffffff]], without an offset, such as \"2024-01-31T08:30\"",
         },
         new(UnderlyingKind.DateTimeOffset, "global::System.DateTimeOffset", "System.DateTimeOffset")
         {
             JsonReadExpression = "reader.GetDateTimeOffset()", JsonTryReadMethod = "TryGetDateTimeOffset", RoundTripFormat = "O", SchemaFormat = "date-time", FormatBufferSize = 33,
-            LiteralForm = "yyyy-MM-ddTHH:mm[:ss[.fffffff]] followed by Z, +HH:mm or -HH:mm, such as \"2024-01-31T08:30+01:00\"",
         },
         // No format: JSON Schema's duration is ISO 8601, PT1H30M, and a duration is written in the constant form, which
         // the schema hosts document with the pattern System.Text.Json documents a bare TimeSpan with.
         new(UnderlyingKind.TimeSpan, "global::System.TimeSpan", "System.TimeSpan")
         {
             JsonReadExpression = "ReadTimeSpan(ref reader)", RoundTripFormat = "c", FormatBufferSize = 26,
-            LiteralForm = "[-][d.]hh:mm:ss[.fffffff], such as \"1.12:00:00\"",
         },
     ];
 
@@ -292,7 +266,6 @@ internal sealed class UnderlyingType
             SchemaType = "integer",
             SchemaFormat = schemaFormat,
             FormatBufferSize = 40,
-            LiteralForm = signed ? SignedIntegerForm : UnsignedIntegerForm,
         };
 
     private static Dictionary<string, UnderlyingType> BuildIndex()
