@@ -87,158 +87,6 @@ public sealed class DiagnosticTests
     }
 
     [Fact]
-    public void A_bound_that_does_not_parse_is_reported()
-    {
-        var run = GeneratorHarness.Run("""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<int>(Minimum = "not a number")]
-            public readonly partial struct Count;
-            """);
-
-        run.Ids.Should().Contain("VO0004");
-    }
-
-    /// <summary>
-    /// A string, a Guid or a bool has no order a bound could hold to. Accepted, the text was published in the schema
-    /// as a limit, and nothing enforced it.
-    /// </summary>
-    [Theory]
-    [InlineData("string", "Minimum", "A", "a string takes no bound; constrain it with MinLength, MaxLength or Pattern")]
-    [InlineData("string", "Maximum", "Z", "a string takes no bound; constrain it with MinLength, MaxLength or Pattern")]
-    [InlineData("Guid", "Minimum", "00000000-0000-0000-0000-000000000001", "the type takes no bound")]
-    [InlineData("bool", "Maximum", "true", "the type takes no bound")]
-    public void A_bound_on_a_type_that_takes_none_is_reported(string underlying, string bound, string text, string reason)
-    {
-        var run = GeneratorHarness.Run($$"""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<{{underlying}}>({{bound}} = "{{text}}")]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Ids.Should().Equal("VO0004");
-        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().EndWith(reason);
-        run.SingleValueObject.Should().NotContain($"{bound} = ");
-        run.CompilationDiagnostics.Should().BeEmpty();
-    }
-
-    /// <summary>
-    /// A bound that parses as some integer but not as the underlying one must be refused by the generator, or it
-    /// turns into a literal the compiler rejects inside a file the author cannot edit.
-    /// </summary>
-    [Theory]
-    [InlineData("sbyte", "128")]
-    [InlineData("sbyte", "-129")]
-    [InlineData("byte", "300")]
-    [InlineData("byte", "-1")]
-    [InlineData("short", "32768")]
-    [InlineData("ushort", "65536")]
-    [InlineData("ushort", "-1")]
-    [InlineData("int", "2147483648")]
-    [InlineData("uint", "4294967296")]
-    [InlineData("uint", "-1")]
-    [InlineData("long", "9223372036854775808")]
-    [InlineData("long", "-9223372036854775809")]
-    [InlineData("ulong", "-1")]
-    [InlineData("ulong", "18446744073709551616")]
-    [InlineData("Int128", "170141183460469231731687303715884105728")]
-    [InlineData("Int128", "-170141183460469231731687303715884105729")]
-    [InlineData("UInt128", "-1")]
-    [InlineData("UInt128", "340282366920938463463374607431768211456")]
-    public void A_bound_outside_the_range_of_its_underlying_type_is_reported(string underlying, string bound)
-    {
-        var run = GeneratorHarness.Run($$"""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<{{underlying}}>(Maximum = "{{bound}}")]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Ids.Should().Contain("VO0004");
-        run.CompilationDiagnostics.Should().BeEmpty("a refused bound must not reach the generated code");
-    }
-
-    /// <summary>
-    /// NaN and the infinities parse as a double or a float, and text past the largest one parses as an infinity,
-    /// but none has a C# literal and none can bound anything.
-    /// </summary>
-    [Theory]
-    [InlineData("double", "NaN")]
-    [InlineData("double", "Infinity")]
-    [InlineData("double", "-Infinity")]
-    [InlineData("double", "1e400")]
-    [InlineData("float", "NaN")]
-    [InlineData("float", "-Infinity")]
-    [InlineData("float", "1e39")]
-    public void A_floating_point_bound_that_is_not_a_finite_number_is_reported(string underlying, string bound)
-    {
-        var run = GeneratorHarness.Run($$"""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<{{underlying}}>(Minimum = "{{bound}}")]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Ids.Should().Contain("VO0004");
-        run.CompilationDiagnostics.Should().BeEmpty("a refused bound must not reach the generated code");
-    }
-
-    /// <summary>
-    /// A bound must mean the same instant on every machine that compiles it. A DateTime reading with an offset
-    /// would be converted to the build machine's time zone, and a DateTimeOffset without one would take its offset.
-    /// </summary>
-    [Theory]
-    [InlineData("DateTime", "2020-01-01T00:00:00Z")]
-    [InlineData("DateTime", "2020-01-01T00:00:00+00:00")]
-    [InlineData("DateTime", "2020-01-01T00:00:00+02:00")]
-    [InlineData("DateTimeOffset", "2020-01-01")]
-    [InlineData("DateTimeOffset", "2020-01-01T00:00:00")]
-    public void A_date_and_time_bound_that_would_depend_on_the_build_machine_is_reported(string underlying, string bound)
-    {
-        var run = GeneratorHarness.Run($$"""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<{{underlying}}>(Minimum = "{{bound}}")]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Ids.Should().Contain("VO0004");
-    }
-
-    [Theory]
-    [InlineData("double", "double.NaN")]
-    [InlineData("double", "double.PositiveInfinity")]
-    [InlineData("float", "float.NaN")]
-    [InlineData("float", "float.NegativeInfinity")]
-    public void A_floating_point_known_value_that_is_not_a_finite_number_is_reported(string underlying, string value)
-    {
-        var run = GeneratorHarness.Run($$"""
-            [ValueObject<{{underlying}}>]
-            [KnownValue("Unknown", {{value}})]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Ids.Should().Contain("VO0013");
-        run.CompilationDiagnostics.Should().BeEmpty("a refused known value must not reach the generated code");
-    }
-
-    [Theory]
-    [InlineData("byte", "300")]
-    [InlineData("sbyte", "-129")]
-    [InlineData("ushort", "-1")]
-    [InlineData("uint", "-1")]
-    [InlineData("long", "9223372036854775808")]
-    [InlineData("ulong", "-1")]
-    [InlineData("UInt128", "-1")]
-    public void A_known_value_outside_the_range_of_its_underlying_type_is_reported(string underlying, string value)
-    {
-        var run = GeneratorHarness.Run($$"""
-            [ValueObject<{{underlying}}>]
-            [KnownValue("Edge", {{value}})]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Ids.Should().Contain("VO0013");
-        run.CompilationDiagnostics.Should().BeEmpty("a refused known value must not reach the generated code");
-    }
-
-    [Fact]
     public void A_closed_set_with_no_known_value_is_reported()
     {
         var run = GeneratorHarness.Run("""
@@ -247,18 +95,6 @@ public sealed class DiagnosticTests
             """);
 
         run.Ids.Should().Contain("VO0005");
-    }
-
-    [Fact]
-    public void A_known_value_whose_name_is_not_an_identifier_is_reported()
-    {
-        var run = GeneratorHarness.Run("""
-            [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
-            [KnownValue("not an identifier", "FR")]
-            public readonly partial struct Country;
-            """);
-
-        run.Ids.Should().Contain("VO0006");
     }
 
     [Fact]
@@ -479,11 +315,8 @@ public sealed class DiagnosticTests
         string value,
         string enumName)
     {
-        // A closed value set needs a known value; an identifier takes none, which is VO0027's to report.
-        var known = attribute.StartsWith("[EntityId", StringComparison.Ordinal) ? string.Empty : "[KnownValue(\"First\", \"first\")]";
         var run = GeneratorHarness.Run($"""
             {attribute}
-            {known}
             public readonly partial struct Code;
 
             [ValueObject<string>]
@@ -505,93 +338,17 @@ public sealed class DiagnosticTests
     public void Every_option_set_to_an_undefined_value_is_reported_along_with_the_other_mistakes()
     {
         var run = GeneratorHarness.Run("""
-            #pragma warning disable VO0021 // The deprecated option is what this test declares.
-            [ValueObject<string>(Comparison = (StringComparison)42, ValueSet = (ValueSetKind)5, Pattern = "([unclosed")]
+            [ValueObject<string>(Comparison = (StringComparison)42, ValueSet = (ValueSetKind)5, Arithmetic = true)]
             public readonly partial struct Code;
             """);
 
-        run.Ids.Should().BeEquivalentTo("VO0020", "VO0020", "VO0014");
+        run.Ids.Should().BeEquivalentTo("VO0020", "VO0020", "VO0007");
         run.Diagnostics.Where(diagnostic => diagnostic.Id == "VO0020")
             .Select(diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture))
             .Should().BeEquivalentTo(
                 "'Code' sets Comparison to 42, which 'StringComparison' does not define. Use one of its named members.",
                 "'Code' sets ValueSet to 5, which 'ValueSetKind' does not define. Use one of its named members.");
         run.Files.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void A_known_value_of_the_wrong_type_is_reported()
-    {
-        var run = GeneratorHarness.Run("""
-            [ValueObject<int>(ValueSet = ValueSetKind.Closed)]
-            [KnownValue("Wrong", "not an int")]
-            public readonly partial struct Code;
-            """);
-
-        run.Ids.Should().Contain("VO0013");
-    }
-
-    /// <summary>
-    /// An array is a legal argument for the <c>object</c> parameter of <c>[KnownValue]</c>, and no underlying type
-    /// is one. A generator that fails on it takes the generated code of every other value object down with it.
-    /// </summary>
-    [Fact]
-    public void A_known_value_given_as_an_array_is_reported()
-    {
-        var run = GeneratorHarness.Run("""
-            [ValueObject<int>]
-            [KnownValue("Pair", new[] { 1, 2 })]
-            public readonly partial struct Level;
-
-            [ValueObject<string>]
-            public readonly partial struct Code;
-            """);
-
-        run.Ids.Should().Equal("VO0013");
-        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Contain("{1, 2}");
-        run.Files.Select(file => file.HintName).Should().Contain([HintNames.For("Test.Level"), HintNames.For("Test.Code")]);
-        run.CompilationDiagnostics.Should().BeEmpty();
-    }
-
-    /// <summary>
-    /// A type and an enum member are legal arguments for the <c>object</c> parameter of <c>[KnownValue]</c>, and
-    /// neither is a value of any underlying type. Read as text, <c>typeof(int)</c> became the string <c>"int"</c>
-    /// and an enum member its number, without a word.
-    /// </summary>
-    [Theory]
-    [InlineData("string", "typeof(int)", "typeof(int)")]
-    [InlineData("string", "typeof(string[])", "typeof(string[])")]
-    [InlineData("string", "DayOfWeek.Monday", "System.DayOfWeek.Monday")]
-    [InlineData("int", "DayOfWeek.Monday", "System.DayOfWeek.Monday")]
-    [InlineData("int", "(DayOfWeek)42", "42")]
-    public void A_known_value_given_as_a_type_or_an_enum_member_is_reported(
-        string underlying,
-        string value,
-        string quoted)
-    {
-        var run = GeneratorHarness.Run($$"""
-            [ValueObject<{{underlying}}>]
-            [KnownValue("Named", {{value}})]
-            [KnownValue("Kept", "1")]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Ids.Should().Equal("VO0013");
-        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Contain($"'{quoted}'");
-        run.SingleValueObject.Should().Contain(" Kept ").And.NotContain(" Named ");
-        run.CompilationDiagnostics.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void A_pattern_that_is_not_a_regular_expression_is_reported()
-    {
-        var run = GeneratorHarness.Run("""
-            #pragma warning disable VO0021 // The deprecated option is what this test declares.
-            [ValueObject<string>(Pattern = "([unclosed")]
-            public readonly partial struct Code;
-            """);
-
-        run.Ids.Should().Contain("VO0014");
     }
 
     /// <summary>

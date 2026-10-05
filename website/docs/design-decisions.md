@@ -46,8 +46,8 @@ same application wrote. `ConfigureValueObjects(strict: true)` turns that back on
 also writes to.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, and becomes the
-`maxLength` keyword of the OpenAPI schema. `[KnownValue]` entries become named constants, a frozen membership
-lookup, and the `enum` keyword of the schema, whose values generated clients name after them.
+`maxLength` keyword of the OpenAPI schema. The members marked `[KnownValue]` become a frozen membership lookup and
+the `enum` keyword of the schema, whose values generated clients name after them.
 
 ## Constraints that shape the generated code
 
@@ -60,7 +60,7 @@ looks the way it does — worth knowing if a compile error in generated code is 
   the regex generator only sees code a person wrote, so this generator cannot write a `[GeneratedRegex]` itself.
   The consumer writes it instead, as the `Pattern` property of `IValueObjectPatternValidator`, and the generator
   reads its text off the attribute for the schema. The `Pattern` option it replaces had to build its `Regex` at
-  run time, which native AOT interprets, and is deprecated.
+  run time, which native AOT interprets, and no longer compiles.
 - **Generated code cannot rely on the consumer's usings.** Every type and extension method is fully qualified
   in emitted code. A consumer with `ImplicitUsings` disabled would otherwise get a compile error in code they
   cannot edit.

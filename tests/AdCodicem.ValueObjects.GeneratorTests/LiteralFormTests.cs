@@ -1,56 +1,26 @@
-using System.Globalization;
-using Microsoft.CodeAnalysis.CSharp;
+using AdCodicem.ValueObjects.Generators.Internal;
+using AdCodicem.ValueObjects.Generators.Model;
 
 namespace AdCodicem.ValueObjects.GeneratorTests;
 
 /// <summary>
-/// The one form each underlying type reads a bound or a known value in, and the text it refuses.
+/// The one form each underlying type read a bound or a known value in, when an attribute took them as text, and the text
+/// it refuses.
 /// </summary>
 /// <remarks>
 /// <para>
-/// A bound and a known value written as text go through the same reading, so each form is tried as both. A form
-/// is strict on purpose: no white space around it, no culture, no time zone, and nothing a parser would fill in
-/// from the machine running the compiler, such as today's date for a time written alone. The same declaration
-/// then compiles to the same literal everywhere, and anything else is refused with a message naming the form.
+/// The generator reads no value as text any more (docs/adr/0011-declare-known-values-and-examples-as-typed-members.md):
+/// the code fix of <c>VO0034</c> reads this form, to rewrite a known value declared on the type as the expression of its
+/// type a member takes, until the constructor taking text is removed. A form is strict on purpose: no white space around
+/// it, no culture, no time zone, and nothing a parser would fill in from the machine running the compiler, such as
+/// today's date for a time written alone. Text in any other form is left as it was written.
 /// </para>
 /// <para>
-/// A string, a Guid and a bool take no bound; as known values they keep the forms they always read.
+/// A string, a Guid and a bool keep the forms they always read.
 /// </para>
 /// </remarks>
 public sealed class LiteralFormTests
 {
-    private const string SignedInteger = "digits, with a leading '-' when negative, such as \"-42\"";
-    private const string UnsignedInteger = "digits alone, such as \"42\"";
-    private const string Real =
-        "digits with an optional leading '-', an optional fraction after '.' and an optional exponent, such as \"-1.5e-3\"";
-
-    private static readonly Dictionary<string, string> Forms = new(StringComparer.Ordinal)
-    {
-        ["string"] = "text",
-        ["Guid"] = "a GUID, such as \"6f9619ff-8b86-d011-b42d-00c04fc964ff\"",
-        ["bool"] = "true or false",
-        ["char"] = "exactly one character",
-        ["sbyte"] = SignedInteger,
-        ["byte"] = UnsignedInteger,
-        ["short"] = SignedInteger,
-        ["ushort"] = UnsignedInteger,
-        ["int"] = SignedInteger,
-        ["uint"] = UnsignedInteger,
-        ["long"] = SignedInteger,
-        ["ulong"] = UnsignedInteger,
-        ["Int128"] = SignedInteger,
-        ["UInt128"] = UnsignedInteger,
-        ["decimal"] = "digits with an optional leading '-' and an optional fraction after '.', such as \"-19.99\"",
-        ["double"] = Real,
-        ["float"] = Real,
-        ["DateOnly"] = "yyyy-MM-dd, such as \"2024-01-31\"",
-        ["TimeOnly"] = "HH:mm, HH:mm:ss or HH:mm:ss.fffffff, such as \"08:30\"",
-        ["DateTime"] = "yyyy-MM-dd or yyyy-MM-ddTHH:mm[:ss[.fffffff]], without an offset, such as \"2024-01-31T08:30\"",
-        ["DateTimeOffset"] =
-            "yyyy-MM-ddTHH:mm[:ss[.fffffff]] followed by Z, +HH:mm or -HH:mm, such as \"2024-01-31T08:30+01:00\"",
-        ["TimeSpan"] = "[-][d.]hh:mm:ss[.fffffff], such as \"1.12:00:00\"",
-    };
-
     /// <summary>
     /// Gets every form a type with an order reads, as text, with the literal it compiles to.
     /// </summary>
@@ -304,99 +274,44 @@ public sealed class LiteralFormTests
 
     [Theory]
     [MemberData(nameof(OrderedForms))]
-    public void A_bound_written_in_the_form_of_its_type_compiles_to_the_value_written(
-        string underlying,
-        string text,
-        string literal)
-    {
-        var run = GeneratorHarness.Run($$"""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<{{underlying}}>(Minimum = {{Quote(text)}})]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Diagnostics.Should().BeEmpty();
-        run.CompilationDiagnostics.Should().BeEmpty();
-        run.SingleValueObject.Should().Contain(literal);
-    }
-
-    [Theory]
-    [MemberData(nameof(OrderedForms))]
     [MemberData(nameof(UnorderedForms))]
-    public void A_known_value_written_in_the_form_of_its_type_compiles_to_the_value_written(
-        string underlying,
-        string text,
-        string literal)
+    public void Text_in_the_form_of_its_type_reads_as_the_value_written(string underlying, string text, string literal)
     {
-        var run = GeneratorHarness.Run($$"""
-            [ValueObject<{{underlying}}>{{(underlying == "string" ? "(AllowEmpty = true)" : string.Empty)}}]
-            [KnownValue("Named", {{Quote(text)}})]
-            public readonly partial struct Wrapper;
-            """);
+        LiteralFactory.TryCreate(Resolve(underlying), text, out var read).Should().BeTrue();
 
-        run.Diagnostics.Should().BeEmpty();
-        run.CompilationDiagnostics.Should().BeEmpty();
-        run.SingleValueObject.Should().Contain($"Named {{ get; }} = Create({literal});");
-    }
-
-    [Theory]
-    [MemberData(nameof(OrderedRefusals))]
-    public void A_bound_outside_the_form_of_its_type_is_reported_with_that_form(string underlying, string text)
-    {
-        var run = GeneratorHarness.Run($$"""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<{{underlying}}>(Maximum = {{Quote(text)}})]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Ids.Should().Equal("VO0004");
-        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Be(
-            $"'{text}' is not a valid Maximum for underlying type '{Keyword(underlying)}': "
-            + $"write a value of that type as {Forms[underlying]}");
-        run.SingleValueObject.Should().NotContain("Maximum = ", "a refused bound is neither enforced nor published");
-        run.CompilationDiagnostics.Should().BeEmpty();
+        read.Should().Be(literal);
     }
 
     [Theory]
     [MemberData(nameof(OrderedRefusals))]
     [MemberData(nameof(UnorderedRefusals))]
-    public void A_known_value_outside_the_form_of_its_type_is_reported_with_that_form(string underlying, string text)
-    {
-        var run = GeneratorHarness.Run($$"""
-            [ValueObject<{{underlying}}>]
-            [KnownValue("Named", {{Quote(text)}})]
-            public readonly partial struct Wrapper;
-            """);
+    public void Text_outside_the_form_of_its_type_does_not_read(string underlying, string text)
+        => LiteralFactory.TryCreate(Resolve(underlying), text, out _).Should().BeFalse();
 
-        run.Ids.Should().Equal("VO0013");
-        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().Be(
-            $"The known value '{text}' declared on 'Wrapper' cannot be converted to the underlying type "
-            + $"'{Keyword(underlying)}': write a value of that type as {Forms[underlying]}");
-        run.SingleValueObject.Should().NotContain(" Named ");
-        run.CompilationDiagnostics.Should().BeEmpty();
+    private static UnderlyingType Resolve(string underlying)
+    {
+        var name = underlying switch
+        {
+            "string" => "String",
+            "bool" => "Boolean",
+            "char" => "Char",
+            "sbyte" => "SByte",
+            "byte" => "Byte",
+            "short" => "Int16",
+            "ushort" => "UInt16",
+            "int" => "Int32",
+            "uint" => "UInt32",
+            "long" => "Int64",
+            "ulong" => "UInt64",
+            "decimal" => "Decimal",
+            "double" => "Double",
+            "float" => "Single",
+            _ => underlying,
+        };
+
+        UnderlyingType.TryResolve("global::System." + name, out var resolved).Should().BeTrue();
+        return resolved!;
     }
-
-    [Fact]
-    public void A_known_value_the_type_cannot_hold_names_the_form_of_a_string_too()
-    {
-        var run = GeneratorHarness.Run("""
-            [ValueObject<string>]
-            [KnownValue("Named", typeof(int))]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Diagnostics.Single().GetMessage(CultureInfo.InvariantCulture).Should().EndWith(
-            "'string': write a value of that type as " + Forms["string"]);
-    }
-
-    private static string Quote(string text) => SymbolDisplay.FormatLiteral(text, quote: true);
-
-    private static string Keyword(string underlying) => underlying switch
-    {
-        "Guid" or "Int128" or "UInt128" or "DateOnly" or "TimeOnly" or "DateTime" or "DateTimeOffset" or "TimeSpan"
-            => "System." + underlying,
-        _ => underlying,
-    };
 
     private static string Guid(string canonical) => $"new global::System.Guid(\"{canonical}\")";
 

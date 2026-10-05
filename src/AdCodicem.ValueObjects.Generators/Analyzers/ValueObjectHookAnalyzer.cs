@@ -36,6 +36,11 @@ namespace AdCodicem.ValueObjects.Generators.Analyzers;
 /// attribute already sets through its deprecated option, which <c>VO0028</c> reports. A type that takes no bound - a
 /// string, a Guid, a boolean, an identifier - is left to <c>VO0030</c>.
 /// </para>
+/// <para>
+/// So is the example hook: a public static <c>Example</c> property of the value object's own type, on a value object or
+/// an identifier that does not implement <c>IValueObjectExample&lt;TSelf&gt;</c>. A field is left alone, for the reason a
+/// bound is.
+/// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
@@ -45,6 +50,7 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
     private const string HookNamespace = "AdCodicem.ValueObjects";
     private const string RegexTypeName = "System.Text.RegularExpressions.Regex";
     private const string PatternHook = "IValueObjectPatternValidator";
+    private const string ExampleHook = "IValueObjectExample`1";
 
     /// <summary>
     /// Reports a hook-shaped member on a value object that declares no matching hook interface.
@@ -134,6 +140,10 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
 
             compilationContext.RegisterSymbolAction(
                 symbolContext => AnalyzeBounds(symbolContext, valueObjectAttributes),
+                SymbolKind.NamedType);
+
+            compilationContext.RegisterSymbolAction(
+                symbolContext => AnalyzeExample(symbolContext, valueObjectAttributes, entityIdAttributes),
                 SymbolKind.NamedType);
 
             // Read from the type rather than from the property: a [GeneratedRegex] property is partial, and the half
@@ -233,6 +243,34 @@ public sealed class ValueObjectHookAnalyzer : DiagnosticAnalyzer
                 containingType.Name,
                 $"{hook.Substring(0, hook.IndexOf('`'))}<{underlying.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}>"));
         }
+    }
+
+    private static void AnalyzeExample(
+        SymbolAnalysisContext context,
+        ImmutableArray<INamedTypeSymbol> valueObjectAttributes,
+        ImmutableArray<INamedTypeSymbol> entityIdAttributes)
+    {
+        if (context.Symbol is not INamedTypeSymbol { TypeKind: TypeKind.Struct } containingType
+            || (!Carries(containingType, valueObjectAttributes) && !Carries(containingType, entityIdAttributes))
+            || Implements(containingType, ExampleHook))
+        {
+            return;
+        }
+
+        var example = containingType.GetMembers("Example").OfType<IPropertySymbol>().FirstOrDefault(property =>
+            property is { IsStatic: true, DeclaredAccessibility: Accessibility.Public, DeclaringSyntaxReferences.Length: > 0 }
+            && SymbolEqualityComparer.Default.Equals(property.Type, containingType));
+        if (example is null)
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(
+            UndeclaredHook,
+            example.Locations[0],
+            example.Name,
+            containingType.Name,
+            $"IValueObjectExample<{containingType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}>"));
     }
 
     private static bool Implements(INamedTypeSymbol type, string metadataName)

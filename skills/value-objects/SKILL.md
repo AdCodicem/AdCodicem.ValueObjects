@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation and OpenAPI integrations. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0030 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation and OpenAPI integrations. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -52,23 +52,25 @@ Non-negotiable, each one a diagnostic if you get it wrong:
 A rule stated on `[ValueObject<T>]` validates the value, sizes the EF Core column and becomes the OpenAPI
 schema keyword. A rule buried in code does only the first. Never restate a declared rule in a hook.
 
-A pattern and bounds are the exceptions. A pattern is declared through the `IValueObjectPatternValidator` hook,
-never through the deprecated `Pattern` option (`VO0021`), and the text of its `[GeneratedRegex]` still becomes the
-OpenAPI `pattern`. Bounds are declared through `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>`, as values of
-the underlying type the compiler checks, never through the deprecated `Minimum`/`Maximum` text options (`VO0028`),
-and still become the OpenAPI bounds. Each is a declared rule all the same: written once, never restated in
-`ValidateValue`.
+A pattern, bounds, known values and the example are the exceptions: each is a value the compiler checks, so it is
+declared in code rather than as text on the attribute. A pattern is declared through the
+`IValueObjectPatternValidator` hook, and the text of its `[GeneratedRegex]` still becomes the OpenAPI `pattern`.
+Bounds are declared through `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>`, as values of the underlying type,
+and still become the OpenAPI bounds. Known values are members marked `[KnownValue]`, and the example is
+`IValueObjectExample<TSelf>`. Each is a declared rule all the same: written once, never restated in `ValidateValue`.
+The `Pattern`, `Minimum`, `Maximum` and `Example` options, written as text, no longer compile (`VO0021`, `VO0028`,
+`VO0035`).
 
 | Option | Effect |
 | --- | --- |
 | `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI `minLength`/`maxLength`. |
-| `Minimum`, `Maximum` | **Deprecated** (`VO0028`): implement `IValueObjectMinimum<T>` / `IValueObjectMaximum<T>` instead. |
+| `Minimum`, `Maximum` | **Removed** (`VO0028`, a compile error): implement `IValueObjectMinimum<T>` / `IValueObjectMaximum<T>` instead. |
 | `Comparison` | Equality, ordering and hashing for `string` value objects. `Ordinal` by default. |
-| `ValueSet = ValueSetKind.Closed` + `[KnownValue]` | Reference-data codes: frozen membership lookup, named constants, schema `enum` whose values generated clients name after the known values. |
+| `ValueSet = ValueSetKind.Closed` + `[KnownValue]` members | Reference-data codes: frozen membership lookup, schema `enum` whose values generated clients name after the known values. |
 | `Arithmetic = true` | Operators and generic math on a numeric type. Every result is re-validated. |
 | `ImplicitConversionToValue`, `ExplicitConversionFromValue` | Conversions, opt-in per type. |
 | `AllowEmpty`, `AllowDefault` | Loosen the two defaults that exist to catch mistakes. |
-| `SchemaFormat`, `Example`, `Description` | OpenAPI documentation. |
+| `SchemaFormat`, `Description` | OpenAPI documentation. `Example` is removed (`VO0035`, a compile error): implement `IValueObjectExample<TSelf>`. |
 
 Full table with defaults and worked examples: `references/authoring.md`.
 
@@ -86,6 +88,7 @@ does not look at member names, and `VO0011` is only a warning.
 | `IValueObjectValidator<TValue>` | `public static ValidationResult ValidateValue(in TValue value)` |
 | `IValueObjectFormatter<TValue>` | `public static bool TryFormatValue(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 | `IValueObjectStringFormatter<TValue>` | `public static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
+| `IValueObjectExample<TSelf>` | `public static TSelf Example => Create(…);` — the OpenAPI example, an instance of the type itself (`VO0038` otherwise) |
 
 Hook members are `public static` — a static abstract interface member cannot be anything else. `Pattern` is
 also `partial`: the regex source generator writes its body.
@@ -156,7 +159,8 @@ a group separator, `12,5` or `1,234.5`), the 4-argument `TryParse` reporting *wh
 `<=` / `>=`, `Schema` (the static member of `IValueObject<TSelf, TValue>`: generic code reads `TSelf.Schema`), the
 `System.Text.Json` converter, the `TypeConverter` (text and the underlying value, and
 over a number any numeric type, checked: never truncated), and a `[ModuleInitializer]` registration into
-`ValueObjectRegistry`. Closed sets also get their named constants and `KnownValues`;
+`ValueObjectRegistry`. A type with known values also gets `KnownValues`, and the private `Known` factory their
+members are initialized through;
 `Arithmetic = true` adds the operators plus `Zero`, `One`, `IsZero`, `Min`, `Max`.
 
 So: **do not** hand-write a constructor, a factory, `Equals`/`GetHashCode`, a `JsonConverter`, a
@@ -171,16 +175,18 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   analyzer (an entity property never set) is refused by every writer when its type rejects the default (JSON,
   Dapper, EF Core `SaveChanges`); an EF Core `Iban?` column stores `NULL` instead.
 - `NormalizeCore` / `ValidateCore` / `TryFormatCore` — the pre-interface names. They compile, they never run.
-- `Pattern = "..."` on `[ValueObject<T>]` — deprecated (`VO0021`, an error under `TreatWarningsAsErrors`) and
-  any minor may remove it before 1.0.0: it builds its `Regex` at run time, which native AOT interprets. Move the
-  text to the hook, with `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`; behaviour is unchanged.
-  Never keep both: that is `VO0022`.
+- `Pattern = "..."` on `[ValueObject<T>]` — a compile error (`VO0021`). Move the text to the hook, with
+  `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`; behaviour is unchanged.
 - A `static Regex Pattern` without `IValueObjectPatternValidator` — `VO0011`. It never runs as the declared
   pattern and never reaches the schema.
-- `Minimum = "..."` or `Maximum = "..."` on `[ValueObject<T>]` — deprecated (`VO0028`) and removed in the next
-  major: the compiler cannot check text. Declare `public static T Minimum => …;` through `IValueObjectMinimum<T>`
-  (and `Maximum` through `IValueObjectMaximum<T>`). Never keep both: that is `VO0029`. A `Minimum` or `Maximum`
-  written without its interface never runs: `VO0011`.
+- `Minimum = "..."` or `Maximum = "..."` on `[ValueObject<T>]` — a compile error (`VO0028`): the compiler cannot
+  check text. Declare `public static T Minimum => …;` through `IValueObjectMinimum<T>` (and `Maximum` through
+  `IValueObjectMaximum<T>`). A `Minimum` or `Maximum` written without its interface never runs: `VO0011`.
+- `[KnownValue("France", "FR")]` on the type — a compile error (`VO0034`), which its code fix rewrites. Declare
+  `[KnownValue] public static readonly CountryCode France = Known("FR");`, and call `Known` nowhere else (`VO0037`).
+  A closed set's static member created through `Create` throws from the type initializer.
+- `Example = "..."` on `[ValueObject<T>]` or `[EntityId]` — a compile error (`VO0035`). Implement
+  `IValueObjectExample<TSelf>`.
 - `CreateUnchecked` on input from outside the application. It validates nothing; it is for the EF read path.
 - A Riok.Mapperly mapper, or an options class bound by the configuration binding generator, that holds a value
   object it has no method for — build error `VO0032`: another generator cannot see the generated members, so it
@@ -238,9 +244,9 @@ not). Write it for every value object, then test only the domain behaviour that 
 
 | File | Read it for |
 | --- | --- |
-| `references/authoring.md` | Every attribute option, closed value sets, arithmetic, formats, span normalization, personal data. |
+| `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
 | `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, FluentValidation, OpenAPI, Newtonsoft. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, `AnyEntityId`, deterministic tests. |
-| `references/diagnostics.md` | `VO0001`–`VO0030`, with the fix for each. |
+| `references/diagnostics.md` | `VO0001`–`VO0038`, with the fix for each. |
 
 Published documentation: <https://adcodicem.github.io/AdCodicem.ValueObjects/>

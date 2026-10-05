@@ -179,7 +179,7 @@ public class EntityIdTests
         var example = AccountId.Schema.Example;
 
         example.Should().NotBeNull();
-        AccountId.TryCreate(example!, out _).Should().BeTrue();
+        AccountId.TryCreate((string)example!, out _).Should().BeTrue();
         AccountId.Schema.Example.Should().Be(example, "a churning example would make a committed document noisy");
     }
 

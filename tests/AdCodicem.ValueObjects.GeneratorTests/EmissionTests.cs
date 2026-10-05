@@ -324,22 +324,63 @@ public sealed class EmissionTests
         run.SingleValueObject.Should().Contain("checked(");
     }
 
+    /// <summary>
+    /// The known values are the author's members, which the generated part reads once the author's part has created
+    /// them: the frozen lookup of a closed set, then <c>KnownValues</c>, then the schema. <c>Known</c> creates them,
+    /// checking every rule but membership, and <c>Validate</c> refuses to read a lookup that does not exist yet.
+    /// </summary>
     [Fact]
-    public void A_closed_value_set_emits_named_constants_and_a_frozen_lookup()
+    public void A_closed_value_set_builds_its_frozen_lookup_from_the_known_values_the_author_declares()
     {
         var run = GeneratorHarness.Run("""
             [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
-            [KnownValue("France", "FR")]
-            [KnownValue("Belgium", "BE")]
-            public readonly partial struct Country;
+            public readonly partial struct Country
+            {
+                [KnownValue]
+                public static readonly Country France = Known("FR");
+
+                [KnownValue]
+                public static Country Belgium { get; } = Known("BE");
+            }
             """);
 
         var generated = run.SingleValueObject;
 
+        run.Diagnostics.Should().BeEmpty();
         run.CompilationDiagnostics.Should().BeEmpty();
-        generated.Should().Contain("public static global::Test.Country France { get; } = Create(\"FR\");");
-        generated.Should().Contain("public static global::Test.Country Belgium { get; } = Create(\"BE\");");
-        generated.Should().Contain("FrozenSet");
+        generated.Should().NotContain("France {").And.NotContain("Belgium {", "the known values are the author's members");
+
+        var lookup = generated.IndexOf(
+            "FrozenSet.ToFrozenSet(new global::System.String[] { France.Value, Belgium.Value }, global::System.StringComparer.Ordinal);",
+            StringComparison.Ordinal);
+        var known = generated.IndexOf("ImmutableArray.Create(France, Belgium);", StringComparison.Ordinal);
+        var schema = generated.IndexOf("ValueObjectSchema Schema { get; } = new()", StringComparison.Ordinal);
+        lookup.Should().BePositive();
+        known.Should().BeGreaterThan(lookup);
+        schema.Should().BeGreaterThan(known);
+
+        generated.Should().Contain("private static global::Test.Country Known(global::System.String value)")
+            .And.Contain("validation = ValidateDeclared(in normalized);")
+            .And.Contain("static global::AdCodicem.ValueObjects.ValidationResult ValidateDeclared(in global::System.String value)")
+            .And.Contain("KnownUnderlyingValues ?? throw new global::System.InvalidOperationException(");
+    }
+
+    /// <summary>
+    /// <c>Known</c> is written on every value object, so that its name is taken whether the type declares a known value
+    /// or not. Over an open set it is <c>Create</c> under another name, which a closed set's membership alone sets apart.
+    /// </summary>
+    [Fact]
+    public void Known_is_written_on_every_value_object_and_checks_every_rule_over_an_open_set()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>]
+            public readonly partial struct Quantity;
+            """);
+
+        run.SingleValueObject.Should().Contain("private static global::Test.Quantity Known(global::System.Int32 value)")
+            .And.Contain("validation = Validate(in normalized);")
+            .And.NotContain("ValidateDeclared");
+        run.CompilationDiagnostics.Should().BeEmpty();
     }
 
     /// <summary>
@@ -352,10 +393,27 @@ public sealed class EmissionTests
     {
         var run = GeneratorHarness.Run("""
             [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
-            [KnownValue("France", "FR", Description = "The \"French\" Republic,\nC:\\Paris")]
-            [KnownValue("Belgium", "BE")]
-            [KnownValue("Spain", "ES", Description = " ")]
-            public readonly partial struct Country;
+            public readonly partial struct Country
+            {
+                [KnownValue(Description = "The \"French\" Republic,\nC:\\Paris")]
+                public static readonly Country France = Known("FR");
+
+                [KnownValue]
+                public static readonly Country Belgium = Known("BE");
+
+                [KnownValue(Description = " ")]
+                public static readonly Country Spain = Known("ES");
+
+                /// <summary>The Portuguese <see cref="Republic"/>.</summary>
+                [KnownValue]
+                public static readonly Country Portugal = Known("PT");
+
+                /// <summary>Not published: the description of the attribute wins.</summary>
+                [KnownValue(Description = "Italy")]
+                public static readonly Country Italy = Known("IT");
+
+                public sealed class Republic;
+            }
             """);
 
         run.Diagnostics.Should().BeEmpty();
@@ -364,7 +422,34 @@ public sealed class EmissionTests
             "KnownValueDetails = global::System.Collections.Immutable.ImmutableArray.Create("
             + "new global::AdCodicem.ValueObjects.Metadata.KnownValueInfo(France.Value, \"France\", \"The \\\"French\\\" Republic,\\nC:\\\\Paris\"), "
             + "new global::AdCodicem.ValueObjects.Metadata.KnownValueInfo(Belgium.Value, \"Belgium\", null), "
-            + "new global::AdCodicem.ValueObjects.Metadata.KnownValueInfo(Spain.Value, \"Spain\", null)),");
+            + "new global::AdCodicem.ValueObjects.Metadata.KnownValueInfo(Spain.Value, \"Spain\", null), "
+            + "new global::AdCodicem.ValueObjects.Metadata.KnownValueInfo(Portugal.Value, \"Portugal\", \"The Portuguese Republic.\"), "
+            + "new global::AdCodicem.ValueObjects.Metadata.KnownValueInfo(Italy.Value, \"Italy\", \"Italy\")),");
+    }
+
+    /// <summary>
+    /// A known value named after a keyword is the author's member, written with its escape, which the generated code
+    /// keeps where it refers to it; the schema publishes the name a client reads.
+    /// </summary>
+    [Fact]
+    public void A_known_value_named_after_a_keyword_is_referred_to_with_its_escape()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
+            public readonly partial struct Grade
+            {
+                [KnownValue]
+                public static readonly Grade @class = Known("C");
+
+                [KnownValue]
+                public static readonly Grade @default = Known("D");
+            }
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        run.SingleValueObject.Should().Contain("{ @class.Value, @default.Value }")
+            .And.Contain("KnownValueInfo(@class.Value, \"class\", null)");
     }
 
     [Fact]
@@ -544,95 +629,6 @@ public sealed class EmissionTests
     }
 
     /// <summary>
-    /// The complement of the range diagnostics: the extremes of every integer type are bounds like any other.
-    /// </summary>
-    [Theory]
-    [InlineData("sbyte", "-128", "127", "(sbyte)(127)")]
-    [InlineData("byte", "0", "255", "(byte)(255)")]
-    [InlineData("short", "-32768", "32767", "(short)(-32768)")]
-    [InlineData("ushort", "0", "65535", "(ushort)(65535)")]
-    [InlineData("int", "-2147483648", "2147483647", "(int)(-2147483648)")]
-    [InlineData("uint", "0", "4294967295", "4294967295U")]
-    [InlineData("long", "-9223372036854775808", "9223372036854775807", "-9223372036854775808L")]
-    [InlineData("ulong", "0", "18446744073709551615", "18446744073709551615UL")]
-    [InlineData(
-        "Int128",
-        "-170141183460469231731687303715884105728",
-        "170141183460469231731687303715884105727",
-        "new global::System.Int128(9223372036854775807UL, 18446744073709551615UL)")]
-    [InlineData(
-        "UInt128",
-        "0",
-        "340282366920938463463374607431768211455",
-        "new global::System.UInt128(18446744073709551615UL, 18446744073709551615UL)")]
-    [InlineData("long", "-0", "1", "(value < 0L)")]
-    [InlineData("int", "007", "8", "(int)(7)")]
-    public void An_integer_bound_at_the_extremes_of_its_type_compiles(
-        string underlying,
-        string minimum,
-        string maximum,
-        string literal)
-    {
-        var run = GeneratorHarness.Run($$"""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<{{underlying}}>(Minimum = "{{minimum}}", Maximum = "{{maximum}}")]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Diagnostics.Should().BeEmpty();
-        run.CompilationDiagnostics.Should().BeEmpty();
-        run.SingleValueObject.Should().Contain(literal);
-    }
-
-    [Theory]
-    [InlineData("double", "0.5", "1e3", "1000d")]
-    [InlineData("double", "-1.7976931348623157E+308", "1.7976931348623157E+308", "1.7976931348623157E+308d")]
-    [InlineData("float", "0.5", "2.5", "2.5f")]
-    [InlineData("float", "-3.4028235E+38", "3.4028235E+38", "3.4028235E+38f")]
-    public void A_finite_floating_point_bound_compiles(string underlying, string minimum, string maximum, string literal)
-    {
-        var run = GeneratorHarness.Run($$"""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<{{underlying}}>(Minimum = "{{minimum}}", Maximum = "{{maximum}}")]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Diagnostics.Should().BeEmpty();
-        run.CompilationDiagnostics.Should().BeEmpty();
-        run.SingleValueObject.Should().Contain(literal);
-    }
-
-    /// <summary>
-    /// The ticks a date and time bound compiles to are those written, whatever the time zone of the machine
-    /// running the compiler.
-    /// </summary>
-    [Theory]
-    [InlineData(
-        "DateTime",
-        "2020-01-01T08:30:00",
-        "new global::System.DateTime(637134642000000000L, global::System.DateTimeKind.Unspecified)")]
-    [InlineData(
-        "DateTimeOffset",
-        "2020-01-01T00:00:00+02:00",
-        "new global::System.DateTimeOffset(637134336000000000L, new global::System.TimeSpan(72000000000L))")]
-    [InlineData(
-        "DateTimeOffset",
-        "2020-01-01T00:00:00Z",
-        "new global::System.DateTimeOffset(637134336000000000L, new global::System.TimeSpan(0L))")]
-    public void A_date_and_time_bound_compiles_to_the_instant_written(string underlying, string bound, string literal)
-    {
-        var run = GeneratorHarness.Run($$"""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<{{underlying}}>(Minimum = "{{bound}}")]
-            public readonly partial struct Wrapper;
-            """);
-
-        run.Diagnostics.Should().BeEmpty();
-        run.CompilationDiagnostics.Should().BeEmpty();
-        run.SingleValueObject.Should().Contain(literal);
-    }
-
-    /// <summary>
     /// C# ends a line at U+0085, U+2028 and U+2029 as well as at a line feed, and a regular string or character
     /// literal cannot hold any of them raw.
     /// </summary>
@@ -640,29 +636,24 @@ public sealed class EmissionTests
     public void A_unicode_line_terminator_in_author_text_is_escaped_in_every_literal()
     {
         var run = GeneratorHarness.Run("""
-            #pragma warning disable VO0021 // The deprecated option is what this test declares.
-            [ValueObject<string>(Description = "One\u2028two", Example = "a\u0085b", Pattern = "^[^\u2029]+$")]
-            [KnownValue("Separated", "a\u2028b\u2029c\u0085d")]
-            public readonly partial struct Token;
+            [ValueObject<string>(Description = "One\u2028two")]
+            public readonly partial struct Token : IValueObjectPatternValidator
+            {
+                [KnownValue(Description = "a\u2028b\u2029c\u0085d")]
+                public static readonly Token Separated = Known("S");
 
-            [ValueObject<char>]
-            [KnownValue("LineSeparator", '\u2028')]
-            [KnownValue("NextLine", "\u0085")]
-            public readonly partial struct Separator;
+                [GeneratedRegex("^[^\u2029]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+                public static partial Regex Pattern { get; }
+            }
             """);
 
         run.Diagnostics.Should().BeEmpty();
         run.CompilationDiagnostics.Should().BeEmpty();
 
-        var token = run.Files.Single(file => file.HintName.Contains("Token", StringComparison.Ordinal)).Text;
-        token.Should().Contain("Create(\"a\\u2028b\\u2029c\\u0085d\")");
+        var token = run.SingleValueObject;
+        token.Should().Contain("\"Separated\", \"a\\u2028b\\u2029c\\u0085d\")");
         token.Should().Contain("Description = \"One\\u2028two\"");
-        token.Should().Contain("Example = \"a\\u0085b\"");
         token.Should().Contain("\"^[^\\u2029]+$\"");
-
-        var separator = run.Files.Single(file => file.HintName.Contains("Separator", StringComparison.Ordinal)).Text;
-        separator.Should().Contain("Create('\\u2028')");
-        separator.Should().Contain("Create('\\u0085')");
     }
 
     /// <summary>
@@ -675,119 +666,35 @@ public sealed class EmissionTests
     public void A_lone_surrogate_in_author_text_is_escaped_in_every_literal()
     {
         var run = GeneratorHarness.Run("""
-            #pragma warning disable VO0021 // The deprecated option is what this test declares.
-            [ValueObject<string>(Description = "One\uD800", Example = "\uDC00b", Pattern = "^[^\uDBFF]+$")]
-            [KnownValue("Broken", "a\uD800b\uDC00")]
-            [KnownValue("Reversed", "\uDE00\uD83D")]
-            [KnownValue("Paired", "\uD83D\uDE00")]
-            public readonly partial struct Token;
+            [ValueObject<string>(Description = "One\uD800")]
+            public readonly partial struct Token : IValueObjectPatternValidator
+            {
+                [KnownValue(Description = "a\uD800b\uDC00")]
+                public static readonly Token Broken = Known("B");
 
-            [ValueObject<char>]
-            [KnownValue("High", '\uD800')]
-            [KnownValue("Low", "\uDFFF")]
-            public readonly partial struct Half;
+                [KnownValue(Description = "\uDE00\uD83D")]
+                public static readonly Token Reversed = Known("R");
+
+                [KnownValue(Description = "\uD83D\uDE00")]
+                public static readonly Token Paired = Known("P");
+
+                [GeneratedRegex("^[^\uDBFF]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+                public static partial Regex Pattern { get; }
+            }
             """);
 
         run.Diagnostics.Should().BeEmpty();
         run.CompilationDiagnostics.Should().BeEmpty();
 
-        var token = run.Files.Single(file => file.HintName.Contains("Token", StringComparison.Ordinal)).Text;
-        token.Should().Contain("Create(\"a\\uD800b\\uDC00\")");
-        token.Should().Contain("Create(\"\\uDE00\\uD83D\")");
-        token.Should().Contain("Create(\"\uD83D\uDE00\")");
+        var token = run.SingleValueObject;
+        token.Should().Contain("\"Broken\", \"a\\uD800b\\uDC00\")");
+        token.Should().Contain("\"Reversed\", \"\\uDE00\\uD83D\")");
+        token.Should().Contain("\"Paired\", \"\uD83D\uDE00\")");
         token.Should().Contain("Description = \"One\\uD800\"");
-        token.Should().Contain("Example = \"\\uDC00b\"");
         token.Should().Contain("\"^[^\\uDBFF]+$\"");
-
-        var half = run.Files.Single(file => file.HintName.Contains("Half", StringComparison.Ordinal)).Text;
-        half.Should().Contain("Create('\\uD800')");
-        half.Should().Contain("Create('\\uDFFF')");
 
         var strict = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         run.Files.Should().AllSatisfy(file => strict.Invoking(encoding => encoding.GetBytes(file.Text)).Should().NotThrow());
-    }
-
-    /// <summary>
-    /// The description of a known value becomes a one-line documentation comment: a line break would end the
-    /// comment and leave the rest of the text as code.
-    /// </summary>
-    [Fact]
-    public void A_known_value_description_spanning_several_lines_is_folded_into_one_summary_line()
-    {
-        var run = GeneratorHarness.Run("""
-            [ValueObject<string>]
-            [KnownValue("France", "FR", Description = "The French Republic,\nmainland\r\nand\u2028overseas\u0001<&>")]
-            public readonly partial struct Country;
-            """);
-
-        run.Diagnostics.Should().BeEmpty();
-        run.CompilationDiagnostics.Should().BeEmpty();
-        run.SingleValueObject.Should().Contain(
-            "/// <summary>The French Republic, mainland and overseas &lt;&amp;&gt;</summary>");
-    }
-
-    [Fact]
-    public void A_known_value_description_keeps_its_tabs_and_folds_every_other_line_break()
-    {
-        var run = GeneratorHarness.Run("""
-            [ValueObject<string>]
-            [KnownValue("France", "FR", Description = "French\rRépublique\tFR\u0085mainland\u2029overseas\u20AC\r")]
-            public readonly partial struct Country;
-            """);
-
-        run.CompilationDiagnostics.Should().BeEmpty();
-        run.SingleValueObject.Should().Contain("/// <summary>French République\tFR mainland overseas€ </summary>");
-    }
-
-    /// <summary>
-    /// XML admits neither U+FFFE nor U+FFFF, nor half of a surrogate pair, so a project producing its documentation
-    /// file reports a summary holding one as malformed. A whole pair stands for one character and stays.
-    /// </summary>
-    [Fact]
-    public void A_known_value_description_folds_the_characters_xml_cannot_hold_and_keeps_a_surrogate_pair()
-    {
-        var run = GeneratorHarness.Run(
-            """
-            [ValueObject<string>]
-            [KnownValue("France", "FR", Description = "a\uFFFEb\uFFFFc\uD800d\uDC00e\uD83D\uDE00f\uDBFF")]
-            public readonly partial struct Country;
-            """,
-            DocumentationMode.Diagnose);
-
-        run.Diagnostics.Should().BeEmpty();
-        run.CompilationDiagnostics.Should().BeEmpty();
-        run.SingleValueObject.Should().Contain("/// <summary>a b c d e\uD83D\uDE00f </summary>");
-    }
-
-    /// <summary>
-    /// The message of a violated bound quotes the bound as written, inside a string literal of the generated code,
-    /// so the text has to be escaped for C#, not for XML.
-    /// </summary>
-    [Fact]
-    public void A_bound_is_quoted_in_its_message_as_written()
-    {
-        var run = GeneratorHarness.Run("""
-            #pragma warning disable VO0028 // The deprecated option is what this test declares.
-            [ValueObject<char>(Minimum = "\"", Maximum = "\\")]
-            public readonly partial struct Quoted;
-
-            [ValueObject<char>(Minimum = "<")]
-            public readonly partial struct Angled;
-
-            [ValueObject<char>(Minimum = "\n")]
-            public readonly partial struct Spaced;
-            """);
-
-        run.Diagnostics.Should().BeEmpty();
-        run.CompilationDiagnostics.Should().BeEmpty();
-
-        string Generated(string name) => run.Files.Single(file => file.HintName == HintNames.For($"Test.{name}")).Text;
-
-        Generated("Quoted").Should()
-            .Contain("""OutOfRange("The value must be greater than or equal to \".")""")
-            .And.Contain("""OutOfRange("The value must be less than or equal to \\.")""");
-        Generated("Angled").Should().Contain("""OutOfRange("The value must be greater than or equal to <.")""");
-        Generated("Spaced").Should().Contain("""OutOfRange("The value must be greater than or equal to \n.")""");
     }
 
     [Fact]
@@ -1139,13 +1046,13 @@ public sealed class EmissionTests
     public void A_blank_text_option_is_treated_as_absent()
     {
         var run = GeneratorHarness.Run("""
-            [ValueObject<string>(Description = " ", Example = "", SchemaFormat = "\t")]
+            [ValueObject<string>(Description = " ", SchemaFormat = "\t")]
             public readonly partial struct Code;
             """);
 
         run.Diagnostics.Should().BeEmpty();
         run.CompilationDiagnostics.Should().BeEmpty();
-        run.SingleValueObject.Should().NotContain("Description =").And.NotContain("Example =").And.NotContain("Format =");
+        run.SingleValueObject.Should().NotContain("Description =").And.NotContain("Format =");
     }
 
     /// <summary>
@@ -1208,30 +1115,6 @@ public sealed class EmissionTests
 
         declared.CompilationDiagnostics.Should().BeEmpty();
         declared.SingleValueObject.Should().Contain("Format = \"date-time\",");
-    }
-
-    /// <summary>
-    /// A blank pattern is no blank text option: <c>" "</c> is a regular expression, matching any text that holds a
-    /// space, and it validates and is published as written. An empty one matches everything, and is absent.
-    /// </summary>
-    [Fact]
-    public void A_blank_pattern_is_kept_as_written_and_an_empty_one_is_absent()
-    {
-        var run = GeneratorHarness.Run("""
-            #pragma warning disable VO0021 // The deprecated option is what this test declares.
-            [ValueObject<string>(Pattern = " ")]
-            public readonly partial struct Spaced;
-
-            [ValueObject<string>(Pattern = "")]
-            public readonly partial struct Unchecked;
-            """);
-
-        run.Diagnostics.Should().BeEmpty();
-        run.CompilationDiagnostics.Should().BeEmpty();
-        Generated("Spaced").Should().Contain("Pattern = \" \",").And.Contain("DeclaredPattern.IsMatch(value)");
-        Generated("Unchecked").Should().NotContain("Pattern =").And.NotContain("DeclaredPattern");
-
-        string Generated(string name) => run.Files.Single(file => file.HintName == HintNames.For($"Test.{name}")).Text;
     }
 
     /// <summary>The supported underlying types, by the name the diagnostics give them.</summary>
@@ -1400,32 +1283,6 @@ public sealed class EmissionTests
     }
 
     /// <summary>
-    /// Static initializers run in declaration order, and a named constant goes through <c>Create</c>, and so through
-    /// the compiled pattern, while it is created. The pattern therefore has to be declared first, or the type
-    /// initializer meets a null field and the module initializer takes the whole assembly down with it.
-    /// </summary>
-    [Fact]
-    public void The_compiled_pattern_is_declared_before_the_named_constants_that_go_through_it()
-    {
-        var run = GeneratorHarness.Run("""
-            #pragma warning disable VO0021 // The deprecated option is what this test declares.
-            [ValueObject<string>(Pattern = "^[A-Z]{3}$")]
-            [KnownValue("Euro", "EUR")]
-            public readonly partial struct CurrencyCode;
-            """);
-
-        run.Diagnostics.Should().BeEmpty();
-        run.CompilationDiagnostics.Should().BeEmpty();
-
-        var generated = run.SingleValueObject;
-        var pattern = generated.IndexOf("Regex DeclaredPattern = new(", StringComparison.Ordinal);
-        var constant = generated.IndexOf("CurrencyCode Euro { get; } = Create(", StringComparison.Ordinal);
-        pattern.Should().BePositive();
-        constant.Should().BePositive();
-        pattern.Should().BeLessThan(constant, "the constant goes through the pattern while the type initializes");
-    }
-
-    /// <summary>
     /// The type converter of a numeric value object takes every numeric type a value object may wrap, its own through
     /// <c>Create</c> and each other through a typed arm and a checked bridge, chosen by the type converted to: no
     /// reflection, and nothing truncated. It hands its value to each of them the same way.
@@ -1527,7 +1384,7 @@ public sealed class EmissionTests
     public void A_named_argument_written_twice_leaves_the_compiler_error_alone()
     {
         var run = GeneratorHarness.Run("""
-            [ValueObject<int>(Example = "1", Example = "2")]
+            [ValueObject<int>(SchemaFormat = "count", SchemaFormat = "quantity")]
             public readonly partial struct Quantity;
 
             [EntityId("cus", Granularity = IdGranularity.Hour, Granularity = IdGranularity.Day)]

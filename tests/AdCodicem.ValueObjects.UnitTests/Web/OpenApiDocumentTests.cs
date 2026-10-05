@@ -607,8 +607,9 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
 
     /// <summary>Finds the name of the static property of a value object that holds one of its known values.</summary>
     private static string NameOf(object known)
-        => known.GetType().GetProperties(BindingFlags.Public | BindingFlags.Static)
-            .Single(property => property.PropertyType == known.GetType() && Equals(property.GetValue(null), known))
+        => known.GetType().GetMembers(BindingFlags.Public | BindingFlags.Static)
+            .Where(member => member.IsDefined(typeof(KnownValueAttribute)))
+            .Single(member => Equals(member is FieldInfo field ? field.GetValue(null) : ((PropertyInfo)member).GetValue(null), known))
             .Name;
 
     /// <summary>Follows a reference to a component, or answers the schema itself.</summary>

@@ -152,9 +152,9 @@ var schema = JsonSchemaExporter.GetJsonSchemaAsNode(
 | `MinLength`, `MaxLength` | `minLength`, `maxLength` |
 | `IValueObjectPatternValidator` | `pattern`; a `TimeSpan`, a `TimeOnly` and a `DateTime`, which declare none, get the pattern of the form they are written in, see [below](#times-without-an-offset) |
 | `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>` | `minimum`, `maximum` on a number; a sentence of the `description` on anything written as a string, a date or a character, which those keywords cannot bound |
-| A closed set of `[KnownValue]` | `enum`, each value written by the type's own converter |
+| A closed set, its members marked `[KnownValue]` | `enum`, each value written by the type's own converter |
 | The summary, or `Description` | `description` |
-| `Example` | `examples`, written by the converter |
+| `IValueObjectExample<TSelf>` | `examples`, written by the converter |
 | `SchemaFormat`, or the type's own | `format`, as the profile below says |
 
 A collection or a dictionary of value objects gets its `items` or `additionalProperties`, which the exporter leaves

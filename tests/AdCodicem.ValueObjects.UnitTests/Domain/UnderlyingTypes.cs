@@ -3,17 +3,20 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain;
 // One value object for each underlying type the rest of the domain does not use, and for each option or hook it
 // does not declare, so that the code the generator emits for each of the 22 underlying types runs at least once
 // rather than only compiling (docs/adr/0006-coverage-is-a-signal-not-a-goal.md). The bounds and options are
-// chosen to reach the emitted branches; the names only keep the tests readable. Every bound here is declared through
-// IValueObjectMinimum<T> or IValueObjectMaximum<T>; the rest of the domain keeps the deprecated text options, the
-// witnesses of the code they generate until they are removed.
+// chosen to reach the emitted branches; the names only keep the tests readable.
 //
 // tests/NativeAot links this file into the domain of an application CI publishes with native AOT, and of a model it
 // compiles with `dotnet ef dbcontext optimize`: a value object added here goes into that application's AppJsonContext
 // too, which reports one it lacks.
 
+// Its example is implemented explicitly, off the public surface of the type.
+
 /// <summary>Whether a customer agreed to be contacted.</summary>
-[ValueObject<bool>(Example = "true")]
-public readonly partial struct Consent;
+[ValueObject<bool>]
+public readonly partial struct Consent : IValueObjectExample<Consent>
+{
+    static Consent IValueObjectExample<Consent>.Example => Create(true);
+}
 
 /// <summary>A school grade, from A to F.</summary>
 [ValueObject<char>]
@@ -43,19 +46,24 @@ public readonly partial struct Score : IValueObjectMaximum<byte>
 }
 
 /// <summary>A TCP port.</summary>
-[ValueObject<ushort>(Arithmetic = true, Example = "8080")]
-public readonly partial struct Port : IValueObjectMinimum<ushort>
+[ValueObject<ushort>(Arithmetic = true)]
+public readonly partial struct Port : IValueObjectMinimum<ushort>, IValueObjectExample<Port>
 {
     public static ushort Minimum => 1;
+
+    public static Port Example => Create(8080);
 }
 
 /// <summary>A page number, counted from one, with the first page named in an open value set.</summary>
 [ValueObject<int>(Arithmetic = true)]
-[KnownValue("First", 1, Description = "The first page.")]
 public readonly partial struct PageNumber : IValueObjectMinimum<int>
 {
-    // An auto-property, unlike the others: its initializer runs before the known value it bounds is created.
+    // An auto-property, unlike the others: its initializer runs before the known value it bounds, declared after it, is
+    // created.
     public static int Minimum { get; } = 1;
+
+    [KnownValue(Description = "The first page.")]
+    public static readonly PageNumber First = Known(1);
 }
 
 /// <summary>A sequence number, which starts at zero.</summary>
@@ -130,12 +138,14 @@ public readonly partial struct OccurredAt : IValueObjectMinimum<DateTimeOffset>
 }
 
 /// <summary>How long a task took.</summary>
-[ValueObject<TimeSpan>(Example = "01:30:00")]
-public readonly partial struct Duration : IValueObjectMinimum<TimeSpan>, IValueObjectMaximum<TimeSpan>
+[ValueObject<TimeSpan>]
+public readonly partial struct Duration : IValueObjectMinimum<TimeSpan>, IValueObjectMaximum<TimeSpan>, IValueObjectExample<Duration>
 {
     public static TimeSpan Minimum => TimeSpan.Zero;
 
     public static TimeSpan Maximum => TimeSpan.FromDays(1);
+
+    public static Duration Example => Create(new TimeSpan(1, 30, 0));
 }
 
 /// <summary>The day a contract takes effect, never before the first day the ledger covers.</summary>
@@ -157,15 +167,15 @@ public readonly partial struct Tolerance : IValueObjectMaximum<double>
 }
 
 /// <summary>An international phone number, printed in groups by its own formatter.</summary>
-/// <remarks>
-/// It keeps the deprecated Pattern option, the generated-code suite's witness that the option still validates and
-/// still describes the type, until the option is removed.
-/// </remarks>
-#pragma warning disable VO0021 // The deprecated option is what this type holds the generated code to.
-[ValueObject<string>(Pattern = @"^\+[0-9]{6,15}$")]
-#pragma warning restore VO0021
-public readonly partial struct PhoneNumber : IValueObjectStringFormatter<string>
+[ValueObject<string>]
+public readonly partial struct PhoneNumber : IValueObjectStringFormatter<string>, IValueObjectPatternValidator
 {
+    [System.Text.RegularExpressions.GeneratedRegex(
+        @"^\+[0-9]{6,15}$",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+        matchTimeoutMilliseconds: 1000)]
+    public static partial System.Text.RegularExpressions.Regex Pattern { get; }
+
     /// <summary>The grouped format: the country part, then groups of three digits.</summary>
     public const string Grouped = "G";
 
@@ -233,8 +243,16 @@ public readonly partial struct Label : IValueObjectFormatter<string>
     }
 }
 
+// One known value is a field, the other a property, described by its summary.
+
 /// <summary>The status of a document, from a closed set whose spelling does not matter.</summary>
 [ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.OrdinalIgnoreCase)]
-[KnownValue("Draft", "draft")]
-[KnownValue("Final", "final")]
-public readonly partial struct DocumentStatus;
+public readonly partial struct DocumentStatus
+{
+    [KnownValue]
+    public static readonly DocumentStatus Draft = Known("draft");
+
+    /// <summary>Signed off, and no longer edited.</summary>
+    [KnownValue]
+    public static DocumentStatus Final { get; } = Known("final");
+}

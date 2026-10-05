@@ -31,14 +31,14 @@ public readonly partial struct Iban
 /// An amount, as the framework generates it.
 /// </summary>
 /// <remarks>
-/// Its bound is the deprecated text option, as when the published numbers were measured. The hook replacing it reads
-/// a static readonly field, which the optimizing JIT folds into the check once the field is initialized.
+/// Its bound was the text option when the published numbers were measured. The hook replacing it is a constant, which
+/// the optimizing JIT folds into the check as it did the option's literal.
 /// </remarks>
-#pragma warning disable VO0028 // Kept as measured; see the remarks.
-[ValueObject<decimal>(Minimum = "0", Arithmetic = true)]
-#pragma warning restore VO0028
-public readonly partial struct Amount : IValueObjectNormalizer<decimal>
+[ValueObject<decimal>(Arithmetic = true)]
+public readonly partial struct Amount : IValueObjectNormalizer<decimal>, IValueObjectMinimum<decimal>
 {
+    public static decimal Minimum => 0m;
+
     public static decimal NormalizeValue(decimal value)
         => decimal.Round(value, 2, MidpointRounding.ToEven) + 0.00m;
 }
@@ -53,13 +53,23 @@ public readonly partial struct CustomerId;
 /// A closed set, whose members are boxed once and shared by the boxed paths.
 /// </summary>
 [ValueObject<string>(ValueSet = ValueSetKind.Closed, MinLength = 2, MaxLength = 2)]
-[KnownValue("France", "FR")]
-[KnownValue("Belgium", "BE")]
-[KnownValue("Germany", "DE")]
-[KnownValue("Spain", "ES")]
-[KnownValue("Italy", "IT")]
 public readonly partial struct CountryCode : IValueObjectNormalizer<string>
 {
+    [KnownValue]
+    public static readonly CountryCode France = Known("FR");
+
+    [KnownValue]
+    public static readonly CountryCode Belgium = Known("BE");
+
+    [KnownValue]
+    public static readonly CountryCode Germany = Known("DE");
+
+    [KnownValue]
+    public static readonly CountryCode Spain = Known("ES");
+
+    [KnownValue]
+    public static readonly CountryCode Italy = Known("IT");
+
     public static string NormalizeValue(string value) => value.ToUpperInvariant();
 }
 

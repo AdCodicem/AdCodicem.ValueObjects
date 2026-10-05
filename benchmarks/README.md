@@ -102,7 +102,7 @@ friendliness, not raw speed. The framework's speed is in the typed route and in 
 
 **The 1.43x on `Create` is not pure overhead.** The by-hand row skips the shape check, which the generated
 `Validate` runs through the IBAN's `[GeneratedRegex]`. [Checking a pattern](#checking-a-pattern) measures what
-that costs, against the deprecated `Pattern` option and against the same shape checked by hand.
+that costs, against a regular expression built at run time and against the same shape checked by hand.
 
 **Parsing allocates once**, thanks to the span overload of `NormalizeValue`: text is normalized straight from
 the span rather than materialized and thrown away first. Without that overload, `TryParse(span)` allocates 168 B
@@ -141,11 +141,14 @@ Buying guaranteed-valid values at the boundary for ~240 ns is the trade the whol
 
 ## Checking a pattern
 
-`PatternBenchmarks` checks the shape of an IBAN and of a five-digit postal code four ways: through the deprecated
-`Pattern` option, which compiles a `Regex` at run time; through the pattern hook, whose `[GeneratedRegex]` is
-compiled with the type; by hand, in the validator; and not at all, the floor. The setup asserts that every
-variant accepts and rejects the same input. Each table comes from one run, under the JIT, then under native AOT, on
-the CPU, BenchmarkDotNet and Windows build of [Cost of creating one](#cost-of-creating-one):
+`PatternBenchmarks` checks the shape of an IBAN and of a five-digit postal code four ways: through a `Regex` built
+at run time, as the `Pattern` option built it; through the pattern hook, whose `[GeneratedRegex]` is compiled with
+the type; by hand, in the validator; and not at all, the floor. The setup asserts that every variant accepts and
+rejects the same input. Each table comes from one run, under the JIT, then under native AOT, on the CPU,
+BenchmarkDotNet and Windows build of [Cost of creating one](#cost-of-creating-one). The first column was measured
+through the option itself, before 0.3.0 removed it
+([ADR-0011](../docs/adr/0011-declare-known-values-and-examples-as-typed-members.md)); the variant now builds the same
+`Regex`, with the same options and timeout, in its validator:
 
 ```
 dotnet run -c Release -- --filter '*PatternBenchmarks*' --runtimes nativeaot10.0

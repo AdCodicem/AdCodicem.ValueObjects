@@ -189,8 +189,11 @@ public sealed class GeneratedUninitializedValueObjectTests
             public readonly partial struct Quantity;
 
             [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
-            [KnownValue("Eur", "EUR")]
-            public readonly partial struct Currency;
+            public readonly partial struct Currency
+            {
+                [KnownValue]
+                public static readonly Currency Eur = Known("EUR");
+            }
 
             [EntityId("acc")]
             public readonly partial struct AccountId;

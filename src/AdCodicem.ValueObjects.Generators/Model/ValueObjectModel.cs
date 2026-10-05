@@ -4,12 +4,12 @@ using AdCodicem.ValueObjects.Generators.Internal;
 namespace AdCodicem.ValueObjects.Generators.Model;
 
 /// <summary>
-/// A named constant of a value object, declared through <c>KnownValueAttribute</c>.
+/// A known value of a value object: a static member the author declares and marks <c>KnownValueAttribute</c>.
 /// </summary>
-/// <param name="Name">Name of the generated static property.</param>
-/// <param name="Literal">The underlying value as a C# literal expression.</param>
-/// <param name="Description">Documentation of the generated static property.</param>
-internal readonly record struct KnownValueModel(string Name, string Literal, string? Description);
+/// <param name="Name">Name of the member, which the schema publishes beside the value.</param>
+/// <param name="Identifier">Name of the member as the generated code refers to it, a keyword escaped.</param>
+/// <param name="Description">Description of the value: the attribute's, or the summary of the member.</param>
+internal readonly record struct KnownValueModel(string Name, string Identifier, string? Description);
 
 /// <summary>
 /// The entity identifier profile of a value object declared through <c>[EntityId]</c>.
@@ -110,9 +110,6 @@ internal sealed record ValueObjectModel
 
     public bool AllowEmpty { get; init; }
 
-    /// <summary>Gets the regular expression of the deprecated <c>Pattern</c> option, compiled at run time.</summary>
-    public string? Pattern { get; init; }
-
     /// <summary>
     /// Whether the value is matched against the <c>Pattern</c> property of <c>IValueObjectPatternValidator</c>.
     /// </summary>
@@ -134,21 +131,10 @@ internal sealed record ValueObjectModel
 
     public int MaxLength { get; init; } = -1;
 
-    /// <summary>Gets the inclusive lower bound as a C# literal expression.</summary>
-    public string? MinimumLiteral { get; init; }
-
-    /// <summary>Gets the inclusive upper bound as a C# literal expression.</summary>
-    public string? MaximumLiteral { get; init; }
-
-    /// <summary>Gets the inclusive lower bound as written by the author, for the OpenAPI schema.</summary>
-    public string? MinimumText { get; init; }
-
-    /// <summary>Gets the inclusive upper bound as written by the author, for the OpenAPI schema.</summary>
-    public string? MaximumText { get; init; }
-
     public string? SchemaFormat { get; init; }
 
-    public string? Example { get; init; }
+    /// <summary>Gets a value indicating whether the type declares its example through <c>IValueObjectExample&lt;TSelf&gt;</c>.</summary>
+    public bool HasExampleHook { get; init; }
 
     public string? Description { get; init; }
 

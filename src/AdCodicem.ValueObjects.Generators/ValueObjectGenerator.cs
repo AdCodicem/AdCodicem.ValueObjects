@@ -126,11 +126,6 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     private static readonly string[] ConverterBaseNames =
         ["System.ComponentModel.TypeConverter", "System.Text.Json.Serialization.JsonConverter`1"];
 
-    /// <summary>
-    /// The members of <see cref="object"/> that no value object overrides and a static property would hide.
-    /// </summary>
-    private static readonly string[] InheritedNames = ["GetType", "MemberwiseClone", "ReferenceEquals"];
-
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -250,49 +245,12 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             maxLength = -1;
         }
 
-        // Unlike a description, a pattern means what its white space says: " " matches any text holding a space. Only
-        // an empty pattern is absent, since it matches every text and checks nothing.
-        var pattern = GetText(arguments, "Pattern") is { Length: > 0 } declaredPattern ? declaredPattern : null;
-        if (pattern is not null && !IsValidRegex(pattern, out var regexError))
-        {
-            diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.InvalidPattern, location, symbol.Name, regexError));
-            pattern = null;
-        }
-
-        // Read before the names are reserved: the hook replaces the option, whose compiled field is then never
-        // written. Declaring both is an error, after which the hook wins and the type still generates, so that every
-        // use of it does not fail as well.
+        // The text options, Pattern, Minimum and Maximum, are compile errors (VO0021, VO0028) that nothing reads: what
+        // they set would not survive the compiler. The hooks replace them.
         var patternHook = ReadPatternHook(symbol, underlying, location, diagnostics);
-        if (patternHook.Active && pattern is not null)
-        {
-            diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.PatternDeclaredTwice, location, symbol.Name));
-            pattern = null;
-        }
-
-        // Read as written, white space included: a bound is held to the one form of its type, and an empty or a
-        // blank one is no more that form than any other text.
-        var minimumText = GetText(arguments, "Minimum");
-        var maximumText = GetText(arguments, "Maximum");
-        var minimumLiteral = ParseBound(underlying, minimumText, "Minimum", symbol, location, diagnostics, out var minimumKey);
-        var maximumLiteral = ParseBound(underlying, maximumText, "Maximum", symbol, location, diagnostics, out var maximumKey);
-
-        // A hook replaces the text option as the pattern hook does: declaring both is an error, after which the hook
-        // wins and the type still generates.
         var minimumHook = ReadBoundHook(symbol, underlying, "IValueObjectMinimum`1", location, diagnostics);
-        if (minimumHook && minimumText is not null)
-        {
-            diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BoundDeclaredTwice, location, symbol.Name, "Minimum", $"IValueObjectMinimum<{underlying.Keyword}>"));
-            minimumLiteral = null;
-        }
-
         var maximumHook = ReadBoundHook(symbol, underlying, "IValueObjectMaximum`1", location, diagnostics);
-        if (maximumHook && maximumText is not null)
-        {
-            diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BoundDeclaredTwice, location, symbol.Name, "Maximum", $"IValueObjectMaximum<{underlying.Keyword}>"));
-            maximumLiteral = null;
-        }
+        var exampleHook = ReadExampleHook(symbol, location, diagnostics);
 
         // An option holding a value its enum does not define stops generation once every mistake is reported:
         // falling back to the default would drop what the author wrote without a word.
@@ -304,16 +262,6 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         var implicitConversion = GetBool(arguments, "ImplicitConversionToValue");
         var explicitConversion = GetBool(arguments, "ExplicitConversionFromValue");
         var formatsThroughSpanHook = FormatsThroughSpanHook(symbol);
-        var generated = ValueObjectEmitter.TakenNames(
-            symbol.Name,
-            underlying,
-            arithmetic,
-            implicitConversion,
-            explicitConversion,
-            isClosed,
-            pattern is not null,
-            hasSpanNormalizeHook,
-            formatsThroughSpanHook);
         var usableName = ValidateName(
             symbol,
             ValueObjectEmitter.MemberNames(
@@ -322,28 +270,38 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
                 implicitConversion,
                 explicitConversion,
                 isClosed,
-                pattern is not null,
                 hasSpanNormalizeHook,
                 entityId: false,
                 formatsThroughSpanHook),
             location,
             diagnostics);
+        var compilation = context.SemanticModel.Compilation;
         var declaredKnownValues = new List<DeclaredValue>();
-        var knownValues = ParseKnownValues(symbol, underlying, generated, location, diagnostics, declaredKnownValues);
-
-        if (isClosed && knownValues.Count == 0)
-        {
-            diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.ClosedSetWithoutValues, location, symbol.Name));
-            isClosed = false;
-        }
+        var knownValues = ParseKnownValues(symbol, underlying, compilation, diagnostics, declaredKnownValues, out var declaresKnownValues);
 
         if (!definedValueSet || !definedComparison || !usableName)
         {
             return new ParseResult(null, EquatableArray<DiagnosticInfo>.From(diagnostics));
         }
 
-        var example = GetString(arguments, "Example");
+        // A closed set whose every known value was refused has already been reported, and generates as an open one.
+        if (isClosed && knownValues.Count == 0)
+        {
+            if (!declaresKnownValues)
+            {
+                diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.ClosedSetWithoutValues, location, symbol.Name));
+            }
+
+            isClosed = false;
+        }
+
         var hasNormalizeHook = ImplementsHook(symbol, "IValueObjectNormalizer`1");
+
+        // The membership the generator can evaluate: every known value, when each is a constant. One built by an
+        // expression the compiler does not evaluate leaves membership to the type initializer and the contract kit.
+        var closedSet = isClosed && declaredKnownValues.Count == knownValues.Count
+            ? declaredKnownValues.Select(static known => known.Key!).ToList()
+            : null;
         var rules = new DeclaredRules
         {
             Underlying = underlying,
@@ -351,18 +309,18 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             MinLength = minLength,
             MaxLength = maxLength,
             Minimum = minimumHook
-                ? ReadConstantBound(symbol, context.SemanticModel.Compilation, underlying, "IValueObjectMinimum`1", "Minimum")
-                : minimumKey is null ? null : new DeclaredBound(minimumKey, minimumText!),
+                ? ReadConstantBound(symbol, compilation, underlying, "IValueObjectMinimum`1", "Minimum")
+                : null,
             Maximum = maximumHook
-                ? ReadConstantBound(symbol, context.SemanticModel.Compilation, underlying, "IValueObjectMaximum`1", "Maximum")
-                : maximumKey is null ? null : new DeclaredBound(maximumKey, maximumText!),
-            ClosedSet = isClosed ? declaredKnownValues.Select(static known => known.Key!).ToList() : null,
+                ? ReadConstantBound(symbol, compilation, underlying, "IValueObjectMaximum`1", "Maximum")
+                : null,
+            ClosedSet = closedSet,
             ComparisonName = comparison ?? "Ordinal",
         };
         CheckDeclaredValues(
             symbol,
             rules,
-            example is null ? null : new DeclaredValue("Example", example, null, ArgumentLocation(attribute, "Example", location)),
+            exampleHook ? ReadConstantExample(symbol, underlying, compilation) : null,
             declaredKnownValues,
             normalizes: hasNormalizeHook || hasSpanNormalizeHook,
             diagnostics);
@@ -394,19 +352,14 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             Arithmetic = arithmetic,
             IsClosedValueSet = isClosed,
             AllowEmpty = GetBool(arguments, "AllowEmpty"),
-            Pattern = pattern,
             HasPatternHook = patternHook.Active,
             HasMinimumHook = minimumHook,
             HasMaximumHook = maximumHook,
+            HasExampleHook = exampleHook,
             PatternHookText = patternHook.Text,
             MinLength = minLength,
             MaxLength = maxLength,
-            MinimumLiteral = minimumLiteral,
-            MaximumLiteral = maximumLiteral,
-            MinimumText = minimumLiteral is null ? null : minimumText,
-            MaximumText = maximumLiteral is null ? null : maximumText,
             SchemaFormat = GetString(arguments, "SchemaFormat") ?? underlying.SchemaFormat,
-            Example = example,
             Description = GetString(arguments, "Description") ?? summary,
             HasNormalizeHook = hasNormalizeHook,
             HasSpanNormalizeHook = hasSpanNormalizeHook,
@@ -492,19 +445,18 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         ReadBoundHook(symbol, UnderlyingType.String, "IValueObjectMinimum`1", location, diagnostics, entityId: true);
         ReadBoundHook(symbol, UnderlyingType.String, "IValueObjectMaximum`1", location, diagnostics, entityId: true);
 
-        // Nothing generates a known value for an identifier, so a [KnownValue] would be read by no one. The type still
+        // Nothing reads a known value of an identifier, so a [KnownValue] would be read by no one. The type still
         // generates, so that every use of it does not fail as well.
-        foreach (var known in symbol.GetAttributes())
+        foreach (var known in KnownValueMembers(symbol))
         {
-            if (known.AttributeClass?.ToDisplayString() == KnownValueAttributeName)
-            {
-                diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.EntityIdTakesNoKnownValue,
-                    known.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? location,
-                    symbol.Name,
-                    known.ConstructorArguments.FirstOrDefault().Value as string ?? "?"));
-            }
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.EntityIdTakesNoKnownValue,
+                known.Member.Locations.FirstOrDefault() ?? location,
+                symbol.Name,
+                known.Member.Name));
         }
+
+        var exampleHook = ReadExampleHook(symbol, location, diagnostics);
 
         var members = ValueObjectEmitter.MemberNames(
             UnderlyingType.String,
@@ -512,7 +464,6 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             implicitConversion: false,
             explicitConversion: false,
             closedValueSet: false,
-            pattern: false,
             normalizesFromSpan: true,
             entityId: true,
             FormatsThroughSpanHook(symbol));
@@ -555,12 +506,9 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             MinLength = totalLength,
             MaxLength = totalLength,
 
-            // Left null on purpose: the schema publishes a pattern, but validation is a span scan, so no Regex
-            // is ever compiled for an identifier type.
-            Pattern = null,
             SchemaFormat = null,
             Description = GetString(arguments, "Description") ?? summary,
-            Example = GetString(arguments, "Example"),
+            HasExampleHook = exampleHook,
             HasValidateHook = ImplementsHook(symbol, "IValueObjectValidator`1"),
             HasTryFormatHook = ImplementsHook(symbol, "IValueObjectFormatter`1"),
             HasFormatHook = ImplementsHook(symbol, "IValueObjectStringFormatter`1"),
@@ -1091,98 +1039,247 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Reads the values declared through <c>[KnownValue]</c>, reporting the ones that cannot be generated.
+    /// Reads the known values a value object declares: its static members marked <c>[KnownValue]</c>, reporting the ones
+    /// that cannot be one.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A known value is the author's member, so the compiler checks its name and the type of its value. What it cannot
+    /// check is reported here (<c>VO0036</c>): a member that is not static, that can be written, that is of another type
+    /// than the value object, or that is not initialized through <c>Known</c>, whose one argument is the value. The
+    /// generated code reads the members once the author's part of the type has initialized them, and builds the
+    /// membership lookup, <c>KnownValues</c> and the schema from them.
+    /// </para>
+    /// <para>
+    /// The members come in the order the compiler lists them: declaration order within a file, then the order of the
+    /// files for a type split across partial declarations. A <c>[KnownValue]</c> on the type itself, the form that took a
+    /// name and a value, is a compile error (<c>VO0034</c>) and declares nothing.
+    /// </para>
+    /// </remarks>
     /// <param name="symbol">Annotated type.</param>
     /// <param name="underlying">Its underlying type.</param>
-    /// <param name="generated">The names the generated code uses on the type.</param>
-    /// <param name="location">Where to report.</param>
+    /// <param name="compilation">The compilation, which holds every declaration of the type.</param>
     /// <param name="diagnostics">Sink.</param>
     /// <param name="declared">
-    /// Receives each known value that can be generated, as the author wrote it, for the rules of the type to be checked
-    /// against.
+    /// Receives each known value whose argument is a constant the generator can evaluate, for the rules of the type to be
+    /// checked against.
     /// </param>
-    /// <returns>The known values that can be generated, in declaration order.</returns>
+    /// <param name="declaresAny">
+    /// Whether the type marks any member, or carries the attribute itself, so that a closed set is not reported as
+    /// declaring no value besides.
+    /// </param>
+    /// <returns>The known values, in declaration order.</returns>
     private static List<KnownValueModel> ParseKnownValues(
         INamedTypeSymbol symbol,
         UnderlyingType underlying,
-        HashSet<string> generated,
-        Location location,
+        Compilation compilation,
         List<DiagnosticInfo> diagnostics,
-        List<DeclaredValue> declared)
+        List<DeclaredValue> declared,
+        out bool declaresAny)
     {
         var knownValues = new List<KnownValueModel>();
-        var accepted = new HashSet<string>(StringComparer.Ordinal);
-        var declarations = new List<AttributeData>();
-        foreach (var attribute in symbol.GetAttributes())
+        declaresAny = symbol.GetAttributes().Any(IsKnownValueAttribute);
+
+        foreach (var (member, attribute) in KnownValueMembers(symbol))
         {
-            if (attribute.AttributeClass?.ToDisplayString() != KnownValueAttributeName)
-            {
-                continue;
-            }
+            declaresAny = true;
+            var (declaration, initializer) = KnownValueDeclaration(member);
 
-            if (attribute.ConstructorArguments.Length < 2)
-            {
-                continue;
-            }
-
-            declarations.Add(attribute);
-        }
-
-        // Each known value is a property, whose getter takes the name get_ followed by its own, whichever of the
-        // two is declared first.
-        var getters = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var declaration in declarations)
-        {
-            if (declaration.ConstructorArguments[0].Value is string requested)
-            {
-                getters.Add($"get_{requested}");
-            }
-        }
-
-        foreach (var attribute in declarations)
-        {
-
-            var name = attribute.ConstructorArguments[0].Value as string;
-            var argument = attribute.ConstructorArguments[1];
-
-            var refusal = RefuseKnownValueName(name, symbol, generated, getters, accepted);
+            var refusal = RefuseKnownValueMember(member, symbol, initializer, out var argument);
             if (refusal is not null)
             {
                 diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.InvalidKnownValueName, location, name ?? "?", symbol.Name, refusal));
-                continue;
-            }
-
-            // An array, a type and an enum member are legal arguments for the object parameter, but none is a
-            // value of an underlying type. Reading the Value of an array constant throws, and read as text a type
-            // would become its name and an enum member its number, so each is refused as written.
-            var notAValue = argument.Kind is TypedConstantKind.Array or TypedConstantKind.Type or TypedConstantKind.Enum;
-            if (notAValue || !LiteralFactory.TryCreate(underlying, argument.Value, out var literal, out var key))
-            {
-                diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.InvalidKnownValueLiteral,
-                    location,
-                    notAValue ? argument.ToCSharpString() : argument.Value?.ToString() ?? "null",
+                    DiagnosticDescriptors.InvalidKnownValueMember,
+                    member.Locations.FirstOrDefault() ?? Location.None,
+                    member.Name,
                     symbol.Name,
-                    underlying.Keyword,
-                    ExpectedForm(underlying)));
+                    refusal));
                 continue;
             }
 
+            // Read as [ValueObject<T>] reads its own: the attribute first, then the summary of the member.
             var description = attribute.NamedArguments
-                .FirstOrDefault(pair => string.Equals(pair.Key, "Description", StringComparison.Ordinal))
+                .FirstOrDefault(static pair => string.Equals(pair.Key, "Description", StringComparison.Ordinal))
                 .Value.Value as string;
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                description = declaration is null ? null : ExtractSummary(member, declaration);
+            }
 
-            knownValues.Add(new KnownValueModel(name!, literal, description));
-            declared.Add(new DeclaredValue(
-                $"known value {name}",
-                LiteralFactory.Text(argument.Value!)!,
-                key,
-                attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? location));
+            knownValues.Add(new KnownValueModel(member.Name, EscapedName(member.Name), description));
+
+            if (TryReadConstant(underlying, compilation, argument!, out var text, out var key))
+            {
+                declared.Add(new DeclaredValue($"known value {member.Name}", text, key, argument!.GetLocation()));
+            }
         }
 
         return knownValues;
+    }
+
+    /// <summary>
+    /// Finds the fields and properties of a type marked <c>[KnownValue]</c>, in the order the compiler lists them.
+    /// </summary>
+    /// <param name="symbol">The type.</param>
+    /// <returns>Each member, with its attribute.</returns>
+    private static IEnumerable<(ISymbol Member, AttributeData Attribute)> KnownValueMembers(INamedTypeSymbol symbol)
+    {
+        foreach (var member in symbol.GetMembers())
+        {
+            if (member is not (IFieldSymbol or IPropertySymbol) || member.IsImplicitlyDeclared)
+            {
+                continue;
+            }
+
+            var attribute = member.GetAttributes().FirstOrDefault(IsKnownValueAttribute);
+            if (attribute is not null)
+            {
+                yield return (member, attribute);
+            }
+        }
+    }
+
+    private static bool IsKnownValueAttribute(AttributeData attribute)
+        => attribute.AttributeClass?.ToDisplayString() == KnownValueAttributeName;
+
+    /// <summary>
+    /// Finds the declaration of a known value, whose leading comment documents it, and the expression that initializes it.
+    /// </summary>
+    /// <param name="member">The field or the property.</param>
+    /// <returns>The declaration and the initializer, either <see langword="null"/> when there is none.</returns>
+    private static (SyntaxNode? Declaration, ExpressionSyntax? Initializer) KnownValueDeclaration(ISymbol member)
+    {
+        foreach (var reference in member.DeclaringSyntaxReferences)
+        {
+            switch (reference.GetSyntax())
+            {
+                // A field is declared by its variable, inside the declaration that the comment and the attribute lead.
+                case VariableDeclaratorSyntax variable:
+                    return (variable.Parent?.Parent, variable.Initializer?.Value);
+
+                case PropertyDeclarationSyntax property:
+                    return (property, property.Initializer?.Value);
+            }
+        }
+
+        return (null, null);
+    }
+
+    /// <summary>
+    /// Says why a member marked <c>[KnownValue]</c> cannot be a known value, if it cannot.
+    /// </summary>
+    /// <remarks>
+    /// A known value is created once, as the type initializes, and read for the life of the process: a member that can
+    /// be written would let the membership lookup and the schema, built from it, describe a value it no longer holds. Its
+    /// initializer is <c>Known(...)</c>, written as a call of that one name, since the generated factory is not part of
+    /// the compilation the generator reads and cannot be bound.
+    /// </remarks>
+    /// <param name="member">The field or the property.</param>
+    /// <param name="symbol">The value object.</param>
+    /// <param name="initializer">The expression that initializes the member, if any.</param>
+    /// <param name="argument">The argument of <c>Known</c>, when the member is usable.</param>
+    /// <returns>The rule the member breaks, or <see langword="null"/> when it is a known value.</returns>
+    private static string? RefuseKnownValueMember(
+        ISymbol member,
+        INamedTypeSymbol symbol,
+        ExpressionSyntax? initializer,
+        out ArgumentSyntax? argument)
+    {
+        argument = null;
+        var type = member is IFieldSymbol field ? field.Type : ((IPropertySymbol)member).Type;
+
+        if (!member.IsStatic)
+        {
+            return "it is not static";
+        }
+
+        if (member is IFieldSymbol { IsReadOnly: false })
+        {
+            return "it can be written: the field is not readonly";
+        }
+
+        if (member is IPropertySymbol { SetMethod: not null })
+        {
+            return "it can be written: the property has a setter";
+        }
+
+        if (!SymbolEqualityComparer.Default.Equals(type, symbol))
+        {
+            return $"it is of type '{type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}' rather than '{symbol.Name}'";
+        }
+
+        if (initializer is not InvocationExpressionSyntax
+            {
+                Expression: IdentifierNameSyntax { Identifier.ValueText: "Known" },
+                ArgumentList.Arguments: { Count: 1 } arguments,
+            }
+            || arguments[0].RefKindKeyword.RawKind != (int)SyntaxKind.None)
+        {
+            return "it is not initialized through Known(...), the value as its one argument";
+        }
+
+        argument = arguments[0];
+        return null;
+    }
+
+    /// <summary>
+    /// Writes the name of a member as code refers to it: a keyword escaped.
+    /// </summary>
+    private static string EscapedName(string name)
+        => SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
+
+    /// <summary>
+    /// Reads the value of an argument the compiler evaluates, in the form the generator compares values of the
+    /// underlying type in.
+    /// </summary>
+    /// <remarks>
+    /// The call to <c>Known</c> or <c>Create</c> cannot be bound, since the generated code declaring them is not part of
+    /// the compilation the generator reads, so the argument is evaluated alone, before the conversion the call applies. A
+    /// constant is read only where that conversion changes nothing the generator tells apart: a constant of the
+    /// underlying type, or an integer into a number. A <c>float</c> widened to a <c>double</c> names another value than
+    /// its text, and a <c>char</c> converted to a number is no text of it, so neither is read: the type initializer and
+    /// the contract kit check them.
+    /// </remarks>
+    /// <param name="underlying">The underlying type.</param>
+    /// <param name="compilation">The compilation, which holds the argument.</param>
+    /// <param name="argument">The argument.</param>
+    /// <param name="text">The value as a diagnostic quotes it.</param>
+    /// <param name="key">The value, as <see cref="DeclaredRules"/> compares it.</param>
+    /// <returns><see langword="true"/> when the argument is a constant the generator can evaluate.</returns>
+    private static bool TryReadConstant(
+        UnderlyingType underlying,
+        Compilation compilation,
+        ArgumentSyntax argument,
+        out string text,
+        out IComparable key)
+    {
+        text = string.Empty;
+        key = string.Empty;
+
+        var constant = compilation.GetSemanticModel(argument.SyntaxTree).GetConstantValue(argument.Expression);
+        if (!constant.HasValue || constant.Value is not { } value)
+        {
+            return false;
+        }
+
+        var readable = value switch
+        {
+            string => underlying.Kind == UnderlyingKind.String,
+            bool => underlying.Kind == UnderlyingKind.Boolean,
+            char => underlying.Kind == UnderlyingKind.Char,
+            float => underlying.Kind == UnderlyingKind.Single,
+            double => underlying.Kind == UnderlyingKind.Double,
+            decimal => underlying.Kind == UnderlyingKind.Decimal,
+            _ => underlying.IsNumeric,
+        };
+
+        if (!readable || !LiteralFactory.TryCreate(underlying, value, out _, out key))
+        {
+            return false;
+        }
+
+        text = LiteralFactory.Text(value)!;
+        return true;
     }
 
     /// <summary>
@@ -1191,22 +1288,19 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// <remarks>
     /// <para>
     /// Neither has a use once refused. An example is published as the OpenAPI example, which generated clients, mock
-    /// servers and readers take at its word, and a refused known value throws from the type initializer, which the
-    /// registration of the assembly runs before <c>Main</c>: the application would not start.
+    /// servers and readers take at its word, and a refused known value or example throws from the type initializer,
+    /// which the registration of the assembly runs before <c>Main</c>: the application would not start.
     /// </para>
     /// <para>
-    /// The example is text, read in the invariant culture as the OpenAPI transformer reads it, and refused when no form
-    /// of the type is the text. Written in the one form a known value takes, it is held to the rules of
-    /// <see cref="DeclaredRules"/>; in any other the parser of the type would read, such as <c>NaN</c> for a real or a
-    /// date and time with an offset, it is left to the contract kit, which parses it as the type does. A known value is
-    /// the literal <c>VO0013</c> converted. On a type that normalizes its value, the rules are left to the contract kit
-    /// too: the normalization may turn a value they refuse into one they accept.
+    /// Only a value the compiler evaluates is checked, a constant passed to <c>Known</c> or to <c>Create</c>, against the
+    /// rules of <see cref="DeclaredRules"/>. On a type that normalizes its value, the rules are left to the type
+    /// initializer and the contract kit: the normalization may turn a value they refuse into one they accept.
     /// </para>
     /// </remarks>
     /// <param name="symbol">The value object.</param>
     /// <param name="rules">The rules the generator can evaluate.</param>
-    /// <param name="example">The example as written, or <see langword="null"/> when the type declares none.</param>
-    /// <param name="knownValues">The known values that can be generated.</param>
+    /// <param name="example">The example, when the generator can evaluate it.</param>
+    /// <param name="knownValues">The known values the generator can evaluate.</param>
     /// <param name="normalizes">Whether the type normalizes its value before checking it.</param>
     /// <param name="diagnostics">Sink.</param>
     private static void CheckDeclaredValues(
@@ -1217,22 +1311,15 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         bool normalizes,
         List<DiagnosticInfo> diagnostics)
     {
-        var checkedValues = new List<DeclaredValue>();
-        if (example is { } declared)
-        {
-            if (LiteralFactory.TryCreate(rules.Underlying, declared.Text, out _, out var key))
-            {
-                checkedValues.Add(declared with { Key = key });
-            }
-            else if (!LiteralFactory.IsReadable(rules.Underlying, declared.Text))
-            {
-                Report(declared, ("value_object.not_parsable", $"The text is not a valid {rules.Underlying.Keyword}."));
-            }
-        }
-
         if (normalizes)
         {
             return;
+        }
+
+        var checkedValues = new List<DeclaredValue>();
+        if (example is { } declared)
+        {
+            checkedValues.Add(declared);
         }
 
         checkedValues.AddRange(knownValues);
@@ -1240,19 +1327,16 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         {
             if (rules.Refuse(value.Key!) is { } refusal)
             {
-                Report(value, refusal);
+                diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.DeclaredValueRefused,
+                    value.Location,
+                    value.Label,
+                    value.Text,
+                    symbol.Name,
+                    refusal.Code,
+                    refusal.Message));
             }
         }
-
-        void Report(DeclaredValue value, (string Code, string Message) refusal)
-            => diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.DeclaredValueRefused,
-                value.Location,
-                value.Label,
-                value.Text,
-                symbol.Name,
-                refusal.Code,
-                refusal.Message));
     }
 
     /// <summary>
@@ -1342,133 +1426,6 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             ? statement
             : null;
     }
-
-    /// <summary>
-    /// Finds where a named argument of an attribute is written, to report a diagnostic about it there.
-    /// </summary>
-    /// <param name="attribute">The attribute.</param>
-    /// <param name="name">The name of the argument.</param>
-    /// <param name="fallback">Where to report when the argument cannot be found.</param>
-    /// <returns>The location of the argument.</returns>
-    private static Location ArgumentLocation(AttributeData attribute, string name, Location fallback)
-        => attribute.ApplicationSyntaxReference?.GetSyntax() is AttributeSyntax { ArgumentList: { } arguments }
-           && arguments.Arguments.FirstOrDefault(argument => argument.NameEquals?.Name.Identifier.ValueText == name) is { } found
-            ? found.GetLocation()
-            : fallback;
-
-    /// <summary>
-    /// Says why a known value cannot take a name, if it cannot.
-    /// </summary>
-    /// <remarks>
-    /// A keyword is refused rather than escaped: a member a caller has to write as <c>@class</c> is no constant
-    /// anyone wants. A contextual keyword is an ordinary identifier in a member's name, and stays allowed. The
-    /// members the type has are the author's, getters included, which the generator's compilation holds without the
-    /// generated ones, and the members of <see cref="object"/> a static property would hide, with a warning in the
-    /// generated file. So is a member of the author's taking the name of the property's getter, <c>get_</c> followed
-    /// by the name, which only a method with parameters leaves free. The getter of another known value is checked
-    /// after them, so that a name the author's own property already holds is reported as the author's, even when a
-    /// refused known value asked for it too.
-    /// </remarks>
-    /// <param name="name">The name the known value asks for.</param>
-    /// <param name="symbol">The value object.</param>
-    /// <param name="generated">The names the generated code uses on the type.</param>
-    /// <param name="getters">The names the getters of the known values take.</param>
-    /// <param name="accepted">The names of the known values accepted so far, to which this one is added.</param>
-    /// <returns>The rule the name breaks, or <see langword="null"/> when it is usable.</returns>
-    private static string? RefuseKnownValueName(
-        string? name,
-        INamedTypeSymbol symbol,
-        HashSet<string> generated,
-        HashSet<string> getters,
-        HashSet<string> accepted)
-    {
-        if (string.IsNullOrEmpty(name) || !SyntaxFacts.IsValidIdentifier(name))
-        {
-            return "it is not a C# identifier";
-        }
-
-        if (SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None)
-        {
-            return "it is a C# keyword";
-        }
-
-        if (symbol.TypeParameters.Any(parameter => parameter.Name == name || parameter.Name == $"get_{name}"))
-        {
-            return symbol.TypeParameters.Any(parameter => parameter.Name == name)
-                ? "a type parameter of the type already takes that name"
-                : $"a type parameter of the type already takes the name get_{name}, which the property's getter would take";
-        }
-
-        if (generated.Contains(name!))
-        {
-            return "the generated code already uses that name";
-        }
-
-        if (!symbol.GetMembers(name!).IsEmpty || InheritedNames.Contains(name!, StringComparer.Ordinal))
-        {
-            return "the type already has a member of that name";
-        }
-
-        // Only a method taking parameters leaves the getter's name free, as an overload of it.
-        if (symbol.GetMembers($"get_{name}").Any(static member => member is not IMethodSymbol { Parameters.IsEmpty: false }))
-        {
-            return $"the type already has a member named get_{name}, which the property's getter would take";
-        }
-
-        if (getters.Contains(name!))
-        {
-            return "the generated code already uses that name";
-        }
-
-        return accepted.Add(name!) ? null : "another known value already takes that name";
-    }
-
-    private static string? ParseBound(
-        UnderlyingType underlying,
-        string? text,
-        string boundName,
-        INamedTypeSymbol symbol,
-        Location location,
-        List<DiagnosticInfo> diagnostics,
-        out IComparable? key)
-    {
-        key = null;
-        if (text is null)
-        {
-            return null;
-        }
-
-        // A string, a Guid or a bool has no order a bound could hold to. Accepted, the text would be published in
-        // the schema as a limit that nothing enforces.
-        if (!underlying.SupportsBounds)
-        {
-            diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.InvalidBound,
-                location,
-                text,
-                boundName,
-                underlying.Keyword,
-                underlying.IsString
-                    ? "a string takes no bound; constrain it with MinLength, MaxLength or Pattern"
-                    : "the type takes no bound"));
-
-            return null;
-        }
-
-        if (LiteralFactory.TryCreate(underlying, text, out var literal, out var converted))
-        {
-            key = converted;
-            return literal;
-        }
-
-        diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.InvalidBound, location, text, boundName, underlying.Keyword, ExpectedForm(underlying)));
-
-        _ = symbol;
-        return null;
-    }
-
-    private static string ExpectedForm(UnderlyingType underlying) => $"write a value of that type as {underlying.LiteralForm}";
 
     /// <summary>
     /// Whether the value object implements one of the hook interfaces.
@@ -1650,6 +1607,92 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         return active;
     }
 
+    /// <summary>
+    /// Reads the example hook of a value object: whether it applies.
+    /// </summary>
+    /// <remarks>
+    /// The compiler accepts the interface over any type: an example over another type than the value object would be
+    /// declared and never published, which is the silent failure the hook interfaces exist to prevent.
+    /// </remarks>
+    /// <param name="symbol">The value object.</param>
+    /// <param name="location">Where to report.</param>
+    /// <param name="diagnostics">Sink.</param>
+    /// <returns><see langword="true"/> when the schema publishes the example the hook declares.</returns>
+    private static bool ReadExampleHook(INamedTypeSymbol symbol, Location location, List<DiagnosticInfo> diagnostics)
+    {
+        var active = false;
+        foreach (var hook in symbol.AllInterfaces.Where(IsExampleHook))
+        {
+            if (SymbolEqualityComparer.Default.Equals(hook.TypeArguments[0], symbol))
+            {
+                active = true;
+                continue;
+            }
+
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.ExampleHookOverAnotherType,
+                location,
+                symbol.Name,
+                hook.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)));
+        }
+
+        return active;
+    }
+
+    private static bool IsExampleHook(INamedTypeSymbol candidate)
+        => string.Equals(candidate.MetadataName, "IValueObjectExample`1", StringComparison.Ordinal)
+           && candidate.ContainingNamespace.ToDisplayString() == HookNamespace;
+
+    /// <summary>
+    /// Reads the example a value object declares when its getter creates it from a constant the generator can evaluate,
+    /// <c>public static Percentage Example =&gt; Create(42);</c>.
+    /// </summary>
+    /// <remarks>
+    /// Any other example is checked by the type initializer, which creates it as the schema reads it, and by the contract
+    /// kit. A known value returned as the example has been checked as a known value.
+    /// </remarks>
+    /// <param name="symbol">The value object.</param>
+    /// <param name="underlying">Its underlying type.</param>
+    /// <param name="compilation">The compilation, which holds every declaration of the hook.</param>
+    /// <returns>The example, or <see langword="null"/> when its getter creates none from a constant.</returns>
+    private static DeclaredValue? ReadConstantExample(INamedTypeSymbol symbol, UnderlyingType underlying, Compilation compilation)
+    {
+        var hook = symbol.AllInterfaces.First(candidate =>
+            IsExampleHook(candidate) && SymbolEqualityComparer.Default.Equals(candidate.TypeArguments[0], symbol));
+        var declared = hook.GetMembers("Example").OfType<IPropertySymbol>().Single();
+        if (symbol.FindImplementationForInterfaceMember(declared) is not IPropertySymbol implementation)
+        {
+            return null;
+        }
+
+        var properties = (implementation.PartialImplementationPart ?? implementation).DeclaringSyntaxReferences
+            .Select(static reference => reference.GetSyntax())
+            .OfType<PropertyDeclarationSyntax>();
+
+        foreach (var property in properties)
+        {
+            var created = property.Initializer?.Value ?? Returned(property) switch
+            {
+                ArrowExpressionClauseSyntax arrow => arrow.Expression,
+                ReturnStatementSyntax statement => statement.Expression,
+                _ => null,
+            };
+
+            if (created is InvocationExpressionSyntax
+                {
+                    Expression: IdentifierNameSyntax { Identifier.ValueText: "Create" },
+                    ArgumentList.Arguments: { Count: 1 } arguments,
+                }
+                && arguments[0].RefKindKeyword.RawKind == (int)SyntaxKind.None
+                && TryReadConstant(underlying, compilation, arguments[0], out var text, out var key))
+            {
+                return new DeclaredValue("Example", text, key, arguments[0].GetLocation());
+            }
+        }
+
+        return null;
+    }
+
     private static string DeclarationKeyword(INamedTypeSymbol symbol) => symbol switch
     {
         { IsRecord: true, TypeKind: TypeKind.Struct } => "partial record struct",
@@ -1662,34 +1705,19 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     private static string BuildHintName(INamedTypeSymbol symbol)
         => HintNames.For(symbol.ToDisplayString(QualifiedFormat).Replace("global::", string.Empty));
 
-    private static bool IsValidRegex(string pattern, out string error)
-    {
-        try
-        {
-            _ = new Regex(pattern);
-            error = string.Empty;
-            return true;
-        }
-        catch (ArgumentException exception)
-        {
-            error = exception.Message.Replace("\r", " ").Replace("\n", " ");
-            return false;
-        }
-    }
-
     /// <summary>
-    /// Reads the summary of the declaring type, as plain text.
+    /// Reads the summary of a declaration, a value object or one of its known values, as plain text.
     /// </summary>
-    /// <param name="symbol">Declared value object.</param>
-    /// <param name="declaration">Its syntax.</param>
-    /// <returns>The summary text, or <see langword="null"/> when the type has none.</returns>
+    /// <param name="symbol">The declared symbol.</param>
+    /// <param name="declaration">Its syntax, which its comment leads.</param>
+    /// <returns>The summary text, or <see langword="null"/> when the declaration has none.</returns>
     /// <remarks>
     /// A project that does not produce a documentation file compiles with <c>DocumentationMode.None</c>, and
     /// <c>GetDocumentationCommentXml</c> then returns nothing at all. Since most consumers leave that setting
     /// off, the trivia is read directly as a fallback: <c>///</c> lines, and a <c>/** */</c> comment, which the
     /// compiler reads as documentation too.
     /// </remarks>
-    private static string? ExtractSummary(INamedTypeSymbol symbol, TypeDeclarationSyntax declaration)
+    private static string? ExtractSummary(ISymbol symbol, SyntaxNode declaration)
     {
         var fromCompilation = ExtractSummary(symbol.GetDocumentationCommentXml());
         if (fromCompilation is not null)

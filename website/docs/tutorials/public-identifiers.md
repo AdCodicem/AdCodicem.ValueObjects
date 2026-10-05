@@ -52,8 +52,11 @@ compares ordinally.
 Choose the granularity from the insert rate of the table, not from taste:
 
 ```csharp
-[EntityId("cus", Granularity = IdGranularity.Minute, Example = "cus_ke1kcv3ahrz6dmv29gqy5c8")]
-public readonly partial struct CustomerId;
+[EntityId("cus", Granularity = IdGranularity.Minute)]
+public readonly partial struct CustomerId : IValueObjectExample<CustomerId>
+{
+    public static CustomerId Example => Create("cus_ke1kcv3ahrz6dmv29gqy5c8");
+}
 ```
 
 ## Store it

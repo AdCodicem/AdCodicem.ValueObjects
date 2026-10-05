@@ -136,7 +136,9 @@ removes a member. Before 1.0.0, the version is `0.<minor>.<patch>`, and a minor 
 API, or deprecate or remove part of it, without waiting for a major: read the
 [changelog](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.md) before taking a new minor. A
 patch never breaks anything, before 1.0.0 or after. A member deprecated rather than removed outright is reported by
-the compiler wherever it is used, with a diagnostic naming its replacement (`VO0021`, `VO0028`).
+the compiler wherever it is used, with a diagnostic naming its replacement. A member that is read by nothing any more
+stays a while as a compile error that says what replaces it (`VO0021`, `VO0028`, `VO0034`, `VO0035`), and any minor
+version may then remove it.
 
 ## Trying a preview
 
@@ -190,8 +192,8 @@ also writes to.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, and becomes the
 `maxLength` keyword of the OpenAPI schema. The `[GeneratedRegex]` behind `IValueObjectPatternValidator`
-validates the value, and its text becomes the `pattern` keyword. `[KnownValue]` entries become named constants,
-a frozen membership lookup, and the `enum` keyword of the schema, with their names beside it for generated clients.
+validates the value, and its text becomes the `pattern` keyword. The members marked `[KnownValue]` become a frozen
+membership lookup and the `enum` keyword of the schema, with their names beside it for generated clients.
 The same rules fill in the JSON Schema System.Text.Json exports, which AI tools, structured output and MCP servers
 describe their parameters with, through `ValueObjectJsonSchema`.
 
@@ -259,26 +261,42 @@ strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `Dat
 | Option | Effect |
 | --- | --- |
 | `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI schema. |
-| `Pattern` | Deprecated (`VO0021`): a regular expression built at run time, which native AOT interprets. Implement `IValueObjectPatternValidator` instead. Any minor version may remove it before 1.0.0. |
-| `Minimum`, `Maximum` | Deprecated (`VO0028`): inclusive bounds written as text in the one form of the underlying type. Implement `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>` instead. Any minor version may remove them before 1.0.0. |
+| `Pattern` | Removed: a compile error (`VO0021`), read by nothing. Implement `IValueObjectPatternValidator` instead. Any minor version may remove the property before 1.0.0. |
+| `Minimum`, `Maximum` | Removed: a compile error (`VO0028`), read by nothing. Implement `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>` instead. Any minor version may remove the properties before 1.0.0. |
 | `Comparison` | Equality, ordering and hashing for string value objects. Ordinal by default. |
-| `ValueSet = Closed` + `[KnownValue]` | Reference-data codes with a frozen lookup and a schema `enum`, whose values a generated client names after the known values (`x-enum-varnames`, `x-enumNames`, `x-ms-enum`), so renaming one renames its member there. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. |
+| `ValueSet = Closed` + `[KnownValue]` members | Reference-data codes with a frozen lookup and a schema `enum`, whose values a generated client names after the known values (`x-enum-varnames`, `x-enumNames`, `x-ms-enum`), so renaming one renames its member there. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. |
 | `Arithmetic` | Operators and generic math for numeric value objects. Every result is re-validated. |
 | `ImplicitConversionToValue`, `ExplicitConversionFromValue` | Conversions, opt-in per type. |
 | `AllowEmpty`, `AllowDefault` | Loosen the two defaults that exist to catch mistakes. |
+| `SchemaFormat`, `Description` | OpenAPI documentation. |
+| `Example` | Removed: a compile error (`VO0035`), read by nothing. Implement `IValueObjectExample<TSelf>` instead. Any minor version may remove the property before 1.0.0. |
 
-The deprecated `Minimum` and `Maximum` options are text because an attribute argument cannot be a `decimal` or a
-date, and each underlying type reads them in one form and no other: digits for an integer, with `-` in front when negative (`"-42"`); a
-`decimal` with an optional fraction after `.` (`"-19.99"`), and a `double` or a `float` with an optional exponent as
-well (`"9.1e-31"`), finite, and zero only when written as zero; one character for a `char`; `yyyy-MM-dd` for a
-`DateOnly`; `HH:mm`, `HH:mm:ss` or `HH:mm:ss.fffffff` for a `TimeOnly`; a date, or a date and a time after `T`,
-without an offset for a `DateTime` (`"2024-01-31T08:30"`); a date and a time followed by `Z`, `+HH:mm` or `-HH:mm`
-for a `DateTimeOffset`; and `[-][d.]hh:mm:ss[.fffffff]` for a `TimeSpan`. No white space, no culture, no time zone:
-the same declaration compiles to the same bound on every machine. Any other text, or a value the type cannot hold,
-is `VO0004`, and the message names the form. A `string`, a `Guid` and a `bool` take no bound, which is `VO0004`
-too: constrain a string with `MinLength`, `MaxLength` or `IValueObjectPatternValidator`. A `[KnownValue]` written
-as text is read in the same form, and refused with `VO0013`. A known value or an `Example` the type's own rules
-refuse is `VO0031`, wherever the generator can evaluate the rule; the contract kit checks the rest.
+### Known values
+
+A known value is a member of the type, marked `[KnownValue]` and initialized through the generated `Known`, so the
+compiler checks its name and the type of its value:
+
+```csharp
+[ValueObject<string>(ValueSet = ValueSetKind.Closed, MinLength = 2, MaxLength = 2)]
+public readonly partial struct CountryCode
+{
+    /// <summary>France.</summary>
+    [KnownValue]
+    public static readonly CountryCode France = Known("FR");
+
+    [KnownValue(Description = "Belgium")]
+    public static readonly CountryCode Belgium = Known("BE");
+}
+```
+
+It is a `static readonly` field or a static get-only auto-property of the type, of any accessibility. `Known`
+applies every rule of the type but membership, which a known value satisfies by declaration, and is called nowhere
+else (`VO0037`). The generator lists the known values in `KnownValues`, builds the lookup of a closed set from them,
+and publishes them in the schema, each with the `Description` of its attribute or the `<summary>` of its member. A
+member it cannot read as a known value is `VO0036`. A known value or an example the type's own rules refuse is
+`VO0031` when it is a constant the generator can evaluate the rule on; the contract kit checks the rest.
+`[KnownValue("France", "FR")]` on the type, the form that took the value as text, is `VO0034`, and a code fix
+rewrites it into the member.
 
 ### Hooks
 
@@ -295,6 +313,7 @@ without its interface — the one mistake the compiler cannot catch.
 | `IValueObjectMinimum<TValue>`, `IValueObjectMaximum<TValue>` | `static TValue Minimum { get; }`, `static TValue Maximum { get; }` — numbers, `char`, dates, times and durations |
 | `IValueObjectFormatter<TValue>` | `static bool TryFormatValue(in TValue value, Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)` |
 | `IValueObjectStringFormatter<TValue>` | `static string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider)` |
+| `IValueObjectExample<TSelf>` | `static TSelf Example { get; }` — the OpenAPI example, an instance of the type itself |
 
 `NormalizeValue` must be idempotent and must not reject: an unnormalizable value is rejected by
 `ValidateValue`. A formatting hook, when present, takes over formatting entirely, including the default format:
@@ -331,11 +350,11 @@ when the type compiles, is also the OpenAPI `pattern`. That text carries no `Reg
 `VO0026` warns on a missing `matchTimeoutMilliseconds`. `Regex` lives in `System.Text.RegularExpressions`, which
 is not among the implicit usings.
 
-The hook replaces the `Pattern` option, which builds its regular expression at run time, where native AOT
-interprets it. The option is deprecated (`VO0021`), and any minor version may remove it before 1.0.0. To migrate,
-move the expression from `Pattern = "X"` into
+The hook replaces the `Pattern` option, which built its regular expression at run time, where native AOT
+interprets it. Setting the option is now a compile error (`VO0021`). To migrate, move the expression from
+`Pattern = "X"` into
 `[GeneratedRegex("X", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }`:
-those are the options and the timeout the option used, so behaviour does not change. Declaring both is `VO0022`.
+those are the options and the timeout the option used, so behaviour does not change.
 
 `IValueObjectMinimum<TValue>` and `IValueObjectMaximum<TValue>` declare inclusive bounds as values of the
 underlying type, so the compiler checks them and any expression of that type builds them:
@@ -356,8 +375,12 @@ extensions for a type JSON writes as a string. A bound is a constant, written as
 check reads it each time and the schema once, as the assembly loads, so a bound relative to the clock is a rule for
 `ValidateValue`. Over a `string`, a `Guid`, a `bool`, an
 `[EntityId]` or another type than the underlying one, the hooks are `VO0030`. They replace the `Minimum` and
-`Maximum` options, deprecated (`VO0028`), which any minor version may remove before 1.0.0; declaring an option and
-its hook is `VO0029`, and the hook wins.
+`Maximum` options, which held the bounds as text and are now a compile error (`VO0028`).
+
+`IValueObjectExample<TSelf>` declares the example the OpenAPI schema publishes, as an instance of the type, which
+its rules have accepted: `public static Percentage Example => Create(42);`. Without it, a value object publishes no
+example, and an `[EntityId]` one of the right shape. It replaces the `Example` option, which held the example as
+text and is now a compile error (`VO0035`).
 
 The rules are public because a static interface member cannot be anything else. `Normalize` remains the member
 callers use: it guards against a null underlying value and then defers to `NormalizeValue`.
@@ -434,40 +457,42 @@ an internal surrogate key alongside it.
 
 ### Diagnostics
 
+`VO0004`, `VO0006`, `VO0013`, `VO0014`, `VO0022` and `VO0029` reported options written as text, which no longer
+compile, and are retired. There is no `VO0012`.
+
 | Id | Severity | Meaning |
 | --- | --- | --- |
 | `VO0001` | Error | The type is not `partial`. |
 | `VO0002` | Error | The type is not a `readonly struct`: a class, an interface, a record, a `ref struct`, or a struct without `readonly`. |
 | `VO0003` | Error | Unsupported underlying type. |
-| `VO0004` | Error | A bound set through the deprecated `Minimum` or `Maximum` option is not written in the one form of its underlying type, names no value of it, or is set on a `string`, a `Guid` or a `bool`, which take none. |
 | `VO0005` | Error | A closed value set declares no value. |
-| `VO0006` | Error | A known value has an unusable name. |
 | `VO0007` | Error | Arithmetic requested on a non-numeric type. |
 | `VO0008` | Warning | Length constraints on a non-string type. |
 | `VO0009` | Error | A containing type is not `partial`. |
 | `VO0010` | Error | An uninitialized value object. |
 | `VO0011` | Warning | A rule written without declaring its hook interface, so the generator will never call it. |
-| `VO0013` | Error | A known value is not written in the one form of its underlying type, names no value of it, or is no value at all: `null`, an array, a `typeof(...)`, an enum member. |
-| `VO0014` | Error | An invalid regular expression in the deprecated `Pattern` option. The regex generator reports one in a `[GeneratedRegex]` itself. |
 | `VO0015` | Error | A malformed entity identifier prefix. |
 | `VO0016` | Error | Two types claiming the same prefix. |
 | `VO0017` | Error | A normalization hook on an entity identifier, which owns its own. |
 | `VO0018` | Error | Both `[EntityId]` and `[ValueObject<T>]` on one type. |
 | `VO0019` | Error | The generated code cannot reopen, reach or name the type: it, or a type around it, is `file`-local; it is `private` or `protected`, or nested in such a type, inside a generic type; it is a generic `[EntityId]`, or one in a generic type; it has a type parameter it cannot use; or it is named after a member the generator writes on it. |
 | `VO0020` | Error | `Comparison`, `ValueSet` or `Granularity` holds a value its enum does not define. |
-| `VO0021` | Warning | The deprecated `Pattern` option of `[ValueObject<T>]`, reported by the compiler. Implement `IValueObjectPatternValidator` with `[GeneratedRegex("X", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }` and remove `Pattern = "X"`. The option builds its regular expression at run time, which native AOT interprets, and any minor version may remove it before 1.0.0. |
-| `VO0022` | Error | Both the `Pattern` option and `IValueObjectPatternValidator` on one type. The hook wins. |
+| `VO0021` | Error | The `Pattern` option of `[ValueObject<T>]`, reported by the compiler and read by nothing. Implement `IValueObjectPatternValidator` with `[GeneratedRegex("X", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)] public static partial Regex Pattern { get; }` and remove `Pattern = "X"`. Any minor version may remove the option before 1.0.0. |
 | `VO0023` | Error | `IValueObjectPatternValidator` on a value object whose underlying type is not `string`. |
 | `VO0024` | Error | `IValueObjectPatternValidator` on an `[EntityId]`, which validates and publishes its own format. |
 | `VO0025` | Warning | The `[GeneratedRegex]` behind `Pattern` sets `IgnoreCase`, `Multiline`, `Singleline` or `IgnorePatternWhitespace`, which the OpenAPI `pattern` cannot carry. |
 | `VO0026` | Warning | The `[GeneratedRegex]` behind `Pattern` sets no `matchTimeoutMilliseconds`. |
-| `VO0027` | Error | `[KnownValue]` on an `[EntityId]`, which generates no known values. |
-| `VO0028` | Warning | The deprecated `Minimum` or `Maximum` option of `[ValueObject<T>]`, reported by the compiler. Implement `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` with a static property of the underlying type and remove the option. Any minor version may remove it before 1.0.0. |
-| `VO0029` | Error | Both the `Minimum` (or `Maximum`) option and its hook on one type. The hook wins. |
+| `VO0027` | Error | `[KnownValue]` on a member of an `[EntityId]`, which generates no known values. |
+| `VO0028` | Error | The `Minimum` or `Maximum` option of `[ValueObject<T>]`, reported by the compiler and read by nothing. Implement `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` with a static property of the underlying type and remove the option. Any minor version may remove it before 1.0.0. |
 | `VO0030` | Error | `IValueObjectMinimum<T>` or `IValueObjectMaximum<T>` over a type that takes no bound, or over another type than the underlying one. |
-| `VO0031` | Error | The `Example` or a known value declared on the type is one its own rules refuse, wherever the generator can evaluate them: an example no form of the underlying type reads, a length, an empty string, a bound returned as a constant, a closed value set. The contract kit checks the rest at run time. |
+| `VO0031` | Error | The example or a known value declared on the type is one its own rules refuse, wherever the generator can evaluate them on a constant: a length, an empty string, a bound returned as a constant, a closed value set. The contract kit checks the rest at run time. |
 | `VO0032` | Error | A value object created uninitialized, by `default` or `new T()`, in code another source generator wrote: Riok.Mapperly, the configuration binding generator, or a tool `adcodicem_value_objects.generated_code_tools` names in a `.globalconfig`. |
 | `VO0033` | Warning | A value object whose own declaration lists no interface bringing `IParsable<TSelf>`, in a project where the Request Delegate Generator runs and that references ASP.NET Core's endpoint routing: that generator would bind it from the request body. A code fix lists the contract. |
+| `VO0034` | Error | `[KnownValue("France", "FR")]` on the type, the form that took the value as text, reported by the compiler and read by nothing. A code fix rewrites it into a member, `[KnownValue] public static readonly CountryCode France = Known("FR");`. Any minor version may remove the form before 1.0.0. |
+| `VO0035` | Error | The `Example` option of `[ValueObject<T>]` or `[EntityId]`, reported by the compiler and read by nothing. Implement `IValueObjectExample<TSelf>`. Any minor version may remove it before 1.0.0. |
+| `VO0036` | Error | A member marked `[KnownValue]` that is not a `static readonly` field or a static get-only auto-property of the type, initialized by `Known(...)` with the value as its one argument. |
+| `VO0037` | Error | `Known` called anywhere but in the initializer of a member marked `[KnownValue]`, which would skip the membership of a closed set. |
+| `VO0038` | Error | `IValueObjectExample<T>` over another type than the value object itself. |
 
 ## Using it with an AI coding agent
 

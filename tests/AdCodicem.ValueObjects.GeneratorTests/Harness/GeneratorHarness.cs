@@ -211,6 +211,83 @@ public static class GeneratorHarness
     }
 
     /// <summary>
+    /// Applies a code fix to the diagnostics the compiler reports that it fixes, one at a time, until it offers to fix
+    /// none, as a developer accepting each fix in turn would.
+    /// </summary>
+    /// <typeparam name="TCodeFix">Code fix to apply.</typeparam>
+    /// <param name="source">Source to compile. A namespace and usings are added if absent.</param>
+    /// <returns>The fixed source, after the clean-up a code action runs: imports added, names shortened.</returns>
+    public static async Task<string> FixCompilerDiagnosticsAsync<TCodeFix>(string source)
+        where TCodeFix : CodeFixProvider, new()
+    {
+        var fix = new TCodeFix();
+        var text = Wrap(source);
+
+        // One round per diagnostic; a fix that does not silence its diagnostic would otherwise loop for ever.
+        for (var round = 0; round < 16; round++)
+        {
+            using var workspace = new AdhocWorkspace();
+            var document = Document(workspace, text, references: null);
+            var compilation = await document.Project.GetCompilationAsync(TestContext.Current.CancellationToken);
+
+            CodeAction? action = null;
+            foreach (var diagnostic in compilation!.GetDiagnostics(TestContext.Current.CancellationToken)
+                         .Where(candidate => fix.FixableDiagnosticIds.Contains(candidate.Id))
+                         .OrderBy(candidate => candidate.Location.SourceSpan.Start))
+            {
+                action = (await OfferedFixesAsync(fix, document, diagnostic)).SingleOrDefault();
+                if (action is not null)
+                {
+                    break;
+                }
+            }
+
+            if (action is null)
+            {
+                return text;
+            }
+
+            text = await ApplyAsync(action, document);
+        }
+
+        throw new InvalidOperationException("The code fix did not silence the diagnostics it fixes.");
+    }
+
+    /// <summary>
+    /// Applies the fix-all of a code fix to every diagnostic the compiler reports that it fixes in the document at once,
+    /// as an IDE does to fix all occurrences in a document.
+    /// </summary>
+    /// <typeparam name="TCodeFix">Code fix to apply.</typeparam>
+    /// <param name="source">Source to compile. A namespace and usings are added if absent.</param>
+    /// <returns>The fixed source.</returns>
+    public static async Task<string> FixAllCompilerDiagnosticsAsync<TCodeFix>(string source)
+        where TCodeFix : CodeFixProvider, new()
+    {
+        var fix = new TCodeFix();
+
+        using var workspace = new AdhocWorkspace();
+        var document = Document(workspace, Wrap(source), references: null);
+        var compilation = await document.Project.GetCompilationAsync(TestContext.Current.CancellationToken);
+        var diagnostics = compilation!.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(candidate => fix.FixableDiagnosticIds.Contains(candidate.Id))
+            .ToImmutableArray();
+
+        var first = (await OfferedFixesAsync(fix, document, diagnostics[0]))[0];
+        var context = new FixAllContext(
+            document,
+            fix,
+            FixAllScope.Document,
+            first.EquivalenceKey,
+            fix.FixableDiagnosticIds,
+            new ReportedDiagnostics(diagnostics),
+            TestContext.Current.CancellationToken);
+
+        var action = await fix.GetFixAllProvider()!.GetFixAsync(context);
+
+        return await ApplyAsync(action!, document);
+    }
+
+    /// <summary>
     /// Asks a code fix what it offers for a diagnostic located anywhere in a document holding source, wherever its
     /// analyzer would or would not report it.
     /// </summary>

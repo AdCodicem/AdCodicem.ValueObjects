@@ -59,7 +59,9 @@ removes a member. Before 1.0.0, the version is `0.<minor>.<patch>`, and a minor 
 API, or deprecate or remove part of it, without waiting for a major: read the
 [changelog](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.md) before taking a new minor. A
 patch never breaks anything, before 1.0.0 or after. A member deprecated rather than removed outright is reported by
-the compiler wherever it is used, with a diagnostic naming its replacement (`VO0021`, `VO0028`).
+the compiler wherever it is used, with a diagnostic naming its replacement. A member that is read by nothing any more
+stays a while as a compile error that says what replaces it (`VO0021`, `VO0028`, `VO0034`, `VO0035`), and any minor
+version may then remove it.
 
 ## Trying a preview
 

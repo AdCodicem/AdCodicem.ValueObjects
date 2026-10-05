@@ -211,3 +211,34 @@ public interface IValueObjectStringFormatter<TValue>
     /// <returns>The formatted text.</returns>
     static abstract string FormatValue(in TValue value, ReadOnlySpan<char> format, IFormatProvider? provider);
 }
+
+/// <summary>
+/// Declares the example of a value object, which its OpenAPI and JSON schemas publish.
+/// </summary>
+/// <typeparam name="TSelf">The value object itself.</typeparam>
+/// <remarks>
+/// <para>
+/// The example is an instance of the value object, so it went through the type's own rules, and it can be one of its
+/// known values: <c>public static CountryCode Example =&gt; France;</c>. An explicit implementation,
+/// <c>static CountryCode IValueObjectExample&lt;CountryCode&gt;.Example =&gt; France;</c>, keeps it off the public
+/// surface of the type. The schema holds its underlying value, which the schemas write as the type writes it in JSON.
+/// </para>
+/// <para>
+/// The schema reads it once, when the value object's type initializes, which the generated registration does as the
+/// declaring assembly loads: an example must neither throw nor depend on the state of the application, and one the
+/// type's rules refuse stops the application before it starts. The generator refuses it at compile time when the getter
+/// returns <c>Create</c> over a constant it can evaluate, and the contract kit of <c>AdCodicem.ValueObjects.Testing</c>
+/// checks it at run time.
+/// </para>
+/// <para>
+/// An entity identifier that does not implement it publishes an identifier of the right shape, built from its profile.
+/// Implementing it over another type than the value object is a build error.
+/// </para>
+/// </remarks>
+public interface IValueObjectExample<TSelf>
+{
+    /// <summary>
+    /// Gets the example the schemas publish.
+    /// </summary>
+    static abstract TSelf Example { get; }
+}

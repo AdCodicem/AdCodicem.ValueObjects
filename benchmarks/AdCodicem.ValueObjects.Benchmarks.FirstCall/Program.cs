@@ -11,10 +11,10 @@ const string Code = "75008";
 var start = Stopwatch.GetTimestamp();
 var accepted = variant switch
 {
-    "IbanByPattern" => IbanByPattern.TryCreate(Account, out _),
+    "IbanByRuntimeRegex" => IbanByRuntimeRegex.TryCreate(Account, out _),
     "Iban" => Iban.TryCreate(Account, out _),
     "IbanByHand" => IbanByHand.TryCreate(Account, out _),
-    "PostalCodeByPattern" => PostalCodeByPattern.TryCreate(Code, out _),
+    "PostalCodeByRuntimeRegex" => PostalCodeByRuntimeRegex.TryCreate(Code, out _),
     "PostalCode" => PostalCode.TryCreate(Code, out _),
     "PostalCodeByHand" => PostalCodeByHand.TryCreate(Code, out _),
     _ => throw new ArgumentException($"Unknown variant '{variant}'."),

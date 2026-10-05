@@ -4,17 +4,21 @@ using AdCodicem.ValueObjects.Metadata;
 namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 
 /// <summary>
-/// A shirt size from a closed set, written by hand, whose normalizer upper-cases what it is given: its annotation declares
-/// its known values in lower case, which is not what the type accepts and writes, and its schema publishes them normalized.
+/// A shirt size from a closed set, written by hand, whose normalizer upper-cases what it is given: its known values are
+/// created from lower case, which is not what the type accepts and writes, and its schema publishes them normalized.
 /// </summary>
 [ValueObject<string>(ValueSet = ValueSetKind.Closed, MaxLength = 2)]
-[KnownValue("Small", "s")]
-[KnownValue("Medium", "m")]
 public readonly struct ShirtSize : IValueObject<ShirtSize, string>
 {
     private readonly string? _value;
 
     private ShirtSize(string value) => _value = value;
+
+    [KnownValue]
+    public static readonly ShirtSize Small = Create("s");
+
+    [KnownValue]
+    public static readonly ShirtSize Medium = Create("m");
 
     /// <summary>Publishes the known values as the type holds them, normalized, with their names.</summary>
     public static ValueObjectSchema Schema { get; } = new()

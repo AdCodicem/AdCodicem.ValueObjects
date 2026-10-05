@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects.Generators.Internal;
 using AdCodicem.ValueObjects.Generators.Model;
 using Microsoft.CodeAnalysis;
@@ -94,8 +95,6 @@ public sealed class TypeNameTests
             using AdCodicem.ValueObjects.Annotations;
             using AdCodicem.ValueObjects.Identifiers;
 
-            #pragma warning disable VO0021 // The deprecated option compiles a pattern of its own, which is written too.
-
             namespace Test._
             {
                 public class var;
@@ -103,10 +102,12 @@ public sealed class TypeNameTests
                 public class _;
             {{everyType}}
                 [ValueObject<string>(ValueSet = ValueSetKind.Closed, ImplicitConversionToValue = true, ExplicitConversionFromValue = true)]
-                [KnownValue("Kept", "K")]
                 public readonly partial struct Code
                     : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectValidator<string>, IValueObjectFormatter<string>
                 {
+                    [KnownValue]
+                    public static readonly Code Kept = Known("K");
+
                     public static string NormalizeValue(string value) => NormalizeValue(value.AsSpan());
 
                     public static string NormalizeValue(ReadOnlySpan<char> value) => value.Trim().ToString();
@@ -123,9 +124,11 @@ public sealed class TypeNameTests
                 }
 
                 [ValueObject<int>(Arithmetic = true, ValueSet = ValueSetKind.Closed)]
-                [KnownValue("Ground", 0)]
                 public readonly partial struct Floor : IValueObjectStringFormatter<int>
                 {
+                    [KnownValue]
+                    public static readonly Floor Ground = Known(0);
+
                     public static string FormatValue(in int value, ReadOnlySpan<char> format, IFormatProvider? provider)
                         => $"floor {value}";
                 }
@@ -137,8 +140,12 @@ public sealed class TypeNameTests
                     public static partial Regex Pattern { get; }
                 }
 
-                [ValueObject<string>(Pattern = "^[a-z]+$")]
-                public readonly partial struct Word;
+                [ValueObject<string>]
+                public readonly partial struct Word : IValueObjectPatternValidator
+                {
+                    [GeneratedRegex("^[a-z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+                    public static partial Regex Pattern { get; }
+                }
 
                 [EntityId("acc")]
                 public readonly partial struct AccountId : IValueObjectStringFormatter<string>
@@ -169,11 +176,15 @@ public sealed class TypeNameTests
     [Theory]
     [InlineData(
         """
-        #pragma warning disable VO0021 // The deprecated option is what this test declares.
-        [ValueObject<string>(Pattern = "^[A-Z]+$", ValueSet = ValueSetKind.Closed, ImplicitConversionToValue = true, ExplicitConversionFromValue = true)]
-        [KnownValue("Kept", "K")]
-        public readonly partial struct Code : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectFormatter<string>
+        [ValueObject<string>(ValueSet = ValueSetKind.Closed, ImplicitConversionToValue = true, ExplicitConversionFromValue = true)]
+        public readonly partial struct Code : IValueObjectNormalizer<string>, IValueObjectSpanNormalizer, IValueObjectFormatter<string>, IValueObjectPatternValidator
         {
+            [KnownValue]
+            public static readonly Code Kept = Known("K");
+
+            [GeneratedRegex("^[A-Z]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+            public static partial Regex Pattern { get; }
+
             public static string NormalizeValue(string value) => NormalizeValue(value.AsSpan());
 
             public static string NormalizeValue(ReadOnlySpan<char> value) => value.Trim().ToString();
@@ -190,9 +201,11 @@ public sealed class TypeNameTests
     [InlineData(
         """
         [ValueObject<int>(Arithmetic = true, ValueSet = ValueSetKind.Closed, ImplicitConversionToValue = true, ExplicitConversionFromValue = true)]
-        [KnownValue("Kept", 1)]
         public readonly partial struct Code : IValueObjectFormatter<int>
         {
+            [KnownValue]
+            public static readonly Code Kept = Known(1);
+
             public static bool TryFormatValue(
                 in int value,
                 Span<char> destination,
@@ -226,11 +239,12 @@ public sealed class TypeNameTests
             ["Value", "get_Value", "Schema", "Create", "Parse", "TryParse", "op_Equality", "ValueJsonConverter"],
             "the reading must keep finding them");
 
-        // The free name comes last, so that an identifier type claims its prefix once and no other type claims it.
-        var source = string.Concat(members.Select(name => declaration.Replace(
-            "partial struct Code",
-            $"partial struct {name}",
-            StringComparison.Ordinal) + "\n")) + declaration;
+        // The free name comes last, so that an identifier type claims its prefix once and no other type claims it. A type
+        // that is not generated has no Known to create a known value through, so the others declare none.
+        var source = string.Concat(members.Select(name => Regex.Replace(
+            declaration.Replace("partial struct Code", $"partial struct {name}", StringComparison.Ordinal),
+            @"\s*\[KnownValue\]\s*public static readonly Code Kept = Known\([^)]*\);",
+            string.Empty) + "\n")) + declaration;
         var run = GeneratorHarness.Run(source);
 
         run.Diagnostics.Should().OnlyContain(diagnostic => diagnostic.Id == "VO0019");

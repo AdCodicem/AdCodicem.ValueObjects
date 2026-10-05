@@ -2,8 +2,6 @@ using System.Globalization;
 
 namespace AdCodicem.ValueObjects.UnitTests.Domain;
 
-#pragma warning disable VO0028 // The deprecated Minimum and Maximum options are what these types hold the generated code to.
-
 // Value objects whose formatting hook writes, by default, something other than the bare value, so that a test can
 // tell which member answered: the hook, or the underlying value.
 
@@ -11,9 +9,13 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain;
 /// A floor of a building, which declares both formatting hooks with different outputs: the string formatter is
 /// the one that answers.
 /// </summary>
-[ValueObject<int>(Minimum = "-5", Maximum = "200")]
-public readonly partial struct Floor : IValueObjectFormatter<int>, IValueObjectStringFormatter<int>
+[ValueObject<int>]
+public readonly partial struct Floor : IValueObjectFormatter<int>, IValueObjectStringFormatter<int>, IValueObjectMinimum<int>, IValueObjectMaximum<int>
 {
+    public static int Minimum => -5;
+
+    public static int Maximum => 200;
+
     public static string FormatValue(in int value, ReadOnlySpan<char> format, IFormatProvider? provider)
         => format.IsEmpty
             ? "floor " + value.ToString(provider)
@@ -30,9 +32,11 @@ public readonly partial struct Floor : IValueObjectFormatter<int>, IValueObjectS
 }
 
 /// <summary>A temperature in degrees Celsius, printed with its unit unless a numeric format is asked for.</summary>
-[ValueObject<int>(Minimum = "-273")]
-public readonly partial struct Celsius : IValueObjectFormatter<int>
+[ValueObject<int>]
+public readonly partial struct Celsius : IValueObjectFormatter<int>, IValueObjectMinimum<int>
 {
+    public static int Minimum => -273;
+
     public static bool TryFormatValue(
         in int value,
         Span<char> destination,

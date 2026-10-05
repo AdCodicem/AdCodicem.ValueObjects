@@ -32,6 +32,11 @@ internal static class ValueObjectEmitter
     /// </summary>
     private const string PooledFormatMethod = "FormatWithPooledBuffer";
 
+    /// <summary>
+    /// The factory the author's known values are initialized through, which applies every rule but membership.
+    /// </summary>
+    private const string KnownFactory = "Known";
+
     /// <summary>The members written on every value object, by name.</summary>
     private static readonly string[] CommonMembers =
     [
@@ -75,17 +80,19 @@ internal static class ValueObjectEmitter
     /// The members written here, the metadata names of the operators and of the property getters written here: the
     /// compiler reserves each of them in the type. The names follow the options because the members do:
     /// <c>Zero</c> is only taken on a value object with arithmetic. They are listed beside the emitters so that a
-    /// member added here is added to them in the same change; <c>KnownValueNameTests</c> and <c>TypeNameTests</c>
-    /// read the generated code to check it.
+    /// member added here is added to them in the same change; <c>TypeNameTests</c> reads the generated code to check
+    /// it.
     /// </remarks>
     /// <param name="underlying">The underlying type, whose sign decides whether a negation is written.</param>
     /// <param name="arithmetic">Whether the arithmetic members are written.</param>
     /// <param name="implicitConversion">Whether the implicit conversion to the underlying value is written.</param>
     /// <param name="explicitConversion">Whether the explicit conversion from the underlying value is written.</param>
     /// <param name="closedValueSet">Whether the membership lookup of a closed value set is written.</param>
-    /// <param name="pattern">Whether the compiled pattern is written.</param>
     /// <param name="normalizesFromSpan">Whether the factory normalizing from a span is written.</param>
-    /// <param name="entityId">Whether the members of an entity identifier are written.</param>
+    /// <param name="entityId">
+    /// Whether the members of an entity identifier are written, in place of <c>Known</c>, which an identifier, having no
+    /// known value, does without.
+    /// </param>
     /// <param name="formatsThroughSpanHook">
     /// Whether <c>ToString</c> goes through a span formatting hook, which writes its retry loop as a member of its own.
     /// </param>
@@ -96,7 +103,6 @@ internal static class ValueObjectEmitter
         bool implicitConversion,
         bool explicitConversion,
         bool closedValueSet,
-        bool pattern,
         bool normalizesFromSpan,
         bool entityId,
         bool formatsThroughSpanHook)
@@ -132,11 +138,6 @@ internal static class ValueObjectEmitter
             names.Add("KnownUnderlyingValues");
         }
 
-        if (pattern)
-        {
-            names.Add("DeclaredPattern");
-        }
-
         if (normalizesFromSpan)
         {
             names.Add("TryCreateFrom");
@@ -146,55 +147,15 @@ internal static class ValueObjectEmitter
         {
             names.UnionWith(EntityIdMembers);
         }
+        else
+        {
+            names.Add(KnownFactory);
+        }
 
         if (formatsThroughSpanHook)
         {
             names.Add(PooledFormatMethod);
         }
-
-        return names;
-    }
-
-    /// <summary>
-    /// Gets the names a known value cannot take on a value object because the generated code uses them.
-    /// </summary>
-    /// <remarks>
-    /// A known value becomes a static property of the value object, so a name already taken there would not
-    /// compile, in a file the author cannot edit: the names of the members written here, and the name of the type,
-    /// which its constructor takes. The statements written here discard nothing, so <c>_</c> is free.
-    /// </remarks>
-    /// <param name="typeName">Name of the value object, which its constructor takes.</param>
-    /// <param name="underlying">The underlying type, whose sign decides whether a negation is written.</param>
-    /// <param name="arithmetic">Whether the arithmetic members are written.</param>
-    /// <param name="implicitConversion">Whether the implicit conversion to the underlying value is written.</param>
-    /// <param name="explicitConversion">Whether the explicit conversion from the underlying value is written.</param>
-    /// <param name="closedValueSet">Whether the membership lookup of a closed value set is written.</param>
-    /// <param name="pattern">Whether the compiled pattern is written.</param>
-    /// <param name="normalizesFromSpan">Whether the factory normalizing from a span is written.</param>
-    /// <param name="formatsThroughSpanHook">Whether <c>ToString</c> goes through a span formatting hook.</param>
-    /// <returns>The names taken, compared ordinally.</returns>
-    public static HashSet<string> TakenNames(
-        string typeName,
-        UnderlyingType underlying,
-        bool arithmetic,
-        bool implicitConversion,
-        bool explicitConversion,
-        bool closedValueSet,
-        bool pattern,
-        bool normalizesFromSpan,
-        bool formatsThroughSpanHook)
-    {
-        var names = MemberNames(
-            underlying,
-            arithmetic,
-            implicitConversion,
-            explicitConversion,
-            closedValueSet,
-            pattern,
-            normalizesFromSpan,
-            entityId: false,
-            formatsThroughSpanHook);
-        names.Add(typeName);
 
         return names;
     }
@@ -249,9 +210,8 @@ internal static class ValueObjectEmitter
         EmitState(writer, model, value, self);
         EmitEntityIdMembers(writer, model, self);
 
-        // The pattern comes before the named constants, which go through it while they are created, and the named
-        // constants come before the schema so that the schema can publish their normalized values.
-        EmitDeclaredPattern(writer, model);
+        // The generated part initializes after the author's, whose known values it reads: the membership lookup comes
+        // before the schema, whose example may be created through Create, which consults it.
         EmitKnownValues(writer, model, value, self);
         EmitSchema(writer, model, underlying);
         EmitNormalize(writer, model, value);
@@ -380,11 +340,7 @@ internal static class ValueObjectEmitter
     {
         var properties = new List<string>();
 
-        if (model.Pattern is not null)
-        {
-            properties.Add($"Pattern = {LiteralFactory.Quote(model.Pattern)},");
-        }
-        else if (model.HasPatternHook)
+        if (model.HasPatternHook)
         {
             // The text the [GeneratedRegex] attribute holds, so that describing the type builds no regular expression.
             // Without the attribute, the regular expression is asked for it, which builds it as the type initializes.
@@ -415,18 +371,10 @@ internal static class ValueObjectEmitter
         {
             properties.Add($"Minimum = {Abstractions}.ValueObjectBound.Text({BoundOf(model, "Minimum")}),");
         }
-        else if (model.MinimumText is not null)
-        {
-            properties.Add($"Minimum = {LiteralFactory.Quote(model.MinimumText)},");
-        }
 
         if (model.HasMaximumHook)
         {
             properties.Add($"Maximum = {Abstractions}.ValueObjectBound.Text({BoundOf(model, "Maximum")}),");
-        }
-        else if (model.MaximumText is not null)
-        {
-            properties.Add($"Maximum = {LiteralFactory.Quote(model.MaximumText)},");
         }
 
         var format = model.SchemaFormat ?? underlying.SchemaFormat;
@@ -440,9 +388,11 @@ internal static class ValueObjectEmitter
             properties.Add($"Description = {LiteralFactory.Quote(model.Description)},");
         }
 
-        if (model.Example is not null)
+        if (model.HasExampleHook)
         {
-            properties.Add($"Example = {LiteralFactory.Quote(model.Example)},");
+            // The underlying value of an instance, read once through the bridge, which reaches an explicit implementation
+            // too: the schemas write it as the type writes it in JSON.
+            properties.Add($"Example = {Abstractions}.ValueObjectExample.Of<{model.QualifiedName}>().Value,");
         }
         else if (model.IsEntityId)
         {
@@ -458,7 +408,7 @@ internal static class ValueObjectEmitter
 
         if (!model.KnownValues.IsEmpty)
         {
-            var boxed = string.Join(", ", model.KnownValues.Select(known => $"{known.Name}.Value"));
+            var boxed = string.Join(", ", model.KnownValues.Select(known => $"{known.Identifier}.Value"));
             properties.Add($"KnownValues = global::System.Collections.Immutable.ImmutableArray.Create<object>({boxed}),");
 
             // The same values in the same order, with the name and the description each was declared with, which the
@@ -467,7 +417,7 @@ internal static class ValueObjectEmitter
             var details = string.Join(
                 ", ",
                 model.KnownValues.Select(known =>
-                    $"new global::AdCodicem.ValueObjects.Metadata.KnownValueInfo({known.Name}.Value, {LiteralFactory.Quote(known.Name)}, "
+                    $"new global::AdCodicem.ValueObjects.Metadata.KnownValueInfo({known.Identifier}.Value, {LiteralFactory.Quote(known.Name)}, "
                     + $"{(string.IsNullOrWhiteSpace(known.Description) ? "null" : LiteralFactory.Quote(known.Description!))})"));
             properties.Add($"KnownValueDetails = global::System.Collections.Immutable.ImmutableArray.Create({details}),");
         }
@@ -486,6 +436,19 @@ internal static class ValueObjectEmitter
         writer.Line();
     }
 
+    /// <summary>
+    /// Emits the members read from the author's known values: the membership lookup of a closed set, and
+    /// <c>KnownValues</c>.
+    /// </summary>
+    /// <remarks>
+    /// Static fields initialize in declaration order, and the generated part of a type after the author's, so the known
+    /// values, created through <c>Known</c>, which consults no lookup, are assigned when these read them. Until then the
+    /// lookup is null, which <c>Validate</c> reports rather than reading it.
+    /// </remarks>
+    /// <param name="writer">Sink.</param>
+    /// <param name="model">Value object being emitted.</param>
+    /// <param name="value">Fully qualified name of the underlying type.</param>
+    /// <param name="self">Fully qualified name of the value object.</param>
     private static void EmitKnownValues(CodeWriter writer, ValueObjectModel model, string value, string self)
     {
         if (model.KnownValues.IsEmpty)
@@ -493,32 +456,21 @@ internal static class ValueObjectEmitter
             return;
         }
 
-        // Order matters: static initializers run in declaration order, and the membership lookup has to exist
-        // before the named constants below go through Create, which consults it.
         if (model.IsClosedValueSet)
         {
-            var normalized = string.Join(", ", model.KnownValues.Select(known => $"Normalize({known.Literal})"));
+            var values = string.Join(", ", model.KnownValues.Select(known => $"{known.Identifier}.Value"));
             var comparer = model.Underlying.IsString
                 ? $", global::System.StringComparer.{model.ComparisonName}"
                 : string.Empty;
 
-            writer.Line("/// <summary>Frozen membership lookup backing the closed value set.</summary>");
+            writer.Line("/// <summary>Frozen membership lookup backing the closed value set, built from the known values.</summary>");
             writer.Line($"private static readonly global::System.Collections.Frozen.FrozenSet<{value}> KnownUnderlyingValues =");
-            writer.Line($"    global::System.Collections.Frozen.FrozenSet.ToFrozenSet(new {value}[] {{ {normalized} }}{comparer});");
+            writer.Line($"    global::System.Collections.Frozen.FrozenSet.ToFrozenSet(new {value}[] {{ {values} }}{comparer});");
             writer.Line();
         }
 
-        foreach (var known in model.KnownValues)
-        {
-            // Create, not the raw constructor: a declared value that violates the type's own rules must fail
-            // loudly on first use rather than exist as an unreachable constant.
-            writer.Line($"/// <summary>{Xml(known.Description ?? known.Name)}</summary>");
-            writer.Line($"public static {self} {known.Name} {{ get; }} = Create({known.Literal});");
-            writer.Line();
-        }
-
-        var names = string.Join(", ", model.KnownValues.Select(known => known.Name));
-        writer.Line("/// <summary>Every value declared through <c>[KnownValue]</c>, in declaration order.</summary>");
+        var names = string.Join(", ", model.KnownValues.Select(known => known.Identifier));
+        writer.Line("/// <summary>Every member marked <c>[KnownValue]</c>, in declaration order.</summary>");
         writer.Line($"public static global::System.Collections.Immutable.ImmutableArray<{self}> KnownValues {{ get; }} =");
         writer.Line($"    global::System.Collections.Immutable.ImmutableArray.Create({names});");
         writer.Line();
@@ -554,38 +506,29 @@ internal static class ValueObjectEmitter
         writer.Line();
     }
 
-    /// <summary>
-    /// Emits the compiled form of the <c>Pattern</c> option.
-    /// </summary>
-    /// <remarks>
-    /// Written before the named constants: static initializers run in declaration order, and each constant goes
-    /// through <c>Create</c>, and so through this field. Written after them, it was still null while they were
-    /// created, and the type initializer threw inside the module initializer, before any code of the assembly ran.
-    /// </remarks>
-    /// <param name="writer">Sink.</param>
-    /// <param name="model">Value object being emitted.</param>
-    private static void EmitDeclaredPattern(CodeWriter writer, ValueObjectModel model)
-    {
-        if (model.Pattern is null)
-        {
-            return;
-        }
-
-        // A generator cannot feed [GeneratedRegex], which only sees hand-written code, so the pattern is compiled
-        // once into a static field instead. A timeout keeps a pathological pattern from hanging a request thread.
-        writer.Line("/// <summary>The declared pattern, compiled once for the lifetime of the process.</summary>");
-        writer.Line("private static readonly global::System.Text.RegularExpressions.Regex DeclaredPattern = new(");
-        writer.Line($"    {LiteralFactory.Quote(model.Pattern)},");
-        writer.Line("    global::System.Text.RegularExpressions.RegexOptions.Compiled | global::System.Text.RegularExpressions.RegexOptions.CultureInvariant,");
-        writer.Line("    global::System.TimeSpan.FromSeconds(1));");
-        writer.Line();
-    }
-
     private static void EmitValidate(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value)
     {
         writer.Line("/// <inheritdoc />");
         writer.Open($"public static {ValidationResult} Validate(in {value} value)");
+        EmitRules(writer, model, underlying, value, membership: true);
+        writer.Close();
+        writer.Line();
+    }
 
+    /// <summary>
+    /// Emits the statements that check a normalized <c>value</c> against the rules of the type, in their order, each
+    /// returning the rejection of the first rule broken.
+    /// </summary>
+    /// <param name="writer">Sink.</param>
+    /// <param name="model">Value object being emitted.</param>
+    /// <param name="underlying">Its underlying type.</param>
+    /// <param name="value">Fully qualified name of the underlying type.</param>
+    /// <param name="membership">
+    /// Whether membership of a closed set is checked, which <c>Known</c> leaves out: a known value is a member by
+    /// declaration, and the lookup does not exist yet while the known values are created.
+    /// </param>
+    private static void EmitRules(CodeWriter writer, ValueObjectModel model, UnderlyingType underlying, string value, bool membership)
+    {
         if (model.IsEntityId)
         {
             // An absent value reads as absent, not as a length violation, the same way it does for every other
@@ -607,9 +550,6 @@ internal static class ValueObjectEmitter
             writer.Line(model.HasValidateHook
                 ? "return ValidateValue(in value);"
                 : $"return {ValidationResult}.Success;");
-
-            writer.Close();
-            writer.Line();
             return;
         }
 
@@ -645,14 +585,10 @@ internal static class ValueObjectEmitter
             }
         }
 
-        // The hook takes the option's place, with the same code and message, so moving from one to the other changes
-        // nothing a caller can observe.
-        if (model.Pattern is not null || model.HasPatternHook)
+        if (model.HasPatternHook)
         {
             // Through a type parameter, which reaches the pattern however the type implements it, explicitly included.
-            writer.Open(model.HasPatternHook
-                ? $"if (!{Abstractions}.ValueObjectPattern.Of<{model.QualifiedName}>().IsMatch(value))"
-                : "if (!DeclaredPattern.IsMatch(value))");
+            writer.Open($"if (!{Abstractions}.ValueObjectPattern.Of<{model.QualifiedName}>().IsMatch(value))");
             writer.Line($"return {ValidationResult}.InvalidFormat(\"The value does not match the expected format.\");");
             writer.Close();
             writer.Line();
@@ -672,13 +608,6 @@ internal static class ValueObjectEmitter
             writer.Close();
             writer.Line();
         }
-        else if (underlying.SupportsBounds && model.MinimumLiteral is not null)
-        {
-            writer.Open(floating ? $"if (!(value >= {model.MinimumLiteral}))" : $"if (value < {model.MinimumLiteral})");
-            writer.Line($"return {ValidationResult}.OutOfRange({LiteralFactory.Quote($"The value must be greater than or equal to {model.MinimumText}.")});");
-            writer.Close();
-            writer.Line();
-        }
 
         if (underlying.SupportsBounds && model.HasMaximumHook)
         {
@@ -688,17 +617,18 @@ internal static class ValueObjectEmitter
             writer.Close();
             writer.Line();
         }
-        else if (underlying.SupportsBounds && model.MaximumLiteral is not null)
-        {
-            writer.Open(floating ? $"if (!(value <= {model.MaximumLiteral}))" : $"if (value > {model.MaximumLiteral})");
-            writer.Line($"return {ValidationResult}.OutOfRange({LiteralFactory.Quote($"The value must be less than or equal to {model.MaximumText}.")});");
-            writer.Close();
-            writer.Line();
-        }
 
-        if (model.IsClosedValueSet)
+        if (membership && model.IsClosedValueSet)
         {
-            writer.Open("if (!KnownUnderlyingValues.Contains(value))");
+            // The lookup is read from the known values once the author's part of the type has created them. A static
+            // member of the type created through Create before then would be checked against nothing, so it is refused
+            // with the reason, which the type initializer carries out.
+            var message = $"'{model.TypeName}' was validated while its type initializes, before the lookup of its known "
+                + "values exists: a static member of the type cannot be created through Create, Parse or a conversion. "
+                + "Declare it as a [KnownValue] member initialized through Known, or create it outside the type's static "
+                + "initializers.";
+            writer.Line($"global::System.Collections.Frozen.FrozenSet<{value}> known = KnownUnderlyingValues ?? throw new global::System.InvalidOperationException({LiteralFactory.Quote(message)});");
+            writer.Open("if (!known.Contains(value))");
             writer.Line($"return {ValidationResult}.Failure({ErrorCodes}.NotAKnownValue, \"The value is not one of the accepted values.\");");
             writer.Close();
             writer.Line();
@@ -707,9 +637,6 @@ internal static class ValueObjectEmitter
         writer.Line(model.HasValidateHook
             ? "return ValidateValue(in value);"
             : $"return {ValidationResult}.Success;");
-
-        writer.Close();
-        writer.Line();
     }
 
     private static void EmitFactories(CodeWriter writer, ValueObjectModel model, string value, string self)
@@ -750,6 +677,8 @@ internal static class ValueObjectEmitter
         writer.Line($"public static {self} CreateUnchecked({value} value) => new(value, default({UncheckedTag}));");
         writer.Line();
 
+        EmitKnownFactory(writer, model, value, self);
+
         if (model.NormalizesFromSpan)
         {
             // Normalizing straight from the span means the normalized string is the only one allocated, where
@@ -770,6 +699,54 @@ internal static class ValueObjectEmitter
             writer.Close();
             writer.Line();
         }
+    }
+
+    /// <summary>
+    /// Emits <c>Known</c>, the factory the author's known values are initialized through.
+    /// </summary>
+    /// <remarks>
+    /// It is <c>Create</c> without membership, which a known value satisfies by declaration and which a closed set
+    /// cannot check yet: its lookup is built from the known values, after them. A value the other rules refuse throws as
+    /// <c>Create</c> would, from the type initializer. An entity identifier has no known value, and no such factory.
+    /// </remarks>
+    /// <param name="writer">Sink.</param>
+    /// <param name="model">Value object being emitted.</param>
+    /// <param name="value">Fully qualified name of the underlying type.</param>
+    /// <param name="self">Fully qualified name of the value object.</param>
+    private static void EmitKnownFactory(CodeWriter writer, ValueObjectModel model, string value, string self)
+    {
+        if (model.IsEntityId)
+        {
+            return;
+        }
+
+        writer.Line("/// <summary>");
+        writer.Line("/// Creates a known value: normalizes it and applies every rule of the type but membership. Only the initializer of");
+        writer.Line("/// a member marked <c>[KnownValue]</c> calls it.");
+        writer.Line("/// </summary>");
+        writer.Line("/// <param name=\"value\">The value.</param>");
+        writer.Line("/// <returns>The known value.</returns>");
+        writer.Open($"private static {self} {KnownFactory}({value} value)");
+        writer.Line($"{value} normalized = Normalize(value);");
+        writer.Line(model.IsClosedValueSet
+            ? $"{ValidationResult} validation = ValidateDeclared(in normalized);"
+            : $"{ValidationResult} validation = Validate(in normalized);");
+        writer.Open("if (!validation.IsValid)");
+        writer.Line($"validation.ThrowIfInvalid(typeof({self}), {AttemptedValue(model, "value")});");
+        writer.Close();
+        writer.Line();
+        writer.Line($"return new {self}(normalized, default({UncheckedTag}));");
+
+        if (model.IsClosedValueSet)
+        {
+            writer.Line();
+            writer.Open($"static {ValidationResult} ValidateDeclared(in {value} value)");
+            EmitRules(writer, model, model.Underlying, value, membership: false);
+            writer.Close();
+        }
+
+        writer.Close();
+        writer.Line();
     }
 
     /// <summary>
@@ -1336,51 +1313,5 @@ internal static class ValueObjectEmitter
         writer.Line("return Create(total);");
         writer.Close();
         writer.Line();
-    }
-
-    /// <summary>
-    /// Writes author text into a one-line XML documentation comment.
-    /// </summary>
-    /// <remarks>
-    /// A line break would end the comment and leave the rest of the text as code, so every character C# ends a
-    /// line at is folded into a space, a CR LF pair into one. So are the other characters XML cannot hold, which a
-    /// project generating its documentation file would report as malformed: the other control characters,
-    /// U+FFFE, U+FFFF, and half of a surrogate pair. A whole pair stands for one character and is kept.
-    /// </remarks>
-    /// <param name="text">Text written by the author.</param>
-    /// <returns>The text, escaped and on one line.</returns>
-    internal static string Xml(string text)
-    {
-        var builder = new StringBuilder(text.Length);
-        for (var i = 0; i < text.Length; i++)
-        {
-            var character = text[i];
-            switch (character)
-            {
-                case '&':
-                    builder.Append("&amp;");
-                    break;
-                case '<':
-                    builder.Append("&lt;");
-                    break;
-                case '>':
-                    builder.Append("&gt;");
-                    break;
-                case '\r' when i + 1 < text.Length && text[i + 1] == '\n':
-                    // The line feed that follows becomes the space.
-                    break;
-                case '\u0085' or '\u2028' or '\u2029' or '\uFFFE' or '\uFFFF':
-                    builder.Append(' ');
-                    break;
-                case >= '\uD800' and <= '\uDBFF' when i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]):
-                    builder.Append(character).Append(text[++i]);
-                    break;
-                default:
-                    builder.Append((character < ' ' && character != '\t') || char.IsSurrogate(character) ? ' ' : character);
-                    break;
-            }
-        }
-
-        return builder.ToString();
     }
 }

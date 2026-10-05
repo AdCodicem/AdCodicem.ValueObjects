@@ -2,17 +2,16 @@ using System.Text.RegularExpressions;
 
 namespace AdCodicem.ValueObjects.UnitTests.Domain;
 
-#pragma warning disable VO0028 // The deprecated Minimum and Maximum options are what these types hold the generated code to.
-
 /// <summary>
 /// An email address, normalized to lower case.
 /// </summary>
 [ValueObject<string>(
     MaxLength = 254,
-    SchemaFormat = "email",
-    Example = "ada@example.com")]
-public readonly partial struct EmailAddress : IValueObjectNormalizer<string>, IValueObjectPatternValidator
+    SchemaFormat = "email")]
+public readonly partial struct EmailAddress : IValueObjectNormalizer<string>, IValueObjectPatternValidator, IValueObjectExample<EmailAddress>
 {
+    public static EmailAddress Example => Create("ada@example.com");
+
     /// <summary>Gets the shape of an address: something, an at sign, and a domain with a dot in it.</summary>
     [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     public static partial Regex Pattern { get; }
@@ -31,22 +30,31 @@ public readonly partial struct EmailAddress : IValueObjectNormalizer<string>, IV
 /// It keeps the deprecated Pattern option, whose compiled field is what the named constants once reached before it
 /// was assigned, until the option is removed.
 /// </remarks>
-#pragma warning disable VO0021 // The deprecated option is what this type holds the generated code to.
-[ValueObject<string>(Pattern = "^[A-Z]{3}$")]
-#pragma warning restore VO0021
-[KnownValue("Euro", "EUR")]
-[KnownValue("UsDollar", "USD")]
-public readonly partial struct CurrencyCode : IValueObjectNormalizer<string>
+[ValueObject<string>]
+public readonly partial struct CurrencyCode : IValueObjectNormalizer<string>, IValueObjectPatternValidator
 {
+    [KnownValue]
+    public static readonly CurrencyCode Euro = Known("EUR");
+
+    [KnownValue]
+    public static readonly CurrencyCode UsDollar = Known("USD");
+
+    [GeneratedRegex("^[A-Z]{3}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+
     public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
 }
 
 /// <summary>
 /// A monetary amount in the ambient currency, never negative.
 /// </summary>
-[ValueObject<decimal>(Arithmetic = true, Minimum = "0", Example = "1250.00")]
-public readonly partial struct Amount : IValueObjectNormalizer<decimal>
+[ValueObject<decimal>(Arithmetic = true)]
+public readonly partial struct Amount : IValueObjectNormalizer<decimal>, IValueObjectMinimum<decimal>, IValueObjectExample<Amount>
 {
+    public static decimal Minimum => 0m;
+
+    public static Amount Example => Create(1250.00m);
+
     /// <summary>
     /// Rounds to the cent, the only precision a monetary amount is allowed to carry, and pins the scale so that
     /// every amount reads and serializes with two decimals. Adding a zero of scale two is what pins it: decimal
@@ -58,9 +66,13 @@ public readonly partial struct Amount : IValueObjectNormalizer<decimal>
 /// <summary>
 /// A share of a whole, between 0 and 100.
 /// </summary>
-[ValueObject<decimal>(Arithmetic = true, Minimum = "0", Maximum = "100", SchemaFormat = "percentage")]
-public readonly partial struct Percentage
+[ValueObject<decimal>(Arithmetic = true, SchemaFormat = "percentage")]
+public readonly partial struct Percentage : IValueObjectMinimum<decimal>, IValueObjectMaximum<decimal>
 {
+    public static decimal Minimum => 0m;
+
+    public static decimal Maximum => 100m;
+
     /// <summary>Applies this percentage to an amount.</summary>
     /// <param name="amount">Amount to take a share of.</param>
     /// <returns>The share of <paramref name="amount"/>.</returns>
@@ -87,20 +99,30 @@ public readonly partial struct CustomerId : IValueObjectValidator<Guid>
 /// An ISO 3166-1 alpha-2 country code restricted to the countries the application serves.
 /// </summary>
 [ValueObject<string>(ValueSet = ValueSetKind.Closed, MinLength = 2, MaxLength = 2)]
-[KnownValue("France", "FR", Description = "France")]
-[KnownValue("Belgium", "BE", Description = "Belgium")]
-[KnownValue("Luxembourg", "LU", Description = "Luxembourg")]
 public readonly partial struct CountryCode : IValueObjectNormalizer<string>
 {
+    [KnownValue(Description = "France")]
+    public static readonly CountryCode France = Known("FR");
+
+    [KnownValue(Description = "Belgium")]
+    public static readonly CountryCode Belgium = Known("BE");
+
+    [KnownValue(Description = "Luxembourg")]
+    public static readonly CountryCode Luxembourg = Known("LU");
+
     public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
 }
 
 /// <summary>
 /// A date of birth, which must be in the past and within a plausible human lifespan.
 /// </summary>
-[ValueObject<DateOnly>(Minimum = "1900-01-01", Maximum = "2100-12-31")]
-public readonly partial struct BirthDate
+[ValueObject<DateOnly>]
+public readonly partial struct BirthDate : IValueObjectMinimum<DateOnly>, IValueObjectMaximum<DateOnly>
 {
+    public static DateOnly Minimum => new DateOnly(1900, 1, 1);
+
+    public static DateOnly Maximum => new DateOnly(2100, 12, 31);
+
     /// <summary>Computes the age reached at a given date.</summary>
     /// <param name="on">Date to compute the age at.</param>
     /// <returns>The number of full years elapsed.</returns>
@@ -114,8 +136,13 @@ public readonly partial struct BirthDate
 /// <summary>
 /// A quantity of items, tested to cover the narrow integer promotion path.
 /// </summary>
-[ValueObject<short>(Arithmetic = true, Minimum = "0", Maximum = "1000")]
-public readonly partial struct Quantity;
+[ValueObject<short>(Arithmetic = true)]
+public readonly partial struct Quantity : IValueObjectMinimum<short>, IValueObjectMaximum<short>
+{
+    public static short Minimum => 0;
+
+    public static short Maximum => 1000;
+}
 
 /// <summary>
 /// A value object nested in another type, to cover the containing-type emission path.

@@ -9,15 +9,17 @@ namespace AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 /// </summary>
 /// <remarks>
 /// It carries the consumer's own generic attribute ahead of its annotation, and <see cref="LightColor"/> after it,
-/// so a reader of the annotation looks past one whatever order the attributes are read back in. It keeps the deprecated
-/// Minimum and Maximum options, which its schema restates and nothing reads at run time, until they are removed.
+/// so a reader of the annotation looks past one whatever order the attributes are read back in. Its bounds are hooks,
+/// which its schema restates.
 /// </remarks>
 [Reviewed<FloorNumber>]
-#pragma warning disable VO0028 // The deprecated options are what this fixture holds its schema to.
-[ValueObject<int>(Minimum = "1", Maximum = "10")]
-#pragma warning restore VO0028
-public readonly struct FloorNumber : IValueObject<FloorNumber, int>
+[ValueObject<int>]
+public readonly struct FloorNumber : IValueObject<FloorNumber, int>, IValueObjectMinimum<int>, IValueObjectMaximum<int>
 {
+    public static int Minimum => 1;
+
+    public static int Maximum => 10;
+
     private readonly int _value;
 
     private FloorNumber(int value) => _value = value;

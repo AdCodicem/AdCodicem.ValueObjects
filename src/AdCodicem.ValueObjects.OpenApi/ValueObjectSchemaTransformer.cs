@@ -345,9 +345,9 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
             schema.Description = string.IsNullOrEmpty(schema.Description) ? bounds : $"{schema.Description}\n\n{bounds}";
         }
 
-        if (!string.IsNullOrEmpty(declared.Example))
+        if (declared.Example is { } example && example is not "")
         {
-            schema.Examples = [ValueObjectSchemaKeywords.WriteText(declared.Example, descriptor, options, asKey)];
+            schema.Examples = [ValueObjectSchemaKeywords.WriteExample(example, descriptor, options, asKey)];
         }
 
         if (declared.IsClosedValueSet && !declared.KnownValues.IsDefaultOrEmpty)

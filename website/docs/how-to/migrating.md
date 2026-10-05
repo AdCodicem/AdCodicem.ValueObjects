@@ -141,11 +141,18 @@ templates.
 - **Smart enums and unions stay where they are.** Only single-value value objects have an equivalent here; a
   closed set of codes can become a value object with [known values](../tutorials/known-values.md).
 
-## From the `Pattern` option of an earlier version
+## From the options written as text of an earlier version
 
-The `Pattern` option of `[ValueObject<T>]` is deprecated, and any minor version may remove it before 1.0.0. It
-builds its `Regex` at run time, which native AOT interprets, and the compiler reports each use as `VO0021`: a
-warning, so an error under `TreatWarningsAsErrors`. Move each pattern to `IValueObjectPatternValidator`, one type at a time.
+Earlier versions read four rules off `[ValueObject<T>]` and `[KnownValue]` as text, which the generator parsed under
+a grammar of its own and the compiler knew nothing of. Each is now declared as a value the compiler checks, and the
+old form is a compile error that names its replacement, which any minor version may remove before 1.0.0. Move one type
+at a time; the contract kit, pointed at the type with the values its tests already use, checks that it accepts and
+rejects what it did.
+
+### The pattern
+
+`Pattern = "..."` built its `Regex` at run time, which native AOT interprets, and is `VO0021`. Move each pattern to
+`IValueObjectPatternValidator`:
 
 ```csharp skip
 [ValueObject<string>(MinLength = 15, MaxLength = 34, Pattern = "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$")]
@@ -167,6 +174,37 @@ public readonly partial struct Iban : IValueObjectPatternValidator
 
 Copy the expression as it was, and keep `RegexOptions.CultureInvariant` and the timeout of 1000 milliseconds:
 they are what the option used, so the type accepts and rejects the same values, with the same
-`value_object.invalid_format` and the same message, and its OpenAPI `pattern` is unchanged. The contract kit,
-pointed at the type with the values its tests already use, checks it. Leaving `Pattern = "..."` beside the hook
-is `VO0022`; [Diagnostics](../reference/diagnostics.md#moving-off-pattern) has the rest.
+`value_object.invalid_format` and the same message, and its OpenAPI `pattern` is unchanged.
+[Diagnostics](../reference/diagnostics.md#moving-off-pattern) has the rest.
+
+### The bounds
+
+`Minimum = "..."` and `Maximum = "..."` are `VO0028`. Declare each bound as a static property of the underlying type
+through `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>`, `public static DateOnly Minimum => new(1900, 1, 1);`.
+[Moving off `Minimum` and `Maximum`](../reference/diagnostics.md#moving-off-minimum-and-maximum) shows the change, and
+the one difference a client may see: the message quotes a real, a time or a date and time in its round-trip form.
+
+### The known values
+
+`[KnownValue("France", "FR")]` on the type is `VO0034`. Each known value becomes a member of the type, initialized
+through the generated `Known`:
+
+```csharp
+[ValueObject<string>(ValueSet = ValueSetKind.Closed, MinLength = 2, MaxLength = 2)]
+public readonly partial struct CountryCode
+{
+    [KnownValue(Description = "Mainland France and its overseas departments.")]
+    public static readonly CountryCode France = Known("FR");
+}
+```
+
+The code fix of `VO0034` writes it, with the value as an expression of the underlying type, for every attribute of
+a document, a project or the solution at once. The names, the order, the descriptions and the schema are unchanged;
+the known values were generated properties and are now your fields, which only a reflection over the type's
+properties notices. [Known values](../tutorials/known-values.md) has the rules a member follows.
+
+### The example
+
+`Example = "..."` on `[ValueObject<T>]` or `[EntityId]` is `VO0035`. Implement `IValueObjectExample<TSelf>`, whose
+example the type's own rules create, `public static Iban Example => Create("FR7630006000011234567890189");`. The
+OpenAPI document publishes the same value.

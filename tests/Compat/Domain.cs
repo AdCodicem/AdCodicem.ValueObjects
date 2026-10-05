@@ -104,11 +104,17 @@ public readonly partial struct Ratio : IValueObjectMinimum<double>
 
 /// <summary>A closed set of reference data.</summary>
 [ValueObject<string>(ValueSet = ValueSetKind.Closed, MinLength = 2, MaxLength = 2)]
-[KnownValue("France", "FR")]
-[KnownValue("Belgium", "BE")]
-[KnownValue("Luxembourg", "LU")]
 public readonly partial struct CountryCode : IValueObjectNormalizer<string>
 {
+    [KnownValue]
+    public static readonly CountryCode France = Known("FR");
+
+    [KnownValue]
+    public static readonly CountryCode Belgium = Known("BE");
+
+    [KnownValue]
+    public static readonly CountryCode Luxembourg = Known("LU");
+
     /// <inheritdoc />
     public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
 }

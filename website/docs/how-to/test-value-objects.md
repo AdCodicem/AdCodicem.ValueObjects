@@ -48,9 +48,10 @@ Each is an xUnit test in your suite:
 - the type is discoverable at run time;
 - every accepted value respects the declared length limits. A type that did not register itself has no declared
   limits to read, and this check reports itself skipped;
-- the declared `Example` is a value the type accepts, parsed in the invariant culture as the OpenAPI document reads
-  it, and reported with the code and the message of the rule it breaks. A type that declares none reports the check
-  skipped;
+- the example the schema publishes, which `IValueObjectExample<TSelf>` declares, is a value the type accepts, created
+  again from its underlying value and reported with the code and the message of the rule it breaks; a schema written
+  by hand that holds the example as text has it parsed in the invariant culture, as the OpenAPI document reads it. A
+  type that declares none reports the check skipped;
 - every known value is a value of the underlying type that the type accepts. A type that declares none reports the
   check skipped;
 - the details of the known values, `Schema.KnownValueDetails`, list them one for one, in the same order, each under

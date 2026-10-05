@@ -27,20 +27,10 @@ internal static class DiagnosticDescriptors
         "Unsupported underlying type",
         "'{0}' cannot be the underlying type of a value object. Supported types are {1}.");
 
-    public static readonly DiagnosticDescriptor InvalidBound = Error(
-        "VO0004",
-        "Invalid bound",
-        "'{0}' is not a valid {1} for underlying type '{2}': {3}");
-
     public static readonly DiagnosticDescriptor ClosedSetWithoutValues = Error(
         "VO0005",
         "Closed value set declares no value",
         "'{0}' declares a closed value set but no known value, so no value could ever be valid");
-
-    public static readonly DiagnosticDescriptor InvalidKnownValueName = Error(
-        "VO0006",
-        "Invalid known value name",
-        "'{0}' is not usable as the name of a generated member on '{1}': {2}");
 
     public static readonly DiagnosticDescriptor ArithmeticRequiresNumeric = Error(
         "VO0007",
@@ -56,16 +46,6 @@ internal static class DiagnosticDescriptors
         "VO0009",
         "Containing type must be partial",
         "'{0}' is nested in '{1}', which is not declared partial");
-
-    public static readonly DiagnosticDescriptor InvalidKnownValueLiteral = Error(
-        "VO0013",
-        "Invalid known value",
-        "The known value '{0}' declared on '{1}' cannot be converted to the underlying type '{2}': {3}");
-
-    public static readonly DiagnosticDescriptor InvalidPattern = Error(
-        "VO0014",
-        "Invalid pattern",
-        "The pattern declared on '{0}' is not a valid regular expression: {1}");
 
     public static readonly DiagnosticDescriptor InvalidEntityIdPrefix = Error(
         "VO0015",
@@ -102,13 +82,9 @@ internal static class DiagnosticDescriptors
         "'{0}' sets {1} to {2}, which '{3}' does not define. Use one of its named members.");
 
     // VO0021 is the identifier of the [Obsolete] on ValueObjectAttribute<T>.Pattern, which the compiler reports
-    // itself: no descriptor here declares it.
-    public static readonly DiagnosticDescriptor PatternDeclaredTwice = Error(
-        "VO0022",
-        "Pattern declared twice",
-        "'{0}' sets the Pattern option and implements IValueObjectPatternValidator. The hook replaces the option: "
-        + "remove Pattern = \"...\" and keep the [GeneratedRegex] property.");
-
+    // itself: no descriptor here declares it. VO0004, VO0006, VO0013, VO0014, VO0022 and VO0029 reported text options
+    // that can no longer compile (docs/adr/0011-declare-known-values-and-examples-as-typed-members.md), and are not
+    // reused.
     public static readonly DiagnosticDescriptor PatternRequiresString = Error(
         "VO0023",
         "A pattern only applies to strings",
@@ -137,18 +113,12 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor EntityIdTakesNoKnownValue = Error(
         "VO0027",
         "Entity identifier takes no known value",
-        "'{0}' declares the known value '{1}', but [EntityId] generates no known values and ignores [KnownValue]. "
-        + "Declare a well-known identifier as a static property of the type instead, "
-        + "public static {0} {1} {{ get; }} = Parse(\"...\", null), for instance.");
+        "'{0}' marks '{1}' as a known value, but [EntityId] has no known values and reads no [KnownValue]. Remove the "
+        + "attribute: the member stays a well-known identifier of the type, "
+        + "public static readonly {0} {1} = Parse(\"...\", null), for instance.");
 
     // VO0028 is the identifier of the [Obsolete] on ValueObjectAttribute<T>.Minimum and Maximum, which the compiler
     // reports itself: no descriptor here declares it.
-    public static readonly DiagnosticDescriptor BoundDeclaredTwice = Error(
-        "VO0029",
-        "Bound declared twice",
-        "'{0}' sets the {1} option and implements {2}. The hook replaces the option: remove {1} = \"...\" and keep "
-        + "the {1} property.");
-
     public static readonly DiagnosticDescriptor BoundHookCannotBound = Error(
         "VO0030",
         "A bound hook that cannot bound the type",
@@ -158,6 +128,21 @@ internal static class DiagnosticDescriptors
         "VO0031",
         "Declared value refused by its own type",
         "The {0} '{1}' declared on '{2}' is refused by its own type ({3}): {4}");
+
+    // VO0034 and VO0035 are the identifiers of the [Obsolete] on the constructor of [KnownValue] that takes a name and a
+    // value, and on the Example options of [ValueObject<T>] and [EntityId], which the compiler reports itself.
+    public static readonly DiagnosticDescriptor InvalidKnownValueMember = Error(
+        "VO0036",
+        "Invalid known value member",
+        "'{0}' is marked [KnownValue] on '{1}', but {2}. Declare it as public static readonly {1} {0} = Known(...);, or "
+        + "as a static property with a getter alone initialized the same way.");
+
+    // VO0037 is reported by KnownValueAnalyzer, which sees the generated Known factory the generator cannot.
+    public static readonly DiagnosticDescriptor ExampleHookOverAnotherType = Error(
+        "VO0038",
+        "An example hook over another type",
+        "'{0}' implements {1}, but an example is an instance of the value object itself: implement "
+        + "IValueObjectExample<{0}> instead");
 
     private static DiagnosticDescriptor Error(string id, string title, string messageFormat)
         => new(id, title, messageFormat, Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
