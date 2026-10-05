@@ -4,7 +4,9 @@ Date: 2026-10-02
 
 ## Status
 
-Accepted
+Accepted. Amended by [ADR-0011](0011-declare-known-values-and-examples-as-typed-members.md): the `Minimum` and
+`Maximum` options are compile errors from 0.3.0 on, the first stable release to carry the hooks, rather than
+warnings until the next major version.
 
 ## Context
 
