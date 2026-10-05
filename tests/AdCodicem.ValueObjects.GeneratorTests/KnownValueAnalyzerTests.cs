@@ -41,6 +41,7 @@ public sealed class KnownValueAnalyzerTests
     [InlineData("[KnownValue] public static readonly Country Either = Flag ? Known(\"FR\") : Known(\"BE\");", "Known(\"FR\")")]
     [InlineData("public static readonly System.Func<string, Country> Factory = Known;", "Known")]
     [InlineData("public static Country Lazy => Known(\"FR\");", "Known(\"FR\")")]
+    [InlineData("public static class Aliases { [KnownValue] public static readonly Country Gaul = Known(\"FR\"); }", "Known(\"FR\")")]
     public async Task Known_anywhere_else_is_reported(string member, string reported)
     {
         var diagnostics = await Analyze($$"""
@@ -91,6 +92,71 @@ public sealed class KnownValueAnalyzerTests
             """);
 
         diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The analyzer ships inside the package, but nothing stops a project from loading it without the contracts: a
+    /// method named <c>Known</c> is then just a method, since no type can be a value object.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_says_nothing_where_the_library_is_not_referenced()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<KnownValueAnalyzer>(
+            """
+            namespace Plain;
+
+            public readonly struct Code
+            {
+                public static Code Known(string value) => new();
+
+                public static readonly Code First = Known("first");
+            }
+            """,
+            GeneratorHarness.FrameworkReferences);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// An attribute of the name of <c>[ValueObject&lt;T&gt;]</c>, declared where no <c>[KnownValue]</c> is, makes no
+    /// known value declarable either: the analyzer leaves the type alone.
+    /// </summary>
+    [Fact]
+    public async Task The_analyzer_says_nothing_where_no_known_value_can_be_declared()
+    {
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<KnownValueAnalyzer>(
+            """
+            namespace AdCodicem.ValueObjects.Annotations
+            {
+                public sealed class ValueObjectAttribute<T> : System.Attribute;
+            }
+
+            namespace Plain
+            {
+                [AdCodicem.ValueObjects.Annotations.ValueObject<string>]
+                public readonly struct Code
+                {
+                    public static Code Known(string value) => new();
+
+                    public static readonly Code First = Known("first");
+                }
+            }
+            """,
+            GeneratorHarness.FrameworkReferences);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The compiler never hands an analyzer a null context, so the guard is only reached by a direct call, which it
+    /// tolerates.
+    /// </summary>
+    [Fact]
+    public void The_analyzer_initialized_without_a_context_does_nothing()
+    {
+        var analyzer = new KnownValueAnalyzer();
+
+        analyzer.Invoking(target => target.Initialize(null!)).Should().NotThrow();
     }
 
     private static Task<System.Collections.Immutable.ImmutableArray<Diagnostic>> Analyze(string source)

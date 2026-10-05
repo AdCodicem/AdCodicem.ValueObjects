@@ -50,6 +50,33 @@ public sealed class KnownValueMemberTests
     }
 
     /// <summary>
+    /// An indexer is a property, which <c>[KnownValue]</c> may mark, and never a static one: it is refused as such, where
+    /// it is declared.
+    /// </summary>
+    [Fact]
+    public void An_indexer_marked_as_a_known_value_is_refused_as_not_static()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<string>(ValueSet = ValueSetKind.Closed)]
+            public readonly partial struct Country
+            {
+                [KnownValue]
+                public Country this[int index] => Known("FR");
+
+                [KnownValue]
+                public static readonly Country Belgium = Known("BE");
+            }
+            """);
+
+        var diagnostic = run.Diagnostics.Should().ContainSingle().Subject;
+        diagnostic.Id.Should().Be("VO0036");
+        run.Locate(diagnostic).Text.Should().Be("this");
+        diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().StartWith(
+            "'this[]' is marked [KnownValue] on 'Country', but it is not static.");
+        run.SingleValueObject.Should().Contain("ImmutableArray.Create(Belgium);");
+    }
+
+    /// <summary>
     /// A closed set whose every known value was refused is not reported as declaring none besides, and generates as an
     /// open one, so that its uses still compile.
     /// </summary>

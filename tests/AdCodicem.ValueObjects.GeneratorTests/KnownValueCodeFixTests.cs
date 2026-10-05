@@ -94,6 +94,7 @@ public sealed class KnownValueCodeFixTests
     [InlineData("DateTime", "2024-01-31T08:30:00.0000001", "new global::System.DateTime(638422866000000001L, global::System.DateTimeKind.Unspecified)")]
     [InlineData("DateTimeOffset", "2024-01-31T08:30Z", "new global::System.DateTimeOffset(2024, 1, 31, 8, 30, 0, global::System.TimeSpan.Zero)")]
     [InlineData("DateTimeOffset", "2024-01-31T08:30:01.5-09:30", "new global::System.DateTimeOffset(2024, 1, 31, 8, 30, 1, 500, new global::System.TimeSpan(-9, -30, 0))")]
+    [InlineData("DateTimeOffset", "2024-01-31T08:30:00.0000001Z", "new global::System.DateTimeOffset(638422866000000001L, new global::System.TimeSpan(0L))")]
     [InlineData("TimeSpan", "00:30:00", "new global::System.TimeSpan(0, 30, 0)")]
     [InlineData("TimeSpan", "-1.12:00:00.001", "-new global::System.TimeSpan(1, 12, 0, 0, 1)")]
     [InlineData("TimeSpan", "00:00:00.0000001", "new global::System.TimeSpan(1L)")]
@@ -198,6 +199,89 @@ public sealed class KnownValueCodeFixTests
             .And.Contain("public static readonly Alarm Noon = Known(new TimeOnly(12, 0));");
         (await TitlesAsync(Source, "[KnownValue(\"Late\"")).Should().BeEmpty();
         (await TitlesAsync(Source, "[KnownValue(\"Noon\"")).Should().Equal("Declare the known values of 'Alarm' as members");
+    }
+
+    /// <summary>
+    /// What the generator never read as a known value is no more rewritten: an attribute whose name is no identifier a
+    /// member can take, on a value object or not.
+    /// </summary>
+    [Theory]
+    [InlineData("[ValueObject<string>]", "[KnownValue(null, \"FR\")]")]
+    [InlineData("[ValueObject<string>]", "[KnownValue(\"France Nord\", \"FR\")]")]
+    [InlineData("[ValueObject<object>]", "[KnownValue(\"France\", \"FR\")]")]
+    [InlineData("[Serializable]", "[KnownValue(\"France\", \"FR\")]")]
+    public async Task No_fix_is_offered_for_a_known_value_the_generator_never_read(string annotation, string attribute)
+    {
+        var source = $"""
+            {annotation}
+            {attribute}
+            public readonly partial struct Region;
+            """;
+
+        (await TitlesAsync(source, attribute)).Should().BeEmpty();
+        (await FixAsync(source)).Should().Contain(attribute);
+    }
+
+    /// <summary>
+    /// The compiler reports the constructor that takes a name and a value wherever it is used, on a member as well as on
+    /// the type, and in an expression: only an attribute on a type declares a known value the fix can move.
+    /// </summary>
+    [Fact]
+    public async Task No_fix_is_offered_where_the_constructor_declares_no_known_value_of_the_type()
+    {
+        const string Source = """
+            [ValueObject<string>]
+            public readonly partial struct Region
+            {
+                [KnownValue("Brittany", "BZH")]
+                public static readonly Region Brittany = Known("BZH");
+
+                public static object Annotation() => new KnownValueAttribute("Alsace", "ALS");
+            }
+            """;
+
+        (await TitlesAsync(Source, "[KnownValue(\"Brittany\"")).Should().BeEmpty();
+        (await GeneratorHarness.OfferedFixTitlesAsync(
+                new KnownValueMemberCodeFixProvider(),
+                Source,
+                Obsolete,
+                text => new TextSpan(text.IndexOf("new KnownValueAttribute", StringComparison.Ordinal), "new KnownValueAttribute".Length)))
+            .Should().BeEmpty();
+        (await FixAsync(Source)).Should().Contain("[KnownValue(\"Brittany\", \"BZH\")]");
+    }
+
+    /// <summary>
+    /// Another attribute taking two arguments stays on the type, as any other attribute does.
+    /// </summary>
+    [Fact]
+    public async Task Another_attribute_of_two_arguments_stays_on_the_type()
+    {
+        var fixedSource = await FixAsync("""
+            [ValueObject<int>]
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0001")]
+            [KnownValue("One", 1)]
+            public readonly partial struct Counter;
+            """);
+
+        fixedSource.Should().Contain("""
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0001")]
+            public readonly partial struct Counter
+            """);
+        fixedSource.Should().Contain("public static readonly Counter One = Known(1);");
+        ShouldCompile(fixedSource);
+    }
+
+    [Fact]
+    public async Task A_known_value_of_a_generic_value_object_is_a_member_of_its_own_type()
+    {
+        var fixedSource = await FixAsync("""
+            [ValueObject<string>]
+            [KnownValue("First", "1")]
+            public readonly partial struct Code<TOwner>;
+            """);
+
+        fixedSource.Should().Contain("public static readonly Code<TOwner> First = Known(\"1\");");
+        ShouldCompile(fixedSource);
     }
 
     [Fact]

@@ -40,6 +40,23 @@ public sealed class ExampleHookTests
         run.SingleValueObject.Should().NotContain("Example =");
     }
 
+    /// <summary>
+    /// While the hook is being written, the type lists the interface before it declares the member: the compiler reports
+    /// the member missing, and the generator generates the type as it will be once it is there.
+    /// </summary>
+    [Fact]
+    public void A_hook_whose_member_is_not_written_yet_is_left_to_the_compiler()
+    {
+        var run = GeneratorHarness.Run("""
+            [ValueObject<int>]
+            public readonly partial struct Percentage : IValueObjectExample<Percentage>;
+            """);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Select(diagnostic => diagnostic.Id).Should().Equal("CS0535");
+        run.SingleValueObject.Should().Contain("ValueObjectExample.Of<global::Test.Percentage>().Value,");
+    }
+
     [Fact]
     public void A_known_value_returned_as_the_example_is_published_as_any_other()
     {
