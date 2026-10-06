@@ -208,9 +208,12 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   an interface it implements over `string`, whose method takes that constraint. It visits the identifier's
   `ValueObjectDescriptor`, from `TryResolve`, since `EntityIdDescriptor` has no `Accept`: an identifier registered with
   `EntityIdRegistry` alone, by hand, is described by reflection there, and stays in `ValueObjectRegistry` from then on.
-  Neither EF Core convention runs under native AOT, where EF Core reads the compiled model and builds none. A
-  hand-written value object declares `Schema` too, and the registry describes it from that alone: an annotation on it
-  is read by nothing at run time.
+  Neither EF Core convention runs under native AOT, where EF Core reads the compiled model and builds none, and the MVC
+  binder provider runs in no native binary, MVC not being AOT-compatible, so the `native AOT` job guards the JSON
+  factory's visitor alone. `RuntimeClosingTests` guards every package: it reads their IL and fails on a
+  `MakeGenericType`, a `MakeGenericMethod` or an `Activator.CreateInstance` outside the list it holds, the registry's
+  reflection fallback and the EF Core converter of a `TSelf?` property. A hand-written value object declares `Schema`
+  too, and the registry describes it from that alone: an annotation on it is read by nothing at run time.
 
 The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them. That is
 exactly how the descriptor once flattened every rejection into a generic `not_parsable`, discarding the rule
