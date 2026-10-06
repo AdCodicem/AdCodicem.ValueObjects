@@ -3,13 +3,23 @@ using Microsoft.AspNetCore.Http;
 namespace AdCodicem.ValueObjects.AspNetCore;
 
 /// <summary>
-/// Carries the violated rule from the model binder to the problem details response.
+/// Names the problem details member that maps each rejected member to the code of the rule it broke, and carries the
+/// violated rule from the MVC model binder to the problem details response.
 /// </summary>
 /// <remarks>
+/// <para>
 /// <c>ModelStateDictionary</c> only holds a message, and a message is not something a client can branch on. The
-/// stable error code rides alongside it on the request, and
-/// <see cref="ValueObjectMvcExtensions.AddValueObjectProblemDetails"/> folds it into the RFC 9457 body as an
-/// <c>errorCodes</c> extension.
+/// stable error code rides alongside it on the request, and <c>AddValueObjectProblemDetails()</c> on
+/// <c>ApiBehaviorOptions</c>, in <c>AdCodicem.ValueObjects.AspNetCore</c>, folds it into the RFC 9457 body as an
+/// <c>errorCodes</c> extension. A minimal API endpoint covered by
+/// <see cref="Http.ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails"/> writes the same
+/// member, so both answer a refused value object with one shape.
+/// </para>
+/// <para>
+/// The type lives in <c>AdCodicem.ValueObjects.AspNetCore.Http</c>, which every application on ASP.NET Core can
+/// reference, native AOT included, and keeps its namespace: <c>AdCodicem.ValueObjects.AspNetCore</c> references that
+/// package and forwards the type, so code compiled against either assembly finds it.
+/// </para>
 /// </remarks>
 public static class ValueObjectProblemDetails
 {

@@ -20,12 +20,13 @@
     <Error Text="The compatibility island targets the next .NET major, which SDK $(NETCoreSdkVersion) cannot. Run it from tests/Compat, whose global.json selects the SDK it needs." />
   </Target>
 
-  <!-- All twelve, as a consumer installs them: the generator arrives with AdCodicem.ValueObjects and runs in this
+  <!-- All thirteen, as a consumer installs them: the generator arrives with AdCodicem.ValueObjects and runs in this
        SDK's compiler, the integrations resolve their dependency floors against the next major. -->
   <ItemGroup Condition="'$(CompatSdkMissing)' != 'true'">
     <PackageReference Include="AdCodicem.ValueObjects" />
     <PackageReference Include="AdCodicem.ValueObjects.Abstractions" />
     <PackageReference Include="AdCodicem.ValueObjects.AspNetCore" />
+    <PackageReference Include="AdCodicem.ValueObjects.AspNetCore.Http" />
     <PackageReference Include="AdCodicem.ValueObjects.Dapper" />
     <PackageReference Include="AdCodicem.ValueObjects.EntityFrameworkCore" />
     <PackageReference Include="AdCodicem.ValueObjects.FluentValidation" />

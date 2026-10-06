@@ -95,6 +95,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.Json` | Covers source-generated serializer contexts and hand-written value objects, and fills in the JSON Schema System.Text.Json exports. |
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, and a convention that maps a whole assembly. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
+| `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, native AOT included. |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
@@ -105,7 +106,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twelve are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirteen are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -118,6 +119,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.Json` | `net10.0` | .NET 10, source generation included | .NET 11, source generation included |
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.AspNetCore` | `net10.0` | ASP.NET Core 10 | ASP.NET Core 11 |
+| `AdCodicem.ValueObjects.AspNetCore.Http` | `net10.0` | ASP.NET Core 10, reflection-based binding, the Request Delegate Generator and native AOT | ASP.NET Core 11 |
 | `AdCodicem.ValueObjects.OpenApi` | `net10.0` | ASP.NET Core 10, with `Microsoft.OpenApi` 2 | ASP.NET Core 11, with `Microsoft.OpenApi` 3 |
 | `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
 | `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
@@ -180,7 +182,8 @@ converters refuse an uninitialized instance whose value its type rejects, and an
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
 their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
-the problem details of an MVC controller carry for a JSON body as for a query value.
+the problem details of an MVC controller carry for a JSON body as for a query value, and those of a minimal API for a
+route, query or header value.
 `Create` throws `ValueObjectException`, and is for the call sites that want it; a strict EF Core read goes through
 it, and fails the query. Validation is fail-fast: the first violated rule wins.
 
@@ -202,7 +205,8 @@ describe their parameters with, through `ValueObjectJsonSchema`.
 Vogen, StronglyTypedId and Thinktecture.Runtime.Extensions generate value objects too, and each is the better
 choice for some projects: an older target framework, a class or an arbitrary underlying type, smart enums and
 unions. What sets this one apart is that a rule declared on the type also reaches the EF Core column and the
-OpenAPI schema, and that a rejection carries a stable error code all the way to an MVC controller's response.
+OpenAPI schema, and that a rejection carries a stable error code all the way to the response of an MVC controller or
+a minimal API.
 [The comparison](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/explanation/comparison) has the
 full table, including where the others are stronger, and
 [the migration guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/migrating) maps each
@@ -227,7 +231,25 @@ protected override void ConfigureConventions(ModelConfigurationBuilder builder)
 
 Minimal APIs need no package to bind: a generated value object implements `IParsable<T>`, which is exactly what
 minimal API parameter binding looks for. A value it rejects is answered there with a bare 400, naming neither the
-parameter nor the rule: the problem details carrying the rule's code are MVC's. Where the Request Delegate Generator
+parameter nor the rule, unless `AdCodicem.ValueObjects.AspNetCore.Http` covers the endpoints, which then answer with
+the problem details MVC writes, carrying the rule's code:
+
+```csharp skip
+builder.Services.AddProblemDetails();
+builder.Services.AddValueObjectHttpProblemDetails(); // with ThrowOnBadRequest on, as in Development
+
+var app = builder.Build();
+app.UseExceptionHandler();
+
+var api = app.MapGroup("/api").WithValueObjectProblemDetails();
+```
+
+A route, query or header value is answered so in every environment; a JSON body only where
+`RouteHandlerOptions.ThrowOnBadRequest` is on, since the framework otherwise answers a refused body before anything
+can learn why
+([the ASP.NET Core guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/aspnet-core#problem-details-for-minimal-apis)).
+A native binary needs `AddProblemDetails()`, whose serializer context writes the problem details without reflection:
+without it, the covered endpoints fail to build, naming the call. Where the Request Delegate Generator
 writes that binding, in a project that sets `PublishAot` or `PublishTrimmed`, a value object declared in the project
 that maps the endpoints also lists its contract on its declaration,
 `public readonly partial struct Sku : IValueObject<Sku, string>;`, because that generator does not see what this one

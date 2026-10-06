@@ -42,6 +42,7 @@ public sealed class RuntimeClosingTests
             ]
         },
         { "AdCodicem.ValueObjects.AspNetCore", [] },
+        { "AdCodicem.ValueObjects.AspNetCore.Http", [] },
         { "AdCodicem.ValueObjects.Dapper", [] },
 
         // The converter of a TSelf? property, which C# names only under a constraint a visitor cannot prove, closed over

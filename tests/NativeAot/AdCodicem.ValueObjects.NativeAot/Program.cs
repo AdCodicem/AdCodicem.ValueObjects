@@ -3,6 +3,7 @@
 // files: a difference is a behaviour native AOT changes, and fails the job. The process also fails on its own when a
 // scenario throws where nothing should, so that a script both runs get wrong does not pass by agreeing with itself.
 using System.Net;
+using AdCodicem.ValueObjects.AspNetCore.Http;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.NativeAot;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -43,14 +44,47 @@ try
 {
     Scenarios.Run(report);
 
-    var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
-    using var client = new HttpClient { BaseAddress = new Uri(address) };
+    using var client = ClientOf(app);
     await Requests.RunAsync(report, client);
 }
 finally
 {
     await app.StopAsync();
 }
+
+// The problem details carrying the rule code, in an application of their own in each setting of ThrowOnBadRequest: off,
+// as in Production, where the endpoint filter answers; on, as in Development, where the exception handler does. Each
+// answer is checked against the status and the codes the script expects, since both runs explaining nothing would agree.
+foreach (var (mode, throwOnBadRequest) in new[] { ("production", false), ("development", true) })
+{
+    var problemsBuilder = WebApplication.CreateSlimBuilder();
+    problemsBuilder.WebHost.UseKestrel(options => options.Listen(IPAddress.Loopback, 0));
+    problemsBuilder.Logging.ClearProviders();
+    problemsBuilder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonContext.Default));
+    problemsBuilder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = throwOnBadRequest);
+
+    // The trace identifier differs from one run to the other.
+    problemsBuilder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context => context.ProblemDetails.Extensions.Remove("traceId"));
+    problemsBuilder.Services.AddValueObjectHttpProblemDetails();
+
+    await using var problems = problemsBuilder.Build();
+    problems.UseExceptionHandler();
+    Problems.Map(problems);
+    await problems.StartAsync();
+    try
+    {
+        using var client = ClientOf(problems);
+        await Problems.RunAsync(report, client, mode);
+    }
+    finally
+    {
+        await problems.StopAsync();
+    }
+}
+
+// Without AddProblemDetails(), the HTTP JSON options of an application without reflection cannot write problem details,
+// and the convention fails the build of the endpoints rather than answer each refusal with a 500.
+await Problems.RunWithoutProblemDetailsAsync(report);
 
 await File.WriteAllLinesAsync(args[0], report.Lines);
 if (report.Unexpected.Count == 0)
@@ -65,3 +99,6 @@ foreach (var line in report.Unexpected)
 }
 
 return 1;
+
+static HttpClient ClientOf(WebApplication app)
+    => new() { BaseAddress = new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single()) };

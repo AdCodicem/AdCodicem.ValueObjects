@@ -1,4 +1,5 @@
 using AdCodicem.ValueObjects.AspNetCore;
+using AdCodicem.ValueObjects.AspNetCore.Http;
 using AdCodicem.ValueObjects.OpenApi;
 using AdCodicem.ValueObjects.Sample.Api.Contracts;
 using AdCodicem.ValueObjects.Sample.Api.Persistence;
@@ -13,6 +14,10 @@ builder.Services.AddControllers().AddValueObjects();
 
 // The stable error code of the violated rule is added to the automatic 400 response.
 builder.Services.Configure<ApiBehaviorOptions>(static options => options.AddValueObjectProblemDetails());
+
+// The same problem details for a minimal API, where the binder throws instead of answering, as it does in Development.
+builder.Services.AddProblemDetails();
+builder.Services.AddValueObjectHttpProblemDetails();
 
 // Value objects are documented as their underlying type, carrying the rules declared on the type.
 builder.Services.AddOpenApi(static options => options.AddValueObjects());
@@ -37,12 +42,13 @@ builder.Services.AddDbContext<BankingDbContext>((provider, options) =>
 
 var app = builder.Build();
 
+app.UseExceptionHandler();
 app.MapOpenApi();
 app.MapControllers();
 
 // A minimal API binds a value object through the IParsable<T> it implements. Iban comes from the domain project, so
 // the Request Delegate Generator, which native AOT turns on, sees that interface too: it does not see what a generator
-// adds to a type of the project it compiles.
+// adds to a type of the project it compiles. A refused IBAN is answered with the code of the rule it broke.
 app.MapGet("/accounts/{iban}", async (Iban iban, BankingDbContext database, CancellationToken cancellationToken) =>
 {
     var account = await database.Accounts.FirstOrDefaultAsync(entity => entity.Iban == iban, cancellationToken);
@@ -50,7 +56,7 @@ app.MapGet("/accounts/{iban}", async (Iban iban, BankingDbContext database, Canc
     return account is null
         ? Results.NotFound()
         : Results.Ok(new AccountResponse(account.Iban, account.Balance));
-});
+}).WithValueObjectProblemDetails();
 
 // Shows a validator deferring to the value object's own rules for a payload that carries raw text.
 app.MapPost("/accounts/import", (ImportAccountRequest request, IValidator<ImportAccountRequest> validator) =>

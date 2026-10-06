@@ -4,6 +4,9 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.UnitTests.Web;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 
 namespace AdCodicem.ValueObjects.UnitTests.GeneratedSurface;
 
@@ -58,6 +61,18 @@ public abstract class Sample
     public abstract void HandsItsTypeArgumentsToAVisitor();
 
     public abstract void DetailsEachKnownValueInItsSchema();
+
+    /// <summary>Maps a minimal API endpoint binding the value object from the query string, under its name.</summary>
+    /// <param name="routes">Where the endpoint is mapped.</param>
+    public abstract void MapMinimalApiEndpoint(IEndpointRouteBuilder routes);
+
+    /// <summary>
+    /// Sends the refused text to that endpoint, under <c>/samples</c>, and checks that the problem details carry the rule
+    /// that refused it.
+    /// </summary>
+    /// <param name="client">A client of the application that maps it.</param>
+    /// <returns>The check.</returns>
+    public abstract Task AnswersARefusedMinimalApiValueWithItsRuleAsync(HttpClient client);
 
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
@@ -431,6 +446,20 @@ public class Sample<TSelf, TValue> : Sample
             var known = member is FieldInfo field ? field.GetValue(null) : ((PropertyInfo)member).GetValue(null);
             ((TSelf)known!).Value.Should().Be(detail.Value);
         }
+    }
+
+    public override void MapMinimalApiEndpoint(IEndpointRouteBuilder routes)
+        => routes.MapGet($"/{this}", static (TSelf value) => value.ToString());
+
+    public override async Task AnswersARefusedMinimalApiValueWithItsRuleAsync(HttpClient client)
+    {
+        using var response = await client.GetAsync(
+            $"/samples/{this}?value={Uri.EscapeDataString(Refused)}", TestContext.Current.CancellationToken);
+        var problem = await MinimalApiProblemDetailsTests.ReadProblemAsync(response);
+
+        var (message, code) = MinimalApiProblemDetailsTests.Refusal<TSelf, TValue>(Refused);
+        problem.Messages.Should().ContainKey("value").WhoseValue.Should().Equal(message);
+        problem.Codes.Should().Equal(new Dictionary<string, string> { ["value"] = code });
     }
 
     public override void WritesNoJsonItsTypeRejects()

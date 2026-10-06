@@ -170,6 +170,20 @@ public abstract class ApiTests<TFixture>(TFixture database) : IClassFixture<TFix
             .Should().Be(ValueObjectErrorCodes.NotAKnownValue);
     }
 
+    /// <summary>
+    /// The sample runs in Development, where the binder throws for a refused value: the exception handler of the minimal
+    /// API package answers it with the problem details MVC writes.
+    /// </summary>
+    [Fact]
+    public async Task A_minimal_api_answers_a_refused_value_object_with_the_code_of_its_rule()
+    {
+        var response = await _client.GetAsync("/accounts/XX", TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        problem.GetProperty("errorCodes").GetProperty("iban").GetString().Should().Be(ValueObjectErrorCodes.TooShort);
+    }
+
     [Fact]
     public async Task A_minimal_api_binds_a_value_object_with_no_help_from_the_package()
     {

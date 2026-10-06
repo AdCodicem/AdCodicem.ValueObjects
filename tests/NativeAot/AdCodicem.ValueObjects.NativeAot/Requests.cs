@@ -52,7 +52,7 @@ internal static class Requests
         }
     }
 
-    private static async Task SendAsync(Report report, HttpClient client, HttpRequestMessage request, string subject)
+    public static async Task SendAsync(Report report, HttpClient client, HttpRequestMessage request, string subject)
     {
         using (request)
         {

@@ -2,7 +2,7 @@
 title: Use with ASP.NET Core
 sidebar_label: ASP.NET Core
 slug: /how-to/aspnet-core
-description: Bind value objects from routes, query strings, headers and bodies in MVC and minimal APIs, know what a rejection answers in each, and return RFC 9457 problem details carrying the violated rule, for a body as for a route or query value, from MVC controllers.
+description: Bind value objects from routes, query strings, headers and bodies in MVC and minimal APIs, know what a rejection answers in each, and return RFC 9457 problem details carrying the violated rule, from MVC controllers and from minimal APIs, native AOT included.
 ---
 
 # Use with ASP.NET Core
@@ -16,17 +16,17 @@ exactly what minimal API parameter binding looks for, and its `[JsonConverter]` 
 app.MapGet("/accounts/{iban}", (Iban iban) => /* … */);
 ```
 
-A value the value object rejects is answered with a 400 before the handler runs, and that 400 says nothing of why.
+A value the value object rejects is answered with a 400 before the handler runs, and without the package of
+[the problem details for minimal APIs](#problem-details-for-minimal-apis) that 400 says nothing of why.
 It names no parameter and carries no message and no code: its body is empty, or holds bare problem details, a title
 and a status, once `AddProblemDetails()` is registered, and `AddValidation()` adds nothing to it. In Development,
 minimal APIs throw a `BadHttpRequestException` instead (`RouteHandlerOptions.ThrowOnBadRequest`), which
 `UseExceptionHandler` answers with a 500. For a body, it wraps the exception the converter refused the value with,
 from which `ValueObjectErrors.TryGetCode` reads the code
 ([the code in an exception](../reference/errors.md#the-code-in-an-exception)); a route or query value is refused
-through `TryParse`, which throws nothing, and the exception then carries no code. The
-[problem details carrying the rule](#problem-details-carrying-the-rule) are MVC's, so a client of an application that
-also validates DataAnnotations meets two shapes of 400: a full validation problem for those, and the bare one for a
-rejected value object.
+through `TryParse`, which throws nothing, and the exception then carries no code. A client of an application that
+also validates DataAnnotations then meets two shapes of 400: a full validation problem for those, and the bare one for
+a rejected value object.
 
 Empty text is not MVC's rule either. Under the reflection-based binding, `?country=` for a `CountryCode?` is a 400,
 as it is for an `int?` or a `Guid?`, where [MVC](#mvc-controllers) binds it as absent.
@@ -69,7 +69,127 @@ Without it, the build fails with `CS0411` and `CS1031` in `GeneratedRouteBuilder
 writes. Listing the interface does not help there.
 
 The RDG also binds empty text as the reflection-based binding does not, for a value object as for an `int?` or a
-`Guid?`: `?sku=` binds `null` to a nullable parameter, where the reflection-based binding answers 400.
+`Guid?`: `?sku=` binds `null` to a nullable parameter, where the reflection-based binding answers 400. A parameter that
+cannot be `null`, or an element of an array, gets the default instance instead, which no rule has checked, and the
+handler runs ([default instances](../reference/default-instances.md)): declare it `T?` and check it. An empty header,
+by contrast, is taken for an absent one, and refused when the parameter is required.
+
+### Problem details for minimal APIs
+
+```bash
+dotnet add package AdCodicem.ValueObjects.AspNetCore.Http
+```
+
+```csharp skip
+builder.Services.AddProblemDetails();
+builder.Services.AddValueObjectHttpProblemDetails();
+
+var app = builder.Build();
+app.UseExceptionHandler();
+
+var api = app.MapGroup("/api").WithValueObjectProblemDetails();
+api.MapGet("/lines", (Quantity qty, CountryCode? country) => TypedResults.Ok(/* … */));
+```
+
+A value object an endpoint of the group cannot bind is answered with the validation problem MVC writes for it, with
+an `errorCodes` member mapping each rejected member to the code of the rule it broke, read from the same `TryParse`
+the binder ran:
+
+```json
+{
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": { "qty": ["The value must be less than or equal to 100."] },
+  "errorCodes": { "qty": "value_object.out_of_range" }
+}
+```
+
+The package is AOT-compatible, unlike the MVC one, and depends on nothing but the shared framework and the contracts.
+`WithValueObjectProblemDetails()` takes any endpoint convention builder: a route group, one endpoint, or
+`app.MapGroup("")` to cover every endpoint mapped on it. ASP.NET Core has no global endpoint filter, so the choice is
+made per group, and an endpoint covered twice, by its group and by itself, is covered once.
+
+It covers:
+
+- a route value, a query value and a header, under the name each binds from, which `[FromRoute]`, `[FromQuery]` and
+  `[FromHeader]` may set;
+- the members of an `[AsParameters]` record or class, under the names they bind from;
+- an array of value objects read from the query string, whose refused elements are listed under its name, each with
+  its message, and the code of the first, since `errorCodes` maps a member to one code, as MVC's does;
+- a required value object that is absent, reported with "A value is required." and `value_object.required`;
+- a JSON body, but only where `ThrowOnBadRequest` is on, as [the next section](#a-request-body-and-throwonbadrequest)
+  explains.
+
+It leaves the framework's answer in place for what no value object refused: a 400 caused by an `int` or a `Guid`
+parameter, or by a body the serializer cannot read at all, is answered as it is without the package, and a parameter
+that is not a value object is not listed beside one that is, since it has no rule code to report. A form field and an
+array read from headers are not covered. An endpoint whose handler takes no value object gets no filter at all, and an
+endpoint that binds one gets a filter that reads the status the binder left, and nothing else unless it is a 400.
+
+Under `AddValidation()`, the framework runs its validation filter before every other: a request that breaks a
+DataAnnotations rule as well as a value object is answered with that rule alone. Empty text follows the binder that
+ran. The reflection-based binding parses it: it refuses `?country=` for a `CountryCode?`, and the refusal is reported
+with the rule that made it. [The Request Delegate Generator](#the-request-delegate-generator) refuses no empty query
+text: it binds `null` to a nullable value object, and the default instance, unchecked, to one that cannot be `null`,
+an array element included, so nothing is reported. It takes an empty header for an absent one, which is reported with
+`value_object.required` when the parameter is required.
+
+#### A request body and ThrowOnBadRequest
+
+With `RouteHandlerOptions.ThrowOnBadRequest` off, the default outside Development, the framework answers a JSON body
+it cannot read before any endpoint filter runs, and keeps the exception it read the code from: a refused body keeps
+the bare 400. With it on, the default in Development, the binder throws a `BadHttpRequestException` instead, for a
+route or query value as for a body, before any filter runs, which `UseExceptionHandler()` would answer with a 500.
+`AddValueObjectHttpProblemDetails()` registers an `IExceptionHandler` that answers it with the same problem details,
+a body under its JSON path, the key MVC gives it, with the message of the converter:
+
+```json
+{
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": { "$.from": ["The value is not a valid Iban: The value must be at least 15 characters long."] },
+  "errorCodes": { "$.from": "value_object.too_short" }
+}
+```
+
+It reads the code with `ValueObjectErrors.TryGetCode`
+([the code in an exception](../reference/errors.md#the-code-in-an-exception)), and never copies the framework's
+message, which names the refused text. A dictionary keyed by a value object is the exception: a key it refuses is
+listed under the path of that key, which holds the key's text, as MVC lists it. The handler answers the endpoints
+`WithValueObjectProblemDetails()` covers and no other, and leaves any other exception to the next handler, a body the
+serializer cannot read at all among them, even beside a refused query value: it keeps the framework's answer, as it
+does with `ThrowOnBadRequest` off. It needs `AddProblemDetails()` and `app.UseExceptionHandler()` wherever
+`ThrowOnBadRequest` is on: in Development, that middleware answers every other exception too, in place of the
+developer exception page. Handlers run in the order they are registered, so register it before a handler of your own
+that answers every exception.
+
+To give a body its code in Production as well, turn `ThrowOnBadRequest` on there:
+
+```csharp skip
+builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = true);
+```
+
+The package leaves that setting alone: it changes how every binding failure of the application is raised, value
+object or not.
+
+#### Native AOT
+
+The filter closes the check of each value object over its type through the descriptor's visitor, at compile time, and
+runs in a native binary through the code the Request Delegate Generator writes. A value object nothing registered, one
+written by hand or a construction of a generic one, cannot be described there, and its refusal is left unexplained:
+register it at start-up as [the JSON guide](./json.md#systemtextjson-source-generated) asks.
+
+A native binary serializes without reflection, so register `AddProblemDetails()`, which chains the framework's
+serializer context for problem details into the HTTP JSON options: `errorCodes` is written as a JSON element that
+context knows, its keys run through the dictionary key policy of those options, as the keys of `errors` are. Without
+it, or a `JsonSerializerContext` of the application's listing `HttpValidationProblemDetails` and `JsonElement`, the
+endpoints `WithValueObjectProblemDetails()` covers fail to build, at the first request, with an
+`InvalidOperationException` naming `AddProblemDetails()`, rather than answer each refusal with a 500 where the
+framework answers a 400.
+
+`ValueObjectProblemDetails`, which names the member, ships with this package and keeps the namespace
+`AdCodicem.ValueObjects.AspNetCore`; the MVC package references it and forwards the type, so that code compiled
+against either finds it.
 
 ## MVC controllers
 
@@ -94,7 +214,7 @@ code `value_object.required`, rather than an instance no rule has checked.
 
 ## Problem details carrying the rule
 
-For MVC controllers, which the package serves:
+For MVC controllers, with `AdCodicem.ValueObjects.AspNetCore`:
 
 ```csharp skip
 builder.Services.Configure<ApiBehaviorOptions>(options => options.AddValueObjectProblemDetails());
@@ -155,13 +275,15 @@ builder.Services.PostConfigure<MvcOptions>(options =>
 });
 ```
 
-`ApiBehaviorOptions` is MVC's, and minimal APIs never read it, so their rejections keep the [bare 400](#minimal-apis).
+`ApiBehaviorOptions` is MVC's, and minimal APIs never read it: they get the same problem details from
+[a package of their own](#problem-details-for-minimal-apis).
 
 ## Codes for a payload you validate yourself
 
 For a payload that carries raw text — an inbound message from another system, say — validate it with
 [FluentValidation](./fluentvalidation.md) and put the codes under the same member, so every 400 of the API has
-the same shape:
+the same shape. `ValueObjectProblemDetails` comes with either ASP.NET Core package, in the namespace
+`AdCodicem.ValueObjects.AspNetCore`:
 
 ```csharp skip
 var result = validator.Validate(request);
@@ -177,6 +299,11 @@ return result.IsValid
                 .ToDictionary(member => member.Key, member => member.First().ErrorCode),
         });
 ```
+
+Under native AOT, the HTTP JSON options write that extension through a serializer context, and the framework's own
+for problem details knows no `Dictionary<string, string>`: list it in the application's `JsonSerializerContext`,
+chained into `ConfigureHttpJsonOptions`, or build the codes as a `JsonElement`, as the minimal API package does, or the
+response fails to serialize.
 
 The validator of the [FluentValidation](./fluentvalidation.md#text-that-must-become-a-value-object) guide stops each
 member at its first failure with `Cascade(CascadeMode.Stop)`, so a member is reported once: empty text fails

@@ -205,6 +205,10 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
 ```csharp skip
 builder.Services.AddControllers().AddValueObjects();                                  // AspNetCore
 builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetails()); // AspNetCore, MVC only
+builder.Services.AddProblemDetails();
+builder.Services.AddValueObjectHttpProblemDetails();                                   // AspNetCore.Http, minimal APIs
+app.UseExceptionHandler();                                                             // where ThrowOnBadRequest is on
+app.MapGroup("/api").WithValueObjectProblemDetails();                                  // AspNetCore.Http, minimal APIs
 builder.Services.AddOpenApi(o => o.AddValueObjects());                                 // OpenApi
 ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);                       // Dapper
 
@@ -213,7 +217,9 @@ protected override void ConfigureConventions(ModelConfigurationBuilder builder) 
 ```
 
 Minimal APIs need no package to bind: a generated value object implements `IParsable<T>`. They answer a rejected
-value with a bare 400, with no parameter, message or code: problem details carrying the code are MVC's. Where the
+value with a bare 400, with no parameter, message or code, unless `WithValueObjectProblemDetails()` covers the
+endpoints (`AdCodicem.ValueObjects.AspNetCore.Http`, AOT-compatible): a route, query or header value then gets MVC's
+problem details with its code, and a JSON body too where `RouteHandlerOptions.ThrowOnBadRequest` is on. Where the
 Request Delegate Generator runs (`PublishAot`, `PublishTrimmed`, `EnableRequestDelegateGenerator`), a value object
 declared in the project that maps the endpoints lists its contract on its declaration, `: IValueObject<Sku, string>`
 (`VO0033`).
