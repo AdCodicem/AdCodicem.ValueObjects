@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.NewtonsoftJson;
+using AdCodicem.ValueObjects.UnitTests.Logging;
 using AdCodicem.ValueObjects.UnitTests.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -82,6 +83,12 @@ public abstract class Sample
     /// </summary>
     /// <returns>The check.</returns>
     public abstract Task RecordsTheCodeOfARefusedNewtonsoftBodyAsync();
+
+    /// <summary>
+    /// Logs the value object through Serilog, with and without <c>@</c>, under the policy and under the option of
+    /// <c>Destructure.ValueObjects()</c>, and checks that it is logged as the value it carries.
+    /// </summary>
+    public abstract void LogsAsItsUnderlyingValueThroughSerilog();
 
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
@@ -485,6 +492,12 @@ public class Sample<TSelf, TValue> : Sample
 
         (await NewtonsoftJsonInputFormatterTests.ReadCodesAsync(typeof(NewtonsoftHolder<TSelf>), body))
             .Should().Equal(new Dictionary<string, string> { ["value"] = code! });
+    }
+
+    public override void LogsAsItsUnderlyingValueThroughSerilog()
+    {
+        SerilogParity.Check<TSelf, TValue>(Small);
+        SerilogParity.Check<TSelf, TValue>(Large);
     }
 
     public override void WritesNoJsonItsTypeRejects()

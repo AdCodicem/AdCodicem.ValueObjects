@@ -138,4 +138,5 @@ which registers itself in both, always has.
 Nothing needs registering by hand: every value object joins the registry through a generated module
 initializer. A module initializer only runs once its assembly is loaded, though, so code that looks a type up
 before anything else has touched that assembly can call
-`ValueObjectRegistry.EnsureAssemblyRegistered(assembly)` first. The EF Core and Dapper entry points already do.
+`ValueObjectRegistry.EnsureAssemblyRegistered(assembly)` first. The EF Core and Dapper entry points already do, and
+so does the Serilog one for each assembly named in its `Assemblies` option.

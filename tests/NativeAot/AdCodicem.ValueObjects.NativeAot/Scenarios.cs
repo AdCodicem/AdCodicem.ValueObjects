@@ -8,7 +8,7 @@ namespace AdCodicem.ValueObjects.NativeAot;
 
 /// <summary>
 /// The scenarios that run in process: the registry and every value object it describes, the identifiers,
-/// FluentValidation, and JSON through the source-generated context.
+/// FluentValidation, JSON through the source-generated context, and logging through Serilog.
 /// </summary>
 internal static class Scenarios
 {
@@ -28,6 +28,7 @@ internal static class Scenarios
         Validation.Run(report);
         Records(report);
         Unregistered(report);
+        Logging.Run(report, minted);
     }
 
     private static void Registry(Report report)

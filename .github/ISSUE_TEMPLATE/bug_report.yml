@@ -39,7 +39,7 @@ body:
       label: Reproduction
       description: >-
         The smallest code that shows it. If the problem only appears through an integration,
-        say which call path reaches it — model binding, EF Core read, Dapper, JSON, OpenAPI.
+        say which call path reaches it — model binding, EF Core read, Dapper, JSON, OpenAPI, a Serilog log event.
       render: csharp
     validations:
       required: true
@@ -58,6 +58,7 @@ body:
         - OpenAPI schema
         - FluentValidation
         - Entity identifiers (AdCodicem.ValueObjects.Identifiers)
+        - Logging (AdCodicem.ValueObjects.Serilog)
         - Somewhere else / not sure
     validations:
       required: true

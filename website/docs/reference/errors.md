@@ -154,6 +154,10 @@ without being validated again.
 The message names the type and the rule, never the value, and each exception carries the code of the rule, as
 [below](#the-code-in-an-exception).
 
+A log is no such write: nothing reads one back into a value object. The
+[Serilog integration](../how-to/logging.md#serilog) logs a default instance as the default of its underlying type,
+`0`, `""` or `false`, and throws nothing, whatever it logs.
+
 ## The code in an exception
 
 Every exception an integration throws for a value it refuses carries the code of the rule, in the exception type its

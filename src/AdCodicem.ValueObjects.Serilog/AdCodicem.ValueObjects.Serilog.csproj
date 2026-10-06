@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Serilog</RootNamespace>
+    <Description>Serilog support for AdCodicem value objects: a destructuring policy that logs a value object as its underlying value, in its native JSON type, and an option that does the same for a value object logged without @, so that a number stays a number for filters and queries. AOT-compatible.</Description>
+    <PackageTags>$(PackageTags);serilog;logging;structured-logging</PackageTags>
+
+    <!--
+      AOT-compatible, by the repository's default: the policy and the enricher read a value Serilog has already boxed
+      through the IValueObject marker, and close nothing.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog" />
+  </ItemGroup>
+
+</Project>

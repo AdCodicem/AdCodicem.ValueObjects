@@ -41,7 +41,7 @@ be corrected.
 | FluentValidation | yes | third-party package | no | no |
 | Dapper | yes | yes | through a template | no |
 | Other serializers and stores | Newtonsoft.Json | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
-| Structured logging | no | no | no | Serilog destructuring policy |
+| Structured logging | Serilog: `{@X}`, and `{X}` on request, as the underlying value | no | no | Serilog destructuring policy, `{@X}` only |
 | Contract test kit for your own types | yes | no | no | no |
 | Prefixed public identifiers (`acc_…`) | yes | no | no | no |
 | Beyond single values | no | no | no | complex value objects, smart enums, discriminated unions |
@@ -72,9 +72,12 @@ which would otherwise never run.
 converters have to be added to the options at run time instead, and forgetting them can fail quietly: in a test
 against Vogen 8.0.7, the value object was written as `{}` and read back uninitialized.
 
-**The integrations go further than serialization.** Problem details, FluentValidation rules that defer to the
-type, an OpenAPI schema carrying the constraints, a contract kit that tests your own types, and Stripe-style
-public identifiers are part of the library rather than left to you.
+**The integrations go further than serialization.** Problem details, FluentValidation rules that defer to the type, an
+OpenAPI schema carrying the constraints, a contract kit that tests your own types, and Stripe-style public identifiers
+are part of the library rather than left to you. So is [structured logging](../how-to/logging.md#serilog): with
+`AdCodicem.ValueObjects.Serilog`, Serilog logs a value object as the value it carries, with `@` and, on request, without
+it, where Thinktecture's destructuring policy, `Destructure.UsingThinktectureRuntimeExtensions()`, covers `{@Value}`
+alone and leaves `{Value}` to `ToString()`, a number then reaching the sink as a string.
 
 ## Where the others are stronger
 
@@ -91,10 +94,6 @@ and to `readonly struct`: [Design decisions](../design-decisions.md) explains wh
 MessagePack, MongoDB's BSON and XML; Thinktecture for MessagePack. Vogen's XML support comes with a caveat: its
 generated `ReadXml` assigns the value straight from the reader, with neither validation nor normalization, and the
 option makes the struct's fields writable.
-
-**Thinktecture has a logging integration.** Thinktecture.Runtime.Extensions.Serilog ships a destructuring policy,
-`Destructure.UsingThinktectureRuntimeExtensions()`, which applies to a value object logged as `{@Value}` and leaves
-`{Value}` to `ToString()`. This library has no logging integration.
 
 **Thinktecture goes beyond single values.** Complex value objects with several members, smart enums and
 discriminated unions are out of scope here.

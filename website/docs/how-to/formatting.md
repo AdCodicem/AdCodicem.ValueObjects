@@ -74,4 +74,6 @@ that string: `TryFormat`, and so interpolation, copies it into the destination. 
 string formatter wins, in `ToString` and in `TryFormat` alike, and the span formatter is never called.
 
 Formatting never affects the wire: JSON, a dictionary key included, the database and model binding always carry
-the underlying value.
+the underlying value. Nor does it reach a log through a message template: Serilog applies no format to a string, so
+`{Bban:M}` writes the whole value, with or without the Serilog package. Log `bban.ToString(Bban.Formats.Masked, null)`
+where only the last digits may appear ([Logging](./logging.md#what-a-value-object-writes)).

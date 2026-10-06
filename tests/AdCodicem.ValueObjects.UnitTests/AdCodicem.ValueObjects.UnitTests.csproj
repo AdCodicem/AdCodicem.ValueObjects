@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.NewtonsoftJson\AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.OpenApi\AdCodicem.ValueObjects.OpenApi.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Serilog\AdCodicem.ValueObjects.Serilog.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Swashbuckle\AdCodicem.ValueObjects.Swashbuckle.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
                       OutputItemType="Analyzer"
@@ -58,6 +59,12 @@
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <!-- DataClassificationAttribute, which a value object of Domain/ derives to be classified as personal data. -->
     <PackageReference Include="Microsoft.Extensions.Compliance.Abstractions" />
+    <!-- What an application writes Serilog events with: the compact JSON formatter, Serilog.Expressions' filters and
+         templates, and the Microsoft.Extensions.Logging provider, which LogInformation and [LoggerMessage] calls go
+         through. -->
+    <PackageReference Include="Serilog.Formatting.Compact" />
+    <PackageReference Include="Serilog.Expressions" />
+    <PackageReference Include="Serilog.Extensions.Logging" />
   </ItemGroup>
 
   <ItemGroup>
