@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.Loader;
 using AdCodicem.ValueObjects.Fixtures.WithoutGenerator;
 using AdCodicem.ValueObjects.Identifiers;
 using AdCodicem.ValueObjects.Metadata;
@@ -58,15 +59,16 @@ public class RegistryResolutionTests
     /// A module initializer runs once its assembly is first used, and code that only reflects over the types of an
     /// assembly - building a model, scanning for handlers - may not have used it yet. The registry then forces the
     /// registration the generator emitted rather than describing the type again by reflection. The fixture assembly
-    /// is loaded and searched by name, and nothing else in the suite uses it, so its initializer has not run when
-    /// the test starts.
+    /// is loaded into a context of its own and searched by name: other tests use the copy the suite references, whose
+    /// initializer has run once one of them did, but nothing has used this copy when the test starts.
     /// </summary>
     [Fact]
     public void A_value_object_whose_module_has_not_run_yet_is_registered_on_first_resolution()
     {
-        var assembly = Assembly.Load("AdCodicem.ValueObjects.Fixtures.Untouched");
+        var path = Path.Combine(AppContext.BaseDirectory, "AdCodicem.ValueObjects.Fixtures.Untouched.dll");
+        var assembly = new AssemblyLoadContext("A copy of the module nothing has used, for the registry").LoadFromAssemblyPath(path);
         var rank = assembly.GetType("AdCodicem.ValueObjects.Fixtures.Untouched.Rank", throwOnError: true)!;
-        ValueObjectRegistry.TryGet(rank, out _).Should().BeFalse("nothing has used its assembly yet");
+        ValueObjectRegistry.TryGet(rank, out _).Should().BeFalse("nothing has used this copy of the assembly yet");
 
         ValueObjectRegistry.TryResolve(rank, out var descriptor).Should().BeTrue();
 
