@@ -96,6 +96,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, and a convention that maps a whole assembly. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, native AOT included. |
+| `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | The same problem details for a body MVC reads with Newtonsoft.Json. |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
@@ -106,7 +107,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirteen are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The fourteen are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -120,6 +121,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.AspNetCore` | `net10.0` | ASP.NET Core 10 | ASP.NET Core 11 |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | `net10.0` | ASP.NET Core 10, reflection-based binding, the Request Delegate Generator and native AOT | ASP.NET Core 11 |
+| `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | `net10.0` | ASP.NET Core 10, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 10 | ASP.NET Core 11, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11 |
 | `AdCodicem.ValueObjects.OpenApi` | `net10.0` | ASP.NET Core 10, with `Microsoft.OpenApi` 2 | ASP.NET Core 11, with `Microsoft.OpenApi` 3 |
 | `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
 | `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
@@ -182,8 +184,8 @@ converters refuse an uninitialized instance whose value its type rejects, and an
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
 their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
-the problem details of an MVC controller carry for a JSON body as for a query value, and those of a minimal API for a
-route, query or header value.
+the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
+query value, and those of a minimal API for a route, query or header value.
 `Create` throws `ValueObjectException`, and is for the call sites that want it; a strict EF Core read goes through
 it, and fails the query. Validation is fail-fast: the first violated rule wins.
 
@@ -228,6 +230,11 @@ builder.Services.AddOpenApi(o => o.AddValueObjects());
 protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     => builder.ConfigureValueObjects(typeof(Iban).Assembly);
 ```
+
+An MVC application whose bodies Newtonsoft.Json reads calls `AddNewtonsoftJson().AddValueObjectsNewtonsoftJson()`
+instead of `AddValueObjects()`, from `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson`: the converter goes into MVC's
+settings, which its responses are written with too, and a refused body carries its rule's code as with System.Text.Json
+([the ASP.NET Core guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/aspnet-core#a-body-read-by-newtonsoftjson)).
 
 Minimal APIs need no package to bind: a generated value object implements `IParsable<T>`, which is exactly what
 minimal API parameter binding looks for. A value it rejects is answered there with a bare 400, naming neither the

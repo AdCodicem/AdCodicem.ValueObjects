@@ -2,7 +2,7 @@
 title: Use with ASP.NET Core
 sidebar_label: ASP.NET Core
 slug: /how-to/aspnet-core
-description: Bind value objects from routes, query strings, headers and bodies in MVC and minimal APIs, know what a rejection answers in each, and return RFC 9457 problem details carrying the violated rule, from MVC controllers and from minimal APIs, native AOT included.
+description: Bind value objects from routes, query strings, headers and bodies in MVC and minimal APIs, know what a rejection answers in each, and return RFC 9457 problem details carrying the violated rule, from MVC controllers on System.Text.Json or Newtonsoft.Json and from minimal APIs, native AOT included.
 ---
 
 # Use with ASP.NET Core
@@ -204,7 +204,9 @@ builder.Services.AddControllers().AddValueObjects();
 That registers a model binder for value objects — routes, query strings, headers, forms — and the JSON options
 for bodies, and records the code of a value a body refuses, as the next section shows. The binder is closed over each
 concrete type, so binding costs one `TryParse`. An application that configures MVC directly can call
-`AddValueObjects()` on `MvcOptions` instead; that one adds the binder only.
+`AddValueObjects()` on `MvcOptions` instead; that one adds the binder only. An application whose MVC reads bodies
+with Newtonsoft.Json calls `AddValueObjectsNewtonsoftJson()` instead, from a package of its own
+([a body read by Newtonsoft.Json](#a-body-read-by-newtonsoftjson)).
 
 Nullable value objects bind as you would expect: `[FromQuery] CountryCode? country` is `null` when the parameter
 is absent, and a 400 when it is present and rejected. Empty or white-space text, `?country=` or `?country=%20`, binds
@@ -256,8 +258,9 @@ valid." when it is turned off. A change made to the JSON options once the applic
 the framework's, and the media types and encodings the application gave the framework's formatter are kept. A
 System.Text.Json input formatter the application built with options of its own, or derived, is left as it is, and
 records no code. A body read by Newtonsoft.Json, after `AddNewtonsoftJson()`, has no System.Text.Json formatter to
-replace, and records no code; neither does a body when the binder alone was added, through `AddValueObjects()` on
-`MvcOptions`.
+replace, and records no code unless `AddValueObjectsNewtonsoftJson()` replaces Newtonsoft.Json's
+([below](#a-body-read-by-newtonsoftjson)); neither does a body when the binder alone was added, through
+`AddValueObjects()` on `MvcOptions`.
 
 The swap is a post-configuration of `MvcOptions`. To take the System.Text.Json input formatter out,
 `InputFormatters.RemoveType<SystemTextJsonInputFormatter>()` still works in `AddMvcOptions`, in
@@ -278,11 +281,102 @@ builder.Services.PostConfigure<MvcOptions>(options =>
 `ApiBehaviorOptions` is MVC's, and minimal APIs never read it: they get the same problem details from
 [a package of their own](#problem-details-for-minimal-apis).
 
+### A body read by Newtonsoft.Json
+
+An application whose MVC reads request bodies with Newtonsoft.Json installs a package of its own: neither
+`AdCodicem.ValueObjects.AspNetCore` nor `AdCodicem.ValueObjects.NewtonsoftJson` could hold its formatter without
+imposing the other's dependency on every application that installs it.
+
+```bash
+dotnet add package AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson
+```
+
+```csharp skip
+builder.Services.AddControllers()
+    .AddNewtonsoftJson()
+    .AddValueObjectsNewtonsoftJson();
+builder.Services.Configure<ApiBehaviorOptions>(options => options.AddValueObjectProblemDetails());
+```
+
+`AddValueObjectsNewtonsoftJson()` calls `AddValueObjects()` itself, so value objects bind from routes, query strings,
+headers and forms as above, and an application that calls both, in either order, gets the same. It adds
+`ValueObjectConverter` to MVC's `SerializerSettings`, with `DateParseHandling.None` and `FloatParseHandling.Decimal`,
+as `AddValueObjects()` on the settings does ([the Newtonsoft.Json guide](./json.md#newtonsoftjson) says why), unless
+the settings hold the converter once every configuration of them has run: settings the application configured for
+value objects itself, in `AddNewtonsoftJson(options => …)`, before or after this call, are left as it left them.
+Without the converter, Newtonsoft.Json reads a value object through its type converter, whose refusal names no rule
+and quotes the text the client sent.
+
+Those settings are MVC's own: its Newtonsoft.Json output formatter writes every response with them, and they apply to
+every member of every body, not to value objects alone. An application that ran without the converter therefore
+changes its wire when it adopts the package. A numeric or boolean value object is answered `7` or `true`, where the
+type converter wrote `"7"` or `"True"` ([without the converter](./json.md#without-the-converter)); a number sent as a
+string is still read, but a boolean value object sent as `"True"` is refused. A member of type `object` or `JToken`
+keeps a string that looks like a date as a string, and reads a number with a fraction as a `decimal`, which refuses
+one beyond its range, such as `1e30` ([Numbers](./json.md#numbers)). An application that needs other settings gives
+them the converter itself, `AddValueObjects(decimalReals: false)` to read reals as `double`, and the package leaves
+them as they are.
+
+It then puts in place of MVC's `NewtonsoftJsonInputFormatter`, at its index, one deriving from it, over the same
+settings and the same `MvcNewtonsoftJsonOptions`, with the media types and encodings the application gave the formatter
+it replaces. It reads a body as the framework's does, and records the code of each refused value under the key MVC
+gives its error, Newtonsoft.Json's path rather than a `$.` one:
+
+```json
+{
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": {
+    "email": ["The value is not a valid EmailAddress: The value does not match the expected format."],
+    "lines[2].sku": ["The value is not a valid Sku: The value must be at least 3 characters long."]
+  },
+  "errorCodes": {
+    "email": "value_object.invalid_format",
+    "lines[2].sku": "value_object.too_short"
+  }
+}
+```
+
+- Newtonsoft.Json reads on past a refused property of an object it builds by setting its properties, so each refused
+  member of such a body is answered with its own code, where System.Text.Json stops at the first. A type it builds
+  through its constructor, a positional record, stops at its first refusal, as its errors do.
+- The keys are MVC's, quirks included: the value of a positional record that a property of a class holds,
+  `{"order":{"reference":"no"}}`, is keyed `order.reference.order`, as its error is.
+- No code is recorded past the errors the model state takes, `MvcOptions.MaxModelValidationErrors`, 200 by default,
+  so that every code has its error.
+- `errors`, the logs and the exceptions that propagate are the framework's, whatever
+  `MvcNewtonsoftJsonOptions.AllowInputFormatterExceptionMessages` says when the request is read. An error a handler of
+  the serializer settings marks handled records no code, as it records no error.
+- A value object used as a dictionary key is read by Newtonsoft.Json through its type converter, never the converter:
+  its refusal carries no code, and its message quotes the key.
+- A Newtonsoft.Json input formatter the application built over settings of its own, or derived, is left as it is and
+  records no code; so is the JSON Patch formatter, whose document holds its values as JSON until `ApplyTo`.
+- Without `AddNewtonsoftJson()`, MVC reads with System.Text.Json, and the call amounts to `AddValueObjects()`.
+
+The swap is a post-configuration of `MvcOptions`, as for System.Text.Json: in a `PostConfigure<MvcOptions>` registered
+after the call, `InputFormatters.RemoveType<NewtonsoftJsonInputFormatter>()` misses the package's formatter. Remove
+every formatter that is a `NewtonsoftJsonInputFormatter` there instead, but for the JSON Patch formatter, which derives
+from it and which `RemoveType` keeps, and for any formatter the application derived itself:
+
+```csharp skip
+builder.Services.PostConfigure<MvcOptions>(options =>
+{
+    foreach (var formatter in options.InputFormatters
+        .Where(static formatter => formatter is NewtonsoftJsonInputFormatter and not NewtonsoftJsonPatchInputFormatter)
+        .ToList())
+    {
+        options.InputFormatters.Remove(formatter);
+    }
+});
+```
+
+The package is not AOT-compatible, as neither MVC nor Newtonsoft.Json is.
+
 ## Codes for a payload you validate yourself
 
 For a payload that carries raw text — an inbound message from another system, say — validate it with
 [FluentValidation](./fluentvalidation.md) and put the codes under the same member, so every 400 of the API has
-the same shape. `ValueObjectProblemDetails` comes with either ASP.NET Core package, in the namespace
+the same shape. `ValueObjectProblemDetails` comes with every ASP.NET Core package, in the namespace
 `AdCodicem.ValueObjects.AspNetCore`:
 
 ```csharp skip

@@ -34,7 +34,9 @@ namespace AdCodicem.ValueObjects.NewtonsoftJson;
 /// own code, <see cref="ValueObjectErrorCodes.NotParsable"/> for a token that is not of the underlying type at all, and
 /// <see cref="ValueObjectErrorCodes.Required"/> for a <c>null</c> read into a value object that cannot be
 /// <see langword="null"/>. A value object written by hand over a type the generator does not support has its value
-/// read by Newtonsoft.Json, whose own exception carries no code.
+/// read by Newtonsoft.Json, whose own exception carries no code. A handler of the serializer's
+/// <see cref="JsonSerializer.Error"/> event that handles it, as MVC's does, leaves that read without a value: the
+/// converter then refuses the token with <see cref="ValueObjectErrorCodes.NotParsable"/>, rather than as missing.
 /// </para>
 /// </remarks>
 public sealed class ValueObjectConverter : JsonConverter
@@ -125,7 +127,7 @@ public sealed class ValueObjectConverter : JsonConverter
         {
             // A value object written by hand over a type the generator does not support: its value is read the way
             // Newtonsoft.Json reads that type, as the general-purpose System.Text.Json converter does.
-            return Create(descriptor, serializer.Deserialize(reader, descriptor.ValueType));
+            return ReadOther(reader, descriptor, serializer);
         }
 
         return wire.Token switch
@@ -176,6 +178,32 @@ public sealed class ValueObjectConverter : JsonConverter
         }
 
         writer.WriteValue(wire.Format is null ? raw : Format(raw!, wire.Format));
+    }
+
+    /// <summary>
+    /// Reads the value of a value object written by hand over a type the generator does not support, as
+    /// Newtonsoft.Json reads that type.
+    /// </summary>
+    /// <remarks>
+    /// Newtonsoft.Json reads no value from an empty string into a type that can be <see langword="null"/>, which the
+    /// value object's rules then judge. From any other token, no value is one it could not read as that type, whose
+    /// error a handler of the serializer's <see cref="JsonSerializer.Error"/> event handled, as MVC's does: the token
+    /// is not parsable, rather than missing.
+    /// </remarks>
+    /// <param name="reader">Reader positioned on the token.</param>
+    /// <param name="descriptor">Value object being read.</param>
+    /// <param name="serializer">The serializer reading it.</param>
+    /// <returns>The value object.</returns>
+    private static object ReadOther(JsonReader reader, ValueObjectDescriptor descriptor, JsonSerializer serializer)
+    {
+        var emptyText = reader.Value is "";
+        var value = serializer.Deserialize(reader, descriptor.ValueType);
+
+        return value is not null || emptyText
+            ? Create(descriptor, value)
+            : throw Refusal(
+                $"The value could not be read as {descriptor.ValueObjectType.Name}.",
+                ValueObjectErrorCodes.NotParsable);
     }
 
     /// <summary>

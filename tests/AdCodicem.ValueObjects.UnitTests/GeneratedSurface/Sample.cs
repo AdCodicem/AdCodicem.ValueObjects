@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.NewtonsoftJson;
 using AdCodicem.ValueObjects.UnitTests.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -73,6 +74,14 @@ public abstract class Sample
     /// <param name="client">A client of the application that maps it.</param>
     /// <returns>The check.</returns>
     public abstract Task AnswersARefusedMinimalApiValueWithItsRuleAsync(HttpClient client);
+
+    /// <summary>
+    /// Reads a body holding the refused text, as the token Newtonsoft.Json reads it from, through the formatter
+    /// <c>AddValueObjectsNewtonsoftJson()</c> puts in MVC, and checks that it records the code the converter gives the
+    /// refusal under the key of its error.
+    /// </summary>
+    /// <returns>The check.</returns>
+    public abstract Task RecordsTheCodeOfARefusedNewtonsoftBodyAsync();
 
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
@@ -462,6 +471,22 @@ public class Sample<TSelf, TValue> : Sample
         problem.Codes.Should().Equal(new Dictionary<string, string> { ["value"] = code });
     }
 
+    public override async Task RecordsTheCodeOfARefusedNewtonsoftBodyAsync()
+    {
+        var written = JsonSerializer.Serialize(Small);
+        var isNumber = !written.StartsWith('"') && written is not ("true" or "false");
+        var token = isNumber && IsJsonNumber(Refused) ? Refused : JsonSerializer.Serialize(Refused);
+        var body = $$"""{"value":{{token}}}""";
+
+        var refusal = FluentActions.Invoking(() => Newtonsoft.Json.JsonConvert.DeserializeObject<NewtonsoftHolder<TSelf>>(
+                body, new Newtonsoft.Json.JsonSerializerSettings().AddValueObjects()))
+            .Should().Throw<Newtonsoft.Json.JsonSerializationException>().Which;
+        ValueObjectErrors.TryGetCode(refusal, out var code).Should().BeTrue("the converter refuses {0} with a code", body);
+
+        (await NewtonsoftJsonInputFormatterTests.ReadCodesAsync(typeof(NewtonsoftHolder<TSelf>), body))
+            .Should().Equal(new Dictionary<string, string> { ["value"] = code! });
+    }
+
     public override void WritesNoJsonItsTypeRejects()
     {
         // What a deserializer, an array or a message initializer hands out before any rule ran.
@@ -613,4 +638,13 @@ public class Sample<TSelf, TValue> : Sample
 
     private static Func<TSelf, TSelf, bool> Operator(string name)
         => Method<Func<TSelf, TSelf, bool>>(name, typeof(TSelf), typeof(TSelf));
+}
+
+/// <summary>An object holding a value object as a property Newtonsoft.Json sets, so that a refusal has a member to name.</summary>
+/// <typeparam name="TSelf">The value object.</typeparam>
+public sealed class NewtonsoftHolder<TSelf>
+    where TSelf : struct
+{
+    /// <summary>Gets or sets the value object.</summary>
+    public TSelf Value { get; set; }
 }

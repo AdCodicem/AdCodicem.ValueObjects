@@ -9,7 +9,7 @@ is on, so this list is worth checking if something looks wired up but never happ
 `preview.yml` publishes a preview of every package to nuget.org every Monday at 07:15, Paris time, and whenever it is
 dispatched (**Actions → preview → Run workflow**, from `main`: a dispatch from another branch stops at its first
 job). It publishes only when a package input changed since the version nuget.org has from the nearest commit, and
-then all thirteen packages at one version, or none.
+then all fourteen packages at one version, or none.
 [ADR-0009](adr/0009-publish-previews-weekly-when-a-package-input-changed.md) has the reasoning.
 
 Each run says what it decided. The **compute the version** job prints the version semantic-release would give the
@@ -73,7 +73,7 @@ offering the higher one as the latest prerelease until a higher version ships.
 The first time `preview.yml` publishes, and after any change to its publish job, dispatch it rather than wait for
 Monday, and check:
 
-1. the thirteen packages are on nuget.org at the version the run printed, and the publish job finished its wait for
+1. the fourteen packages are on nuget.org at the version the run printed, and the publish job finished its wait for
    the listing;
 2. an assembly restored from nuget.org verifies, and the certificate comes from Sigstore's public-good instance:
 
@@ -286,14 +286,15 @@ and `ci.yml`'s `compat (.NET 11)` job runs it on every pull request and push to 
 moves by hand:
 
 - **At each release candidate of .NET 11**, one pull request moves together `tests/Compat/global.json` (the exact SDK
-  version), the four `11.0.0-rc…` packages of `tests/Compat/Directory.Packages.props`
-  (`Microsoft.EntityFrameworkCore.Sqlite`, `Microsoft.EntityFrameworkCore.SqlServer`, `Microsoft.AspNetCore.OpenApi`,
-  `Microsoft.AspNetCore.TestHost`) and `Npgsql.EntityFrameworkCore.PostgreSQL`. Npgsql's provider pins EF Core to the
-  exact build it was compiled against, so moving one without the other fails the restore with NU1107.
+  version), the five `11.0.0-rc…` packages of `tests/Compat/Directory.Packages.props`
+  (`Microsoft.EntityFrameworkCore.Sqlite`, `Microsoft.EntityFrameworkCore.SqlServer`,
+  `Microsoft.AspNetCore.Mvc.NewtonsoftJson`, `Microsoft.AspNetCore.OpenApi`, `Microsoft.AspNetCore.TestHost`) and
+  `Npgsql.EntityFrameworkCore.PostgreSQL`. Npgsql's provider pins EF Core to the exact build it was compiled against,
+  so moving one without the other fails the restore with NU1107.
 - **When .NET 11 ships** (expected around 2026-11-10, not confirmed):
   - `global.json` becomes `"version": "11.0.100"`, `"rollForward": "latestFeature"`, `"allowPrerelease": false`,
     after which `setup-dotnet` installs the latest 11.0 SDK by itself;
-  - the five packages move to `11.0.0`, Npgsql's provider included;
+  - the six packages move to `11.0.0`, Npgsql's provider included;
   - `compat (.NET 11)` joins the required status checks of the `Default` ruleset (id 23842638);
   - the comment in `ci.yml` that says the job is not a required check goes.
 - **When .NET 12 previews arrive**, moving the island to the next major, or adding a second one, is a decision of its

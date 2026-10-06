@@ -175,6 +175,40 @@ public class NewtonsoftJsonTests
     }
 
     /// <summary>
+    /// A token Newtonsoft.Json cannot read as the type a value object written by hand carries fails with Newtonsoft.Json's
+    /// own exception, which carries no code. A handler of the serializer's Error event that handles it, as MVC's does,
+    /// leaves the read without a value, and the converter then refuses the token as not parsable, never as missing: an
+    /// undefined token among them. An empty string, which Newtonsoft.Json reads as no value of a type that can be null,
+    /// is judged by the value object's rules.
+    /// </summary>
+    [Fact]
+    public void A_token_a_value_object_written_by_hand_cannot_carry_is_not_parsable_once_its_error_is_handled()
+    {
+        var codes = new List<string>();
+        var handling = new JsonSerializerSettings
+        {
+            Converters = { new ValueObjectConverter() },
+            Error = (_, arguments) =>
+            {
+                codes.Add(ValueObjectErrors.TryGetCode(arguments.ErrorContext.Error, out var code) ? code : "none");
+                arguments.ErrorContext.Handled = true;
+            },
+        };
+        var unhandled = () => JsonConvert.DeserializeObject<Linked>("""{"Link":42}""", Defaults);
+        var undefined = () => JsonConvert.DeserializeObject<Linked>("""{"Link":undefined}""", Defaults);
+        var empty = () => JsonConvert.DeserializeObject<Linked>("""{"Link":""}""", Defaults);
+
+        unhandled.Should().Throw<JsonSerializationException>().WithMessage("Error converting value 42 to type 'System.Uri'.*")
+            .Which.Data.Contains(ValueObjectErrors.ErrorCodeKey).Should().BeFalse();
+        JsonConvert.DeserializeObject<Linked>("""{"Link":42}""", handling)!.Link.IsDefault.Should().BeTrue();
+        codes.Should().Equal("none", ValueObjectErrorCodes.NotParsable);
+        undefined.Should().Throw<JsonSerializationException>().WithMessage("The value could not be read as HandWrittenLink.")
+            .Which.ShouldCarry(ValueObjectErrorCodes.NotParsable);
+        empty.Should().Throw<JsonSerializationException>().WithMessage("The value is not a valid HandWrittenLink: A link is required.")
+            .Which.ShouldCarry(ValueObjectErrorCodes.Required);
+    }
+
+    /// <summary>
     /// The converter refuses to write what the System.Text.Json converter refuses to write: an instance equal to the
     /// default whose value its type rejects, a member of an object or an optional value object holding one included,
     /// with the rule and never the value. A type that accepts its zero writes it.
@@ -671,6 +705,12 @@ public class NewtonsoftJsonTests
     }
 
     private sealed record Payment(Iban Account, Amount Total, CustomerId Customer, BirthDate? Birth, Quantity Lines);
+
+    /// <summary>A member holding a value object written by hand over a type Newtonsoft.Json reads itself.</summary>
+    private sealed class Linked
+    {
+        public HandWrittenLink Link { get; set; }
+    }
 
     /// <summary>A member naming the converter although it holds no value object.</summary>
     private sealed class Tagged
