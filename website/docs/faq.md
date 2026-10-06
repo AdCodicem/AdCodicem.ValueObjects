@@ -136,10 +136,11 @@ reflection, the first time it is asked for it, and under native AOT each is regi
 which native AOT cannot run for a struct, as [Run-time lookup](./how-to/runtime-lookup.md#back-to-the-typed-path)
 shows; the Dapper integration registers its handlers that way, the MVC model binder provider creates its binders, the
 JSON converter factory closes the general-purpose converter it gives a value object written by hand, and the Entity
-Framework Core conventions map each value object and each entity identifier, which they do only while a model is built,
-never under native AOT. The contracts, the generated code, the JSON package, FluentValidation and identifiers are marked
-AOT-compatible and built with the trimming and AOT analyzers on, and CI publishes an application using them all with
-native AOT on every pull request, which merges only once that passes: it fails on any trimming or AOT warning, and
+Framework Core conventions map each value object and each entity identifier, all but the converter of an optional
+value object, which C# cannot name there and which they close with `MakeGenericType`; they do so only while a model is
+built, never under native AOT. The contracts, the generated code, the JSON package, FluentValidation and identifiers are
+marked AOT-compatible and built with the trimming and AOT analyzers on, and CI publishes an application using them all
+with native AOT on every pull request, which merges only once that passes: it fails on any trimming or AOT warning, and
 unless the native binary does exactly what the application does under the JIT. The EF Core, ASP.NET Core, OpenAPI,
 Dapper and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper,
 for one, files each handler in a cache it closes over the type at run time, so under native AOT a handler this package
