@@ -13,6 +13,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, AOT-compatible. |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | MVC on Newtonsoft.Json: the converter in MVC's settings, and the codes of a refused body. |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
+| `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10 and later. |
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
@@ -379,6 +380,38 @@ constant form, as the built-in stack documents a plain `TimeSpan`; a `TimeOnly` 
 carry the same schema in place, keeping the stricter bound or length of a route constraint; `items` of a collection
 and `additionalProperties` of a dictionary refer to the component; a key goes to `propertyNames` as the text it is
 written in, a string held to a number's pattern for a key over a number.
+
+### Swashbuckle
+
+```csharp skip
+builder.Services.AddSwaggerGen(o =>
+{
+    o.IncludeXmlComments(xmlCommentsPath);   // if used: before, or its filter replaces the value objects' descriptions
+    o.AddValueObjects();                     // or o.AddValueObjects(serializerOptions) when MVC's and minimal API's differ
+});
+```
+
+`AdCodicem.ValueObjects.Swashbuckle`, for Swashbuckle 10 and later, describes a value object as the built-in package
+does, with these differences, all Swashbuckle's own:
+
+- A number is a number (`integer` or `number`, no numeric pattern), as Swashbuckle documents the underlying type,
+  whatever the options let be read from text; examples and known values are written under the minimal API options. An
+  `Int128` or `UInt128` value object travels as a string and stays a `string` with `x-minimum`/`x-maximum`, where
+  Swashbuckle documents a bare one as `integer`/`int128`.
+- A route, query or header parameter refers to the component (`$ref`), minimal APIs included; a route constraint beside
+  it is dropped, unless `UseAllOfToExtendReferenceSchemas` keeps it beside an `allOf`.
+- A nullable property, element or dictionary value (an enumeration-keyed dictionary's included) is described in place
+  with `null` allowed, as a nullable `int` is, but without the member's validation attributes (`[MaxLength]`, `[Range]`),
+  which Swashbuckle never applies beside a value object's reference; put the rules on the type. Under
+  `UseAllOfToExtendReferenceSchemas` it is described inside Swashbuckle's `allOf` wrapper, which keeps them. A
+  `[Required]` property (on the member or its `[ModelMetadataType]`), a nullable parameter and a nullable whole body keep
+  the reference.
+- The document is OpenAPI 3.0 by default (`example`, `nullable`, `x-jsonschema-propertyNames`);
+  `UseSwagger(o => o.OpenApiVersion = OpenApiSpecVersion.OpenApi3_1)` writes 3.1.
+- A closed set's `x-ms-enum` is named after Swashbuckle's component, `AccountFilterNoticeChannel` for
+  `NoticeChannel<AccountFilter>`, or the identifier `CustomSchemaIds` gives it.
+- Swashbuckle 10 needs `Microsoft.OpenApi` 2: never reference `Microsoft.AspNetCore.OpenApi` 11 beside it, which brings
+  3 and makes Swashbuckle throw `MissingMethodException` when it builds a document.
 
 ## Run-time lookup, when only a `Type` is known
 

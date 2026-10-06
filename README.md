@@ -98,6 +98,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, native AOT included. |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | The same problem details for a body MVC reads with Newtonsoft.Json. |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
+| `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10 and later. |
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
@@ -107,7 +108,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The fourteen are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The fifteen are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -123,6 +124,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.AspNetCore.Http` | `net10.0` | ASP.NET Core 10, reflection-based binding, the Request Delegate Generator and native AOT | ASP.NET Core 11 |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | `net10.0` | ASP.NET Core 10, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 10 | ASP.NET Core 11, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11 |
 | `AdCodicem.ValueObjects.OpenApi` | `net10.0` | ASP.NET Core 10, with `Microsoft.OpenApi` 2 | ASP.NET Core 11, with `Microsoft.OpenApi` 3 |
+| `AdCodicem.ValueObjects.Swashbuckle` | `net10.0` | Swashbuckle 10 on ASP.NET Core 10, with `Microsoft.OpenApi` 2 | Swashbuckle 10 on ASP.NET Core 11, with `Microsoft.OpenApi` 2 |
 | `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
 | `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
@@ -130,8 +132,8 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.Testing` | `net10.0` | xUnit v3 4 | xUnit v3 4 on .NET 11 |
 
-¹ On the .NET 11 release candidate, by a CI job that installs the packages each commit builds into a `net11.0`
-application. It informs and blocks nothing until .NET 11 ships.
+¹ On the .NET 11 release candidate, by a CI job that installs the packages each commit builds into `net11.0`
+applications, the Swashbuckle package into one of its own. It informs and blocks nothing until .NET 11 ships.
 
 ## Versioning
 
@@ -225,7 +227,8 @@ Then wire up whichever boundaries you have:
 ```csharp skip
 builder.Services.AddControllers().AddValueObjects();
 builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetails());
-builder.Services.AddOpenApi(o => o.AddValueObjects());
+builder.Services.AddOpenApi(o => o.AddValueObjects());       // or, with Swashbuckle 10:
+builder.Services.AddSwaggerGen(o => o.AddValueObjects());
 
 protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     => builder.ConfigureValueObjects(typeof(Iban).Assembly);
@@ -545,7 +548,7 @@ without failing the build.
 ```
 src/          the shipped packages
 tests/        unit tests, generator tests, and integration tests on real database engines
-  Compat/     the packed packages in a .NET 11 application, outside the solution
+  Compat/     the packed packages in .NET 11 applications, outside the solution
 samples/      a showcase API exercising the whole chain end to end
 benchmarks/   the measurements behind the design decisions above
 skills/       the agent skill, and the plugin manifest that distributes it

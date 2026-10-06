@@ -26,6 +26,7 @@
     <PackageVersion Include="AdCodicem.ValueObjects.Json" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.NewtonsoftJson" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.OpenApi" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.Swashbuckle" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Testing" Version="[$(AdCodicemVersion)]" />
   </ItemGroup>
 

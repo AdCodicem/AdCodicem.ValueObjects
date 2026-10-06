@@ -12,6 +12,7 @@
     <Project Path="src/AdCodicem.ValueObjects.AspNetCore.Http/AdCodicem.ValueObjects.AspNetCore.Http.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson/AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.OpenApi/AdCodicem.ValueObjects.OpenApi.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Swashbuckle/AdCodicem.ValueObjects.Swashbuckle.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.FluentValidation/AdCodicem.ValueObjects.FluentValidation.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Dapper/AdCodicem.ValueObjects.Dapper.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.NewtonsoftJson/AdCodicem.ValueObjects.NewtonsoftJson.csproj" />

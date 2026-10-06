@@ -17,6 +17,7 @@
       "src/AdCodicem.ValueObjects.Json/AdCodicem.ValueObjects.Json.csproj",
       "src/AdCodicem.ValueObjects.NewtonsoftJson/AdCodicem.ValueObjects.NewtonsoftJson.csproj",
       "src/AdCodicem.ValueObjects.OpenApi/AdCodicem.ValueObjects.OpenApi.csproj",
+      "src/AdCodicem.ValueObjects.Swashbuckle/AdCodicem.ValueObjects.Swashbuckle.csproj",
       "src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj"
     ]
   }

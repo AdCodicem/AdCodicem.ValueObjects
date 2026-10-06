@@ -34,6 +34,11 @@
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="Dapper" Version="2.1.89" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
+    <!-- Swashbuckle 10 builds on Microsoft.OpenApi 2, whose pin above is the Swashbuckle package's floor. Its next major is
+         a decision, not a bump (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). No version is
+         pinned for Swashbuckle.AspNetCore.Swagger, which the tests take through it: a pin would make it a dependency of
+         the package. -->
+    <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.2.3" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">

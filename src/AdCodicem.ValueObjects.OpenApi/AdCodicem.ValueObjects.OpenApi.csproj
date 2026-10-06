@@ -24,8 +24,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- What a value object's rules become in a JSON Schema, compiled into every package that describes one. -->
+    <!-- What a value object's rules become in a JSON Schema, compiled into every package that describes one, and how a
+         value object is described on Microsoft.OpenApi 2's object model, which the Swashbuckle package shares. -->
     <Compile Include="..\Shared\ValueObjectSchemaKeywords.cs" Link="Shared\ValueObjectSchemaKeywords.cs" />
+    <Compile Include="..\Shared\ValueObjectOpenApiSchema.cs" Link="Shared\ValueObjectOpenApiSchema.cs" />
   </ItemGroup>
 
 </Project>

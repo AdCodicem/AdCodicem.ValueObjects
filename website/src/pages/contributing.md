@@ -11,7 +11,7 @@ description: How to build, test and change AdCodicem.ValueObjects, its agent ski
 src/          the shipped packages
 tests/        unit tests, generator tests, integration tests on real database engines, and minimal APIs bound by the RDG
   NativeAot/  applications CI publishes with native AOT and compiles an EF Core model for
-  Compat/     the packed packages in a .NET 11 application, outside the solution
+  Compat/     the packed packages in .NET 11 applications, outside the solution
 samples/      a showcase API exercising the whole chain end to end
 benchmarks/   the measurements behind the design decisions
 skills/       the agent skill, distributed as a Claude Code plugin through .claude-plugin/
@@ -75,7 +75,7 @@ Three checks must pass before a pull request merges: **build and test**; **nativ
 application using every AOT-compatible package with native AOT and fails on a trimming or AOT warning, or on any
 difference between the native binary and the JIT; and **workflows**, which runs
 [actionlint](https://github.com/rhysd/actionlint) over every workflow, including those that never run on a pull
-request. CI also builds this site and runs the packages in a .NET 11 application, in jobs that do not block the
+request. CI also builds this site and runs the packages in .NET 11 applications, in jobs that do not block the
 merge.
 
 Nothing you merge publishes a package by itself. A preview of every package goes to nuget.org each week in which

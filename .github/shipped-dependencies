@@ -19,6 +19,7 @@ Microsoft.Extensions.DependencyInjection.Abstractions
 Microsoft.Extensions.Options
 Microsoft.OpenApi
 Newtonsoft.Json
+Swashbuckle.AspNetCore.SwaggerGen
 xunit.v3.assert
 xunit.v3.extensibility.core
 

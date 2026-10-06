@@ -157,7 +157,8 @@ jobs:
   # major (tests/Compat): the generator in its compiler, Entity Framework Core 11 on
   # SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core
   # model binding, on System.Text.Json and on Newtonsoft.Json, and minimal API problem
-  # details, and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3. The island has its own global.json, so the SDK it needs
+  # details, and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3, and Swashbuckle 10
+  # over Microsoft.OpenApi 2 in a project of its own. The island has its own global.json, so the SDK it needs
   # is installed from there and everything runs from its folder. Not a required check
   # until .NET 11 ships, and deliberately not continue-on-error: a break shows red on
   # the pull request.
@@ -194,6 +195,21 @@ jobs:
           -c Release
           -p:AdCodicemVersion="$ADCODICEM_VERSION"
           --report-trx --report-trx-filename compat.trx
+
+      # Swashbuckle 10 fails on the Microsoft.OpenApi 3 that Microsoft.AspNetCore.OpenApi 11
+      # brings into the project above, so the Swashbuckle package has a project of its own,
+      # where Microsoft.OpenApi resolves to the package's floor. Run even when the first
+      # step failed, so that each break shows.
+      - name: Compatibility tests, Swashbuckle
+        if: success() || failure()
+        working-directory: tests/Compat
+        env:
+          ADCODICEM_VERSION: ${{ needs.build.outputs.version }}
+        run: >-
+          dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj
+          -c Release
+          -p:AdCodicemVersion="$ADCODICEM_VERSION"
+          --report-trx --report-trx-filename compat-swashbuckle.trx
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
