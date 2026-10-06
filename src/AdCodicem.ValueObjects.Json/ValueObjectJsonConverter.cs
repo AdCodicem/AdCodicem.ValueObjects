@@ -21,8 +21,10 @@ namespace AdCodicem.ValueObjects.Json;
 /// The underlying value is read and written through the contract the options hold for <typeparamref name="TValue"/>
 /// (<see cref="JsonSerializerOptions.GetTypeInfo(Type)"/>), so the converter needs neither reflection nor dynamic code
 /// of its own: a source-generated context listing the value object holds that contract too, since the value object
-/// exposes its value as a property. Called directly, with options no serializer has used and that set no resolver, it
-/// gives them the serializer's default one and locks them, as serializing through them would.
+/// exposes its value as a property. Called directly, it takes options, never <see langword="null"/>, which it refuses
+/// with an <see cref="ArgumentNullException"/>; options no serializer has used and that set no resolver are given the
+/// serializer's default one and locked, as serializing through them would lock them, so that setting one of their
+/// properties afterwards throws an <see cref="InvalidOperationException"/>, whichever member was called.
 /// </para>
 /// <para>
 /// A value or a key the value object rejects, and a value to write that it rejects, are refused with a
