@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Thirteen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Fourteen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -92,7 +92,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All thirteen packages go out at one version, or none. That version is the one semantic-release would give
+lookup fails. All fourteen packages go out at one version, or none. That version is the one semantic-release would give
 the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -140,7 +140,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The thirteen packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The fourteen packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -327,6 +327,16 @@ These are all load-bearing, and each cost real debugging time:
   `ValueObjectProblemDetails` lives in `AdCodicem.ValueObjects.AspNetCore.Http`, under the namespace
   `AdCodicem.ValueObjects.AspNetCore`, and the MVC package forwards it (`TypeForwards.cs`), so that code compiled
   against an earlier MVC package still finds it: keep both the namespace and the forward.
+- **MVC's Newtonsoft.Json input formatter keeps its settings protected and changes its exception policy for a
+  subclass.** `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` derives from `NewtonsoftJsonInputFormatter`, which
+  answers `InputFormatterExceptionPolicy.AllExceptions` for any type but its own, under which MVC turns any exception a
+  read throws into a 400: the subclass overrides `ExceptionPolicy` back to `MalformedInputExceptions`. The setup tells
+  the framework's formatter by its settings, a protected property a derived class reads on its own instances alone
+  (CS1540), so it reads them through `[UnsafeAccessor]`. The subclass adds its `Error` handler to the pooled serializer
+  for the time of each read, in `CreateJsonSerializer(context)`, and removes it in `ReleaseJsonSerializer`, or the
+  handler of one request would record the codes of the next. The key it records a code under is the framework's model
+  state key, rebuilt by `KeyOf` from the framework's error handler: a change to that handler upstream has to be carried
+  there, and the parity theory of `NewtonsoftJsonInputFormatterTests` and the compatibility island are where it shows.
 - **`static virtual` and `static abstract` interface members are reachable only through a type parameter**
   (CS8926, CS0103 for explicit implementations). Default implementations on `INumericValueObject` are therefore
   unusable directly; the generator emits concrete members, and `UnderlyingValue` holds constrained generic
@@ -511,13 +521,14 @@ on where they apply.
   (CS0104). A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
   (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the thirteen packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the fourteen packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into a `net11.0` application on the .NET 11
 release candidate. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
-PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding and minimal API problem details,
-`Microsoft.AspNetCore.OpenApi` 11 over
-`Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json and the contract kit, with no transitive pinning, so
-the dependency floors of the packages meet the next major as an application's would. `ci.yml`'s `compat (.NET 11)`
+PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, on System.Text.Json and on
+Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal API problem details,
+`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json and the
+contract kit, with no transitive pinning, so the dependency floors of the packages meet the next major as an
+application's would. `ci.yml`'s `compat (.NET 11)`
 job runs it against the packages its build job packed; it is not a required check until .NET 11 ships, and is
 measured by no coverage. Without Docker its 18 container tests fail rather than skip, so leave them out explicitly
 (Commands above). Tools that walk the repository rather than the solution do see it: CodeQL downloads its SDK, and

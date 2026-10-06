@@ -204,6 +204,7 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
 
 ```csharp skip
 builder.Services.AddControllers().AddValueObjects();                                  // AspNetCore
+// MVC on Newtonsoft.Json: AddControllers().AddNewtonsoftJson().AddValueObjectsNewtonsoftJson(); // AspNetCore.NewtonsoftJson
 builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetails()); // AspNetCore, MVC only
 builder.Services.AddProblemDetails();
 builder.Services.AddValueObjectHttpProblemDetails();                                   // AspNetCore.Http, minimal APIs

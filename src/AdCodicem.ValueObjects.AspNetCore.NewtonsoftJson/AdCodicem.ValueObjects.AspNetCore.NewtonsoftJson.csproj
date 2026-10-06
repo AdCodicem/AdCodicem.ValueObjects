@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson</RootNamespace>
+    <Description>MVC support for AdCodicem value objects on Newtonsoft.Json: the converter in MVC's serializer settings, and RFC 9457 problem details carrying the violated rule's code for a value a request body refuses.</Description>
+    <PackageTags>$(PackageTags);aspnetcore;newtonsoft;json.net;problemdetails</PackageTags>
+
+    <!--
+      A package of its own, because neither of its parents can take the other's dependency: AdCodicem.ValueObjects.NewtonsoftJson
+      would bring ASP.NET Core and Microsoft.AspNetCore.Mvc.NewtonsoftJson to every console, worker or message consumer,
+      and AdCodicem.ValueObjects.AspNetCore would bring Newtonsoft.Json to every System.Text.Json application.
+      Not AOT-compatible, as neither parent is: MVC model binding and Newtonsoft.Json both resolve their contracts by
+      reflection.
+    -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\AdCodicem.ValueObjects.AspNetCore\AdCodicem.ValueObjects.AspNetCore.csproj" />
+    <ProjectReference Include="..\AdCodicem.ValueObjects.NewtonsoftJson\AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" />
+  </ItemGroup>
+
+</Project>

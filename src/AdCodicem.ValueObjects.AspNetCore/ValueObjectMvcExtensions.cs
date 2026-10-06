@@ -62,7 +62,8 @@ public static class ValueObjectMvcExtensions
     /// </para>
     /// <para>
     /// Once Newtonsoft.Json reads the body, through <c>AddNewtonsoftJson()</c>, there is no such formatter to replace,
-    /// and a body records no code.
+    /// and a body records no code; <c>AddValueObjectsNewtonsoftJson()</c>, from
+    /// <c>AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson</c>, replaces Newtonsoft.Json's formatter instead.
     /// </para>
     /// </remarks>
     public static IMvcBuilder AddValueObjects(this IMvcBuilder builder)

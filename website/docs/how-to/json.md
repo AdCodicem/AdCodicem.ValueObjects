@@ -253,7 +253,15 @@ A host that hands you its settings takes the same call:
 
 ```csharp skip
 GlobalConfiguration.Configuration.UseRecommendedSerializerSettings(settings => settings.AddValueObjects());   // Hangfire
-builder.Services.AddControllers().AddNewtonsoftJson(options => options.SerializerSettings.AddValueObjects()); // MVC
+```
+
+MVC is the exception: `AddValueObjectsNewtonsoftJson()`, from `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson`, makes
+that call on MVC's settings, binds value objects from the rest of the request, and records the code of a value a
+body refuses for the problem details
+([a body read by Newtonsoft.Json](./aspnet-core.md#a-body-read-by-newtonsoftjson)):
+
+```csharp skip
+builder.Services.AddControllers().AddNewtonsoftJson().AddValueObjectsNewtonsoftJson(); // MVC
 ```
 
 One converter covers every value object, with the same rules as System.Text.Json and the same values on the wire:

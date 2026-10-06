@@ -69,12 +69,12 @@ SQL Server; the native AOT job also writes the model for native AOT, with its qu
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the
-solution, installs the thirteen packages exactly as they were packed — from the folder the build packs into, at that
+solution, installs the fourteen packages exactly as they were packed — from the folder the build packs into, at that
 one version, never from nuget.org — into a `net11.0` application on the .NET 11 release candidate. It has its own
 SDK, its own package versions and no transitive pinning, so the dependency floors of the packages meet the next
 major as they would in an application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on
-SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core model binding and a minimal API
-with its problem details,
+SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json
+and on Newtonsoft.Json, and a minimal API with its problem details,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json and the
 contract kit.
 

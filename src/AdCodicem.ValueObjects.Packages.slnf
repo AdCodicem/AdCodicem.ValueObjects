@@ -6,6 +6,7 @@
       "src/AdCodicem.ValueObjects.Abstractions/AdCodicem.ValueObjects.Abstractions.csproj",
       "src/AdCodicem.ValueObjects.AspNetCore/AdCodicem.ValueObjects.AspNetCore.csproj",
       "src/AdCodicem.ValueObjects.AspNetCore.Http/AdCodicem.ValueObjects.AspNetCore.Http.csproj",
+      "src/AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson/AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson.csproj",
       "src/AdCodicem.ValueObjects.CodeFixes/AdCodicem.ValueObjects.CodeFixes.csproj",
       "src/AdCodicem.ValueObjects.Dapper/AdCodicem.ValueObjects.Dapper.csproj",
       "src/AdCodicem.ValueObjects.EntityFrameworkCore/AdCodicem.ValueObjects.EntityFrameworkCore.csproj",

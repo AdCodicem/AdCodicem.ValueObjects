@@ -11,6 +11,7 @@
 # that pulls it in.
 Dapper
 FluentValidation
+Microsoft.AspNetCore.Mvc.NewtonsoftJson
 Microsoft.AspNetCore.OpenApi
 Microsoft.EntityFrameworkCore
 Microsoft.EntityFrameworkCore.Relational

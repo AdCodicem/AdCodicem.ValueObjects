@@ -10,6 +10,7 @@
     <Project Path="src/AdCodicem.ValueObjects.EntityFrameworkCore/AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AspNetCore/AdCodicem.ValueObjects.AspNetCore.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AspNetCore.Http/AdCodicem.ValueObjects.AspNetCore.Http.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson/AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.OpenApi/AdCodicem.ValueObjects.OpenApi.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.FluentValidation/AdCodicem.ValueObjects.FluentValidation.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Dapper/AdCodicem.ValueObjects.Dapper.csproj" />

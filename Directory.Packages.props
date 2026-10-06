@@ -23,6 +23,7 @@
     <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
     <!-- No project references these two: they are transitive pins. They raise the 6.0.0 that BenchmarkDotNet's
          Microsoft.Extensions.Logging asks for in the benchmarks to the version Entity Framework Core asks for,
