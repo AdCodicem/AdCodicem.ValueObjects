@@ -113,13 +113,19 @@ internal static class Scenarios
             RecordedAt.Create(new DateTime(2024, 1, 31, 8, 30, 0, DateTimeKind.Unspecified)));
         report.Line("record Tally", $"written {JsonSerializer.Serialize(tally, AppJsonContext.Default.Tally)}");
 
-        var bookmark = new Bookmark(HandWrittenLink.Create(new Uri("https://example.com/a")), null, new() { [HandWrittenCode.Create("abc")] = 1 });
+        // The mirror holds a value: System.Text.Json's nullable converter writes and reads a null itself, and hands any
+        // other value to the converter the factory gives HandWrittenLink.
+        var bookmark = new Bookmark(
+            HandWrittenLink.Create(new Uri("https://example.com/a")),
+            HandWrittenLink.Create(new Uri("https://example.com/m")),
+            new() { [HandWrittenCode.Create("abc")] = 1 });
         var bookmarkJson = JsonSerializer.Serialize(bookmark, AppJsonContext.Default.Bookmark);
         var readBack = JsonSerializer.Deserialize(bookmarkJson, AppJsonContext.Default.Bookmark)!;
         report.Line("record Bookmark", $"written {bookmarkJson}");
         report.Line("record Bookmark", $"read back {readBack.Link}, mirror {readBack.Mirror?.ToString() ?? "null"}, {string.Join(", ", readBack.PerCode.Select(pair => $"{pair.Key}={pair.Value}"))}");
         foreach (var refused in (string[])[
             bookmarkJson.Replace("\"https://example.com/a\"", "\"/a\"", StringComparison.Ordinal),
+            bookmarkJson.Replace("\"https://example.com/m\"", "\"/m\"", StringComparison.Ordinal),
             bookmarkJson.Replace("\"ABC\"", "\"ab1\"", StringComparison.Ordinal)])
         {
             try
