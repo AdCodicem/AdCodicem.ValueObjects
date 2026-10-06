@@ -218,7 +218,9 @@ public static class ValueObjectRegistry
     /// </para>
     /// <para>
     /// A type nothing registered is described with the <see cref="IValueObject{TSelf, TValue}.Schema"/> it declares, the
-    /// one generic code constrained on it reads, whatever annotation it carries.
+    /// one generic code constrained on it reads, whatever annotation it carries. The descriptor is kept:
+    /// <see cref="TryGet"/> finds the type from then on, and <see cref="GetRegistered"/> lists it, so an integration that
+    /// configures every registered value object, as the Entity Framework Core convention does, configures it too.
     /// </para>
     /// </remarks>
     [RequiresDynamicCode("Building a descriptor for an unregistered value object instantiates a generic method at run time.")]
