@@ -1,5 +1,6 @@
 using AdCodicem.ValueObjects.AspNetCore.ModelBinding;
 using AdCodicem.ValueObjects.Identifiers;
+using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
@@ -20,8 +21,23 @@ public class ModelBinderProviderTests
     [InlineData(typeof(Reference<PurchaseOrder>), typeof(ValueObjectModelBinder<Reference<PurchaseOrder>, string>))]
     [InlineData(typeof(Catalog<string>.Stock?), typeof(ValueObjectModelBinder<Catalog<string>.Stock, int>))]
     [InlineData(typeof(IShipping.Carrier), typeof(ValueObjectModelBinder<IShipping.Carrier, string>))]
+    [InlineData(typeof(LedgerBalance), typeof(ValueObjectModelBinder<LedgerBalance, Int128>))]
+    [InlineData(typeof(Fingerprint?), typeof(ValueObjectModelBinder<Fingerprint, UInt128>))]
     public void A_value_object_and_its_nullable_get_the_binder_closed_over_the_value_object(Type modelType, Type binderType)
         => GetBinder(modelType).Should().BeOfType(binderType);
+
+    /// <summary>
+    /// A construction of a generic value object registered by hand, as native AOT asks, is described by the
+    /// descriptor built in code, never by reflection, and its binder is closed over the type arguments that descriptor
+    /// hands back.
+    /// </summary>
+    [Fact]
+    public void A_construction_registered_by_hand_gets_the_binder_closed_over_it()
+    {
+        ValueObjectRegistry.Register<Reference<BinderOwner>, string>(static () => new Reference<BinderOwner>.ValueJsonConverter());
+
+        GetBinder(typeof(Reference<BinderOwner>?)).Should().BeOfType<ValueObjectModelBinder<Reference<BinderOwner>, string>>();
+    }
 
     /// <summary>
     /// Each of these carries the value object marker, and none is a struct implementing
@@ -49,4 +65,11 @@ public class ModelBinderProviderTests
 
         return new ValueObjectModelBinderProvider().GetBinder(context);
     }
+
+    /// <summary>
+    /// The owner of the construction only this class registers. The registry and the binder cache are process-wide: a
+    /// construction another test uses may already have its binder, and would no longer be described by reflection
+    /// there once registered here.
+    /// </summary>
+    private sealed class BinderOwner;
 }

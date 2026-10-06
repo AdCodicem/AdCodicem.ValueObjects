@@ -199,9 +199,9 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
 - **Boxed path.** `ValueObjectDescriptor`, resolved from `ValueObjectRegistry`, for callers that only know a
   `Type` at run time — `MustParseAs(Type)`, the OpenAPI transformer, model-binder resolution. `descriptor.Accept`
   hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
-  time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's `AddValueObjectHandlers`
-  and the JSON factory's general-purpose converter, for a value object written by hand, do; EF Core's convention and
-  the MVC binder provider still call `MakeGenericType`, and migrate one package at a time. A hand-written value object
+  time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's `AddValueObjectHandlers`,
+  the MVC binder provider and the JSON factory's general-purpose converter, for a value object written by hand, do;
+  EF Core's conventions still call `MakeGenericType`, and migrate one package at a time. A hand-written value object
   declares `Schema` too, and the registry describes it from that alone: an annotation on it is read by nothing at run
   time.
 

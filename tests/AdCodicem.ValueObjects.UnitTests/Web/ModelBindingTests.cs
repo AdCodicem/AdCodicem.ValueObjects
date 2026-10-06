@@ -60,6 +60,8 @@ public sealed class ModelBindingTests : IAsyncLifetime
     [InlineData("/probe/customers/%20", "id", ValueObjectErrorCodes.Required)]
     [InlineData("/probe/counter?counter=", "counter", ValueObjectErrorCodes.Required)]
     [InlineData("/probe/counter?counter=%20", "counter", ValueObjectErrorCodes.Required)]
+    [InlineData("/probe/purchase-orders?reference=PO-1042-AND-MORE", "reference", ValueObjectErrorCodes.TooLong)]
+    [InlineData("/probe/purchase-orders?reference=", "reference", ValueObjectErrorCodes.Required)]
     public async Task A_rejected_value_is_answered_with_the_code_of_the_rule_it_breaks(string url, string member, string code)
     {
         var problem = await GetProblemAsync(url);
@@ -67,6 +69,15 @@ public sealed class ModelBindingTests : IAsyncLifetime
         problem.GetProperty("errorCodes").GetProperty(member).GetString().Should().Be(code);
         problem.GetProperty("errors").GetProperty(member).GetArrayLength().Should().Be(1);
     }
+
+    /// <summary>
+    /// A construction of a generic value object, which the registry describes the first time it is asked for it, binds
+    /// as any other value object does, normalized.
+    /// </summary>
+    [Fact]
+    public async Task A_construction_of_a_generic_value_object_binds_from_the_query_string()
+        => (await _client.GetStringAsync("/probe/purchase-orders?reference=%20po-1042", TestContext.Current.CancellationToken))
+            .Should().Be("PO-1042");
 
     /// <summary>
     /// The binder reads text in the invariant culture, where a comma is the group separator, which a decimal does not

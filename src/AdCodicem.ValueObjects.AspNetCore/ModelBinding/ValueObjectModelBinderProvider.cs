@@ -11,6 +11,12 @@ namespace AdCodicem.ValueObjects.AspNetCore.ModelBinding;
 /// Providers are consulted once per action parameter while the application starts, so closing the generic
 /// binder over the concrete types here costs nothing per request. The instances are cached anyway, because MVC
 /// creates metadata for the same type in many places.
+/// <para>
+/// Each binder is closed over its value object at compile time, through the type arguments the descriptor hands back
+/// to a visitor (<see cref="ValueObjectDescriptor.Accept{TResult}(IValueObjectVisitor{TResult})"/>), never at run time
+/// with <see cref="Type.MakeGenericType(Type[])"/>. The registry still describes by reflection a value object nothing
+/// registered, one written by hand or a construction of a generic one, the first time it is asked for it.
+/// </para>
 /// </remarks>
 public sealed class ValueObjectModelBinderProvider : IModelBinderProvider
 {
@@ -28,14 +34,32 @@ public sealed class ValueObjectModelBinderProvider : IModelBinderProvider
     {
         // A descriptor exists for a struct implementing IValueObject<TSelf, TValue> over itself, the one shape the
         // binder can be closed over. Anything else carrying the marker - an interface, a class, a struct with the
-        // marker or IValueObject<TValue> alone - is left to MVC's own binders.
+        // marker or IValueObject<TValue> alone - is left to MVC's own binders. A nullable value object resolves to
+        // the value object itself: the binder tells an optional one by its metadata.
         if (!ValueObjectRegistry.TryResolve(modelType, out var descriptor))
         {
             return null;
         }
 
-        var binderType = typeof(ValueObjectModelBinder<,>).MakeGenericType(descriptor.ValueObjectType, descriptor.ValueType);
+        return descriptor.Accept(BinderFactory.Instance);
+    }
 
-        return (IModelBinder?)Activator.CreateInstance(binderType);
+    /// <summary>
+    /// Creates the binder of the value object a descriptor stands for, closed over the type arguments it hands back.
+    /// </summary>
+    private sealed class BinderFactory : IValueObjectVisitor<IModelBinder>
+    {
+        public static readonly BinderFactory Instance = new();
+
+        /// <summary>
+        /// Creates the binder of the value object, whatever its underlying type: MVC binds it from text, through
+        /// <c>TryParse</c>.
+        /// </summary>
+        /// <typeparam name="TSelf">Value object type.</typeparam>
+        /// <typeparam name="TValue">Underlying value type.</typeparam>
+        /// <returns>The binder, closed over the value object.</returns>
+        public IModelBinder Visit<TSelf, TValue>()
+            where TSelf : struct, IValueObject<TSelf, TValue>
+            => new ValueObjectModelBinder<TSelf, TValue>();
     }
 }
