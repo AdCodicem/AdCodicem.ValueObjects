@@ -49,15 +49,20 @@ public static class GeneratorHarness
     /// Whether the System.Text.Json source generator runs too, as it does in any project declaring a
     /// <c>JsonSerializerContext</c>, whose generated half only it writes.
     /// </param>
+    /// <param name="references">
+    /// What to compile against, in place of <see cref="LibraryReferences"/> or, with
+    /// <paramref name="referenceJsonPackage"/>, of them and the JSON package.
+    /// </param>
     /// <returns>The generated sources and every diagnostic produced.</returns>
     public static GeneratorRun Run(
         string source,
         DocumentationMode documentationMode = DocumentationMode.Parse,
         bool referenceJsonPackage = false,
-        bool withJsonGenerator = false)
+        bool withJsonGenerator = false,
+        ImmutableArray<MetadataReference>? references = null)
     {
         var parseOptions = ParseOptions.WithDocumentationMode(documentationMode);
-        var compilation = Compile(source, parseOptions, referenceJsonPackage ? WithJsonPackage : References);
+        var compilation = Compile(source, parseOptions, references ?? (referenceJsonPackage ? WithJsonPackage : References));
         var driver = CSharpGeneratorDriver
             .Create(GeneratorsFor(withJsonGenerator), parseOptions: parseOptions, driverOptions: DriverOptions)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);

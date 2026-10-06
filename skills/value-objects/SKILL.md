@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation, OpenAPI (built-in stack and Swashbuckle) and Serilog integrations. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation, OpenAPI (built-in stack and Swashbuckle) and Serilog integrations, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -161,7 +161,10 @@ a group separator, `12,5` or `1,234.5`), the 4-argument `TryParse` reporting *wh
 over a number any numeric type, checked: never truncated), and a `[ModuleInitializer]` registration into
 `ValueObjectRegistry`. A type with known values also gets `KnownValues`, and the private `Known` factory their
 members are initialized through;
-`Arithmetic = true` adds the operators plus `Zero`, `One`, `IsZero`, `Min`, `Max`.
+`Arithmetic = true` adds the operators plus `Zero`, `One`, `IsZero`, `Min`, `Max`. In an assembly marked
+`[assembly: ValueObjectXmlSerialization]`, every value object and identifier also gets an explicit `IXmlSerializable`
+and a public static `GetXmlSchema` named by `[XmlSchemaProvider]`; one that implements `IXmlSerializable` itself keeps
+its own.
 
 So: **do not** hand-write a constructor, a factory, `Equals`/`GetHashCode`, a `JsonConverter`, a
 `TypeConverter`, or an EF `HasConversion` per property. Add only domain members the generator knows nothing
@@ -215,6 +218,7 @@ builder.Services.AddSwaggerGen(o => o.AddValueObjects());                       
 ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);                       // Dapper
 new LoggerConfiguration().Enrich.FromLogContext()                                      // Serilog, after FromLogContext
     .Destructure.ValueObjects(o => { o.CaptureAsUnderlyingValue = true; o.Assemblies.Add(typeof(Iban).Assembly); });
+// [assembly: ValueObjectXmlSerialization]  in the domain assembly: XmlSerializer, DataContractSerializer, MVC XML formatters
 
 protected override void ConfigureConventions(ModelConfigurationBuilder builder)        // EntityFrameworkCore
     => builder.ConfigureValueObjects(typeof(Iban).Assembly);

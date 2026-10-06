@@ -17,9 +17,10 @@ Four suites, each with a distinct job:
   generator emits for every one of them runs rather than only compiles. Generated sources are emitted to disk
   during the build, so they can be read when diagnosing a failure instead of decompiled from memory. Value
   objects written by hand reach what the generator always replaces, such as the default members of the
-  contracts, and three small fixture assemblies hold what the test assembly cannot: a generated value object whose
-  module has not been used yet, annotated value objects in an assembly the generator does not run on, and
-  generated value objects in an assembly that does not reference the JSON package.
+  contracts, and four small fixture assemblies hold what the test assembly cannot: a generated value object whose
+  module has not been used yet, annotated value objects in an assembly the generator does not run on,
+  generated value objects in an assembly that does not reference the JSON package, and generated value objects of
+  every underlying type in an assembly that opts into XML serialization.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that
@@ -76,8 +77,8 @@ SDK, its own package versions and no transitive pinning, so the dependency floor
 major as they would in an application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on
 SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json
 and on Newtonsoft.Json, and a minimal API with its problem details,
-`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json, Serilog and
-the contract kit. A second project installs the Swashbuckle package, Swashbuckle 10 failing on the `Microsoft.OpenApi` 3
+`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json, Serilog,
+`XmlSerializer` and `DataContractSerializer` over a domain that opts into XML serialization, and the contract kit. A second project installs the Swashbuckle package, Swashbuckle 10 failing on the `Microsoft.OpenApi` 3
 the first one's `Microsoft.AspNetCore.OpenApi` 11 brings: there, Swashbuckle documents a minimal API over
 `Microsoft.OpenApi` 2, as in an application that takes Swashbuckle alone.
 

@@ -38,12 +38,15 @@ ValueObjectModel              an equatable record, so an unrelated edit does not
         ▼
 ValueObjectEmitter ──┬─► JsonConverterEmitter
                      ├─► TypeConverterEmitter
+                     ├─► XmlSerializableEmitter (an assembly marked [assembly: ValueObjectXmlSerialization] only)
                      └─► RegistrationEmitter ──► [ModuleInitializer] populating ValueObjectRegistry
 ```
 
 `Model/UnderlyingType.cs` is the closed table of the 22 supported underlying types, and drives nearly every
 per-type decision the emitters make. `RegistrationEmitter`'s module initializer is why descriptors are
-available without a consumer registering anything.
+available without a consumer registering anything. `XmlSerializableEmitter` writes an explicit `IXmlSerializable` and
+a schema provider whose members each call `ValueObjectXml`, in the contracts, which reads through the type's rules:
+the flag is read off the compilation and joins the model.
 
 Alongside the generator, two analyzers enforce what the generator cannot: `VO0010` makes `default(T)` a build
 error, and `VO0011` catches a hook rule written without its interface.
@@ -94,13 +97,16 @@ actually fired. `DescriptorTests.cs` covers that surface.
   `Regex` at run time because one source generator cannot see another's output;
   [ADR-0007](docs/adr/0007-deprecate-pattern-for-a-source-generated-regex-hook.md) records why. The built-in stack's
   transformer and the Swashbuckle filters describe a value object through one source file both packages compile,
-  `src/Shared/ValueObjectOpenApiSchema.cs`, so the two documents cannot drift apart.
+  `src/Shared/ValueObjectOpenApiSchema.cs`, so the two documents cannot drift apart. The XSD an assembly opted into XML
+  serialization publishes reads the same schema, its pattern through `src/Shared/ValueObjectPatternSyntax.cs`, the
+  reader of a .NET pattern each package writing one in another dialect links, which refuses what it cannot read with
+  certainty.
 
 ## Testing
 
 | Suite | Job |
 |---|---|
-| `UnitTests` | Behaviour of generated code, over value objects defined in `Domain/` — one per underlying type and per option or hook — and of every integration package called directly. |
+| `UnitTests` | Behaviour of generated code, over value objects defined in `Domain/` — one per underlying type and per option or hook — and of every integration package called directly; four fixture assemblies hold what the test assembly cannot, value objects of an assembly that opts into XML serialization among them. |
 | `GeneratorTests` | The generator itself: emission, every diagnostic, hook detection, the analyzers, incremental caching, and every published documentation snippet. |
 | `IntegrationTests` | Real PostgreSQL and SQL Server via Testcontainers, asserting against `information_schema`, plus the API surface end to end. |
 | `RdgTests` | Minimal API endpoints whose binding the Request Delegate Generator writes, over value objects declared in the endpoints' own project, which list their contract (`VO0033`), and the problem details their refusals are answered with. |

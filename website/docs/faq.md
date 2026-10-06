@@ -130,6 +130,15 @@ compares a numeric one as a number. [Serilog](./how-to/logging.md#serilog) says 
 write a value object as its text, through `ToString()`: [Logging](./how-to/logging.md) says, for each, how to keep a
 number a number.
 
+### Does it work with `XmlSerializer`, `DataContractSerializer` or WCF?
+
+Once the assembly asks for it: `[assembly: ValueObjectXmlSerialization]` makes the generator implement
+`IXmlSerializable` on every value object of the assembly, which `XmlSerializer` and `DataContractSerializer` honour, and
+through them the MVC XML formatters (probed), CoreWCF and Dapr actor remoting (expected, not run). A value object is
+then written as its underlying value, read back through its rules, and described in the exported schema with its rules
+as facets. Without it, both serializers write an empty element and read back a default instance. [XML](./how-to/xml.md)
+has the forms written, the errors and the limits: `DataContractSerializer` needs dynamic code to read one.
+
 ## Performance
 
 ### Does a value object cost more than the primitive it wraps?

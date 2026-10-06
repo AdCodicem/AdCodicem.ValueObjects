@@ -59,6 +59,7 @@ body:
         - FluentValidation
         - Entity identifiers (AdCodicem.ValueObjects.Identifiers)
         - Logging (AdCodicem.ValueObjects.Serilog)
+        - XML (XmlSerializer, DataContractSerializer, ValueObjectXmlSerialization)
         - Somewhere else / not sure
     validations:
       required: true

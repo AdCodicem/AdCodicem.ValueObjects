@@ -5,7 +5,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 
 | Package | Gives you |
 | --- | --- |
-| `AdCodicem.ValueObjects` | Contracts, source generator, analyzers. The one to install. |
+| `AdCodicem.ValueObjects` | Contracts, source generator, analyzers, and XML serialization on request (below). The one to install. |
 | `AdCodicem.ValueObjects.Abstractions` | The contracts alone, no dependency. For a domain assembly that must stay bare. |
 | `AdCodicem.ValueObjects.Json` | Source-generated `JsonSerializerContext` support, hand-written value objects, and the JSON Schema transform. |
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, an assembly-wide convention. |
@@ -451,6 +451,56 @@ Log.Logger = new LoggerConfiguration()
 - Under native AOT, Serilog destructures no object: an object logged with `@` is its `ToString()`. A value object alone
   or in a collection is logged as under the JIT.
 - A value object classified as personal data is logged in clear: redaction is not done by this package yet.
+
+## XML
+
+`XmlSerializer` and `DataContractSerializer` write a value object as an empty element and read back a default instance,
+unless its assembly opts in, once, beside the value objects:
+
+```csharp
+using AdCodicem.ValueObjects;
+using AdCodicem.ValueObjects.Annotations;
+
+[assembly: ValueObjectXmlSerialization(Namespace = "urn:shipping")]
+
+namespace Shipping;
+
+[ValueObject<int>]
+public readonly partial struct Quantity : IValueObjectMinimum<int>, IValueObjectMaximum<int>
+{
+    public static int Minimum => 1;
+
+    public static int Maximum => 100;
+}
+```
+
+- Every value object and `[EntityId]` of the assembly then implements `IXmlSerializable`: no package, no wiring. A
+  project file sets the same attribute with
+  `<AssemblyAttribute Include="AdCodicem.ValueObjects.Annotations.ValueObjectXmlSerializationAttribute" />`.
+  `Namespace` names the XSD namespace of the schema types; without it, `DataContractSerializer`'s
+  `http://schemas.datacontract.org/2004/07/{CLR namespace}`. With it, value objects of one name in two CLR namespaces
+  (`Billing.Code`, `Freight.Code`) share one schema type: give them distinct names, or the schema provider throws
+  `InvalidOperationException` when their rules differ.
+- Written as the underlying value, in `XmlSerializer`'s form for that type: a `char` as its code, a `TimeSpan` as
+  ISO 8601 (`PT1H30M`, not JSON's `01:30:00`), a `double` infinity as `INF`, `Int128` as digits. A document written
+  while the member was the primitive reads back, but a bare `DateTimeOffset` `DataContractSerializer` wrote (a pair of
+  elements) and a bare `Int128` (written empty) are refused as `value_object.not_parsable`.
+- Read through `TryCreate`: a refused value is an `XmlException` carrying the rule's code in its `Data`, inside
+  `XmlSerializer`'s `InvalidOperationException` or `DataContractSerializer`'s `SerializationException`; read it with
+  `ValueObjectErrors.TryGetCode`. An empty element is `""` (refused unless `AllowEmpty`) or not parsable; `xsi:nil` on
+  a member that cannot be null is `value_object.required` through `XmlSerializer`, and `DataContractSerializer`'s own
+  `SerializationException`, without a code; a missing element is never read, so the member keeps its default instance:
+  `[DataMember(IsRequired = true)]`.
+- A default instance its type refuses fails the write, with its code.
+- `GetXmlSchema` describes the type as an `xs:simpleType`: lengths, bounds, a closed set's values, the description,
+  and the pattern when XSD reads it alike (anchored at both ends; else left out). `XsdDataContractExporter` includes
+  it; `XmlSchemaExporter` only refers to it: call `GetXmlSchema` on the set to complete it.
+- Never mark a value-object member `[XmlAttribute]` or `[XmlText]`: `XmlSerializer` refuses the type.
+- The MVC XML formatters answer a refused body 400 with no code. `DataContractSerializer` needs dynamic code to read
+  a value object: not under native AOT.
+- Never call `ReadXml` on a variable: it changes the instance it is called on.
+- A value object written by hand implements `IXmlSerializable` through `ValueObjectXml.Read<TSelf, TValue>`,
+  `Write<TSelf, TValue>` and `ProvideSchema<TSelf, TValue>`.
 
 ## Run-time lookup, when only a `Type` is known
 

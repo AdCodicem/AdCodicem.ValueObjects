@@ -125,6 +125,7 @@ that treats a rejected value as a bug, for a strict EF Core read, and for an EF 
 | FluentValidation, `MustParseAs` and `MustSatisfy` | A validation failure carrying the code. |
 | Dapper | `DataException`, carrying the code in its `Data`, for a value it cannot convert, and for text read into a value object over another type, or a number or a `Guid` read into one over `string`, that the value object refuses. |
 | EF Core with `strict: true` | `ValueObjectException`, from `Create`: the query fails. |
+| `XmlSerializer` and `DataContractSerializer`, in an assembly marked `[assembly: ValueObjectXmlSerialization]` | `XmlException`, with the message of the rule and the line of the element, carrying the code in its `Data`, inside `XmlSerializer`'s `InvalidOperationException` ("There is an error in XML document …") or `DataContractSerializer`'s `SerializationException`: [XML](../how-to/xml.md#reading). |
 
 The other reads do not validate. EF Core by default, and Dapper for a value the provider returns as the underlying
 type or as its date and time counterpart, build the value object with `CreateUnchecked`: they read what this
@@ -150,6 +151,7 @@ without being validated again.
 | Dapper | `DataException`, with the same message, before the command is sent. Dapper hands the handler the value object whether the parameter is an `Iban` or an `Iban?` holding one, so the handler cannot tell whether the column takes a `NULL`, and refuses either way; an `Iban?` holding nothing is written as `NULL`. |
 | EF Core, a property of the value object's type | `SaveChanges` throws a `DbUpdateException` whose inner exception is the `ValueObjectException`, with the same message, the code and the type, and no `AttemptedValue`. Nothing is written. |
 | EF Core, an optional property (`Iban?`) | Nothing is thrown: the column takes a `NULL`, and stores one. |
+| `XmlSerializer` and `DataContractSerializer`, in an assembly marked `[assembly: ValueObjectXmlSerialization]` | `XmlException`, "The value to write is not a valid Quantity: …", inside `XmlSerializer`'s `InvalidOperationException` ("There was an error generating the XML document.") or `DataContractSerializer`'s `SerializationException`. |
 
 The message names the type and the rule, never the value, and each exception carries the code of the rule, as
 [below](#the-code-in-an-exception).
@@ -170,11 +172,14 @@ reading English:
 | The Newtonsoft.Json converter | `JsonSerializationException` | In `Data` |
 | Dapper | `DataException` | In `Data` |
 | EF Core, a refused write or a strict read | `ValueObjectException`, inside the `DbUpdateException` or the exception the query fails with | `ErrorCode` |
+| `XmlSerializer` and `DataContractSerializer`, in an assembly that opts into XML serialization | `XmlException`, inside the serializer's `InvalidOperationException` or `SerializationException` | In `Data` |
 
 The code is the one the rule reports. A value that is not of the underlying type at all carries
 `value_object.not_parsable`: a JSON token of the wrong kind, a number the underlying type cannot hold, text not of its
-shape, a column the Dapper handler cannot convert. A `null` where a value object that cannot be `null` is expected
-carries `value_object.required`: a JSON `null`, a SQL `NULL` read into an `Iban` rather than an `Iban?`. The messages
+shape, a column the Dapper handler cannot convert, an XML element holding elements or no text of the underlying type. A `null` where a value object that cannot be `null` is expected
+carries `value_object.required`: a JSON `null`, a SQL `NULL` read into an `Iban` rather than an `Iban?`, an element
+marked `xsi:nil` that `XmlSerializer` hands a member that cannot be `null` (`DataContractSerializer` refuses that one
+itself, without a code). The messages
 are the ones the exceptions carried before; where the System.Text.Json reader itself cannot read a token, as for a
 number beyond the range of an `int`, the message is still the serializer's own, "The JSON value could not be converted
 to …", followed by the path. No exception carries the refused value.

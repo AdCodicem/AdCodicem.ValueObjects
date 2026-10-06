@@ -96,6 +96,10 @@ internal static class ValueObjectEmitter
     /// <param name="formatsThroughSpanHook">
     /// Whether <c>ToString</c> goes through a span formatting hook, which writes its retry loop as a member of its own.
     /// </param>
+    /// <param name="xmlSerializable">
+    /// Whether the assembly opts into XML serialization, which adds the public schema provider; the members of
+    /// <c>IXmlSerializable</c> are implemented explicitly and take no name in the type's scope.
+    /// </param>
     /// <returns>The names, compared ordinally.</returns>
     public static HashSet<string> MemberNames(
         UnderlyingType underlying,
@@ -105,7 +109,8 @@ internal static class ValueObjectEmitter
         bool closedValueSet,
         bool normalizesFromSpan,
         bool entityId,
-        bool formatsThroughSpanHook)
+        bool formatsThroughSpanHook,
+        bool xmlSerializable)
     {
         var names = new HashSet<string>(CommonMembers, StringComparer.Ordinal);
         names.UnionWith(CommonGetters);
@@ -157,6 +162,11 @@ internal static class ValueObjectEmitter
             names.Add(PooledFormatMethod);
         }
 
+        if (xmlSerializable)
+        {
+            names.Add(XmlSerializableEmitter.SchemaProvider);
+        }
+
         return names;
     }
 
@@ -205,6 +215,11 @@ internal static class ValueObjectEmitter
             _ => $"{Abstractions}.IValueObject<{self}, {value}>",
         };
 
+        if (model.XmlSerializable)
+        {
+            contract += ", global::System.Xml.Serialization.IXmlSerializable";
+        }
+
         writer.Open($"partial struct {model.Identifier}{model.TypeParameters} : {contract}");
 
         EmitState(writer, model, value, self);
@@ -226,6 +241,7 @@ internal static class ValueObjectEmitter
 
         JsonConverterEmitter.Emit(writer, model, underlying, value, self);
         TypeConverterEmitter.Emit(writer, model, underlying, value, self);
+        XmlSerializableEmitter.Emit(writer, model, value, self);
 
         writer.Close();
 
@@ -251,6 +267,12 @@ internal static class ValueObjectEmitter
         {
             writer.Line($"[global::System.Text.Json.Serialization.JsonConverter(typeof({model.QualifiedName}.ValueJsonConverter))]");
             writer.Line($"[global::System.ComponentModel.TypeConverter(typeof({model.QualifiedName}.ValueTypeConverter))]");
+        }
+
+        if (model.XmlSerializable)
+        {
+            // Named as text: neither the type's members nor its type parameters are in scope in its attributes.
+            writer.Line($"[global::System.Xml.Serialization.XmlSchemaProvider(\"{XmlSerializableEmitter.SchemaProvider}\")]");
         }
 
         writer.Line("[global::System.Diagnostics.DebuggerDisplay(\"{ToString(),nq}\")]");

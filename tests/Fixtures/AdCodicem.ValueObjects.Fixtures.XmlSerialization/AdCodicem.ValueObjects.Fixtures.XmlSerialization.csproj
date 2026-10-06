@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Value objects generated into an assembly marked [assembly: ValueObjectXmlSerialization], one for each underlying
+    type: opting the unit test assembly in would change every value object of its Domain/ folder. Beside them, value
+    objects written by hand that implement IXmlSerializable through ValueObjectXml, with schemas the generator never
+    writes.
+  -->
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Fixtures.XmlSerialization</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

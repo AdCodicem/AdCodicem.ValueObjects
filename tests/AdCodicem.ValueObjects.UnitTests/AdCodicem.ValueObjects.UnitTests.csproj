@@ -37,11 +37,13 @@
 
   <ItemGroup>
     <!-- Value objects this assembly cannot hold: one in a module no test has touched yet, hand-written ones
-         annotated where the generator does not run, and generated ones in an assembly that does not reference the
-         JSON package (tests/Fixtures/Directory.Build.props). -->
+         annotated where the generator does not run, generated ones in an assembly that does not reference the JSON
+         package, and generated ones in an assembly that opts into XML serialization
+         (tests/Fixtures/Directory.Build.props). -->
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Untouched\AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutGenerator\AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutJson\AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.XmlSerialization\AdCodicem.ValueObjects.Fixtures.XmlSerialization.csproj" />
   </ItemGroup>
 
   <ItemGroup>

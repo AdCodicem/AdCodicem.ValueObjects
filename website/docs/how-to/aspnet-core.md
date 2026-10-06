@@ -372,6 +372,14 @@ builder.Services.PostConfigure<MvcOptions>(options =>
 
 The package is not AOT-compatible, as neither MVC nor Newtonsoft.Json is.
 
+### A body read as XML
+
+The MVC XML formatters, `AddXmlSerializerFormatters()` and `AddXmlDataContractSerializerFormatters()`, read a value
+object as `XmlSerializer` or `DataContractSerializer` does: as an empty element and a default instance, unless its
+assembly opts into [XML serialization](xml.md), which makes them read and write it as its underlying value, through
+its rules. A body holding a value the type refuses is then answered 400 with MVC's own message, "An error occurred
+while deserializing input data.", and no code: no formatter of this library records the code of an XML body yet.
+
 ## Codes for a payload you validate yourself
 
 For a payload that carries raw text — an inbound message from another system, say — validate it with

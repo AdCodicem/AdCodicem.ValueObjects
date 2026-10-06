@@ -6,4 +6,9 @@
     <PackageTags>$(PackageTags);abstractions</PackageTags>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- The reader of a .NET pattern, compiled into every package that writes one in another dialect: an XSD pattern here. -->
+    <Compile Include="..\Shared\ValueObjectPatternSyntax.cs" Link="Shared\ValueObjectPatternSyntax.cs" />
+  </ItemGroup>
+
 </Project>

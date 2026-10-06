@@ -31,6 +31,15 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     internal const string EntityIdAttributeName = "AdCodicem.ValueObjects.Identifiers.EntityIdAttribute";
     private const string JsonRegistryTypeName = "AdCodicem.ValueObjects.Json.ValueObjectJsonRegistry";
 
+    /// <summary>The assembly attribute opting every value object of the assembly into XML serialization.</summary>
+    private const string XmlSerializationAttributeName = "AdCodicem.ValueObjects.Annotations.ValueObjectXmlSerializationAttribute";
+
+    /// <summary>The interface a value object implements itself to keep the generator from implementing it.</summary>
+    private const string XmlSerializableName = "System.Xml.Serialization.IXmlSerializable";
+
+    /// <summary>The attribute naming a schema provider, which a value object may declare itself as well.</summary>
+    private const string XmlSchemaProviderName = "System.Xml.Serialization.XmlSchemaProviderAttribute";
+
     /// <summary>The namespace of <c>DataClassificationAttribute</c>, which classifies a type as sensitive data.</summary>
     private const string ClassificationNamespace = "Microsoft.Extensions.Compliance.Classification";
 
@@ -262,6 +271,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         var implicitConversion = GetBool(arguments, "ImplicitConversionToValue");
         var explicitConversion = GetBool(arguments, "ExplicitConversionFromValue");
         var formatsThroughSpanHook = FormatsThroughSpanHook(symbol);
+        var xml = ReadXmlSerialization(symbol, context.SemanticModel.Compilation, out var xmlNamespace);
         var usableName = ValidateName(
             symbol,
             ValueObjectEmitter.MemberNames(
@@ -272,7 +282,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
                 isClosed,
                 hasSpanNormalizeHook,
                 entityId: false,
-                formatsThroughSpanHook),
+                formatsThroughSpanHook,
+                xml),
             location,
             diagnostics);
         var compilation = context.SemanticModel.Compilation;
@@ -368,6 +379,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             HasFormatHook = ImplementsHook(symbol, "IValueObjectStringFormatter`1"),
             KnownValues = EquatableArray<KnownValueModel>.From(knownValues),
             IsClassified = IsClassified(symbol),
+            XmlSerializable = xml,
+            XmlNamespace = xmlNamespace,
         };
 
         return new ParseResult(model, EquatableArray<DiagnosticInfo>.From(diagnostics));
@@ -458,6 +471,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 
         var exampleHook = ReadExampleHook(symbol, location, diagnostics);
 
+        var xml = ReadXmlSerialization(symbol, context.SemanticModel.Compilation, out var xmlNamespace);
         var members = ValueObjectEmitter.MemberNames(
             UnderlyingType.String,
             arithmetic: false,
@@ -466,7 +480,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             closedValueSet: false,
             normalizesFromSpan: true,
             entityId: true,
-            FormatsThroughSpanHook(symbol));
+            FormatsThroughSpanHook(symbol),
+            xml);
         var usableName = ValidateName(symbol, members, location, diagnostics);
 
         var arguments = NamedArguments(attribute);
@@ -514,6 +529,8 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             HasFormatHook = ImplementsHook(symbol, "IValueObjectStringFormatter`1"),
             Id = new EntityIdProfile(prefix!, granularity, totalLength),
             IsClassified = IsClassified(symbol),
+            XmlSerializable = xml,
+            XmlNamespace = xmlNamespace,
         };
 
         return new ParseResult(
@@ -983,12 +1000,12 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         => FindAttribute(symbol, metadataName) is not null;
 
     /// <summary>
-    /// Finds an annotation of a type, by metadata name so that generic arity is respected.
+    /// Finds an annotation of a type or an assembly, by metadata name so that generic arity is respected.
     /// </summary>
-    /// <param name="symbol">Type to inspect.</param>
+    /// <param name="symbol">Type or assembly to inspect.</param>
     /// <param name="metadataName">Fully qualified metadata name of the attribute, arity included.</param>
-    /// <returns>The first application of the attribute, or <see langword="null"/> when the type does not carry it.</returns>
-    internal static AttributeData? FindAttribute(INamedTypeSymbol symbol, string metadataName)
+    /// <returns>The first application of the attribute, or <see langword="null"/> when the symbol does not carry it.</returns>
+    internal static AttributeData? FindAttribute(ISymbol symbol, string metadataName)
     {
         var separator = metadataName.LastIndexOf('.');
         var containingNamespace = metadataName.Substring(0, separator);
@@ -998,6 +1015,36 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             attribute.AttributeClass is { } attributeClass
             && string.Equals(attributeClass.MetadataName, name, StringComparison.Ordinal)
             && string.Equals(attributeClass.ContainingNamespace.ToDisplayString(), containingNamespace, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Reads whether the assembly opts its value objects into XML serialization, and the namespace it names.
+    /// </summary>
+    /// <remarks>
+    /// Read off the compilation inside the transform, the flag joins the model: the transform runs again whenever the
+    /// compilation changes, and the model's equality keeps every emission cached until the attribute itself changes. A
+    /// type that implements <c>IXmlSerializable</c> or declares a schema provider itself is left alone, its author's
+    /// implementation standing, where a second one would not compile in a file they cannot edit.
+    /// </remarks>
+    /// <param name="symbol">Type to inspect.</param>
+    /// <param name="compilation">The compilation, whose assembly carries the attribute.</param>
+    /// <param name="xmlNamespace">The namespace the attribute names, or <see langword="null"/> for the default.</param>
+    /// <returns><see langword="true"/> when the generator implements XML serialization on the type.</returns>
+    private static bool ReadXmlSerialization(INamedTypeSymbol symbol, Compilation compilation, out string? xmlNamespace)
+    {
+        xmlNamespace = null;
+        var attribute = FindAttribute(compilation.Assembly, XmlSerializationAttributeName);
+        if (attribute is null
+            || symbol.AllInterfaces.Any(static contract => string.Equals(contract.ToDisplayString(), XmlSerializableName, StringComparison.Ordinal))
+            || CarriesAttribute(symbol, XmlSchemaProviderName))
+        {
+            return false;
+        }
+
+        xmlNamespace = attribute.NamedArguments
+            .FirstOrDefault(static argument => string.Equals(argument.Key, "Namespace", StringComparison.Ordinal))
+            .Value.Value as string;
+        return true;
     }
 
     /// <summary>

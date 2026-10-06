@@ -3,6 +3,10 @@ using AdCodicem.ValueObjects.EntityFrameworkCore;
 using AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
+// Every value object of the domain implements IXmlSerializable, as the generator of the packed AdCodicem.ValueObjects
+// writes it in the compiler of the next SDK.
+[assembly: ValueObjectXmlSerialization]
+
 namespace AdCodicem.ValueObjects.CompatTests;
 
 // The value objects a consumer writes, in the style of the sample, compiled by the generator the packed

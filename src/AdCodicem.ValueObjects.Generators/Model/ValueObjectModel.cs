@@ -161,6 +161,16 @@ internal sealed record ValueObjectModel
     /// </summary>
     public bool IsClassified { get; init; }
 
+    /// <summary>
+    /// Gets a value indicating whether the assembly opts into XML serialization with <c>ValueObjectXmlSerializationAttribute</c>
+    /// and the type implements none of it itself: the generated code then implements <c>IXmlSerializable</c> and a schema
+    /// provider.
+    /// </summary>
+    public bool XmlSerializable { get; init; }
+
+    /// <summary>Gets the XML namespace the assembly's attribute names, or <see langword="null"/> for the default.</summary>
+    public string? XmlNamespace { get; init; }
+
     /// <summary>Gets the entity identifier profile, or <see langword="null"/> for an ordinary value object.</summary>
     public EntityIdProfile? Id { get; init; }
 

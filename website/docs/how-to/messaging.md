@@ -118,7 +118,9 @@ Only the converter was run, not an orchestration. An entity key is a string: pas
 
 `DaprClient`, for service invocation, publish and subscribe, and state, serializes with System.Text.Json: nothing to
 do. Strongly typed actor remoting goes through `DataContractSerializer`, which writes `<Customer/><OrderId/><Quantity/>`
-and reads back defaults. Turn on JSON serialization in the actor proxy options, as Dapr documents (not run).
+and reads back defaults, unless the value objects' assembly opts into [XML serialization](xml.md), which makes it write
+and validate them as it does any member (expected, not run). Or turn on JSON serialization in the actor proxy options,
+as Dapr documents (not run).
 
 ## Hangfire
 

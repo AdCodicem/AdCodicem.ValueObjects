@@ -256,7 +256,8 @@ public sealed class TypeNameTests
 
     /// <summary>
     /// The members follow the options, and so do the names they take: without arithmetic there is no <c>Zero</c> on
-    /// the type to collide with it, and only an identifier has a <c>Prefix</c>.
+    /// the type to collide with it, only an identifier has a <c>Prefix</c>, and only a value object of an assembly that
+    /// opts into XML serialization has a <c>GetXmlSchema</c>.
     /// </summary>
     [Theory]
     [InlineData("[ValueObject<int>]", "Zero")]
@@ -268,6 +269,7 @@ public sealed class TypeNameTests
     [InlineData("[ValueObject<string>]", "Prefix")]
     [InlineData("[ValueObject<string>]", "New")]
     [InlineData("[EntityId(\"acc\")]", "Zero")]
+    [InlineData("[ValueObject<string>]", "GetXmlSchema")]
     public void A_type_name_the_options_leave_free_is_generated(string attribute, string name)
     {
         var run = GeneratorHarness.Run($"""

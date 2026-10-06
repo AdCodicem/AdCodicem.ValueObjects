@@ -29,6 +29,7 @@
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Untouched/AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WithoutGenerator/AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WithoutJson/AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />
+    <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.XmlSerialization/AdCodicem.ValueObjects.Fixtures.XmlSerialization.csproj" />
   </Folder>
   <Folder Name="/tests/NativeAot/">
     <Project Path="tests/NativeAot/AdCodicem.ValueObjects.CompiledModel/AdCodicem.ValueObjects.CompiledModel.csproj" />

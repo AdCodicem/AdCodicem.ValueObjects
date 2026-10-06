@@ -1,5 +1,9 @@
 using System.Text.RegularExpressions;
 
+// Every value object of the domain implements IXmlSerializable, which the application never calls: the guard that the
+// emission adds no trimming or AOT warning to a native binary, and changes nothing it does.
+[assembly: ValueObjectXmlSerialization]
+
 namespace AdCodicem.ValueObjects.NativeAot.Domain;
 
 // What the unit suite's UnderlyingTypes.cs, linked beside this file, leaves to the rest of its domain: the three
