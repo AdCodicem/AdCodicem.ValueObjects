@@ -257,6 +257,11 @@ Dapper looks one up by the exact type, ahead of any query. Register each constru
   non-Unicode, a value object with `MaxLength` as Unicode text of that length. SQL Server keeps its index seek.
 - A value object over `Int128` or `UInt128` gets no handler: no provider carries either type. Register a
   `SqlMapper.TypeHandler<T>` of your own that converts to the column you chose.
+- Under native AOT, Dapper's own handler cache fails inside Dapper, however the handler was built. Use Dapper.AOT,
+  which ignores `SqlMapper`'s table: declare each handler at module level,
+  `[module: TypeHandler(typeof(Iban), typeof(ValueObjectTypeHandler<Iban, string>))]` beside `[module: DapperAot]`,
+  and keep `AddValueObjectHandlers` for the calls Dapper.AOT does not intercept. `QuerySingle<Iban>` is `DAP037`
+  there: query the underlying type and `Create` the value object from it.
 
 ## FluentValidation
 

@@ -141,7 +141,9 @@ never under native AOT. The contracts, the generated code, the JSON package, Flu
 AOT-compatible and built with the trimming and AOT analyzers on, and CI publishes an application using them all with
 native AOT on every pull request, which merges only once that passes: it fails on any trimming or AOT warning, and
 unless the native binary does exactly what the application does under the JIT. The EF Core, ASP.NET Core, OpenAPI,
-Dapper and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not.
+Dapper and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper,
+for one, files each handler in a cache it closes over the type at run time, so under native AOT a handler this package
+built without dynamic code still fails inside Dapper: native AOT goes through [Dapper.AOT](./how-to/dapper.md#dapperaot).
 
 ### Does a pattern run compiled under native AOT?
 

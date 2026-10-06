@@ -60,7 +60,9 @@ This distinction is where bugs hide, so it is worth knowing before changing anyt
   the EF Core converter and the Dapper handler are all closed over the concrete types at startup, so
   per-request work is fully typed and allocates nothing extra.
 - **Boxed path** — `ValueObjectDescriptor`, resolved from `ValueObjectRegistry`, for callers that only know a
-  `Type` at run time: `MustParseAs(Type)`, the OpenAPI transformer, model-binder resolution.
+  `Type` at run time: `MustParseAs(Type)`, the OpenAPI transformer, model-binder resolution. `descriptor.Accept`
+  hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
+  time rather than with `MakeGenericType`, which native AOT cannot run for a struct.
 
 The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them. That is
 how the descriptor once flattened every rejection into a generic `not_parsable`, discarding the rule that

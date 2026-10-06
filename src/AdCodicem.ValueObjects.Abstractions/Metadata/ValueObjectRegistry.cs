@@ -47,6 +47,13 @@ public static class ValueObjectRegistry
     /// <typeparam name="TSelf">Value object type.</typeparam>
     /// <typeparam name="TValue">Underlying value type.</typeparam>
     /// <param name="schema">Declarative constraints of the value object.</param>
+    /// <remarks>
+    /// This is the registration native AOT asks of a value object written by hand that a type-driven integration needs,
+    /// <c>Register&lt;Link, Uri&gt;(Link.Schema)</c>, since <see cref="TryResolve"/> would describe it by reflection. Its
+    /// descriptor carries no System.Text.Json converter: the converter factory of <c>AdCodicem.ValueObjects.Json</c> gives
+    /// it a general-purpose one, closed through
+    /// <see cref="ValueObjectDescriptor.Accept{TResult}(IValueObjectVisitor{TResult})"/>.
+    /// </remarks>
     public static void Register<TSelf, TValue>(ValueObjectSchema schema)
         where TSelf : struct, IValueObject<TSelf, TValue>
         => Register(ValueObjectDescriptor.For<TSelf, TValue>(schema));
