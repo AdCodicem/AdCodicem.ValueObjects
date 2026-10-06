@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.CompatTests</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    AdCodicem.ValueObjects.Swashbuckle in a project of its own: Swashbuckle 10 is built on Microsoft.OpenApi 2, and its
+    document generator fails, MissingMethodException, on the Microsoft.OpenApi 3 that Microsoft.AspNetCore.OpenApi 11
+    brings into the main project. Here nothing raises it, so Microsoft.OpenApi resolves to the floor the package declares,
+    and Swashbuckle to the version the package was built against, as in an application that takes Swashbuckle alone.
+
+    As in the main project, an SDK that cannot target the next major, as GitHub's automatic dependency submission runs
+    from the repository root, sees the project empty.
+  -->
+  <PropertyGroup Condition="$([MSBuild]::VersionLessThan('$(NETCoreAppMaximumVersion)', '$([MSBuild]::GetTargetFrameworkVersion('$(TargetFramework)'))'))">
+    <CompatSdkMissing>true</CompatSdkMissing>
+    <TargetFramework>net$(NETCoreAppMaximumVersion)</TargetFramework>
+  </PropertyGroup>
+
+  <Target Name="_RequireCompatSdk" BeforeTargets="BeforeBuild" Condition="'$(CompatSdkMissing)' == 'true'">
+    <Error Text="The compatibility island targets the next .NET major, which SDK $(NETCoreSdkVersion) cannot. Run it from tests/Compat, whose global.json selects the SDK it needs." />
+  </Target>
+
+  <ItemGroup Condition="'$(CompatSdkMissing)' != 'true'">
+    <PackageReference Include="AdCodicem.ValueObjects" />
+    <PackageReference Include="AdCodicem.ValueObjects.Swashbuckle" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CompatSdkMissing)' != 'true'">
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CompatSdkMissing)' != 'true'">
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="AwesomeAssertions" />
+    <Using Include="AdCodicem.ValueObjects" />
+    <Using Include="AdCodicem.ValueObjects.Annotations" />
+  </ItemGroup>
+
+</Project>

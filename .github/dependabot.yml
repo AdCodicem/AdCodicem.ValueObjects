@@ -48,6 +48,10 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "Microsoft.OpenApi"
         update-types: ["version-update:semver-major"]
+      # Its next major moves to Microsoft.OpenApi 3, whose majors are held back
+      # too; its minor and patch updates come in the dotnet group.
+      - dependency-name: "Swashbuckle.AspNetCore*"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "Npgsql.EntityFrameworkCore.PostgreSQL"
         update-types: ["version-update:semver-major"]
 

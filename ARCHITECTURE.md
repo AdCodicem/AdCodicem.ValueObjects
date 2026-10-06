@@ -6,7 +6,7 @@ site, and the decisions that were costly to reverse are recorded in [`docs/adr/`
 
 ## What the repository ships
 
-Fourteen NuGet packages for single-value DDD value objects. A `readonly partial struct` marked `[ValueObject<T>]`
+Fifteen NuGet packages for single-value DDD value objects. A `readonly partial struct` marked `[ValueObject<T>]`
 gets its whole implementation from a Roslyn incremental generator, and crosses every boundary as its underlying
 type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object wrapper. Consumers
 define their own value objects; this repository ships the frame.
@@ -14,10 +14,10 @@ define their own value objects; this repository ships the frame.
 ## Layout
 
 ```
-src/          the fourteen shipped packages
+src/          the fifteen shipped packages
 tests/        four suites with distinct jobs (see below)
   NativeAot/  applications CI publishes with native AOT and compiles an EF Core model for
-  Compat/     the packed packages in a .NET 11 application, outside the solution
+  Compat/     the packed packages in .NET 11 applications, outside the solution
 samples/      a showcase API exercising the whole chain end to end
 benchmarks/   the measurements behind the design decisions
 skills/       the consumer-facing agent skill, shipped as a Claude Code plugin via .claude-plugin/
@@ -60,7 +60,8 @@ This distinction is where bugs hide, so it is worth knowing before changing anyt
   the EF Core converter and the Dapper handler are all closed over the concrete types at startup, so
   per-request work is fully typed and allocates nothing extra.
 - **Boxed path** — `ValueObjectDescriptor`, resolved from `ValueObjectRegistry`, for callers that only know a
-  `Type` at run time: `MustParseAs(Type)`, the OpenAPI transformer, model-binder resolution. `descriptor.Accept`
+  `Type` at run time: `MustParseAs(Type)`, the OpenAPI transformer and the Swashbuckle filters, model-binder
+  resolution. `descriptor.Accept`
   hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
   time rather than with `MakeGenericType`, which native AOT cannot run for a struct. The minimal API filter of
   `AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains that way.
@@ -88,7 +89,9 @@ actually fired. `DescriptorTests.cs` covers that surface.
   `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off the attribute at
   compile time, becomes the OpenAPI `pattern`. It replaces the deprecated `Pattern` option, which builds its
   `Regex` at run time because one source generator cannot see another's output;
-  [ADR-0007](docs/adr/0007-deprecate-pattern-for-a-source-generated-regex-hook.md) records why.
+  [ADR-0007](docs/adr/0007-deprecate-pattern-for-a-source-generated-regex-hook.md) records why. The built-in stack's
+  transformer and the Swashbuckle filters describe a value object through one source file both packages compile,
+  `src/Shared/ValueObjectOpenApiSchema.cs`, so the two documents cannot drift apart.
 
 ## Testing
 
@@ -99,7 +102,7 @@ actually fired. `DescriptorTests.cs` covers that surface.
 | `IntegrationTests` | Real PostgreSQL and SQL Server via Testcontainers, asserting against `information_schema`, plus the API surface end to end. |
 | `RdgTests` | Minimal API endpoints whose binding the Request Delegate Generator writes, over value objects declared in the endpoints' own project, which list their contract (`VO0033`), and the problem details their refusals are answered with. |
 | `tests/NativeAot` | Not a suite: an application referencing every AOT-compatible package, run under the JIT and as a native AOT binary by the `native AOT` job of `ci.yml`, a required check, which fails on a trimming or AOT warning or on any difference between the two outputs; and an EF Core model compiled with `dotnet ef dbcontext optimize`, taken on a round trip through SQL Server and published for native AOT. |
-| `tests/Compat` | Not a suite of the solution: the packages exactly as packed, installed into a `net11.0` application on the .NET 11 release candidate, with its own `global.json` and package versions. Run by the `compat (.NET 11)` job of `ci.yml`, informational until .NET 11 ships. |
+| `tests/Compat` | Not a suite of the solution: the packages exactly as packed, installed into `net11.0` applications on the .NET 11 release candidate, the Swashbuckle package into one of its own, with its own `global.json` and package versions. Run by the `compat (.NET 11)` job of `ci.yml`, informational until .NET 11 ships. |
 
 `GeneratorTests` drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
 `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Its snippets compile **without** implicit usings,
@@ -125,5 +128,5 @@ build's own dependencies are pinned, and why NuGet lock files are not part of it
 [ADR-0005](docs/adr/0005-version-the-documentation-site.md) records how the documentation site follows the same
 two tracks: every `preview.yml` run redeploys the preview pages, and each stable release freezes its own.
 [ADR-0010](docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md) records the versioning
-policy: one version for the fourteen packages, never aligned with .NET, and a framework's next major supported in the
+policy: one version for the fifteen packages, never aligned with .NET, and a framework's next major supported in the
 same packages.

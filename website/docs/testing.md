@@ -69,14 +69,16 @@ SQL Server; the native AOT job also writes the model for native AOT, with its qu
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the
-solution, installs the fourteen packages exactly as they were packed — from the folder the build packs into, at that
-one version, never from nuget.org — into a `net11.0` application on the .NET 11 release candidate. It has its own
+solution, installs the fifteen packages exactly as they were packed — from the folder the build packs into, at that
+one version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own
 SDK, its own package versions and no transitive pinning, so the dependency floors of the packages meet the next
 major as they would in an application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on
 SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json
 and on Newtonsoft.Json, and a minimal API with its problem details,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json and the
-contract kit.
+contract kit. A second project installs the Swashbuckle package, Swashbuckle 10 failing on the `Microsoft.OpenApi` 3
+the first one's `Microsoft.AspNetCore.OpenApi` 11 brings: there, Swashbuckle documents a minimal API over
+`Microsoft.OpenApi` 2, as in an application that takes Swashbuckle alone.
 
 CI's `compat (.NET 11)` job runs it on every pull request, against the packages that commit packed. It informs and
 blocks nothing until .NET 11 ships, then becomes a required check. The "On the next .NET" column of
@@ -89,7 +91,7 @@ blocks nothing until .NET 11 ships, then becomes a required check. The "On the n
   binder, the EF converter and the Dapper handler are all generic and closed over the concrete types at
   startup, so per-request work is fully typed and allocates nothing extra.
 - **Boxed path.** A descriptor resolved from a runtime registry, for callers that only know a `Type` at run
-  time — dynamic parsing, the OpenAPI transformer, model-binder resolution.
+  time — dynamic parsing, the OpenAPI transformer and the Swashbuckle filters, model-binder resolution.
 
 Unit tests naturally exercise the typed path, so a defect confined to the descriptor can be invisible to them
 unless the suite deliberately covers that surface too. That asymmetry is worth keeping in mind when adding a
@@ -124,7 +126,8 @@ dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/pac
 v=0.0.0-compat.$(date +%s)
 MINVERVERSIONOVERRIDE=$v dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj -p:AdCodicemVersion=$v
-# needs Docker for PostgreSQL and SQL Server; without it, add --filter-not-trait "Requires=Docker"
+# the main project needs Docker for PostgreSQL and SQL Server; without it, add --filter-not-trait "Requires=Docker"
+dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj -p:AdCodicemVersion=$v   # no Docker
 
 # Native AOT (needs clang and zlib), and the compiled model, for the JIT (a round trip, needs Docker) and native AOT
 .github/scripts/native-aot.sh

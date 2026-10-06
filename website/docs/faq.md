@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The fourteen packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The fifteen packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -116,7 +116,11 @@ declared in the project that maps the endpoints lists its contract on its declar
 
 ### Does it work with Swashbuckle?
 
-No. The OpenAPI integration targets the built-in .NET stack, `Microsoft.AspNetCore.OpenApi`.
+Yes, Swashbuckle 10 and later, through `AdCodicem.ValueObjects.Swashbuckle`: `AddSwaggerGen(o => o.AddValueObjects())`
+documents a value object as its underlying type, with the rules declared on it, as `AdCodicem.ValueObjects.OpenApi`
+does on the built-in stack, a number as Swashbuckle documents a number, and a route, query or header parameter as a
+reference to its component. [Swashbuckle](./how-to/openapi.md#swashbuckle) says what differs from the built-in stack.
+Swashbuckle 10 needs `Microsoft.OpenApi` 2, so it fails beside `Microsoft.AspNetCore.OpenApi` 11, which brings 3.
 
 ## Performance
 
@@ -146,7 +150,8 @@ contracts, the generated code, the JSON package, the minimal API problem details
 marked AOT-compatible and built with the trimming and AOT analyzers on, and CI publishes an application using them all
 with native AOT on every pull request, which merges only once that passes: it fails on any trimming or AOT warning, and
 unless the native binary does exactly what the application does under the JIT. The EF Core, ASP.NET Core MVC, OpenAPI,
-Dapper and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper,
+Swashbuckle, Dapper and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are
+not. Dapper,
 for one, files each handler in a cache it closes over the type at run time, so under native AOT a handler this package
 built without dynamic code still fails inside Dapper: native AOT goes through [Dapper.AOT](./how-to/dapper.md#dapperaot).
 

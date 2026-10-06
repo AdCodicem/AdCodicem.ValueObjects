@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Fourteen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Fifteen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -51,7 +51,8 @@ dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/pac
 v=0.0.0-compat.$(date +%s)
 MINVERVERSIONOVERRIDE=$v dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj -p:AdCodicemVersion=$v
-# Needs Docker for PostgreSQL and SQL Server; without it, add --filter-not-trait "Requires=Docker"
+# The main project needs Docker for PostgreSQL and SQL Server; without it, add --filter-not-trait "Requires=Docker"
+dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj -p:AdCodicemVersion=$v   # no Docker
 
 # Native AOT, as ci.yml's native AOT job runs it; needs clang and zlib. The application of tests/NativeAot under
 # the JIT and as a native binary, compared; then the compiled model written for native AOT, published (Docker-free).
@@ -92,7 +93,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All fourteen packages go out at one version, or none. That version is the one semantic-release would give
+lookup fails. All fifteen packages go out at one version, or none. That version is the one semantic-release would give
 the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -140,7 +141,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The fourteen packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The fifteen packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -197,7 +198,8 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   concrete types at startup, so per-request work is fully typed and allocates nothing extra. A typed adapter reads
   `TSelf.Schema`, never the registry, which would describe a construction of a generic value object by reflection.
 - **Boxed path.** `ValueObjectDescriptor`, resolved from `ValueObjectRegistry`, for callers that only know a
-  `Type` at run time — `MustParseAs(Type)`, the OpenAPI transformer, model-binder resolution. `descriptor.Accept`
+  `Type` at run time — `MustParseAs(Type)`, the OpenAPI transformer and the Swashbuckle filters, model-binder
+  resolution. `descriptor.Accept`
   hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
   time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's `AddValueObjectHandlers`,
   the MVC binder provider, the JSON factory's general-purpose converter, for a value object written by hand, the
@@ -240,10 +242,13 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI
   `maxLength`. Anything added to `[ValueObject<T>]` should feed all three. A hook can feed the schema too: the
   `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off the attribute at
-  compile time, becomes the OpenAPI `pattern`. The OpenAPI transformer and the JSON Schema transform
-  (`ValueObjectJsonSchema`, in the Json package) take what a rule becomes in a schema from
+  compile time, becomes the OpenAPI `pattern`. The OpenAPI transformer, the Swashbuckle filters and the JSON Schema
+  transform (`ValueObjectJsonSchema`, in the Json package) take what a rule becomes in a schema from
   `src/Shared/ValueObjectSchemaKeywords.cs`, an internal file each package links and compiles, not a project: a
-  keyword changes there, for both.
+  keyword changes there, for all three. The OpenAPI transformer and the Swashbuckle filters, both on the object model
+  of `Microsoft.OpenApi` 2, share the whole description of a value object the same way, through
+  `src/Shared/ValueObjectOpenApiSchema.cs`; what is particular to each host stays with it: how it finds the value
+  object, the options, the name of a closed set's enumeration, parameters and containers.
 - **`default(T)` is a build error** (`VO0010`). Tests that deliberately construct one need a targeted
   `#pragma warning disable VO0010` with a comment.
 - **A known value is the author's member, created before the lookup it belongs to.** `[KnownValue]` marks a
@@ -407,6 +412,17 @@ These are all load-bearing, and each cost real debugging time:
   `nuget.config`. It is in no solution, so the root build, `dotnet format`, coverage and Dependabot never see it, and
   it must be run from its folder: from the root, the root `global.json` selects SDK 10 and the build stops. Its SDK
   and its .NET 11 packages are bumped by hand, Npgsql's provider in the same change as EF Core, which it pins exactly.
+- **Swashbuckle 10 is built on `Microsoft.OpenApi` 2, and fails on 3.** Its document generator throws
+  `MissingMethodException` once `Microsoft.OpenApi` 3 is resolved, which `Microsoft.AspNetCore.OpenApi` 11 forces: the
+  island's main project references that package, so `AdCodicem.ValueObjects.Swashbuckle` is installed by a project of
+  its own, `tests/Compat/Swashbuckle`, which the main one excludes from its sources (`DefaultItemExcludes`), and the
+  `compat (.NET 11)` job runs both. Its floor on `Microsoft.OpenApi` is the transitive pin of `Directory.Packages.props`,
+  2.12.2: the 2.7.5 Swashbuckle asks for drops the example of an OpenAPI 3.0 schema. Pin no version of
+  `Swashbuckle.AspNetCore.Swagger`, which the tests take through `Swashbuckle.AspNetCore.SwaggerGen`: the pin would make
+  it a dependency of the package, to list in `.github/shipped-dependencies`. The package's namespace,
+  `AdCodicem.ValueObjects.Swashbuckle`, hides the root `Swashbuckle` namespace from code in any `AdCodicem.ValueObjects.*`
+  namespace, tests included: name Swashbuckle's types through usings at the top of the file, never through a
+  qualified `Swashbuckle.…` in a body.
 - **NuGet lock files are deliberately absent**, and adding them breaks CI on the first run:
   `src/Directory.Build.props` references `Microsoft.SourceLink.GitHub` under
   `Condition="'$(GITHUB_ACTIONS)' == 'true'"`, so the package graph on a laptop is not the graph on the runner
@@ -521,19 +537,21 @@ on where they apply.
   (CS0104). A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
   (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the fourteen packages exactly as
-packed, installed from `artifacts/packages` at the one version just built into a `net11.0` application on the .NET 11
-release candidate. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
-PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, on System.Text.Json and on
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the fifteen packages exactly as
+packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
+release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
+Server and PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, on System.Text.Json and on
 Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal API problem details,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json and the
 contract kit, with no transitive pinning, so the dependency floors of the packages meet the next major as an
-application's would. `ci.yml`'s `compat (.NET 11)`
-job runs it against the packages its build job packed; it is not a required check until .NET 11 ships, and is
+application's would. `AdCodicem.ValueObjects.Swashbuckle` is installed by a second project, `tests/Compat/Swashbuckle`,
+which the main one excludes from its sources: Swashbuckle 10 over `Microsoft.OpenApi` 2, on which it is built, since it
+fails on the `Microsoft.OpenApi` 3 the main project's `Microsoft.AspNetCore.OpenApi` 11 brings. `ci.yml`'s
+`compat (.NET 11)` job runs both against the packages its build job packed; it is not a required check until .NET 11 ships, and is
 measured by no coverage. Without Docker its 18 container tests fail rather than skip, so leave them out explicitly
 (Commands above). Tools that walk the repository rather than the solution do see it: CodeQL downloads its SDK, and
-GitHub's automatic dependency submission restores it with SDK 10 from the root, which is why its project file leaves
-itself empty on an SDK that cannot target `net11.0`. The suites above are still the four; the island checks the
+GitHub's automatic dependency submission restores it with SDK 10 from the root, which is why its project files leave
+themselves empty on an SDK that cannot target `net11.0`. The suites above are still the four; the island checks the
 packages, not the code.
 
 `AdCodicem.ValueObjects.Testing` ships a contract kit (`ValueObjectContract`) that consumers point at their own

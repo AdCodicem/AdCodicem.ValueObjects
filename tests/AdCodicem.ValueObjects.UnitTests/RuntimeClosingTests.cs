@@ -61,6 +61,7 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.Json", [] },
         { "AdCodicem.ValueObjects.NewtonsoftJson", [] },
         { "AdCodicem.ValueObjects.OpenApi", [] },
+        { "AdCodicem.ValueObjects.Swashbuckle", [] },
         { "AdCodicem.ValueObjects.Testing", [] },
     };
 

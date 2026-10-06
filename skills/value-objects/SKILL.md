@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation and OpenAPI integrations. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation and OpenAPI (built-in stack and Swashbuckle) integrations. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -211,6 +211,7 @@ builder.Services.AddValueObjectHttpProblemDetails();                            
 app.UseExceptionHandler();                                                             // where ThrowOnBadRequest is on
 app.MapGroup("/api").WithValueObjectProblemDetails();                                  // AspNetCore.Http, minimal APIs
 builder.Services.AddOpenApi(o => o.AddValueObjects());                                 // OpenApi
+builder.Services.AddSwaggerGen(o => o.AddValueObjects());                              // Swashbuckle, after IncludeXmlComments
 ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);                       // Dapper
 
 protected override void ConfigureConventions(ModelConfigurationBuilder builder)        // EntityFrameworkCore
@@ -252,7 +253,7 @@ not). Write it for every value object, then test only the domain behaviour that 
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, FluentValidation, OpenAPI, Newtonsoft. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, FluentValidation, OpenAPI (built-in and Swashbuckle), Newtonsoft. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0038`, with the fix for each. |
 

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Swashbuckle</RootNamespace>
+    <Description>Swashbuckle support for AdCodicem value objects: schema and parameter filters for Swashbuckle 10 and later that document a value object as its underlying type, carrying over the pattern, bounds, length, example and accepted values declared on the type.</Description>
+    <PackageTags>$(PackageTags);openapi;swagger;swashbuckle</PackageTags>
+
+    <!-- Swashbuckle walks the application model by reflection, and is no AOT target. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The generator alone, not the Swashbuckle.AspNetCore meta-package, which brings the UI and the build-time
+         document tool. It asks for Microsoft.OpenApi 2.7.5, which drops the example of an OpenAPI 3.0 schema: the
+         transitive pin of Directory.Packages.props makes 2.12.2 a dependency of this package, its floor. -->
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- What a value object's rules become, and how a value object is described on Microsoft.OpenApi 2's object model,
+         shared with the built-in stack's transformer of AdCodicem.ValueObjects.OpenApi. -->
+    <Compile Include="..\Shared\ValueObjectSchemaKeywords.cs" Link="Shared\ValueObjectSchemaKeywords.cs" />
+    <Compile Include="..\Shared\ValueObjectOpenApiSchema.cs" Link="Shared\ValueObjectOpenApiSchema.cs" />
+  </ItemGroup>
+
+</Project>

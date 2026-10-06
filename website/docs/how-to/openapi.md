@@ -2,7 +2,7 @@
 title: Document in OpenAPI
 sidebar_label: OpenAPI
 slug: /how-to/openapi
-description: Document value objects in the built-in .NET OpenAPI document as their underlying type, with the length, pattern, bounds and known values declared on them.
+description: Document value objects in the built-in .NET OpenAPI document, or in Swashbuckle's, as their underlying type, with the length, pattern, bounds and known values declared on them.
 ---
 
 # Document in OpenAPI
@@ -15,8 +15,9 @@ dotnet add package AdCodicem.ValueObjects.OpenApi
 builder.Services.AddOpenApi(options => options.AddValueObjects());
 ```
 
-That registers a schema transformer on the built-in .NET OpenAPI stack (`Microsoft.AspNetCore.OpenApi`). A value
-object is then documented as what it is on the wire — its underlying type — carrying every rule declared on it:
+That registers a schema transformer on the built-in .NET OpenAPI stack (`Microsoft.AspNetCore.OpenApi`); an
+application on Swashbuckle 10 or later takes [its own package](#swashbuckle) instead. A value object is then documented
+as what it is on the wire — its underlying type — carrying every rule declared on it:
 
 | Declared on the type | In the schema |
 | --- | --- |
@@ -87,7 +88,8 @@ written by the type's converter; one the type refuses, or one its converter cann
 named literals, is published as it was declared rather than failing the document. A known value is written by the
 type's converter, as the type holds it once normalized.
 
-The transformer targets the built-in OpenAPI stack. Swashbuckle is not supported.
+The transformer targets the built-in OpenAPI stack. Swashbuckle 10 and later has a package of its own, which describes
+a value object alike: see [Swashbuckle](#swashbuckle).
 
 ## Names of known values
 
@@ -201,3 +203,82 @@ the underlying one is listed as its text. The names of its known values belong t
 `KnownValueInfo` per value of `KnownValues`, in the same order: names left out, or that do not list those values one
 for one, are not published, rather than published beside the wrong value, and the
 [contract kit](./test-value-objects.md#what-it-checks) fails on either.
+
+## Swashbuckle
+
+```bash
+dotnet add package AdCodicem.ValueObjects.Swashbuckle
+```
+
+```csharp skip
+builder.Services.AddSwaggerGen(options =>
+{
+    options.IncludeXmlComments(xmlCommentsPath); // if the application includes them: before
+    options.AddValueObjects();
+});
+```
+
+That adds a schema filter and a parameter filter to Swashbuckle 10 and later. Without them, Swashbuckle describes a
+value object by its public properties, as an object whose `value` a client would send, and a minimal API's parameter as
+a bare `string`, whatever its rules. With them, every rule of the table above, the [names of known
+values](#names-of-known-values), what [collections and dictionaries](#parameters-collections-and-dictionaries) say of
+their elements, values and keys, and [value objects written by hand](#value-objects-written-by-hand) reach Swashbuckle's
+document as they reach the built-in stack's: the two packages share the code that describes a value object, and describe
+each one alike when numbers are read as numbers only. What differs is Swashbuckle's:
+
+- **Numbers.** Swashbuckle documents a number as a number, whatever the options let be read from text, so a value
+  object over a number System.Text.Json writes as a JSON number is documented as Swashbuckle documents its underlying
+  type in the same document: an `integer` or a `number` with its bounds, no numeric pattern, its example and known values
+  written as numbers. [Numbers written as text](#numbers-written-as-text) does not apply. A value object over an
+  `Int128` or a `UInt128` travels as a JSON string, and stays a `string` with `x-minimum`, `x-maximum` and the sentence
+  stating its bounds, where Swashbuckle documents a bare one as an `integer` of format `int128`.
+- **OpenAPI 3.0.** Swashbuckle writes an OpenAPI 3.0 document by default: an example as `example`, a value that may be
+  `null` with `nullable: true`, and the rules of a key in `x-jsonschema-propertyNames`.
+  `app.UseSwagger(options => options.OpenApiVersion = OpenApiSpecVersion.OpenApi3_1)` writes OpenAPI 3.1, with
+  `examples`, `null` in the `type` and `propertyNames`. The package depends on `Microsoft.OpenApi` 2.12.2 or later, the
+  version it is built against, since the 2.7.5 Swashbuckle asks for drops the example of an OpenAPI 3.0 schema.
+- **Parameters.** A route, query or header parameter refers to its value object's component, as Swashbuckle refers to
+  the component of an enumeration, with the component's description when it has none of its own; an array of value
+  objects is an array of references. A route constraint follows Swashbuckle's rule for a reference: dropped, OpenAPI
+  3.0 taking no keyword beside one, unless `UseAllOfToExtendReferenceSchemas` wraps the reference in an `allOf`, beside
+  which it is kept.
+- **Nullable value objects.** Swashbuckle refers to the component of a nullable value object as of a non-nullable one,
+  as it does for a nullable enumeration, and a reference cannot say that `null` is allowed. A nullable property, element
+  of a collection or value of a dictionary, a dictionary keyed by an enumeration included, is described in place
+  instead, the value object or `null`, as Swashbuckle describes a nullable `int`; a property keeps what Swashbuckle reads
+  off its member, its summary, `[Obsolete]`, `[DefaultValue]`, and whether it is only ever read or only ever written.
+  The member's validation attributes, `[MaxLength]` or `[Range]`, are not applied to it, where Swashbuckle applies them
+  to a nullable `int`: Swashbuckle applies none beside a reference, so the non-nullable member goes without them too,
+  and both are documented with the rules of their type. A property marked `[Required]`, on the member or on the type
+  `[ModelMetadataType]` names, which Swashbuckle makes non-nullable, keeps its reference, as do a nullable parameter,
+  whose being optional says it, and a nullable value object that is a whole request or response body. Under
+  `UseAllOfToExtendReferenceSchemas`, Swashbuckle wraps the reference of a nullable member in an `allOf` it marks `null`
+  alone, which no value satisfies in OpenAPI 3.1: the wrapper is kept, with what Swashbuckle writes beside a reference
+  there, the member's validation attributes included, as for a non-nullable member, and the value object is described
+  in place inside it, `null` allowed.
+- **Names.** The enumeration of a closed set is named after its component as Swashbuckle names it,
+  `AccountFilterNoticeChannel` for `NoticeChannel<AccountFilter>` by default, or under the identifier `CustomSchemaIds`
+  gives it.
+- **Options.** Examples, known values and bounds are written by the type's converter under the minimal API options,
+  the ones `ConfigureHttpJsonOptions` configures and the built-in stack documents with, numbers aside. An application
+  whose MVC and minimal API options differ names the ones it writes value objects with:
+  `options.AddValueObjects(serializerOptions)`.
+- **Order.** Swashbuckle runs its schema filters in the order they were added. Call `AddValueObjects()` after
+  `IncludeXmlComments`: added after it, the XML comments filter replaces a value object's description with the type's
+  summary, and loses the sentence stating the bounds of a value written as text. A schema filter of the application's
+  added after it may rewrite a value object's schema as well. A `MapType` registered for a value object makes
+  Swashbuckle write the value object in place rather than refer to a component, and it is described there, its rules
+  replacing what the mapping says.
+
+The package is not AOT-compatible: Swashbuckle walks the application model by reflection, and its filters run while
+the document is built, never per request. Not covered: a value object bound from a form keeps the `string` Swashbuckle
+gives it; the own properties of a type
+documented under `UseAllOfForInheritance`, which sit in an `allOf`, are not looked through for nullable value objects;
+and Swashbuckle's Newtonsoft.Json support, `AddSwaggerGenNewtonsoftSupport`, is not tested.
+
+Swashbuckle 10 is built on `Microsoft.OpenApi` 2. On .NET 11, an application that also references
+`Microsoft.AspNetCore.OpenApi` 11, which brings `Microsoft.OpenApi` 3, sees Swashbuckle fail as it builds a document
+(`MissingMethodException`), whatever this package does; one that takes Swashbuckle alone keeps `Microsoft.OpenApi` 2
+and works. A major of Swashbuckle that moves to `Microsoft.OpenApi` 3 is supported by a release of the packages that
+raises this one's floor, as for any framework's major
+([ADR-0010](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)).

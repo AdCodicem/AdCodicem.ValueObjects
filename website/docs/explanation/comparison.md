@@ -37,7 +37,7 @@ be corrected.
 | EF Core reads validate | on request (`strict: true`) | by default | — | no, reads use the constructor |
 | ASP.NET Core model binding | yes | through the `TypeConverter` | through the `TypeConverter` | yes |
 | Problem details carry the violated rule's code | MVC controllers and minimal APIs | no | no | no |
-| OpenAPI | built-in stack, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
+| OpenAPI | built-in stack and Swashbuckle 10, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
 | FluentValidation | yes | third-party package | no | no |
 | Dapper | yes | yes | through a template | no |
 | Other serializers and stores | Newtonsoft.Json | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
@@ -90,7 +90,7 @@ and to `readonly struct`: [Design decisions](../design-decisions.md) explains wh
 **They cover more stores and serializers.** Vogen generates support for LinqToDB, ServiceStack.Text, Orleans,
 MessagePack, MongoDB's BSON and XML; Thinktecture for MessagePack. Vogen's XML support comes with a caveat: its
 generated `ReadXml` assigns the value straight from the reader, with neither validation nor normalization, and the
-option makes the struct's fields writable. Both work with Swashbuckle, which this library does not support.
+option makes the struct's fields writable.
 
 **Thinktecture has a logging integration.** Thinktecture.Runtime.Extensions.Serilog ships a destructuring policy,
 `Destructure.UsingThinktectureRuntimeExtensions()`, which applies to a value object logged as `{@Value}` and leaves

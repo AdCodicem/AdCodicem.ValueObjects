@@ -9,7 +9,7 @@ is on, so this list is worth checking if something looks wired up but never happ
 `preview.yml` publishes a preview of every package to nuget.org every Monday at 07:15, Paris time, and whenever it is
 dispatched (**Actions → preview → Run workflow**, from `main`: a dispatch from another branch stops at its first
 job). It publishes only when a package input changed since the version nuget.org has from the nearest commit, and
-then all fourteen packages at one version, or none.
+then all fifteen packages at one version, or none.
 [ADR-0009](adr/0009-publish-previews-weekly-when-a-package-input-changed.md) has the reasoning.
 
 Each run says what it decided. The **compute the version** job prints the version semantic-release would give the
@@ -73,7 +73,7 @@ offering the higher one as the latest prerelease until a higher version ships.
 The first time `preview.yml` publishes, and after any change to its publish job, dispatch it rather than wait for
 Monday, and check:
 
-1. the fourteen packages are on nuget.org at the version the run printed, and the publish job finished its wait for
+1. the fifteen packages are on nuget.org at the version the run printed, and the publish job finished its wait for
    the listing;
 2. an assembly restored from nuget.org verifies, and the certificate comes from Sigstore's public-good instance:
 
@@ -280,10 +280,13 @@ preview ([Checking a run's provenance](#checking-a-runs-provenance)).
 
 ## The .NET compatibility island
 
-`tests/Compat` installs the packages each commit packs into a `net11.0` application on the .NET 11 release candidate,
+`tests/Compat` installs the packages each commit packs into `net11.0` applications on the .NET 11 release candidate,
 and `ci.yml`'s `compat (.NET 11)` job runs it on every pull request and push to `main`
-([ADR-0010](adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)). Dependabot never sees it, so it
-moves by hand:
+([ADR-0010](adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)). It holds two projects: the
+main one, and `tests/Compat/Swashbuckle`, which installs `AdCodicem.ValueObjects.Swashbuckle` apart, since Swashbuckle
+10 fails on the `Microsoft.OpenApi` 3 the main project's `Microsoft.AspNetCore.OpenApi` 11 brings; the job runs both,
+the second also when the first fails. The second takes Swashbuckle and `Microsoft.OpenApi` at the package's floors,
+so it has no version to move at a release candidate. Dependabot never sees the island, so it moves by hand:
 
 - **At each release candidate of .NET 11**, one pull request moves together `tests/Compat/global.json` (the exact SDK
   version), the five `11.0.0-rc…` packages of `tests/Compat/Directory.Packages.props`
@@ -303,5 +306,5 @@ moves by hand:
 Two services walk the repository rather than the solution, and do see it. CodeQL's default setup downloads every SDK
 a `global.json` names, the island's release candidate included, and analyses its code. GitHub's automatic dependency
 submission restores every project file from the root with the .NET 10 SDK and fails on the first restore that fails:
-the island's project file leaves itself empty on an SDK that cannot target `net11.0`, so that restore succeeds with
-nothing to submit. Watch both after a change to the island's project file.
+each of the island's project files leaves itself empty on an SDK that cannot target `net11.0`, so that restore
+succeeds with nothing to submit. Watch both after a change to one of them.

@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.CompatTests</RootNamespace>
+    <!-- The project of Swashbuckle/, beside this one: its sources are its own. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);Swashbuckle/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <!--
@@ -20,8 +22,10 @@
     <Error Text="The compatibility island targets the next .NET major, which SDK $(NETCoreSdkVersion) cannot. Run it from tests/Compat, whose global.json selects the SDK it needs." />
   </Target>
 
-  <!-- All fourteen, as a consumer installs them: the generator arrives with AdCodicem.ValueObjects and runs in this
-       SDK's compiler, the integrations resolve their dependency floors against the next major. -->
+  <!-- All fifteen but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
+       AdCodicem.ValueObjects and runs in this SDK's compiler, the integrations resolve their dependency floors against
+       the next major. Swashbuckle 10 fails on the Microsoft.OpenApi 3 that Microsoft.AspNetCore.OpenApi 11 brings here,
+       so the Swashbuckle package is installed by the project of Swashbuckle/. -->
   <ItemGroup Condition="'$(CompatSdkMissing)' != 'true'">
     <PackageReference Include="AdCodicem.ValueObjects" />
     <PackageReference Include="AdCodicem.ValueObjects.Abstractions" />
