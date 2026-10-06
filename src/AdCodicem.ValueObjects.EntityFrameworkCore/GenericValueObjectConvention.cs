@@ -14,7 +14,7 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// The convention configures a value object that is not generic up front, closing its converter over it. A generic
 /// value object has no such type: its definition is configured up front, which makes every construction of it a
 /// scalar property, and this convention closes the converter, the comparer and the length over the construction of
-/// each property, as the model meets it.
+/// each property, as the model meets it, through the type arguments its descriptor hands back to a visitor.
 /// </para>
 /// <para>
 /// A property of a nullable construction gets the converter that stores a value the value object rejects as
@@ -43,19 +43,55 @@ internal sealed class GenericValueObjectConvention(IReadOnlySet<Type> definition
             return;
         }
 
-        // A nullable construction stores a value the value object rejects as NULL, where any other throws, and is
-        // compared by a comparer of the nullable type, which a compiled model can write.
-        var converter = (optional is null ? null : ConverterTypes.Optional(type, descriptor.ValueType, strict))
-            ?? ConverterTypes.Required(type, descriptor.ValueType, strict);
-        var comparer = (optional is null ? typeof(ValueObjectComparer<>) : typeof(NullableValueObjectComparer<>))
-            .MakeGenericType(type);
+        descriptor.Accept(
+            new PropertyConversion(propertyBuilder, optional is not null, strict, descriptor.Schema.MaxLength));
+    }
 
-        propertyBuilder.HasConversion((ValueConverter)Activator.CreateInstance(converter)!);
-        propertyBuilder.HasValueComparer((ValueComparer)Activator.CreateInstance(comparer)!);
-
-        if (descriptor.Schema.MaxLength is { } maxLength)
+    /// <summary>
+    /// Sets the converter, the comparer and the length of a property holding a construction, closed over the type
+    /// arguments its descriptor hands back.
+    /// </summary>
+    /// <param name="propertyBuilder">Builder of the property.</param>
+    /// <param name="optional">Whether the property holds the nullable construction.</param>
+    /// <param name="strict">Whether what is read is validated again.</param>
+    /// <param name="maxLength">The length the descriptor declares, which sizes the column.</param>
+    private sealed class PropertyConversion(
+        IConventionPropertyBuilder propertyBuilder,
+        bool optional,
+        bool strict,
+        int? maxLength) : IValueObjectVisitor<bool>
+    {
+        /// <summary>
+        /// Sets the converter, the comparer and the length of the property, as instances, whose expressions a compiled
+        /// model writes out.
+        /// </summary>
+        /// <typeparam name="TSelf">Value object type, the construction.</typeparam>
+        /// <typeparam name="TValue">Underlying value type.</typeparam>
+        /// <returns><see langword="true"/>, once the property is configured.</returns>
+        public bool Visit<TSelf, TValue>()
+            where TSelf : struct, IValueObject<TSelf, TValue>
         {
-            propertyBuilder.HasMaxLength(maxLength);
+            // A nullable construction stores a value the value object rejects as NULL, where any other throws, and is
+            // compared by a comparer of the nullable type, which a compiled model can write. C# cannot name its
+            // converter here, so it is created from the type ConverterTypes.Optional closes.
+            ValueConverter converter = optional && ConverterTypes.Optional<TSelf, TValue>(strict) is { } nullable
+                ? (ValueConverter)Activator.CreateInstance(nullable)!
+                : strict
+                    ? new StrictValueObjectConverter<TSelf, TValue>()
+                    : new ValueObjectConverter<TSelf, TValue>();
+            ValueComparer comparer = optional
+                ? new NullableValueObjectComparer<TSelf>()
+                : new ValueObjectComparer<TSelf>();
+
+            propertyBuilder.HasConversion(converter);
+            propertyBuilder.HasValueComparer(comparer);
+
+            if (maxLength is { } length)
+            {
+                propertyBuilder.HasMaxLength(length);
+            }
+
+            return true;
         }
     }
 }
