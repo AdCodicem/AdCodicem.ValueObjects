@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The fifteen packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The sixteen packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -122,6 +122,14 @@ does on the built-in stack, a number as Swashbuckle documents a number, and a ro
 reference to its component. [Swashbuckle](./how-to/openapi.md#swashbuckle) says what differs from the built-in stack.
 Swashbuckle 10 needs `Microsoft.OpenApi` 2, so it fails beside `Microsoft.AspNetCore.OpenApi` 11, which brings 3.
 
+### Is a value object logged as a number?
+
+With Serilog and `AdCodicem.ValueObjects.Serilog`, yes: `Destructure.ValueObjects()` logs a value object with `@` as
+the value it carries, and its `CaptureAsUnderlyingValue` option does the same without `@`, so a filter or a query
+compares a numeric one as a number. [Serilog](./how-to/logging.md#serilog) says what else it changes. Other loggers
+write a value object as its text, through `ToString()`: [Logging](./how-to/logging.md) says, for each, how to keep a
+number a number.
+
 ## Performance
 
 ### Does a value object cost more than the primitive it wraps?
@@ -146,10 +154,10 @@ minimal API filter closes the check of each parameter it explains, the JSON conv
 general-purpose converter it gives a value object written by hand, and the Entity Framework Core conventions map each
 value object and each entity identifier, all but the converter of an optional value object, which C# cannot name there
 and which they close with `MakeGenericType`; they do so only while a model is built, never under native AOT. The
-contracts, the generated code, the JSON package, the minimal API problem details, FluentValidation and identifiers are
-marked AOT-compatible and built with the trimming and AOT analyzers on, and CI publishes an application using them all
-with native AOT on every pull request, which merges only once that passes: it fails on any trimming or AOT warning, and
-unless the native binary does exactly what the application does under the JIT. The EF Core, ASP.NET Core MVC, OpenAPI,
+contracts, the generated code, the JSON package, the minimal API problem details, FluentValidation, identifiers and
+the Serilog integration are marked AOT-compatible and built with the trimming and AOT analyzers on, and CI publishes
+an application using them all with native AOT on every pull request, which merges only once that passes: it fails on
+any trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The EF Core, ASP.NET Core MVC, OpenAPI,
 Swashbuckle, Dapper and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are
 not. Dapper,
 for one, files each handler in a cache it closes over the type at run time, so under native AOT a handler this package

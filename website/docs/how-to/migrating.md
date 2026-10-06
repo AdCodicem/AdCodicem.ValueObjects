@@ -138,6 +138,10 @@ templates.
 - **A class becomes a `readonly partial struct`.** `null` checks become `T?`.
 - **EF Core.** `UseThinktectureValueConverters()` becomes `ConfigureValueObjects(assembly)` in
   `ConfigureConventions`. Both skip validation on read by default.
+- **Serilog.** `Destructure.UsingThinktectureRuntimeExtensions()` becomes `Destructure.ValueObjects()`, from
+  `AdCodicem.ValueObjects.Serilog`, which logs a value object with `@`, `{@Value}`, as the value it carries. Its
+  `CaptureAsUnderlyingValue` option covers `{Value}`, without `@`, too, which Thinktecture's policy leaves to
+  `ToString()`: [Serilog](./logging.md#serilog).
 - **Smart enums and unions stay where they are.** Only single-value value objects have an equivalent here; a
   closed set of codes can become a value object with [known values](../tutorials/known-values.md).
 

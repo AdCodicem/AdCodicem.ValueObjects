@@ -156,8 +156,8 @@ jobs:
   # The packages this commit packed, installed into an application on the next .NET
   # major (tests/Compat): the generator in its compiler, Entity Framework Core 11 on
   # SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core
-  # model binding, on System.Text.Json and on Newtonsoft.Json, and minimal API problem
-  # details, and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3, and Swashbuckle 10
+  # model binding, on System.Text.Json and on Newtonsoft.Json, minimal API problem
+  # details, Serilog, and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3, and Swashbuckle 10
   # over Microsoft.OpenApi 2 in a project of its own. The island has its own global.json, so the SDK it needs
   # is installed from there and everything runs from its folder. Not a required check
   # until .NET 11 ships, and deliberately not continue-on-error: a break shows red on

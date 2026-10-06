@@ -39,6 +39,10 @@
          pinned for Swashbuckle.AspNetCore.Swagger, which the tests take through it: a pin would make it a dependency of
          the package. -->
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.2.3" />
+    <!-- The Serilog package's floor, the version it is built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its net10.0 asset depends on
+         nothing. -->
+    <PackageVersion Include="Serilog" Version="4.4.0" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
@@ -71,6 +75,11 @@
     <!-- The attribute a consumer derives to classify a value object as personal data, which the generator recognizes
          by name: the tests classify value objects as a consumer does, and no package under src/ references it. -->
     <PackageVersion Include="Microsoft.Extensions.Compliance.Abstractions" Version="10.10.0" />
+    <!-- The formatter, the filter language and the Microsoft.Extensions.Logging provider the unit suite drives the Serilog
+         package through, as an application does; no package under src/ references them. -->
+    <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />
+    <PackageVersion Include="Serilog.Expressions" Version="5.0.0" />
+    <PackageVersion Include="Serilog.Extensions.Logging" Version="10.0.0" />
   </ItemGroup>
 
 </Project>

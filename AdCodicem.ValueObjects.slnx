@@ -16,6 +16,7 @@
     <Project Path="src/AdCodicem.ValueObjects.FluentValidation/AdCodicem.ValueObjects.FluentValidation.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Dapper/AdCodicem.ValueObjects.Dapper.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.NewtonsoftJson/AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Serilog/AdCodicem.ValueObjects.Serilog.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj" />
   </Folder>
   <Folder Name="/tests/">

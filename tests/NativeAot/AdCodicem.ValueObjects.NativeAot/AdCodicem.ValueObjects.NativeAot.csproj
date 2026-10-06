@@ -28,12 +28,20 @@
     <DynamicCodeSupport>false</DynamicCodeSupport>
   </PropertyGroup>
 
+  <!-- Serilog's build targets turn object destructuring off under PublishTrimmed, which PublishAot implies, so the JIT run
+       does the same: an object logged with @ is the text its ToString() writes in both runs. Conditioned so that the
+       native publish keeps Serilog's own item alone. -->
+  <ItemGroup Condition="'$(PublishTrimmed)' != 'true'">
+    <RuntimeHostConfigurationOption Include="Serilog.Capturing.IsStructureValueSupported" Value="false" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.AspNetCore.Http\AdCodicem.ValueObjects.AspNetCore.Http.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Serilog\AdCodicem.ValueObjects.Serilog.csproj" />
     <ProjectReference Include="..\AdCodicem.ValueObjects.NativeAot.Domain\AdCodicem.ValueObjects.NativeAot.Domain.csproj" />
   </ItemGroup>
 

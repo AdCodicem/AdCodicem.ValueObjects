@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Fifteen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Sixteen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -93,7 +93,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All fifteen packages go out at one version, or none. That version is the one semantic-release would give
+lookup fails. All sixteen packages go out at one version, or none. That version is the one semantic-release would give
 the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -141,7 +141,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The fifteen packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The sixteen packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -213,13 +213,15 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   `string`, so its visitor casts itself to an interface it implements over `string`, whose method takes that constraint.
   It visits the identifier's `ValueObjectDescriptor`, from `TryResolve`, since `EntityIdDescriptor` has no `Accept`: an
   identifier registered with `EntityIdRegistry` alone, by hand, is described by reflection there, and stays in
-  `ValueObjectRegistry` from then on. Neither EF Core convention runs under native AOT, where EF Core reads the compiled
-  model and builds none, and the MVC binder provider runs in no native binary, MVC not being AOT-compatible, so the
-  `native AOT` job guards the JSON factory's visitor and the minimal API filter's. `RuntimeClosingTests` guards every
-  package: it reads their IL and fails on a `MakeGenericType`, a `MakeGenericMethod` or an `Activator.CreateInstance`
-  outside the list it holds, the registry's reflection fallback and the EF Core converter of a `TSelf?` property. A
-  hand-written value object declares `Schema` too, and the registry describes it from that alone: an annotation on it
-  is read by nothing at run time.
+  `ValueObjectRegistry` from then on. The Serilog integration closes nothing and visits no descriptor: its policy and
+  its enricher read a value Serilog has already boxed through the `IValueObject` marker, and its option only reads the
+  `ValueObjectType` of each descriptor the registry holds, which it hands Serilog as a scalar type. Neither EF Core
+  convention runs under native AOT, where EF Core reads the compiled model and builds none, and the MVC binder provider
+  runs in no native binary, MVC not being AOT-compatible, so the `native AOT` job guards the JSON factory's visitor and
+  the minimal API filter's. `RuntimeClosingTests` guards every package: it reads their IL and fails on a
+  `MakeGenericType`, a `MakeGenericMethod` or an `Activator.CreateInstance` outside the list it holds, the registry's
+  reflection fallback and the EF Core converter of a `TSelf?` property. A hand-written value object declares `Schema`
+  too, and the registry describes it from that alone: an annotation on it is read by nothing at run time.
 
 The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them. That is
 exactly how the descriptor once flattened every rejection into a generic `not_parsable`, discarding the rule
@@ -422,7 +424,18 @@ These are all load-bearing, and each cost real debugging time:
   it a dependency of the package, to list in `.github/shipped-dependencies`. The package's namespace,
   `AdCodicem.ValueObjects.Swashbuckle`, hides the root `Swashbuckle` namespace from code in any `AdCodicem.ValueObjects.*`
   namespace, tests included: name Swashbuckle's types through usings at the top of the file, never through a
-  qualified `Swashbuckle.…` in a body.
+  qualified `Swashbuckle.…` in a body. `AdCodicem.ValueObjects.Serilog` hides the root `Serilog` namespace the same
+  way, the island's `AdCodicem.ValueObjects.CompatTests` included, and a file importing `Serilog` beside
+  `Microsoft.Extensions.Logging` aliases one `ILogger` (CS0104).
+- **Serilog destructures no object under trimming.** Its `buildTransitive/Serilog.targets` sets
+  `Serilog.Capturing.IsStructureValueSupported` to false under `PublishTrimmed`, which `PublishAot` implies, so a native
+  binary logs an object with `@` as its `ToString()`, and a bare `Int128` as its text. The native AOT application sets
+  the same switch for its JIT run, conditioned on `PublishTrimmed` not being on, or every `{@object}` line would
+  differ. Serilog.Expressions warns under native AOT (IL2104, IL3053), and `native-aot.sh` fails on any warning: it
+  stays in the unit suite, out of `tests/NativeAot`. Under the JIT, the option of `Destructure.ValueObjects` reads the
+  registry when it runs, before most module initializers have: the unit tests assert only on types registered for
+  certain, the domain's, or absent for certain, a fresh `AssemblyLoadContext` copy of the untouched fixture or a
+  construction over a marker type private to the test, and never `Register` a shared hand-written type.
 - **NuGet lock files are deliberately absent**, and adding them breaks CI on the first run:
   `src/Directory.Build.props` references `Microsoft.SourceLink.GitHub` under
   `Condition="'$(GITHUB_ACTIONS)' == 'true'"`, so the package graph on a laptop is not the graph on the runner
@@ -504,7 +517,9 @@ on where they apply.
   and links `UnregisteredCode`, registered by nothing, which the factory refuses with a `NotSupportedException`. Two
   more applications answer refusals with the minimal API problem details (`Problems.cs`), with `ThrowOnBadRequest` off
   and on, each answer checked against the status and the codes the script expects, since both runs explaining nothing
-  would agree; a third, without `AddProblemDetails()`, must fail to build its endpoints.
+  would agree; a third, without `AddProblemDetails()`, must fail to build its endpoints. `Logging.cs` logs every
+  registered value object through Serilog with and without `@`, under the policy and the option, and fails the run when
+  one is not the scalar of its underlying type, written as the bare value is.
   `ci.yml`'s `native AOT` job (`.github/scripts/native-aot.sh`), a required check, runs its fixed script once under the
   JIT and once as the native binary, and fails on a trimming or AOT warning or on any difference between the two
   outputs. The JIT run turns on the RDG and turns off reflection-based serialization and dynamic code, as `PublishAot`
@@ -537,13 +552,13 @@ on where they apply.
   (CS0104). A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
   (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the fifteen packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the sixteen packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, on System.Text.Json and on
 Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal API problem details,
-`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json and the
-contract kit, with no transitive pinning, so the dependency floors of the packages meet the next major as an
+`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json, Serilog and
+the contract kit, with no transitive pinning, so the dependency floors of the packages meet the next major as an
 application's would. `AdCodicem.ValueObjects.Swashbuckle` is installed by a second project, `tests/Compat/Swashbuckle`,
 which the main one excludes from its sources: Swashbuckle 10 over `Microsoft.OpenApi` 2, on which it is built, since it
 fails on the `Microsoft.OpenApi` 3 the main project's `Microsoft.AspNetCore.OpenApi` 11 brings. `ci.yml`'s

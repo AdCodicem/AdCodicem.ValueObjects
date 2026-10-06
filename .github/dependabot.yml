@@ -54,6 +54,10 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "Npgsql.EntityFrameworkCore.PostgreSQL"
         update-types: ["version-update:semver-major"]
+      # Test-only: its majors follow .NET's, each built on the
+      # Microsoft.Extensions.Logging of the same major.
+      - dependency-name: "Serilog.Extensions.Logging"
+        update-types: ["version-update:semver-major"]
 
   # Release tooling (semantic-release and its plugins) in the root package.json.
   - package-ecosystem: "npm"

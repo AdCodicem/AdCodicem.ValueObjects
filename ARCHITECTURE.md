@@ -6,7 +6,7 @@ site, and the decisions that were costly to reverse are recorded in [`docs/adr/`
 
 ## What the repository ships
 
-Fifteen NuGet packages for single-value DDD value objects. A `readonly partial struct` marked `[ValueObject<T>]`
+Sixteen NuGet packages for single-value DDD value objects. A `readonly partial struct` marked `[ValueObject<T>]`
 gets its whole implementation from a Roslyn incremental generator, and crosses every boundary as its underlying
 type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object wrapper. Consumers
 define their own value objects; this repository ships the frame.
@@ -14,7 +14,7 @@ define their own value objects; this repository ships the frame.
 ## Layout
 
 ```
-src/          the fifteen shipped packages
+src/          the sixteen shipped packages
 tests/        four suites with distinct jobs (see below)
   NativeAot/  applications CI publishes with native AOT and compiles an EF Core model for
   Compat/     the packed packages in .NET 11 applications, outside the solution
@@ -64,7 +64,10 @@ This distinction is where bugs hide, so it is worth knowing before changing anyt
   resolution. `descriptor.Accept`
   hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
   time rather than with `MakeGenericType`, which native AOT cannot run for a struct. The minimal API filter of
-  `AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains that way.
+  `AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains that way. The Serilog
+  integration closes nothing and visits no descriptor: it reads a value Serilog has already boxed through the
+  `IValueObject` marker, and only reads the type of each descriptor the registry holds, which it hands Serilog as a
+  scalar type.
 
 The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them. That is
 how the descriptor once flattened every rejection into a generic `not_parsable`, discarding the rule that
@@ -128,5 +131,5 @@ build's own dependencies are pinned, and why NuGet lock files are not part of it
 [ADR-0005](docs/adr/0005-version-the-documentation-site.md) records how the documentation site follows the same
 two tracks: every `preview.yml` run redeploys the preview pages, and each stable release freezes its own.
 [ADR-0010](docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md) records the versioning
-policy: one version for the fifteen packages, never aligned with .NET, and a framework's next major supported in the
+policy: one version for the sixteen packages, never aligned with .NET, and a framework's next major supported in the
 same packages.

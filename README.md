@@ -102,13 +102,14 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
+| `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. |
 | `AdCodicem.ValueObjects.Identifiers` | Stripe-style public entity identifiers: `acc_2K7X9…`. |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | Fixed-width, non-Unicode columns for those identifiers. |
 | `AdCodicem.ValueObjects.Testing` | An xUnit contract kit for your own value objects. |
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The fifteen are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The sixteen are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -128,6 +129,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
 | `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
+| `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
 | `AdCodicem.ValueObjects.Identifiers` | `net10.0` | .NET 10 | .NET 11 |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.Testing` | `net10.0` | xUnit v3 4 | xUnit v3 4 on .NET 11 |
@@ -266,6 +268,25 @@ that maps the endpoints also lists its contract on its declaration,
 adds; `VO0033` reports one that does not, and
 [the ASP.NET Core guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/aspnet-core#the-request-delegate-generator)
 explains it. A value object from another project needs nothing.
+
+Serilog logs a value object with `@` as a structure of its public properties, and without `@` as its text, a number in
+quotes that a filter or a query no longer compares as one. `AdCodicem.ValueObjects.Serilog` logs it as the value it
+carries, `"Qty":42`, written as Serilog writes that type:
+
+```csharp skip
+Log.Logger = new LoggerConfiguration()
+    .Enrich.FromLogContext()
+    .Destructure.ValueObjects(o =>
+    {
+        o.CaptureAsUnderlyingValue = true;          // {Qty} too, not only {@Qty}
+        o.Assemblies.Add(typeof(Iban).Assembly);    // the assemblies declaring value objects
+    })
+    .WriteTo.Console(new CompactJsonFormatter())
+    .CreateLogger();
+```
+
+The option costs a pass over the properties of each event, and sees what the enrichers added before it
+([the logging guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/logging#serilog)).
 
 ### Testing your own value objects
 

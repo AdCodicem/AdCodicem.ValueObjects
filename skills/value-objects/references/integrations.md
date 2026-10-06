@@ -17,6 +17,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
+| `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
 | `AdCodicem.ValueObjects.Identifiers[.EntityFrameworkCore]` | Stripe-style public identifiers. See `identifiers.md`. |
 | `AdCodicem.ValueObjects.Testing` | The xUnit contract kit. |
 
@@ -412,6 +413,44 @@ does, with these differences, all Swashbuckle's own:
   `NoticeChannel<AccountFilter>`, or the identifier `CustomSchemaIds` gives it.
 - Swashbuckle 10 needs `Microsoft.OpenApi` 2: never reference `Microsoft.AspNetCore.OpenApi` 11 beside it, which brings
   3 and makes Swashbuckle throw `MissingMethodException` when it builds a document.
+
+## Serilog
+
+```csharp skip
+using AdCodicem.ValueObjects.Serilog;
+
+Log.Logger = new LoggerConfiguration()
+    .Enrich.FromLogContext()                       // every enricher adding value objects: before the call
+    .Destructure.ValueObjects(o =>
+    {
+        o.CaptureAsUnderlyingValue = true;          // {Qty} too, not only {@Qty}
+        o.Assemblies.Add(typeof(Iban).Assembly);    // under the JIT, when the logger is built before the domain is used
+    })
+    .WriteTo.Console(new CompactJsonFormatter())
+    .CreateLogger();
+```
+
+- `Destructure.ValueObjects()` alone: `{@Qty}`, and every value object inside what is logged with `@`, is its
+  underlying value, `"Qty":42`, any `IValueObject` included, nothing registered. `{Qty}` stays its text, `"42"`.
+- `CaptureAsUnderlyingValue`: `{Qty}` is the underlying value too, for filters (`Qty > 10`), queries and template
+  formats (`{Qty:000}`), and for `LogInformation`, `[LoggerMessage]` and scopes with Serilog behind
+  Microsoft.Extensions.Logging. It reads the registry when the call runs: name the domain's assemblies in
+  `Assemblies`, and add `.Destructure.AsScalar<Code<Order>>()` for a construction of a generic value object that
+  nothing registered or resolved before the call, or a value object written by hand that nothing registered.
+- Never `Destructure.AsScalar<T>()` a value object without the option: `{@Qty}` then becomes `"42"`.
+- Declare an application's own `.Destructure.ByTransforming<Iban>(…)` (a mask) or policy before
+  `Destructure.ValueObjects`, or the package's policy runs first. Under `CaptureAsUnderlyingValue` it never runs for a
+  value object the registry holds, nested or not: log `iban.ToString("M", null)` instead.
+- Call `Enrich.FromLogContext()` before `Destructure.ValueObjects`: a property an enricher added after it is the value
+  object's text.
+- A value object is logged as its underlying value, never its formatting hook's text: `{$Temp}` or `temp.ToString()`
+  for the text. A named format, a mask included (`{Iban:M}`), is ignored: log `iban.ToString("M", null)`.
+- `Int128`/`UInt128` are digits in a JSON string; a default instance is the default of its underlying type; a
+  dictionary keyed by a value object needs `.Destructure.AsDictionary<Dictionary<Quantity, int>>()`; `AnyEntityId` is
+  logged without `@`.
+- Under native AOT, Serilog destructures no object: an object logged with `@` is its `ToString()`. A value object alone
+  or in a collection is logged as under the JIT.
+- A value object classified as personal data is logged in clear: redaction is not done by this package yet.
 
 ## Run-time lookup, when only a `Type` is known
 
