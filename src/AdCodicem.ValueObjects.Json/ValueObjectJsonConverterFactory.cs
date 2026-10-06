@@ -20,6 +20,14 @@ namespace AdCodicem.ValueObjects.Json;
 /// construction, by reflection, the first time it is asked for it.
 /// </para>
 /// <para>
+/// A value object written by hand carries no converter, unless it was registered with one, and gets the general-purpose
+/// <see cref="ValueObjectJsonConverter{TSelf, TValue}"/>, which the factory closes over it through the type arguments its
+/// descriptor hands back (<see cref="ValueObjectDescriptor.Accept{TResult}(IValueObjectVisitor{TResult})"/>), at compile
+/// time rather than by reflection. Under native AOT, register it,
+/// <c>ValueObjectRegistry.Register&lt;Link, Uri&gt;(Link.Schema)</c>, and list it in the context: one nothing registered
+/// is described by reflection, which only the JIT can do.
+/// </para>
+/// <para>
 /// Register it on the context so the System.Text.Json generator picks it up:
 /// <code>
 /// [JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]
@@ -30,11 +38,12 @@ namespace AdCodicem.ValueObjects.Json;
 /// </remarks>
 public sealed class ValueObjectJsonConverterFactory : JsonConverterFactory
 {
-    private const string FallbackOnly =
-        "Only reached for a value object that registered no converter, which never happens for a generated one that is "
-        + "not generic: its registration carries its converter, served from the registry, statically. A hand-written "
-        + "value object, or a construction of a generic one, combined with trimming or native AOT has to be registered "
-        + "with its converter through ValueObjectRegistry.Register.";
+    private const string UnregisteredOnly =
+        "ValueObjectRegistry.TryResolve reflects only for a value object nothing registered: one written by hand, or a "
+        + "construction of a generic one. A generated value object registers itself, and its converter, statically. Under "
+        + "trimming or native AOT, register the others through ValueObjectRegistry.Register: a construction with its "
+        + "generated converter, a value object written by hand with none, over which the general-purpose converter is "
+        + "then closed at compile time, through its descriptor.";
 
     /// <inheritdoc />
     /// <remarks>
@@ -51,10 +60,8 @@ public sealed class ValueObjectJsonConverterFactory : JsonConverterFactory
     }
 
     /// <inheritdoc />
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = FallbackOnly)]
-    [UnconditionalSuppressMessage("Trimming", "IL2055", Justification = FallbackOnly)]
-    [UnconditionalSuppressMessage("Trimming", "IL2071", Justification = FallbackOnly)]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = FallbackOnly)]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = UnregisteredOnly)]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = UnregisteredOnly)]
     public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
     {
         ArgumentNullException.ThrowIfNull(typeToConvert);
@@ -78,8 +85,28 @@ public sealed class ValueObjectJsonConverterFactory : JsonConverterFactory
             return carried;
         }
 
-        var converterType = typeof(ValueObjectJsonConverter<,>).MakeGenericType(typeToConvert, descriptor.ValueType);
+        // Closed over the type arguments the descriptor hands back, at compile time: native AOT has no code to close the
+        // converter over a struct at run time.
+        return descriptor.Accept(GeneralPurposeConverter.Instance);
+    }
 
-        return (JsonConverter?)Activator.CreateInstance(converterType);
+    /// <summary>
+    /// Creates the general-purpose converter of the value object a descriptor stands for, closed over the type arguments
+    /// it hands back.
+    /// </summary>
+    private sealed class GeneralPurposeConverter : IValueObjectVisitor<JsonConverter>
+    {
+        public static readonly GeneralPurposeConverter Instance = new();
+
+        /// <summary>
+        /// Creates the converter. It needs no filter: the underlying value goes through whatever contract the options
+        /// hold for its type, and System.Text.Json itself refuses a type they hold none for.
+        /// </summary>
+        /// <typeparam name="TSelf">Value object type.</typeparam>
+        /// <typeparam name="TValue">Underlying value type.</typeparam>
+        /// <returns>The general-purpose converter of the value object.</returns>
+        public JsonConverter Visit<TSelf, TValue>()
+            where TSelf : struct, IValueObject<TSelf, TValue>
+            => new ValueObjectJsonConverter<TSelf, TValue>();
     }
 }

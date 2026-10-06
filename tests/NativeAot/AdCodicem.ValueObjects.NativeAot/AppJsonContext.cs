@@ -6,8 +6,9 @@ namespace AdCodicem.ValueObjects.NativeAot;
 /// <summary>
 /// The source-generated serializer context, the only one the application serializes through: reflection-based
 /// serialization is off in both runs. It names the factory of the JSON package, which hands each value object the
-/// converter the generator registered for it, and lists every value object of the domain, which the script finds here
-/// by type and reports missing otherwise, and every underlying type, which the script writes a raw value with.
+/// converter the generator registered for it, or its general-purpose one to a value object written by hand, and lists
+/// every value object the application registers, which the script finds here by type and reports missing otherwise, and
+/// every underlying type, which the script writes a raw value with.
 /// </summary>
 [JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]
 [JsonSerializable(typeof(Consent))]
@@ -39,6 +40,8 @@ namespace AdCodicem.ValueObjects.NativeAot;
 [JsonSerializable(typeof(EmailAddress))]
 [JsonSerializable(typeof(OrderId))]
 [JsonSerializable(typeof(DocumentNumber<PurchaseOrder>))]
+[JsonSerializable(typeof(HandWrittenCode))]
+[JsonSerializable(typeof(HandWrittenLink))]
 [JsonSerializable(typeof(bool))]
 [JsonSerializable(typeof(char))]
 [JsonSerializable(typeof(sbyte))]
@@ -61,10 +64,12 @@ namespace AdCodicem.ValueObjects.NativeAot;
 [JsonSerializable(typeof(TimeOnly))]
 [JsonSerializable(typeof(TimeSpan))]
 [JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(Uri))]
 [JsonSerializable(typeof(AnyEntityId))]
 [JsonSerializable(typeof(Order))]
 [JsonSerializable(typeof(Page))]
 [JsonSerializable(typeof(Tally))]
+[JsonSerializable(typeof(Bookmark))]
 internal sealed partial class AppJsonContext : JsonSerializerContext;
 
 /// <summary>An order, as a request body carries it and as the endpoint answers it.</summary>
@@ -87,3 +92,9 @@ internal sealed record Page(PageNumber? Number);
 /// converter writes them in, and an instant, held to the pattern of the form it is written in.
 /// </summary>
 internal sealed record Tally(Dictionary<Quantity, int> PerQuantity, Dictionary<Consent, int> PerConsent, RecordedAt Recorded);
+
+/// <summary>
+/// Value objects written by hand, which the factory's general-purpose converter serves: as a value, as a nullable one,
+/// and as a key.
+/// </summary>
+internal sealed record Bookmark(HandWrittenLink Link, HandWrittenLink? Mirror, Dictionary<HandWrittenCode, int> PerCode);

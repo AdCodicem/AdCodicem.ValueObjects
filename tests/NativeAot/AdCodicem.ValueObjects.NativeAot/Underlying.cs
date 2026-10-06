@@ -38,6 +38,7 @@ internal static class Underlying
         [typeof(DateOnly)] = ["2000-01-01", "1999-12-31", "2024-02-30"],
         [typeof(TimeOnly)] = ["06:00", "12:00:00", "12:00:01", "05:59", "25:00"],
         [typeof(TimeSpan)] = ["01:30:00", "1.00:00:00", "1.00:00:01", "-00:00:01", "nope"],
+        [typeof(Uri)] = ["https://example.com/a", "/relative", "mailto:ada@example.com"],
         [typeof(string)] = ["", " ", "  Ada@Example.COM ", "not-an-email", "+33123456789", "+33 1 23", "draft", "FINAL", "archived", "po-1042", "PO-1042-0001-X", new string('x', 201)],
     };
 
@@ -64,6 +65,7 @@ internal static class Underlying
         [typeof(DateOnly)] = static text => DateOnly.TryParse(text, Invariant, out var value) ? value : null,
         [typeof(TimeOnly)] = static text => TimeOnly.TryParse(text, Invariant, out var value) ? value : null,
         [typeof(TimeSpan)] = static text => TimeSpan.TryParse(text, Invariant, out var value) ? value : null,
+        [typeof(Uri)] = static text => Uri.TryCreate(text, UriKind.RelativeOrAbsolute, out var value) ? value : null,
         [typeof(string)] = static text => text,
     };
 

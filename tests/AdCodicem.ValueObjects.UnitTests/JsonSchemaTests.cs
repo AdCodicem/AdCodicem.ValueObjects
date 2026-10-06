@@ -456,7 +456,7 @@ public partial class JsonSchemaTests
     [Fact]
     public void A_value_object_nothing_registered_is_described_by_reflection()
     {
-#pragma warning disable IL2026, IL3050 // The general-purpose converter is what a value object nothing registered is serialized with.
+#pragma warning disable IL2026, IL3050 // DefaultJsonTypeInfoResolver resolves the contracts by reflection.
         var options = new JsonSerializerOptions
         {
             Converters = { new ValueObjectJsonConverter<Reference<Journal>, string>() },

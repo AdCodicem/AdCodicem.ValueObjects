@@ -6,9 +6,10 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 /// A string value object written by hand: up to 200 ASCII letters, kept in upper case.
 /// </summary>
 /// <remarks>
-/// Nothing registers it, neither with the value object registry nor with the JSON one, so the serializer reaches
-/// it only through <c>ValueObjectJsonConverterFactory</c>'s general-purpose converter. It honours the contract the
-/// way generated code does, rejecting <see langword="null"/> as required rather than throwing on it.
+/// Nothing in the unit suite registers it, neither with the value object registry nor with the JSON one, so the
+/// serializer reaches it only through <c>ValueObjectJsonConverterFactory</c>'s general-purpose converter. The native AOT
+/// application, which links this file, registers it without a converter, as native AOT asks. It honours the contract
+/// the way generated code does, rejecting <see langword="null"/> as required rather than throwing on it.
 /// </remarks>
 public readonly struct HandWrittenCode : IValueObject<HandWrittenCode, string>
 {

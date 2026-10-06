@@ -48,8 +48,9 @@ Two applications, built as an application builds them, are published rather than
 
 The first references every package that claims to be AOT-compatible: the contracts, the generated code, the JSON
 package with a source-generated context and the JSON Schema it exports, the identifiers and FluentValidation. Its
-value objects cover each of the 22 underlying types, a pattern hook, a closed set, an identifier and a generic value
-object registered by hand. It runs a fixed script over every one of them — the typed path, the descriptor, JSON,
+value objects cover each of the 22 underlying types, a pattern hook, a closed set, an identifier, a generic value
+object registered by hand, and two value objects written by hand, registered without a converter, which the JSON
+factory serves its general-purpose one. It runs a fixed script over every one of them — the typed path, the descriptor, JSON,
 FluentValidation, and requests over Kestrel to minimal API endpoints the Request Delegate Generator binds — once under
 the JIT and once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT warning in the publish,
 and on any difference between the two outputs, and a pull request merges only once it passes, so the claim of AOT

@@ -55,8 +55,13 @@ It is declared at compile time, on the context, so there is nothing to remember 
 The factory hands each value object the converter generated for it, which the generator registers with the value
 object's descriptor. The package belongs in the assembly that declares the context: a domain project declaring the
 value objects needs only `AdCodicem.ValueObjects`, the contracts and the generator, and its converters reach the
-context all the same, with nothing built by reflection, which trimming and native AOT would not support. Only a value object written by hand has no generated
-converter, and gets a general-purpose one from the factory instead.
+context all the same, with nothing built by reflection, which trimming and native AOT would not support.
+
+Only a value object written by hand has no generated converter. The factory gives it a general-purpose one instead,
+closed over the value object through the type arguments its descriptor hands back, with nothing built by reflection
+either, and its underlying value goes through the context's contract for that type, which listing the value object
+brings along. Under native AOT, register such a value object, `ValueObjectRegistry.Register<Link, Uri>(Link.Schema)`:
+one nothing registered is described by reflection, which only the JIT can do.
 
 A construction of a generic value object, `Reference<PurchaseOrder>`, is serialized as any other value object, by
 either serializer. Its registration registers the generic definition alone, though, so the factory finds the generated

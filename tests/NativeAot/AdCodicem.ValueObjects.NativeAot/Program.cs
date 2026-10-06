@@ -21,6 +21,12 @@ var report = new Report();
 report.Line("registry", $"DocumentNumber<PurchaseOrder> registered before the application did: {ValueObjectRegistry.TryGet(typeof(DocumentNumber<PurchaseOrder>), out _)}");
 ValueObjectRegistry.Register<DocumentNumber<PurchaseOrder>, string>(static () => new DocumentNumber<PurchaseOrder>.ValueJsonConverter());
 
+// A value object written by hand registers nothing, and native AOT cannot describe one by reflection either, so the
+// application registers the two it uses. It names no converter, since none was generated: the JSON factory closes its
+// general-purpose converter over each one through the type arguments the descriptor hands back.
+ValueObjectRegistry.Register<HandWrittenCode, string>(HandWrittenCode.Schema);
+ValueObjectRegistry.Register<HandWrittenLink, Uri>(HandWrittenLink.Schema);
+
 // Identifiers minted from a fixed clock and a counter rather than the system's, so that both runs mint the same ones.
 ValueObjectIds.Configure(new FixedTimeProvider(), new CountingEntropySource());
 

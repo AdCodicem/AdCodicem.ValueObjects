@@ -1,6 +1,8 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Identifiers;
 using AdCodicem.ValueObjects.Json;
+using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 
 namespace AdCodicem.ValueObjects.UnitTests;
@@ -9,9 +11,17 @@ namespace AdCodicem.ValueObjects.UnitTests;
 /// The JSON converter factory on a value object written by hand, which is half of what the factory is for: such a
 /// value object registers no converter of its own, so the factory builds its general-purpose one.
 /// </summary>
-public class HandWrittenJsonTests
+public partial class HandWrittenJsonTests
 {
     private static readonly JsonSerializerOptions Options = new JsonSerializerOptions().AddValueObjects();
+
+    /// <summary>Value objects written by hand: as a value, as a nullable one, and as a key.</summary>
+    internal sealed record Bookmark(HandWrittenLink Link, HandWrittenLink? Mirror, Dictionary<HandWrittenCode, int> PerCode);
+
+    [JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]
+    [JsonSerializable(typeof(Bookmark))]
+    [JsonSerializable(typeof(HandWrittenId<RegisteredProfile>))]
+    internal sealed partial class HandWrittenContext : JsonSerializerContext;
 
     [Fact]
     public void A_hand_written_value_object_travels_as_its_bare_value_through_the_factory()
@@ -147,6 +157,110 @@ public class HandWrittenJsonTests
 
         asValueObject.Should().Throw<JsonException>();
         asUnderlying.Should().Throw<JsonException>();
+    }
+
+    /// <summary>
+    /// A serializer context reaches a value object written by hand through the factory too, over an underlying type the
+    /// generator does not carry. The general-purpose converter reads and writes the underlying value through the
+    /// context's contract for it, which listing the value object brings along.
+    /// </summary>
+    [Fact]
+    public void A_serializer_context_serializes_a_hand_written_value_object_through_its_contract_for_the_underlying_type()
+    {
+        var bookmark = new Bookmark(HandWrittenLink.Create(new Uri("https://example.com/a")), null, new() { [HandWrittenCode.Create("abc")] = 1 });
+
+        var json = JsonSerializer.Serialize(bookmark, HandWrittenContext.Default.Bookmark);
+        var read = JsonSerializer.Deserialize(json, HandWrittenContext.Default.Bookmark)!;
+
+        json.Should().Be("""{"Link":"https://example.com/a","Mirror":null,"PerCode":{"ABC":1}}""");
+        read.Link.Should().Be(bookmark.Link);
+        read.Mirror.Should().BeNull();
+        read.PerCode.Should().Equal(bookmark.PerCode);
+        HandWrittenContext.Default.GetTypeInfo(typeof(Uri)).Should().NotBeNull("listing the value object lists its underlying type");
+    }
+
+    /// <summary>
+    /// Through a serializer context, what a value object written by hand rejects is refused with the code of the rule
+    /// and the path, as a value, as a nullable value and as a key.
+    /// </summary>
+    /// <param name="json">The payload.</param>
+    /// <param name="path">The path of the refused member.</param>
+    /// <param name="message">The message of the refusal.</param>
+    [Theory]
+    [InlineData("""{"Link":"/a","Mirror":null,"PerCode":{}}""", "$.Link", "The value is not a valid HandWrittenLink: A link is an absolute URI.")]
+    [InlineData("""{"Link":"https://example.com/a","Mirror":"/b","PerCode":{}}""", "$.Mirror", "The value is not a valid HandWrittenLink: A link is an absolute URI.")]
+    [InlineData("""{"Link":"https://example.com/a","Mirror":null,"PerCode":{"ab1":1}}""", "$.PerCode.ab1", "The dictionary key is not a valid HandWrittenCode: A code holds ASCII letters only.")]
+    public void A_serializer_context_refuses_what_a_hand_written_value_object_rejects_with_the_code_and_the_path(string json, string path, string message)
+    {
+        var refusal = FluentActions.Invoking(() => JsonSerializer.Deserialize(json, HandWrittenContext.Default.Bookmark))
+            .Should().Throw<ValueObjectJsonException>().WithMessage(message).Which;
+
+        refusal.ErrorCode.Should().Be(ValueObjectErrorCodes.InvalidFormat);
+        refusal.Path.Should().Be(path);
+    }
+
+    /// <summary>
+    /// The factory closes the general-purpose converter over the type arguments the descriptor hands back, the
+    /// underlying type included, here one the generator does not carry.
+    /// </summary>
+    [Fact]
+    public void The_factory_closes_the_general_purpose_converter_over_the_descriptor()
+    {
+        new ValueObjectJsonConverterFactory().CreateConverter(typeof(HandWrittenLink), Options)
+            .Should().BeOfType<ValueObjectJsonConverter<HandWrittenLink, Uri>>();
+    }
+
+    /// <summary>
+    /// A value object written by hand and registered without a converter, as native AOT asks, has a descriptor built
+    /// in code rather than by reflection, and the factory serves it the general-purpose converter through it.
+    /// </summary>
+    [Fact]
+    public void A_hand_written_value_object_registered_without_a_converter_gets_the_general_purpose_one()
+    {
+        ValueObjectRegistry.Register<HandWrittenId<RegisteredProfile>, string>(HandWrittenId<RegisteredProfile>.Schema);
+        var id = HandWrittenId<RegisteredProfile>.New();
+
+        var json = JsonSerializer.Serialize(id, HandWrittenContext.Default.HandWrittenIdRegisteredProfile);
+
+        ValueObjectRegistry.TryGet(typeof(HandWrittenId<RegisteredProfile>), out var descriptor).Should().BeTrue();
+        descriptor!.JsonConverter.Should().BeNull("it was registered without one");
+        HandWrittenContext.Default.Options.GetConverter(typeof(HandWrittenId<RegisteredProfile>))
+            .Should().BeOfType<ValueObjectJsonConverter<HandWrittenId<RegisteredProfile>, string>>();
+        json.Should().Be($"\"{id.Value}\"");
+        JsonSerializer.Deserialize(json, HandWrittenContext.Default.HandWrittenIdRegisteredProfile).Should().Be(id);
+    }
+
+    /// <summary>
+    /// Called directly, with options no serializer has used yet and no resolver set, the general-purpose converter
+    /// resolves the underlying type as the serializer itself would, rather than finding no contract for it.
+    /// </summary>
+    [Fact]
+    public void The_general_purpose_converter_called_directly_with_fresh_options_resolves_the_underlying_type()
+    {
+        var converter = new ValueObjectJsonConverter<HandWrittenLink, Uri>();
+        var link = HandWrittenLink.Create(new Uri("https://example.com/a"));
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartArray();
+            converter.Write(writer, link, new JsonSerializerOptions());
+            writer.WriteStartObject();
+            converter.WriteAsPropertyName(writer, link, new JsonSerializerOptions());
+            writer.WriteNumberValue(1);
+            writer.WriteEndObject();
+            writer.WriteEndArray();
+        }
+
+        var value = new Utf8JsonReader("\"https://example.com/a\""u8);
+        value.Read();
+        var key = new Utf8JsonReader("{\"https://example.com/a\":1}"u8);
+        key.Read();
+        key.Read();
+
+        System.Text.Encoding.UTF8.GetString(buffer.WrittenSpan).Should().Be("""["https://example.com/a",{"https://example.com/a":1}]""");
+        converter.Read(ref value, typeof(HandWrittenLink), new JsonSerializerOptions()).Should().Be(link);
+        converter.ReadAsPropertyName(ref key, typeof(HandWrittenLink), new JsonSerializerOptions()).Should().Be(link);
     }
 
     /// <summary>

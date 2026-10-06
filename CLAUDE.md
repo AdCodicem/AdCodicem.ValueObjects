@@ -200,9 +200,10 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   `Type` at run time — `MustParseAs(Type)`, the OpenAPI transformer, model-binder resolution. `descriptor.Accept`
   hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
   time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's `AddValueObjectHandlers`
-  does; EF Core's convention, the MVC binder provider and the JSON fallback converter still call `MakeGenericType`,
-  and migrate one package at a time. A hand-written value object declares `Schema` too, and the registry describes it
-  from that alone: an annotation on it is read by nothing at run time.
+  and the JSON factory's general-purpose converter, for a value object written by hand, do; EF Core's convention and
+  the MVC binder provider still call `MakeGenericType`, and migrate one package at a time. A hand-written value object
+  declares `Schema` too, and the registry describes it from that alone: an annotation on it is read by nothing at run
+  time.
 
 The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them. That is
 exactly how the descriptor once flattened every rejection into a generic `not_parsable`, discarding the rule
@@ -441,14 +442,18 @@ on where they apply.
 
 - `AdCodicem.ValueObjects.NativeAot` is a minimal API referencing every package that claims to be AOT-compatible, with
   its value objects in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
-  `Domain/UnderlyingTypes.cs`. `ci.yml`'s `native AOT` job (`.github/scripts/native-aot.sh`), a required check, runs
-  its fixed script once under the JIT and once as the native binary, and fails on a trimming or AOT warning or on any
-  difference between the two outputs. The JIT run turns on the RDG and turns off reflection-based serialization, as
-  `PublishAot` does, so that the outputs differ only where native AOT changes something. A value object added to
-  `UnderlyingTypes.cs` goes into its `AppJsonContext` too, or the script reports it missing. `PublishAot` is set by
-  the project when `NativeAot` is true, never as `-p:PublishAot`, which would reach the `netstandard2.0` generator. A
-  `#pragma` silences only the analyzers that run with the compiler: the AOT compiler reads the compiled code, so a
-  warning the library suppresses takes `[UnconditionalSuppressMessage]` and a guard, as `MustParseAs` found out.
+  `Domain/UnderlyingTypes.cs`. The application links two value objects written by hand from `Domain/HandWritten/`, one
+  over `Uri`, and registers them without a converter, so the JSON factory's general-purpose converter runs natively.
+  `ci.yml`'s `native AOT` job (`.github/scripts/native-aot.sh`), a required check, runs its fixed script once under the
+  JIT and once as the native binary, and fails on a trimming or AOT warning or on any difference between the two
+  outputs. The JIT run turns on the RDG and turns off reflection-based serialization, as `PublishAot` does, so that the
+  outputs differ only where native AOT changes something. A value object added to `UnderlyingTypes.cs`, or registered by
+  the application, goes into its `AppJsonContext` too, with its underlying type, or the script reports it missing; an
+  underlying type no other value object has, as `Uri`, also needs its texts in `Underlying.cs`, or the script probes it
+  with none. `PublishAot` is set by the project when `NativeAot` is true, never as `-p:PublishAot`, which would reach
+  the `netstandard2.0` generator. A `#pragma` silences only the analyzers that run with the compiler: the AOT compiler
+  reads the compiled code, so a warning the library suppresses takes `[UnconditionalSuppressMessage]` and a guard, as
+  `MustParseAs` found out.
 - `AdCodicem.ValueObjects.CompiledModel` holds a context mapping every value object the EF Core convention maps,
   required and optional, a generic one and an `[EntityId]` key, and a strict context beside it.
   `.github/scripts/compiled-model.sh` writes their model with `dotnet ef dbcontext optimize` under

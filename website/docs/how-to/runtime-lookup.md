@@ -56,10 +56,11 @@ foreach (var descriptor in ValueObjectRegistry.GetRegistered())
 
 `Accept` calls `Visit` with the type arguments the descriptor was built with, so the adapter is closed at compile time.
 Under native AOT, the compiler generates `Visit` for each value object a descriptor is built for in code: every one the
-generator registers, and every construction of a generic value object registered by hand. A visitor needing context —
-a builder, a flag — holds it in fields. Each `Visit` is compiled once per value object, since a struct type argument
-shares no code, and only for the visitors the application creates. The Dapper integration registers its handlers this
-way.
+generator registers, and every value object written by hand or construction of a generic one registered by hand. A
+visitor needing context — a builder, a flag — holds it in fields. Each `Visit` is compiled once per value object, since
+a struct type argument shares no code, and only for the visitors the application creates. The Dapper integration
+registers its handlers this way, and the JSON converter factory closes the general-purpose converter it gives a value
+object written by hand.
 
 Inside the adapter, the rules are `TSelf.Schema`, the static member of `IValueObject<TSelf, TValue>` that the generator
 emits and registers as the descriptor's `Schema`: `TSelf.Schema.MaxLength` sizes a column with no registry to ask.
@@ -111,7 +112,9 @@ known values go in `KnownValues`, and their names, which the OpenAPI document pu
 checks.
 Nothing registers it, so `TryResolve` describes it by reflection, the first time it is asked, with that schema, the one
 generic code constrained on it reads, whatever `[ValueObject<T>]` or `[KnownValue]` annotation it also carries. Where no
-generator runs, nothing reads an annotation: state each rule in the schema.
+generator runs, nothing reads an annotation: state each rule in the schema. Under native AOT, which cannot describe it
+by reflection, register it, `ValueObjectRegistry.Register<Link, Uri>(Link.Schema)`: its descriptor is then built in
+code, and the JSON converter factory serves it the general-purpose converter through it.
 
 ## When a type is not found
 
