@@ -45,6 +45,14 @@ public static class ValueObjectConventionExtensions
     /// <para>
     /// This runs once, while the model is built. Nothing here happens per query or per row.
     /// </para>
+    /// <para>
+    /// Each converter and comparer is closed over its value object through the type arguments the descriptor hands back
+    /// to a visitor (<see cref="ValueObjectDescriptor.Accept{TResult}(IValueObjectVisitor{TResult})"/>), never with
+    /// <see cref="Type.MakeGenericType(Type[])"/> over a <see cref="Type"/> read off the descriptor. The converter of a
+    /// <c>TSelf?</c> property, which C# cannot name without a constraint the visitor does not carry, is closed with it
+    /// over those type arguments. Entity Framework Core builds no model under native AOT, where it reads a compiled
+    /// model instead, so none of this runs there.
+    /// </para>
     /// </remarks>
     public static ModelConfigurationBuilder ConfigureValueObjects(
         this ModelConfigurationBuilder builder,
@@ -85,12 +93,9 @@ public static class ValueObjectConventionExtensions
 
         foreach (var descriptor in ValueObjectRegistry.GetRegistered())
         {
-            if (Is128Bit(descriptor.ValueType))
-            {
-                continue;
-            }
-
-            Apply(builder, descriptor, strict);
+            // The length is the descriptor's: a registration made by hand may give a value object another schema than
+            // the one its type declares.
+            descriptor.Accept(new PropertiesConfiguration(builder, strict, descriptor.Schema.MaxLength));
         }
 
         // A generic value object is configured by its definition, which makes each construction a scalar property, and
@@ -159,27 +164,50 @@ public static class ValueObjectConventionExtensions
             .FirstOrDefault(static candidate => candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IValueObject<,>))
             ?.GetGenericArguments()[1];
 
-    private static void Apply(ModelConfigurationBuilder builder, ValueObjectDescriptor descriptor, bool strict)
+    /// <summary>
+    /// Configures the properties of the value object a descriptor stands for, and those of its nullable type, closed
+    /// over the type arguments the descriptor hands back.
+    /// </summary>
+    /// <param name="builder">Model configuration builder.</param>
+    /// <param name="strict">Whether what is read is validated again.</param>
+    /// <param name="maxLength">The length the descriptor declares, which sizes the column.</param>
+    private sealed class PropertiesConfiguration(ModelConfigurationBuilder builder, bool strict, int? maxLength)
+        : IValueObjectVisitor<bool>
     {
-        var converterType = ConverterTypes.Required(descriptor.ValueObjectType, descriptor.ValueType, strict);
-
-        var comparerType = typeof(ValueObjectComparer<>).MakeGenericType(descriptor.ValueObjectType);
-
-        var properties = builder.Properties(descriptor.ValueObjectType);
-        properties.HaveConversion(converterType, comparerType);
-
-        if (descriptor.Schema.MaxLength is { } maxLength)
+        /// <summary>
+        /// Configures the properties, unless the value object is over a 128-bit integer, which Entity Framework Core
+        /// maps to no column.
+        /// </summary>
+        /// <typeparam name="TSelf">Value object type.</typeparam>
+        /// <typeparam name="TValue">Underlying value type.</typeparam>
+        /// <returns><see langword="true"/> when the properties were configured.</returns>
+        public bool Visit<TSelf, TValue>()
+            where TSelf : struct, IValueObject<TSelf, TValue>
         {
-            properties.HaveMaxLength(maxLength);
-        }
+            if (Is128Bit(typeof(TValue)))
+            {
+                return false;
+            }
 
-        // A TSelf? property takes the configuration of TSelf, the length included, then its own: a converter storing a
-        // value the value object rejects as NULL, where the column of a TSelf throws (a value object written by hand
-        // over a reference type other than string keeps its own), and a comparer of the nullable type, which a compiled
-        // model can write, where it cannot write the wrapping EF Core would otherwise give ValueObjectComparer.
-        builder.Properties(typeof(Nullable<>).MakeGenericType(descriptor.ValueObjectType))
-            .HaveConversion(
-                ConverterTypes.Optional(descriptor.ValueObjectType, descriptor.ValueType, strict) ?? converterType,
-                typeof(NullableValueObjectComparer<>).MakeGenericType(descriptor.ValueObjectType));
+            var converter = ConverterTypes.Required<TSelf, TValue>(strict);
+            var properties = builder.Properties<TSelf>();
+            properties.HaveConversion(converter, typeof(ValueObjectComparer<TSelf>));
+
+            if (maxLength is { } length)
+            {
+                properties.HaveMaxLength(length);
+            }
+
+            // A TSelf? property takes the configuration of TSelf, the length included, then its own: a converter
+            // storing a value the value object rejects as NULL, where the column of a TSelf throws (a value object
+            // written by hand over a reference type other than string keeps its own), and a comparer of the nullable
+            // type, which a compiled model can write, where it cannot write the wrapping EF Core would otherwise give
+            // ValueObjectComparer.
+            builder.Properties<TSelf?>().HaveConversion(
+                ConverterTypes.Optional<TSelf, TValue>(strict) ?? converter,
+                typeof(NullableValueObjectComparer<TSelf>));
+
+            return true;
+        }
     }
 }

@@ -182,6 +182,10 @@ The code it writes does not always compile either, with or without this library:
 precompiled code that does not compile for an untracked query and for a sealed entity type, and model code that
 cannot tell a type of the model named as one of its own internal types, `Reference<T>` among them, from that type.
 
+The conventions never run in the native binary. Entity Framework Core builds no model under native AOT, and refuses to
+start without a compiled one, so `ConfigureValueObjects` and `ConfigureEntityIds` run only where a model is built:
+under the JIT, and in `dotnet ef dbcontext optimize`, which writes the model the binary reads.
+
 ## Complex types and JSON columns
 
 Complex types, `ToJson`, complex collections and owned types mapped to JSON work with the convention, and the rules

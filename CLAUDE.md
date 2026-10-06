@@ -200,8 +200,12 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   `Type` at run time — `MustParseAs(Type)`, the OpenAPI transformer, model-binder resolution. `descriptor.Accept`
   hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
   time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's `AddValueObjectHandlers`,
-  the MVC binder provider and the JSON factory's general-purpose converter, for a value object written by hand, do;
-  EF Core's conventions still call `MakeGenericType`, and migrate one package at a time. A hand-written value object
+  the MVC binder provider, the JSON factory's general-purpose converter, for a value object written by hand, and EF
+  Core's `ConfigureValueObjects` do. That convention still closes the converter of a `TSelf?` property with
+  `MakeGenericType`, over the visitor's own type arguments: C# names it only under `TValue : struct` or
+  `TSelf : IValueObject<TSelf, string>`, which `Visit` cannot prove, and it must stay the type a compiled model names.
+  The identifiers' `ConfigureEntityIds` still calls `MakeGenericType` on a `Type`, and migrates last. Neither EF Core
+  convention runs under native AOT, where EF Core reads the compiled model and builds none. A hand-written value object
   declares `Schema` too, and the registry describes it from that alone: an annotation on it is read by nothing at run
   time.
 
@@ -460,7 +464,10 @@ on where they apply.
   `artifacts/compiled-model/`, never committed, and builds on it with `CompiledModel=jit` or `aot`. The build job
   takes the `jit` one on a round trip through SQL Server; the native AOT job publishes the `aot` one, written with its
   queries precompiled, never runs it (two bugs of EF Core stop its queries), and fails on a warning about this
-  library's code only, EF Core and its dependencies warning on their own. `dotnet-ef` is pinned in
+  library's code only, EF Core and its dependencies warning on their own. The native binary holds the converters and
+  comparers the model names, never the conventions: EF Core builds no model under native AOT, so the AOT compiler drops
+  them, and only `optimize`, under the JIT, runs them, which is why a change to a convention shows in the model it
+  writes, never in a warning of the publish. `dotnet-ef` is pinned in
   `.config/dotnet-tools.json` to the version of `Microsoft.EntityFrameworkCore.Design`, EF Core's own: Dependabot's
   `dotnet` group bumps them together, and holds back the tool's next major as it does EF Core's. The project
   turns transitive pinning off: Design depends on a later Roslyn than the one `Directory.Packages.props` pins for the

@@ -134,13 +134,14 @@ reflection, the first time it is asked for it, and under native AOT each is regi
 [Run-time lookup](./how-to/runtime-lookup.md#value-objects-written-by-hand) show. Code that finds a value object by its
 `Type` and closes a generic adapter over it does so through the descriptor's visitor rather than `MakeGenericType`,
 which native AOT cannot run for a struct, as [Run-time lookup](./how-to/runtime-lookup.md#back-to-the-typed-path)
-shows; the Dapper integration registers its handlers that way, the MVC model binder provider creates its binders, and
-the JSON converter factory closes the general-purpose converter it gives a value object written by hand. The contracts,
-the generated code, the JSON package, FluentValidation and identifiers are marked AOT-compatible and built with the
-trimming and AOT analyzers on, and CI publishes an application using them all with native AOT on every pull request,
-which merges only once that passes: it fails on any trimming or AOT warning, and unless the native binary does exactly
-what the application does under the JIT. The EF Core, ASP.NET Core, OpenAPI, Dapper and Newtonsoft.Json integrations are
-not AOT-compatible, because the frameworks they plug into are not.
+shows; the Dapper integration registers its handlers that way, the MVC model binder provider creates its binders, the
+JSON converter factory closes the general-purpose converter it gives a value object written by hand, and the Entity
+Framework Core convention maps each value object, which it does only while a model is built, never under native AOT. The
+contracts, the generated code, the JSON package, FluentValidation and identifiers are marked AOT-compatible and built
+with the trimming and AOT analyzers on, and CI publishes an application using them all with native AOT on every pull
+request, which merges only once that passes: it fails on any trimming or AOT warning, and unless the native binary does
+exactly what the application does under the JIT. The EF Core, ASP.NET Core, OpenAPI, Dapper and Newtonsoft.Json
+integrations are not AOT-compatible, because the frameworks they plug into are not.
 
 ### Does a pattern run compiled under native AOT?
 

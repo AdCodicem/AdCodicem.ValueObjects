@@ -24,7 +24,7 @@ namespace AdCodicem.ValueObjects.UnitTests.Persistence;
 /// opens no connection. What the columns become on a real engine, and what a strict read does to a row another
 /// writer stored, is checked in the integration suite.
 /// </remarks>
-public class EntityFrameworkCoreTests
+public partial class EntityFrameworkCoreTests
 {
     [Fact]
     public void The_convention_maps_every_value_object_to_its_underlying_column_and_sizes_it()
@@ -50,6 +50,27 @@ public class EntityFrameworkCoreTests
         var previous = ledger.FindProperty(nameof(Ledger.PreviousIban))!;
         previous.GetValueConverter().Should().BeOfType<NullableValueObjectConverter<Iban>>();
         previous.GetMaxLength().Should().Be(34, "the optional property takes the length of the value object");
+    }
+
+    /// <summary>
+    /// The convention sizes a column by the schema of the descriptor the application registered, not by the one the
+    /// type declares: a registration made by hand may give a value object a schema of its own, and the convention maps
+    /// that registration. The value object is this test's own, since the registry is shared by the whole process.
+    /// </summary>
+    [Fact]
+    public void A_value_object_registered_by_hand_is_sized_by_the_schema_it_was_registered_with()
+    {
+        ValueObjectRegistry.Register<ShelfMark, string>(new ValueObjectSchema { MaxLength = 20 });
+
+        var shelf = DesignTimeModel(new ShelfContext()).FindEntityType(typeof(Shelf))!;
+
+        ShelfMark.Schema.MaxLength.Should().Be(12, "the type declares a length of its own");
+        var mark = shelf.FindProperty(nameof(Shelf.Mark))!;
+        mark.GetValueConverter().Should().BeOfType<ValueObjectConverter<ShelfMark, string>>();
+        mark.GetMaxLength().Should().Be(20, "the column follows the schema the value object was registered with");
+        var previous = shelf.FindProperty(nameof(Shelf.PreviousMark))!;
+        previous.GetValueConverter().Should().BeOfType<NullableValueObjectConverter<ShelfMark>>();
+        previous.GetMaxLength().Should().Be(20, "the optional property takes the length of the value object");
     }
 
     /// <summary>
@@ -317,8 +338,8 @@ public class EntityFrameworkCoreTests
     [Fact]
     public void A_hand_written_value_object_over_another_reference_type_has_no_optional_converter()
     {
-        ConverterTypes.Optional(typeof(HandWrittenLink), typeof(Uri), strict: false).Should().BeNull();
-        ConverterTypes.Optional(typeof(HandWrittenCode), typeof(string), strict: true)
+        ConverterTypes.Optional<HandWrittenLink, Uri>(strict: false).Should().BeNull();
+        ConverterTypes.Optional<HandWrittenCode, string>(strict: true)
             .Should().Be<StrictNullableValueObjectConverter<HandWrittenCode>>();
     }
 
@@ -622,6 +643,32 @@ public class EntityFrameworkCoreTests
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.Entity<Vault>();
+    }
+
+    /// <summary>The mark of a shelf, which one test registers by hand with a schema of its own.</summary>
+    [ValueObject<string>(MaxLength = 12)]
+    public readonly partial struct ShelfMark;
+
+    /// <summary>An entity holding the value object one test registers by hand.</summary>
+    private sealed class Shelf
+    {
+        public int Id { get; set; }
+
+        public ShelfMark Mark { get; set; }
+
+        public ShelfMark? PreviousMark { get; set; }
+    }
+
+    /// <summary>A model mapping a value object registered by hand with a schema of its own.</summary>
+    private sealed class ShelfContext : DbContext
+    {
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder.UseNpgsql("Host=unused");
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+            => configurationBuilder.ConfigureValueObjects();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.Entity<Shelf>();
     }
 
     /// <summary>A model mapping every value object already registered, and trusting what it reads.</summary>
