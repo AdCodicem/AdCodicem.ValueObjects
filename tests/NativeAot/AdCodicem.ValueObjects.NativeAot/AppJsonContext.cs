@@ -7,8 +7,9 @@ namespace AdCodicem.ValueObjects.NativeAot;
 /// The source-generated serializer context, the only one the application serializes through: reflection-based
 /// serialization is off in both runs. It names the factory of the JSON package, which hands each value object the
 /// converter the generator registered for it, or its general-purpose one to a value object written by hand, and lists
-/// every value object the application registers, which the script finds here by type and reports missing otherwise, and
-/// every underlying type, which the script writes a raw value with.
+/// every value object the application registers, which the script finds here by type and reports missing otherwise,
+/// every underlying type, which the script writes a raw value with, and the one value object written by hand that nothing
+/// registers, which the factory refuses.
 /// </summary>
 [JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]
 [JsonSerializable(typeof(Consent))]
@@ -42,6 +43,7 @@ namespace AdCodicem.ValueObjects.NativeAot;
 [JsonSerializable(typeof(DocumentNumber<PurchaseOrder>))]
 [JsonSerializable(typeof(HandWrittenCode))]
 [JsonSerializable(typeof(HandWrittenLink))]
+[JsonSerializable(typeof(UnregisteredCode))]
 [JsonSerializable(typeof(bool))]
 [JsonSerializable(typeof(char))]
 [JsonSerializable(typeof(sbyte))]

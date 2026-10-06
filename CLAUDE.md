@@ -450,11 +450,14 @@ on where they apply.
 - `AdCodicem.ValueObjects.NativeAot` is a minimal API referencing every package that claims to be AOT-compatible, with
   its value objects in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
   `Domain/UnderlyingTypes.cs`. The application links two value objects written by hand from `Domain/HandWritten/`, one
-  over `Uri`, and registers them without a converter, so the JSON factory's general-purpose converter runs natively.
+  over `Uri`, and registers them without a converter, so the JSON factory's general-purpose converter runs natively,
+  and links `UnregisteredCode`, registered by nothing, which the factory refuses with a `NotSupportedException`.
   `ci.yml`'s `native AOT` job (`.github/scripts/native-aot.sh`), a required check, runs its fixed script once under the
   JIT and once as the native binary, and fails on a trimming or AOT warning or on any difference between the two
-  outputs. The JIT run turns on the RDG and turns off reflection-based serialization, as `PublishAot` does, so that the
-  outputs differ only where native AOT changes something. A value object added to `UnderlyingTypes.cs`, or registered by
+  outputs. The JIT run turns on the RDG and turns off reflection-based serialization and dynamic code, as `PublishAot`
+  does, so that the outputs differ only where native AOT changes something: a branch guarded by
+  `RuntimeFeature.IsDynamicCodeSupported` takes the same side in both runs, while a `MakeGenericType` left unguarded
+  still runs under the JIT and fails the native binary. A value object added to `UnderlyingTypes.cs`, or registered by
   the application, goes into its `AppJsonContext` too, with its underlying type, or the script reports it missing; an
   underlying type no other value object has, as `Uri`, also needs its texts in `Underlying.cs`, or the script probes it
   with none. `PublishAot` is set by the project when `NativeAot` is true, never as `-p:PublishAot`, which would reach

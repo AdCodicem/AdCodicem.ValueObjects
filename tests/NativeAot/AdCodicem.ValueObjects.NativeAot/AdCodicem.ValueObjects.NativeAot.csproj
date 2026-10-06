@@ -6,7 +6,7 @@
     be AOT-compatible, and its value objects come from a domain project, where the Request Delegate Generator sees their
     interfaces; the RDG suite covers those declared in the endpoints' project. Two value objects written by hand, linked
     from the unit suite, have no generated converter: Program.cs registers them without one, so the JSON factory serves
-    them its general-purpose converter.
+    them its general-purpose converter. A third, UnregisteredCode, is registered by nothing, and the factory refuses it.
   -->
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.NativeAot</RootNamespace>
@@ -15,12 +15,17 @@
     <!-- Set as a property of this project, not as -p:PublishAot, which would reach the netstandard2.0 generator too. -->
     <PublishAot Condition="'$(NativeAot)' == 'true'">true</PublishAot>
 
-    <!-- PublishAot turns both on, so the JIT run turns them on as well: it binds through the code the Request Delegate
-         Generator writes and serializes through the source-generated context alone, as the native binary does. Its
-         output would otherwise differ for reasons that are not this library's: the reflection-based binding refuses
-         empty text the RDG binds as null, and a type missing from the context would serialize by reflection. -->
+    <!-- PublishAot turns the first two on and dynamic code off, so the JIT run does the same: it binds through the code
+         the Request Delegate Generator writes, serializes through the source-generated context alone, and takes the
+         branch code guarded by RuntimeFeature.IsDynamicCodeSupported takes, as the native binary does. Its output would
+         otherwise differ where native AOT changes nothing in what runs: the reflection-based binding refuses empty text
+         the RDG binds as null, a type missing from the context would serialize by reflection, and the JSON factory
+         would describe by reflection the value object nothing registered, which it refuses without dynamic code. The
+         switch stops no reflection under the JIT: a MakeGenericType or a MakeGenericMethod left unguarded still runs
+         there, and still fails the native binary. -->
     <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <DynamicCodeSupport>false</DynamicCodeSupport>
   </PropertyGroup>
 
   <ItemGroup>
@@ -38,6 +43,7 @@
   <ItemGroup>
     <Compile Include="..\..\AdCodicem.ValueObjects.UnitTests\Domain\HandWritten\HandWrittenCode.cs" Link="UnitTests\HandWrittenCode.cs" />
     <Compile Include="..\..\AdCodicem.ValueObjects.UnitTests\Domain\HandWritten\HandWrittenLink.cs" Link="UnitTests\HandWrittenLink.cs" />
+    <Compile Include="..\..\AdCodicem.ValueObjects.UnitTests\Domain\HandWritten\UnregisteredCode.cs" Link="UnitTests\UnregisteredCode.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -61,7 +61,8 @@ Only a value object written by hand has no generated converter. The factory give
 closed over the value object through the type arguments its descriptor hands back, with nothing built by reflection
 either, and its underlying value goes through the context's contract for that type, which listing the value object
 brings along. Under native AOT, register such a value object, `ValueObjectRegistry.Register<Link, Uri>(Link.Schema)`:
-one nothing registered is described by reflection, which only the JIT can do.
+one nothing registered is described by reflection where the runtime supports dynamic code, and under native AOT the
+factory refuses it with a `NotSupportedException` naming that registration.
 
 A construction of a generic value object, `Reference<PurchaseOrder>`, is serialized as any other value object, by
 either serializer. Its registration registers the generic definition alone, though, so the factory finds the generated

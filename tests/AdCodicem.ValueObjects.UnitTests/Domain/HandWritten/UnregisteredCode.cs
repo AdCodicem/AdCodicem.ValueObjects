@@ -9,7 +9,8 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 /// Reserved for the views of an unregistered type: the contract kit's, and the length Entity Framework Core's
 /// per-property mapping finds for it. Resolving it through <c>ValueObjectRegistry.TryResolve</c> would register it
 /// by reflection for the rest of the process, so nothing may resolve it: the tests that use it would then depend
-/// on the order they ran in. A lookup through <c>ValueObjectRegistry.TryGet</c> registers nothing.
+/// on the order they ran in. A lookup through <c>ValueObjectRegistry.TryGet</c> registers nothing. The native AOT
+/// application links it to show the JSON factory refusing a value object nothing registered, where no dynamic code runs.
 /// </remarks>
 public readonly struct UnregisteredCode : IValueObject<UnregisteredCode, string>
 {

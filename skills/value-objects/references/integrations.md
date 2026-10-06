@@ -38,6 +38,7 @@ var options = new JsonSerializerOptions().AddValueObjects();
 
 // Under native AOT, a hand-written value object is registered, with no converter of its own: the factory serves it
 // a general-purpose one, closed through its descriptor. List it in the context, which brings its underlying type along.
+// Left unregistered, it fails its first serialization with a NotSupportedException.
 ValueObjectRegistry.Register<Link, Uri>(Link.Schema);
 ```
 
