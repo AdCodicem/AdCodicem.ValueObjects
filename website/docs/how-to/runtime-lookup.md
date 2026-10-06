@@ -125,6 +125,13 @@ generator runs, nothing reads an annotation: state each rule in the schema. Unde
 by reflection, register it, `ValueObjectRegistry.Register<Link, Uri>(Link.Schema)`: its descriptor is then built in
 code, and the JSON converter factory serves it the general-purpose converter through it.
 
+The registry keeps the descriptor `TryResolve` builds, as it keeps that of a construction: `TryGet` finds the value
+object from then on, and `GetRegistered` lists it. Whatever asks first, a serializer, a model binder or a validator,
+registers it for the rest of the process, and every model built afterwards maps it through `ConfigureValueObjects`.
+`ConfigureEntityIds` asks for each identifier this way, so an identifier written by hand and registered with
+`EntityIdRegistry` alone joins the value object registry the first time a model is built, as a generated identifier,
+which registers itself in both, always has.
+
 ## When a type is not found
 
 Nothing needs registering by hand: every value object joins the registry through a generated module

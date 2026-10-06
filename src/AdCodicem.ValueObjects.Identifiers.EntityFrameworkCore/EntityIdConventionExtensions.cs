@@ -30,8 +30,10 @@ namespace AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
 /// (<see cref="ValueObjectDescriptor.Accept{TResult}(IValueObjectVisitor{TResult})"/>), never with
 /// <see cref="Type.MakeGenericType(Type[])"/>. An identifier registered by hand with <see cref="EntityIdRegistry"/>
 /// alone is described by reflection the first time the convention meets it, as
-/// <see cref="ValueObjectRegistry.TryResolve"/> describes a value object nothing registered. Entity Framework Core
-/// builds no model under native AOT, where it reads a compiled model instead, so none of this runs there.
+/// <see cref="ValueObjectRegistry.TryResolve"/> describes a value object nothing registered, and stays registered with
+/// <see cref="ValueObjectRegistry"/> from then on, as a generated identifier always is: <c>ConfigureValueObjects</c> maps
+/// it in a model built afterwards. Entity Framework Core builds no model under native AOT, where it reads a compiled
+/// model instead, so none of this runs there.
 /// </para>
 /// <para>
 /// What it deliberately does not do is decide the physical layout of your tables. On SQL Server a primary key

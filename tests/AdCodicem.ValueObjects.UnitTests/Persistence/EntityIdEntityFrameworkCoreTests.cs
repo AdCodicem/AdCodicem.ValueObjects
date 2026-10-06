@@ -148,7 +148,8 @@ public class EntityIdEntityFrameworkCoreTests
     /// <summary>
     /// An identifier written by hand and registered as an identifier alone, which the value object registry has never
     /// heard of, is mapped as a generated one is: the convention visits the descriptor the registry describes for it by
-    /// reflection, under the JIT, the only place a model is built.
+    /// reflection, under the JIT, the only place a model is built. The registry keeps that descriptor, as it keeps any
+    /// it describes, so the identifier is registered there from then on, as a generated one always is.
     /// </summary>
     [Fact]
     public void An_identifier_registered_by_hand_as_an_identifier_alone_is_mapped_by_convention()
@@ -174,6 +175,8 @@ public class EntityIdEntityFrameworkCoreTests
         previous.IsUnicode().Should().BeFalse();
         previous.GetCollation().Should().Be(IdCollations.PostgreSql);
         previous.IsNullable.Should().BeTrue();
+
+        ValueObjectRegistry.TryGet(typeof(HandWrittenId<ArchiveProfile>), out _).Should().BeTrue();
     }
 
     private static IModel DesignTimeModel(DbContext context)
