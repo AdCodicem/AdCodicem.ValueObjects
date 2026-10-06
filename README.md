@@ -288,6 +288,16 @@ Log.Logger = new LoggerConfiguration()
 The option costs a pass over the properties of each event, and sees what the enrichers added before it
 ([the logging guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/logging#serilog)).
 
+`XmlSerializer` and `DataContractSerializer`, and the MVC XML formatters, CoreWCF and Dapr actor remoting built on them,
+write a value object as an empty element and read back a default instance. An assembly that crosses an XML boundary
+opts in, and every value object it declares then implements `IXmlSerializable`: it is written as its underlying value,
+read back through its rules, a refusal carrying its code, and described in the exported schema with its rules as XSD
+facets ([the XML guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/xml)):
+
+```csharp skip
+[assembly: ValueObjectXmlSerialization]
+```
+
 ### Testing your own value objects
 
 ```csharp skip

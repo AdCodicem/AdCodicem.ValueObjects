@@ -18,7 +18,8 @@ Every value object implements `IValueObject<TSelf, TValue>`, which brings:
 - `ISpanParsable<TSelf>`, and so `IParsable<TSelf>`;
 - `ISpanFormattable`, and so `IFormattable`.
 
-`Arithmetic = true` adds `INumericValueObject<TSelf, TValue>`; `[EntityId]` adds `IEntityId<TSelf>`.
+`Arithmetic = true` adds `INumericValueObject<TSelf, TValue>`; `[EntityId]` adds `IEntityId<TSelf>`. In an assembly
+marked `[assembly: ValueObjectXmlSerialization]`, every value object also implements `IXmlSerializable`, explicitly.
 
 ## State
 
@@ -101,3 +102,4 @@ registration registers the generic definition.
 | `ExplicitConversionFromValue = true` | `explicit operator TSelf(TValue)`, validating like `Create`. |
 | `Arithmetic = true` | `+`, `-`, `*`, `/`, unary `-`, `Zero`, `One`, `IsZero`, `Min`, `Max`. |
 | `[EntityId("prefix")]` | `New()`, `Prefix`, `Granularity`, `Length`. |
+| `[assembly: ValueObjectXmlSerialization]`, on every value object of the assembly | `IXmlSerializable`, implemented explicitly: `GetSchema()`, `ReadXml`, which reads the element through the type's rules, and `WriteXml`. `[XmlSchemaProvider("GetXmlSchema")]` and the public `static XmlQualifiedName GetXmlSchema(XmlSchemaSet)` it names, hidden from IntelliSense, which describes the type as an `xs:simpleType` with its rules as facets. [XML](../how-to/xml.md). |

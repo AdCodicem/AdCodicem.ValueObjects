@@ -168,8 +168,15 @@ prerelease tags on a stable branch, so without it the first stable release would
 
 `ValueObjectGenerator` (`ForAttributeWithMetadataName`) → `ValueObjectModel` (an equatable record, so an
 unrelated edit does not re-run the pipeline) → `ValueObjectEmitter`, which delegates to `JsonConverterEmitter`,
-`TypeConverterEmitter` and `RegistrationEmitter`. `Model/UnderlyingType.cs` is the closed table of the 22
-supported underlying types and drives nearly every per-type decision the emitters make.
+`TypeConverterEmitter`, `XmlSerializableEmitter` and `RegistrationEmitter`. `Model/UnderlyingType.cs` is the closed
+table of the 22 supported underlying types and drives nearly every per-type decision the emitters make.
+
+`XmlSerializableEmitter` writes only in an assembly marked `[assembly: ValueObjectXmlSerialization]`: an explicit
+`IXmlSerializable` and a public static `GetXmlSchema` named by `[XmlSchemaProvider]`, each a one-line call to
+`ValueObjectXml` in the contracts, which reads through `TSelf.TryCreate` and assigns through `Unsafe.AsRef(in this)`.
+The generator reads the attribute off the compilation inside the transform, so the flag and its `Namespace` join the
+model: the transform runs again on every compilation, and the model's equality keeps the emission cached. A type that
+implements `IXmlSerializable` or carries `[XmlSchemaProvider]` itself is left alone.
 
 `RegistrationEmitter` produces a `[ModuleInitializer]` that populates `ValueObjectRegistry`, so descriptors are
 available without the consumer registering anything. Each descriptor carries the generated JSON converter, which
@@ -250,7 +257,11 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   keyword changes there, for all three. The OpenAPI transformer and the Swashbuckle filters, both on the object model
   of `Microsoft.OpenApi` 2, share the whole description of a value object the same way, through
   `src/Shared/ValueObjectOpenApiSchema.cs`; what is particular to each host stays with it: how it finds the value
-  object, the options, the name of a closed set's enumeration, parameters and containers.
+  object, the options, the name of a closed set's enumeration, parameters and containers. The XSD facets the schema
+  provider of an assembly opted into XML serialization publishes (`ValueObjectXml.ProvideSchema`) read the same
+  `TSelf.Schema`. A pattern leaving .NET goes through `src/Shared/ValueObjectPatternSyntax.cs`, the reader every
+  package that writes a .NET pattern in another dialect links: it reads a pattern into a tree, refusing what it cannot
+  read with certainty, and each dialect writes what it reads alike from the tree, `XsdPattern` in the contracts for XSD.
 - **`default(T)` is a build error** (`VO0010`). Tests that deliberately construct one need a targeted
   `#pragma warning disable VO0010` with a comment.
 - **A known value is the author's member, created before the lookup it belongs to.** `[KnownValue]` marks a
@@ -436,6 +447,18 @@ These are all load-bearing, and each cost real debugging time:
   registry when it runs, before most module initializers have: the unit tests assert only on types registered for
   certain, the domain's, or absent for certain, a fresh `AssemblyLoadContext` copy of the untouched fixture or a
   construction over a marker type private to the test, and never `Register` a shared hand-written type.
+- **`XmlSerializer` reads a value object's schema before it serializes anything.** It calls the provider when the
+  serializer is built, insists on finding it public and static, and compiles its `xs:simpleType`, refusing the whole
+  type, and every serializer over a type holding it, for one facet System.Xml cannot read. System.Xml holds an
+  `xs:integer` in a `decimal`, so `ValueObjectXml` leaves out a bound beyond one, checks every bound and enumeration
+  value with `XmlSchemaDatatype.ParseValue`, and drops the rules of a type that still does not compile. It also hands
+  an XSD pattern to .NET's engine as `^(…)$`, so a bare `$` in one is an anchor there: `XsdPattern` writes it `[$]`, and
+  `XsdPatternTests` compares every translation with .NET on the same values, through System.Xml's own validation.
+  `DataContractSerializer` cannot read an `IXmlSerializable` struct without dynamic code; the native AOT domain opts in
+  as a guard that the emission adds no warning, and calls neither serializer.
+- **A file of `src/Shared/` linked into two assemblies the unit suite sees is two internal types.** Both are visible
+  through `InternalsVisibleTo`, so a test naming one is CS0433: a second package linking `ValueObjectPatternSyntax.cs`
+  is tested through its own API, or its project reference takes an extern alias.
 - **NuGet lock files are deliberately absent**, and adding them breaks CI on the first run:
   `src/Directory.Build.props` references `Microsoft.SourceLink.GitHub` under
   `Condition="'$(GITHUB_ACTIONS)' == 'true'"`, so the package graph on a laptop is not the graph on the runner
@@ -467,10 +490,12 @@ Four suites, each with a distinct job:
   is on, so generated sources land under `artifacts/obj/.../generated/` and can be read when diagnosing.
   `Domain/HandWritten/` holds value objects written by hand, the supported input that reaches what the generator
   always replaces: the interface defaults and the registry's reflection fallback. The test assembly cannot hold
-  the rest, since the generator runs on it and its module initializer has run before any test does, so three
+  the rest, since the generator runs on it and its module initializer has run before any test does, so four
   fixture assemblies under `tests/Fixtures/` do: a generated value object in a module nothing has used yet,
-  annotated hand-written ones where no generator runs, and generated ones in an assembly that does not reference
-  `AdCodicem.ValueObjects.Json`, as a domain project serializing through an API's context does not.
+  annotated hand-written ones where no generator runs, generated ones in an assembly that does not reference
+  `AdCodicem.ValueObjects.Json`, as a domain project serializing through an API's context does not, and generated ones
+  of every underlying type in an assembly marked `[assembly: ValueObjectXmlSerialization]`, beside value objects
+  written by hand on `ValueObjectXml` whose schemas the generator never writes (`XmlSerialization/` tests them).
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
   input. Two things keep such a suite honest and both are easy to lose: a property conditioned on "the value was
@@ -519,7 +544,8 @@ on where they apply.
   and on, each answer checked against the status and the codes the script expects, since both runs explaining nothing
   would agree; a third, without `AddProblemDetails()`, must fail to build its endpoints. `Logging.cs` logs every
   registered value object through Serilog with and without `@`, under the policy and the option, and fails the run when
-  one is not the scalar of its underlying type, written as the bare value is.
+  one is not the scalar of its underlying type, written as the bare value is. The domain opts into XML serialization,
+  which nothing calls: a guard that the emission adds no trimming or AOT warning and changes no output.
   `ci.yml`'s `native AOT` job (`.github/scripts/native-aot.sh`), a required check, runs its fixed script once under the
   JIT and once as the native binary, and fails on a trimming or AOT warning or on any difference between the two
   outputs. The JIT run turns on the RDG and turns off reflection-based serialization and dynamic code, as `PublishAot`
@@ -557,8 +583,9 @@ packed, installed from `artifacts/packages` at the one version just built into `
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, on System.Text.Json and on
 Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal API problem details,
-`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json, Serilog and
-the contract kit, with no transitive pinning, so the dependency floors of the packages meet the next major as an
+`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json, Serilog,
+`XmlSerializer` and `DataContractSerializer` over its domain, which opts into XML serialization, and the contract kit,
+with no transitive pinning, so the dependency floors of the packages meet the next major as an
 application's would. `AdCodicem.ValueObjects.Swashbuckle` is installed by a second project, `tests/Compat/Swashbuckle`,
 which the main one excludes from its sources: Swashbuckle 10 over `Microsoft.OpenApi` 2, on which it is built, since it
 fails on the `Microsoft.OpenApi` 3 the main project's `Microsoft.AspNetCore.OpenApi` 11 brings. `ci.yml`'s

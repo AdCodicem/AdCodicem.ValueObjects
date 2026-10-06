@@ -25,6 +25,7 @@ const sidebars: SidebarsConfig = {
       label: 'How-to guides',
       items: [
         'how-to/json',
+        'how-to/xml',
         'how-to/aspnet-core',
         'how-to/openapi',
         'how-to/ef-core',

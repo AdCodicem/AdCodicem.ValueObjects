@@ -40,7 +40,7 @@ be corrected.
 | OpenAPI | built-in stack and Swashbuckle 10, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
 | FluentValidation | yes | third-party package | no | no |
 | Dapper | yes | yes | through a template | no |
-| Other serializers and stores | Newtonsoft.Json | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
+| Other serializers and stores | Newtonsoft.Json; XML (`XmlSerializer`, `DataContractSerializer`, opted in per assembly, read with validation, rules in the XSD) | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
 | Structured logging | Serilog: `{@X}`, and `{X}` on request, as the underlying value | no | no | Serilog destructuring policy, `{@X}` only |
 | Contract test kit for your own types | yes | no | no | no |
 | Prefixed public identifiers (`acc_…`) | yes | no | no | no |
@@ -91,9 +91,10 @@ and to `readonly struct`: [Design decisions](../design-decisions.md) explains wh
 `Uri`, it is not for you.
 
 **They cover more stores and serializers.** Vogen generates support for LinqToDB, ServiceStack.Text, Orleans,
-MessagePack, MongoDB's BSON and XML; Thinktecture for MessagePack. Vogen's XML support comes with a caveat: its
-generated `ReadXml` assigns the value straight from the reader, with neither validation nor normalization, and the
-option makes the struct's fields writable.
+MessagePack and MongoDB's BSON; Thinktecture for MessagePack. Both this library and Vogen implement XML serialization
+on request, apart: Vogen's generated `ReadXml` assigns the value straight from the reader, with neither validation nor
+normalization, and its option makes the struct's fields writable, where [this library's](../how-to/xml.md) reads
+through the type's rules, keeps the fields `readonly` and publishes the rules as XSD facets.
 
 **Thinktecture goes beyond single values.** Complex value objects with several members, smart enums and
 discriminated unions are out of scope here.

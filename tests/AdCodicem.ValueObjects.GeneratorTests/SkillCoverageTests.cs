@@ -53,6 +53,21 @@ public sealed class SkillCoverageTests
     }
 
     [Fact]
+    public void The_XML_opt_in_and_every_option_of_it_is_documented()
+    {
+        var skill = Skill();
+
+        skill.Should().Contain("[assembly: ValueObjectXmlSerialization", "the opt-in changes what a consumer writes and gets");
+        foreach (var option in Options(typeof(ValueObjectXmlSerializationAttribute)))
+        {
+            skill.Should().Contain(
+                $"{option} =",
+                "'{0}' is an option of [assembly: ValueObjectXmlSerialization] and belongs in references/integrations.md",
+                option);
+        }
+    }
+
+    [Fact]
     public void Every_hook_interface_and_the_member_it_declares_is_documented()
     {
         var skill = Skill();
