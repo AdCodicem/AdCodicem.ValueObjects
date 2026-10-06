@@ -156,10 +156,11 @@ jobs:
   # The packages this commit packed, installed into an application on the next .NET
   # major (tests/Compat): the generator in its compiler, Entity Framework Core 11 on
   # SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core
-  # model binding, and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3. The
-  # island has its own global.json, so the SDK it needs is installed from there and
-  # everything runs from its folder. Not a required check until .NET 11 ships, and
-  # deliberately not continue-on-error: a break shows red on the pull request.
+  # model binding and minimal API problem details, and Microsoft.AspNetCore.OpenApi 11
+  # over Microsoft.OpenApi 3. The island has its own global.json, so the SDK it needs
+  # is installed from there and everything runs from its folder. Not a required check
+  # until .NET 11 ships, and deliberately not continue-on-error: a break shows red on
+  # the pull request.
   compat:
     name: compat (.NET 11)
     needs: build
@@ -205,14 +206,15 @@ jobs:
   # JSON package with a source-generated context and the JSON Schema it exports,
   # the identifiers and FluentValidation, every value object reached through the
   # visitor its descriptor accepts, and over Kestrel through the Request
-  # Delegate Generator. The analyzers see what each library calls; this runs it,
-  # once under the JIT and once as the native binary, and a trimming or AOT
-  # warning, or any difference between the two outputs, fails the job. Then the
-  # compiled model of the build job, written for native AOT with its queries
-  # precompiled, and published: never run, since two bugs of Entity Framework
-  # Core stop its queries. Beside build rather than after it, as a native
-  # publish takes minutes. A required check of the "Default" ruleset on main,
-  # by its name: renaming the job leaves every pull request waiting for it.
+  # Delegate Generator, the minimal API problem details included. The analyzers
+  # see what each library calls; this runs it, once under the JIT and once as
+  # the native binary, and a trimming or AOT warning, or any difference between
+  # the two outputs, fails the job. Then the compiled model of the build job,
+  # written for native AOT with its queries precompiled, and published: never
+  # run, since two bugs of Entity Framework Core stop its queries. Beside build
+  # rather than after it, as a native publish takes minutes. A required check of
+  # the "Default" ruleset on main, by its name: renaming the job leaves every
+  # pull request waiting for it.
   native-aot:
     name: native AOT
     runs-on: ubuntu-latest

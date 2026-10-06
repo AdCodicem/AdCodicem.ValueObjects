@@ -34,7 +34,9 @@ Four suites, each with a distinct job:
   [the Request Delegate Generator](./how-to/aspnet-core.md#the-request-delegate-generator) cannot see the
   generator's output for. A route, query or header value binds, a refused one answers 400, an absent optional one
   binds `null`, and a test fails if the RDG did not write the binding, so that the suite cannot silently become one
-  more test of the reflection-based binding.
+  more test of the reflection-based binding. The same refusals are answered with the minimal API problem details, in
+  each setting of `ThrowOnBadRequest`, where the RDG refuses no empty query text and takes an empty header for an
+  absent one.
 
 `AdCodicem.ValueObjects.Testing` ships the contract kit (`ValueObjectContract`) described in
 [Test your value objects](./how-to/test-value-objects.md); the unit tests use it on every generated sample value
@@ -46,15 +48,17 @@ back, and the kit requires a text round trip.
 
 Two applications, built as an application builds them, are published rather than tested.
 
-The first references every package that claims to be AOT-compatible: the contracts, the generated code, the JSON
-package with a source-generated context and the JSON Schema it exports, the identifiers and FluentValidation. Its
-value objects cover each of the 22 underlying types, a pattern hook, a closed set, an identifier, a generic value
-object registered by hand, and two value objects written by hand, registered without a converter, which the JSON
-factory serves its general-purpose one, beside a third that nothing registers, which it refuses. It runs a fixed script over every one of them — the typed path, the
-descriptor, JSON, FluentValidation, and requests over Kestrel to minimal API endpoints the Request Delegate Generator
-binds — once under the JIT and once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT
-warning in the publish, and on any difference between the two outputs, and a pull request merges only once it passes,
-so the claim of AOT compatibility is run, not only analysed.
+The first references every package that claims to be AOT-compatible: the contracts, the generated code, the JSON package
+with a source-generated context and the JSON Schema it exports, the minimal API problem details, the identifiers and
+FluentValidation. Its value objects cover each of the 22 underlying types, a pattern hook, a closed set, an identifier,
+a generic value object registered by hand, and two value objects written by hand, registered without a converter, which
+the JSON factory serves its general-purpose one, beside a third that nothing registers, which it refuses. It runs a
+fixed script over every one of them — the typed path, the descriptor, JSON, FluentValidation, and requests over Kestrel
+to minimal API endpoints the Request Delegate Generator binds, refused values answered with problem details in each
+setting of `ThrowOnBadRequest`, each answer checked against the status and the codes the script expects — once under the
+JIT and once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT warning in the publish, and on
+any difference between the two outputs, and a pull request merges only once it passes, so the claim of AOT compatibility
+is run, not only analysed.
 
 The second holds an Entity Framework Core context mapping every value object the conventions map, required and
 optional, a generic one and an identifier as the key, beside a strict context. `dotnet ef dbcontext optimize`
@@ -65,11 +69,12 @@ SQL Server; the native AOT job also writes the model for native AOT, with its qu
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the
-solution, installs the twelve packages exactly as they were packed — from the folder the build packs into, at that
+solution, installs the thirteen packages exactly as they were packed — from the folder the build packs into, at that
 one version, never from nuget.org — into a `net11.0` application on the .NET 11 release candidate. It has its own
 SDK, its own package versions and no transitive pinning, so the dependency floors of the packages meet the next
 major as they would in an application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on
-SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core model binding and a minimal API,
+SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core model binding and a minimal API
+with its problem details,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json and the
 contract kit.
 

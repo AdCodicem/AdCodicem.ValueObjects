@@ -61,7 +61,8 @@ one. A visitor needing context — a builder, a flag — holds it in fields. Eac
 object, since a struct type argument shares no code, and only for the visitors the application creates.
 
 Every integration that closes an adapter over a value object it knows only by its `Type` does so this way: the Dapper
-integration registers its handlers, the MVC model binder provider creates its binders, the JSON converter factory
+integration registers its handlers, the MVC model binder provider creates its binders, the minimal API filter of
+`AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains, the JSON converter factory
 closes the general-purpose converter it gives a value object written by hand, and the Entity Framework Core
 conventions map each value object and each entity identifier, while a model is built. One converter is the exception:
 that of an optional property, `Iban?`, which C# names only under a constraint `Visit` cannot prove, so the value object

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Twelve NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Thirteen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -92,7 +92,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All twelve packages go out at one version, or none. That version is the one semantic-release would give
+lookup fails. All thirteen packages go out at one version, or none. That version is the one semantic-release would give
 the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -140,8 +140,8 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The twelve packages share one version, never aligned with .NET's or EF Core's, and a
-framework's next major is supported in the same packages:
+a breaking change wait for a major. The thirteen packages share one version, never aligned with .NET's or EF Core's,
+and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
 The documentation follows the same two tracks (`docs/adr/0005-version-the-documentation-site.md`, amended by
@@ -200,8 +200,9 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   `Type` at run time — `MustParseAs(Type)`, the OpenAPI transformer, model-binder resolution. `descriptor.Accept`
   hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
   time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's `AddValueObjectHandlers`,
-  the MVC binder provider, the JSON factory's general-purpose converter, for a value object written by hand, and EF
-  Core's `ConfigureValueObjects` and `ConfigureEntityIds` do. `ConfigureValueObjects` still closes the converter of a
+  the MVC binder provider, the JSON factory's general-purpose converter, for a value object written by hand, the
+  minimal API filter of `AspNetCore.Http`, which closes a text check per parameter, and EF Core's
+  `ConfigureValueObjects` and `ConfigureEntityIds` do. `ConfigureValueObjects` still closes the converter of a
   `TSelf?` property with `MakeGenericType`, over the visitor's own type arguments: C# names it only under
   `TValue : struct` or `TSelf : IValueObject<TSelf, string>`, which `Visit` cannot prove, and it must stay the type a
   compiled model names. It and the convention it adds for generic constructions are also the exception to a typed
@@ -212,11 +213,11 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   identifier registered with `EntityIdRegistry` alone, by hand, is described by reflection there, and stays in
   `ValueObjectRegistry` from then on. Neither EF Core convention runs under native AOT, where EF Core reads the compiled
   model and builds none, and the MVC binder provider runs in no native binary, MVC not being AOT-compatible, so the
-  `native AOT` job guards the JSON factory's visitor alone. `RuntimeClosingTests` guards every package: it reads their
-  IL and fails on a `MakeGenericType`, a `MakeGenericMethod` or an `Activator.CreateInstance` outside the list it holds,
-  the registry's reflection fallback and the EF Core converter of a `TSelf?` property. A hand-written value object
-  declares `Schema` too, and the registry describes it from that alone: an annotation on it is read by nothing at run
-  time.
+  `native AOT` job guards the JSON factory's visitor and the minimal API filter's. `RuntimeClosingTests` guards every
+  package: it reads their IL and fails on a `MakeGenericType`, a `MakeGenericMethod` or an `Activator.CreateInstance`
+  outside the list it holds, the registry's reflection fallback and the EF Core converter of a `TSelf?` property. A
+  hand-written value object declares `Schema` too, and the registry describes it from that alone: an annotation on it
+  is read by nothing at run time.
 
 The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them. That is
 exactly how the descriptor once flattened every rejection into a generic `not_parsable`, discarding the rule
@@ -231,11 +232,11 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   type, or a number or a `Guid` read into one over `string`.
 - **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on
   success. The integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a
-  `JsonException` or `JsonSerializationException`, a model state error, a FluentValidation failure, a Dapper
-  `DataException`. The one that throws `ValueObjectException` is a strict EF Core read, which goes through `Create`
-  and fails the query; `Create`, `Parse` and an explicit conversion throw it for code that treats a rejected value
-  as a bug. `website/docs/reference/errors.md` names what each integration throws. Validation is fail-fast: the
-  first violated rule wins.
+  `JsonException` or `JsonSerializationException`, a model state error, the validation problem of a minimal API, a
+  FluentValidation failure, a Dapper `DataException`. The one that throws `ValueObjectException` is a strict EF Core
+  read, which goes through `Create` and fails the query; `Create`, `Parse` and an explicit conversion throw it for code
+  that treats a rejected value as a bug. `website/docs/reference/errors.md` names what each integration throws.
+  Validation is fail-fast: the first violated rule wins.
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI
   `maxLength`. Anything added to `[ValueObject<T>]` should feed all three. A hook can feed the schema too: the
   `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off the attribute at
@@ -312,6 +313,20 @@ These are all load-bearing, and each cost real debugging time:
   contract, which `VO0033` reports. That analyzer reads `EnableRequestDelegateGenerator` through the
   `CompilerVisibleProperty` the package's `build/AdCodicem.ValueObjects.props` adds, which a project here, referencing
   the generator by project, has to list itself.
+- **A minimal API convention runs before the binder describes the parameters.** `WithValueObjectProblemDetails`
+  reads them in its filter factory, from the `IParameterBindingMetadata` both binders add to the endpoint's metadata:
+  the parameters it checks, and the names they bind under, come from there, because `MethodInfo.GetParameters()`
+  misses the members `[AsParameters]` expands and the names those members bind under. `GetParameters()` serves only to
+  add no filter factory to a handler that has no value object, no array of them and no `[AsParameters]` parameter. The
+  filter mirrors the binder's empty-text rule, which differs: the reflection-based binding parses empty text; the RDG
+  refuses no empty query text, binding `null` to a nullable value object and the default instance, unchecked, to one
+  that cannot be `null`, and takes an empty header for an absent one. It tells the RDG's endpoints by the
+  `GeneratedCodeAttribute` the RDG adds to their metadata, which an RdgTests test pins, so that an SDK dropping it fails
+  there first. The convention fails the build of an endpoint whose HTTP JSON options cannot serialize the problem
+  details, as without reflection and without `AddProblemDetails()`, rather than let each refusal end in a 500.
+  `ValueObjectProblemDetails` lives in `AdCodicem.ValueObjects.AspNetCore.Http`, under the namespace
+  `AdCodicem.ValueObjects.AspNetCore`, and the MVC package forwards it (`TypeForwards.cs`), so that code compiled
+  against an earlier MVC package still finds it: keep both the namespace and the forward.
 - **`static virtual` and `static abstract` interface members are reachable only through a type parameter**
   (CS8926, CS0103 for explicit implementations). Default implementations on `INumericValueObject` are therefore
   unusable directly; the generator emits concrete members, and `UnderlyingValue` holds constrained generic
@@ -447,7 +462,10 @@ Four suites, each with a distinct job:
   `build/AdCodicem.ValueObjects.props`, so VO0033 fails its build for a value object that drops its contract, and a
   test reads the RDG's output under the generated files, so that a change in the SDK's defaults cannot turn it into a
   test of the reflection-based binding. The RDG writes one interceptor for two handlers whose parameters share types
-  and names, dropping the attribute of the second, a `[FromHeader]` included: name such parameters apart.
+  and names, dropping the attribute of the second, a `[FromHeader]` included: name such parameters apart. Its problem
+  details endpoints (`ProblemEndpoints.cs`) cover what only the RDG does: it refuses no empty query text and takes an
+  empty header for an absent one, and the filter tells its endpoints by the `GeneratedCodeAttribute` it adds to their
+  metadata, which a test pins.
 
 Beside them, in the solution but no suite, `tests/NativeAot` holds applications built as consumers build them, which
 CI publishes rather than tests. None imports `tests/Directory.Build.props`, so the trimming and AOT analyzers stay
@@ -457,7 +475,10 @@ on where they apply.
   its value objects in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
   `Domain/UnderlyingTypes.cs`. The application links two value objects written by hand from `Domain/HandWritten/`, one
   over `Uri`, and registers them without a converter, so the JSON factory's general-purpose converter runs natively,
-  and links `UnregisteredCode`, registered by nothing, which the factory refuses with a `NotSupportedException`.
+  and links `UnregisteredCode`, registered by nothing, which the factory refuses with a `NotSupportedException`. Two
+  more applications answer refusals with the minimal API problem details (`Problems.cs`), with `ThrowOnBadRequest` off
+  and on, each answer checked against the status and the codes the script expects, since both runs explaining nothing
+  would agree; a third, without `AddProblemDetails()`, must fail to build its endpoints.
   `ci.yml`'s `native AOT` job (`.github/scripts/native-aot.sh`), a required check, runs its fixed script once under the
   JIT and once as the native binary, and fails on a trimming or AOT warning or on any difference between the two
   outputs. The JIT run turns on the RDG and turns off reflection-based serialization and dynamic code, as `PublishAot`
@@ -490,10 +511,11 @@ on where they apply.
   (CS0104). A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
   (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twelve packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the thirteen packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into a `net11.0` application on the .NET 11
 release candidate. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
-PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, `Microsoft.AspNetCore.OpenApi` 11 over
+PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding and minimal API problem details,
+`Microsoft.AspNetCore.OpenApi` 11 over
 `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json and the contract kit, with no transitive pinning, so
 the dependency floors of the packages meet the next major as an application's would. `ci.yml`'s `compat (.NET 11)`
 job runs it against the packages its build job packed; it is not a required check until .NET 11 ships, and is

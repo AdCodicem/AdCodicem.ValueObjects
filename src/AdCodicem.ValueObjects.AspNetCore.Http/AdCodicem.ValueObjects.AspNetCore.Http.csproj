@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.AspNetCore.Http</RootNamespace>
+    <Description>Minimal API support for AdCodicem value objects: RFC 9457 problem details carrying the violated rule's code for a route, query or header value the binder refuses, and for a request body when ThrowOnBadRequest is on. AOT-compatible.</Description>
+    <PackageTags>$(PackageTags);aspnetcore;minimal-api;problemdetails;native-aot</PackageTags>
+
+    <!--
+      AOT-compatible, by the repository's default, unlike the MVC package: minimal APIs are the way to native AOT, and
+      the endpoint filter and the exception handler read nothing a native binary lacks. Each parameter's check is closed
+      over its value object through the descriptor's visitor, never with MakeGenericType.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

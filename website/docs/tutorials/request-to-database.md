@@ -112,9 +112,10 @@ public async Task<ActionResult<CustomerResponse>> Create([FromBody] CreateCustom
 ```
 
 A minimal API needs none of the above to bind: a generated value object implements `IParsable<T>`, which is what
-minimal API parameter binding looks for. A rejected value is a bare 400 there, though, with no code: the problem
-details carrying it are MVC's. Under native AOT, a value object declared in the project that maps the endpoints also
-lists its contract on its declaration, as
+minimal API parameter binding looks for. A rejected value is a bare 400 there, though, with no code, unless the
+endpoints are covered by `WithValueObjectProblemDetails()`, from `AdCodicem.ValueObjects.AspNetCore.Http`, as
+[Problem details for minimal APIs](../how-to/aspnet-core.md#problem-details-for-minimal-apis) shows. Under native
+AOT, a value object declared in the project that maps the endpoints also lists its contract on its declaration, as
 [the Request Delegate Generator](../how-to/aspnet-core.md#the-request-delegate-generator) explains; the sample keeps
 its value objects in a domain project of their own, which needs nothing.
 

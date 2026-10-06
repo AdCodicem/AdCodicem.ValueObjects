@@ -10,6 +10,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.Json` | Source-generated `JsonSerializerContext` support, hand-written value objects, and the JSON Schema transform. |
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, an assembly-wide convention. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
+| `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, AOT-compatible. |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
@@ -150,6 +151,39 @@ A rejected value is a bare 400 there: no parameter name, no message, no code, `A
 it. Empty text follows the
 framework's rule, not MVC's: `?country=` for a `CountryCode?` is a 400 under the reflection-based binding.
 
+**`AdCodicem.ValueObjects.AspNetCore.Http` answers those refusals with MVC's problem details**, `errors` and
+`errorCodes`, on the endpoints a convention covers. It is AOT-compatible and runs under the RDG:
+
+```csharp skip
+builder.Services.AddProblemDetails();
+builder.Services.AddValueObjectHttpProblemDetails();   // the exception handler, for ThrowOnBadRequest
+
+var app = builder.Build();
+app.UseExceptionHandler();                             // wherever ThrowOnBadRequest is on
+
+var api = app.MapGroup("/api").WithValueObjectProblemDetails();   // a group, one endpoint, or MapGroup("")
+api.MapGet("/lines", (Quantity qty, CountryCode? country) => ...);
+```
+
+- Covered: route, query and header values under the name they bind from (`[FromRoute(Name)]`, `[FromQuery(Name)]`,
+  `[FromHeader(Name)]`), `[AsParameters]` members, arrays of value objects from the query string (every refused
+  element's message, the first one's code), and an absent required value object (`value_object.required`).
+- A JSON body only with `RouteHandlerOptions.ThrowOnBadRequest` on (the Development default): the framework otherwise
+  answers it before any filter. The registered `IExceptionHandler` lists it under its JSON path, `$.from`, never
+  copying the framework's message; it needs `AddProblemDetails()` and `UseExceptionHandler()`, and runs in
+  registration order among handlers. The package never turns `ThrowOnBadRequest` on.
+- Left to the framework: a 400 no value object caused (an `int`, malformed JSON, even beside a refused query value), a
+  form field, a header array. `AddValidation()`'s filter runs first: a request failing a DataAnnotations rule too gets
+  that rule alone. A key a dictionary keyed by a value object refuses is listed under its JSON path, which holds it.
+- Empty text follows the binder: reported under the reflection-based binding. The RDG refuses no empty query text, so
+  nothing is reported there: it binds `null` to a `T?`, and the unchecked default instance to a `T` or an array
+  element; declare the parameter `T?`. It takes an empty header for an absent one (`value_object.required`).
+- Native AOT: register `AddProblemDetails()`, whose serializer context writes the response without reflection;
+  without it the covered endpoints fail to build with an `InvalidOperationException` naming it. Register a value
+  object written by hand or a generic construction (`ValueObjectRegistry.Register`), or its refusal is left
+  unexplained. `ValueObjectProblemDetails` lives in this package, namespace `AdCodicem.ValueObjects.AspNetCore`,
+  forwarded by the MVC package.
+
 **Under the Request Delegate Generator** (RDG), on in every build of a project setting `PublishAot`, `PublishTrimmed`
 or `EnableRequestDelegateGenerator`, a value object declared in the project that maps the endpoints must list its
 contract on its own declaration. The RDG is a source generator and does not see the generated `IParsable<T>`: without
@@ -165,12 +199,14 @@ public readonly partial struct Sku : IValueObject<Sku, string>;
 
 Under the RDG, a handler returning a generated member needs an explicit return type, `string (Sku sku) => sku.Value`,
 or the build fails with `CS0411` in `GeneratedRouteBuilderExtensions.g.cs`; and `?sku=` binds `null` to a nullable
-parameter, where the reflection-based binding answers 400.
+parameter, where the reflection-based binding answers 400, and the default instance, unchecked, to one that cannot be
+`null`.
 
 `AddValueObjectProblemDetails()` attaches the stable error code of the violated rule to the automatic 400
 response of an **MVC controller**, under the extension named by `ValueObjectProblemDetails.ExtensionName`, so a client
 can branch on `value_object.too_long` instead of parsing English. It extends `ApiBehaviorOptions`, which minimal APIs
-never read. To carry the same codes out of a manually validated payload, fill that extension yourself:
+never read; they use `AdCodicem.ValueObjects.AspNetCore.Http` above. To carry the same codes out of a manually
+validated payload, fill that extension yourself:
 
 ```csharp skip
 return Results.ValidationProblem(
@@ -182,6 +218,10 @@ return Results.ValidationProblem(
             .ToDictionary(member => member.Key, member => member.First().ErrorCode),
     });
 ```
+
+Under native AOT, list `Dictionary<string, string>` in the `JsonSerializerContext` chained into
+`ConfigureHttpJsonOptions`, or build the codes as a `JsonElement`: the framework's context for problem details knows
+no dictionary, and the response otherwise fails to serialize.
 
 ## Entity Framework Core
 

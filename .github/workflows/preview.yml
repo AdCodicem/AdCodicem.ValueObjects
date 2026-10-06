@@ -2,7 +2,7 @@ name: preview
 
 # Publishes a preview of every package to nuget.org, every week and on dispatch,
 # but only when something a package is built from changed since the version
-# nuget.org has from the nearest commit: all twelve packages at one version, or
+# nuget.org has from the nearest commit: all thirteen packages at one version, or
 # none. The version is the one semantic-release would give the next stable
 # release, suffixed -preview.<N>. Stable releases are cut by hand (release.yml).
 # docs/adr/0009-publish-previews-weekly-when-a-package-input-changed.md has the
