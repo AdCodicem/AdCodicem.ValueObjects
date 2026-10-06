@@ -59,8 +59,8 @@ Under native AOT, the compiler generates `Visit` for each value object a descrip
 generator registers, and every value object written by hand or construction of a generic one registered by hand. A
 visitor needing context — a builder, a flag — holds it in fields. Each `Visit` is compiled once per value object, since
 a struct type argument shares no code, and only for the visitors the application creates. The Dapper integration
-registers its handlers this way, and the JSON converter factory closes the general-purpose converter it gives a value
-object written by hand.
+registers its handlers this way, the MVC model binder provider creates its binders, and the JSON converter factory
+closes the general-purpose converter it gives a value object written by hand.
 
 Inside the adapter, the rules are `TSelf.Schema`, the static member of `IValueObject<TSelf, TValue>` that the generator
 emits and registers as the descriptor's `Schema`: `TSelf.Schema.MaxLength` sizes a column with no registry to ask.

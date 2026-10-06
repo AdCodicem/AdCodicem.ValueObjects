@@ -42,6 +42,12 @@ public sealed class ProbeController : ControllerBase
     [HttpGet("counter")]
     public IActionResult Counter([FromQuery] HandWrittenCounter counter) => Ok(counter.Value);
 
+    /// <summary>Echoes the reference of a purchase order, a construction of a generic value object.</summary>
+    /// <param name="reference">The reference.</param>
+    /// <returns>Its value.</returns>
+    [HttpGet("purchase-orders")]
+    public IActionResult PurchaseOrderReference([FromQuery] Reference<PurchaseOrder> reference) => Ok(reference.Value);
+
     /// <summary>Echoes the reference of an order read from a JSON body.</summary>
     /// <param name="order">The order.</param>
     /// <returns>Its reference.</returns>
