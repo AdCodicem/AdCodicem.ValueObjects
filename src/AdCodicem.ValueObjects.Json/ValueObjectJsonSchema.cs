@@ -53,9 +53,10 @@ namespace AdCodicem.ValueObjects.Json;
 /// <para>
 /// A value object is looked up in <see cref="ValueObjectRegistry"/>, without reflection. One nothing registered, a value
 /// object written by hand or a construction of a generic one, is described by reflection where the runtime supports
-/// dynamic code, and left as the exporter described it under native AOT, where it has to be registered through
-/// <see cref="ValueObjectRegistry.Register{TSelf, TValue}(Func{JsonConverter{TSelf}})"/>, as serializing it through
-/// <see cref="ValueObjectJsonConverterFactory"/> asks already.
+/// dynamic code, and left as the exporter described it under native AOT, where it has to be registered, as serializing
+/// it through <see cref="ValueObjectJsonConverterFactory"/> asks already: a value object written by hand through
+/// <see cref="ValueObjectRegistry.Register{TSelf, TValue}(ValueObjectSchema)"/>, and a construction of a generic one
+/// through <see cref="ValueObjectRegistry.Register{TSelf, TValue}(Func{JsonConverter{TSelf}})"/>.
 /// </para>
 /// </remarks>
 public static class ValueObjectJsonSchema

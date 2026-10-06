@@ -112,10 +112,29 @@ internal static class Scenarios
             RecordedAt.Create(new DateTime(2024, 1, 31, 8, 30, 0, DateTimeKind.Unspecified)));
         report.Line("record Tally", $"written {JsonSerializer.Serialize(tally, AppJsonContext.Default.Tally)}");
 
+        var bookmark = new Bookmark(HandWrittenLink.Create(new Uri("https://example.com/a")), null, new() { [HandWrittenCode.Create("abc")] = 1 });
+        var bookmarkJson = JsonSerializer.Serialize(bookmark, AppJsonContext.Default.Bookmark);
+        var readBack = JsonSerializer.Deserialize(bookmarkJson, AppJsonContext.Default.Bookmark)!;
+        report.Line("record Bookmark", $"written {bookmarkJson}");
+        report.Line("record Bookmark", $"read back {readBack.Link}, mirror {readBack.Mirror?.ToString() ?? "null"}, {string.Join(", ", readBack.PerCode.Select(pair => $"{pair.Key}={pair.Value}"))}");
+        foreach (var refused in (string[])[
+            bookmarkJson.Replace("\"https://example.com/a\"", "\"/a\"", StringComparison.Ordinal),
+            bookmarkJson.Replace("\"ABC\"", "\"ab1\"", StringComparison.Ordinal)])
+        {
+            try
+            {
+                report.Line("record Bookmark refused", $"accepted {JsonSerializer.Deserialize(refused, AppJsonContext.Default.Bookmark)}");
+            }
+            catch (JsonException exception)
+            {
+                report.Line("record Bookmark refused", $"{exception.Path}: threw {Report.Describe(exception)}: {exception.Message}");
+            }
+        }
+
         foreach (var profile in (ReadOnlySpan<ValueObjectJsonSchemaProfile>)[ValueObjectJsonSchemaProfile.OpenApi, ValueObjectJsonSchemaProfile.LanguageModel])
         {
             var options = new JsonSchemaExporterOptions { TransformSchemaNode = ValueObjectJsonSchema.CreateTransform(profile) };
-            foreach (var typeInfo in (JsonTypeInfo[])[AppJsonContext.Default.Order, AppJsonContext.Default.Page, AppJsonContext.Default.Tally])
+            foreach (var typeInfo in (JsonTypeInfo[])[AppJsonContext.Default.Order, AppJsonContext.Default.Page, AppJsonContext.Default.Tally, AppJsonContext.Default.Bookmark])
             {
                 report.Line($"record {Names.Of(typeInfo.Type)}", $"JSON Schema for {profile}: {JsonSchemaExporter.GetJsonSchemaAsNode(typeInfo, options).ToJsonString()}");
             }

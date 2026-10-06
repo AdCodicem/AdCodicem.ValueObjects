@@ -4,7 +4,9 @@
     An application published with native AOT by ci.yml's native AOT job, which runs it once under the JIT and once as
     the native binary and fails when the two outputs differ (Program.cs). It references every package that claims to
     be AOT-compatible, and its value objects come from a domain project, where the Request Delegate Generator sees their
-    interfaces; the RDG suite covers those declared in the endpoints' project.
+    interfaces; the RDG suite covers those declared in the endpoints' project. Two value objects written by hand, linked
+    from the unit suite, have no generated converter: Program.cs registers them without one, so the JSON factory serves
+    them its general-purpose converter.
   -->
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.NativeAot</RootNamespace>
@@ -34,10 +36,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\AdCodicem.ValueObjects.UnitTests\Domain\HandWritten\HandWrittenCode.cs" Link="UnitTests\HandWrittenCode.cs" />
+    <Compile Include="..\..\AdCodicem.ValueObjects.UnitTests\Domain\HandWritten\HandWrittenLink.cs" Link="UnitTests\HandWrittenLink.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="AdCodicem.ValueObjects" />
     <Using Include="AdCodicem.ValueObjects.Identifiers" />
     <Using Include="AdCodicem.ValueObjects.NativeAot.Domain" />
     <Using Include="AdCodicem.ValueObjects.UnitTests.Domain" />
+    <Using Include="AdCodicem.ValueObjects.UnitTests.Domain.HandWritten" />
   </ItemGroup>
 
 </Project>

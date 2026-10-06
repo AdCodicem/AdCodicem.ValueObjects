@@ -35,6 +35,10 @@ public partial class ApiJsonContext : JsonSerializerContext;
 
 // 2. A hand-written value object, or simply making the behaviour explicit at the composition root.
 var options = new JsonSerializerOptions().AddValueObjects();
+
+// Under native AOT, a hand-written value object is registered, with no converter of its own: the factory serves it
+// a general-purpose one, closed through its descriptor. List it in the context, which brings its underlying type along.
+ValueObjectRegistry.Register<Link, Uri>(Link.Schema);
 ```
 
 Writing refuses what reading would: an uninitialized instance (a member never set, a default array element) whose
@@ -333,11 +337,14 @@ Registration happens through a generated `[ModuleInitializer]`, so nothing needs
 module initializer only runs once its assembly is loaded, which is what `EnsureAssemblyRegistered(assembly)`
 forces (the EF Core and Dapper entry points already call it). A generic value object registers its definition
 (`GetRegisteredGenericDefinitions()`), and `TryResolve` describes a construction, by reflection, once asked for it;
-`TryGet` finds it from then on. Under native AOT, register each construction instead:
-`ValueObjectRegistry.Register<Code<Order>, string>(static () => new Code<Order>.ValueJsonConverter())`. `TryGet` and `TryResolve` also unwrap `Nullable<T>`, and return the descriptor of the
-value object itself: close a generic type over `descriptor.ValueObjectType`, never over the type asked for, and handle
-`null` before calling `GetValue`, `Format` or `ValidateWrite`, which take a non-null instance (leave it to the host's
-nullable wrapper where it has one). `IsValueObject` and `GetUnderlyingType` answer the cheap questions. A value
+`TryGet` finds it from then on. A hand-written value object is described by reflection the same way. Under native AOT,
+register each construction instead,
+`ValueObjectRegistry.Register<Code<Order>, string>(static () => new Code<Order>.ValueJsonConverter())`, and each
+hand-written value object, `ValueObjectRegistry.Register<Link, Uri>(Link.Schema)`. `TryGet` and `TryResolve` also
+unwrap `Nullable<T>`, and return the descriptor of the value object itself: close a generic type over
+`descriptor.ValueObjectType`, never over the type asked for, and handle `null` before calling `GetValue`, `Format` or
+`ValidateWrite`, which take a non-null instance (leave it to the host's nullable wrapper where it has one).
+`IsValueObject` and `GetUnderlyingType` answer the cheap questions. A value
 object is a struct implementing `IValueObject<TSelf, TValue>` over itself: `IsValueObject` is `true`, and
 `GetUnderlyingType` other than `null`, exactly for what `TryResolve` describes, and every integration claims a type by
 that rule.

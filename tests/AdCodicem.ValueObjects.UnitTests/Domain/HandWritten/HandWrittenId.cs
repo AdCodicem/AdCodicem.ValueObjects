@@ -173,3 +173,12 @@ public sealed class BlankProfile : IHandWrittenIdProfile
 
     public static bool HidesItsValue => true;
 }
+
+/// <summary>
+/// Behaves, and closes the one construction a test registers by hand with the value object registry, without a
+/// converter, as native AOT asks of a value object written by hand.
+/// </summary>
+public sealed class RegisteredProfile : IHandWrittenIdProfile
+{
+    public static string Prefix => "reg";
+}

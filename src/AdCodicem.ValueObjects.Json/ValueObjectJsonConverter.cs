@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace AdCodicem.ValueObjects.Json;
 
@@ -17,21 +18,32 @@ namespace AdCodicem.ValueObjects.Json;
 /// is the one the factory hands out whenever it is available.
 /// </para>
 /// <para>
+/// The underlying value is read and written through the contract the options hold for <typeparamref name="TValue"/>
+/// (<see cref="JsonSerializerOptions.GetTypeInfo(Type)"/>), so the converter needs neither reflection nor dynamic code
+/// of its own: a source-generated context listing the value object holds that contract too, since the value object
+/// exposes its value as a property. Called directly, with options no serializer has used and that set no resolver, it
+/// gives them the serializer's default one and locks them, as serializing through them would.
+/// </para>
+/// <para>
 /// A value or a key the value object rejects, and a value to write that it rejects, are refused with a
 /// <see cref="ValueObjectJsonException"/> carrying the code of the rule, as the generated converter refuses them. The
 /// underlying value itself is read by System.Text.Json, whose own exception, for a token that is not one of
 /// <typeparamref name="TValue"/>, carries no code.
 /// </para>
 /// </remarks>
-[RequiresUnreferencedCode("Delegating the underlying value to the serializer needs its metadata, which trimming may remove. Generated value objects carry their own converter and do not go through this one.")]
-[RequiresDynamicCode("Delegating the underlying value to the serializer may need run-time code generation. Generated value objects carry their own converter and do not go through this one.")]
 public sealed class ValueObjectJsonConverter<TSelf, TValue> : JsonConverter<TSelf>
     where TSelf : struct, IValueObject<TSelf, TValue>
 {
+    private const string NoResolverOnly =
+        "Reached only when the converter is called directly, with options that set no resolver and that no serializer "
+        + "has used, since the serializer populates the resolver before calling any converter. Where reflection-based "
+        + "serialization is disabled, as trimming and native AOT disable it by default, System.Text.Json refuses with its "
+        + "own InvalidOperationException rather than reflect.";
+
     /// <inheritdoc />
     public override TSelf Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        var value = JsonSerializer.Deserialize<TValue>(ref reader, options)!;
+        var value = JsonSerializer.Deserialize(ref reader, GetValueTypeInfo(options))!;
 
         if (!TSelf.TryCreate(value, out var result, out var validation))
         {
@@ -53,7 +65,7 @@ public sealed class ValueObjectJsonConverter<TSelf, TValue> : JsonConverter<TSel
     public override void Write(Utf8JsonWriter writer, TSelf value, JsonSerializerOptions options)
     {
         ThrowIfRefused(value);
-        JsonSerializer.Serialize(writer, value.Value, options);
+        JsonSerializer.Serialize(writer, value.Value, GetValueTypeInfo(options));
     }
 
     /// <inheritdoc />
@@ -119,10 +131,38 @@ public sealed class ValueObjectJsonConverter<TSelf, TValue> : JsonConverter<TSel
         }
     }
 
-    private static JsonConverter<TValue> GetValueConverter(JsonSerializerOptions options)
+    /// <summary>
+    /// Gets the contract the options hold for the underlying type, from whatever resolver they chain: a
+    /// source-generated context, or reflection where the application allows it.
+    /// </summary>
+    /// <param name="options">Options the serializer runs with.</param>
+    /// <returns>The contract of the underlying type.</returns>
+    /// <exception cref="NotSupportedException">The options hold no contract for the underlying type.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The options set no resolver, and reflection-based serialization is disabled.
+    /// </exception>
+    private static JsonTypeInfo<TValue> GetValueTypeInfo(JsonSerializerOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        return (JsonConverter<TValue>)options.GetConverter(typeof(TValue));
+        if (options.TypeInfoResolver is null)
+        {
+            PopulateMissingResolver(options);
+        }
+
+        return (JsonTypeInfo<TValue>)options.GetTypeInfo(typeof(TValue));
     }
+
+    /// <summary>
+    /// Gives options no serializer has used yet the resolver the serializer would, and locks them, as the serializer
+    /// does before it calls any converter: only a converter called directly sees options with no resolver.
+    /// </summary>
+    /// <param name="options">Options that set no resolver.</param>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = NoResolverOnly)]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = NoResolverOnly)]
+    private static void PopulateMissingResolver(JsonSerializerOptions options)
+        => options.MakeReadOnly(populateMissingResolver: true);
+
+    private static JsonConverter<TValue> GetValueConverter(JsonSerializerOptions options)
+        => (JsonConverter<TValue>)GetValueTypeInfo(options).Converter;
 }

@@ -8,7 +8,8 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 /// </summary>
 /// <remarks>
 /// Writing one by hand is the only way to carry such a type, and the serializers then hand the value to their own
-/// handling of it. Nothing registers it; the registry describes it by reflection the first time it is resolved.
+/// handling of it. Nothing in the unit suite registers it; the registry describes it by reflection the first time it is
+/// resolved. The native AOT application, which links this file, registers it without a converter, as native AOT asks.
 /// </remarks>
 public readonly struct HandWrittenLink : IValueObject<HandWrittenLink, Uri>
 {
