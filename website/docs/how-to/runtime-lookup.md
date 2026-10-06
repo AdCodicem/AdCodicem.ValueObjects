@@ -63,10 +63,16 @@ object, since a struct type argument shares no code, and only for the visitors t
 Every integration that closes an adapter over a value object it knows only by its `Type` does so this way: the Dapper
 integration registers its handlers, the MVC model binder provider creates its binders, the JSON converter factory
 closes the general-purpose converter it gives a value object written by hand, and the Entity Framework Core
-conventions map each value object and each entity identifier, while a model is built.
+conventions map each value object and each entity identifier, while a model is built. One converter is the exception:
+that of an optional property, `Iban?`, which C# names only under a constraint `Visit` cannot prove, so the value object
+conventions close it with `MakeGenericType`, over the type arguments the visitor received. Entity Framework Core builds
+no model under native AOT, so that never runs there.
 
 Inside the adapter, the rules are `TSelf.Schema`, the static member of `IValueObject<TSelf, TValue>` that the generator
-emits and registers as the descriptor's `Schema`: `TSelf.Schema.MaxLength` sizes a column with no registry to ask.
+emits and registers as the descriptor's `Schema`: `TSelf.Schema.MaxLength` sizes a column with no registry to ask, as
+`HasValueObjectConversion` does. The Entity Framework Core conventions, which hold the descriptor already, size a column
+by its `Schema` instead, handed to their visitor in a field, so that a value object registered by hand with a schema of
+its own is mapped by that schema.
 
 ## Cheaper questions
 
