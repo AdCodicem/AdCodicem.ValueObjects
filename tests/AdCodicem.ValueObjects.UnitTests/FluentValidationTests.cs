@@ -199,7 +199,7 @@ public class FluentValidationTests
 
         build.Should().Throw<ArgumentException>()
             .Which.Should().Match<ArgumentException>(thrown =>
-                thrown.ParamName == "valueObjectType" && thrown.Message.StartsWith("'String' is not a value object.", StringComparison.Ordinal));
+                thrown.ParamName == "valueObjectType" && thrown.Message.StartsWith("'String' is not a value object the registry describes.", StringComparison.Ordinal));
     }
 
     /// <summary>

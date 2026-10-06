@@ -169,8 +169,8 @@ public static class ValueObjectRuleBuilderExtensions
     /// A <c>#pragma</c> silences the analyzers that run with the compiler, never the trimmer or the native AOT compiler,
     /// which read the compiled code: they reported the call to <see cref="ValueObjectRegistry.TryResolve"/> in every
     /// application published with native AOT that called <c>MustParseAs</c>. Under native AOT, where the reflection that
-    /// call needs is not available, it is not made: a generated value object is registered already, and a construction
-    /// of a generic one is registered by hand.
+    /// call needs is not available, it is not made: a generated value object is registered already, and a value object
+    /// written by hand, or a construction of a generic one, is registered by hand.
     /// </remarks>
     [UnconditionalSuppressMessage(
         "Trimming",
@@ -187,8 +187,10 @@ public static class ValueObjectRuleBuilderExtensions
         }
 
         throw new ArgumentException(
-            $"'{valueObjectType.Name}' is not a value object. Under native AOT, a construction of a generic value object "
-            + "has to be registered before a rule names it.",
+            $"'{valueObjectType.Name}' is not a value object the registry describes. Under native AOT, a value object "
+            + "written by hand, ValueObjectRegistry.Register<TSelf, TValue>(TSelf.Schema), and a construction of a generic "
+            + "one, ValueObjectRegistry.Register<TSelf, TValue>(static () => new TSelf.ValueJsonConverter()), have to be "
+            + "registered before a rule names them.",
             nameof(valueObjectType));
     }
 
