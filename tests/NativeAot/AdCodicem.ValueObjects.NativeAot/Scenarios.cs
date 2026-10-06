@@ -27,6 +27,7 @@ internal static class Scenarios
         Identifiers(report, minted);
         Validation.Run(report);
         Records(report);
+        Unregistered(report);
     }
 
     private static void Registry(Report report)
@@ -139,6 +140,25 @@ internal static class Scenarios
                 report.Line($"record {Names.Of(typeInfo.Type)}", $"JSON Schema for {profile}: {JsonSchemaExporter.GetJsonSchemaAsNode(typeInfo, options).ToJsonString()}");
             }
         }
+    }
+
+    /// <summary>
+    /// A value object written by hand that nothing registered: describing it by reflection takes dynamic code, which
+    /// neither run has, so the JSON factory refuses it, naming the registration it needs, rather than fail inside the
+    /// registry's reflection.
+    /// </summary>
+    private static void Unregistered(Report report)
+    {
+        try
+        {
+            report.Line("unregistered UnregisteredCode", $"written {JsonSerializer.Serialize(UnregisteredCode.Create("x"), AppJsonContext.Default.UnregisteredCode)}");
+        }
+        catch (NotSupportedException exception)
+        {
+            report.Line("unregistered UnregisteredCode", $"threw {Report.Describe(exception)}: {exception.Message}");
+        }
+
+        report.Line("unregistered UnregisteredCode", $"registered since: {ValueObjectRegistry.TryGet(typeof(UnregisteredCode), out _)}");
     }
 
     /// <summary>Changes the last character of an identifier, which its check character then refuses.</summary>

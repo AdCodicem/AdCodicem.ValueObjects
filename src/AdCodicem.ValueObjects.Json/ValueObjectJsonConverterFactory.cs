@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Metadata;
@@ -25,7 +26,8 @@ namespace AdCodicem.ValueObjects.Json;
 /// descriptor hands back (<see cref="ValueObjectDescriptor.Accept{TResult}(IValueObjectVisitor{TResult})"/>), at compile
 /// time rather than by reflection. Under native AOT, register it,
 /// <c>ValueObjectRegistry.Register&lt;Link, Uri&gt;(Link.Schema)</c>, and list it in the context: one nothing registered
-/// is described by reflection, which only the JIT can do.
+/// is described by reflection where the runtime supports dynamic code, and refused with a
+/// <see cref="NotSupportedException"/> naming that registration where it does not.
 /// </para>
 /// <para>
 /// Register it on the context so the System.Text.Json generator picks it up:
@@ -40,10 +42,10 @@ public sealed class ValueObjectJsonConverterFactory : JsonConverterFactory
 {
     private const string UnregisteredOnly =
         "ValueObjectRegistry.TryResolve reflects only for a value object nothing registered: one written by hand, or a "
-        + "construction of a generic one. A generated value object registers itself, and its converter, statically. Under "
-        + "trimming or native AOT, register the others through ValueObjectRegistry.Register: a construction with its "
-        + "generated converter, a value object written by hand with none, over which the general-purpose converter is "
-        + "then closed at compile time, through its descriptor.";
+        + "construction of a generic one. A generated value object registers itself, and its converter, statically. "
+        + "Without dynamic code, as under native AOT, it is not called. Trimmed, register the others through "
+        + "ValueObjectRegistry.Register: a construction with its generated converter, a value object written by hand with "
+        + "none, over which the general-purpose converter is then closed at compile time, through its descriptor.";
 
     /// <inheritdoc />
     /// <remarks>
@@ -60,8 +62,11 @@ public sealed class ValueObjectJsonConverterFactory : JsonConverterFactory
     }
 
     /// <inheritdoc />
+    /// <exception cref="NotSupportedException">
+    /// The type is a value object nothing registered, and the runtime does not support the dynamic code describing it by
+    /// reflection takes, as under native AOT.
+    /// </exception>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = UnregisteredOnly)]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = UnregisteredOnly)]
     public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
     {
         ArgumentNullException.ThrowIfNull(typeToConvert);
@@ -73,10 +78,24 @@ public sealed class ValueObjectJsonConverterFactory : JsonConverterFactory
         }
 
         // The registry describes a value object whatever wraps it, and the factory claims none wrapped in Nullable<T>.
-        if (Nullable.GetUnderlyingType(typeToConvert) is not null
-            || !ValueObjectRegistry.TryResolve(typeToConvert, out var descriptor))
+        if (Nullable.GetUnderlyingType(typeToConvert) is not null)
         {
             return null;
+        }
+
+        // A descriptor built in code first. Describing a value object nothing registered takes dynamic code, which native
+        // AOT has not: there, the reflection would fail inside the registry, so the factory says what the type needs.
+        if (!ValueObjectRegistry.TryGet(typeToConvert, out var descriptor)
+            && !(RuntimeFeature.IsDynamicCodeSupported && ValueObjectRegistry.TryResolve(typeToConvert, out descriptor)))
+        {
+            return ValueObjectRegistry.IsValueObject(typeToConvert)
+                ? throw new NotSupportedException(
+                    $"'{typeToConvert}' is a value object nothing registered, and describing it by reflection takes dynamic "
+                    + "code, which this runtime does not support. Register it at start-up: a value object written by hand "
+                    + "with its schema, ValueObjectRegistry.Register<TSelf, TValue>(TSelf.Schema), a construction of a "
+                    + "generic one with its generated converter, "
+                    + "ValueObjectRegistry.Register<TSelf, TValue>(static () => new TSelf.ValueJsonConverter()).")
+                : null;
         }
 
         // A generated value object whose module had not registered it yet: resolving it ran the registration.
