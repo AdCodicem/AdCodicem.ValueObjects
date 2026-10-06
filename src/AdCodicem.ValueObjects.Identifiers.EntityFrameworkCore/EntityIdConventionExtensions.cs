@@ -25,6 +25,15 @@ namespace AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
 /// <c>TId?</c>, is stored as <c>NULL</c>.
 /// </para>
 /// <para>
+/// Each converter and comparer is closed over its identifier through the type arguments the identifier's
+/// <see cref="ValueObjectDescriptor"/> hands back to a visitor
+/// (<see cref="ValueObjectDescriptor.Accept{TResult}(IValueObjectVisitor{TResult})"/>), never with
+/// <see cref="Type.MakeGenericType(Type[])"/>. An identifier registered by hand with <see cref="EntityIdRegistry"/>
+/// alone is described by reflection the first time the convention meets it, as
+/// <see cref="ValueObjectRegistry.TryResolve"/> describes a value object nothing registered. Entity Framework Core
+/// builds no model under native AOT, where it reads a compiled model instead, so none of this runs there.
+/// </para>
+/// <para>
 /// What it deliberately does not do is decide the physical layout of your tables. On SQL Server a primary key
 /// is clustered by default, which makes the table itself order by the key; declaring it
 /// <c>IsClustered(false)</c> confines index churn to the ~30-byte index instead of the whole row, and with the
@@ -120,24 +129,12 @@ public static class EntityIdConventionExtensions
 
         foreach (var descriptor in EntityIdRegistry.GetRegistered())
         {
-            var properties = builder.Properties(descriptor.ValueObjectType);
-            var comparer = typeof(ValueObjectComparer<>).MakeGenericType(descriptor.ValueObjectType);
-
-            properties.HaveConversion(
-                (strict ? typeof(StrictValueObjectConverter<,>) : typeof(ValueObjectConverter<,>))
-                    .MakeGenericType(descriptor.ValueObjectType, typeof(string)),
-                comparer);
-
-            Size(properties, descriptor.Length, collation);
-
-            // An optional identifier stores one that never went through New or Create as NULL, where a required one
-            // throws; it takes the column of the identifier from the configuration above, and a comparer of the
-            // nullable type, which a compiled model can write.
-            builder.Properties(typeof(Nullable<>).MakeGenericType(descriptor.ValueObjectType))
-                .HaveConversion(
-                    (strict ? typeof(StrictNullableValueObjectConverter<>) : typeof(NullableValueObjectConverter<>))
-                        .MakeGenericType(descriptor.ValueObjectType),
-                    typeof(NullableValueObjectComparer<>).MakeGenericType(descriptor.ValueObjectType));
+            // The value object registry describes an identifier, and its descriptor hands the identifier's type back to
+            // a visitor that names each converter and comparer. A generated identifier is registered there as well as
+            // here; one registered here alone, by hand, is described by reflection, which only the JIT runs, as only
+            // the JIT builds a model. Either way the identifier is a value object, so the lookup succeeds.
+            _ = ValueObjectRegistry.TryResolve(descriptor.ValueObjectType, out var valueObject);
+            Size(valueObject!.Accept(new IdentifierConversion(builder, strict)), descriptor.Length, collation);
         }
 
         return builder;
@@ -221,6 +218,78 @@ public static class EntityIdConventionExtensions
         if (collation is not null)
         {
             properties.UseCollation(collation);
+        }
+    }
+
+    /// <summary>
+    /// Maps a value object over <see cref="string"/>, receiving it under that constraint.
+    /// </summary>
+    /// <typeparam name="TValue">Underlying value type, <see cref="string"/> for an identifier.</typeparam>
+    /// <remarks>
+    /// A descriptor hands the underlying type back as a type parameter, which C# cannot prove to be
+    /// <see cref="string"/>, and the converter of an optional identifier stores text, which C# names only for a value
+    /// object over <see cref="string"/>. A class implementing <c>IMapping&lt;string&gt;</c> receives the value object
+    /// with that constraint.
+    /// </remarks>
+    private interface IMapping<TValue>
+    {
+        /// <summary>
+        /// Maps the value object.
+        /// </summary>
+        /// <typeparam name="TSelf">Value object type.</typeparam>
+        /// <returns>The configuration of its properties.</returns>
+        PropertiesConfigurationBuilder Map<TSelf>()
+            where TSelf : struct, IValueObject<TSelf, TValue>;
+    }
+
+    /// <summary>
+    /// Sets the converter and the comparer of an identifier, and of its nullable type, closed over the type arguments
+    /// its descriptor hands back.
+    /// </summary>
+    /// <param name="builder">Model configuration builder.</param>
+    /// <param name="strict">Whether identifiers read from the database are validated again.</param>
+    private sealed class IdentifierConversion(ModelConfigurationBuilder builder, bool strict)
+        : IValueObjectVisitor<PropertiesConfigurationBuilder>, IMapping<string>
+    {
+        /// <summary>
+        /// Hands the identifier on to <see cref="Map{TSelf}"/>, under the constraint its converters take.
+        /// </summary>
+        /// <typeparam name="TSelf">Identifier type.</typeparam>
+        /// <typeparam name="TValue">Underlying value type, <see cref="string"/> for an identifier.</typeparam>
+        /// <returns>The configuration of the identifier's properties, which the caller sizes.</returns>
+        /// <remarks>
+        /// An identifier is a value object over <see cref="string"/>, as <see cref="IEntityId{TSelf}"/> declares, so
+        /// the cast to the mapping this class implements over <see cref="string"/> always succeeds.
+        /// </remarks>
+        public PropertiesConfigurationBuilder Visit<TSelf, TValue>()
+            where TSelf : struct, IValueObject<TSelf, TValue>
+            => ((IMapping<TValue>)(object)this).Map<TSelf>();
+
+        /// <summary>
+        /// Sets the converter and the comparer of the identifier, and of its nullable type.
+        /// </summary>
+        /// <typeparam name="TSelf">Identifier type.</typeparam>
+        /// <returns>The configuration of the identifier's properties, which the caller sizes.</returns>
+        public PropertiesConfigurationBuilder Map<TSelf>()
+            where TSelf : struct, IValueObject<TSelf, string>
+        {
+            var properties = builder.Properties<TSelf>();
+            properties.HaveConversion(
+                strict
+                    ? typeof(StrictValueObjectConverter<TSelf, string>)
+                    : typeof(ValueObjectConverter<TSelf, string>),
+                typeof(ValueObjectComparer<TSelf>));
+
+            // An optional identifier stores one that never went through New or Create as NULL, where a required one
+            // throws; it takes the column of the identifier from the configuration the caller completes, and a
+            // comparer of the nullable type, which a compiled model can write.
+            builder.Properties<TSelf?>().HaveConversion(
+                strict
+                    ? typeof(StrictNullableValueObjectConverter<TSelf>)
+                    : typeof(NullableValueObjectConverter<TSelf>),
+                typeof(NullableValueObjectComparer<TSelf>));
+
+            return properties;
         }
     }
 }

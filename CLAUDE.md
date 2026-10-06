@@ -201,13 +201,16 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
   time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's `AddValueObjectHandlers`,
   the MVC binder provider, the JSON factory's general-purpose converter, for a value object written by hand, and EF
-  Core's `ConfigureValueObjects` do. That convention still closes the converter of a `TSelf?` property with
-  `MakeGenericType`, over the visitor's own type arguments: C# names it only under `TValue : struct` or
-  `TSelf : IValueObject<TSelf, string>`, which `Visit` cannot prove, and it must stay the type a compiled model names.
-  The identifiers' `ConfigureEntityIds` still calls `MakeGenericType` on a `Type`, and migrates last. Neither EF Core
-  convention runs under native AOT, where EF Core reads the compiled model and builds none. A hand-written value object
-  declares `Schema` too, and the registry describes it from that alone: an annotation on it is read by nothing at run
-  time.
+  Core's `ConfigureValueObjects` and `ConfigureEntityIds` do. `ConfigureValueObjects` still closes the converter of a
+  `TSelf?` property with `MakeGenericType`, over the visitor's own type arguments: C# names it only under
+  `TValue : struct` or `TSelf : IValueObject<TSelf, string>`, which `Visit` cannot prove, and it must stay the type a
+  compiled model names. `ConfigureEntityIds` needs none: an identifier is over `string`, so its visitor casts itself to
+  an interface it implements over `string`, whose method takes that constraint. It visits the identifier's
+  `ValueObjectDescriptor`, from `TryResolve`, since `EntityIdDescriptor` has no `Accept`: an identifier registered with
+  `EntityIdRegistry` alone, by hand, is described by reflection there, and stays in `ValueObjectRegistry` from then on.
+  Neither EF Core convention runs under native AOT, where EF Core reads the compiled model and builds none. A
+  hand-written value object declares `Schema` too, and the registry describes it from that alone: an annotation on it
+  is read by nothing at run time.
 
 The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them. That is
 exactly how the descriptor once flattened every rejection into a generic `not_parsable`, discarding the rule

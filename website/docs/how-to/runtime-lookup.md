@@ -60,8 +60,8 @@ generator registers, and every value object written by hand or construction of a
 visitor needing context — a builder, a flag — holds it in fields. Each `Visit` is compiled once per value object, since
 a struct type argument shares no code, and only for the visitors the application creates. The Dapper integration
 registers its handlers this way, the MVC model binder provider creates its binders, the JSON converter factory closes
-the general-purpose converter it gives a value object written by hand, and the Entity Framework Core convention closes
-the converter and the comparer of each value object, while it builds a model.
+the general-purpose converter it gives a value object written by hand, and the Entity Framework Core conventions close
+the converter and the comparer of each value object and each entity identifier, while a model is built.
 
 Inside the adapter, the rules are `TSelf.Schema`, the static member of `IValueObject<TSelf, TValue>` that the generator
 emits and registers as the descriptor's `Schema`: `TSelf.Schema.MaxLength` sizes a column with no registry to ask.

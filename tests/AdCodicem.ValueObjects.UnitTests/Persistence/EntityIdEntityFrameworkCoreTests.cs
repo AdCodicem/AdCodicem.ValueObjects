@@ -1,5 +1,8 @@
 using AdCodicem.ValueObjects.EntityFrameworkCore;
+using AdCodicem.ValueObjects.Identifiers;
 using AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
+using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -142,6 +145,37 @@ public class EntityIdEntityFrameworkCoreTests
         model.FindProperty(nameof(Ledger.Event))!.GetCollation().Should().Be(IdCollations.SqlServer);
     }
 
+    /// <summary>
+    /// An identifier written by hand and registered as an identifier alone, which the value object registry has never
+    /// heard of, is mapped as a generated one is: the convention visits the descriptor the registry describes for it by
+    /// reflection, under the JIT, the only place a model is built.
+    /// </summary>
+    [Fact]
+    public void An_identifier_registered_by_hand_as_an_identifier_alone_is_mapped_by_convention()
+    {
+        EntityIdRegistry.Register<HandWrittenId<ArchiveProfile>>();
+        ValueObjectRegistry.TryGet(typeof(HandWrittenId<ArchiveProfile>), out _).Should().BeFalse();
+
+        var archive = DesignTimeModel(new ArchiveContext()).FindEntityType(typeof(Archive))!;
+
+        var reference = archive.FindProperty(nameof(Archive.Reference))!;
+        reference.GetValueConverter().Should().BeOfType<ValueObjectConverter<HandWrittenId<ArchiveProfile>, string>>();
+        reference.GetValueComparer().Should().BeOfType<ValueObjectComparer<HandWrittenId<ArchiveProfile>>>();
+        reference.GetMaxLength().Should().Be(HandWrittenId<ArchiveProfile>.Length);
+        reference.IsFixedLength().Should().BeTrue();
+        reference.IsUnicode().Should().BeFalse();
+        reference.GetCollation().Should().Be(IdCollations.PostgreSql);
+
+        var previous = archive.FindProperty(nameof(Archive.Previous))!;
+        previous.GetValueConverter().Should().BeOfType<NullableValueObjectConverter<HandWrittenId<ArchiveProfile>>>();
+        previous.GetValueComparer().Should().BeOfType<NullableValueObjectComparer<HandWrittenId<ArchiveProfile>>>();
+        previous.GetMaxLength().Should().Be(HandWrittenId<ArchiveProfile>.Length);
+        previous.IsFixedLength().Should().BeTrue();
+        previous.IsUnicode().Should().BeFalse();
+        previous.GetCollation().Should().Be(IdCollations.PostgreSql);
+        previous.IsNullable.Should().BeTrue();
+    }
+
     private static IModel DesignTimeModel(DbContext context)
     {
         using (context)
@@ -160,6 +194,28 @@ public class EntityIdEntityFrameworkCoreTests
         public EventId Event { get; set; }
 
         public AccountId? Replaced { get; set; }
+    }
+
+    /// <summary>An entity referring to another by an identifier written by hand.</summary>
+    private sealed class Archive
+    {
+        public int Id { get; set; }
+
+        public HandWrittenId<ArchiveProfile> Reference { get; set; }
+
+        public HandWrittenId<ArchiveProfile>? Previous { get; set; }
+    }
+
+    /// <summary>A model holding an identifier written by hand, in a binary collation.</summary>
+    private sealed class ArchiveContext : DbContext
+    {
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder.UseNpgsql("Host=unused");
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+            => configurationBuilder.ConfigureEntityIds(IdCollations.PostgreSql);
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.Entity<Archive>();
     }
 
     /// <summary>A model whose identifier columns compare byte by byte.</summary>

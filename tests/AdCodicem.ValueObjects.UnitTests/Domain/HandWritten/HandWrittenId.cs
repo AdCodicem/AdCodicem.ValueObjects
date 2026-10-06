@@ -182,3 +182,12 @@ public sealed class RegisteredProfile : IHandWrittenIdProfile
 {
     public static string Prefix => "reg";
 }
+
+/// <summary>
+/// Behaves, and closes the one construction a test registers by hand with the identifier registry alone, for the Entity
+/// Framework Core convention of identifiers to map.
+/// </summary>
+public sealed class ArchiveProfile : IHandWrittenIdProfile
+{
+    public static string Prefix => "arch";
+}
