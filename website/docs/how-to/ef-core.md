@@ -215,7 +215,8 @@ checked offline, on the text of the queries.
 value object as `{}` and reads it back as a default instance, where a relational provider refuses to build the model.
 With it, values are stored bare, queries translate, and strict reads validate. On a standalone `mongod`, which has no
 transactions, `SaveChanges` needs `db.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never`; a replica set
-does not.
+does not. MongoDB.Driver used directly, without Entity Framework Core, goes through serializers of its own instead:
+[MongoDB](mongodb.md).
 
 ## Bulk extensions and linq2db
 

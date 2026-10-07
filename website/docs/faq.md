@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The sixteen packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The seventeen packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -130,6 +130,16 @@ compares a numeric one as a number. [Serilog](./how-to/logging.md#serilog) says 
 write a value object as its text, through `ToString()`: [Logging](./how-to/logging.md) says, for each, how to keep a
 number a number.
 
+### Does it work with MongoDB?
+
+Through MongoDB.Driver, with `AdCodicem.ValueObjects.MongoDB`: `ValueObjectBson.Register(assembly)`, once at start-up,
+stores a value object as the bare value the driver writes for its underlying type, translates a LINQ query over
+`.Value` on the field itself, reads through the rules unless asked to trust the collection, and refuses to write an
+uninitialized value object its type rejects. Without it, the driver writes `{}` and reads back a default instance, silently.
+[MongoDB](./how-to/mongodb.md) has the wiring and what each type is stored as. Azure Cosmos DB for MongoDB and Azure
+DocumentDB go through the same driver (not run). The MongoDB provider for Entity Framework Core goes through
+`ConfigureValueObjects` instead: [Other providers](./how-to/ef-core.md#other-providers).
+
 ### Does it work with `XmlSerializer`, `DataContractSerializer` or WCF?
 
 Once the assembly asks for it: `[assembly: ValueObjectXmlSerialization]` makes the generator implement
@@ -158,7 +168,8 @@ reflection, the first time it is asked for it, and under native AOT each is regi
 [Run-time lookup](./how-to/runtime-lookup.md#value-objects-written-by-hand) show. Code that finds a value object by its
 `Type` and closes a generic adapter over it does so through the descriptor's visitor rather than `MakeGenericType`,
 which native AOT cannot run for a struct, as [Run-time lookup](./how-to/runtime-lookup.md#back-to-the-typed-path)
-shows; the Dapper integration registers its handlers that way, the MVC model binder provider creates its binders, the
+shows; the Dapper integration registers its handlers that way, the MongoDB provider builds its serializers, the MVC
+model binder provider creates its binders, the
 minimal API filter closes the check of each parameter it explains, the JSON converter factory closes the
 general-purpose converter it gives a value object written by hand, and the Entity Framework Core conventions map each
 value object and each entity identifier, all but the converter of an optional value object, which C# cannot name there
@@ -167,8 +178,8 @@ contracts, the generated code, the JSON package, the minimal API problem details
 the Serilog integration are marked AOT-compatible and built with the trimming and AOT analyzers on, and CI publishes
 an application using them all with native AOT on every pull request, which merges only once that passes: it fails on
 any trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The EF Core, ASP.NET Core MVC, OpenAPI,
-Swashbuckle, Dapper and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are
-not. Dapper,
+Swashbuckle, Dapper, MongoDB and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug
+into are not. Dapper,
 for one, files each handler in a cache it closes over the type at run time, so under native AOT a handler this package
 built without dynamic code still fails inside Dapper: native AOT goes through [Dapper.AOT](./how-to/dapper.md#dapperaot).
 

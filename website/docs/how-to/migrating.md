@@ -56,6 +56,7 @@ Keep the rules, delete the plumbing.
 | Explicit casts, both ways by default | Opt in with `ExplicitConversionFromValue` and `ImplicitConversionToValue` |
 | `Conversions.EfCoreValueConverter`, `HasVogenConversion()` | `ConfigureValueObjects(assembly)`, once |
 | `Conversions.DapperTypeHandler` | `ValueObjectDapper.AddValueObjectHandlers(assembly)`, once |
+| `Conversions.Bson`, `BsonSerializationRegisterFor….TryRegister()` | `ValueObjectBson.Register(assembly)`, once, after the `GuidSerializer`: [MongoDB](mongodb.md) |
 | `Conversions.NewtonsoftJson` | `settings.AddValueObjects()`, which adds `ValueObjectConverter` to the serializer settings |
 | `Conversions.XmlSerializable` | `[assembly: ValueObjectXmlSerialization]`, once for the assembly, which reads through the rules: [XML](xml.md) |
 | `new VogenTypesFactory()` in the options of a source-generated context | `[JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]` |

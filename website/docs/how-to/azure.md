@@ -47,5 +47,7 @@ a source-generated context naming the factory (not run).
 - The Cosmos DB provider for Entity Framework Core: [Other providers](./ef-core.md#other-providers). Azure SQL's
   [Always Encrypted](./ef-core.md#always-encrypted) and [dynamic data masking](./ef-core.md#dynamic-data-masking)
   have sections of their own there.
+- Azure Cosmos DB for MongoDB and Azure DocumentDB, through MongoDB.Driver:
+  [MongoDB](./mongodb.md#azure-cosmos-db-for-mongodb-and-azure-documentdb).
 - Azure.Data.Tables, which leaves every value object of a class it reads default:
   [Where a default instance can come from](../reference/default-instances.md).

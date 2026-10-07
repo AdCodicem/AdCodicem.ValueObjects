@@ -32,7 +32,8 @@ value its type rejects.
 | The configuration binding generator, which `PublishAot` turns on | `new global::Domain.Iban()`: every value-object property of the options is default, even with valid input. | `VO0032` fails the build. Keep the underlying types in the options class. |
 | The reflection-based configuration binder, a missing key | A default instance, silently: `Iban=''`. | Declare the property `T?` and check it, or validate the options, with FluentValidation's [`NotDefault`](../how-to/fluentvalidation.md#an-uninitialized-value-object) for one. |
 | Bogus `Faker<T>` with no rule for a property | Every value-object property left without a rule is default. | `StrictMode(true)`, which refuses a `Faker<T>` that leaves a property without a rule. |
-| MongoDB.Driver 3.12, no serializer registered | Written as `{}`, read back as default, and `x.Iban == iban` matches every document. | Not covered by this library: persist a class holding the underlying values, or use the MongoDB provider for Entity Framework Core below. |
+| MongoDB.Driver 3.12, no serializer registered | Written as `{}`, read back as default, and `x.Iban == iban` matches every document. | [`AdCodicem.ValueObjects.MongoDB`](../how-to/mongodb.md): a value object is stored as its underlying value, and a default its type rejects is refused on write. |
+| MongoDB.Driver, a field missing from a stored document | The class map leaves the member as it was: a default instance, which no rule checks. | `[BsonRequired]` on the member, which makes the driver refuse the document: [MongoDB](../how-to/mongodb.md#reading). |
 | MongoDB.EntityFrameworkCore 10.0.4 without `ConfigureValueObjects` | Written as `{}`, read back as default. | Call [`ConfigureValueObjects`](../how-to/ef-core.md#other-providers). It is mandatory with this provider, while a relational provider refuses to build a model without it. |
 | SignalR, MessagePack hub protocol | `{}` on the wire: the hub receives `Sku='' Quantity=0`. | Not covered: send the underlying values, or keep the JSON hub protocol, which goes through System.Text.Json (not run here). |
 | MessagePack, `ContractlessStandardResolver` | `{"Sku":{}}`, read back as default. | Not covered: serialize a class holding the underlying values. |
@@ -72,6 +73,7 @@ These were sources too, and no longer are:
 | AutoMapper 16, no explicit map | The mapping throws `AutoMapperMappingException`, "Missing type map configuration or unsupported mapping.", since no constructor takes the value alone. Map each type: `CreateMap<string, Iban>().ConvertUsing(s => Iban.Create(s))`. |
 | Entity Framework Core, writing a default | Refused: on a property of the value object's type, `SaveChanges` throws and writes nothing; an optional property stores `NULL`. No later read finds an empty `Iban` to trust. EFCore.BulkExtensions writes through the same converter (inferred, not run). |
 | Dapper, a default as a parameter | Refused with a `DataException` before the command runs, from an `Iban` and an `Iban?` alike. |
+| MongoDB.Driver with `AdCodicem.ValueObjects.MongoDB`, writing a default | Refused with a `BsonSerializationException` before anything is sent, from an `Iban` and an `Iban?` alike, in a document, an update or a query constant. |
 | System.Text.Json and Newtonsoft.Json with its converter, writing a default | Refused with a `JsonException` or a `JsonSerializationException`, so a service reading the payload never receives it. |
 
 A type that accepts its zero, an `Amount` with a minimum of 0 or an unconstrained `Guid`, is still written as zero:

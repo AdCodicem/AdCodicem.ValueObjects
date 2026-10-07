@@ -24,6 +24,7 @@
     <PackageVersion Include="AdCodicem.ValueObjects.Identifiers" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Json" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.MongoDB" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.NewtonsoftJson" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.OpenApi" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Serilog" Version="[$(AdCodicemVersion)]" />
@@ -50,6 +51,7 @@
     <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.1" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.15.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.15.0" />
+    <PackageVersion Include="Testcontainers.MongoDb" Version="4.15.0" />
   </ItemGroup>
 
 </Project>

@@ -291,9 +291,11 @@ The registration knows none of the constructions an application will use, so it 
 the registry describes each construction the first time it is asked for it, by reflection: the JSON converter
 factory, the OpenAPI transformer and the model binder find one as they find any value object.
 [Entity Framework Core](./how-to/ef-core.md#generic-value-objects) maps each construction a property holds, and
-[Dapper](./how-to/dapper.md#generic-value-objects) needs a handler per construction, before any query. Under native
-AOT, where describing a construction by reflection is out of reach, register each construction a type-driven
-integration needs; the registration reads its schema off the type:
+[Dapper](./how-to/dapper.md#generic-value-objects) needs a handler per construction, before any query.
+[MongoDB.Driver](./how-to/mongodb.md#generic-value-objects-and-value-objects-written-by-hand) describes a construction
+by reflection the first time it meets it, or takes one registered with `ValueObjectBson.Register<TSelf, TValue>()`.
+Under native AOT, where describing a construction by reflection is out of reach, register each construction a
+type-driven integration needs; the registration reads its schema off the type:
 
 ```csharp skip
 ValueObjectRegistry.Register<Reference<PurchaseOrder>, string>(

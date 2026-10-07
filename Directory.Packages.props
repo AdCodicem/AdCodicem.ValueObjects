@@ -43,6 +43,10 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its net10.0 asset depends on
          nothing. -->
     <PackageVersion Include="Serilog" Version="4.4.0" />
+    <!-- The MongoDB package's floor, the version it is built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). MongoDB.Bson comes with it, at the
+         same version, and is pinned by nothing here: a pin would make it a dependency of the package. -->
+    <PackageVersion Include="MongoDB.Driver" Version="3.12.0" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
@@ -58,6 +62,7 @@
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.15.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.15.0" />
+    <PackageVersion Include="Testcontainers.MongoDb" Version="4.15.0" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
     <!-- What `dotnet ef dbcontext optimize` loads into the project it compiles a model for: the version of the dotnet-ef

@@ -29,7 +29,7 @@ dotnet test                                                          # everythin
 dotnet pack -c Release
 ```
 
-Integration tests start PostgreSQL and SQL Server through Testcontainers, so they need a Docker daemon.
+Integration tests start PostgreSQL, SQL Server and MongoDB through Testcontainers, so they need a Docker daemon.
 
 `tests/Compat`, the compatibility island, is not part of the solution and is run from its own folder, with the
 .NET 11 SDK its `global.json` names, against packages you have just packed. The commands are on

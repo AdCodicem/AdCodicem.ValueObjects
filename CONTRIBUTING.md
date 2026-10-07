@@ -17,7 +17,7 @@ dotnet build -c Release
 dotnet test -c Release
 ```
 
-The integration suite starts real PostgreSQL and SQL Server containers through
+The integration suite starts real PostgreSQL, SQL Server and MongoDB containers through
 [Testcontainers](https://dotnet.testcontainers.org/), so Docker must be running. Without it, run the three suites
 that do not need it:
 

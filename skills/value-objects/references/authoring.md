@@ -367,6 +367,8 @@ changes is how the integrations meet the constructions:
 - `ConfigureValueObjects()` maps every construction an entity holds.
 - Dapper needs a handler per construction, before any query:
   `ValueObjectDapper.AddValueObjectHandler<Reference<PurchaseOrder>, string>();`.
+- MongoDB.Driver describes a construction by reflection the first time it meets it;
+  `ValueObjectBson.Register<Reference<PurchaseOrder>, string>();` registers it without.
 - Never a `private` or `protected` value object, nor one nested in a `private` or `protected` type, inside a generic
   type: the registration reaches it through the types around it, by name (`VO0019`). Make it `internal` or `public`,
   or move it out of the generic type.

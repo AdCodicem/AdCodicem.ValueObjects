@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, FluentValidation, OpenAPI (built-in stack and Swashbuckle) and Serilog integrations, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver, FluentValidation, OpenAPI (built-in stack and Swashbuckle) and Serilog integrations, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -176,7 +176,7 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   validation. Construct through `Create`/`TryCreate`; express absence as `Iban?`, never as an empty or default
   instance. A test that needs one disables `VO0010` on that line with a comment saying why. One that slips past the
   analyzer (an entity property never set) is refused by every writer when its type rejects the default (JSON,
-  Dapper, EF Core `SaveChanges`); an EF Core `Iban?` column stores `NULL` instead.
+  Dapper, MongoDB, EF Core `SaveChanges`); an EF Core `Iban?` column stores `NULL` instead.
 - `NormalizeCore` / `ValidateCore` / `TryFormatCore` — the pre-interface names. They compile, they never run.
 - `Pattern = "..."` on `[ValueObject<T>]` — a compile error (`VO0021`). Move the text to the hook, with
   `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`; behaviour is unchanged.
@@ -216,6 +216,8 @@ app.MapGroup("/api").WithValueObjectProblemDetails();                           
 builder.Services.AddOpenApi(o => o.AddValueObjects());                                 // OpenApi
 builder.Services.AddSwaggerGen(o => o.AddValueObjects());                              // Swashbuckle, after IncludeXmlComments
 ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);                       // Dapper
+BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));    // MongoDB, first
+ValueObjectBson.Register(typeof(Iban).Assembly);                                       // MongoDB, before anything is serialized
 new LoggerConfiguration().Enrich.FromLogContext()                                      // Serilog, after FromLogContext
     .Destructure.ValueObjects(o => { o.CaptureAsUnderlyingValue = true; o.Assemblies.Add(typeof(Iban).Assembly); });
 // [assembly: ValueObjectXmlSerialization]  in the domain assembly: XmlSerializer, DataContractSerializer, MVC XML formatters
@@ -259,7 +261,7 @@ not). Write it for every value object, then test only the domain behaviour that 
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, FluentValidation, OpenAPI (built-in and Swashbuckle), Newtonsoft, Serilog. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver, FluentValidation, OpenAPI (built-in and Swashbuckle), Newtonsoft, Serilog. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0038`, with the fix for each. |
 

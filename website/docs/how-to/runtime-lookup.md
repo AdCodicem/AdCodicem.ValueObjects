@@ -61,7 +61,8 @@ one. A visitor needing context — a builder, a flag — holds it in fields. Eac
 object, since a struct type argument shares no code, and only for the visitors the application creates.
 
 Every integration that closes an adapter over a value object it knows only by its `Type` does so this way: the Dapper
-integration registers its handlers, the MVC model binder provider creates its binders, the minimal API filter of
+integration registers its handlers, the MongoDB provider builds the serializer the driver asks it for, the MVC model
+binder provider creates its binders, the minimal API filter of
 `AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains, the JSON converter factory
 closes the general-purpose converter it gives a value object written by hand, and the Entity Framework Core
 conventions map each value object and each entity identifier, while a model is built. One converter is the exception:
@@ -138,5 +139,5 @@ which registers itself in both, always has.
 Nothing needs registering by hand: every value object joins the registry through a generated module
 initializer. A module initializer only runs once its assembly is loaded, though, so code that looks a type up
 before anything else has touched that assembly can call
-`ValueObjectRegistry.EnsureAssemblyRegistered(assembly)` first. The EF Core and Dapper entry points already do, and
-so does the Serilog one for each assembly named in its `Assemblies` option.
+`ValueObjectRegistry.EnsureAssemblyRegistered(assembly)` first. The EF Core, Dapper and MongoDB entry points already
+do, and so does the Serilog one for each assembly named in its `Assemblies` option.
