@@ -102,6 +102,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, and a `$jsonSchema` validator built from the rules. |
+| `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters, and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. |
 | `AdCodicem.ValueObjects.Identifiers` | Stripe-style public entity identifiers: `acc_2K7X9…`. |
@@ -111,7 +112,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The eighteen are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The nineteen are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -131,6 +132,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
 | `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
+| `AdCodicem.ValueObjects.MessagePack` | `net10.0` | MessagePack 3.1, with SignalR's MessagePack hub protocol 10 | MessagePack 3.1 on .NET 11, with the hub protocol 11 |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
 | `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
 | `AdCodicem.ValueObjects.Identifiers` | `net10.0` | .NET 10 | .NET 11 |
@@ -185,13 +187,13 @@ which is what makes the struct representation — zero allocation, no null — s
 its own output: `VO0032` reports it in the code of Riok.Mapperly and of the configuration binding generator, and
 of any generator a `.globalconfig` adds. What reaches a boundary the analyzer cannot see — an entity property never
 set, a default array element — is not written as it stands: the JSON converters, the Dapper handler, the MongoDB
-serializers and the EF Core converters refuse an uninitialized instance whose value its type rejects, and an optional
-EF Core column stores a `NULL` instead.
+serializers, the MessagePack formatters and the EF Core converters refuse an uninitialized instance whose value its
+type rejects, and an optional EF Core column stores a `NULL` instead.
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
 their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a
-MongoDB.Driver `FormatException`. Each
+MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationException`. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
 query value, and those of a minimal API for a route, query or header value.
@@ -319,6 +321,18 @@ await database.CreateCollectionAsync("orders", new CreateCollectionOptions<BsonD
 {
     Validator = new BsonDocumentFilterDefinition<BsonDocument>(ValueObjectBsonSchema.For<Order>()),
 });
+```
+
+SignalR's MessagePack hub protocol falls back to contractless serialization, which writes a value object as `{}`: the
+hub method receives a default instance, which no rule checked, and nothing throws; MessagePack's standard resolver
+has no formatter for one and throws on the first write. `AdCodicem.ValueObjects.MessagePack` writes each as the bare
+value its underlying type writes under the same options, byte for byte, and reads it back through its rules, a refusal
+carrying its code
+([the MessagePack and SignalR guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/messagepack)):
+
+```csharp skip
+builder.Services.AddSignalR().AddMessagePackProtocol(options => options.UseValueObjects()); // and on the .NET client
+var options = MessagePackSerializerOptions.Standard.WithValueObjects(); // or WithValueObjects(trusted: true) for a cache
 ```
 
 ### Testing your own value objects

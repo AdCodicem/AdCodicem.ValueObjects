@@ -17,6 +17,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, a `$jsonSchema` validator from the rules. |
+| `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
 | `AdCodicem.ValueObjects.Identifiers[.EntityFrameworkCore\|.MongoDB]` | Stripe-style public identifiers, their columns, their minting on insert. See `identifiers.md`. |
@@ -53,14 +54,14 @@ default value its type rejects throws `ValueObjectJsonException` (a `JsonExcepti
 with `Minimum` 0, an unconstrained `Guid`) writes it.
 
 **Every exception an integration throws for a refused value carries the rule's code.** System.Text.Json:
-`ValueObjectJsonException.ErrorCode`, beside `ValueObjectType`. Newtonsoft.Json's `JsonSerializationException`,
-Dapper's `DataException` and MongoDB.Driver's `FormatException` (read) and `BsonSerializationException` (write):
-`exception.Data[ValueObjectErrors.ErrorCodeKey]`. EF Core: the `ValueObjectException` inside
-`DbUpdateException`. Read any of them, wrapped or not, with `ValueObjectErrors.TryGetCode(exception, out var code)`.
-A token or column not of the underlying type carries `value_object.not_parsable`, a `null` for a value object that
-cannot be `null` `value_object.required`. An integration of your own sets
-`exception.Data[ValueObjectErrors.ErrorCodeKey] = code`. For a gRPC `ErrorInfo.reason`, map the code with
-`ValueObjectErrorCodes.ToUpperSnakeCase(code)` (`value_object.too_long` → `VALUE_OBJECT_TOO_LONG`); it throws
+`ValueObjectJsonException.ErrorCode`, beside `ValueObjectType`. Newtonsoft.Json's `JsonSerializationException`, Dapper's
+`DataException`, MongoDB.Driver's `FormatException` (read) and `BsonSerializationException` (write), and MessagePack's
+`MessagePackSerializationException`: `exception.Data[ValueObjectErrors.ErrorCodeKey]`. EF Core: the
+`ValueObjectException` inside `DbUpdateException`. Read any of them, wrapped or not, with
+`ValueObjectErrors.TryGetCode(exception, out var code)`. A token or column not of the underlying type carries
+`value_object.not_parsable`, a `null` for a value object that cannot be `null` `value_object.required`. An integration
+of your own sets `exception.Data[ValueObjectErrors.ErrorCodeKey] = code`. For a gRPC `ErrorInfo.reason`, map the code
+with `ValueObjectErrorCodes.ToUpperSnakeCase(code)` (`value_object.too_long` → `VALUE_OBJECT_TOO_LONG`); it throws
 `ArgumentException` for a code that maps to no valid reason.
 
 **JSON Schema** (`JsonSchemaExporter`, and every host built on it: Microsoft.Extensions.AI tools and structured
@@ -415,6 +416,52 @@ await database.CreateCollectionAsync("orders", new CreateCollectionOptions<BsonD
   it was. `validationLevel`/`validationAction` are yours to set.
 - `For<TDocument>()` throws `InvalidOperationException` before `ValueObjectBson.Register`, and for a document the driver
   serializes without a class map.
+
+## MessagePack and SignalR
+
+```csharp skip
+var options = MessagePackSerializerOptions.Standard.WithValueObjects(); // or WithValueObjects(trusted: true)
+MessagePackSerializer.DefaultOptions = options;                          // for code that passes no options
+
+builder.Services.AddSignalR().AddMessagePackProtocol(o => o.UseValueObjects());        // the server
+new HubConnectionBuilder().WithUrl(url).AddMessagePackProtocol(o => o.UseValueObjects()); // and the .NET client
+```
+
+Without it, MessagePack's `StandardResolver` throws `FormatterNotRegisteredException` on the first value object, and a
+contractless resolver, SignalR's own included, writes `{}` and reads back a default instance, silently.
+`WithValueObjects` returns options whose resolver is `ValueObjectResolver` in front of the options' own (security and
+compression kept); `UseValueObjects` does the same to `MessagePackHubProtocolOptions.SerializerOptions` and returns the
+options. The last `WithValueObjects` call answers first.
+
+- A value object is written as the bare value the options' formatter of its underlying type writes, byte for byte the
+  primitive's: a `Guid` as text under `Standard`, 16 bytes under `NativeGuidResolver`; `decimal` and `DateTime` follow
+  their `Native*` resolvers too. A `TSelf?` is MessagePack's `NullableFormatter` (`nil` for none).
+- Reads are strict: `TryCreate` normalizes and validates; a refusal is a `MessagePackSerializationException` (inside
+  MessagePack's own, "Failed to deserialize … value.") carrying the rule's code in `Data`:
+  `ValueObjectErrors.TryGetCode`. Whatever the trust, a `nil` read into an `Iban` is `value_object.required` (declare
+  `Iban?`), and a value the underlying formatter cannot read (another type, out of range, truncated)
+  `value_object.not_parsable`. `trusted: true` reads through `CreateUnchecked`, for bytes only the application wrote.
+- A write of an uninitialized value object whose default its type rejects throws `MessagePackSerializationException`,
+  as a value, a dictionary key or inside an `Iban?`.
+- SignalR: both ends call `UseValueObjects()`. A refused argument fails the invocation before the hub method runs: the
+  client gets `HubException` ("Failed to invoke 'Add' due to an error on the server.", plus the binding failure with
+  `EnableDetailedErrors`), never the code; the server logs `InvalidHubParameters` at `Debug` with the code in the
+  exception's chain. A .NET client refuses to send a default its type rejects; a hub returning one closes the
+  connection. A client without `UseValueObjects()` sends `{}`, which a wired server refuses.
+- Under `MessagePackSecurity.UntrustedData`, which SignalR sets, a dictionary keyed by a value object or a set of them
+  is refused (`TypeAccessException`): key by the underlying type, or derive `MessagePackSecurity` and override
+  `GetHashCollisionResistantEqualityComparer<T>()` to return `EqualityComparer<T>.Default` for a value object (and
+  `Clone()`), at the cost of collision resistance for those keys. Keys normalize on a strict read: two the sender held
+  apart that normalize to one value object fail the dictionary with MessagePack's `ArgumentException`, which quotes the
+  key and carries no code.
+- MessagePack's analyzer comes with the package: `MsgPack003` fails a `[MessagePackObject]` type holding a value object
+  of the same assembly. Declare value objects in a referenced project, or add
+  `[assembly: MessagePackAssumedFormattable(typeof(Iban))]` per type.
+- Not covered: MassTransit.MessagePack (use MassTransit's System.Text.Json serializer), `[MessagePackKnownFormatter]`
+  (list `ValueObjectResolver.Instance` first in a compile-time composite instead), `MessagePackSerializer.Typeless`,
+  `AnyEntityId`, Nerdbank.MessagePack.
+- A generic construction or a value object written by hand is described by reflection on first use. Not
+  AOT-compatible: MessagePack and SignalR's MessagePack hub protocol are not.
 
 ## FluentValidation
 

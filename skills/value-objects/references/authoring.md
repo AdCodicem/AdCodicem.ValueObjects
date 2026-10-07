@@ -369,6 +369,8 @@ changes is how the integrations meet the constructions:
   `ValueObjectDapper.AddValueObjectHandler<Reference<PurchaseOrder>, string>();`.
 - MongoDB.Driver describes a construction by reflection the first time it meets it;
   `ValueObjectBson.Register<Reference<PurchaseOrder>, string>();` registers it without.
+- The MessagePack resolver describes a construction by reflection the first time MessagePack asks for it, under the
+  JIT; the package is not AOT-compatible.
 - Never a `private` or `protected` value object, nor one nested in a `private` or `protected` type, inside a generic
   type: the registration reaches it through the types around it, by name (`VO0019`). Make it `internal` or `public`,
   or move it out of the generic type.

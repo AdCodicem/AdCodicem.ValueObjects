@@ -20,7 +20,8 @@ Four suites, each with a distinct job:
   contracts, and four small fixture assemblies hold what the test assembly cannot: a generated value object whose
   module has not been used yet, annotated value objects in an assembly the generator does not run on,
   generated value objects in an assembly that does not reference the JSON package, and generated value objects of
-  every underlying type in an assembly that opts into XML serialization.
+  every underlying type in an assembly that opts into XML serialization. What needs a server and no container runs
+  here too, over TestHost: ASP.NET Core's pipelines, and a SignalR hub talking MessagePack with the .NET client.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that
@@ -75,19 +76,19 @@ SQL Server; the native AOT job also writes the model for native AOT, with its qu
 
 ## The compatibility island
 
-The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the
-solution, installs the eighteen packages exactly as they were packed — from the folder the build packs into, at that
-one version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own
-SDK, its own package versions and no transitive pinning, so the dependency floors of the packages meet the next
-major as they would in an application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on
-SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json
-and on Newtonsoft.Json, and a minimal API with its problem details,
-`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection
-validator and entity identifiers minted on insert, FluentValidation, Newtonsoft.Json, Serilog, `XmlSerializer` and
+The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
+installs the nineteen packages exactly as they were packed — from the folder the build packs into, at that one version,
+never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
+versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
+application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
+PostgreSQL, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json and on Newtonsoft.Json,
+and a minimal API with its problem details, `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
+MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
+SignalR's MessagePack hub protocol 11 over TestHost, FluentValidation, Newtonsoft.Json, Serilog, `XmlSerializer` and
 `DataContractSerializer` over a domain that opts into XML serialization, and the contract kit. A second project installs
-the Swashbuckle package, Swashbuckle 10 failing on the `Microsoft.OpenApi` 3
-the first one's `Microsoft.AspNetCore.OpenApi` 11 brings: there, Swashbuckle documents a minimal API over
-`Microsoft.OpenApi` 2, as in an application that takes Swashbuckle alone.
+the Swashbuckle package, Swashbuckle 10 failing on the `Microsoft.OpenApi` 3 the first one's
+`Microsoft.AspNetCore.OpenApi` 11 brings: there, Swashbuckle documents a minimal API over `Microsoft.OpenApi` 2, as in
+an application that takes Swashbuckle alone.
 
 CI's `compat (.NET 11)` job runs it on every pull request, against the packages that commit packed. It informs and
 blocks nothing until .NET 11 ships, then becomes a required check. The "On the next .NET" column of

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Eighteen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Nineteen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -93,7 +93,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All eighteen packages go out at one version, or none. That version is the one semantic-release would give
+lookup fails. All nineteen packages go out at one version, or none. That version is the one semantic-release would give
 the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -141,7 +141,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The eighteen packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The nineteen packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -211,8 +211,9 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   adapter at compile time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's
   `AddValueObjectHandlers`, the MVC binder provider, the JSON factory's general-purpose converter, for a value object
   written by hand, the minimal API filter of `AspNetCore.Http`, which closes a text check per parameter, the MongoDB
-  provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, and
-  EF Core's `ConfigureValueObjects` and `ConfigureEntityIds` do. An entity identifier's descriptor has a visitor of its
+  provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, the
+  MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, and EF Core's
+  `ConfigureValueObjects` and `ConfigureEntityIds` do. An entity identifier's descriptor has a visitor of its
   own: `EntityIdDescriptor.Accept` hands an `IEntityIdVisitor<TResult>` the identifier type, under `IEntityId<TId>`,
   through which `EntityIdBson.Register` of `Identifiers.MongoDB` closes each id generator and reaches `TId.New()`.
   `ConfigureValueObjects` still closes the converter of a `TSelf?` property with `MakeGenericType`, over the visitor's
@@ -247,14 +248,17 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   Dapper validates only a column the value object cannot have written: text read into a value object over another
   type, or a number or a `Guid` read into one over `string`. MongoDB reads the other way round: strict, through
   `TryCreate`, unless the serializer is trusted (`ValueObjectBson.Register(trusted: true, …)`), since a collection has
-  no schema and is often written by more than one program.
-- **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on
-  success. The integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a
-  `JsonException` or `JsonSerializationException`, a model state error, the validation problem of a minimal API, a
-  FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver `FormatException` on read or
-  `BsonSerializationException` on write. The one that throws `ValueObjectException` is a strict EF Core
-  read, which goes through `Create` and fails the query; `Create`, `Parse` and an explicit conversion throw it for code
-  that treats a rejected value as a bug. `website/docs/reference/errors.md` names what each integration throws.
+  no schema and is often written by more than one program; so does MessagePack, unless the resolver is trusted
+  (`WithValueObjects(trusted: true)`, `UseValueObjects(trusted: true)`), since the bytes may come from another service.
+  A `nil`, a BSON `null`, and a value the underlying type's own formatter or serializer cannot read are refused whatever
+  the trust.
+- **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on success. The
+  integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a `JsonException` or
+  `JsonSerializationException`, a model state error, the validation problem of a minimal API, a FluentValidation
+  failure, a Dapper `DataException`, a MongoDB.Driver `FormatException` on read or `BsonSerializationException` on
+  write, a MessagePack `MessagePackSerializationException`. The one that throws `ValueObjectException` is a strict EF
+  Core read, which goes through `Create` and fails the query; `Create`, `Parse` and an explicit conversion throw it for
+  code that treats a rejected value as a bug. `website/docs/reference/errors.md` names what each integration throws.
   Validation is fail-fast: the first violated rule wins.
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI `maxLength`, and
   the `maxLength` of the MongoDB `$jsonSchema` validator (`ValueObjectBsonSchema`, which writes each rule of
@@ -467,6 +471,22 @@ These are all load-bearing, and each cost real debugging time:
   top of the file. MongoDB.Bson has an internal `UInt128` of its own, which a `cref` to `UInt128` in a file importing
   `MongoDB.Bson` resolves to (CS0419): write `System.UInt128` there. A query's `ToString()` reports a translation the
   serializer refused instead of throwing it; a test of a refused query constant renders a `Builders` filter.
+- **MessagePack's analyzer comes with the MessagePack package, and neither MessagePack nor its SignalR protocol is
+  AOT-compatible.** MessagePack's nuspec takes `MessagePackAnalyzer` with `include="All"`, so its analyzer and source
+  generator reach every project referencing `AdCodicem.ValueObjects.MessagePack`, by package or by project, the unit
+  suite and the island included: `MsgPack003` fails the build of a `[MessagePackObject]` type holding a value object of
+  the same assembly, so `BinarySerialization/MessagePackAssumptions.cs` and the island's `MessagePackTests.cs` assume
+  each such value object formattable (`[assembly: MessagePackAssumedFormattable(typeof(Iban))]`), as the guide tells an
+  application to, and `MsgPack010` refuses a private formatter. MessagePack 3.1 has no trimming annotation (any native
+  publish warns `IL2104` and `IL3053` for the whole assembly), builds the formatters of a `Nullable<T>`, a collection or
+  a dictionary by reflection, which fails natively for any struct, and SignalR's MessagePack hub protocol needs dynamic
+  code: the package claims no AOT compatibility and stays out of `tests/NativeAot`. Under
+  `MessagePackSecurity.UntrustedData`, which SignalR sets, MessagePack refuses a dictionary keyed by a value object and
+  a set of them (`TypeAccessException`); the package adds no comparer, a value object's equality possibly differing from
+  its value's, and a test pins the refusal and the guide's workaround. The package's namespace,
+  `AdCodicem.ValueObjects.MessagePack`, hides the root `MessagePack` namespace in every `AdCodicem.ValueObjects.*`
+  namespace, as Swashbuckle's, Serilog's and MongoDB's do: name MessagePack's types through usings at the top of the
+  file, and name no test folder or namespace `MessagePack` (the unit suite's is `BinarySerialization/`).
 - **Serilog destructures no object under trimming.** Its `buildTransitive/Serilog.targets` sets
   `Serilog.Capturing.IsStructureValueSupported` to false under `PublishTrimmed`, which `PublishAot` implies, so a native
   binary logs an object with `@` as its `ToString()`, and a bare `Int128` as its text. The native AOT application sets
@@ -531,6 +551,9 @@ Four suites, each with a distinct job:
   `AdCodicem.ValueObjects.Json`, as a domain project serializing through an API's context does not, and generated ones
   of every underlying type in an assembly marked `[assembly: ValueObjectXmlSerialization]`, beside value objects
   written by hand on `ValueObjectXml` whose schemas the generator never writes (`XmlSerialization/` tests them).
+  `BinarySerialization/` drives the MessagePack package directly and through a SignalR hub and the .NET client over
+  TestHost; a test of the reflection fallback there closes `Reference<TOwner>` over the test class, never
+  `UnregisteredCode`, which nothing may resolve.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
   input. Two things keep such a suite honest and both are easy to lose: a property conditioned on "the value was
@@ -619,13 +642,15 @@ on where they apply.
   (CS0104). A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
   (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the eighteen packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the nineteen packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, on System.Text.Json and on
 Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal API problem details,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection
-validator and entity identifiers minted on insert, FluentValidation, Newtonsoft.Json, Serilog, `XmlSerializer` and
+validator and entity identifiers minted on insert, MessagePack, with SignalR's MessagePack hub protocol 11 between a hub
+and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, FluentValidation, Newtonsoft.Json,
+Serilog, `XmlSerializer` and
 `DataContractSerializer` over its domain, which opts into XML serialization, and the contract kit, with no transitive
 pinning, so the dependency floors of the packages meet the next
 major as an application's would. `AdCodicem.ValueObjects.Swashbuckle` is installed by a second project, `tests/Compat/Swashbuckle`,

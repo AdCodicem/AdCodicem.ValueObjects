@@ -40,7 +40,7 @@ be corrected.
 | OpenAPI | built-in stack and Swashbuckle 10, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
 | FluentValidation | yes | third-party package | no | no |
 | Dapper | yes | yes | through a template | no |
-| Other serializers and stores | Newtonsoft.Json; XML (`XmlSerializer`, `DataContractSerializer`, opted in per assembly, read with validation, rules in the XSD); MongoDB.Driver (BSON, `.Value` in LINQ, read with validation, rules in a `$jsonSchema` validator, entity identifiers minted on insert) | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
+| Other serializers and stores | Newtonsoft.Json; XML (`XmlSerializer`, `DataContractSerializer`, opted in per assembly, read with validation, rules in the XSD); MongoDB.Driver (BSON, `.Value` in LINQ, read with validation, rules in a `$jsonSchema` validator, entity identifiers minted on insert); MessagePack and SignalR's MessagePack hub protocol (bare values, read with validation) | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
 | Structured logging | Serilog: `{@X}`, and `{X}` on request, as the underlying value | no | no | Serilog destructuring policy, `{@X}` only |
 | Contract test kit for your own types | yes | no | no | no |
 | Prefixed public identifiers (`acc_…`) | yes | no | no | no |
@@ -101,7 +101,11 @@ as a `$jsonSchema` collection validator, which none of the others builds. Both t
 implement XML serialization on request, apart: Vogen's generated `ReadXml` assigns the value straight from the reader,
 with neither validation nor normalization, and its option makes the struct's fields writable, where
 [this library's](../how-to/xml.md) reads through the type's rules, keeps the fields `readonly` and publishes the rules
-as XSD facets.
+as XSD facets. All three write a value object to MessagePack, this library through a resolver placed in front of the
+options' own rather than a `[MessagePackFormatter]` on the type, which the same options also put in front of
+SignalR's MessagePack hub protocol, and which reads through the type's rules unless asked to trust the bytes
+([MessagePack and SignalR](../how-to/messagepack.md)); Vogen's and Thinktecture's MessagePack support was not measured
+here.
 
 **Thinktecture goes beyond single values.** Complex value objects with several members, smart enums and
 discriminated unions are out of scope here.
