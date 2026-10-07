@@ -257,6 +257,7 @@ faithful and unreadable, growing with every identifier type in the application.
 | `AdCodicem.ValueObjects` | The existing generator gains the `[EntityId]` emission path. |
 | `AdCodicem.ValueObjects.Identifiers` | `[EntityId]`, the Crockford codec, the check character, the layout, the ambient provider, the prefix registry, `AnyEntityId`. |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | Fixed-width column, binary collation, index guidance. |
+| `AdCodicem.ValueObjects.Identifiers.MongoDB` | An identifier minted by MongoDB.Driver for a document inserted without its `_id`: [MongoDB](./how-to/mongodb.md#entity-identifiers-as-_id). |
 | `AdCodicem.ValueObjects.Secrets` | Bearer secrets. Specified below, not yet implemented. |
 
 **`[EntityId]` lives in `.Identifiers`, not in `Abstractions`.** If the attribute shipped with the core package

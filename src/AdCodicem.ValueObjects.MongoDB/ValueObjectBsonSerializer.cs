@@ -51,7 +51,8 @@ public sealed class ValueObjectBsonSerializer<TSelf, TValue> :
     SerializerBase<TSelf>,
     IBsonDocumentSerializer,
     IChildSerializerConfigurable,
-    IHasRepresentationSerializer
+    IHasRepresentationSerializer,
+    IValueObjectBsonSerializer
     where TSelf : struct, IValueObject<TSelf, TValue>
 {
     /// <summary>
@@ -235,6 +236,10 @@ public sealed class ValueObjectBsonSerializer<TSelf, TValue> :
     /// to the same value.
     /// </remarks>
     public override int GetHashCode() => Trusted.GetHashCode();
+
+    /// <inheritdoc />
+    BsonDocument IValueObjectBsonSerializer.DescribeRules()
+        => ValueObjectBsonRules.Describe<TSelf, TValue>(TSelf.Schema, ValueSerializer);
 
     /// <inheritdoc />
     /// <exception cref="InvalidCastException">

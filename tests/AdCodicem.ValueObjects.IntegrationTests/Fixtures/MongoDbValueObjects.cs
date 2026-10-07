@@ -1,7 +1,8 @@
 namespace AdCodicem.ValueObjects.IntegrationTests.Fixtures;
 
-// The two shapes MongoDbTests stores that neither the sample nor the unit suite's UnderlyingTypes.cs declares: a value
-// object over a short, bounded as the issue's evidence bounds a quantity, and a generic value object.
+// The shapes the MongoDB tests store that neither the sample nor the unit suite's UnderlyingTypes.cs declares: a value
+// object over a short, bounded as the issue's evidence bounds a quantity, a generic value object, and a text value object
+// with a minimum length and no pattern, which a validator halves.
 
 /// <summary>A number of items on an order line.</summary>
 [ValueObject<short>(Arithmetic = true)]
@@ -17,3 +18,7 @@ public readonly partial struct LineQuantity : IValueObjectMinimum<short>, IValue
 [ValueObject<string>(MaxLength = 12)]
 public readonly partial struct OwnedCode<TOwner>
     where TOwner : class;
+
+/// <summary>A nickname, of four to eight characters.</summary>
+[ValueObject<string>(MinLength = 4, MaxLength = 8)]
+public readonly partial struct Nickname;

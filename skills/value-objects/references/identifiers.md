@@ -92,6 +92,24 @@ produces the narrow fixed-width column. It also sets the identifiers' converter,
 `strict: true` to both: `ConfigureEntityIds(collation, strict: true, assemblies)`, or
 `HasEntityIdConversion(collation, strict: true)` for one property.
 
+## MongoDB
+
+```csharp skip
+BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+ValueObjectBson.Register(typeof(AccountId).Assembly);  // AdCodicem.ValueObjects.MongoDB: the identifier's serializer
+EntityIdBson.Register(typeof(AccountId).Assembly);     // AdCodicem.ValueObjects.Identifiers.MongoDB: its id generator
+
+await accounts.InsertOneAsync(new Account { Name = "Ada" }); // Account.Id, an AccountId, is now acc_…
+```
+
+An `[EntityId]` `_id` left unassigned holds no valid value, which the serializer refuses to write.
+`EntityIdBson.Register` gives the driver an `EntityIdGenerator<TId>` per registered identifier, which mints one through
+`TId.New()` (under `ValueObjectIds`) when the document is inserted; an assigned id is kept. Register before any class
+map of a document holding one is built (the driver reads the generator then, once), `ValueObjectBsonSchema.For`
+included; a class map built by hand calls `SetIdGenerator(new EntityIdGenerator<AccountId>())`. A generator of your
+own, registered first, is kept; the checker `BsonSerializer.UseZeroIdChecker` or `UseNullIdChecker` installs is
+replaced. `EntityIdBson.Register<TId>()` registers one identifier. Not AOT-compatible, as the driver.
+
 ## `AnyEntityId`, for webhooks, deep links and audit trails
 
 ```csharp skip

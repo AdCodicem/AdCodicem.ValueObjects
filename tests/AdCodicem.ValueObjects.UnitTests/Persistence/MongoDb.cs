@@ -1,3 +1,4 @@
+using AdCodicem.ValueObjects.Identifiers.MongoDB;
 using AdCodicem.ValueObjects.MongoDB;
 using MongoDB.Bson;
 using MongoDB.Bson.IO;
@@ -15,7 +16,8 @@ namespace AdCodicem.ValueObjects.UnitTests.Persistence;
 /// never forgets one: a value object the driver serialized before <see cref="ValueObjectBson.Register(System.Reflection.Assembly[])"/>
 /// would keep the class map it was given, and fail the registration. So every MongoDB test class calls
 /// <see cref="EnsureRegistered"/> first, which registers the <see cref="Guid"/> representation and the provider once,
-/// strict; a test that needs another trust or another representation builds its serializer by hand, or uses a registry
+/// strict, then the id generators of the entity identifiers, before any class map of a document holding one is built; a
+/// test that needs another trust or another representation builds its serializer by hand, or uses a registry
 /// of its own, and leaves the driver's alone.
 /// </remarks>
 internal static class MongoDb
@@ -23,7 +25,8 @@ internal static class MongoDb
     private static readonly Lazy<bool> Registration = new(Register);
 
     /// <summary>
-    /// Registers the driver's <see cref="Guid"/> representation, then the value objects of the suite, once.
+    /// Registers the driver's <see cref="Guid"/> representation, then the value objects and the entity identifiers of the
+    /// suite, once.
     /// </summary>
     public static void EnsureRegistered() => _ = Registration.Value;
 
@@ -68,6 +71,7 @@ internal static class MongoDb
     {
         BsonSerializer.TryRegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
         ValueObjectBson.Register(typeof(Iban).Assembly);
+        EntityIdBson.Register(typeof(Iban).Assembly);
 
         return true;
     }

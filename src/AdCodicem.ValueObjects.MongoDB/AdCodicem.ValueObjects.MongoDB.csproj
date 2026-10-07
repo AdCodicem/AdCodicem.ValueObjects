@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.MongoDB</RootNamespace>
-    <Description>MongoDB.Driver serializers for AdCodicem value objects: each stored as the bare value its underlying type writes, LINQ queries over .Value translated to the field, strict reads through the value object's rules by default, and a value the type refuses never written.</Description>
+    <Description>MongoDB.Driver serializers for AdCodicem value objects: each stored as the bare value its underlying type writes, LINQ queries over .Value translated to the field, strict reads through the value object's rules by default, a value the type refuses never written, and a $jsonSchema collection validator built from the rules.</Description>
     <PackageTags>$(PackageTags);mongodb;bson;nosql;cosmosdb</PackageTags>
 
     <!-- MongoDB.Driver maps documents through class maps it builds by reflection, so this package cannot claim AOT
@@ -18,6 +18,11 @@
 
   <ItemGroup>
     <PackageReference Include="MongoDB.Driver" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The reader of a .NET pattern, which the validator writes in the PCRE2 dialect the server reads. -->
+    <Compile Include="..\Shared\ValueObjectPatternSyntax.cs" Link="Shared\ValueObjectPatternSyntax.cs" />
   </ItemGroup>
 
 </Project>

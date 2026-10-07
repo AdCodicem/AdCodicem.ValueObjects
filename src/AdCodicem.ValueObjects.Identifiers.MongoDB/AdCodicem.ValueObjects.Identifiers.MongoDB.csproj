@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Identifiers.MongoDB</RootNamespace>
+    <Description>MongoDB.Driver id generation for AdCodicem entity identifiers: a document inserted without its [EntityId] _id is given a new identifier minted by the type, as the driver mints an ObjectId.</Description>
+    <PackageTags>$(PackageTags);mongodb;bson;identifier</PackageTags>
+
+    <!-- MongoDB.Driver maps documents through class maps it builds by reflection, so this package cannot claim AOT
+         compatibility. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
+    <ProjectReference Include="..\AdCodicem.ValueObjects.MongoDB\AdCodicem.ValueObjects.MongoDB.csproj" />
+  </ItemGroup>
+
+</Project>

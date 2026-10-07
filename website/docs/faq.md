@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The seventeen packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The eighteen packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -136,6 +136,8 @@ Through MongoDB.Driver, with `AdCodicem.ValueObjects.MongoDB`: `ValueObjectBson.
 stores a value object as the bare value the driver writes for its underlying type, translates a LINQ query over
 `.Value` on the field itself, reads through the rules unless asked to trust the collection, and refuses to write an
 uninitialized value object its type rejects. Without it, the driver writes `{}` and reads back a default instance, silently.
+`ValueObjectBsonSchema.For<Order>()` carries the rules to the server too, as a `$jsonSchema` collection validator, and
+`AdCodicem.ValueObjects.Identifiers.MongoDB` mints an entity identifier for a document inserted without one.
 [MongoDB](./how-to/mongodb.md) has the wiring and what each type is stored as. Azure Cosmos DB for MongoDB and Azure
 DocumentDB go through the same driver (not run). The MongoDB provider for Entity Framework Core goes through
 `ConfigureValueObjects` instead: [Other providers](./how-to/ef-core.md#other-providers).
@@ -160,28 +162,28 @@ generic. [Benchmarks](./benchmarks.md) measures each case.
 
 ### Does it use reflection?
 
-Not in the generated code, and not to find value objects: a generated module initializer registers each type
-at start-up. The exceptions are a generic value object, whose registration knows none of the constructions an
-application uses, and a value object written by hand, which nothing registers: the registry describes each one by
-reflection, the first time it is asked for it, and under native AOT each is registered by hand instead, as
-[Where a value object can be declared](./authoring-guide.md#where-a-value-object-can-be-declared) and
-[Run-time lookup](./how-to/runtime-lookup.md#value-objects-written-by-hand) show. Code that finds a value object by its
-`Type` and closes a generic adapter over it does so through the descriptor's visitor rather than `MakeGenericType`,
-which native AOT cannot run for a struct, as [Run-time lookup](./how-to/runtime-lookup.md#back-to-the-typed-path)
-shows; the Dapper integration registers its handlers that way, the MongoDB provider builds its serializers, the MVC
-model binder provider creates its binders, the
-minimal API filter closes the check of each parameter it explains, the JSON converter factory closes the
-general-purpose converter it gives a value object written by hand, and the Entity Framework Core conventions map each
-value object and each entity identifier, all but the converter of an optional value object, which C# cannot name there
-and which they close with `MakeGenericType`; they do so only while a model is built, never under native AOT. The
-contracts, the generated code, the JSON package, the minimal API problem details, FluentValidation, identifiers and
-the Serilog integration are marked AOT-compatible and built with the trimming and AOT analyzers on, and CI publishes
-an application using them all with native AOT on every pull request, which merges only once that passes: it fails on
-any trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The EF Core, ASP.NET Core MVC, OpenAPI,
-Swashbuckle, Dapper, MongoDB and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug
-into are not. Dapper,
-for one, files each handler in a cache it closes over the type at run time, so under native AOT a handler this package
-built without dynamic code still fails inside Dapper: native AOT goes through [Dapper.AOT](./how-to/dapper.md#dapperaot).
+Not in the generated code, and not to find value objects: a generated module initializer registers each type at
+start-up. The exceptions are a generic value object, whose registration knows none of the constructions an application
+uses, and a value object written by hand, which nothing registers: the registry describes each one by reflection, the
+first time it is asked for it, and under native AOT each is registered by hand instead, as [Where a value object can be
+declared](./authoring-guide.md#where-a-value-object-can-be-declared) and [Run-time
+lookup](./how-to/runtime-lookup.md#value-objects-written-by-hand) show. Code that finds a value object by its `Type` and
+closes a generic adapter over it does so through the descriptor's visitor rather than `MakeGenericType`, which native
+AOT cannot run for a struct, as [Run-time lookup](./how-to/runtime-lookup.md#back-to-the-typed-path) shows; the Dapper
+integration registers its handlers that way, the MongoDB provider builds its serializers, the MongoDB identifiers
+package its id generators, through the visitor of an entity identifier's descriptor, the MVC model binder provider
+creates its binders, the minimal API filter closes the check of each parameter it explains, the JSON converter factory
+closes the general-purpose converter it gives a value object written by hand, and the Entity Framework Core conventions
+map each value object and each entity identifier, all but the converter of an optional value object, which C# cannot
+name there and which they close with `MakeGenericType`; they do so only while a model is built, never under native AOT.
+The contracts, the generated code, the JSON package, the minimal API problem details, FluentValidation, identifiers and
+the Serilog integration are marked AOT-compatible and built with the trimming and AOT analyzers on, and CI publishes an
+application using them all with native AOT on every pull request, which merges only once that passes: it fails on any
+trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The EF Core,
+ASP.NET Core MVC, OpenAPI, Swashbuckle, Dapper, MongoDB, MongoDB identifiers and Newtonsoft.Json integrations are not
+AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler in a cache it closes
+over the type at run time, so under native AOT a handler this package built without dynamic code still fails inside
+Dapper: native AOT goes through [Dapper.AOT](./how-to/dapper.md#dapperaot).
 
 ### Does a pattern run compiled under native AOT?
 

@@ -70,6 +70,22 @@ that of an optional property, `Iban?`, which C# names only under a constraint `V
 conventions close it with `MakeGenericType`, over the type arguments the visitor received. Entity Framework Core builds
 no model under native AOT, so that never runs there.
 
+An entity identifier's descriptor, from `EntityIdRegistry`, has the same way out: `EntityIdDescriptor.Accept` hands an
+`IEntityIdVisitor<TResult>` the identifier type, constrained to `IEntityId<TId>`, so the visitor reaches `TId.New()`.
+The MongoDB identifiers package registers its id generators that way:
+
+```csharp skip
+sealed class GeneratorFor : IEntityIdVisitor<IIdGenerator>
+{
+    public IIdGenerator Visit<TId>() where TId : struct, IEntityId<TId> => new EntityIdGenerator<TId>();
+}
+
+foreach (var descriptor in EntityIdRegistry.GetRegistered())
+{
+    BsonSerializer.RegisterIdGenerator(descriptor.ValueObjectType, descriptor.Accept(new GeneratorFor()));
+}
+```
+
 Inside the adapter, the rules are `TSelf.Schema`, the static member of `IValueObject<TSelf, TValue>` that the generator
 emits and registers as the descriptor's `Schema`: `TSelf.Schema.MaxLength` sizes a column with no registry to ask, as
 `HasValueObjectConversion` does. The Entity Framework Core conventions, which hold the descriptor already, size a column

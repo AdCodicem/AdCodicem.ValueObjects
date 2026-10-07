@@ -1,6 +1,9 @@
+// The MongoDB package compiles its own copy of the reader, which the alias keeps apart from the contracts' one.
+extern alias abstractions;
+
 using System.Globalization;
 using System.Text.RegularExpressions;
-using AdCodicem.ValueObjects.Shared;
+using abstractions::AdCodicem.ValueObjects.Shared;
 
 namespace AdCodicem.ValueObjects.UnitTests.XmlSerialization;
 

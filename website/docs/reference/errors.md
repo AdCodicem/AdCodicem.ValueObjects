@@ -171,6 +171,16 @@ or `UInt128` throws a `BsonSerializationException` when it is written or read, u
 serializer for its underlying type, and one over `Guid` throws one when it is written, or read from binary, through a
 serializer of `Guid` with no representation
 ([how each underlying type is stored](../how-to/mongodb.md#how-each-underlying-type-is-stored)).
+`ValueObjectBsonSchema.For<TDocument>()` throws an `InvalidOperationException` when it is called before
+`ValueObjectBson.Register`, or for a document the driver serializes through a serializer of its own rather than a class
+map.
+
+A collection given the [validator built from the rules](../how-to/mongodb.md#a-collection-validator-from-the-rules)
+refuses another writer's document on the server, and the driver reports it as for any validator: a
+`MongoWriteException` from `InsertOne`, `ReplaceOne` or an update, a `MongoBulkWriteException` from `InsertMany`,
+whose write error has code 121, "Document failed validation", and details naming the field and the keyword it failed,
+`pattern`, `maximum`, `enum`, `required`. The value it refused is in those details, as the server reports it, and no
+rule code is: the server checks the keywords, not the value object.
 
 A log is no such write: nothing reads one back into a value object. The
 [Serilog integration](../how-to/logging.md#serilog) logs a default instance as the default of its underlying type,

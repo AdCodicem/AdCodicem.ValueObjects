@@ -40,7 +40,7 @@ be corrected.
 | OpenAPI | built-in stack and Swashbuckle 10, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
 | FluentValidation | yes | third-party package | no | no |
 | Dapper | yes | yes | through a template | no |
-| Other serializers and stores | Newtonsoft.Json; XML (`XmlSerializer`, `DataContractSerializer`, opted in per assembly, read with validation, rules in the XSD); MongoDB.Driver (BSON, `.Value` in LINQ, read with validation) | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
+| Other serializers and stores | Newtonsoft.Json; XML (`XmlSerializer`, `DataContractSerializer`, opted in per assembly, read with validation, rules in the XSD); MongoDB.Driver (BSON, `.Value` in LINQ, read with validation, rules in a `$jsonSchema` validator, entity identifiers minted on insert) | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
 | Structured logging | Serilog: `{@X}`, and `{X}` on request, as the underlying value | no | no | Serilog destructuring policy, `{@X}` only |
 | Contract test kit for your own types | yes | no | no | no |
 | Prefixed public identifiers (`acc_…`) | yes | no | no | no |
@@ -49,12 +49,13 @@ be corrected.
 
 ## Where this library differs
 
-**A rule is declared once and reaches every boundary.** `MaxLength = 34` validates, sizes the EF Core column and
-becomes the OpenAPI `maxLength`; the bound of `IValueObjectMinimum<T>`, and the `[GeneratedRegex]` behind
-`IValueObjectPatternValidator`, do the same for the schema; known values become the `enum`, under the names a
-generated client gives its members. In the other three, a length or a pattern is code inside
-a validation method, so the column and the schema have to be told separately — which is exactly the drift that
-primitive obsession produces.
+**A rule is declared once and reaches every boundary.** `MaxLength = 34` validates, sizes the EF Core column and becomes
+the OpenAPI `maxLength`; the bound of `IValueObjectMinimum<T>`, and the `[GeneratedRegex]` behind
+`IValueObjectPatternValidator`, do the same for the schema; known values become the `enum`, under the names a generated
+client gives its members; and, wherever the server reads them as .NET does, they reach a MongoDB server as a
+`$jsonSchema` validator ([what is carried](../how-to/mongodb.md#a-collection-validator-from-the-rules)). In the other
+three, a length or a pattern is code inside a validation method, so the column and the schema have to be told separately
+— which is exactly the drift that primitive obsession produces.
 
 **A rejection is data a client can act on.** Validation returns a `ValidationResult` struct holding a stable
 code and a message, and allocates nothing when the value is valid. The code travels to the problem details of
@@ -95,7 +96,8 @@ MessagePack and MongoDB's BSON; Thinktecture for MessagePack. Both this library 
 apart: in a test against Vogen 8.0.7, its value object was still written `{}` until the application called the generated
 `BsonSerializationRegisterFor<…>.TryRegister()`, its value object over `Guid` threw until a `Guid` representation was
 configured, and LINQ could not translate `.Value`, where [this library's](../how-to/mongodb.md) says at start-up what is
-missing, translates `.Value` on the field itself and reads through the type's rules. Both this library and Vogen
+missing, translates `.Value` on the field itself, reads through the type's rules, and carries those rules to the server
+as a `$jsonSchema` collection validator, which none of the others builds. Both this library and Vogen
 implement XML serialization on request, apart: Vogen's generated `ReadXml` assigns the value straight from the reader,
 with neither validation nor normalization, and its option makes the struct's fields writable, where
 [this library's](../how-to/xml.md) reads through the type's rules, keeps the fields `readonly` and publishes the rules

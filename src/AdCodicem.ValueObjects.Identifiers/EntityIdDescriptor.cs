@@ -13,18 +13,22 @@ namespace AdCodicem.ValueObjects.Identifiers;
 /// </remarks>
 public sealed class EntityIdDescriptor
 {
+    private readonly TypedAccess _access;
+
     private EntityIdDescriptor(
         Type valueObjectType,
         string prefix,
         IdGranularity granularity,
         int length,
-        BoxedTryParse tryParse)
+        BoxedTryParse tryParse,
+        TypedAccess access)
     {
         ValueObjectType = valueObjectType;
         Prefix = prefix;
         Granularity = granularity;
         Length = length;
         TryParse = tryParse;
+        _access = access;
     }
 
     /// <summary>
@@ -74,5 +78,45 @@ public sealed class EntityIdDescriptor
 
                 result = null;
                 return false;
-            });
+            },
+            TypedAccess<TSelf>.Instance);
+
+    /// <summary>
+    /// Hands the identifier type to a visitor, closed at compile time where the descriptor was built.
+    /// </summary>
+    /// <typeparam name="TResult">What the visitor builds.</typeparam>
+    /// <param name="visitor">The visitor.</param>
+    /// <returns>What the visitor built for the identifier type.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="visitor"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// Every descriptor is built by <see cref="For{TSelf}"/>, the generated registration's included, so every descriptor
+    /// <see cref="EntityIdRegistry"/> holds can be visited, without reflection and under native AOT.
+    /// </remarks>
+    public TResult Accept<TResult>(IEntityIdVisitor<TResult> visitor)
+    {
+        ArgumentNullException.ThrowIfNull(visitor);
+
+        return _access.Accept(visitor);
+    }
+
+    /// <summary>
+    /// Keeps the type of an identifier, which no field of a non-generic class can hold, behind a generic virtual method
+    /// that hands it to a visitor.
+    /// </summary>
+    private abstract class TypedAccess
+    {
+        public abstract TResult Accept<TResult>(IEntityIdVisitor<TResult> visitor);
+    }
+
+    /// <summary>
+    /// The type of one identifier, created where it is known at compile time, in <see cref="For{TSelf}"/>.
+    /// </summary>
+    /// <typeparam name="TSelf">Identifier type.</typeparam>
+    private sealed class TypedAccess<TSelf> : TypedAccess
+        where TSelf : struct, IEntityId<TSelf>
+    {
+        public static readonly TypedAccess<TSelf> Instance = new();
+
+        public override TResult Accept<TResult>(IEntityIdVisitor<TResult> visitor) => visitor.Visit<TSelf>();
+    }
 }
