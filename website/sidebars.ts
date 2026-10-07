@@ -30,6 +30,7 @@ const sidebars: SidebarsConfig = {
         'how-to/openapi',
         'how-to/ef-core',
         'how-to/dapper',
+        'how-to/mongodb',
         'how-to/fluentvalidation',
         'how-to/messaging',
         'how-to/logging',

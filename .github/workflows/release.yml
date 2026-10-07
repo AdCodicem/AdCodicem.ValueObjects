@@ -53,7 +53,7 @@ jobs:
       - name: Generator tests
         run: dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests --no-build -c Release
 
-      # Testcontainers starts PostgreSQL and SQL Server on the runner's Docker daemon.
+      # Testcontainers starts PostgreSQL, SQL Server and MongoDB on the runner's Docker daemon.
       - name: Integration tests
         run: dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests --no-build -c Release
 

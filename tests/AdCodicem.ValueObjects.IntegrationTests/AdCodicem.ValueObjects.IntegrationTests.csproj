@@ -8,8 +8,10 @@
     <ProjectReference Include="..\..\samples\AdCodicem.ValueObjects.Sample.Api\AdCodicem.ValueObjects.Sample.Api.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Dapper\AdCodicem.ValueObjects.Dapper.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.MongoDB\AdCodicem.ValueObjects.MongoDB.csproj" />
     <!-- Value objects over the date and time types the sample does not use, to read what each provider returns
-         for those columns (Fixtures/DateAndTimeValueObjects.cs). -->
+         for those columns (Fixtures/DateAndTimeValueObjects.cs), and the unit suite's value object for each underlying
+         type, which MongoDB stores through a real server (MongoDbTests.cs). -->
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
@@ -19,13 +21,19 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Testcontainers.MongoDb" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Dapper" />
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\Domain\UnderlyingTypes.cs" Link="Fixtures\UnderlyingTypes.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="AdCodicem.ValueObjects" />
+    <Using Include="AdCodicem.ValueObjects.Annotations" />
     <Using Include="AdCodicem.ValueObjects.Identifiers" />
     <Using Include="AdCodicem.ValueObjects.Sample.Domain" />
     <Using Include="AdCodicem.ValueObjects.Sample.Api.Persistence" />

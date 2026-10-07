@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.NewtonsoftJson;
 using AdCodicem.ValueObjects.UnitTests.Logging;
+using AdCodicem.ValueObjects.UnitTests.Persistence;
 using AdCodicem.ValueObjects.UnitTests.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -89,6 +90,12 @@ public abstract class Sample
     /// <c>Destructure.ValueObjects()</c>, and checks that it is logged as the value it carries.
     /// </summary>
     public abstract void LogsAsItsUnderlyingValueThroughSerilog();
+
+    /// <summary>
+    /// Stores the value object through MongoDB.Driver, with the serializer <c>ValueObjectBson.Register</c> hands it, and
+    /// checks that it writes and reads back what the bare value it carries writes and reads.
+    /// </summary>
+    public abstract void RoundTripsThroughBsonAsItsUnderlyingValue();
 
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
@@ -498,6 +505,12 @@ public class Sample<TSelf, TValue> : Sample
     {
         SerilogParity.Check<TSelf, TValue>(Small);
         SerilogParity.Check<TSelf, TValue>(Large);
+    }
+
+    public override void RoundTripsThroughBsonAsItsUnderlyingValue()
+    {
+        MongoDbParity.Check<TSelf, TValue>(Small);
+        MongoDbParity.Check<TSelf, TValue>(Large);
     }
 
     public override void WritesNoJsonItsTypeRejects()

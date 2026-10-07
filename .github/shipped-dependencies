@@ -18,6 +18,7 @@ Microsoft.EntityFrameworkCore.Relational
 Microsoft.Extensions.DependencyInjection.Abstractions
 Microsoft.Extensions.Options
 Microsoft.OpenApi
+MongoDB.Driver
 Newtonsoft.Json
 Serilog
 Swashbuckle.AspNetCore.SwaggerGen

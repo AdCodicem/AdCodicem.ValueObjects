@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Sixteen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Seventeen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -51,7 +51,7 @@ dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/pac
 v=0.0.0-compat.$(date +%s)
 MINVERVERSIONOVERRIDE=$v dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj -p:AdCodicemVersion=$v
-# The main project needs Docker for PostgreSQL and SQL Server; without it, add --filter-not-trait "Requires=Docker"
+# The main project needs Docker for PostgreSQL, SQL Server and MongoDB; without it, add --filter-not-trait "Requires=Docker"
 dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj -p:AdCodicemVersion=$v   # no Docker
 
 # Native AOT, as ci.yml's native AOT job runs it; needs clang and zlib. The application of tests/NativeAot under
@@ -82,7 +82,7 @@ npm run build       # production build; fails on a broken internal link
 `npm run docs:api` has to run before `npm start` or `npm run build` on a fresh checkout: `sidebars.ts`
 builds its API reference category from `website/docs/api/`, which is generated and gitignored.
 
-Integration tests start PostgreSQL and SQL Server through Testcontainers.
+Integration tests start PostgreSQL, SQL Server and MongoDB through Testcontainers.
 
 `TreatWarningsAsErrors` is on repository-wide, so a warning fails the build.
 
@@ -93,7 +93,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All sixteen packages go out at one version, or none. That version is the one semantic-release would give
+lookup fails. All seventeen packages go out at one version, or none. That version is the one semantic-release would give
 the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -141,7 +141,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The sixteen packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The seventeen packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -201,16 +201,18 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
 
 - **Typed path.** The static abstract members of `IValueObject<TSelf, TValue>` (`Create`, `TryCreate`,
   `TryParse`, `Normalize`, `Validate`, and `Schema`, the rules as data). This is what domain code and the generic
-  integrations use — the ASP.NET binder, the EF converter and the Dapper handler are all generic and closed over the
-  concrete types at startup, so per-request work is fully typed and allocates nothing extra. A typed adapter reads
-  `TSelf.Schema`, never the registry, which would describe a construction of a generic value object by reflection.
+  integrations use — the ASP.NET binder, the EF converter, the Dapper handler and the MongoDB serializer are all generic
+  and closed over the concrete types at startup, so per-request work is fully typed and allocates nothing extra. A
+  typed adapter reads `TSelf.Schema`, never the registry, which would describe a construction of a generic value object
+  by reflection.
 - **Boxed path.** `ValueObjectDescriptor`, resolved from `ValueObjectRegistry`, for callers that only know a
   `Type` at run time — `MustParseAs(Type)`, the OpenAPI transformer and the Swashbuckle filters, model-binder
   resolution. `descriptor.Accept`
   hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
   time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's `AddValueObjectHandlers`,
   the MVC binder provider, the JSON factory's general-purpose converter, for a value object written by hand, the
-  minimal API filter of `AspNetCore.Http`, which closes a text check per parameter, and EF Core's
+  minimal API filter of `AspNetCore.Http`, which closes a text check per parameter, the MongoDB provider, which builds
+  the serializer the driver asks it for over the driver's serializer of the underlying type, and EF Core's
   `ConfigureValueObjects` and `ConfigureEntityIds` do. `ConfigureValueObjects` still closes the converter of a
   `TSelf?` property with `MakeGenericType`, over the visitor's own type arguments: C# names it only under
   `TValue : struct` or `TSelf : IValueObject<TSelf, string>`, which `Visit` cannot prove, and it must stay the type a
@@ -240,11 +242,14 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   The exceptions are the EF Core and Dapper read paths, which use `CreateUnchecked` because they read values this
   same application already validated. `ConfigureValueObjects(strict: true)` turns validation back on for EF Core;
   Dapper validates only a column the value object cannot have written: text read into a value object over another
-  type, or a number or a `Guid` read into one over `string`.
+  type, or a number or a `Guid` read into one over `string`. MongoDB reads the other way round: strict, through
+  `TryCreate`, unless the serializer is trusted (`ValueObjectBson.Register(trusted: true, …)`), since a collection has
+  no schema and is often written by more than one program.
 - **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on
   success. The integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a
   `JsonException` or `JsonSerializationException`, a model state error, the validation problem of a minimal API, a
-  FluentValidation failure, a Dapper `DataException`. The one that throws `ValueObjectException` is a strict EF Core
+  FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver `FormatException` on read or
+  `BsonSerializationException` on write. The one that throws `ValueObjectException` is a strict EF Core
   read, which goes through `Create` and fails the query; `Create`, `Parse` and an explicit conversion throw it for code
   that treats a rejected value as a bug. `website/docs/reference/errors.md` names what each integration throws.
   Validation is fail-fast: the first violated rule wins.
@@ -438,6 +443,21 @@ These are all load-bearing, and each cost real debugging time:
   qualified `Swashbuckle.…` in a body. `AdCodicem.ValueObjects.Serilog` hides the root `Serilog` namespace the same
   way, the island's `AdCodicem.ValueObjects.CompatTests` included, and a file importing `Serilog` beside
   `Microsoft.Extensions.Logging` aliases one `ILogger` (CS0104).
+- **MongoDB.Driver's serializer registry is process-wide, and caches for good.** A value object the driver serializes
+  before `ValueObjectBson.Register` keeps the class map it was given, which writes `{}`, for the rest of the process,
+  and `Register` then fails, naming it (it reads `BsonClassMap.GetRegisteredClassMaps()`, which caches nothing, and
+  asks `ValueObjectRegistry.IsValueObject` of each type, so a generic construction counts); a serializer of the
+  application's own, the `GuidSerializer(GuidRepresentation.Standard)` above all, is registered before it. So every
+  MongoDB test class of a suite goes through one static registration first (the unit suite's `Persistence/MongoDb.cs`,
+  the integration suite's `MongoDbFixture`, the island's), strict, and a test needing another trust or representation
+  builds its serializer by hand, sets one on a class map of its own, or uses a fresh `BsonSerializerRegistry`, which
+  the internal checks take as a parameter; a test of `Register` refusing goes through `MongoDbStartUpTests`' fresh
+  copies of the driver, loaded into an `AssemblyLoadContext` of their own. The package's namespace,
+  `AdCodicem.ValueObjects.MongoDB`, hides the root `MongoDB` namespace in every `AdCodicem.ValueObjects.*` namespace, as
+  Swashbuckle's and Serilog's do: name the driver's types through usings at the top of the file. MongoDB.Bson has an
+  internal `UInt128` of its own, which a `cref` to `UInt128` in a file importing `MongoDB.Bson` resolves to (CS0419):
+  write `System.UInt128` there. A query's `ToString()` reports a translation the serializer refused instead of throwing
+  it; a test of a refused query constant renders a `Builders` filter.
 - **Serilog destructures no object under trimming.** Its `buildTransitive/Serilog.targets` sets
   `Serilog.Capturing.IsStructureValueSupported` to false under `PublishTrimmed`, which `PublishAot` implies, so a native
   binary logs an object with `@` as its `ToString()`, and a bare `Int128` as its text. The native AOT application sets
@@ -520,7 +540,11 @@ Four suites, each with a distinct job:
   `website/docs/_homepage-example.md` rather than in the TSX. `website/versioned_docs/` is deliberately out of
   scope: those snapshots describe older releases, not the current generator.
 - **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
-  objects reach the column types they claim, plus the API surface end to end.
+  objects reach the column types they claim, plus the API surface end to end; and a real MongoDB 8 server, which stores
+  a value object of every underlying type MongoDB.Bson can represent, linked from the unit suite's
+  `Domain/UnderlyingTypes.cs`, as the document its primitive writes, refuses one over `Int128` or `UInt128`, and
+  answers each LINQ and `Builders` shape over value objects with the documents the same query over the primitives
+  would.
 - **RdgTests** — minimal API endpoints whose binding the Request Delegate Generator writes, over value objects
   declared in the endpoints' own project, which list their contract (VO0033). The project imports the package's
   `build/AdCodicem.ValueObjects.props`, so VO0033 fails its build for a value object that drops its contract, and a
@@ -578,19 +602,19 @@ on where they apply.
   (CS0104). A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
   (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the sixteen packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the seventeen packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, on System.Text.Json and on
 Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal API problem details,
-`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json, Serilog,
-`XmlSerializer` and `DataContractSerializer` over its domain, which opts into XML serialization, and the contract kit,
-with no transitive pinning, so the dependency floors of the packages meet the next major as an
-application's would. `AdCodicem.ValueObjects.Swashbuckle` is installed by a second project, `tests/Compat/Swashbuckle`,
+`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8, FluentValidation,
+Newtonsoft.Json, Serilog, `XmlSerializer` and `DataContractSerializer` over its domain, which opts into XML
+serialization, and the contract kit, with no transitive pinning, so the dependency floors of the packages meet the next
+major as an application's would. `AdCodicem.ValueObjects.Swashbuckle` is installed by a second project, `tests/Compat/Swashbuckle`,
 which the main one excludes from its sources: Swashbuckle 10 over `Microsoft.OpenApi` 2, on which it is built, since it
 fails on the `Microsoft.OpenApi` 3 the main project's `Microsoft.AspNetCore.OpenApi` 11 brings. `ci.yml`'s
 `compat (.NET 11)` job runs both against the packages its build job packed; it is not a required check until .NET 11 ships, and is
-measured by no coverage. Without Docker its 18 container tests fail rather than skip, so leave them out explicitly
+measured by no coverage. Without Docker its 19 container tests fail rather than skip, so leave them out explicitly
 (Commands above). Tools that walk the repository rather than the solution do see it: CodeQL downloads its SDK, and
 GitHub's automatic dependency submission restores it with SDK 10 from the root, which is why its project files leave
 themselves empty on an SDK that cannot target `net11.0`. The suites above are still the four; the island checks the

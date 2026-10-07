@@ -26,15 +26,15 @@ with `AllowDefault = true`. Another source generator cannot see the generated me
 generator, and of any generator a `.globalconfig` adds
 ([the fix](./reference/diagnostics.md#a-value-object-another-generator-creates)). What reaches a boundary the
 analyzer cannot see — an entity property never set, a default array element — is not written as it stands: the
-JSON converters, the Dapper handler and the EF Core converters refuse an uninitialized instance whose value its
-type rejects, and an optional EF Core column stores a `NULL` instead
+JSON converters, the Dapper handler, the MongoDB serializers and the EF Core converters refuse an uninitialized
+instance whose value its type rejects, and an optional EF Core column stores a `NULL` instead
 ([what each one throws](./reference/errors.md#a-value-refused-on-write)).
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the
 value is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a
 refusal in their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper
-`DataException` ([what each one throws](./reference/errors.md)). Each carries the code of the rule, which
-`ValueObjectErrors.TryGetCode` reads from any of those exceptions
+`DataException`, a MongoDB.Driver `FormatException` ([what each one throws](./reference/errors.md)). Each carries the
+code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions
 ([the code in an exception](./reference/errors.md#the-code-in-an-exception)). `Create` throws `ValueObjectException`,
 and is for the call sites that want it; a strict EF Core read goes through it, and fails the query. Validation is
 fail-fast: the first violated rule wins.

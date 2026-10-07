@@ -7,7 +7,8 @@ namespace AdCodicem.ValueObjects.UnitTests.Domain;
 //
 // tests/NativeAot links this file into the domain of an application CI publishes with native AOT, and of a model it
 // compiles with `dotnet ef dbcontext optimize`: a value object added here goes into that application's AppJsonContext
-// too, which reports one it lacks.
+// too, which reports one it lacks. The integration suite links it too, and stores each of these value objects through a
+// real MongoDB server.
 
 // Its example is implemented explicitly, off the public surface of the type.
 

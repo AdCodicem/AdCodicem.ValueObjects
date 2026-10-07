@@ -28,8 +28,11 @@ Four suites, each with a distinct job:
   only way to notice a caching regression, since losing incrementality breaks nothing visible while making
   every IDE keystroke re-run the pipeline.
 - **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
-  objects reach the column types they claim, Dapper and EF Core round trips, plus the API surface end to end.
-  These need a Docker daemon: Testcontainers starts both engines for the run.
+  objects reach the column types they claim, Dapper and EF Core round trips, plus the API surface end to end; and a
+  real MongoDB server, which stores a value object of every underlying type MongoDB.Bson can represent as the document
+  its primitive writes, refuses one over `Int128` or `UInt128`, and answers each LINQ and `Builders` shape over them,
+  `.Value` included. These need a Docker daemon: Testcontainers
+  starts the three engines for the run.
 - **RdgTests** — minimal API endpoints whose binding the Request Delegate Generator writes, as it does in every
   build under `PublishAot` or `PublishTrimmed`, over value objects declared in the endpoints' own project: the case
   [the Request Delegate Generator](./how-to/aspnet-core.md#the-request-delegate-generator) cannot see the
@@ -71,14 +74,14 @@ SQL Server; the native AOT job also writes the model for native AOT, with its qu
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the
-solution, installs the sixteen packages exactly as they were packed — from the folder the build packs into, at that
+solution, installs the seventeen packages exactly as they were packed — from the folder the build packs into, at that
 one version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own
 SDK, its own package versions and no transitive pinning, so the dependency floors of the packages meet the next
 major as they would in an application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on
 SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json
 and on Newtonsoft.Json, and a minimal API with its problem details,
-`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, FluentValidation, Newtonsoft.Json, Serilog,
-`XmlSerializer` and `DataContractSerializer` over a domain that opts into XML serialization, and the contract kit. A second project installs the Swashbuckle package, Swashbuckle 10 failing on the `Microsoft.OpenApi` 3
+`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8, FluentValidation,
+Newtonsoft.Json, Serilog, `XmlSerializer` and `DataContractSerializer` over a domain that opts into XML serialization, and the contract kit. A second project installs the Swashbuckle package, Swashbuckle 10 failing on the `Microsoft.OpenApi` 3
 the first one's `Microsoft.AspNetCore.OpenApi` 11 brings: there, Swashbuckle documents a minimal API over
 `Microsoft.OpenApi` 2, as in an application that takes Swashbuckle alone.
 
@@ -90,8 +93,8 @@ blocks nothing until .NET 11 ships, then becomes a required check. The "On the n
 
 - **Typed path.** The static abstract members of `IValueObject<TSelf, TValue>` (`Create`, `TryCreate`,
   `TryParse`, `Normalize`, `Validate`). This is what domain code and the generic integrations use — the ASP.NET
-  binder, the EF converter and the Dapper handler are all generic and closed over the concrete types at
-  startup, so per-request work is fully typed and allocates nothing extra.
+  binder, the EF converter, the Dapper handler and the MongoDB serializer are all generic and closed over the
+  concrete types at startup, so per-request work is fully typed and allocates nothing extra.
 - **Boxed path.** A descriptor resolved from a runtime registry, for callers that only know a `Type` at run
   time — dynamic parsing, the OpenAPI transformer and the Swashbuckle filters, model-binder resolution.
 
@@ -128,7 +131,7 @@ dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/pac
 v=0.0.0-compat.$(date +%s)
 MINVERVERSIONOVERRIDE=$v dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj -p:AdCodicemVersion=$v
-# the main project needs Docker for PostgreSQL and SQL Server; without it, add --filter-not-trait "Requires=Docker"
+# the main project needs Docker for PostgreSQL, SQL Server and MongoDB; without it, add --filter-not-trait "Requires=Docker"
 dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj -p:AdCodicemVersion=$v   # no Docker
 
 # Native AOT (needs clang and zlib), and the compiled model, for the JIT (a round trip, needs Docker) and native AOT

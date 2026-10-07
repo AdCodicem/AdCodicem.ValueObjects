@@ -16,6 +16,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10 and later. |
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
+| `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
 | `AdCodicem.ValueObjects.Identifiers[.EntityFrameworkCore]` | Stripe-style public identifiers. See `identifiers.md`. |
@@ -52,8 +53,9 @@ default value its type rejects throws `ValueObjectJsonException` (a `JsonExcepti
 with `Minimum` 0, an unconstrained `Guid`) writes it.
 
 **Every exception an integration throws for a refused value carries the rule's code.** System.Text.Json:
-`ValueObjectJsonException.ErrorCode`, beside `ValueObjectType`. Newtonsoft.Json's `JsonSerializationException` and
-Dapper's `DataException`: `exception.Data[ValueObjectErrors.ErrorCodeKey]`. EF Core: the `ValueObjectException` inside
+`ValueObjectJsonException.ErrorCode`, beside `ValueObjectType`. Newtonsoft.Json's `JsonSerializationException`,
+Dapper's `DataException` and MongoDB.Driver's `FormatException` (read) and `BsonSerializationException` (write):
+`exception.Data[ValueObjectErrors.ErrorCodeKey]`. EF Core: the `ValueObjectException` inside
 `DbUpdateException`. Read any of them, wrapped or not, with `ValueObjectErrors.TryGetCode(exception, out var code)`.
 A token or column not of the underlying type carries `value_object.not_parsable`, a `null` for a value object that
 cannot be `null` `value_object.required`. An integration of your own sets
@@ -335,6 +337,48 @@ Dapper looks one up by the exact type, ahead of any query. Register each constru
   and keep `AddValueObjectHandlers` for the calls Dapper.AOT does not intercept. `QuerySingle<Iban>` is `DAP037`
   there: query the underlying type and `Create` the value object from it.
 
+## MongoDB
+
+```csharp skip
+BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard)); // first
+ValueObjectBson.Register(typeof(Iban).Assembly);   // once, at start-up, before anything is serialized
+```
+
+Without it, MongoDB.Driver writes a value object as `{}`, reads back a default instance, and a filter over one matches
+every document or none, silently. `Register` adds a provider that gives every value object a
+`ValueObjectBsonSerializer<TSelf, TValue>` over the driver's serializer of the underlying type, so it stores exactly
+what the primitive stores, the application's `Guid` and `DateTime` conventions included.
+
+- Order matters: the driver caches every serializer for the process. Register serializers of your own first, the
+  `GuidSerializer` before all, then `Register`, before any document is serialized or any class map built. `Register`
+  throws `InvalidOperationException` when a value object over `Guid` meets the driver's default `GuidSerializer`
+  (`GuidRepresentation.Unspecified`), and when the driver already mapped a value object through a class map (a generic
+  construction or one written by hand included). A second call with the other trust throws too.
+- Reads are strict: `TryCreate` normalizes and validates; a refusal is a `FormatException` (inside the driver's, which
+  names the member, when it reads a document) carrying the rule's code in `Data`: `ValueObjectErrors.TryGetCode`.
+  Whatever the trust, a BSON `null` read into an `Iban` is `value_object.required` (declare `Iban?`), and a BSON value
+  the underlying serializer cannot read (another type, out of range) `value_object.not_parsable`. A field missing from
+  the document leaves the default instance: `[BsonRequired]`.
+- A collection only the application writes: `ValueObjectBson.Register(trusted: true, assembly)`, per type
+  `ValueObjectBson.Register<Iban, string>(trusted: true)` before the driver asks for it, or per member on a class map,
+  `map.MapMember(x => x.Iban).SetSerializer(new ValueObjectBsonSerializer<Iban, string>(stringSerializer, trusted: true))`.
+- A write of an uninitialized value object whose default its type rejects throws `BsonSerializationException`, from
+  `InsertOne`, `ReplaceOne`, an update and a query constant alike (inside the driver's, naming the member, when it
+  writes a document); an `Iban?` holding nothing is written `null`. An update through `.Value`
+  (`Update.Set(x => x.Page.Value, 0)`, `Inc`, `Mul`, `Min`, `Max`) writes the raw value unchecked: set the value object,
+  `Update.Set(x => x.Page, page)`.
+- Query value objects as their values: `x.Iban == iban`, `x.Iban.Value.StartsWith("FR")`, `x.Quantity.Value > 2`,
+  `ids.Contains(x.Id)`, `Update.Inc(x => x.Quantity.Value, 1)` all translate on the field itself. Equality is the
+  server's, exact: a case-insensitive value object matches only the spelling stored. To find stored values the type
+  refuses, compare `.Value`; a constant the type refuses is refused.
+- `[BsonRepresentation]`, `[BsonGuidRepresentation]` and `[BsonDateTimeOptions]` on a value-object member reach the
+  underlying serializer as on the primitive.
+- A value object over `Int128` or `UInt128` is refused both ways (MongoDB.Bson has no serializer for either) unless
+  you register a serializer of your own for the underlying type first.
+- A generic construction is described by reflection on first use;
+  `ValueObjectBson.Register<Reference<PurchaseOrder>, string>()` registers it without. Not AOT-compatible: the driver itself is not. Azure Cosmos DB for MongoDB and Azure
+  DocumentDB use the same driver. MongoDB.EntityFrameworkCore goes through `ConfigureValueObjects` instead.
+
 ## FluentValidation
 
 Defer to the rules the value object already owns instead of restating them:
@@ -532,7 +576,7 @@ Inside typed code, the rules are `TSelf.Schema` (`TSelf.Schema.MaxLength`), a st
 
 Registration happens through a generated `[ModuleInitializer]`, so nothing needs registering by hand — but a
 module initializer only runs once its assembly is loaded, which is what `EnsureAssemblyRegistered(assembly)`
-forces (the EF Core and Dapper entry points already call it). A generic value object registers its definition
+forces (the EF Core, Dapper and MongoDB entry points already call it). A generic value object registers its definition
 (`GetRegisteredGenericDefinitions()`), and `TryResolve` describes a construction, by reflection, once asked for it;
 `TryGet` finds it from then on. A hand-written value object is described by reflection the same way. Under native AOT,
 register each construction instead,
