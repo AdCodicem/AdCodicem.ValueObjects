@@ -6,6 +6,7 @@ using AdCodicem.ValueObjects.Annotations;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.Testing;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
+using AdCodicem.ValueObjects.UnitTests.TestData;
 using Xunit.Sdk;
 
 namespace AdCodicem.ValueObjects.UnitTests;
@@ -295,6 +296,130 @@ public partial class ContractKitTests
 
         new SilentContract().Invoking(checks => checks.The_known_value_details_line_up_with_the_known_values())
             .Should().Throw<SkipException>().WithMessage("*'Silent' declares no known value.");
+    }
+
+    /// <summary>
+    /// The values a schema rules out are checked only when a contract asks for it: one that does not reports the check
+    /// skipped and says how to ask, and one whose schema rules nothing out has nothing to check.
+    /// </summary>
+    [Fact]
+    public void The_check_of_the_values_the_schema_rules_out_runs_only_when_a_contract_asks_for_it()
+    {
+        new SilentContract().Invoking(checks => checks.Every_value_the_declared_schema_rules_out_is_rejected())
+            .Should().Throw<SkipException>()
+            .WithMessage("*'Silent' does not derive rejected values from its schema: override DerivesRejectedValues to return true*");
+
+        new DerivingSilentContract().Invoking(checks => checks.Every_value_the_declared_schema_rules_out_is_rejected())
+            .Should().Throw<SkipException>()
+            .WithMessage("*'Silent' declares no length, no bound and no closed value set a value could be derived to break.");
+    }
+
+    /// <summary>
+    /// A bound at an extreme of its type, or a closed set holding every value, rules out no value either: the check says
+    /// that the type declares rules, rather than none.
+    /// </summary>
+    [Fact]
+    public void The_check_of_the_values_the_schema_rules_out_says_when_the_declared_rules_leave_none_to_derive()
+    {
+        const string Reason = "declares rules no value can be derived to break: a bound at an extreme of its type, or one that does not read as a value of it, or a closed value set that holds every value drawn.";
+
+        new DerivingContract<ExtremeBounds, int>([0, 1]).Invoking(checks => checks.Every_value_the_declared_schema_rules_out_is_rejected())
+            .Should().Throw<SkipException>().WithMessage($"*'ExtremeBounds' {Reason}");
+        new DerivingContract<LatestTime, TimeOnly>([TimeOnly.MinValue, TimeOnly.MaxValue]).Invoking(checks => checks.Every_value_the_declared_schema_rules_out_is_rejected())
+            .Should().Throw<SkipException>().WithMessage($"*'LatestTime' {Reason}");
+        new DerivingContract<EveryAnswer, bool>([false, true]).Invoking(checks => checks.Every_value_the_declared_schema_rules_out_is_rejected())
+            .Should().Throw<SkipException>().WithMessage($"*'EveryAnswer' {Reason}");
+    }
+
+    /// <summary>
+    /// A value the schema rules out is refused as a hand-written rejected value is, or the check fails: with a code that is
+    /// not blank, with a message, and with the same code from <c>Create</c> as from <c>TryCreate</c>.
+    /// </summary>
+    [Fact]
+    public void A_refusal_of_a_value_the_schema_rules_out_carries_a_code_a_message_and_the_same_code_from_Create()
+    {
+        new DerivingContract<Declared<BlankCode, int>, int>([0, 1]).Invoking(checks => checks.Every_value_the_declared_schema_rules_out_is_rejected())
+            .Should().Throw<XunitException>().WithMessage("The refusal of '-1' must carry a stable code.*");
+        new DerivingContract<Declared<BlankMessage, int>, int>([0, 1]).Invoking(checks => checks.Every_value_the_declared_schema_rules_out_is_rejected())
+            .Should().Throw<XunitException>().WithMessage("The refusal of '-1' must carry a message.*");
+        new DerivingContract<Declared<TwoCodes, int>, int>([0, 1]).Invoking(checks => checks.Every_value_the_declared_schema_rules_out_is_rejected())
+            .Should().Throw<XunitException>().WithMessage("Assert.Equal() Failure*value_object.out_of_range*negative*");
+    }
+
+    /// <summary>
+    /// A type whose normalizer clamps a value into its range accepts the value one step past a bound: the check fails on
+    /// the first such value, naming the rule the type does not enforce, which is why a contract opts in to it.
+    /// </summary>
+    [Fact]
+    public void A_type_that_clamps_a_value_its_schema_rules_out_fails_the_check_naming_the_rule()
+    {
+        new DialContract().Invoking(checks => checks.Every_value_the_declared_schema_rules_out_is_rejected())
+            .Should().Throw<XunitException>()
+            .WithMessage("'-1' breaks Minimum (0) declared on 'Dial' but is accepted.*");
+    }
+
+    /// <summary>
+    /// A type whose JSON converter reads a value its rules refuse fails the check at the JSON converter, after
+    /// <c>TryCreate</c> and <c>Create</c> refused it.
+    /// </summary>
+    [Fact]
+    public void A_type_whose_JSON_converter_takes_a_value_its_schema_rules_out_fails_the_check()
+    {
+        new LaxJsonContract().Invoking(checks => checks.Every_value_the_declared_schema_rules_out_is_rejected())
+            .Should().Throw<XunitException>()
+            .WithMessage("Assert.ThrowsAny() Failure*");
+    }
+
+    /// <summary>Private, so the runner does not discover it: a contract that derives rejected values, over any type.</summary>
+    private sealed class DerivingContract<TSelf, TValue>(TValue[] accepted) : ValueObjectContract<TSelf, TValue>
+        where TSelf : struct, IValueObject<TSelf, TValue>
+    {
+        protected override IEnumerable<TValue> AcceptedValues => accepted;
+
+        protected override IEnumerable<TValue> RejectedValues => [];
+
+        protected override bool DerivesRejectedValues => true;
+    }
+
+    /// <summary>Private, so the runner does not discover it: its JSON converter reads any value, on purpose.</summary>
+    private sealed class LaxJsonContract : ValueObjectContract<Declared<LaxJson, int>, int>
+    {
+        protected override IEnumerable<int> AcceptedValues => [0, 10];
+
+        protected override IEnumerable<int> RejectedValues => [];
+
+        protected override bool DerivesRejectedValues => true;
+    }
+
+    /// <summary>A dial from 0 to 10, whose normalizer clamps any setting into that range rather than refusing it.</summary>
+    [ValueObject<int>]
+    public readonly partial struct Dial : IValueObjectNormalizer<int>, IValueObjectMinimum<int>, IValueObjectMaximum<int>
+    {
+        public static int Minimum => 0;
+
+        public static int Maximum => 10;
+
+        public static int NormalizeValue(int value) => Math.Clamp(value, Minimum, Maximum);
+    }
+
+    /// <summary>Private, so the runner does not discover it: its type clamps what its schema rules out, on purpose.</summary>
+    private sealed class DialContract : ValueObjectContract<Dial, int>
+    {
+        protected override IEnumerable<int> AcceptedValues => [0, 10];
+
+        protected override IEnumerable<int> RejectedValues => [];
+
+        protected override bool DerivesRejectedValues => true;
+    }
+
+    /// <summary>Private, so the runner does not discover it: the check it is used for skips.</summary>
+    private sealed class DerivingSilentContract : ValueObjectContract<Silent, string>
+    {
+        protected override IEnumerable<string> AcceptedValues => ["a", "b"];
+
+        protected override IEnumerable<string> RejectedValues => [string.Empty];
+
+        protected override bool DerivesRejectedValues => true;
     }
 
     /// <summary>

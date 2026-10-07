@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.Testing.Data;
 using Xunit;
 using Xunit.Sdk;
 
@@ -22,11 +23,17 @@ namespace AdCodicem.ValueObjects.Testing;
 /// details of its known values name each of them in its place.
 /// </para>
 /// <para>
+/// A contract that opts in through <see cref="DerivesRejectedValues"/> also checks the values its schema rules out, which
+/// <c>AdCodicem.ValueObjects.Testing.Data</c> derives from it: one character past each declared length, one step past
+/// each declared bound, and a value outside a closed value set.
+/// </para>
+/// <para>
 /// <code>
 /// public sealed class IbanContract : ValueObjectContract&lt;Iban, string&gt;
 /// {
 ///     protected override IEnumerable&lt;string&gt; AcceptedValues =&gt; ["FR7630006000011234567890189"];
-///     protected override IEnumerable&lt;string&gt; RejectedValues =&gt; ["", "not-an-iban"];
+///     protected override IEnumerable&lt;string&gt; RejectedValues =&gt; ["not-an-iban"];
+///     protected override bool DerivesRejectedValues =&gt; true;
 /// }
 /// </code>
 /// </para>
@@ -49,6 +56,17 @@ public abstract class ValueObjectContract<TSelf, TValue>
     /// </summary>
     /// <remarks>Always true for the value objects this framework generates; overridable for exotic hand-written ones.</remarks>
     protected virtual bool SerializesAsScalar => true;
+
+    /// <summary>
+    /// Gets a value indicating whether the kit also checks the values the declared schema rules out, which
+    /// <c>AdCodicem.ValueObjects.Testing.Data</c> derives from it, beside the hand-written <see cref="RejectedValues"/>.
+    /// </summary>
+    /// <remarks>
+    /// Off by default, since turning it on adds a check to a contract that passed: a type whose normalizer clamps a value
+    /// into its rules, rather than its validator refusing it, fails it, and the failure names the rule it does not
+    /// enforce.
+    /// </remarks>
+    protected virtual bool DerivesRejectedValues => false;
 
     [Fact]
     public void Every_accepted_value_produces_an_initialized_instance()
@@ -80,6 +98,64 @@ public abstract class ValueObjectContract<TSelf, TValue>
 
             var thrown = Assert.Throws<ValueObjectException>(() => TSelf.Create(value));
             Assert.Equal(validation.ErrorCode, thrown.ErrorCode);
+        }
+    }
+
+    /// <summary>
+    /// Every value the schema rules out is refused the way a hand-written rejected value is: by <c>TryCreate</c> with a
+    /// code and a message, by <c>Create</c> with the same code, and by the JSON converter.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The values are those <see cref="ValueObjectSampler.RejectedValues{TSelf, TValue}"/> derives from <c>TSelf.Schema</c>,
+    /// drawn with a fixed seed so that a failure replays: a string one character shorter than its <c>MinLength</c> and the
+    /// empty string beside a <c>MinLength</c> of 2 or more, one character longer than its <c>MaxLength</c>, a value one
+    /// step below its <c>Minimum</c> and one above its <c>Maximum</c>, and a value outside its closed value set.
+    /// </para>
+    /// <para>
+    /// A contract that does not opt in through <see cref="DerivesRejectedValues"/> reports the check skipped, and so does
+    /// one whose schema rules nothing out, saying whether it declares no rule or rules no value can be derived to break.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_value_the_declared_schema_rules_out_is_rejected()
+    {
+        var name = typeof(TSelf).Name.Split('`')[0];
+        if (!DerivesRejectedValues)
+        {
+            Assert.Skip(
+                $"'{name}' does not derive rejected values from its schema: override DerivesRejectedValues to return true, "
+                + "and the kit checks that the type refuses every value its schema rules out.");
+        }
+
+        Initialize();
+
+        var violations = new ValueObjectSampler(new Random(0)).RejectedValues<TSelf, TValue>().ToList();
+        if (violations.Count == 0)
+        {
+            // A declared length always derives a value; a bound or a closed set may not.
+            var schema = TSelf.Schema;
+            Assert.Skip(
+                schema.Minimum is not null || schema.Maximum is not null || schema.IsClosedValueSet
+                    ? $"'{name}' declares rules no value can be derived to break: a bound at an extreme of its type, or one that "
+                      + "does not read as a value of it, or a closed value set that holds every value drawn."
+                    : $"'{name}' declares no length, no bound and no closed value set a value could be derived to break.");
+        }
+
+        var options = new JsonSerializerOptions { NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals };
+        foreach (var (value, rule) in violations)
+        {
+            Assert.False(
+                TSelf.TryCreate(value, out _, out var validation),
+                $"'{value}' breaks {rule} declared on '{name}' but is accepted.");
+            Assert.False(string.IsNullOrWhiteSpace(validation.ErrorCode), $"The refusal of '{value}' must carry a stable code.");
+            Assert.False(string.IsNullOrWhiteSpace(validation.ErrorMessage), $"The refusal of '{value}' must carry a message.");
+
+            var thrown = Assert.Throws<ValueObjectException>(() => TSelf.Create(value));
+            Assert.Equal(validation.ErrorCode, thrown.ErrorCode);
+
+            var json = JsonSerializer.Serialize(value, options);
+            Assert.ThrowsAny<Exception>(() => JsonSerializer.Deserialize<TSelf>(json, options));
         }
     }
 

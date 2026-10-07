@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The nineteen packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The twenty packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -161,6 +161,16 @@ through them the MVC XML formatters (probed), CoreWCF and Dapr actor remoting (e
 then written as its underlying value, read back through its rules, and described in the exported schema with its rules
 as facets. Without it, both serializers write an empty element and read back a default instance. [XML](./how-to/xml.md)
 has the forms written, the errors and the limits: `DataContractSerializer` needs dynamic code to read one.
+
+### Does it work with AutoFixture, Bogus or FsCheck?
+
+Left to themselves, AutoFixture feeds `Create` strings and numbers the rules refuse, Bogus leaves a value object without
+a rule at its default, and FsCheck refuses the type. `AdCodicem.ValueObjects.Testing.Data` draws values each type
+accepts from the rules it declares, for any test framework, so a generator of each can call it:
+`RuleFor(o => o.Quantity, _ => sampler.Next<Quantity, short>())` in Bogus,
+`fixture.Register(() => sampler.Next<Quantity, short>())` in AutoFixture, or a generator seeded by FsCheck, as
+[the CsCheck one](./how-to/test-value-objects.md#cscheck) is.
+[Generate valid values](./how-to/test-value-objects.md#generate-valid-values) says how each value is drawn.
 
 ## Performance
 

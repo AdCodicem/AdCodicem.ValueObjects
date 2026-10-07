@@ -19,6 +19,7 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Testing\AdCodicem.ValueObjects.Testing.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Testing.Data\AdCodicem.ValueObjects.Testing.Data.csproj" />
     <!-- The integrations, whose behaviour is tested here directly; the integration suite keeps what only a real
          database or a real HTTP pipeline can confirm (docs/adr/0006-coverage-is-a-signal-not-a-goal.md). -->
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore\AdCodicem.ValueObjects.AspNetCore.csproj" />

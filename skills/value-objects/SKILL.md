@@ -257,7 +257,30 @@ That derives over a dozen checks: normalization settles after one pass, equality
 agrees with equality, text and JSON round-trip, every entry point rejects a bad value the same way, the type
 accepts its declared `Example` and every known value, and `Schema.KnownValueDetails` lists those known values one for
 one, in order, each named (these three read `TSelf.Schema`, so a hand-written type is checked too, registered or
-not). Write it for every value object, then test only the domain behaviour that is actually yours.
+not). Add `protected override bool DerivesRejectedValues => true;` and the kit also checks that the type refuses every
+value its schema rules out: one character past each length, one step past each bound, a value outside a closed set (a
+type whose normalizer clamps fails it). Write it for every value object, then test only the domain behaviour that is
+actually yours.
+
+### Valid values for tests
+
+Never write a generator that restates the rules: `AdCodicem.ValueObjects.Testing.Data` draws values the type accepts
+from its schema, for any test framework.
+
+```csharp skip
+var options = new ValueObjectSamplerOptions()
+    .Use<Iban, string>(random => /* an IBAN with its check digits */ ...); // a rule no schema carries: register it
+var sampler = new ValueObjectSampler(new Random(seed), options);
+
+var iban = sampler.Next<Iban, string>();               // only values Iban.TryCreate accepts
+var edges = sampler.Boundaries<Quantity, short>();     // Minimum, Maximum, lengths, known values
+var past = sampler.RejectedValues<Quantity, short>();  // one step past each rule, with the rule it breaks
+```
+
+A checksum or another validator is reached only through `TryCreate`: register a generator with `Use<TSelf, TValue>`,
+or the sampler falls back on the type's example and, without one, throws `ValueObjectSamplingException`, which names
+the registration to add, or the registered generator whose values the type refuses. `ValueObjectSampler.Shrink` proposes simpler accepted values to a property-based testing
+library.
 
 ## Reference files
 

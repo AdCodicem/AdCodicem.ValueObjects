@@ -261,6 +261,37 @@ left at either end is dropped. A code that maps to no valid reason, one that sta
 longer than 63 characters, throws an `ArgumentException` rather than being truncated or given a prefix, which could
 make two codes one.
 
+## A value the test-data sampler cannot draw
+
+`ValueObjectSampler.Next<TSelf, TValue>()` and `ValueObjectSampler.Next(descriptor)`, in
+`AdCodicem.ValueObjects.Testing.Data`, throw a `ValueObjectSamplingException`, an `InvalidOperationException`, when no
+candidate passed the rules of a type, whether drawn from its schema or from a generator registered for it with
+`Use<TSelf, TValue>`, and the type declares no example they accept. It is a failure of test set-up, not a value refused
+at a boundary: its `ErrorCode` holds the code of the rule that refused the last candidate, or `null` when no candidate
+was drawn at all, `ValueObjectType` the type, `Attempts` the number of candidates tried and `FromGenerator` whether
+they came from a registered generator, and nothing goes into `Exception.Data`, so `ValueObjectErrors.TryGetCode` reads
+no code from it. Its message holds no candidate value, and ends on the registration that gives the sampler a generator
+of the underlying value:
+
+```text
+Could not draw a value of 'EvenCode' its rules accept: the last of 100 candidates drawn from its schema was refused
+(checksum), and it declares no example its rules accept. Register a generator of its underlying value:
+options.Use<EvenCode, string>(random => ...).
+```
+
+When a registered generator gave the candidates, the message names that generator rather than asking for one:
+
+```text
+Could not draw a value of 'EvenCode' its rules accept: the last of 100 candidates its registered generator gave was
+refused (checksum), and it declares no example its rules accept. Make the generator registered with
+options.Use<EvenCode, string>(random => ...) give values its rules accept.
+```
+
+`TryNext` reports the same without throwing: `false`, and the refusal of the last candidate. The contract kit's check of
+the values a schema rules out fails with the value and the rule it breaks, `'-1' breaks Minimum (0) declared on 'Dial'
+but is accepted.`, a test value and no user input. [Test your value objects](../how-to/test-value-objects.md#rules-no-schema-carries)
+says when each happens.
+
 ## Detecting an uninitialized instance
 
 `IsDefault` is `true` for an instance equal to `default(TSelf)`, such as one that crossed a boundary the `VO0010`

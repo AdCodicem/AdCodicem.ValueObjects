@@ -43,7 +43,10 @@ public sealed class IbanContract : ValueObjectContract<Iban, string>
 {
     protected override IEnumerable<string> AcceptedValues => ["FR7630006000011234567890189", "fr76 3000 6000 0112 3456 7890 189"];
 
-    protected override IEnumerable<string> RejectedValues => ["", "not-an-iban", "FR0030006000011234567890190"];
+    protected override IEnumerable<string> RejectedValues => ["not-an-iban", "FR0030006000011234567890190"];
+
+    // The empty string and the strings one character past each length come from the schema.
+    protected override bool DerivesRejectedValues => true;
 }
 
 /// <summary>The contract kit over a construction of a generic value object.</summary>
@@ -51,5 +54,8 @@ public sealed class PurchaseReferenceContract : ValueObjectContract<Reference<Pu
 {
     protected override IEnumerable<string> AcceptedValues => ["PO-1", " po-2 "];
 
-    protected override IEnumerable<string> RejectedValues => ["", "THIRTEEN-CHARS"];
+    protected override IEnumerable<string> RejectedValues => [""];
+
+    // A reference of thirteen characters comes from the schema.
+    protected override bool DerivesRejectedValues => true;
 }

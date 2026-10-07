@@ -6,7 +6,7 @@ site, and the decisions that were costly to reverse are recorded in [`docs/adr/`
 
 ## What the repository ships
 
-Nineteen NuGet packages for single-value DDD value objects. A `readonly partial struct` marked `[ValueObject<T>]`
+Twenty NuGet packages for single-value DDD value objects. A `readonly partial struct` marked `[ValueObject<T>]`
 gets its whole implementation from a Roslyn incremental generator, and crosses every boundary as its underlying
 type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object wrapper. Consumers
 define their own value objects; this repository ships the frame.
@@ -14,7 +14,7 @@ define their own value objects; this repository ships the frame.
 ## Layout
 
 ```
-src/          the nineteen shipped packages
+src/          the twenty shipped packages
 tests/        four suites with distinct jobs (see below)
   NativeAot/  applications CI publishes with native AOT and compiles an EF Core model for
   Compat/     the packed packages in .NET 11 applications, outside the solution
@@ -70,7 +70,8 @@ This distinction is where bugs hide, so it is worth knowing before changing anyt
   `AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains that way, the MongoDB
   provider the serializer the driver asks it for, over the serializer the driver holds for the underlying type, and the
   MessagePack resolver the formatter MessagePack asks it for, which writes through the options' formatter of the
-  underlying type. An
+  underlying type. The test-data sampler of `AdCodicem.ValueObjects.Testing.Data` draws a value of a type known only by
+  its descriptor the same way, through the typed draw that reads `TSelf.Schema`. An
   entity identifier's descriptor has its own visitor, `IEntityIdVisitor<TResult>`, whose `Visit<TId>` reaches
   `TId.New()`: the MongoDB identifiers package closes its id generators through it. The
   Serilog integration closes nothing and visits no descriptor: it reads a value Serilog has already boxed through the
@@ -111,13 +112,15 @@ actually fired. `DescriptorTests.cs` covers that surface.
   reader of a .NET pattern each package writing one in another dialect links, which refuses what it cannot read with
   certainty. The MongoDB package links it too, and writes the pattern in PCRE2 for the `$jsonSchema` collection
   validator it builds from `TSelf.Schema`, where `MaxLength` becomes `maxLength` once more: each rule only where the
-  server refuses no value the type accepts.
+  server refuses no value the type accepts. The test-data sampler links it as well, and draws strings from the tree; it
+  draws every test value from the same schema, lengths, pattern, bounds and known values, and keeps a candidate only once
+  the type's own rules accept it, so a test never restates a rule the type declares.
 
 ## Testing
 
 | Suite | Job |
 |---|---|
-| `UnitTests` | Behaviour of generated code, over value objects defined in `Domain/` — one per underlying type and per option or hook — and of every integration package called directly, a SignalR hub over TestHost included; four fixture assemblies hold what the test assembly cannot, value objects of an assembly that opts into XML serialization among them. |
+| `UnitTests` | Behaviour of generated code, over value objects defined in `Domain/` — one per underlying type and per option or hook — and of every integration package called directly, a SignalR hub over TestHost included; four fixture assemblies hold what the test assembly cannot, value objects of an assembly that opts into XML serialization among them. Its property-based tests draw the values each type accepts with the test-data sampler, and every contract of `Domain/` checks the values its schema rules out. |
 | `GeneratorTests` | The generator itself: emission, every diagnostic, hook detection, the analyzers, incremental caching, and every published documentation snippet. |
 | `IntegrationTests` | Real PostgreSQL and SQL Server via Testcontainers, asserting against `information_schema`, plus the API surface end to end; and a real MongoDB server, storing every underlying type MongoDB.Bson can represent as its primitive does, refusing the two 128-bit integers, answering each LINQ and `Builders` shape over value objects, applying the `$jsonSchema` validator built from the rules, and minting entity identifiers on insert. |
 | `RdgTests` | Minimal API endpoints whose binding the Request Delegate Generator writes, over value objects declared in the endpoints' own project, which list their contract (`VO0033`), and the problem details their refusals are answered with. |
@@ -148,5 +151,5 @@ build's own dependencies are pinned, and why NuGet lock files are not part of it
 [ADR-0005](docs/adr/0005-version-the-documentation-site.md) records how the documentation site follows the same
 two tracks: every `preview.yml` run redeploys the preview pages, and each stable release freezes its own.
 [ADR-0010](docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md) records the versioning
-policy: one version for the nineteen packages, never aligned with .NET, and a framework's next major supported in the
+policy: one version for the twenty packages, never aligned with .NET, and a framework's next major supported in the
 same packages.

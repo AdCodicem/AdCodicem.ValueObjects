@@ -1,3 +1,4 @@
+using AdCodicem.ValueObjects.Testing.Data;
 using FsCheck;
 using FsCheck.Fluent;
 
@@ -16,12 +17,18 @@ namespace AdCodicem.ValueObjects.UnitTests;
 /// <c>[InlineData]</c> for.
 /// </para>
 /// <para>
+/// The values each type accepts are drawn by <c>ValueObjectSampler</c>, from the rules the type declares,
+/// rather than by generators restating them here; FsCheck draws the seed, so that a failing run replays.
+/// The IBAN's MOD-97 check digits are a rule no schema carries, so its generator is registered with the
+/// sampler. The deliberately invalid input -- the junk, the near misses -- stays written by hand.
+/// </para>
+/// <para>
 /// Two traps make such a suite look like coverage without being any. A property conditioned on "the value
 /// was accepted" passes vacuously when the generator only ever produces junk, so the generators here mix
 /// in values each type is meant to accept and every such property asserts on how often it actually
 /// reached the accepting branch. And a property over a wide type never lands on the boundary by chance --
-/// one draw in 65536 for <see cref="short"/> -- so the quantity generator biases towards the edges of the
-/// declared range rather than trusting luck.
+/// one draw in 65536 for <see cref="short"/> -- so the quantity generator biases towards the edges the
+/// sampler derives from the declared range rather than trusting luck.
 /// </para>
 /// </remarks>
 public class PropertyTests
@@ -30,6 +37,11 @@ public class PropertyTests
     private static readonly Config Laws = Config.QuickThrowOnFailure.WithMaxTest(500).WithQuietOnSuccess(true);
 
     private const string Base36 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    /// <summary>
+    /// The generators of the rules no schema carries: the check digits of an IBAN.
+    /// </summary>
+    private static readonly ValueObjectSamplerOptions Sampling = new ValueObjectSamplerOptions().Use<Iban, string>(ElectronicIban);
 
     /// <summary>
     /// Text as a boundary actually hands it over: arbitrary strings, but also null, empty and the
@@ -43,14 +55,9 @@ public class PropertyTests
     ]);
 
     /// <summary>
-    /// Structurally valid IBANs: a country code, ISO 7064 MOD-97-10 check digits computed here rather
-    /// than taken from the type under test, and a BBAN of a plausible length.
+    /// Structurally valid IBANs, drawn by the sampler from the generator registered for them.
     /// </summary>
-    private static readonly Gen<string> ElectronicIbans =
-        from country in Gen.Elements("FR", "DE", "BE", "NL", "ES", "IT", "LU", "PT", "GB")
-        from length in Gen.Choose(11, 30)
-        from bban in Gen.ArrayOf(Gen.Elements(Base36.ToCharArray()), length)
-        select country + CheckDigitsFor(country, new string(bban)) + new string(bban);
+    private static readonly Gen<string> ElectronicIbans = Sampled<Iban, string>().Select(iban => iban.Value);
 
     /// <summary>The same IBANs respelled the way people write them: grouped, hyphenated, padded, lower case.</summary>
     private static readonly Gen<(string Canonical, string AsWritten)> IbanSpellings =
@@ -61,26 +68,45 @@ public class PropertyTests
         from padded in ArbMap.Default.ArbFor<bool>().Generator
         select (canonical, Respell(canonical, separator, groupSize, lower, padded));
 
+    /// <summary>
+    /// Addresses the sampler draws from the pattern and the length an address declares, respelled with the noise its
+    /// normalizer takes out -- padding and an upper-case domain -- so that the fixed-point law meets spellings that are
+    /// not yet normalized.
+    /// </summary>
     private static readonly Gen<string> Emails =
-        from local in Gen.ArrayOf(Gen.Elements("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.+_-".ToCharArray()))
-            .Where(characters => characters.Length is > 0 and <= 40)
-        from host in Gen.Elements("example.com", "Example.COM", "mail.example.org", "sub.domain.example.net")
+        from address in Sampled<EmailAddress, string>()
+        from shouting in ArbMap.Default.ArbFor<bool>().Generator
         from padded in ArbMap.Default.ArbFor<bool>().Generator
-        select padded ? $"  {new string(local)}@{host}  " : $"{new string(local)}@{host}";
+        let at = address.Value.IndexOf('@', StringComparison.Ordinal)
+        let spelled = shouting ? address.Value[..at] + address.Value[at..].ToUpperInvariant() : address.Value
+        select padded ? $"  {spelled}  " : spelled;
 
-    /// <summary>Country codes as they arrive: the three known ones, their near misses, and casing noise.</summary>
+    /// <summary>
+    /// Country codes as they arrive: the known ones, which the sampler draws from the closed set, respelled with casing
+    /// noise; their near misses; and padding.
+    /// </summary>
     private static readonly Gen<string> CountryCodeSpellings =
-        from code in Gen.Elements("FR", "BE", "LU", "ES", "DE", "fr", "Be", "lu", "F", "FRA", "")
+        from code in Gen.Frequency(
+        [
+            // Six to five, the share of known values among the spellings this generator was calibrated on.
+            (6, from country in Sampled<CountryCode, string>()
+                from casing in Gen.Elements("upper", "lower", "title")
+                select casing switch
+                {
+                    "upper" => country.Value,
+                    "lower" => country.Value.ToLowerInvariant(),
+                    _ => country.Value[..1] + country.Value[1..].ToLowerInvariant(),
+                }),
+            (5, Gen.Elements("ES", "DE", "F", "FRA", "")),
+        ])
         from padded in ArbMap.Default.ArbFor<bool>().Generator
         select padded ? $" {code} " : code;
 
-    /// <summary>Order references over the characters an order reference is actually made of.</summary>
-    private static readonly Gen<string> OrderReferences =
-        from length in Gen.Choose(3, 20)
-        from characters in Gen.ArrayOf(
-            Gen.Elements("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-".ToCharArray()),
-            length)
-        select new string(characters);
+    /// <summary>
+    /// Order references, which the sampler draws from the lengths the type declares, as ASCII letters and digits since it
+    /// declares no pattern.
+    /// </summary>
+    private static readonly Gen<string> OrderReferences = Sampled<Ordering.OrderReference, string>().Select(reference => reference.Value);
 
     /// <summary>Arbitrary text, for the laws that must hold whatever arrives.</summary>
     private static readonly Arbitrary<string?> AnyText = Arb.From(Junk);
@@ -95,22 +121,23 @@ public class PropertyTests
         (3, Gen.Select(ElectronicIbans, text => (string?)text)),
         (2, Gen.Select(IbanSpellings, spelling => (string?)spelling.AsWritten)),
         (3, Gen.Select(Emails, text => (string?)text)),
-        // Weighted above the others: only 6 of CountryCodeSpellings' 11 elements are known values, so at
+        // Weighted above the others: only 6 of CountryCodeSpellings' 11 shares are known values, so at
         // equal weight the closed-set law's accepted count landed within a standard deviation of its own
         // threshold and flaked on CI (observed: 48 and 49 against a >50 bound, over 500 trials).
         (6, Gen.Select(CountryCodeSpellings, text => (string?)text)),
     ]));
 
     /// <summary>
-    /// Quantities biased towards the edges of the declared 0..1000 range. A uniform <see cref="short"/>
-    /// lands on 1000 once in 65536 draws, so a range property fed by one would never test the boundary it
-    /// exists to test -- verified by mutation: widening the expected bound to 999 leaves a uniform
-    /// generator green.
+    /// Quantities biased towards the edges of the declared 0..1000 range: the accepted values at its edges and the values
+    /// one step past them, which the sampler derives from the declared bounds, beside values it draws inside them and a
+    /// uniform <see cref="short"/>. A uniform <see cref="short"/> alone lands on 1000 once in 65536 draws, so a range
+    /// property fed by one would never test the boundary it exists to test -- verified by mutation: widening the expected
+    /// bound to 999 leaves a uniform generator green.
     /// </summary>
     private static readonly Arbitrary<short> Quantities = Arb.From(Gen.Frequency(
     [
-        (3, Gen.Elements<short>(-2, -1, 0, 1, 2, 998, 999, 1000, 1001, 1002, short.MinValue, short.MaxValue)),
-        (3, Gen.Select(Gen.Choose(-10, 1010), value => (short)value)),
+        (3, Gen.Elements(QuantityEdges())),
+        (3, Sampled<Quantity, short>().Select(quantity => quantity.Value)),
         (2, ArbMap.Default.ArbFor<short>().Generator),
     ]));
 
@@ -118,8 +145,9 @@ public class PropertyTests
     /// Unrounded amounts over a range a monetary value plausibly covers, weighted towards the exact
     /// half-cents where the rounding mode is the only thing that decides the answer. Deliberately not the
     /// whole of <see cref="decimal"/>: <c>Amount</c> pins the scale by adding <c>0.00m</c>, and near
-    /// <see cref="decimal.MaxValue"/> that addition overflows -- a property of this sample type's rounding
-    /// rule, not of the framework, and not what these laws are about.
+    /// <see cref="decimal.MaxValue"/> a sum of two decimals cannot keep that scale within the 29 digits a
+    /// decimal holds -- a property of this sample type's rounding rule, not of the framework, and not what
+    /// these laws are about.
     /// </summary>
     private static readonly Arbitrary<decimal> RawAmounts = Arb.From(
         from units in Gen.Choose(0, 1_000_000)
@@ -132,8 +160,8 @@ public class PropertyTests
         ])
         select units + (cents / 100m) + remainder);
 
-    /// <summary>Accepted amounts, for the laws about how two of them relate.</summary>
-    private static readonly Arbitrary<Amount> Amounts = Arb.From(Gen.Select(RawAmounts.Generator, Amount.Create));
+    /// <summary>Accepted amounts, drawn by the sampler across the whole range above the declared minimum, for the laws about how two of them relate.</summary>
+    private static readonly Arbitrary<Amount> Amounts = Arb.From(Sampled<Amount, decimal>());
 
     [Fact]
     public void Normalizing_a_normalized_value_changes_nothing()
@@ -356,6 +384,43 @@ public class PropertyTests
 
         return EqualityComparer<TValue>.Default.Equals(created.Value, normalize(value))
             && EqualityComparer<TValue>.Default.Equals(normalize(created.Value), created.Value);
+    }
+
+    /// <summary>
+    /// Draws a value the type accepts with the sampler, from a seed FsCheck draws, so that a failing run replays.
+    /// </summary>
+    private static Gen<TSelf> Sampled<TSelf, TValue>()
+        where TSelf : struct, IValueObject<TSelf, TValue>
+        => Gen.Choose(int.MinValue, int.MaxValue)
+            .Select(seed => new ValueObjectSampler(new Random(seed), Sampling).Next<TSelf, TValue>());
+
+    /// <summary>
+    /// The quantities at the edges of the declared range and one step past them, as the sampler derives them.
+    /// </summary>
+    private static short[] QuantityEdges()
+    {
+        var sampler = new ValueObjectSampler(new Random(0));
+
+        return [.. sampler.Boundaries<Quantity, short>(), .. sampler.RejectedValues<Quantity, short>().Select(violation => violation.Value)];
+    }
+
+    /// <summary>
+    /// A structurally valid IBAN: a country code, ISO 7064 MOD-97-10 check digits computed here rather
+    /// than taken from the type under test, and a BBAN of a plausible length.
+    /// </summary>
+    private static string ElectronicIban(Random random)
+    {
+        string[] countries = ["FR", "DE", "BE", "NL", "ES", "IT", "LU", "PT", "GB"];
+        var country = countries[random.Next(countries.Length)];
+        var bban = string.Create(random.Next(11, 31), random, static (span, random) =>
+        {
+            for (var i = 0; i < span.Length; i++)
+            {
+                span[i] = Base36[random.Next(Base36.Length)];
+            }
+        });
+
+        return country + CheckDigitsFor(country, bban) + bban;
     }
 
     /// <summary>ISO 7064 MOD-97-10, written independently of the implementation it generates input for.</summary>

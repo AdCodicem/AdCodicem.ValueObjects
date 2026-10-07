@@ -22,6 +22,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
 | `AdCodicem.ValueObjects.Identifiers[.EntityFrameworkCore\|.MongoDB]` | Stripe-style public identifiers, their columns, their minting on insert. See `identifiers.md`. |
 | `AdCodicem.ValueObjects.Testing` | The xUnit contract kit. |
+| `AdCodicem.ValueObjects.Testing.Data` | Values each type accepts, drawn from its rules; the values at its edges and the values its schema rules out. |
 
 ## JSON
 

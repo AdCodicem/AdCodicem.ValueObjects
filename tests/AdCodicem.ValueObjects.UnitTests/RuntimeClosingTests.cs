@@ -67,6 +67,7 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.Serilog", [] },
         { "AdCodicem.ValueObjects.Swashbuckle", [] },
         { "AdCodicem.ValueObjects.Testing", [] },
+        { "AdCodicem.ValueObjects.Testing.Data", [] },
     };
 
     /// <summary>

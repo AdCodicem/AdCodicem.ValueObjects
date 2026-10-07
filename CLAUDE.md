@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Nineteen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Twenty NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -93,7 +93,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All nineteen packages go out at one version, or none. That version is the one semantic-release would give
+lookup fails. All twenty packages go out at one version, or none. That version is the one semantic-release would give
 the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -141,7 +141,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The nineteen packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The twenty packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -212,8 +212,8 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   `AddValueObjectHandlers`, the MVC binder provider, the JSON factory's general-purpose converter, for a value object
   written by hand, the minimal API filter of `AspNetCore.Http`, which closes a text check per parameter, the MongoDB
   provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, the
-  MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, and EF Core's
-  `ConfigureValueObjects` and `ConfigureEntityIds` do. An entity identifier's descriptor has a visitor of its
+  MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, the test-data sampler's
+  `Next(descriptor)`, and EF Core's `ConfigureValueObjects` and `ConfigureEntityIds` do. An entity identifier's descriptor has a visitor of its
   own: `EntityIdDescriptor.Accept` hands an `IEntityIdVisitor<TResult>` the identifier type, under `IEntityId<TId>`,
   through which `EntityIdBson.Register` of `Identifiers.MongoDB` closes each id generator and reaches `TId.New()`.
   `ConfigureValueObjects` still closes the converter of a `TSelf?` property with `MakeGenericType`, over the visitor's
@@ -275,8 +275,12 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   object, the options, the name of a closed set's enumeration, parameters and containers. The XSD facets the schema
   provider of an assembly opted into XML serialization publishes (`ValueObjectXml.ProvideSchema`) read the same
   `TSelf.Schema`. A pattern leaving .NET goes through `src/Shared/ValueObjectPatternSyntax.cs`, the reader every package
-  that writes a .NET pattern in another dialect links: it reads a pattern into a tree, refusing what it cannot read with
-  certainty, and each dialect writes what it reads alike from the tree, `XsdPattern` in the contracts for XSD.
+  that writes a .NET pattern in another dialect, or draws values from one, links: it reads a pattern into a tree,
+  refusing what it cannot read with certainty, and each dialect writes what it reads alike from the tree, `XsdPattern` in
+  the contracts for XSD; the test-data sampler (`PatternSampler` in `AdCodicem.ValueObjects.Testing.Data`) draws strings
+  from the same tree, and leaves a pattern outside its subset to rejection sampling, over the tree of the pattern read
+  without its lookarounds and with its categories reduced to printable ASCII. The rules a test draws values from
+  are the same `TSelf.Schema`: lengths, pattern, bounds, known values, and the example as a fallback.
 - **`default(T)` is a build error** (`VO0010`). Tests that deliberately construct one need a targeted
   `#pragma warning disable VO0010` with a comment.
 - **A known value is the author's member, created before the lookup it belongs to.** `[KnownValue]` marks a
@@ -509,7 +513,8 @@ These are all load-bearing, and each cost real debugging time:
   through `InternalsVisibleTo`, so a test naming one is CS0433. The contracts and the MongoDB package both link
   `ValueObjectPatternSyntax.cs`: the unit suite references the contracts under `Aliases="global,abstractions"`, and
   `ValueObjectPatternSyntaxTests` names the contracts' copy through `extern alias abstractions`; the MongoDB copy is
-  tested through `PcrePattern`. A third package linking it is tested the same way.
+  tested through `PcrePattern`, and the copy of `AdCodicem.ValueObjects.Testing.Data` through `PatternSampler`, whose
+  tests name no node type. A further package linking it is tested the same way.
 - **`#pragma` does not silence a diagnostic the generator reports.** `VO0025`, `VO0026` and the generator's other
   warnings fail the build under `TreatWarningsAsErrors` whatever surrounds the declaration: a test needing a type that
   trips one writes the value object by hand, as `Persistence/MongoDbShapedCode.cs` does for a pattern matched under
@@ -556,11 +561,18 @@ Four suites, each with a distinct job:
   `UnregisteredCode`, which nothing may resolve.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
-  input. Two things keep such a suite honest and both are easy to lose: a property conditioned on "the value was
+  input, the values each type accepts drawn by `ValueObjectSampler` from a seed FsCheck draws, the IBAN's from the
+  MOD-97 generator registered with `Use<Iban, string>`, and the deliberately invalid input written by hand. Two things
+  keep such a suite honest and both are easy to lose: a property conditioned on "the value was
   accepted" passes vacuously unless the generator produces values the type accepts, so each one counts how often
   it reached the accepting branch and asserts on it; and a property over a wide type never lands on the boundary
-  by chance, so the range generator biases towards the edges. Change a generator and re-run the mutations in the
-  commit message before trusting the green.
+  by chance, so the range generator biases towards the edges, the `Boundaries` and `RejectedValues` the sampler
+  derives from the declared range. Change a generator and re-run the mutations in the commit message before trusting
+  the green. `TestData/` tests the sampler on value objects of its own beside `Domain/`, and on schemas written by hand
+  through `Declared<TDeclaration, TValue>`, a value object written by hand over any underlying type: the sampler's typed
+  path never asks the registry, and a test of its boxed path resolves only generated value objects, never a shared one
+  written by hand, which `TryResolve` would keep registered for the process. `GeneratedSurface/` draws every value object
+  of `Domain/` through it too.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
   `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Snippets compile **without** implicit usings, which
@@ -642,7 +654,7 @@ on where they apply.
   (CS0104). A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
   (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the nineteen packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, on System.Text.Json and on
@@ -651,7 +663,8 @@ Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal AP
 validator and entity identifiers minted on insert, MessagePack, with SignalR's MessagePack hub protocol 11 between a hub
 and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, FluentValidation, Newtonsoft.Json,
 Serilog, `XmlSerializer` and
-`DataContractSerializer` over its domain, which opts into XML serialization, and the contract kit, with no transitive
+`DataContractSerializer` over its domain, which opts into XML serialization, the contract kit and the test-data sampler,
+with no transitive
 pinning, so the dependency floors of the packages meet the next
 major as an application's would. `AdCodicem.ValueObjects.Swashbuckle` is installed by a second project, `tests/Compat/Swashbuckle`,
 which the main one excludes from its sources: Swashbuckle 10 over `Microsoft.OpenApi` 2, on which it is built, since it
@@ -667,8 +680,10 @@ packages, not the code.
 types; the unit tests use it on every generated value object of `Domain/` but four. `Floor` and `Celsius` cannot
 satisfy it: their formatting hooks write text such as `floor 3` or `21 °C`, which does not parse back, and the kit
 requires a text round trip. `Strongbox.Secret` and `Archive.Shelf` are private, and no public contract class can
-name them; `DeclarationContextTests` covers them instead, with the protected `StrongboxId`. Add a contract with each
-value object added to `Domain/`.
+name them; `DeclarationContextTests` covers them instead, with the protected `StrongboxId`. Every unit contract
+overrides `DerivesRejectedValues` to return `true`, so the kit also checks the values its schema rules out, which
+`AdCodicem.ValueObjects.Testing.Data` derives; a type whose normalizer clamps into its rules would fail it. Add a
+contract with each value object added to `Domain/`, opted in the same way.
 
 **Coverage aims at 100 % of each pull request's patch, as Codecov counts it**
 (`docs/adr/0006-coverage-is-a-signal-not-a-goal.md`). `codecov.yml` is the floor, not the aim: 95 % of the lines a

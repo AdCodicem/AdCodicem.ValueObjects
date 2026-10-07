@@ -22,7 +22,8 @@
       "src/AdCodicem.ValueObjects.OpenApi/AdCodicem.ValueObjects.OpenApi.csproj",
       "src/AdCodicem.ValueObjects.Serilog/AdCodicem.ValueObjects.Serilog.csproj",
       "src/AdCodicem.ValueObjects.Swashbuckle/AdCodicem.ValueObjects.Swashbuckle.csproj",
-      "src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj"
+      "src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj",
+      "src/AdCodicem.ValueObjects.Testing.Data/AdCodicem.ValueObjects.Testing.Data.csproj"
     ]
   }
 }
