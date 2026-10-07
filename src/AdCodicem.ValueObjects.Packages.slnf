@@ -14,6 +14,7 @@
       "src/AdCodicem.ValueObjects.Generators/AdCodicem.ValueObjects.Generators.csproj",
       "src/AdCodicem.ValueObjects.Identifiers/AdCodicem.ValueObjects.Identifiers.csproj",
       "src/AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore/AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj",
+      "src/AdCodicem.ValueObjects.Identifiers.MongoDB/AdCodicem.ValueObjects.Identifiers.MongoDB.csproj",
       "src/AdCodicem.ValueObjects.Json/AdCodicem.ValueObjects.Json.csproj",
       "src/AdCodicem.ValueObjects.MongoDB/AdCodicem.ValueObjects.MongoDB.csproj",
       "src/AdCodicem.ValueObjects.NewtonsoftJson/AdCodicem.ValueObjects.NewtonsoftJson.csproj",

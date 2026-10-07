@@ -80,6 +80,46 @@ public sealed class MongoDbStartUpTests
     }
 
     [Fact]
+    public void A_validator_built_before_the_registration_is_refused_before_anything_is_mapped()
+    {
+        var driver = new FreshDriver();
+        var shipment = driver.Fixture.GetType("AdCodicem.ValueObjects.Fixtures.XmlSerialization.Shipment", throwOnError: true)!;
+
+        driver.Invoking(d => d.Validator(shipment)).Should().Throw<InvalidOperationException>()
+            .WithMessage("ValueObjectBsonSchema reads the serializer MongoDB.Driver gives each member, *Call ValueObjectBson.Register at start-up, before building a validator.");
+        driver.IsClassMapped(shipment).Should().BeFalse();
+    }
+
+    [Fact]
+    public void The_entity_identifiers_of_the_assemblies_given_are_registered_before_their_id_generators()
+    {
+        var driver = new FreshDriver();
+
+        // Nothing has run the fixture's registration in this context: the call has to, or ShipmentId has no generator.
+        driver.RegisterIdGenerators([driver.Fixture]);
+
+        driver.IdGeneratorOf("AdCodicem.ValueObjects.Fixtures.XmlSerialization.ShipmentId")!.Name.Should().Be("EntityIdGenerator`1");
+    }
+
+    /// <summary>
+    /// Under either option, the driver's lookup creates, for an identifier that has no generator, a checker that mints
+    /// nothing, which the registration takes for no generator.
+    /// </summary>
+    /// <param name="option">The option of <c>BsonSerializer</c> turned on.</param>
+    [Theory]
+    [InlineData("UseZeroIdChecker")]
+    [InlineData("UseNullIdChecker")]
+    public void The_entity_identifiers_get_their_id_generators_under_the_checker_the_driver_gives_types_without_one(string option)
+    {
+        var driver = new FreshDriver();
+        driver.TurnOn(option);
+
+        driver.RegisterIdGenerators([driver.Fixture]);
+
+        driver.IdGeneratorOf("AdCodicem.ValueObjects.Fixtures.XmlSerialization.ShipmentId")!.Name.Should().Be("EntityIdGenerator`1");
+    }
+
+    [Fact]
     public void Registered_in_order_every_value_object_gets_its_serializer()
     {
         var driver = new FreshDriver();
@@ -93,8 +133,9 @@ public sealed class MongoDbStartUpTests
     }
 
     /// <summary>
-    /// Copies of MongoDB.Bson, the registry, the identifiers, this package and the fixture holding a value object over
-    /// <see cref="Guid"/>, whose static state nothing in the suite has touched; every other assembly is the suite's.
+    /// Copies of MongoDB.Bson, the registry, the identifiers, the two MongoDB packages and the fixture holding a value
+    /// object over <see cref="Guid"/>, whose static state nothing in the suite has touched; every other assembly is the
+    /// suite's.
     /// </summary>
     private sealed class FreshDriver : AssemblyLoadContext
     {
@@ -104,6 +145,7 @@ public sealed class MongoDbStartUpTests
             "AdCodicem.ValueObjects.Abstractions",
             "AdCodicem.ValueObjects.Identifiers",
             "AdCodicem.ValueObjects.MongoDB",
+            "AdCodicem.ValueObjects.Identifiers.MongoDB",
             "AdCodicem.ValueObjects.Fixtures.XmlSerialization",
         ];
 
@@ -125,6 +167,10 @@ public sealed class MongoDbStartUpTests
                 [typeof(Guid), serializer]);
         }
 
+        /// <summary>Turns on an option of <c>BsonSerializer</c>, such as <c>UseZeroIdChecker</c>.</summary>
+        public void TurnOn(string option)
+            => Bson("MongoDB.Bson.Serialization.BsonSerializer").GetProperty(option)!.SetValue(null, true);
+
         /// <summary>Calls <c>ValueObjectBson.Register(fixture)</c>.</summary>
         public void Register() => Register([Fixture]);
 
@@ -138,6 +184,33 @@ public sealed class MongoDbStartUpTests
                 Package().GetMethods().Single(method => method is { Name: "Register", IsGenericMethodDefinition: true })
                     .MakeGenericMethod(Fixture.GetType(valueObject, throwOnError: true)!, valueType),
                 [false]);
+
+        /// <summary>Calls <c>ValueObjectBsonSchema.For&lt;TDocument&gt;()</c>.</summary>
+        public object? Validator(Type document)
+            => Call(
+                LoadFromAssemblyName(new AssemblyName("AdCodicem.ValueObjects.MongoDB"))
+                    .GetType("AdCodicem.ValueObjects.MongoDB.ValueObjectBsonSchema", throwOnError: true)!
+                    .GetMethod("For")!
+                    .MakeGenericMethod(document),
+                []);
+
+        /// <summary>Calls <c>EntityIdBson.Register(assemblies)</c>.</summary>
+        public void RegisterIdGenerators(Assembly[] assemblies)
+            => Call(
+                LoadFromAssemblyName(new AssemblyName("AdCodicem.ValueObjects.Identifiers.MongoDB"))
+                    .GetType("AdCodicem.ValueObjects.Identifiers.MongoDB.EntityIdBson", throwOnError: true)!
+                    .GetMethod("Register", [typeof(Assembly[])])!,
+                [assemblies]);
+
+        /// <summary>Gets the type of the id generator the driver holds for an identifier of the fixture, if any.</summary>
+        public Type? IdGeneratorOf(string identifier)
+            => Call(
+                Bson("MongoDB.Bson.Serialization.BsonSerializer").GetMethod("LookupIdGenerator", [typeof(Type)])!,
+                [Fixture.GetType(identifier, throwOnError: true)])?.GetType();
+
+        /// <summary>Tells whether the driver has built a class map for a type.</summary>
+        public bool IsClassMapped(Type type)
+            => (bool)Call(Bson("MongoDB.Bson.Serialization.BsonClassMap").GetMethod("IsClassMapRegistered", [typeof(Type)])!, [type])!;
 
         /// <summary>Gets the type of the serializer the driver gives a value object of the fixture.</summary>
         public Type SerializerOf(string valueObject) => SerializerOf(Fixture.GetType(valueObject, throwOnError: true)!);

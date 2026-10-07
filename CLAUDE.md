@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Seventeen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Eighteen NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -93,7 +93,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All seventeen packages go out at one version, or none. That version is the one semantic-release would give
+lookup fails. All eighteen packages go out at one version, or none. That version is the one semantic-release would give
 the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -141,7 +141,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The seventeen packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The eighteen packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -205,32 +205,35 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   and closed over the concrete types at startup, so per-request work is fully typed and allocates nothing extra. A
   typed adapter reads `TSelf.Schema`, never the registry, which would describe a construction of a generic value object
   by reflection.
-- **Boxed path.** `ValueObjectDescriptor`, resolved from `ValueObjectRegistry`, for callers that only know a
-  `Type` at run time — `MustParseAs(Type)`, the OpenAPI transformer and the Swashbuckle filters, model-binder
-  resolution. `descriptor.Accept`
-  hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
-  time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's `AddValueObjectHandlers`,
-  the MVC binder provider, the JSON factory's general-purpose converter, for a value object written by hand, the
-  minimal API filter of `AspNetCore.Http`, which closes a text check per parameter, the MongoDB provider, which builds
-  the serializer the driver asks it for over the driver's serializer of the underlying type, and EF Core's
-  `ConfigureValueObjects` and `ConfigureEntityIds` do. `ConfigureValueObjects` still closes the converter of a
-  `TSelf?` property with `MakeGenericType`, over the visitor's own type arguments: C# names it only under
-  `TValue : struct` or `TSelf : IValueObject<TSelf, string>`, which `Visit` cannot prove, and it must stay the type a
-  compiled model names. It and the convention it adds for generic constructions are also the exception to a typed
-  adapter reading `TSelf.Schema`: they size a column by the descriptor's `Schema`, which a registration made by hand may
-  set apart from the type's, handed to their visitor in a field. `ConfigureEntityIds` needs none: an identifier is over
-  `string`, so its visitor casts itself to an interface it implements over `string`, whose method takes that constraint.
-  It visits the identifier's `ValueObjectDescriptor`, from `TryResolve`, since `EntityIdDescriptor` has no `Accept`: an
-  identifier registered with `EntityIdRegistry` alone, by hand, is described by reflection there, and stays in
-  `ValueObjectRegistry` from then on. The Serilog integration closes nothing and visits no descriptor: its policy and
-  its enricher read a value Serilog has already boxed through the `IValueObject` marker, and its option only reads the
-  `ValueObjectType` of each descriptor the registry holds, which it hands Serilog as a scalar type. Neither EF Core
-  convention runs under native AOT, where EF Core reads the compiled model and builds none, and the MVC binder provider
-  runs in no native binary, MVC not being AOT-compatible, so the `native AOT` job guards the JSON factory's visitor and
-  the minimal API filter's. `RuntimeClosingTests` guards every package: it reads their IL and fails on a
-  `MakeGenericType`, a `MakeGenericMethod` or an `Activator.CreateInstance` outside the list it holds, the registry's
-  reflection fallback and the EF Core converter of a `TSelf?` property. A hand-written value object declares `Schema`
-  too, and the registry describes it from that alone: an annotation on it is read by nothing at run time.
+- **Boxed path.** `ValueObjectDescriptor`, resolved from `ValueObjectRegistry`, for callers that only know a `Type` at
+  run time — `MustParseAs(Type)`, the OpenAPI transformer and the Swashbuckle filters, model-binder resolution.
+  `descriptor.Accept` hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its
+  adapter at compile time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's
+  `AddValueObjectHandlers`, the MVC binder provider, the JSON factory's general-purpose converter, for a value object
+  written by hand, the minimal API filter of `AspNetCore.Http`, which closes a text check per parameter, the MongoDB
+  provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, and
+  EF Core's `ConfigureValueObjects` and `ConfigureEntityIds` do. An entity identifier's descriptor has a visitor of its
+  own: `EntityIdDescriptor.Accept` hands an `IEntityIdVisitor<TResult>` the identifier type, under `IEntityId<TId>`,
+  through which `EntityIdBson.Register` of `Identifiers.MongoDB` closes each id generator and reaches `TId.New()`.
+  `ConfigureValueObjects` still closes the converter of a `TSelf?` property with `MakeGenericType`, over the visitor's
+  own type arguments: C# names it only under `TValue : struct` or `TSelf : IValueObject<TSelf, string>`, which `Visit`
+  cannot prove, and it must stay the type a compiled model names. It and the convention it adds for generic
+  constructions are also the exception to a typed adapter reading `TSelf.Schema`: they size a column by the descriptor's
+  `Schema`, which a registration made by hand may set apart from the type's, handed to their visitor in a field.
+  `ConfigureEntityIds` needs none: an identifier is over `string`, so its visitor casts itself to an interface it
+  implements over `string`, whose method takes that constraint. It visits the identifier's `ValueObjectDescriptor`, from
+  `TryResolve`, for the column it sizes from the descriptor's `Schema`: an identifier registered with `EntityIdRegistry`
+  alone, by hand, is described by reflection there, and stays in `ValueObjectRegistry` from then on. The Serilog
+  integration closes nothing and visits no descriptor: its policy and its enricher read a value Serilog has already
+  boxed through the `IValueObject` marker, and its option only reads the `ValueObjectType` of each descriptor the
+  registry holds, which it hands Serilog as a scalar type. Neither EF Core convention runs under native AOT, where EF
+  Core reads the compiled model and builds none, and the MVC binder provider runs in no native binary, MVC not being
+  AOT-compatible, so the `native AOT` job guards the JSON factory's visitor and the minimal API filter's, and
+  `EntityIdDescriptor.Accept`, which the application calls on every identifier registered. `RuntimeClosingTests` guards
+  every package: it reads their IL and fails on a `MakeGenericType`, a `MakeGenericMethod` or an
+  `Activator.CreateInstance` outside the list it holds, the registry's reflection fallback and the EF Core converter of
+  a `TSelf?` property. A hand-written value object declares `Schema` too, and the registry describes it from that alone:
+  an annotation on it is read by nothing at run time.
 
 The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them. That is
 exactly how the descriptor once flattened every rejection into a generic `not_parsable`, discarding the rule
@@ -253,20 +256,23 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   read, which goes through `Create` and fails the query; `Create`, `Parse` and an explicit conversion throw it for code
   that treats a rejected value as a bug. `website/docs/reference/errors.md` names what each integration throws.
   Validation is fail-fast: the first violated rule wins.
-- **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI
-  `maxLength`. Anything added to `[ValueObject<T>]` should feed all three. A hook can feed the schema too: the
-  `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off the attribute at
-  compile time, becomes the OpenAPI `pattern`. The OpenAPI transformer, the Swashbuckle filters and the JSON Schema
-  transform (`ValueObjectJsonSchema`, in the Json package) take what a rule becomes in a schema from
-  `src/Shared/ValueObjectSchemaKeywords.cs`, an internal file each package links and compiles, not a project: a
-  keyword changes there, for all three. The OpenAPI transformer and the Swashbuckle filters, both on the object model
-  of `Microsoft.OpenApi` 2, share the whole description of a value object the same way, through
+- **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI `maxLength`, and
+  the `maxLength` of the MongoDB `$jsonSchema` validator (`ValueObjectBsonSchema`, which writes each rule of
+  `TSelf.Schema` only where the server refuses no value the type accepts, the pattern in PCRE2 through `PcrePattern`
+  over the shared reader below, each class escape listed from .NET's own Unicode tables). Anything added to
+  `[ValueObject<T>]` should feed all of them, the validator wherever the server reads the rule as .NET does. A hook can
+  feed the schema too: the `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off
+  the attribute at compile time, becomes the OpenAPI `pattern`. The OpenAPI transformer, the Swashbuckle filters and the
+  JSON Schema transform (`ValueObjectJsonSchema`, in the Json package) take what a rule becomes in a schema from
+  `src/Shared/ValueObjectSchemaKeywords.cs`, an internal file each package links and compiles, not a project: a keyword
+  changes there, for all three. The OpenAPI transformer and the Swashbuckle filters, both on the object model of
+  `Microsoft.OpenApi` 2, share the whole description of a value object the same way, through
   `src/Shared/ValueObjectOpenApiSchema.cs`; what is particular to each host stays with it: how it finds the value
   object, the options, the name of a closed set's enumeration, parameters and containers. The XSD facets the schema
   provider of an assembly opted into XML serialization publishes (`ValueObjectXml.ProvideSchema`) read the same
-  `TSelf.Schema`. A pattern leaving .NET goes through `src/Shared/ValueObjectPatternSyntax.cs`, the reader every
-  package that writes a .NET pattern in another dialect links: it reads a pattern into a tree, refusing what it cannot
-  read with certainty, and each dialect writes what it reads alike from the tree, `XsdPattern` in the contracts for XSD.
+  `TSelf.Schema`. A pattern leaving .NET goes through `src/Shared/ValueObjectPatternSyntax.cs`, the reader every package
+  that writes a .NET pattern in another dialect links: it reads a pattern into a tree, refusing what it cannot read with
+  certainty, and each dialect writes what it reads alike from the tree, `XsdPattern` in the contracts for XSD.
 - **`default(T)` is a build error** (`VO0010`). Tests that deliberately construct one need a targeted
   `#pragma warning disable VO0010` with a comment.
 - **A known value is the author's member, created before the lookup it belongs to.** `[KnownValue]` marks a
@@ -445,19 +451,22 @@ These are all load-bearing, and each cost real debugging time:
   `Microsoft.Extensions.Logging` aliases one `ILogger` (CS0104).
 - **MongoDB.Driver's serializer registry is process-wide, and caches for good.** A value object the driver serializes
   before `ValueObjectBson.Register` keeps the class map it was given, which writes `{}`, for the rest of the process,
-  and `Register` then fails, naming it (it reads `BsonClassMap.GetRegisteredClassMaps()`, which caches nothing, and
-  asks `ValueObjectRegistry.IsValueObject` of each type, so a generic construction counts); a serializer of the
-  application's own, the `GuidSerializer(GuidRepresentation.Standard)` above all, is registered before it. So every
-  MongoDB test class of a suite goes through one static registration first (the unit suite's `Persistence/MongoDb.cs`,
-  the integration suite's `MongoDbFixture`, the island's), strict, and a test needing another trust or representation
-  builds its serializer by hand, sets one on a class map of its own, or uses a fresh `BsonSerializerRegistry`, which
-  the internal checks take as a parameter; a test of `Register` refusing goes through `MongoDbStartUpTests`' fresh
-  copies of the driver, loaded into an `AssemblyLoadContext` of their own. The package's namespace,
-  `AdCodicem.ValueObjects.MongoDB`, hides the root `MongoDB` namespace in every `AdCodicem.ValueObjects.*` namespace, as
-  Swashbuckle's and Serilog's do: name the driver's types through usings at the top of the file. MongoDB.Bson has an
-  internal `UInt128` of its own, which a `cref` to `UInt128` in a file importing `MongoDB.Bson` resolves to (CS0419):
-  write `System.UInt128` there. A query's `ToString()` reports a translation the serializer refused instead of throwing
-  it; a test of a refused query constant renders a `Builders` filter.
+  and `Register` then fails, naming it (it reads `BsonClassMap.GetRegisteredClassMaps()`, which caches nothing, and asks
+  `ValueObjectRegistry.IsValueObject` of each type, so a generic construction counts); a serializer of the application's
+  own, the `GuidSerializer(GuidRepresentation.Standard)` above all, is registered before it. So every MongoDB test class
+  of a suite goes through one static registration first (the unit suite's `Persistence/MongoDb.cs`, the integration
+  suite's `MongoDbFixture`, the island's), strict, and a test needing another trust or representation builds its
+  serializer by hand, sets one on a class map of its own, or uses a fresh `BsonSerializerRegistry`, which the internal
+  checks take as a parameter; a test of `Register` refusing goes through `MongoDbStartUpTests`' fresh copies of the
+  driver, loaded into an `AssemblyLoadContext` of their own. The id generators of
+  `AdCodicem.ValueObjects.Identifiers.MongoDB` are process-wide too, and a class map takes its id member's generator
+  when it is built, never again: the same static registrations call `EntityIdBson.Register` right after
+  `ValueObjectBson`, and a test of an id generator registered or kept closes `HandWrittenId<TProfile>` over a profile of
+  its own. The package's namespace, `AdCodicem.ValueObjects.MongoDB`, hides the root `MongoDB` namespace in every
+  `AdCodicem.ValueObjects.*` namespace, as Swashbuckle's and Serilog's do: name the driver's types through usings at the
+  top of the file. MongoDB.Bson has an internal `UInt128` of its own, which a `cref` to `UInt128` in a file importing
+  `MongoDB.Bson` resolves to (CS0419): write `System.UInt128` there. A query's `ToString()` reports a translation the
+  serializer refused instead of throwing it; a test of a refused query constant renders a `Builders` filter.
 - **Serilog destructures no object under trimming.** Its `buildTransitive/Serilog.targets` sets
   `Serilog.Capturing.IsStructureValueSupported` to false under `PublishTrimmed`, which `PublishAot` implies, so a native
   binary logs an object with `@` as its `ToString()`, and a bare `Int128` as its text. The native AOT application sets
@@ -477,8 +486,14 @@ These are all load-bearing, and each cost real debugging time:
   `DataContractSerializer` cannot read an `IXmlSerializable` struct without dynamic code; the native AOT domain opts in
   as a guard that the emission adds no warning, and calls neither serializer.
 - **A file of `src/Shared/` linked into two assemblies the unit suite sees is two internal types.** Both are visible
-  through `InternalsVisibleTo`, so a test naming one is CS0433: a second package linking `ValueObjectPatternSyntax.cs`
-  is tested through its own API, or its project reference takes an extern alias.
+  through `InternalsVisibleTo`, so a test naming one is CS0433. The contracts and the MongoDB package both link
+  `ValueObjectPatternSyntax.cs`: the unit suite references the contracts under `Aliases="global,abstractions"`, and
+  `ValueObjectPatternSyntaxTests` names the contracts' copy through `extern alias abstractions`; the MongoDB copy is
+  tested through `PcrePattern`. A third package linking it is tested the same way.
+- **`#pragma` does not silence a diagnostic the generator reports.** `VO0025`, `VO0026` and the generator's other
+  warnings fail the build under `TreatWarningsAsErrors` whatever surrounds the declaration: a test needing a type that
+  trips one writes the value object by hand, as `Persistence/MongoDbShapedCode.cs` does for a pattern matched under
+  `IgnoreCase`, `Multiline` or `IgnorePatternWhitespace`.
 - **NuGet lock files are deliberately absent**, and adding them breaks CI on the first run:
   `src/Directory.Build.props` references `Microsoft.SourceLink.GitHub` under
   `Condition="'$(GITHUB_ACTIONS)' == 'true'"`, so the package graph on a laptop is not the graph on the runner
@@ -544,7 +559,9 @@ Four suites, each with a distinct job:
   a value object of every underlying type MongoDB.Bson can represent, linked from the unit suite's
   `Domain/UnderlyingTypes.cs`, as the document its primitive writes, refuses one over `Int128` or `UInt128`, and
   answers each LINQ and `Builders` shape over value objects with the documents the same query over the primitives
-  would.
+  would; under the `$jsonSchema` validator built from the rules, it refuses another writer's document, stores every
+  value each type accepts, reads each pattern the validator publishes as .NET does (`MongoDbValidatorTests`, which pins
+  the PCRE2 facts the writer works around), and mints an entity identifier for a document inserted without one.
 - **RdgTests** — minimal API endpoints whose binding the Request Delegate Generator writes, over value objects
   declared in the endpoints' own project, which list their contract (VO0033). The project imports the package's
   `build/AdCodicem.ValueObjects.props`, so VO0033 fails its build for a value object that drops its contract, and a
@@ -602,19 +619,20 @@ on where they apply.
   (CS0104). A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
   (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the seventeen packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the eighteen packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, on System.Text.Json and on
 Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal API problem details,
-`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8, FluentValidation,
-Newtonsoft.Json, Serilog, `XmlSerializer` and `DataContractSerializer` over its domain, which opts into XML
-serialization, and the contract kit, with no transitive pinning, so the dependency floors of the packages meet the next
+`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection
+validator and entity identifiers minted on insert, FluentValidation, Newtonsoft.Json, Serilog, `XmlSerializer` and
+`DataContractSerializer` over its domain, which opts into XML serialization, and the contract kit, with no transitive
+pinning, so the dependency floors of the packages meet the next
 major as an application's would. `AdCodicem.ValueObjects.Swashbuckle` is installed by a second project, `tests/Compat/Swashbuckle`,
 which the main one excludes from its sources: Swashbuckle 10 over `Microsoft.OpenApi` 2, on which it is built, since it
 fails on the `Microsoft.OpenApi` 3 the main project's `Microsoft.AspNetCore.OpenApi` 11 brings. `ci.yml`'s
 `compat (.NET 11)` job runs both against the packages its build job packed; it is not a required check until .NET 11 ships, and is
-measured by no coverage. Without Docker its 19 container tests fail rather than skip, so leave them out explicitly
+measured by no coverage. Without Docker its 21 container tests fail rather than skip, so leave them out explicitly
 (Commands above). Tools that walk the repository rather than the solution do see it: CodeQL downloads its SDK, and
 GitHub's automatic dependency submission restores it with SDK 10 from the root, which is why its project files leave
 themselves empty on an SDK that cannot target `net11.0`. The suites above are still the four; the island checks the

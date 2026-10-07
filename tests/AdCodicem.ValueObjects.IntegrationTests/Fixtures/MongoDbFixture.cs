@@ -1,3 +1,4 @@
+using AdCodicem.ValueObjects.Identifiers.MongoDB;
 using AdCodicem.ValueObjects.MongoDB;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
@@ -13,7 +14,7 @@ namespace AdCodicem.ValueObjects.IntegrationTests.Fixtures;
 /// <remarks>
 /// The driver keeps its serializers for the whole process, so the registration runs once, before any test touches the
 /// driver: the <see cref="Guid"/> representation first, then the provider, strict, for the sample's value objects and
-/// this suite's.
+/// this suite's, then the id generators of their entity identifiers.
 /// </remarks>
 public sealed class MongoDbFixture : IAsyncLifetime
 {
@@ -21,6 +22,7 @@ public sealed class MongoDbFixture : IAsyncLifetime
     {
         BsonSerializer.TryRegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
         ValueObjectBson.Register(typeof(Iban).Assembly, typeof(MongoDbFixture).Assembly);
+        EntityIdBson.Register(typeof(Iban).Assembly, typeof(MongoDbFixture).Assembly);
 
         return true;
     });

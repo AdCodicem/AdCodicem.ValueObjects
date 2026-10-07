@@ -49,6 +49,12 @@ internal static class Scenarios
         report.Line("identifiers", $"registered prefixes: {string.Join(", ", EntityIdRegistry.GetRegistered().Select(d => $"{d.Prefix} ({Names.Of(d.ValueObjectType)})").Order(StringComparer.Ordinal))}");
         report.Line("identifiers", $"TryGetByPrefix(\"ord\"): {EntityIdRegistry.TryGetByPrefix("ord", out var byPrefix)}, {(byPrefix is null ? "none" : Names.Of(byPrefix.ValueObjectType))}");
 
+        // What an integration that finds identifiers in the registry does, as the MongoDB id generators' registration does.
+        foreach (var descriptor in EntityIdRegistry.GetRegistered().OrderBy(d => d.Prefix, StringComparer.Ordinal))
+        {
+            report.Line($"identifier visitor {descriptor.Prefix}", descriptor.Accept(IdentifierProbe.Instance));
+        }
+
         foreach (var text in (string[])[minted.Value, Mangle(minted.Value), $"zzz{minted.Value[3..]}", "ord", ""])
         {
             if (AnyEntityId.TryParse(text, null, out var any, out var validation))

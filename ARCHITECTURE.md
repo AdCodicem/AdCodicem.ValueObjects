@@ -6,7 +6,7 @@ site, and the decisions that were costly to reverse are recorded in [`docs/adr/`
 
 ## What the repository ships
 
-Seventeen NuGet packages for single-value DDD value objects. A `readonly partial struct` marked `[ValueObject<T>]`
+Eighteen NuGet packages for single-value DDD value objects. A `readonly partial struct` marked `[ValueObject<T>]`
 gets its whole implementation from a Roslyn incremental generator, and crosses every boundary as its underlying
 type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object wrapper. Consumers
 define their own value objects; this repository ships the frame.
@@ -14,7 +14,7 @@ define their own value objects; this repository ships the frame.
 ## Layout
 
 ```
-src/          the seventeen shipped packages
+src/          the eighteen shipped packages
 tests/        four suites with distinct jobs (see below)
   NativeAot/  applications CI publishes with native AOT and compiles an EF Core model for
   Compat/     the packed packages in .NET 11 applications, outside the solution
@@ -68,7 +68,9 @@ This distinction is where bugs hide, so it is worth knowing before changing anyt
   hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its adapter at compile
   time rather than with `MakeGenericType`, which native AOT cannot run for a struct. The minimal API filter of
   `AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains that way, and the MongoDB
-  provider the serializer the driver asks it for, over the serializer the driver holds for the underlying type. The
+  provider the serializer the driver asks it for, over the serializer the driver holds for the underlying type. An
+  entity identifier's descriptor has its own visitor, `IEntityIdVisitor<TResult>`, whose `Visit<TId>` reaches
+  `TId.New()`: the MongoDB identifiers package closes its id generators through it. The
   Serilog integration closes nothing and visits no descriptor: it reads a value Serilog has already boxed through the
   `IValueObject` marker, and only reads the type of each descriptor the registry holds, which it hands Serilog as a
   scalar type.
@@ -104,7 +106,9 @@ actually fired. `DescriptorTests.cs` covers that surface.
   `src/Shared/ValueObjectOpenApiSchema.cs`, so the two documents cannot drift apart. The XSD an assembly opted into XML
   serialization publishes reads the same schema, its pattern through `src/Shared/ValueObjectPatternSyntax.cs`, the
   reader of a .NET pattern each package writing one in another dialect links, which refuses what it cannot read with
-  certainty.
+  certainty. The MongoDB package links it too, and writes the pattern in PCRE2 for the `$jsonSchema` collection
+  validator it builds from `TSelf.Schema`, where `MaxLength` becomes `maxLength` once more: each rule only where the
+  server refuses no value the type accepts.
 
 ## Testing
 
@@ -112,7 +116,7 @@ actually fired. `DescriptorTests.cs` covers that surface.
 |---|---|
 | `UnitTests` | Behaviour of generated code, over value objects defined in `Domain/` — one per underlying type and per option or hook — and of every integration package called directly; four fixture assemblies hold what the test assembly cannot, value objects of an assembly that opts into XML serialization among them. |
 | `GeneratorTests` | The generator itself: emission, every diagnostic, hook detection, the analyzers, incremental caching, and every published documentation snippet. |
-| `IntegrationTests` | Real PostgreSQL and SQL Server via Testcontainers, asserting against `information_schema`, plus the API surface end to end; and a real MongoDB server, storing every underlying type MongoDB.Bson can represent as its primitive does, refusing the two 128-bit integers, and answering each LINQ and `Builders` shape over value objects. |
+| `IntegrationTests` | Real PostgreSQL and SQL Server via Testcontainers, asserting against `information_schema`, plus the API surface end to end; and a real MongoDB server, storing every underlying type MongoDB.Bson can represent as its primitive does, refusing the two 128-bit integers, answering each LINQ and `Builders` shape over value objects, applying the `$jsonSchema` validator built from the rules, and minting entity identifiers on insert. |
 | `RdgTests` | Minimal API endpoints whose binding the Request Delegate Generator writes, over value objects declared in the endpoints' own project, which list their contract (`VO0033`), and the problem details their refusals are answered with. |
 | `tests/NativeAot` | Not a suite: an application referencing every AOT-compatible package, run under the JIT and as a native AOT binary by the `native AOT` job of `ci.yml`, a required check, which fails on a trimming or AOT warning or on any difference between the two outputs; and an EF Core model compiled with `dotnet ef dbcontext optimize`, taken on a round trip through SQL Server and published for native AOT. |
 | `tests/Compat` | Not a suite of the solution: the packages exactly as packed, installed into `net11.0` applications on the .NET 11 release candidate, the Swashbuckle package into one of its own, with its own `global.json` and package versions. Run by the `compat (.NET 11)` job of `ci.yml`, informational until .NET 11 ships. |
@@ -141,5 +145,5 @@ build's own dependencies are pinned, and why NuGet lock files are not part of it
 [ADR-0005](docs/adr/0005-version-the-documentation-site.md) records how the documentation site follows the same
 two tracks: every `preview.yml` run redeploys the preview pages, and each stable release freezes its own.
 [ADR-0010](docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md) records the versioning
-policy: one version for the seventeen packages, never aligned with .NET, and a framework's next major supported in the
+policy: one version for the eighteen packages, never aligned with .NET, and a framework's next major supported in the
 same packages.

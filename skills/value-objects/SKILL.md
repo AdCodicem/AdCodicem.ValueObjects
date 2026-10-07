@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver, FluentValidation, OpenAPI (built-in stack and Swashbuckle) and Serilog integrations, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (with a $jsonSchema validator and entity identifiers minted on insert), FluentValidation, OpenAPI (built-in stack and Swashbuckle) and Serilog integrations, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -218,6 +218,7 @@ builder.Services.AddSwaggerGen(o => o.AddValueObjects());                       
 ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);                       // Dapper
 BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));    // MongoDB, first
 ValueObjectBson.Register(typeof(Iban).Assembly);                                       // MongoDB, before anything is serialized
+EntityIdBson.Register(typeof(AccountId).Assembly);                                     // Identifiers.MongoDB, on insert
 new LoggerConfiguration().Enrich.FromLogContext()                                      // Serilog, after FromLogContext
     .Destructure.ValueObjects(o => { o.CaptureAsUnderlyingValue = true; o.Assemblies.Add(typeof(Iban).Assembly); });
 // [assembly: ValueObjectXmlSerialization]  in the domain assembly: XmlSerializer, DataContractSerializer, MVC XML formatters
@@ -261,8 +262,8 @@ not). Write it for every value object, then test only the domain behaviour that 
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver, FluentValidation, OpenAPI (built-in and Swashbuckle), Newtonsoft, Serilog. |
-| `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, `AnyEntityId`, deterministic tests. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, FluentValidation, OpenAPI (built-in and Swashbuckle), Newtonsoft, Serilog. |
+| `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, their EF Core columns and MongoDB id generation, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0038`, with the fix for each. |
 
 Published documentation: <https://adcodicem.github.io/AdCodicem.ValueObjects/>

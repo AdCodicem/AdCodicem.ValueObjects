@@ -30,6 +30,12 @@ public static class ValueObjectBson
     private static ValueObjectBsonSerializationProvider? _provider;
 
     /// <summary>
+    /// Gets whether the provider is registered, which <see cref="ValueObjectBsonSchema.For{TDocument}"/> asks before it
+    /// looks a serializer up.
+    /// </summary>
+    internal static bool IsRegistered => Volatile.Read(ref _provider) is not null;
+
+    /// <summary>
     /// Registers, once, the provider that hands the driver a strict serializer for every value object.
     /// </summary>
     /// <param name="assemblies">

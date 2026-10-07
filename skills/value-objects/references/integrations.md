@@ -16,10 +16,10 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10 and later. |
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
-| `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads. |
+| `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, a `$jsonSchema` validator from the rules. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
-| `AdCodicem.ValueObjects.Identifiers[.EntityFrameworkCore]` | Stripe-style public identifiers. See `identifiers.md`. |
+| `AdCodicem.ValueObjects.Identifiers[.EntityFrameworkCore\|.MongoDB]` | Stripe-style public identifiers, their columns, their minting on insert. See `identifiers.md`. |
 | `AdCodicem.ValueObjects.Testing` | The xUnit contract kit. |
 
 ## JSON
@@ -376,8 +376,45 @@ what the primitive stores, the application's `Guid` and `DateTime` conventions i
 - A value object over `Int128` or `UInt128` is refused both ways (MongoDB.Bson has no serializer for either) unless
   you register a serializer of your own for the underlying type first.
 - A generic construction is described by reflection on first use;
-  `ValueObjectBson.Register<Reference<PurchaseOrder>, string>()` registers it without. Not AOT-compatible: the driver itself is not. Azure Cosmos DB for MongoDB and Azure
-  DocumentDB use the same driver. MongoDB.EntityFrameworkCore goes through `ConfigureValueObjects` instead.
+  `ValueObjectBson.Register<Reference<PurchaseOrder>, string>()` registers it without. Not AOT-compatible: the driver
+  itself is not. Azure Cosmos DB for MongoDB and Azure DocumentDB use the same driver. MongoDB.EntityFrameworkCore goes
+  through `ConfigureValueObjects` instead.
+
+### A collection validator from the rules
+
+```csharp skip
+await database.CreateCollectionAsync("orders", new CreateCollectionOptions<BsonDocument>
+{
+    // at start-up, after the registrations: see below
+    Validator = new BsonDocumentFilterDefinition<BsonDocument>(ValueObjectBsonSchema.For<Order>()),
+});
+// an existing collection: RunCommand { collMod: "orders", validator: ValueObjectBsonSchema.For<Order>() }
+```
+
+- `For<TDocument>()` builds the class maps of the document and of its nested classes, which the driver keeps for good:
+  call it after `ValueObjectBson.Register`, after `EntityIdBson.Register` and after any `BsonClassMap.RegisterClassMap`
+  of those types.
+- It walks the class map (element names and serialization options included) and returns `{ "$jsonSchema": … }`:
+  `bsonType` from what the underlying serializer writes, `maxLength`, `minLength`, the pattern in PCRE2, each class
+  escape listed as the characters .NET matches it with (the server's own Unicode tables lag .NET's), `minimum`/`maximum`
+  as the serializer writes a number, `enum` for a closed set, `description`; a value object member is `required` unless
+  the class map may leave it out; a `TSelf?` adds `null`; nested documents and arrays are described where they hold a
+  value object; dictionaries and members with a serializer of your own are left free.
+- Each rule is carried only where the server refuses no value the type accepts: `minLength` is halved unless the
+  published pattern is anchored at both ends (the server counts an emoji once); a pattern with `.`, a negated class,
+  `\D`/`\W`/`\S`/`\P{…}`, `\p{C}`, a surrogate, `\b`, a class subtraction or a named block is left out, and so is
+  one whose regex sets `IgnoreCase`, `Multiline` or `IgnorePatternWhitespace`; a value object written by hand without
+  the pattern hook has its `Schema.Pattern` published as declared, which its validation must run with no option; no
+  `enum` for a set compared ignoring case or by culture, nor for reals or decimals stored as text, nor for dates; no
+  bound for text, dates, under `AllowOverflow`, for a time or a duration written as an Int32, or through a serializer
+  of the underlying type that is not MongoDB.Bson's.
+- The server refuses with a `MongoWriteException` (`MongoBulkWriteException` from `InsertMany`), write error code 121,
+  "Document failed validation", naming the field and keyword; no rule code. It checks updates too, so it catches an
+  `Update.Inc(x => x.Quantity.Value, …)` past the maximum. `bsonType` refuses a number of another BSON type the reader
+  would accept (`5L` for an `int` value object), and `required` a document missing a member the reader would leave as
+  it was. `validationLevel`/`validationAction` are yours to set.
+- `For<TDocument>()` throws `InvalidOperationException` before `ValueObjectBson.Register`, and for a document the driver
+  serializes without a class map.
 
 ## FluentValidation
 
@@ -569,6 +606,24 @@ sealed class FormatterFor : IValueObjectVisitor<IFormatter>
 }
 
 var formatter = descriptor.Accept(new FormatterFor());
+```
+
+An entity identifier's descriptor, from `EntityIdRegistry`, has its own `Accept(IEntityIdVisitor<TResult>)`, whose
+`Visit<TId>() where TId : struct, IEntityId<TId>` reaches the members only an identifier has, `TId.New()` among them;
+use it rather than `MakeGenericType` too (this is how `EntityIdBson.Register` closes its id generators):
+
+```csharp skip
+sealed class GeneratorFor : IEntityIdVisitor<IIdGenerator>
+{
+    public IIdGenerator Visit<TId>()
+        where TId : struct, IEntityId<TId>
+        => new EntityIdGenerator<TId>(); // mints through TId.New()
+}
+
+foreach (var identifier in EntityIdRegistry.GetRegistered())
+{
+    BsonSerializer.RegisterIdGenerator(identifier.ValueObjectType, identifier.Accept(new GeneratorFor()));
+}
 ```
 
 Inside typed code, the rules are `TSelf.Schema` (`TSelf.Schema.MaxLength`), a static member of

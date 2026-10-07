@@ -45,9 +45,10 @@ materializing a row from the database, which is the hottest path in most applica
 same application wrote. `ConfigureValueObjects(strict: true)` turns that back on for a table another system
 also writes to.
 
-**Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, and becomes the
-`maxLength` keyword of the OpenAPI schema. The members marked `[KnownValue]` become a frozen membership lookup and
-the `enum` keyword of the schema, whose values generated clients name after them.
+**Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, and becomes the `maxLength`
+keyword of the OpenAPI schema, and of the [MongoDB collection
+validator](./how-to/mongodb.md#a-collection-validator-from-the-rules). The members marked `[KnownValue]` become a frozen
+membership lookup and the `enum` keyword of the schema, whose values generated clients name after them.
 
 ## Constraints that shape the generated code
 

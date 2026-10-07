@@ -9,6 +9,7 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Dapper\AdCodicem.ValueObjects.Dapper.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.MongoDB\AdCodicem.ValueObjects.MongoDB.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.MongoDB\AdCodicem.ValueObjects.Identifiers.MongoDB.csproj" />
     <!-- Value objects over the date and time types the sample does not use, to read what each provider returns
          for those columns (Fixtures/DateAndTimeValueObjects.cs), and the unit suite's value object for each underlying
          type, which MongoDB stores through a real server (MongoDbTests.cs). -->
