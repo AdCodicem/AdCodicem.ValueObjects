@@ -18,26 +18,25 @@ The struct gives that back only when it crosses a non-generic boundary and boxes
 hashing and comparison exist to keep the hot paths generic — dictionary lookups and sorts on value objects
 allocate nothing. See [Benchmarks](./benchmarks.md) for the numbers and for where the struct loses.
 
-**`default(Iban)` is a build error.** A struct can always be brought into existence uninitialized, and that is
-the one hole a struct value object cannot close by itself. The `VO0010` analyzer closes it at compile time,
-which is what makes the struct representation — zero allocation, no null — safe to choose. Opt out per type
-with `AllowDefault = true`. Another source generator cannot see the generated members, and may write
-`new Iban()` in its own output: `VO0032` reports it in the code of Riok.Mapperly and of the configuration binding
-generator, and of any generator a `.globalconfig` adds
-([the fix](./reference/diagnostics.md#a-value-object-another-generator-creates)). What reaches a boundary the
-analyzer cannot see — an entity property never set, a default array element — is not written as it stands: the
-JSON converters, the Dapper handler, the MongoDB serializers and the EF Core converters refuse an uninitialized
-instance whose value its type rejects, and an optional EF Core column stores a `NULL` instead
+**`default(Iban)` is a build error.** A struct can always be brought into existence uninitialized, and that is the one
+hole a struct value object cannot close by itself. The `VO0010` analyzer closes it at compile time, which is what makes
+the struct representation — zero allocation, no null — safe to choose. Opt out per type with `AllowDefault = true`.
+Another source generator cannot see the generated members, and may write `new Iban()` in its own output: `VO0032`
+reports it in the code of Riok.Mapperly and of the configuration binding generator, and of any generator a
+`.globalconfig` adds ([the fix](./reference/diagnostics.md#a-value-object-another-generator-creates)). What reaches a
+boundary the analyzer cannot see — an entity property never set, a default array element — is not written as it stands:
+the JSON converters, the Dapper handler, the MongoDB serializers, the MessagePack formatters and the EF Core converters
+refuse an uninitialized instance whose value its type rejects, and an optional EF Core column stores a `NULL` instead
 ([what each one throws](./reference/errors.md#a-value-refused-on-write)).
 
-**Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the
-value is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a
-refusal in their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper
-`DataException`, a MongoDB.Driver `FormatException` ([what each one throws](./reference/errors.md)). Each carries the
-code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions
-([the code in an exception](./reference/errors.md#the-code-in-an-exception)). `Create` throws `ValueObjectException`,
-and is for the call sites that want it; a strict EF Core read goes through it, and fails the query. Validation is
-fail-fast: the first violated rule wins.
+**Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value is
+valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in their own
+terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver
+`FormatException`, a MessagePack `MessagePackSerializationException` ([what each one throws](./reference/errors.md)).
+Each carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions ([the code in
+an exception](./reference/errors.md#the-code-in-an-exception)). `Create` throws `ValueObjectException`, and is for the
+call sites that want it; a strict EF Core read goes through it, and fails the query. Validation is fail-fast: the first
+violated rule wins.
 
 **Normalize, then validate, then assign.** So a non-default instance is by construction both normalized and
 valid. It happens on construction, on parsing, on deserialization and on model binding — but *not* when

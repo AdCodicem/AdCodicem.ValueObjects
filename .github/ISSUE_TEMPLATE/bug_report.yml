@@ -39,7 +39,7 @@ body:
       label: Reproduction
       description: >-
         The smallest code that shows it. If the problem only appears through an integration,
-        say which call path reaches it — model binding, EF Core read, Dapper, a MongoDB read, query or validator, JSON, OpenAPI, a Serilog log event.
+        say which call path reaches it — model binding, EF Core read, Dapper, a MongoDB read, query or validator, a MessagePack or SignalR message, JSON, OpenAPI, a Serilog log event.
       render: csharp
     validations:
       required: true
@@ -55,6 +55,7 @@ body:
         - Entity Framework Core
         - Dapper
         - MongoDB (AdCodicem.ValueObjects.MongoDB, AdCodicem.ValueObjects.Identifiers.MongoDB)
+        - MessagePack or SignalR (AdCodicem.ValueObjects.MessagePack)
         - ASP.NET Core model binding or ProblemDetails
         - OpenAPI schema
         - FluentValidation

@@ -22,7 +22,7 @@
     <Error Text="The compatibility island targets the next .NET major, which SDK $(NETCoreSdkVersion) cannot. Run it from tests/Compat, whose global.json selects the SDK it needs." />
   </Target>
 
-  <!-- All eighteen but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
+  <!-- All nineteen but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
        AdCodicem.ValueObjects and runs in this SDK's compiler, the integrations resolve their dependency floors against
        the next major. Swashbuckle 10 fails on the Microsoft.OpenApi 3 that Microsoft.AspNetCore.OpenApi 11 brings here,
        so the Swashbuckle package is installed by the project of Swashbuckle/. -->
@@ -39,6 +39,7 @@
     <PackageReference Include="AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore" />
     <PackageReference Include="AdCodicem.ValueObjects.Identifiers.MongoDB" />
     <PackageReference Include="AdCodicem.ValueObjects.Json" />
+    <PackageReference Include="AdCodicem.ValueObjects.MessagePack" />
     <PackageReference Include="AdCodicem.ValueObjects.MongoDB" />
     <PackageReference Include="AdCodicem.ValueObjects.NewtonsoftJson" />
     <PackageReference Include="AdCodicem.ValueObjects.OpenApi" />
@@ -54,6 +55,10 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <!-- SignalR's MessagePack hub protocol of the next major, and the .NET client a hub is reached through over TestHost.
+         MessagePack itself, and its analyzer, come with AdCodicem.ValueObjects.MessagePack, at the package's floor. -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CompatSdkMissing)' != 'true'">

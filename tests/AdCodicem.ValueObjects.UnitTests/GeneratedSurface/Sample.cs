@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.NewtonsoftJson;
+using AdCodicem.ValueObjects.UnitTests.BinarySerialization;
 using AdCodicem.ValueObjects.UnitTests.Logging;
 using AdCodicem.ValueObjects.UnitTests.Persistence;
 using AdCodicem.ValueObjects.UnitTests.Web;
@@ -96,6 +97,13 @@ public abstract class Sample
     /// checks that it writes and reads back what the bare value it carries writes and reads.
     /// </summary>
     public abstract void RoundTripsThroughBsonAsItsUnderlyingValue();
+
+    /// <summary>
+    /// Writes the value object through MessagePack, with the resolver <c>WithValueObjects</c> puts in front of the
+    /// options' own, and checks that it writes and reads back what the bare value it carries writes and reads, under the
+    /// standard options and under the <c>Native*</c> resolvers.
+    /// </summary>
+    public abstract void RoundTripsThroughMessagePackAsItsUnderlyingValue();
 
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
@@ -511,6 +519,12 @@ public class Sample<TSelf, TValue> : Sample
     {
         MongoDbParity.Check<TSelf, TValue>(Small);
         MongoDbParity.Check<TSelf, TValue>(Large);
+    }
+
+    public override void RoundTripsThroughMessagePackAsItsUnderlyingValue()
+    {
+        MessagePackParity.Check<TSelf, TValue>(Small);
+        MessagePackParity.Check<TSelf, TValue>(Large);
     }
 
     public override void WritesNoJsonItsTypeRejects()

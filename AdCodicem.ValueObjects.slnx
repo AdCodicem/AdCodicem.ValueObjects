@@ -19,6 +19,7 @@
     <Project Path="src/AdCodicem.ValueObjects.NewtonsoftJson/AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Serilog/AdCodicem.ValueObjects.Serilog.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.MongoDB/AdCodicem.ValueObjects.MongoDB.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.MessagePack/AdCodicem.ValueObjects.MessagePack.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj" />
   </Folder>
   <Folder Name="/tests/">

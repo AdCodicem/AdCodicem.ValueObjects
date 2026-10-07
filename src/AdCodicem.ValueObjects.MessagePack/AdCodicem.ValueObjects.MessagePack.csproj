@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.MessagePack</RootNamespace>
+    <Description>MessagePack formatters for AdCodicem value objects, and the SignalR MessagePack hub protocol: each written as the bare value its underlying type writes, read back through the value object's rules by default, and a value the type refuses never written.</Description>
+    <PackageTags>$(PackageTags);messagepack;msgpack;signalr;binary-serialization</PackageTags>
+
+    <!-- MessagePack builds the formatters of generic types and objects by reflection and Reflection.Emit, and SignalR's
+         MessagePack hub protocol requires dynamic code, so this package cannot claim AOT compatibility. Its own
+         formatters are closed through the descriptor's visitor, never with MakeGenericType. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MessagePack" />
+    <!-- No FrameworkReference: a .NET client, a console, WPF or MAUI application, installs it too. On a server, the
+         SignalR.Common the protocol brings as a package is part of ASP.NET Core's shared framework. -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" />
+  </ItemGroup>
+
+</Project>

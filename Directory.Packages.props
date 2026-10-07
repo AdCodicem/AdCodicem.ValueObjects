@@ -27,8 +27,9 @@
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
     <!-- No project references these two: they are transitive pins. They raise the 6.0.0 that BenchmarkDotNet's
          Microsoft.Extensions.Logging asks for in the benchmarks to the version Entity Framework Core asks for,
-         and pinning lists them as dependencies of both Entity Framework Core packages: removing them changes what
-         those two pack. -->
+         and pinning lists them as dependencies of both Entity Framework Core packages and of the MessagePack
+         package, which reaches them through the hub protocol's Microsoft.AspNetCore.SignalR.Common: removing them
+         changes what those three pack. -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.12" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
@@ -47,6 +48,12 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). MongoDB.Bson comes with it, at the
          same version, and is pinned by nothing here: a pin would make it a dependency of the package. -->
     <PackageVersion Include="MongoDB.Driver" Version="3.12.0" />
+    <!-- The MessagePack package's floors, the versions it is built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). MessagePack 3 lifts the 2.5.302 the
+         hub protocol asks for. MessagePack.Annotations and MessagePackAnalyzer come with MessagePack and are pinned by
+         nothing here: a pin would make them dependencies of the package. -->
+    <PackageVersion Include="MessagePack" Version="3.1.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
@@ -70,6 +77,8 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
+    <!-- The .NET client the unit suite connects to a hub through, over TestHost; no package under src/ references it. -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" />
     <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.12" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="FsCheck" Version="3.4.0" />

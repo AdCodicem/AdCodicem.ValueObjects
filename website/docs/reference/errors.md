@@ -126,12 +126,14 @@ that treats a rejected value as a bug, for a strict EF Core read, and for an EF 
 | Dapper | `DataException`, carrying the code in its `Data`, for a value it cannot convert, and for text read into a value object over another type, or a number or a `Guid` read into one over `string`, that the value object refuses. |
 | EF Core with `strict: true` | `ValueObjectException`, from `Create`: the query fails. |
 | MongoDB.Driver, through [`AdCodicem.ValueObjects.MongoDB`](../how-to/mongodb.md#reading) | `FormatException`, "The value read is not a valid Iban: …", carrying the code in its `Data`, for a value the type refuses unless the serializer is trusted, and, whatever the trust, for a BSON `null` or a value the serializer of the underlying type cannot read; inside the driver's own `FormatException`, naming the member and its class, when it reads a document. |
+| MessagePack, through [`AdCodicem.ValueObjects.MessagePack`](../how-to/messagepack.md#reading) | `MessagePackSerializationException`, "The value read is not a valid Iban: …", carrying the code in its `Data`, for a value the type refuses unless the formatter is trusted, and, whatever the trust, for a `nil` or a value the formatter of the underlying type cannot read; inside MessagePack's own `MessagePackSerializationException`, "Failed to deserialize … value.". A dictionary whose keys normalize to one value object fails with MessagePack's own `ArgumentException`, which carries no code and quotes the key ([value-object keys](../how-to/messagepack.md#security-and-value-object-keys)). Through [SignalR](../how-to/messagepack.md#signalr), the hub method is not invoked: the client gets a `HubException` that names neither the rule nor its code, and the server logs the binding failure at `Debug`, with the code in the exception's chain. |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly marked `[assembly: ValueObjectXmlSerialization]` | `XmlException`, with the message of the rule and the line of the element, carrying the code in its `Data`, inside `XmlSerializer`'s `InvalidOperationException` ("There is an error in XML document …") or `DataContractSerializer`'s `SerializationException`: [XML](../how-to/xml.md#reading). |
 
 The other reads do not validate. EF Core by default, Dapper for a value the provider returns as the underlying type or
-as its date and time counterpart, and a trusted MongoDB serializer build the value object with `CreateUnchecked`: they
-read what this application validated when it wrote it. A trusted MongoDB serializer still refuses a BSON `null` and a
-value the serializer of the underlying type cannot read, which no instance can hold.
+as its date and time counterpart, a trusted MongoDB serializer and a trusted MessagePack formatter build the value
+object with `CreateUnchecked`: they read what this application validated when it wrote it. A trusted MongoDB serializer
+still refuses a BSON `null` and a value the serializer of the underlying type cannot read, which no instance can hold,
+and a trusted MessagePack formatter a `nil` and a value the formatter of the underlying type cannot read.
 [EF Core](../how-to/ef-core.md#validation-on-read) says when to read strictly.
 
 ## A value refused on write
@@ -154,6 +156,7 @@ without being validated again.
 | EF Core, a property of the value object's type | `SaveChanges` throws a `DbUpdateException` whose inner exception is the `ValueObjectException`, with the same message, the code and the type, and no `AttemptedValue`. Nothing is written. |
 | EF Core, an optional property (`Iban?`) | Nothing is thrown: the column takes a `NULL`, and stores one. |
 | MongoDB.Driver, through [`AdCodicem.ValueObjects.MongoDB`](../how-to/mongodb.md#writing) | `BsonSerializationException`, with the same message: from `InsertOne`, `InsertMany` or `ReplaceOne`, inside the driver's own, which names the member; from an update or a query constant, as it is. An `Iban?` holding a default `Iban` is refused too; an `Iban?` holding nothing is written as `null`. Nothing is written. An update through `.Value`, `Update.Set(x => x.Page.Value, 0)`, writes the raw value unchecked: set the value object instead. |
+| MessagePack, through [`AdCodicem.ValueObjects.MessagePack`](../how-to/messagepack.md#writing) | `MessagePackSerializationException`, with the same message, inside MessagePack's own, "Failed to serialize … value.", from a value, a dictionary key, and an `Iban?` holding a default `Iban`; an `Iban?` holding nothing is written as `nil`. Through [SignalR](../how-to/messagepack.md#signalr), a .NET client's invocation throws it, and nothing is sent; a hub method's result fails to be written, the server logs it, and closes the connection. |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly marked `[assembly: ValueObjectXmlSerialization]` | `XmlException`, "The value to write is not a valid Quantity: …", inside `XmlSerializer`'s `InvalidOperationException` ("There was an error generating the XML document.") or `DataContractSerializer`'s `SerializationException`. |
 
 The message names the type and the rule, never the value, and each exception carries the code of the rule, as
@@ -182,6 +185,15 @@ whose write error has code 121, "Document failed validation", and details naming
 `pattern`, `maximum`, `enum`, `required`. The value it refused is in those details, as the server reports it, and no
 rule code is: the server checks the keywords, not the value object.
 
+`AdCodicem.ValueObjects.MessagePack` also lets through exceptions that carry no code. A read or a write through options
+whose resolver holds no formatter for the underlying type throws MessagePack's `FormatterNotRegisteredException`: a
+misconfiguration, not a value refused. Under `MessagePackSecurity.UntrustedData`, which SignalR's hub protocol sets,
+MessagePack refuses a dictionary keyed by a value object, or a set of value objects, with a `TypeAccessException`, and a
+dictionary whose keys normalize to one value object fails with MessagePack's `ArgumentException`, which quotes the key
+([value-object keys](../how-to/messagepack.md#security-and-value-object-keys)). An array or a map that announces more
+elements than bytes remain is refused by MessagePack's reader with an `EndOfStreamException`, before any value object
+is read. Each comes inside MessagePack's own `MessagePackSerializationException` when the serializer reads or writes.
+
 A log is no such write: nothing reads one back into a value object. The
 [Serilog integration](../how-to/logging.md#serilog) logs a default instance as the default of its underlying type,
 `0`, `""` or `false`, and throws nothing, whatever it logs.
@@ -199,14 +211,16 @@ reading English:
 | Dapper | `DataException` | In `Data` |
 | EF Core, a refused write or a strict read | `ValueObjectException`, inside the `DbUpdateException` or the exception the query fails with | `ErrorCode` |
 | MongoDB.Driver, a read or a refused write | `FormatException` on read, `BsonSerializationException` on write, inside the driver's exception of the same type, naming the member, when it reads or writes a document | In `Data` |
+| MessagePack, a read or a refused write | `MessagePackSerializationException`, inside MessagePack's own of the same type when the serializer reads or writes a value | In `Data` |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly that opts into XML serialization | `XmlException`, inside the serializer's `InvalidOperationException` or `SerializationException` | In `Data` |
 
 The code is the one the rule reports. A value that is not of the underlying type at all carries
 `value_object.not_parsable`: a JSON token of the wrong kind, a number the underlying type cannot hold, text not of its
 shape, a column the Dapper handler cannot convert, an XML element holding elements or no text of the underlying type, a
-BSON value of a type, or beyond a range, the serializer of the underlying type cannot read. A `null` where a value
-object that cannot be `null` is expected carries `value_object.required`: a JSON `null`, a SQL `NULL` or a BSON `null`
-read into an `Iban` rather than an `Iban?`, an element
+BSON value of a type, or beyond a range, the serializer of the underlying type cannot read, a MessagePack value of
+another type, beyond a range, not of the underlying type's shape, or truncated. A `null` where a value object that
+cannot be `null` is expected carries `value_object.required`: a JSON `null`, a SQL `NULL`, a BSON `null` or a
+MessagePack `nil` read into an `Iban` rather than an `Iban?`, an element
 marked `xsi:nil` that `XmlSerializer` hands a member that cannot be `null` (`DataContractSerializer` refuses that one
 itself, without a code). The messages
 are the ones the exceptions carried before; where the System.Text.Json reader itself cannot read a token, as for a

@@ -50,9 +50,10 @@ message holds defaults: a consumer received `{"orderId":"00000000-…","customer
 converter refuses to write a default its type rejects, so such a message fails to publish with a `JsonException`, and
 only a value object that accepts its zero travels, as zero (inferred from the converter, not run).
 
-A saga correlates on a `Guid`: `CorrelateById(x => x.Message.OrderId.Value)` (not run). MassTransit.MessagePack is not
-covered: it writes each value object as a wrapper holding `Value` and the private `_value`, and reads it back without
-validation. MassTransit 9 needs a commercial licence, and was not run.
+A saga correlates on a `Guid`: `CorrelateById(x => x.Message.OrderId.Value)` (not run). MassTransit.MessagePack is
+[not covered](./messagepack.md#not-covered), `AdCodicem.ValueObjects.MessagePack` included: it writes each value object
+as a wrapper holding `Value` and the private `_value`, and reads it back without validation, through a resolver no
+application can reach. MassTransit 9 needs a commercial licence, and was not run.
 
 ## NServiceBus
 

@@ -58,6 +58,7 @@ Keep the rules, delete the plumbing.
 | `Conversions.DapperTypeHandler` | `ValueObjectDapper.AddValueObjectHandlers(assembly)`, once |
 | `Conversions.Bson`, `BsonSerializationRegisterFor….TryRegister()` | `ValueObjectBson.Register(assembly)`, once, after the `GuidSerializer`: [MongoDB](mongodb.md) |
 | `Conversions.NewtonsoftJson` | `settings.AddValueObjects()`, which adds `ValueObjectConverter` to the serializer settings |
+| `Conversions.MessagePack` | `options.WithValueObjects()`, once, on the serializer options, which reads through the rules; `UseValueObjects()` for SignalR: [MessagePack and SignalR](messagepack.md) |
 | `Conversions.XmlSerializable` | `[assembly: ValueObjectXmlSerialization]`, once for the assembly, which reads through the rules: [XML](xml.md) |
 | `new VogenTypesFactory()` in the options of a source-generated context | `[JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]` |
 | A length or pattern check inside `Validate` | `MinLength`, `MaxLength` on the attribute; a `[GeneratedRegex]` through `IValueObjectPatternValidator` |
@@ -144,6 +145,9 @@ templates.
   `AdCodicem.ValueObjects.Serilog`, which logs a value object with `@`, `{@Value}`, as the value it carries. Its
   `CaptureAsUnderlyingValue` option covers `{Value}`, without `@`, too, which Thinktecture's policy leaves to
   `ToString()`: [Serilog](./logging.md#serilog).
+- **MessagePack.** `ThinktectureMessageFormatterResolver` becomes `WithValueObjects()` on the serializer options, from
+  `AdCodicem.ValueObjects.MessagePack`, which reads through the rules unless asked to trust the bytes, and
+  `UseValueObjects()` on SignalR's MessagePack hub protocol: [MessagePack and SignalR](./messagepack.md).
 - **Smart enums and unions stay where they are.** Only single-value value objects have an equivalent here; a
   closed set of codes can become a value object with [known values](../tutorials/known-values.md).
 

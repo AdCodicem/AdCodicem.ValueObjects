@@ -29,6 +29,7 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.MongoDB\AdCodicem.ValueObjects.Identifiers.MongoDB.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.MessagePack\AdCodicem.ValueObjects.MessagePack.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.MongoDB\AdCodicem.ValueObjects.MongoDB.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.NewtonsoftJson\AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.OpenApi\AdCodicem.ValueObjects.OpenApi.csproj" />
@@ -63,6 +64,9 @@
     <!-- An in-memory server, so that the ASP.NET Core and OpenAPI integrations are driven by real requests without
          a socket. The sample's end-to-end flows stay in the integration suite. -->
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <!-- The .NET client of a SignalR hub, which the MessagePack package's hub protocol helper is tested through, end to
+         end, over TestHost. -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
     <!-- DataClassificationAttribute, which a value object of Domain/ derives to be classified as personal data. -->
     <PackageReference Include="Microsoft.Extensions.Compliance.Abstractions" />
     <!-- What an application writes Serilog events with: the compact JSON formatter, Serilog.Expressions' filters and

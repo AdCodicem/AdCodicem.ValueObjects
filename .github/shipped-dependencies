@@ -11,8 +11,10 @@
 # that pulls it in.
 Dapper
 FluentValidation
+MessagePack
 Microsoft.AspNetCore.Mvc.NewtonsoftJson
 Microsoft.AspNetCore.OpenApi
+Microsoft.AspNetCore.SignalR.Protocols.MessagePack
 Microsoft.EntityFrameworkCore
 Microsoft.EntityFrameworkCore.Relational
 Microsoft.Extensions.DependencyInjection.Abstractions

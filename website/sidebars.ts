@@ -31,6 +31,7 @@ const sidebars: SidebarsConfig = {
         'how-to/ef-core',
         'how-to/dapper',
         'how-to/mongodb',
+        'how-to/messagepack',
         'how-to/fluentvalidation',
         'how-to/messaging',
         'how-to/logging',
