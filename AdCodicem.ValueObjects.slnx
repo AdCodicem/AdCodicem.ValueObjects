@@ -21,6 +21,7 @@
     <Project Path="src/AdCodicem.ValueObjects.MongoDB/AdCodicem.ValueObjects.MongoDB.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.MessagePack/AdCodicem.ValueObjects.MessagePack.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Testing.Data/AdCodicem.ValueObjects.Testing.Data.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AdCodicem.ValueObjects.UnitTests/AdCodicem.ValueObjects.UnitTests.csproj" />

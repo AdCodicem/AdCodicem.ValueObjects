@@ -2,12 +2,12 @@
 title: Packages
 sidebar_label: Packages
 slug: /packages
-description: The nineteen AdCodicem.ValueObjects packages, and which boundary each one covers.
+description: The twenty AdCodicem.ValueObjects packages, and which boundary each one covers.
 ---
 
 # Packages
 
-Nineteen NuGet packages. Install `AdCodicem.ValueObjects` and add whichever of the others cover the boundaries your
+Twenty NuGet packages. Install `AdCodicem.ValueObjects` and add whichever of the others cover the boundaries your
 application actually has.
 
 | Package | What it gives you |
@@ -31,10 +31,11 @@ application actually has.
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | Fixed-width, non-Unicode columns for those identifiers. |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | Those identifiers minted by MongoDB.Driver for a document inserted without one. See [MongoDB](./how-to/mongodb.md#entity-identifiers-as-_id). |
 | `AdCodicem.ValueObjects.Testing` | An xUnit contract kit for your own value objects. |
+| `AdCodicem.ValueObjects.Testing.Data` | Values each value object accepts, drawn from its rules, for any test framework; the values at its edges and those its schema rules out. See [Testing your value objects](./how-to/test-value-objects.md#generate-valid-values). |
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The nineteen are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twenty are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -61,6 +62,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
 | `AdCodicem.ValueObjects.Testing` | `net10.0` | xUnit v3 4 | xUnit v3 4 on .NET 11 |
+| `AdCodicem.ValueObjects.Testing.Data` | `net10.0` | .NET 10 | .NET 11 |
 
 ¹ On the .NET 11 release candidate, by a CI job that installs the packages each commit builds into `net11.0`
 applications, the Swashbuckle package into one of its own

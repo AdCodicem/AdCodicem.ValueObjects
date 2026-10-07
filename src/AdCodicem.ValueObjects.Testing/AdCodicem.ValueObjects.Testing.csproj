@@ -18,6 +18,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <!-- The sampler, which derives the values a schema rules out for the check a contract opts into. -->
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Testing.Data\AdCodicem.ValueObjects.Testing.Data.csproj" />
   </ItemGroup>
 
   <ItemGroup>

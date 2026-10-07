@@ -109,10 +109,11 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | Fixed-width, non-Unicode columns for those identifiers. |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | Those identifiers minted by MongoDB.Driver for a document inserted without one. |
 | `AdCodicem.ValueObjects.Testing` | An xUnit contract kit for your own value objects. |
+| `AdCodicem.ValueObjects.Testing.Data` | Values each value object accepts, drawn from its rules, for any test framework; the values at its edges and those its schema rules out. |
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The nineteen are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twenty are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -139,6 +140,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
 | `AdCodicem.ValueObjects.Testing` | `net10.0` | xUnit v3 4 | xUnit v3 4 on .NET 11 |
+| `AdCodicem.ValueObjects.Testing.Data` | `net10.0` | .NET 10 | .NET 11 |
 
 ¹ On the .NET 11 release candidate, by a CI job that installs the packages each commit builds into `net11.0`
 applications, the Swashbuckle package into one of its own. It informs and blocks nothing until .NET 11 ships.
@@ -347,7 +349,21 @@ public sealed class IbanContract : ValueObjectContract<Iban, string>
 
 That derives over a dozen checks: normalization settles, equality and ordering agree, text and JSON round-trip,
 rejected values are rejected the same way by every entry point, the declared example and known values are
-values the type accepts, and the schema names each known value in its place.
+values the type accepts, and the schema names each known value in its place. A contract that overrides
+`DerivesRejectedValues` to return `true` also checks the values its schema rules out: one character past each length,
+one step past each bound, a value outside a closed set.
+
+`AdCodicem.ValueObjects.Testing.Data` draws values each type accepts from the rules it declares, for any test
+framework, and hands a property-based test the values at its edges
+([Testing your value objects](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/test-value-objects#generate-valid-values)):
+
+```csharp skip
+var sampler = new ValueObjectSampler(new Random(42));
+var quantity = sampler.Next<Quantity, short>();       // between the declared Minimum and Maximum
+var edges = sampler.Boundaries<Quantity, short>();    // its declared Minimum and Maximum
+var iban = new ValueObjectSampler(Random.Shared, new ValueObjectSamplerOptions()
+    .Use<Iban, string>(random => /* an IBAN with its check digits */ ...)).Next<Iban, string>();
+```
 
 ## Authoring reference
 

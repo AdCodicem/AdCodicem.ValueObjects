@@ -62,6 +62,7 @@ body:
         - Entity identifiers (AdCodicem.ValueObjects.Identifiers)
         - Logging (AdCodicem.ValueObjects.Serilog)
         - XML (XmlSerializer, DataContractSerializer, ValueObjectXmlSerialization)
+        - Testing (contract kit, AdCodicem.ValueObjects.Testing.Data)
         - Somewhere else / not sure
     validations:
       required: true

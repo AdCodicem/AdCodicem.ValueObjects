@@ -5,10 +5,13 @@ namespace AdCodicem.ValueObjects.UnitTests;
 /// <summary>
 /// Every generated value object of the domain is put through the shipped contract kit, but <c>Floor</c> and
 /// <c>Celsius</c>, whose formatted text does not parse back. This is what a consumer writes for their own types: a
-/// handful of accepted and rejected values, and the rest is checked for them.
+/// handful of accepted and rejected values, and the rest is checked for them, the values each schema rules out
+/// included, which every contract here asks the kit to derive.
 /// </summary>
 public sealed class IbanContract : ValueObjectContract<Iban, string>
 {
+    protected override bool DerivesRejectedValues => true;
+
     protected override IEnumerable<string> AcceptedValues =>
     [
         "FR7630006000011234567890189",
@@ -28,6 +31,8 @@ public sealed class IbanContract : ValueObjectContract<Iban, string>
 /// <inheritdoc cref="IbanContract" />
 public sealed class EmailAddressContract : ValueObjectContract<EmailAddress, string>
 {
+    protected override bool DerivesRejectedValues => true;
+
     protected override IEnumerable<string> AcceptedValues => ["ada@example.com", "  Grace@Example.ORG  "];
 
     protected override IEnumerable<string> RejectedValues => [string.Empty, "no-at-sign", "two@@at.example"];
@@ -36,6 +41,8 @@ public sealed class EmailAddressContract : ValueObjectContract<EmailAddress, str
 /// <inheritdoc cref="IbanContract" />
 public sealed class AmountContract : ValueObjectContract<Amount, decimal>
 {
+    protected override bool DerivesRejectedValues => true;
+
     protected override IEnumerable<decimal> AcceptedValues => [0m, 0.01m, 1250.505m, 999_999.99m];
 
     protected override IEnumerable<decimal> RejectedValues => [-0.01m, -1m];
@@ -44,6 +51,8 @@ public sealed class AmountContract : ValueObjectContract<Amount, decimal>
 /// <inheritdoc cref="IbanContract" />
 public sealed class PercentageContract : ValueObjectContract<Percentage, decimal>
 {
+    protected override bool DerivesRejectedValues => true;
+
     protected override IEnumerable<decimal> AcceptedValues => [0m, 50m, 100m];
 
     protected override IEnumerable<decimal> RejectedValues => [-1m, 100.01m];
@@ -52,6 +61,8 @@ public sealed class PercentageContract : ValueObjectContract<Percentage, decimal
 /// <inheritdoc cref="IbanContract" />
 public sealed class CustomerIdContract : ValueObjectContract<CustomerId, Guid>
 {
+    protected override bool DerivesRejectedValues => true;
+
     protected override IEnumerable<Guid> AcceptedValues =>
     [
         Guid.Parse("0192f4a0-0000-7000-8000-000000000001"),
@@ -64,6 +75,8 @@ public sealed class CustomerIdContract : ValueObjectContract<CustomerId, Guid>
 /// <inheritdoc cref="IbanContract" />
 public sealed class CountryCodeContract : ValueObjectContract<CountryCode, string>
 {
+    protected override bool DerivesRejectedValues => true;
+
     protected override IEnumerable<string> AcceptedValues => ["FR", "BE", "lu"];
 
     protected override IEnumerable<string> RejectedValues => [string.Empty, "ZZ", "FRA"];
@@ -72,6 +85,8 @@ public sealed class CountryCodeContract : ValueObjectContract<CountryCode, strin
 /// <inheritdoc cref="IbanContract" />
 public sealed class BirthDateContract : ValueObjectContract<BirthDate, DateOnly>
 {
+    protected override bool DerivesRejectedValues => true;
+
     protected override IEnumerable<DateOnly> AcceptedValues =>
     [
         new DateOnly(1900, 1, 1),
@@ -85,6 +100,8 @@ public sealed class BirthDateContract : ValueObjectContract<BirthDate, DateOnly>
 /// <inheritdoc cref="IbanContract" />
 public sealed class QuantityContract : ValueObjectContract<Quantity, short>
 {
+    protected override bool DerivesRejectedValues => true;
+
     protected override IEnumerable<short> AcceptedValues => [0, 1, 1000];
 
     protected override IEnumerable<short> RejectedValues => [-1, 1001];
@@ -93,6 +110,8 @@ public sealed class QuantityContract : ValueObjectContract<Quantity, short>
 /// <inheritdoc cref="IbanContract" />
 public sealed class OrderReferenceContract : ValueObjectContract<Ordering.OrderReference, string>
 {
+    protected override bool DerivesRejectedValues => true;
+
     protected override IEnumerable<string> AcceptedValues => ["ORD-42", "  ord-99  "];
 
     protected override IEnumerable<string> RejectedValues => [string.Empty, "no"];
@@ -105,6 +124,8 @@ public sealed class OrderReferenceContract : ValueObjectContract<Ordering.OrderR
 /// </summary>
 public sealed class AccountIdContract : ValueObjectContract<AccountId, string>
 {
+    protected override bool DerivesRejectedValues => true;
+
     private static readonly string[] Minted =
     [
         AccountId.New().Value,
@@ -127,6 +148,8 @@ public sealed class AccountIdContract : ValueObjectContract<AccountId, string>
 /// <inheritdoc cref="AccountIdContract" />
 public sealed class LedgerEntryIdContract : ValueObjectContract<LedgerEntryId, string>
 {
+    protected override bool DerivesRejectedValues => true;
+
     private static readonly string[] Minted = [LedgerEntryId.New().Value, LedgerEntryId.New().Value];
 
     protected override IEnumerable<string> AcceptedValues => Minted;
@@ -137,6 +160,8 @@ public sealed class LedgerEntryIdContract : ValueObjectContract<LedgerEntryId, s
 /// <inheritdoc cref="AccountIdContract" />
 public sealed class SubscriptionIdContract : ValueObjectContract<SubscriptionId, string>
 {
+    protected override bool DerivesRejectedValues => true;
+
     private static readonly string[] Minted = [SubscriptionId.New().Value, SubscriptionId.New().Value];
 
     protected override IEnumerable<string> AcceptedValues => Minted;
@@ -147,6 +172,8 @@ public sealed class SubscriptionIdContract : ValueObjectContract<SubscriptionId,
 /// <inheritdoc cref="AccountIdContract" />
 public sealed class EventIdContract : ValueObjectContract<EventId, string>
 {
+    protected override bool DerivesRejectedValues => true;
+
     private static readonly string[] Minted = [EventId.New().Value, EventId.New().Value];
 
     protected override IEnumerable<string> AcceptedValues => Minted;
@@ -157,6 +184,8 @@ public sealed class EventIdContract : ValueObjectContract<EventId, string>
 /// <inheritdoc cref="AccountIdContract" />
 public sealed class RevocableIdContract : ValueObjectContract<RevocableId, string>
 {
+    protected override bool DerivesRejectedValues => true;
+
     private static readonly string[] Minted = [RevocableId.New().Value, RevocableId.New().Value];
 
     protected override IEnumerable<string> AcceptedValues => Minted;
