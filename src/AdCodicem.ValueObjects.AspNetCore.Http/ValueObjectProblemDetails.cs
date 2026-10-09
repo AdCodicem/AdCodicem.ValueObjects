@@ -36,6 +36,11 @@ public static class ValueObjectProblemDetails
     /// <param name="httpContext">Current request.</param>
     /// <param name="memberName">Name of the rejected model member.</param>
     /// <param name="errorCode">Stable code of the violated rule.</param>
+    /// <remarks>
+    /// A member recorded again keeps its first code, the one beside the first of its errors: MVC binds every element of a
+    /// query array under the array's name, and a JSON body may repeat a key, so a member can be refused more than once.
+    /// A minimal API's problem details keep the first code the same way.
+    /// </remarks>
     public static void RecordErrorCode(HttpContext? httpContext, string memberName, string errorCode)
     {
         if (httpContext is null)
@@ -45,7 +50,7 @@ public static class ValueObjectProblemDetails
 
         if (httpContext.Items.TryGetValue(ItemsKey, out var existing) && existing is Dictionary<string, string> codes)
         {
-            codes[memberName] = errorCode;
+            codes.TryAdd(memberName, errorCode);
             return;
         }
 

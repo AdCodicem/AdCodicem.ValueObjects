@@ -42,6 +42,12 @@ public sealed class ProbeController : ControllerBase
     [HttpGet("counter")]
     public IActionResult Counter([FromQuery] HandWrittenCounter counter) => Ok(counter.Value);
 
+    /// <summary>Counts the quantities read from the query string, every element bound under the array's name.</summary>
+    /// <param name="quantities">The quantities.</param>
+    /// <returns>How many there are.</returns>
+    [HttpGet("batches")]
+    public IActionResult Batches([FromQuery] Quantity[] quantities) => Ok(quantities.Length);
+
     /// <summary>Echoes the reference of a purchase order, a construction of a generic value object.</summary>
     /// <param name="reference">The reference.</param>
     /// <returns>Its value.</returns>
