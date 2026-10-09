@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Twenty-three NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Twenty-four NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -93,7 +93,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All twenty-three packages go out at one version, or none. That version is the one semantic-release would
+lookup fails. All twenty-four packages go out at one version, or none. That version is the one semantic-release would
 give the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -141,7 +141,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The twenty-three packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The twenty-four packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -228,7 +228,10 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   alone, by hand, is described by reflection there, and stays in `ValueObjectRegistry` from then on. The Serilog
   integration closes nothing and visits no descriptor: its policy and its enricher read a value Serilog has already
   boxed through the `IValueObject` marker, and its option only reads the `ValueObjectType` of each descriptor the
-  registry holds, which it hands Serilog as a scalar type. Neither EF Core convention runs under native AOT, where EF
+  registry holds, which it hands Serilog as a scalar type. Neither does the Microsoft.Extensions.AI integration, which
+  calls no `TryResolve` either: it tells a value-object parameter of a tool by `ValueObjectRegistry.IsValueObject`, and
+  reads each argument through the contract the tool's serializer options hold for the parameter, the one the tool's own
+  binding reads it through. Neither EF Core convention runs under native AOT, where EF
   Core reads the compiled model and builds none, and the MVC binder provider runs in no native binary, MVC not being
   AOT-compatible, so the `native AOT` job guards the JSON factory's visitor and the minimal API filter's, and
   `EntityIdDescriptor.Accept`, which the application calls on every identifier registered. `RuntimeClosingTests` guards
@@ -257,7 +260,9 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a `JsonException` or
   `JsonSerializationException`, a model state error, the validation problem of a minimal API, a FluentValidation
   failure, a Dapper `DataException`, a MongoDB.Driver `FormatException` on read or `BsonSerializationException` on
-  write, a MessagePack `MessagePackSerializationException`. The one that throws `ValueObjectException` is a strict EF
+  write, a MessagePack `MessagePackSerializationException`; the AI package's wrapper throws nothing, and returns the
+  result of a Microsoft.Extensions.AI tool, `{"error":"invalid_argument","argument","code","message"}`, which
+  `FunctionInvokingChatClient` hands the model as it is. The one that throws `ValueObjectException` is a strict EF
   Core read, which goes through `Create` and fails the query; `Create`, `Parse` and an explicit conversion throw it for
   code that treats a rejected value as a bug. `website/docs/reference/errors.md` names what each integration throws.
   Validation is fail-fast: the first violated rule wins.
@@ -270,7 +275,9 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   the attribute at compile time, becomes the OpenAPI `pattern`. The OpenAPI transformer, the Swashbuckle filters and the
   JSON Schema transform (`ValueObjectJsonSchema`, in the Json package) take what a rule becomes in a schema from
   `src/Shared/ValueObjectSchemaKeywords.cs`, an internal file each package links and compiles, not a project: a keyword
-  changes there, for all three. The OpenAPI transformer and the Swashbuckle filters, both on the object model of
+  changes there, for all three. The JSON Schema transform's language-model profile reaches the tools and the
+  structured output of Microsoft.Extensions.AI through the AI package's `WithValueObjects()` and
+  `ValueObjectResponseFormat.ForJsonSchema<T>()`. The OpenAPI transformer and the Swashbuckle filters, both on the object model of
   `Microsoft.OpenApi` 2, share the whole description of a value object the same way, through
   `src/Shared/ValueObjectOpenApiSchema.cs`; what is particular to each host stays with it: how it finds the value
   object, the options, the name of a closed set's enumeration, parameters and containers. The XSD facets the schema
@@ -501,6 +508,20 @@ These are all load-bearing, and each cost real debugging time:
   registry when it runs, before most module initializers have: the unit tests assert only on types registered for
   certain, the domain's, or absent for certain, a fresh `AssemblyLoadContext` copy of the untouched fixture or a
   construction over a marker type private to the test, and never `Register` a shared hand-written type.
+- **Microsoft.Extensions.AI binds an argument without asking the value object.** `AIFunctionFactory` hands a C# `null`,
+  which is what the OpenAI adapter makes of a JSON `null`, to a struct parameter as its uninitialized instance, without
+  calling the converter, fails an absent argument with an `ArgumentException`, and takes an object of another type
+  through a JSON round trip of its own, text that may be JSON read as JSON first, swallowing what it throws: the AI
+  package's wrapper answers the first two as `value_object.required`, and reads the third through the same round trip,
+  so that its verdict on text or a number a host hands over is the binding's. System.Text.Json writes the message of
+  a refusal the generated converter leaves without one, a number the underlying type cannot hold, with the path of the
+  value, which holds a dictionary's keys: the wrapper tells it by the path information at its end and answers
+  "The value is not a valid X." instead. It reads the name of a parameter through `AIParameterNameAttribute`, which is
+  `[Experimental("MEAI001")]`: `src/Shared/ValueObjectArguments.cs` reads it by name, so that a renaming or a removal
+  upstream leaves the check working, and mirrors `AIJsonUtilities.TryGetEffectiveDefaultValue` for the parameters the
+  binding fills in. Agent Framework's `RunAsync<T>` replaces the response format its run options carry with
+  `ChatResponseFormat.ForJsonSchema<T>`, which no schema option reaches: the guide hands the package's format to a plain
+  `RunAsync` and reads the answer with `AgentResponse<T>`, and `AgentFrameworkTests` pins both.
 - **`XmlSerializer` reads a value object's schema before it serializes anything.** It calls the provider when the
   serializer is built, insists on finding it public and static, and compiles its `xs:simpleType`, refusing the whole
   type, and every serializer over a type holding it, for one facet System.Xml cannot read. System.Xml holds an
@@ -518,6 +539,10 @@ These are all load-bearing, and each cost real debugging time:
   tests name no node type. A further package linking it is tested the same way. `TypeNames.cs`, which writes a type as C#
   names it in a message, is linked by `Testing.Data` and by its AutoFixture, Bogus and FsCheck adapters: the unit suite
   references `Testing.Data` under `Aliases="global,testingdata"`, and `SamplerTests` names its copy through the alias.
+  `ValueObjectArguments.cs` and `ValueObjectArgumentRejection.cs`, the check of a tool's arguments and the result it
+  answers a refusal with, name no type of Microsoft.Extensions.AI, so that another host of tools links them beside the
+  AI package: no test names them, `LanguageModels/` reaching them through `WithValueObjectValidation()` alone, so that a
+  second copy needs no alias.
 - **The test-data adapters each meet their library's own rules.** AutoFixture stays at 4.18.1 while 5.0 is a release
   candidate: a stable package depending on a prerelease is NU5104, which fails the pack; Dependabot proposes 5.0 as
   `fix(deps)!` once it ships. Bogus keeps the last rule of a member, so `RuleForValueObjects` replaces a rule written
@@ -578,7 +603,13 @@ Four suites, each with a distinct job:
   written by hand on `ValueObjectXml` whose schemas the generator never writes (`XmlSerialization/` tests them).
   `BinarySerialization/` drives the MessagePack package directly and through a SignalR hub and the .NET client over
   TestHost; a test of the reflection fallback there closes `Reference<TOwner>` over the test class, never
-  `UnregisteredCode`, which nothing may resolve.
+  `UnregisteredCode`, which nothing may resolve. `LanguageModels/` (not `AI/`, whose namespace would hide
+  `AdCodicem.ValueObjects.AI` inside the suite's) builds Microsoft.Extensions.AI tools over `Domain/`, and over every
+  sample through `GeneratedSurface/`: a scripted `IChatClient` stands for the model behind `FunctionInvokingChatClient`,
+  and the request the OpenAI adapter sends in strict mode is captured by an `HttpMessageHandler` behind
+  `HttpClientPipelineTransport`, with no network; a test that names `AIParameterNameAttribute`, experimental
+  (`MEAI001`), silences it around that one use. `AgentFrameworkTests` runs the same tools and the response format
+  through Agent Framework's `ChatClientAgent`, over a scripted model.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
   input, the values each type accepts drawn by the FsCheck package's `ValueObjectArbitrary`, over `ValueObjectSampler`,
@@ -645,7 +676,10 @@ on where they apply.
   and on, each answer checked against the status and the codes the script expects, since both runs explaining nothing
   would agree; a third, without `AddProblemDetails()`, must fail to build its endpoints. `Logging.cs` logs every
   registered value object through Serilog with and without `@`, under the policy and the option, and fails the run when
-  one is not the scalar of its underlying type, written as the bare value is. The domain opts into XML serialization,
+  one is not the scalar of its underlying type, written as the bare value is. `LanguageModels.cs` describes every
+  registered value object in a Microsoft.Extensions.AI tool's schema, builds tools from method groups over
+  `AppJsonContext`, whose arguments are refused and accepted, and the response format of a structured output; a tool's
+  parameter and result types go into `AppJsonContext`, never their underlying types. The domain opts into XML serialization,
   which nothing calls: a guard that the emission adds no trimming or AOT warning and changes no output.
   `ci.yml`'s `native AOT` job (`.github/scripts/native-aot.sh`), a required check, runs its fixed script once under the
   JIT and once as the native binary, and fails on a trimming or AOT warning or on any difference between the two
@@ -679,7 +713,7 @@ on where they apply.
   (CS0104). A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
   (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-three packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-four packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, on System.Text.Json and on
@@ -687,7 +721,8 @@ Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal AP
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection
 validator and entity identifiers minted on insert, MessagePack, with SignalR's MessagePack hub protocol 11 between a hub
 and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, FluentValidation, Newtonsoft.Json,
-Serilog, `XmlSerializer` and
+Serilog, Microsoft.Extensions.AI tools and structured output, through `FunctionInvokingChatClient` and `ChatResponse<T>`
+of Microsoft.Extensions.AI 10, `XmlSerializer` and
 `DataContractSerializer` over its domain, which opts into XML serialization, the contract kit and the test-data sampler,
 through AutoFixture, Bogus and FsCheck too, with no transitive
 pinning, so the dependency floors of the packages meet the next

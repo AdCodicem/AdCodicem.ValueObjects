@@ -20,6 +20,7 @@
     <Project Path="src/AdCodicem.ValueObjects.Serilog/AdCodicem.ValueObjects.Serilog.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.MongoDB/AdCodicem.ValueObjects.MongoDB.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.MessagePack/AdCodicem.ValueObjects.MessagePack.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.AI/AdCodicem.ValueObjects.AI.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing.Data/AdCodicem.ValueObjects.Testing.Data.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AutoFixture/AdCodicem.ValueObjects.AutoFixture.csproj" />

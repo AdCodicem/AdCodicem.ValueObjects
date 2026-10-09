@@ -15,6 +15,9 @@ The repository ships an agent skill that states the surface precisely: the attri
 interfaces, the wiring of each integration, and every diagnostic with its fix. Every C# snippet in it is compiled
 by the generator's test suite, so it cannot drift away from what the generator accepts.
 
+This page is about the agent that writes the code. A model your application calls, through tools or structured
+output, is [Language models](./language-models.md)'s subject.
+
 ## Claude Code
 
 ```

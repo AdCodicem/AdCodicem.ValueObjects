@@ -48,7 +48,7 @@ namespace AdCodicem.ValueObjects.Json;
 /// The schema a host hands over is completed rather than replaced: a description it already wrote comes first, the
 /// value object's following it, and a keyword the value object does not declare, such as a <c>default</c>, stays.
 /// Every host built on the exporter exposes the <see cref="JsonTypeInfo"/> <see cref="Apply"/> takes, whatever its own
-/// context is called: Microsoft.Extensions.AI, the Model Context Protocol SDK, Semantic Kernel.
+/// context is called: Microsoft.Extensions.AI, the Model Context Protocol SDK, Agent Framework.
 /// </para>
 /// <para>
 /// A value object is looked up in <see cref="ValueObjectRegistry"/>, without reflection. One nothing registered, a value

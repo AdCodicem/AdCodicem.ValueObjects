@@ -52,6 +52,13 @@ public partial class ApiJsonContext : JsonSerializerContext;
 
 It is declared at compile time, on the context, so there is nothing to remember when the options are built.
 
+The context lists the types the application serializes, value objects included, never their underlying types, which
+the generated converter reads itself. That holds for a host that reads a method's parameters through the options it is
+given, as `AIFunctionFactory` does: where reflection-based serialization is disabled, as native AOT disables it, its
+default options know no value object, nor even `System.Guid`, and throw a `NotSupportedException`, while options from
+a context naming the factory, the types of the parameters and the type of the result describe and bind each one
+([language models](./language-models.md#native-aot-and-reflection-free-serialization)).
+
 The factory hands each value object the converter generated for it, which the generator registers with the value
 object's descriptor. The package belongs in the assembly that declares the context: a domain project declaring the
 value objects needs only `AdCodicem.ValueObjects`, the contracts and the generator, and its converters reach the
@@ -127,7 +134,7 @@ options let the reader read.
 ## JSON Schema
 
 System.Text.Json's `JsonSchemaExporter`, which the schemas of Microsoft.Extensions.AI tools and structured output, of
-the Model Context Protocol SDK and of Semantic Kernel functions are built on, describes a type its converter serializes
+the Model Context Protocol SDK and of Agent Framework agents are built on, describes a type its converter serializes
 as `true`, the schema that accepts anything. Every value object comes out that way, a `List<Iban>` as an array with no
 `items`, and a `DeliveryDate?` loses the `null` it accepts. `ValueObjectJsonSchema`, in `AdCodicem.ValueObjects.Json`,
 fills each of them in from the rules its type declares, the ones the OpenAPI document publishes:
@@ -213,8 +220,19 @@ declare `SchemaFormat = "date-time"`, which is then published beside the pattern
 
 ### In a host
 
-Every host built on the exporter hands a transform of its own the `JsonTypeInfo` of each node, whatever it calls its
-context, and `ValueObjectJsonSchema.Apply` takes it. With Microsoft.Extensions.AI:
+With Microsoft.Extensions.AI, `AdCodicem.ValueObjects.AI` does it in one call, for tools and structured output alike,
+and answers a tool argument a value object refuses with its rule
+([language models](./language-models.md)):
+
+```csharp skip
+var pay = AIFunctionFactory.Create(
+        PayAsync,
+        new AIFunctionFactoryOptions { JsonSchemaCreateOptions = new AIJsonSchemaCreateOptions().WithValueObjects() })
+    .WithValueObjectValidation();
+```
+
+Every other host built on the exporter hands a transform of its own the `JsonTypeInfo` of each node, whatever it calls
+its context, and `ValueObjectJsonSchema.Apply` takes it. Written by hand, with Microsoft.Extensions.AI:
 
 ```csharp skip
 var schemaOptions = new AIJsonSchemaCreateOptions

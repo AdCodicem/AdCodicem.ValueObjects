@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.AI</RootNamespace>
+    <Description>Microsoft.Extensions.AI support for AdCodicem value objects: tool and structured-output JSON schemas that carry each value object's rules, and a function wrapper that answers a rejected argument with its rule code, which the model can correct, instead of an exception it never sees. AOT-compatible.</Description>
+    <PackageTags>$(PackageTags);ai;llm;microsoft-extensions-ai;function-calling;tool-calling;structured-output;json-schema</PackageTags>
+
+    <!--
+      AOT-compatible, by the repository's default: it closes nothing, tells a value object by the registry, and reads each
+      argument through the contract the function's own serializer options hold for its parameter, as the binding of
+      AIFunctionFactory does. No generator is involved: AIFunctionFactory reads the method at run time.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The check of the arguments a model sends a method, which names no type of Microsoft.Extensions.AI, so that
+         another host of tools can link it too. -->
+    <Compile Include="..\Shared\ValueObjectArguments.cs" Link="Shared\ValueObjectArguments.cs" />
+    <Compile Include="..\Shared\ValueObjectArgumentRejection.cs" Link="Shared\ValueObjectArgumentRejection.cs" />
+  </ItemGroup>
+
+</Project>

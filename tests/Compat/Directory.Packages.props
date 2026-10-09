@@ -15,6 +15,7 @@
   <ItemGroup Label="Under test, at exactly the version just packed" Condition="'$(AdCodicemVersion)' != ''">
     <PackageVersion Include="AdCodicem.ValueObjects" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Abstractions" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.AI" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.AspNetCore" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.AspNetCore.Http" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson" Version="[$(AdCodicemVersion)]" />
@@ -64,6 +65,9 @@
     <PackageVersion Include="AutoFixture" Version="4.18.1" />
     <PackageVersion Include="Bogus" Version="35.6.5" />
     <PackageVersion Include="FsCheck" Version="3.4.0" />
+    <!-- Microsoft.Extensions.AI ships one line for every runtime, the next major's included: an application on it
+         references 10.x, whose abstractions resolve at the AI package's floor. -->
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
   </ItemGroup>
 
 </Project>

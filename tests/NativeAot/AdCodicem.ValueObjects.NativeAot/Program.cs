@@ -43,6 +43,7 @@ await app.StartAsync();
 try
 {
     Scenarios.Run(report);
+    await LanguageModels.RunAsync(report);
 
     using var client = ClientOf(app);
     await Requests.RunAsync(report, client);

@@ -20,6 +20,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
+| `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI: the rules in tool and structured-output schemas; a refused tool argument answered with its code. AOT-compatible. |
 | `AdCodicem.ValueObjects.Identifiers[.EntityFrameworkCore\|.MongoDB]` | Stripe-style public identifiers, their columns, their minting on insert. See `identifiers.md`. |
 | `AdCodicem.ValueObjects.Testing` | The xUnit contract kit. |
 | `AdCodicem.ValueObjects.Testing.Data` | Values each type accepts, drawn from its rules; the values at its edges and the values its schema rules out. |
@@ -69,7 +70,8 @@ with `ValueObjectErrorCodes.ToUpperSnakeCase(code)` (`value_object.too_long` →
 `ArgumentException` for a code that maps to no valid reason.
 
 **JSON Schema** (`JsonSchemaExporter`, and every host built on it: Microsoft.Extensions.AI tools and structured
-output, the MCP SDK, Semantic Kernel) describes a value object as `true` and a `List<Iban>` without `items`. Plug
+output, the MCP SDK, Agent Framework) describes a value object as `true` and a `List<Iban>` without `items`. For
+Microsoft.Extensions.AI, use `AdCodicem.ValueObjects.AI`'s `WithValueObjects()` (below, Language models). Plug
 `ValueObjectJsonSchema.TransformSchemaNode` into `JsonSchemaExporterOptions.TransformSchemaNode` to describe each one as
 its underlying value with its rules (`type`, `null` for a nullable one, lengths, 1 for a `char`, `pattern`,
 `minimum`/`maximum` or a sentence for a date, `enum`, `examples`, `description`, `format`), elements, dictionary values
@@ -583,6 +585,45 @@ Log.Logger = new LoggerConfiguration()
 - Under native AOT, Serilog destructures no object: an object logged with `@` is its `ToString()`. A value object alone
   or in a collection is logged as under the JIT.
 - A value object classified as personal data is logged in clear: redaction is not done by this package yet.
+
+## Language models (Microsoft.Extensions.AI)
+
+```csharp skip
+using AdCodicem.ValueObjects.AI;
+
+AIFunction placeOrder = AIFunctionFactory.Create(
+        tools.PlaceOrder,
+        new AIFunctionFactoryOptions { JsonSchemaCreateOptions = new AIJsonSchemaCreateOptions().WithValueObjects() })
+    .WithValueObjectValidation();
+
+// Structured output: the format, then the answer read as GetResponseAsync<T> reads it.
+var response = await chatClient.GetResponseAsync(messages,
+    new ChatOptions { ResponseFormat = ValueObjectResponseFormat.ForJsonSchema<Order>(AppJsonContext.Default.Options) });
+var order = new ChatResponse<Order>(response, AppJsonContext.Default.Options).Result; // ValueObjectJsonException on a refusal
+```
+
+- `WithValueObjects()` copies the options (`null` = `AIJsonSchemaCreateOptions.Default`, left untouched), runs any
+  transform they carry first, and describes each value object under the language-model profile, a `[Description]` on
+  the parameter first.
+- `WithValueObjectValidation()` checks each argument through the parameter's contract in the function's serializer
+  options, as binding does, and returns the first refused, in parameter order, instead of calling the function:
+  `{"error":"invalid_argument","argument":"quantity","code":"value_object.out_of_range","message":"…"}`. The message is
+  the converter's, never the value, or `The value is not a valid Quantity.` where the converter writes none (a number
+  the underlying type cannot hold) or a converter of your own refuses with its own exception (code from its `Data`, or
+  `value_object.not_parsable`). An absent argument with no default, and a `null` for a non-nullable value object,
+  are `value_object.required`. A collection, dictionary or object parameter is refused only for a value object it
+  holds. An argument handed over as text or as a number is read as the binding converts it, JSON first. Wrapping twice
+  returns the same function.
+- Without the wrapper, `FunctionInvokingChatClient` answers a refusal "Error: Function failed.", and `AIFunctionFactory`'s
+  binding hands a `null` to a non-nullable value object as its uninitialized instance. Keep `IncludeDetailedErrors` off.
+- Agent Framework: the same two calls on the tools of a `ChatClientAgent`. Its `RunAsync<T>` replaces the response
+  format with one without the rules: pass
+  `new AgentRunOptions { ResponseFormat = ValueObjectResponseFormat.ForJsonSchema<T>(options) }` to a plain
+  `RunAsync`, read the answer with `new AgentResponse<T>(response, options).Result`, and give an answer that is no
+  object (a list, a lone value object) a record of its own.
+- Reflection-free or native AOT: `AIFunctionFactory`'s default options throw `NotSupportedException`. Pass
+  `SerializerOptions` from a source-generated context with `Converters = [typeof(ValueObjectJsonConverterFactory)]`
+  listing the parameter types (the value objects, not their underlying types) and the result type.
 
 ## XML
 

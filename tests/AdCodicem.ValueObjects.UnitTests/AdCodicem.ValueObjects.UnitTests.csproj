@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FsCheck\AdCodicem.ValueObjects.FsCheck.csproj" />
     <!-- The integrations, whose behaviour is tested here directly; the integration suite keeps what only a real
          database or a real HTTP pipeline can confirm (docs/adr/0006-coverage-is-a-signal-not-a-goal.md). -->
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AI\AdCodicem.ValueObjects.AI.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore\AdCodicem.ValueObjects.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore.Http\AdCodicem.ValueObjects.AspNetCore.Http.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson\AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson.csproj" />
@@ -84,6 +85,14 @@
     <PackageReference Include="Serilog.Formatting.Compact" />
     <PackageReference Include="Serilog.Expressions" />
     <PackageReference Include="Serilog.Extensions.Logging" />
+    <!-- What an application calls tools and reads structured output through: FunctionInvokingChatClient and
+         ChatResponse<T>, and the OpenAI adapter, whose strict-mode request LanguageModels/ captures through a handler of
+         its own, with no network. -->
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+    <!-- Agent Framework, whose ChatClientAgent calls the same tools through FunctionInvokingChatClient, and whose
+         RunAsync<T> builds a response format no schema option reaches. -->
+    <PackageReference Include="Microsoft.Agents.AI" />
   </ItemGroup>
 
   <ItemGroup>

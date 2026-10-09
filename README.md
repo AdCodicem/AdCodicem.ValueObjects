@@ -105,6 +105,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters, and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. |
+| `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI tool and structured-output schemas that carry the rules, and a refused tool argument answered with its rule code. |
 | `AdCodicem.ValueObjects.Identifiers` | Stripe-style public entity identifiers: `acc_2K7X9…`. |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | Fixed-width, non-Unicode columns for those identifiers. |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | Those identifiers minted by MongoDB.Driver for a document inserted without one. |
@@ -116,7 +117,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twenty-three are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twenty-four are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -139,6 +140,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.MessagePack` | `net10.0` | MessagePack 3.1, with SignalR's MessagePack hub protocol 10 | MessagePack 3.1 on .NET 11, with the hub protocol 11 |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
 | `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
+| `AdCodicem.ValueObjects.AI` | `net10.0` | Microsoft.Extensions.AI 10, with its OpenAI adapter in strict mode, and native AOT | Microsoft.Extensions.AI 10 on .NET 11 |
 | `AdCodicem.ValueObjects.Identifiers` | `net10.0` | .NET 10 | .NET 11 |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
@@ -201,7 +203,8 @@ type rejects, and an optional EF Core column stores a `NULL` instead.
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
 their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a
-MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationException`. Each
+MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationException`, a tool result a language model
+reads. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
 query value, and those of a minimal API for a route, query or header value.
@@ -219,7 +222,8 @@ also writes to.
 validates the value, and its text becomes the `pattern` keyword. The members marked `[KnownValue]` become a frozen
 membership lookup and the `enum` keyword of the schema, with their names beside it for generated clients.
 The same rules fill in the JSON Schema System.Text.Json exports, which AI tools, structured output and MCP servers
-describe their parameters with, through `ValueObjectJsonSchema`.
+describe their parameters with, through `ValueObjectJsonSchema`; `AdCodicem.ValueObjects.AI` carries them to the tools
+and the structured output of Microsoft.Extensions.AI in one call.
 
 ## Compared with other libraries
 
@@ -302,6 +306,20 @@ Log.Logger = new LoggerConfiguration()
 
 The option costs a pass over the properties of each event, and sees what the enrichers added before it
 ([the logging guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/logging#serilog)).
+
+Microsoft.Extensions.AI describes a value object a tool takes as `true`, the schema that accepts anything, and answers
+a value its converter refuses with "Error: Function failed.", which tells the model nothing it can correct.
+`AdCodicem.ValueObjects.AI` puts the rules in the tool's schema, and answers a refused argument with its rule, as a
+result the model reads, `{"error":"invalid_argument","argument":"quantity","code":"value_object.out_of_range",…}`,
+never the value it sent; `ValueObjectResponseFormat.ForJsonSchema<T>()` does the same for structured output
+([the language models guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/language-models)):
+
+```csharp skip
+AIFunction placeOrder = AIFunctionFactory.Create(
+        tools.PlaceOrder,
+        new AIFunctionFactoryOptions { JsonSchemaCreateOptions = new AIJsonSchemaCreateOptions().WithValueObjects() })
+    .WithValueObjectValidation();
+```
 
 `XmlSerializer` and `DataContractSerializer`, and the MVC XML formatters, CoreWCF and Dapr actor remoting built on them,
 write a value object as an empty element and read back a default instance. An assembly that crosses an XML boundary
