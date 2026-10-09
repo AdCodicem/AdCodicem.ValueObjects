@@ -235,7 +235,9 @@ member to the stable code of the rule it violated:
 ```
 
 A client branches on `value_object.not_a_known_value`, not on English. The member name is available as
-`ValueObjectProblemDetails.ExtensionName`.
+`ValueObjectProblemDetails.ExtensionName`. A member refused more than once, as the elements of a query array, which MVC
+binds under the array's name, or a key repeated in a body Newtonsoft.Json reads, lists every message in `errors` and
+keeps the code of the first in `errorCodes`, the rule its first message states, as a minimal API does.
 
 This covers what the MVC model binder rejects, route values, query strings, headers and forms, under the name of the
 parameter, and a value inside a JSON body, under its JSON path, the key MVC gives its error:

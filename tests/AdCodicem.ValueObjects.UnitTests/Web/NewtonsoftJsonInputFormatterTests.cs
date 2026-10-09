@@ -272,7 +272,7 @@ public class NewtonsoftJsonInputFormatterTests
     /// A body read by the replacement and by the framework's formatter, built over the same settings and options, gives
     /// the same result, the same model state and the same logs, whatever the application says of exception messages;
     /// the replacement also records the code of each refusal, under the key of its model state error, quirks of the
-    /// framework's keys included.
+    /// framework's keys included, and a key the body repeats keeps the code of its first refusal.
     /// </summary>
     /// <param name="body">The body.</param>
     /// <param name="model">The type the body is read as.</param>
@@ -322,6 +322,7 @@ public class NewtonsoftJsonInputFormatterTests
     [InlineData("""{"keyed":{"no":"refused key"}}""", "parcel", true, "")]
     [InlineData("""{"link":42}""", "parcel", true, "link=" + ValueObjectErrorCodes.NotParsable)]
     [InlineData("""{"link":""}""", "parcel", true, "link=" + ValueObjectErrorCodes.Required)]
+    [InlineData("""{"reference":"no","reference":42}""", "parcel", true, "reference=" + ValueObjectErrorCodes.TooShort)]
     [InlineData("""["no","ABC-1","x"]""", "references", true, "[0]=" + ValueObjectErrorCodes.TooShort + "|[2]=" + ValueObjectErrorCodes.TooShort)]
     [InlineData("\"no\"", "reference", true, "=" + ValueObjectErrorCodes.TooShort)]
     public async Task A_body_reads_as_the_framework_reads_it_and_each_refusal_records_its_code(

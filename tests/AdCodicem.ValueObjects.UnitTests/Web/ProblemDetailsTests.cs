@@ -22,17 +22,23 @@ public class ProblemDetailsTests
     public void A_request_with_no_rejection_has_no_code()
         => ValueObjectProblemDetails.GetErrorCodes(new DefaultHttpContext()).Should().BeEmpty();
 
+    /// <summary>
+    /// A member refused twice keeps the code of the rule it broke first, which its first error states, as a minimal API's
+    /// problem details do; another member gets its own.
+    /// </summary>
     [Fact]
-    public void A_second_code_recorded_for_a_member_replaces_the_first()
+    public void A_second_code_recorded_for_a_member_keeps_the_first()
     {
         var request = new DefaultHttpContext();
 
         ValueObjectProblemDetails.RecordErrorCode(request, "country", ValueObjectErrorCodes.TooLong);
         ValueObjectProblemDetails.RecordErrorCode(request, "country", ValueObjectErrorCodes.NotAKnownValue);
+        ValueObjectProblemDetails.RecordErrorCode(request, "email", ValueObjectErrorCodes.InvalidFormat);
 
         ValueObjectProblemDetails.GetErrorCodes(request).Should().Equal(new Dictionary<string, string>
         {
-            ["country"] = ValueObjectErrorCodes.NotAKnownValue,
+            ["country"] = ValueObjectErrorCodes.TooLong,
+            ["email"] = ValueObjectErrorCodes.InvalidFormat,
         });
     }
 

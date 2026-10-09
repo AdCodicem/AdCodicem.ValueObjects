@@ -247,9 +247,10 @@ parameter, where the reflection-based binding answers 400, and the default insta
 
 `AddValueObjectProblemDetails()` attaches the stable error code of the violated rule to the automatic 400
 response of an **MVC controller**, under the extension named by `ValueObjectProblemDetails.ExtensionName`, so a client
-can branch on `value_object.too_long` instead of parsing English. It extends `ApiBehaviorOptions`, which minimal APIs
-never read; they use `AdCodicem.ValueObjects.AspNetCore.Http` above. To carry the same codes out of a manually
-validated payload, fill that extension yourself:
+can branch on `value_object.too_long` instead of parsing English. A member refused more than once (the elements of a
+query array, a key repeated in a body Newtonsoft.Json reads) keeps the code of its first refusal, as a minimal API
+does. It extends `ApiBehaviorOptions`, which minimal APIs never read; they use `AdCodicem.ValueObjects.AspNetCore.Http`
+above. To carry the same codes out of a manually validated payload, fill that extension yourself:
 
 ```csharp skip
 return Results.ValidationProblem(

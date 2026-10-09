@@ -120,6 +120,37 @@ public sealed class ModelBindingTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// MVC binds every element of a query array under the array's name, so a member can be refused more than once: each
+    /// refused element's message is listed, and the code is the first one's, the rule its first error states, as a
+    /// minimal API answers the same request.
+    /// </summary>
+    [Fact]
+    public async Task Every_refused_element_of_a_query_array_is_listed_with_the_code_of_the_first_as_a_minimal_API_lists_it()
+    {
+        const string Query = "?quantities=1&quantities=-1&quantities=x";
+        await using var minimalApi = new ProductionProblemDetailsApplication();
+        await minimalApi.InitializeAsync();
+
+        using var response = await _client.GetAsync($"/probe/batches{Query}", TestContext.Current.CancellationToken);
+        using var minimalApiResponse = await minimalApi.Client.GetAsync($"/api/batches{Query}", TestContext.Current.CancellationToken);
+        var problem = await MinimalApiProblemDetailsTests.ReadProblemAsync(response);
+
+        problem.Messages.Should().BeEquivalentTo(
+            new Dictionary<string, string[]>
+            {
+                ["quantities"] =
+                [
+                    MinimalApiProblemDetailsTests.Refusal<Quantity, short>("-1").Message,
+                    MinimalApiProblemDetailsTests.Refusal<Quantity, short>("x").Message,
+                ],
+            },
+            options => options.WithStrictOrdering());
+        problem.Codes.Should().Equal(new Dictionary<string, string> { ["quantities"] = ValueObjectErrorCodes.OutOfRange });
+        problem.Should().Be(await MinimalApiProblemDetailsTests.ReadProblemAsync(minimalApiResponse));
+        (await _client.GetStringAsync("/probe/batches?quantities=1&quantities=2", TestContext.Current.CancellationToken)).Should().Be("2");
+    }
+
+    /// <summary>
     /// A parser written by hand may refuse text without giving a reason, which a generated one never does. The
     /// binder supplies one, so the response still names a rule.
     /// </summary>
