@@ -244,8 +244,10 @@ var schemaOptions = new AIJsonSchemaCreateOptions
 var pay = AIFunctionFactory.Create(PayAsync, new AIFunctionFactoryOptions { JsonSchemaCreateOptions = schemaOptions });
 ```
 
-The Model Context Protocol SDK takes the same options for a tool's `inputSchema`, through its
-`McpServerToolCreateOptions.SchemaCreateOptions`.
+For a Model Context Protocol server, `AdCodicem.ValueObjects.ModelContextProtocol` registers the tools with these options
+through `WithValueObjectTools<T>()`, and answers a refused argument with its rule
+([Model Context Protocol servers](./language-models.md#model-context-protocol-servers)); a tool built by hand takes them
+through its `McpServerToolCreateOptions.SchemaCreateOptions`.
 
 A value object is found in the registry its generated registration fills, without reflection. One nothing registered,
 a value object written by hand or a construction of a generic one, is described by reflection where the runtime

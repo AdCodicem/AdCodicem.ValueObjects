@@ -106,6 +106,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI tool and structured-output schemas that carry the rules, and a refused tool argument answered with its rule code. |
+| `AdCodicem.ValueObjects.ModelContextProtocol` | Model Context Protocol tool schemas that carry the rules, and a refused tool argument answered with its rule code. |
 | `AdCodicem.ValueObjects.Identifiers` | Stripe-style public entity identifiers: `acc_2K7X9…`. |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | Fixed-width, non-Unicode columns for those identifiers. |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | Those identifiers minted by MongoDB.Driver for a document inserted without one. |
@@ -117,7 +118,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twenty-four are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twenty-five are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -141,6 +142,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
 | `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
 | `AdCodicem.ValueObjects.AI` | `net10.0` | Microsoft.Extensions.AI 10, with its OpenAI adapter in strict mode, and native AOT | Microsoft.Extensions.AI 10 on .NET 11 |
+| `AdCodicem.ValueObjects.ModelContextProtocol` | `net10.0` | ModelContextProtocol 2.2, in process over streams, and native AOT | ModelContextProtocol 2.2 on .NET 11 |
 | `AdCodicem.ValueObjects.Identifiers` | `net10.0` | .NET 10 | .NET 11 |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
@@ -197,14 +199,16 @@ which is what makes the struct representation — zero allocation, no null — s
 its own output: `VO0032` reports it in the code of Riok.Mapperly and of the configuration binding generator, and
 of any generator a `.globalconfig` adds. What reaches a boundary the analyzer cannot see — an entity property never
 set, a default array element — is not written as it stands: the JSON converters, the Dapper handler, the MongoDB
-serializers, the MessagePack formatters and the EF Core converters refuse an uninitialized instance whose value its
+serializers, the MessagePack formatters, the XML serialization of an assembly marked
+`[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized instance whose value its
 type rejects, and an optional EF Core column stores a `NULL` instead.
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
 their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a
-MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationException`, a tool result a language model
-reads. Each
+MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationException`, an `XmlException` from
+`XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool
+result a language model reads, an MCP tool execution error. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
 query value, and those of a minimal API for a route, query or header value.
@@ -213,9 +217,11 @@ it, and fails the query. Validation is fail-fast: the first violated rule wins.
 
 **Normalize, then validate, then assign.** So a non-default instance is by construction both normalized and
 valid. It happens on construction, on parsing, on deserialization and on model binding — but *not* when
-materializing a row from the database, which is the hottest path in most applications and reads values this
+materializing a row through EF Core or Dapper, which is the hottest path in most applications and reads values this
 same application wrote. `ConfigureValueObjects(strict: true)` turns that back on for a table another system
-also writes to.
+also writes to. MongoDB and MessagePack reads validate, since a collection or a message may come from another
+program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
+`WithValueObjects(trusted: true)`.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, and becomes the
 `maxLength` keyword of the OpenAPI schema. The `[GeneratedRegex]` behind `IValueObjectPatternValidator`
@@ -223,7 +229,8 @@ validates the value, and its text becomes the `pattern` keyword. The members mar
 membership lookup and the `enum` keyword of the schema, with their names beside it for generated clients.
 The same rules fill in the JSON Schema System.Text.Json exports, which AI tools, structured output and MCP servers
 describe their parameters with, through `ValueObjectJsonSchema`; `AdCodicem.ValueObjects.AI` carries them to the tools
-and the structured output of Microsoft.Extensions.AI in one call.
+and the structured output of Microsoft.Extensions.AI in one call, and `AdCodicem.ValueObjects.ModelContextProtocol` to
+the tools of a Model Context Protocol server.
 
 ## Compared with other libraries
 
@@ -319,6 +326,19 @@ AIFunction placeOrder = AIFunctionFactory.Create(
         tools.PlaceOrder,
         new AIFunctionFactoryOptions { JsonSchemaCreateOptions = new AIJsonSchemaCreateOptions().WithValueObjects() })
     .WithValueObjectValidation();
+```
+
+A Model Context Protocol server built with the C# SDK has the same gaps, and answers a refused argument with
+`An error occurred invoking 'place_order'.`. `AdCodicem.ValueObjects.ModelContextProtocol` registers the tools with the
+rules in their input and output schemas, and answers a refused argument with a tool execution error carrying its code,
+`Argument 'quantity' rejected (value_object.out_of_range): …`
+([Model Context Protocol servers](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/language-models#model-context-protocol-servers)):
+
+```csharp skip
+builder.Services
+    .AddMcpServer()
+    .WithHttpTransport()
+    .WithValueObjectTools<OrderTools>();
 ```
 
 `XmlSerializer` and `DataContractSerializer`, and the MVC XML formatters, CoreWCF and Dapr actor remoting built on them,

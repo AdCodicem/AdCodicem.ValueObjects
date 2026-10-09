@@ -27,9 +27,10 @@
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
     <!-- No project references these two: they are transitive pins. They raise the 6.0.0 that BenchmarkDotNet's
          Microsoft.Extensions.Logging asks for in the benchmarks to the version Entity Framework Core asks for,
-         and pinning lists them as dependencies of both Entity Framework Core packages and of the MessagePack
-         package, which reaches them through the hub protocol's Microsoft.AspNetCore.SignalR.Common: removing them
-         changes what those three pack. -->
+         and pinning lists them as dependencies of both Entity Framework Core packages, of the MessagePack
+         package, which reaches them through the hub protocol's Microsoft.AspNetCore.SignalR.Common, and of the Model
+         Context Protocol package, which reaches them through Microsoft.Extensions.Hosting.Abstractions: removing them
+         changes what those four pack. -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.12" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
@@ -66,6 +67,11 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its net10.0 asset depends on
          nothing. -->
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.1" />
+    <!-- The Model Context Protocol package's floor, the version it is built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). ModelContextProtocol.Core comes with
+         it at exactly that version, and Microsoft.Extensions.Hosting.Abstractions and Caching.Abstractions at their
+         floors; none is pinned here: a pin would make it a dependency of the package. -->
+    <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">

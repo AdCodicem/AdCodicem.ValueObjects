@@ -21,6 +21,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI: the rules in tool and structured-output schemas; a refused tool argument answered with its code. AOT-compatible. |
+| `AdCodicem.ValueObjects.ModelContextProtocol` | MCP C# SDK: the rules in tool input and output schemas; a refused tool argument answered with its code, as a tool execution error. AOT-compatible. |
 | `AdCodicem.ValueObjects.Identifiers[.EntityFrameworkCore\|.MongoDB]` | Stripe-style public identifiers, their columns, their minting on insert. See `identifiers.md`. |
 | `AdCodicem.ValueObjects.Testing` | The xUnit contract kit. |
 | `AdCodicem.ValueObjects.Testing.Data` | Values each type accepts, drawn from its rules; the values at its edges and the values its schema rules out. |
@@ -60,18 +61,20 @@ with `Minimum` 0, an unconstrained `Guid`) writes it.
 
 **Every exception an integration throws for a refused value carries the rule's code.** System.Text.Json:
 `ValueObjectJsonException.ErrorCode`, beside `ValueObjectType`. Newtonsoft.Json's `JsonSerializationException`, Dapper's
-`DataException`, MongoDB.Driver's `FormatException` (read) and `BsonSerializationException` (write), and MessagePack's
-`MessagePackSerializationException`: `exception.Data[ValueObjectErrors.ErrorCodeKey]`. EF Core: the
-`ValueObjectException` inside `DbUpdateException`. Read any of them, wrapped or not, with
-`ValueObjectErrors.TryGetCode(exception, out var code)`. A token or column not of the underlying type carries
-`value_object.not_parsable`, a `null` for a value object that cannot be `null` `value_object.required`. An integration
-of your own sets `exception.Data[ValueObjectErrors.ErrorCodeKey] = code`. For a gRPC `ErrorInfo.reason`, map the code
-with `ValueObjectErrorCodes.ToUpperSnakeCase(code)` (`value_object.too_long` → `VALUE_OBJECT_TOO_LONG`); it throws
-`ArgumentException` for a code that maps to no valid reason.
+`DataException`, MongoDB.Driver's `FormatException` (read) and `BsonSerializationException` (write), MessagePack's
+`MessagePackSerializationException`, and the `XmlException` of `XmlSerializer` and `DataContractSerializer` in an
+assembly marked `[assembly: ValueObjectXmlSerialization]`, inside the serializer's own exception:
+`exception.Data[ValueObjectErrors.ErrorCodeKey]`. EF Core: the `ValueObjectException` inside `DbUpdateException`. Read
+any of them, wrapped or not, with `ValueObjectErrors.TryGetCode(exception, out var code)`. A token or column not of the
+underlying type carries `value_object.not_parsable`, a `null` for a value object that cannot be `null`
+`value_object.required`. An integration of your own sets `exception.Data[ValueObjectErrors.ErrorCodeKey] = code`. For a
+gRPC `ErrorInfo.reason`, map the code with `ValueObjectErrorCodes.ToUpperSnakeCase(code)` (`value_object.too_long` →
+`VALUE_OBJECT_TOO_LONG`); it throws `ArgumentException` for a code that maps to no valid reason.
 
 **JSON Schema** (`JsonSchemaExporter`, and every host built on it: Microsoft.Extensions.AI tools and structured
 output, the MCP SDK, Agent Framework) describes a value object as `true` and a `List<Iban>` without `items`. For
-Microsoft.Extensions.AI, use `AdCodicem.ValueObjects.AI`'s `WithValueObjects()` (below, Language models). Plug
+Microsoft.Extensions.AI, use `AdCodicem.ValueObjects.AI`'s `WithValueObjects()` (below, Language models); for an MCP
+server, `AdCodicem.ValueObjects.ModelContextProtocol`'s `WithValueObjectTools<T>()` (below). Plug
 `ValueObjectJsonSchema.TransformSchemaNode` into `JsonSchemaExporterOptions.TransformSchemaNode` to describe each one as
 its underlying value with its rules (`type`, `null` for a nullable one, lengths, 1 for a `char`, `pattern`,
 `minimum`/`maximum` or a sentence for a date, `enum`, `examples`, `description`, `format`), elements, dictionary values
@@ -624,6 +627,63 @@ var order = new ChatResponse<Order>(response, AppJsonContext.Default.Options).Re
 - Reflection-free or native AOT: `AIFunctionFactory`'s default options throw `NotSupportedException`. Pass
   `SerializerOptions` from a source-generated context with `Converters = [typeof(ValueObjectJsonConverterFactory)]`
   listing the parameter types (the value objects, not their underlying types) and the result type.
+
+## Model Context Protocol servers
+
+```csharp skip
+using AdCodicem.ValueObjects.ModelContextProtocol;
+
+// A tool type: in place of WithTools<OrderTools>().
+builder.Services
+    .AddMcpServer()
+    .WithHttpTransport()
+    .WithValueObjectTools<OrderTools>();
+```
+
+```csharp skip
+// A tool created by hand, here on one instance: Create, then WithValueObjectTools(tools), not the SDK's
+// WithTools(tools) alone, and chained on the same builder as the other registrations.
+var placeOrder = ValueObjectMcpServerTool.Create(
+    typeof(OrderTools).GetMethod(nameof(OrderTools.PlaceOrder))!,
+    orderTools,
+    new McpServerToolCreateOptions { Name = "place_order" });
+
+builder.Services
+    .AddMcpServer()
+    .WithHttpTransport()
+    .WithValueObjectTools([placeOrder]);
+
+// A server created without dependency injection: AddValueObjectValidation() on its options, before McpServer.Create.
+var options = new McpServerOptions { ToolCollection = [placeOrder] }.AddValueObjectValidation();
+```
+
+- `WithValueObjectTools<T>()`, `WithValueObjectTools(IEnumerable<Type>)` (static classes too) and
+  `WithValueObjectToolsFromAssembly()` mirror the SDK's `WithTools<T>()`, `WithTools(types)` and
+  `WithToolsFromAssembly()`: same `[McpServerTool]` methods, public or not, an instance of `T` per call of an instance
+  method, never taken from the services. The two non-generic ones are `[RequiresUnreferencedCode]`. The SDK's
+  `WithTools<T>(T target)` has no counterpart: `Create(method, target)` for each method, then
+  `WithValueObjectTools(tools)`.
+- The rules go into each tool's `inputSchema`, and into its `outputSchema` with `UseStructuredContent` (an
+  `OutputSchemaType` too), under the language-model profile. The tools stay the SDK's own: never wrap one in a
+  `DelegatingMcpServerTool`, which loses the SDK's output schema for clients before protocol `2026-07-28` and the check.
+- A refused argument, the first in parameter order, is answered with `isError: true`, the text
+  `Argument 'quantity' rejected (value_object.out_of_range): The value is not a valid Quantity: …`, and the structured
+  content `{"error":"invalid_argument","argument":…,"code":…,"message":…}` only when the tool declares no output
+  schema. Same codes and messages as `WithValueObjectValidation()` above; the tool is not called, nor its instance
+  created. Parameters the SDK binds itself (`McpServer`, `RequestContext<…>`, `IProgress<…>`, services,
+  `CancellationToken`) are never read.
+- The check is a call-tool filter added once, after the filters the options are configured with, innermost. A filter
+  added in `HttpServerTransportOptions.ConfigureSessionOptions` runs inside it: call
+  `options.AddValueObjectValidation()` after adding it. The SDK refuses the check beside an explicit
+  `CallToolWithAlternateHandler` (`MCPEXP002`), and throws when it creates the server: at start over stdio, for each
+  session (each request when stateless) over HTTP.
+- A value object returned as structured content is held to the `outputSchema`, which a client may validate it against:
+  give a closed set looked up ignoring case a normalizer that returns each known value in its declared spelling, or a
+  result spelled otherwise falls outside the schema's `enum`.
+- Reflection-free or native AOT: pass `serializerOptions`, a copy of `McpJsonUtilities.DefaultOptions` with your
+  source-generated context inserted first in `TypeInfoResolverChain` and `new ValueObjectJsonConverterFactory()` added
+  to `Converters`; the context lists the parameter and result types. Without it the server throws
+  `NotSupportedException` when first resolved.
 
 ## XML
 

@@ -5,7 +5,8 @@
     the native binary and fails when the two outputs differ (Program.cs). It references every package that claims to
     be AOT-compatible, and its value objects come from a domain project, where the Request Delegate Generator sees their
     interfaces; the RDG suite covers those declared in the endpoints' project. Microsoft.Extensions.AI builds the tools
-    of LanguageModels.cs from their methods at run time, over the source-generated context. Two value objects written by
+    of LanguageModels.cs from their methods at run time, over the source-generated context, and so does the Model Context
+    Protocol SDK for the server of Mcp.cs, in process over a pair of pipes. Two value objects written by
     hand, linked from the unit suite, have no generated converter: Program.cs registers them without one, so the JSON
     factory serves them its general-purpose converter. A third, UnregisteredCode, is registered by nothing, and the
     factory refuses it.
@@ -44,6 +45,7 @@
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.ModelContextProtocol\AdCodicem.ValueObjects.ModelContextProtocol.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Serilog\AdCodicem.ValueObjects.Serilog.csproj" />
     <ProjectReference Include="..\AdCodicem.ValueObjects.NativeAot.Domain\AdCodicem.ValueObjects.NativeAot.Domain.csproj" />
   </ItemGroup>

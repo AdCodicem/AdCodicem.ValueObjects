@@ -24,6 +24,7 @@ Microsoft.Extensions.AI.Abstractions
 Microsoft.Extensions.DependencyInjection.Abstractions
 Microsoft.Extensions.Options
 Microsoft.OpenApi
+ModelContextProtocol
 MongoDB.Driver
 Newtonsoft.Json
 Serilog

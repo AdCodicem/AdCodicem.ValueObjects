@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (with a $jsonSchema validator and entity identifiers minted on insert), MessagePack and SignalR, FluentValidation, OpenAPI (built-in stack and Swashbuckle), Serilog and Microsoft.Extensions.AI (tools, structured output) integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (with a $jsonSchema validator and entity identifiers minted on insert), MessagePack and SignalR, FluentValidation, OpenAPI (built-in stack and Swashbuckle), Serilog, Microsoft.Extensions.AI (tools, structured output) and Model Context Protocol servers (tool schemas, refused tool arguments) integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -176,7 +176,8 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   validation. Construct through `Create`/`TryCreate`; express absence as `Iban?`, never as an empty or default
   instance. A test that needs one disables `VO0010` on that line with a comment saying why. One that slips past the
   analyzer (an entity property never set) is refused by every writer when its type rejects the default (JSON,
-  Dapper, MongoDB, MessagePack, EF Core `SaveChanges`); an EF Core `Iban?` column stores `NULL` instead.
+  Dapper, MongoDB, MessagePack, XML in an assembly marked `[assembly: ValueObjectXmlSerialization]`, EF Core
+  `SaveChanges`); an EF Core `Iban?` column stores `NULL` instead.
 - `NormalizeCore` / `ValidateCore` / `TryFormatCore` — the pre-interface names. They compile, they never run.
 - `Pattern = "..."` on `[ValueObject<T>]` — a compile error (`VO0021`). Move the text to the hook, with
   `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`; behaviour is unchanged.
@@ -243,7 +244,9 @@ Reflection-based `System.Text.Json` needs nothing either; a source-generated `Js
 (`ValueObjectJsonSchema.TransformSchemaNode`), which otherwise describes every value object as `true`. A
 Microsoft.Extensions.AI tool takes `AdCodicem.ValueObjects.AI`: `new AIJsonSchemaCreateOptions().WithValueObjects()` in
 its `AIFunctionFactoryOptions`, and `.WithValueObjectValidation()` on the function, which answers a refused argument
-with its rule code instead of "Error: Function failed.". Per-package details, EF `strict` mode and problem-details payloads:
+with its rule code instead of "Error: Function failed.". A Model Context Protocol server takes
+`AdCodicem.ValueObjects.ModelContextProtocol`: `.WithValueObjectTools<OrderTools>()` in place of the SDK's
+`.WithTools<OrderTools>()`. Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.
 
 ## Test with the contract kit
@@ -292,7 +295,7 @@ library. AutoFixture, Bogus and FsCheck get the same values through `AdCodicem.V
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, FluentValidation, OpenAPI (built-in and Swashbuckle), Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), test data for AutoFixture, Bogus and FsCheck. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, FluentValidation, OpenAPI (built-in and Swashbuckle), Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, test data for AutoFixture, Bogus and FsCheck. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, their EF Core columns and MongoDB id generation, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0038`, with the fix for each. |
 

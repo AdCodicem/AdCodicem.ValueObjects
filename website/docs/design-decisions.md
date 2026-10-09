@@ -25,15 +25,17 @@ Another source generator cannot see the generated members, and may write `new Ib
 reports it in the code of Riok.Mapperly and of the configuration binding generator, and of any generator a
 `.globalconfig` adds ([the fix](./reference/diagnostics.md#a-value-object-another-generator-creates)). What reaches a
 boundary the analyzer cannot see — an entity property never set, a default array element — is not written as it stands:
-the JSON converters, the Dapper handler, the MongoDB serializers, the MessagePack formatters and the EF Core converters
-refuse an uninitialized instance whose value its type rejects, and an optional EF Core column stores a `NULL` instead
+the JSON converters, the Dapper handler, the MongoDB serializers, the MessagePack formatters, the XML serialization of
+an assembly marked `[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized instance
+whose value its type rejects, and an optional EF Core column stores a `NULL` instead
 ([what each one throws](./reference/errors.md#a-value-refused-on-write)).
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value is
 valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in their own
 terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver
-`FormatException`, a MessagePack `MessagePackSerializationException`, a tool result a language model reads
-([what each one throws](./reference/errors.md)).
+`FormatException`, a MessagePack `MessagePackSerializationException`, an `XmlException` from `XmlSerializer` or
+`DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool result a language model
+reads, a Model Context Protocol tool execution error ([what each one throws](./reference/errors.md)).
 Each carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions ([the code in
 an exception](./reference/errors.md#the-code-in-an-exception)). `Create` throws `ValueObjectException`, and is for the
 call sites that want it; a strict EF Core read goes through it, and fails the query. Validation is fail-fast: the first
@@ -41,9 +43,11 @@ violated rule wins.
 
 **Normalize, then validate, then assign.** So a non-default instance is by construction both normalized and
 valid. It happens on construction, on parsing, on deserialization and on model binding — but *not* when
-materializing a row from the database, which is the hottest path in most applications and reads values this
+materializing a row through EF Core or Dapper, which is the hottest path in most applications and reads values this
 same application wrote. `ConfigureValueObjects(strict: true)` turns that back on for a table another system
-also writes to.
+also writes to. MongoDB and MessagePack reads validate, since a collection or a message may come from another
+program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
+`WithValueObjects(trusted: true)`.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, and becomes the `maxLength`
 keyword of the OpenAPI schema, and of the [MongoDB collection

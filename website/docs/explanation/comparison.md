@@ -43,6 +43,7 @@ be corrected.
 | Other serializers and stores | Newtonsoft.Json; XML (`XmlSerializer`, `DataContractSerializer`, opted in per assembly, read with validation, rules in the XSD); MongoDB.Driver (BSON, `.Value` in LINQ, read with validation, rules in a `$jsonSchema` validator, entity identifiers minted on insert); MessagePack and SignalR's MessagePack hub protocol (bare values, read with validation) | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
 | Structured logging | Serilog: `{@X}`, and `{X}` on request, as the underlying value | no | no | Serilog destructuring policy, `{@X}` only |
 | Language-model tools and structured output | Microsoft.Extensions.AI: the rules in the schemas, a refused tool argument answered with its code | no | no | no |
+| Model Context Protocol tools | the C# SDK: the rules in `inputSchema` and `outputSchema`, a refused tool argument answered with its code | no | no | no |
 | Contract test kit for your own types | yes, with the values its schema rules out, on request | no | no | no |
 | Valid test data from the declared rules | AutoFixture, Bogus and FsCheck packages over a dependency-free sampler | no (Vogen#153, AutoFixture specimen builders, closed as not planned) | no | no |
 | Prefixed public identifiers (`acc_…`) | yes | no | no | no |
@@ -82,7 +83,8 @@ are part of the library rather than left to you. So is [structured logging](../h
 it, where Thinktecture's destructuring policy, `Destructure.UsingThinktectureRuntimeExtensions()`, covers `{@Value}`
 alone and leaves `{Value}` to `ToString()`, a number then reaching the sink as a string. And a model calling a tool
 through Microsoft.Extensions.AI reads the rules in the tool's schema, and the rule its argument broke, with its code,
-rather than "Error: Function failed." ([language models](../how-to/language-models.md)).
+rather than "Error: Function failed." ([language models](../how-to/language-models.md)), as does one calling the tool of
+a Model Context Protocol server, rather than "An error occurred invoking 'place_order'.".
 
 ## Where the others are stronger
 

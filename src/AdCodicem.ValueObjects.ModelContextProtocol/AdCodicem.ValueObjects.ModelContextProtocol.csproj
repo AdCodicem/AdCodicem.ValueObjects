@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.ModelContextProtocol</RootNamespace>
+    <Description>Model Context Protocol support for AdCodicem value objects: tool input and output schemas that carry each value object's rules, and a value-object argument a rule refuses answered with its rule code, as a tool execution error the model can correct from, instead of a bare error. AOT-compatible.</Description>
+    <PackageTags>$(PackageTags);mcp;model-context-protocol;ai;llm;tool-calling;json-schema</PackageTags>
+
+    <!--
+      AOT-compatible, by the repository's default: the generic registration carries the SDK's own annotation and the
+      non-generic ones RequiresUnreferencedCode, as the SDK's do; each argument is read through the contract the tool's own
+      serializer options hold for its parameter, and nothing is closed at run time.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.AI\AdCodicem.ValueObjects.AI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- IMcpServerBuilder and its hosting extensions; ModelContextProtocol.Core comes with it, at exactly its version. -->
+    <PackageReference Include="ModelContextProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The check of the arguments a model sends a method, compiled here too rather than reached through
+         InternalsVisibleTo: the two packages are installed apart, and an internal of one is no contract of the other. -->
+    <Compile Include="..\Shared\ValueObjectArguments.cs" Link="Shared\ValueObjectArguments.cs" />
+    <Compile Include="..\Shared\ValueObjectArgumentRejection.cs" Link="Shared\ValueObjectArgumentRejection.cs" />
+  </ItemGroup>
+
+</Project>

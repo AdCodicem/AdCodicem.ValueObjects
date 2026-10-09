@@ -105,7 +105,8 @@ exactly for the types `TryResolve` describes, and `false` for an interface, a cl
 `IValueObject` marker or `IValueObject<TValue>`. `GetUnderlyingType` answers `null` for the same types, even one that
 declares a value through `IValueObject<TValue>`. The integrations claim a type by the same rule: the JSON converter
 factory, the Newtonsoft.Json converter, the MVC model binder and `MustParseAs` leave anything else to the framework,
-or refuse it, and the argument check of `AdCodicem.ValueObjects.AI` tells a value-object parameter by it.
+or refuse it, and the argument check of `AdCodicem.ValueObjects.AI` and `AdCodicem.ValueObjects.ModelContextProtocol`
+tells a value-object parameter by it.
 
 ## Nullable value objects
 

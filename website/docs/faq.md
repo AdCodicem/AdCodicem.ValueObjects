@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The twenty-four packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The twenty-five packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -98,9 +98,13 @@ without case, give the column a matching collation.
 
 ### Why are values read from the database not validated?
 
-Because the EF Core read path is the hottest in most applications, and it reads values the same application
-validated when writing them. `ConfigureValueObjects(strict: true, …)` validates reads for tables other systems
-also write to.
+Because the EF Core and Dapper read paths are the hottest in most applications, and they read values the same
+application validated when writing them. `ConfigureValueObjects(strict: true, …)` validates EF Core reads for tables
+other systems also write to; Dapper validates only a column the value object cannot have written, text read into a
+value object over a number, say. MongoDB reads are the other way round: validated, since a collection has no schema and
+is often written by more than one program, unless the serializer is registered with
+`ValueObjectBson.Register(trusted: true, …)`. So are MessagePack reads, since the bytes may come from another service,
+unless the resolver is trusted, `WithValueObjects(trusted: true)` or `UseValueObjects(trusted: true)`.
 
 ### Does it work with minimal APIs?
 
@@ -186,6 +190,17 @@ so the same calls apply; its `RunAsync<T>` drops the rules of a structured answe
 through its run options.
 [Language models](./how-to/language-models.md) has the wiring, the result, and the limits.
 
+### Does it work with a Model Context Protocol server?
+
+With the C# SDK, through `AdCodicem.ValueObjects.ModelContextProtocol`. Left to itself, the SDK lists a value object a
+tool takes as `true` in its `inputSchema`, and one it returns as structured content as `true` in its `outputSchema`,
+and answers a value its converter refuses with `An error occurred invoking 'place_order'.`; its `WithTools` methods take
+no schema options. `WithValueObjectTools<OrderTools>()` registers the same tools as `WithTools<OrderTools>()`, with the
+rules in both schemas, and answers a refused argument with a tool execution error carrying the argument, the code and
+the message, never the value sent. The tools stay the SDK's own, so a client on an older protocol version still gets
+the output schema the SDK writes for it. [Model Context Protocol
+servers](./how-to/language-models.md#model-context-protocol-servers) has the wiring, the result, and the limits.
+
 ## Performance
 
 ### Does a value object cost more than the primitive it wraps?
@@ -214,10 +229,11 @@ written by hand, the test-data sampler, the AutoFixture customization, the Bogus
 value object and each entity identifier, all but the converter of an optional value object, which C# cannot name there
 and which they close with `MakeGenericType`; they do so only while a model is built, never under native AOT. The
 Microsoft.Extensions.AI integration closes nothing: it reads a tool's parameters once, when it wraps the function, and
-each argument through the function's own contracts. The
+each argument through the function's own contracts. Nor does the Model Context Protocol one, which finds the tool methods
+of a type as the SDK does, the generic registration through a type parameter carrying the SDK's trimming annotation. The
 contracts, the generated code, the JSON package, the minimal API problem details, FluentValidation, identifiers and the
-Serilog and Microsoft.Extensions.AI integrations are marked AOT-compatible and built with the trimming and AOT
-analyzers on, and CI publishes an
+Serilog, Microsoft.Extensions.AI and Model Context Protocol integrations are marked AOT-compatible and built with the
+trimming and AOT analyzers on, and CI publishes an
 application using them all with native AOT on every pull request, which merges only once that passes: it fails on any
 trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The EF Core,
 ASP.NET Core MVC, OpenAPI, Swashbuckle, Dapper, MongoDB, MongoDB identifiers, MessagePack and Newtonsoft.Json

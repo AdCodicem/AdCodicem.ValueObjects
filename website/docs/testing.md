@@ -28,7 +28,9 @@ Four suites, each with a distinct job:
   sample value object. The AutoFixture, Bogus and FsCheck packages fill objects holding value objects in every shape a
   member takes. Microsoft.Extensions.AI builds a tool over every sample value object, alone, nullable and in a list,
   whose schema and whose answer to a refused argument are checked, and a scripted model stands for a real one: no test
-  calls a model, and the request the OpenAI adapter sends in strict mode is captured before it leaves.
+  calls a model, and the request the OpenAI adapter sends in strict mode is captured before it leaves. A Model Context
+  Protocol server lists a tool over every sample value object to the SDK's own client, over a pair of pipes in process,
+  and answers each refused argument with a tool execution error carrying its rule.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that
@@ -65,12 +67,14 @@ Two applications, built as an application builds them, are published rather than
 
 The first references every package that claims to be AOT-compatible: the contracts, the generated code, the JSON package
 with a source-generated context and the JSON Schema it exports, the minimal API problem details, the identifiers,
-FluentValidation, the Serilog integration and the Microsoft.Extensions.AI one. Its value objects cover each of the 22 underlying types, a pattern hook, a
+FluentValidation, the Serilog integration, the Microsoft.Extensions.AI one and the Model Context Protocol one. Its value
+objects cover each of the 22 underlying types, a pattern hook, a
 closed set, an identifier, a generic value object registered by hand, and two value objects written by hand, registered
 without a converter, which the JSON factory serves its general-purpose one, beside a third that nothing registers, which
 it refuses. It runs a fixed script over every one of them — the typed path, the descriptor, JSON, FluentValidation,
 Serilog, each value object logged checked against the bare value it carries, the schema of every one in a tool, tools
-built over the context answering refused arguments with their rule, and requests over Kestrel to minimal API
+built over the context answering refused arguments with their rule, a Model Context Protocol server in process listing
+its tools on two protocol versions and answering refused arguments, and requests over Kestrel to minimal API
 endpoints the Request Delegate Generator binds, refused values answered with problem details in each setting of
 `ThrowOnBadRequest`, each answer checked against the status and the codes the script expects — once under the JIT and
 once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT warning in the publish, and on any
@@ -86,7 +90,7 @@ SQL Server; the native AOT job also writes the model for native AOT, with its qu
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the twenty-four packages exactly as they were packed — from the folder the build packs into, at that one
+installs the twenty-five packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -94,7 +98,7 @@ PostgreSQL, System.Text.Json source generation, ASP.NET Core model binding on Sy
 and a minimal API with its problem details, `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
 MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
 SignalR's MessagePack hub protocol 11 over TestHost, FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI
-tools and structured output, `XmlSerializer` and
+tools and structured output, Model Context Protocol tools over the SDK's own client, `XmlSerializer` and
 `DataContractSerializer` over a domain that opts into XML serialization, the contract kit, and the test-data sampler
 drawing each value object of that domain from the schema the generator of that SDK wrote, through AutoFixture, Bogus and
 FsCheck too. A second project installs

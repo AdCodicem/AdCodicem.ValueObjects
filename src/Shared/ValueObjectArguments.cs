@@ -34,7 +34,9 @@ namespace AdCodicem.ValueObjects.Shared;
 /// </para>
 /// <para>
 /// It names no type of Microsoft.Extensions.AI, so that any host of tools that binds the arguments of a method through
-/// System.Text.Json can link it: the AI package checks the arguments of an <c>AIFunction</c> with it.
+/// System.Text.Json can link it: the AI package checks the arguments of an <c>AIFunction</c> with it, and the Model
+/// Context Protocol package those of a tool call, each a <see cref="JsonElement"/>. Each package compiles its own copy,
+/// since the two are installed apart.
 /// </para>
 /// </remarks>
 internal sealed partial class ValueObjectArguments
@@ -124,6 +126,28 @@ internal sealed partial class ValueObjectArguments
         {
             var present = arguments.TryGetValue(parameter.Name, out var value);
             if (parameter.Check(present, value) is { } rejection)
+            {
+                return rejection;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Checks the arguments of a Model Context Protocol tool call, each a <see cref="JsonElement"/>, in the order of the
+    /// parameters, and stops at the first refused.
+    /// </summary>
+    /// <param name="arguments">The arguments, by the name the schema gives each parameter, or <see langword="null"/> for a
+    /// call that sends none.</param>
+    /// <returns>The refusal of the first argument refused, or <see langword="null"/> when none is.</returns>
+    public ValueObjectArgumentRejection? FirstRejection(IDictionary<string, JsonElement>? arguments)
+    {
+        foreach (var parameter in _parameters)
+        {
+            var value = default(JsonElement);
+            var present = arguments is not null && arguments.TryGetValue(parameter.Name, out value);
+            if (parameter.Check(present, present ? value : null) is { } rejection)
             {
                 return rejection;
             }
