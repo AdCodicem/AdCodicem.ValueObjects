@@ -22,6 +22,9 @@
     <Project Path="src/AdCodicem.ValueObjects.MessagePack/AdCodicem.ValueObjects.MessagePack.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing.Data/AdCodicem.ValueObjects.Testing.Data.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.AutoFixture/AdCodicem.ValueObjects.AutoFixture.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Bogus/AdCodicem.ValueObjects.Bogus.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.FsCheck/AdCodicem.ValueObjects.FsCheck.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AdCodicem.ValueObjects.UnitTests/AdCodicem.ValueObjects.UnitTests.csproj" />

@@ -1,6 +1,9 @@
-namespace AdCodicem.ValueObjects.Testing.Data;
+namespace AdCodicem.ValueObjects.Shared;
 
-/// <summary>Writes a type the way C# names it in code, for a message that shows the registration to add.</summary>
+/// <summary>
+/// Writes a type the way C# names it in code, for a message that shows the registration to add: the test-data sampler
+/// and each library adapter over it link this file, so that each writes its own registration with the same names.
+/// </summary>
 internal static class TypeNames
 {
     private static readonly Dictionary<Type, string> Keywords = new()

@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (with a $jsonSchema validator and entity identifiers minted on insert), MessagePack and SignalR, FluentValidation, OpenAPI (built-in stack and Swashbuckle) and Serilog integrations, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (with a $jsonSchema validator and entity identifiers minted on insert), MessagePack and SignalR, FluentValidation, OpenAPI (built-in stack and Swashbuckle) and Serilog integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -280,14 +280,16 @@ var past = sampler.RejectedValues<Quantity, short>();  // one step past each rul
 A checksum or another validator is reached only through `TryCreate`: register a generator with `Use<TSelf, TValue>`,
 or the sampler falls back on the type's example and, without one, throws `ValueObjectSamplingException`, which names
 the registration to add, or the registered generator whose values the type refuses. `ValueObjectSampler.Shrink` proposes simpler accepted values to a property-based testing
-library.
+library. AutoFixture, Bogus and FsCheck get the same values through `AdCodicem.ValueObjects.AutoFixture`
+(`new ValueObjectCustomization()`), `.Bogus` (`RuleForValueObjects()`, called before the other rules) and `.FsCheck`
+(`ArbMap.Default.MergeValueObjects(assembly)`): see `references/integrations.md`.
 
 ## Reference files
 
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, FluentValidation, OpenAPI (built-in and Swashbuckle), Newtonsoft, Serilog. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, FluentValidation, OpenAPI (built-in and Swashbuckle), Newtonsoft, Serilog, test data for AutoFixture, Bogus and FsCheck. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, their EF Core columns and MongoDB id generation, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0038`, with the fix for each. |
 

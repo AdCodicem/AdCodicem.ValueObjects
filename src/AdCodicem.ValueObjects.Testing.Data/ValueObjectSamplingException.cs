@@ -1,3 +1,5 @@
+using AdCodicem.ValueObjects.Shared;
+
 namespace AdCodicem.ValueObjects.Testing.Data;
 
 /// <summary>

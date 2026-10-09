@@ -24,7 +24,9 @@ Four suites, each with a distinct job:
   here too, over TestHost: ASP.NET Core's pipelines, and a SignalR hub talking MessagePack with the .NET client.
   Property-based tests run the laws `IValueObject<TSelf, TValue>` states over generated input, the values each type
   accepts drawn by the [test-data sampler](./how-to/test-value-objects.md#generate-valid-values) from the rules it
-  declares, and the test-data sampler itself draws a value of every sample value object.
+  declares, through the arbitraries of the FsCheck package, and the test-data sampler itself draws a value of every
+  sample value object. The AutoFixture, Bogus and FsCheck packages fill objects holding value objects in every shape a
+  member takes.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that
@@ -81,8 +83,8 @@ SQL Server; the native AOT job also writes the model for native AOT, with its qu
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the twenty packages exactly as they were packed — from the folder the build packs into, at that one version,
-never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
+installs the twenty-three packages exactly as they were packed — from the folder the build packs into, at that one
+version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
 PostgreSQL, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json and on Newtonsoft.Json,
@@ -90,7 +92,8 @@ and a minimal API with its problem details, `Microsoft.AspNetCore.OpenApi` 11 ov
 MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
 SignalR's MessagePack hub protocol 11 over TestHost, FluentValidation, Newtonsoft.Json, Serilog, `XmlSerializer` and
 `DataContractSerializer` over a domain that opts into XML serialization, the contract kit, and the test-data sampler
-drawing each value object of that domain from the schema the generator of that SDK wrote. A second project installs
+drawing each value object of that domain from the schema the generator of that SDK wrote, through AutoFixture, Bogus and
+FsCheck too. A second project installs
 the Swashbuckle package, Swashbuckle 10 failing on the `Microsoft.OpenApi` 3 the first one's
 `Microsoft.AspNetCore.OpenApi` 11 brings: there, Swashbuckle documents a minimal API over `Microsoft.OpenApi` 2, as in
 an application that takes Swashbuckle alone.

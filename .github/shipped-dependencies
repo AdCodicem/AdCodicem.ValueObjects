@@ -9,8 +9,11 @@
 # Declared by a package's nuspec: referenced by a project under src/, or pinned through
 # CentralPackageTransitivePinningEnabled, which makes a pinned transitive package a dependency of the package
 # that pulls it in.
+AutoFixture
+Bogus
 Dapper
 FluentValidation
+FsCheck
 MessagePack
 Microsoft.AspNetCore.Mvc.NewtonsoftJson
 Microsoft.AspNetCore.OpenApi

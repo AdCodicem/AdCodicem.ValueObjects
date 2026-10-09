@@ -22,7 +22,7 @@
     <Error Text="The compatibility island targets the next .NET major, which SDK $(NETCoreSdkVersion) cannot. Run it from tests/Compat, whose global.json selects the SDK it needs." />
   </Target>
 
-  <!-- All twenty but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
+  <!-- All twenty-three but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
        AdCodicem.ValueObjects and runs in this SDK's compiler, the integrations resolve their dependency floors against
        the next major. Swashbuckle 10 fails on the Microsoft.OpenApi 3 that Microsoft.AspNetCore.OpenApi 11 brings here,
        so the Swashbuckle package is installed by the project of Swashbuckle/. -->
@@ -32,9 +32,12 @@
     <PackageReference Include="AdCodicem.ValueObjects.AspNetCore" />
     <PackageReference Include="AdCodicem.ValueObjects.AspNetCore.Http" />
     <PackageReference Include="AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson" />
+    <PackageReference Include="AdCodicem.ValueObjects.AutoFixture" />
+    <PackageReference Include="AdCodicem.ValueObjects.Bogus" />
     <PackageReference Include="AdCodicem.ValueObjects.Dapper" />
     <PackageReference Include="AdCodicem.ValueObjects.EntityFrameworkCore" />
     <PackageReference Include="AdCodicem.ValueObjects.FluentValidation" />
+    <PackageReference Include="AdCodicem.ValueObjects.FsCheck" />
     <PackageReference Include="AdCodicem.ValueObjects.Identifiers" />
     <PackageReference Include="AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore" />
     <PackageReference Include="AdCodicem.ValueObjects.Identifiers.MongoDB" />
@@ -69,6 +72,10 @@
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Testcontainers.MsSql" />
     <PackageReference Include="Testcontainers.MongoDb" />
+    <!-- What the test-data packages are driven through, as a test project references them. -->
+    <PackageReference Include="AutoFixture" />
+    <PackageReference Include="Bogus" />
+    <PackageReference Include="FsCheck" />
   </ItemGroup>
 
   <ItemGroup>

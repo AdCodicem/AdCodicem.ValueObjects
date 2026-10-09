@@ -54,6 +54,14 @@
          nothing here: a pin would make them dependencies of the package. -->
     <PackageVersion Include="MessagePack" Version="3.1.11" />
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.12" />
+    <!-- The test-data packages' floors, the versions they are built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). AutoFixture stays on 4.18.1 while
+         5.0 is a release candidate: a stable package depending on a prerelease is NU5104, which fails the pack. Fare,
+         which AutoFixture brings, and FSharp.Core, which FsCheck brings, are pinned by nothing here: a pin would make them
+         dependencies of the packages. -->
+    <PackageVersion Include="AutoFixture" Version="4.18.1" />
+    <PackageVersion Include="Bogus" Version="35.6.5" />
+    <PackageVersion Include="FsCheck" Version="3.4.0" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
@@ -81,7 +89,6 @@
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" />
     <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.12" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
-    <PackageVersion Include="FsCheck" Version="3.4.0" />
     <!-- Validates what the serializer writes against the JSON Schema exported for it, under draft 2020-12, the draft
          System.Text.Json exports. BSD-3-Clause, as is the package of its author it depends on, the others being
          Microsoft's, under MIT; JsonSchema.Net, which it replaces, moved to the Open Source Maintenance Fee EULA at 9.0. -->

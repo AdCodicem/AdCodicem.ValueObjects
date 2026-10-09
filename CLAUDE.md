@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Twenty NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Twenty-three NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -93,8 +93,8 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All twenty packages go out at one version, or none. That version is the one semantic-release would give
-the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
+lookup fails. All twenty-three packages go out at one version, or none. That version is the one semantic-release would
+give the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
 The four suites run on that exact commit first, while a job of its own packs it, `src/` only. Before logging in,
@@ -141,7 +141,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The twenty packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The twenty-three packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -213,7 +213,8 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   written by hand, the minimal API filter of `AspNetCore.Http`, which closes a text check per parameter, the MongoDB
   provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, the
   MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, the test-data sampler's
-  `Next(descriptor)`, and EF Core's `ConfigureValueObjects` and `ConfigureEntityIds` do. An entity identifier's descriptor has a visitor of its
+  `Next(descriptor)`, the AutoFixture specimen builder, Bogus's `RuleForValueObjects` and `ValueObject<TSelf>`, FsCheck's
+  `MergeValueObjects`, and EF Core's `ConfigureValueObjects` and `ConfigureEntityIds` do. An entity identifier's descriptor has a visitor of its
   own: `EntityIdDescriptor.Accept` hands an `IEntityIdVisitor<TResult>` the identifier type, under `IEntityId<TId>`,
   through which `EntityIdBson.Register` of `Identifiers.MongoDB` closes each id generator and reaches `TId.New()`.
   `ConfigureValueObjects` still closes the converter of a `TSelf?` property with `MakeGenericType`, over the visitor's
@@ -514,7 +515,26 @@ These are all load-bearing, and each cost real debugging time:
   `ValueObjectPatternSyntax.cs`: the unit suite references the contracts under `Aliases="global,abstractions"`, and
   `ValueObjectPatternSyntaxTests` names the contracts' copy through `extern alias abstractions`; the MongoDB copy is
   tested through `PcrePattern`, and the copy of `AdCodicem.ValueObjects.Testing.Data` through `PatternSampler`, whose
-  tests name no node type. A further package linking it is tested the same way.
+  tests name no node type. A further package linking it is tested the same way. `TypeNames.cs`, which writes a type as C#
+  names it in a message, is linked by `Testing.Data` and by its AutoFixture, Bogus and FsCheck adapters: the unit suite
+  references `Testing.Data` under `Aliases="global,testingdata"`, and `SamplerTests` names its copy through the alias.
+- **The test-data adapters each meet their library's own rules.** AutoFixture stays at 4.18.1 while 5.0 is a release
+  candidate: a stable package depending on a prerelease is NU5104, which fails the pack; Dependabot proposes 5.0 as
+  `fix(deps)!` once it ships. Bogus keeps the last rule of a member, so `RuleForValueObjects` replaces a rule written
+  before it, and a test pins both orders. FsCheck's `MergeValueObjects` merges what the assembly's generated registration
+  lists, never the constructions of a generic value object nor a hand-written type nothing registered, which
+  `MergeValueObject<TSelf, TValue>` merges one by one: scanning the assembly through `TryResolve` would register every
+  hand-written type for the process. FsCheck stops a run at 5,000 shrinks, draws `bool` and `Guid` with no shrinker,
+  handles neither `DateOnly` nor `TimeOnly`, and derives the 128-bit integers by reflection, drawing 0, so a value object
+  over one of them shrinks to its declared values alone. Its other shrinks reach `ValueObjectSampler.Shrink` only when
+  the normalizer leaves them unchanged: its character shrinker proposes `a`, `b` and `c` for any capital, so an
+  upper-casing normalizer would shrink `B` and `C` to each other until that cap, and a test counts the shrinks. Its
+  `DateTime` shrinker makes a UTC value, as the sampler draws one, of no kind and nothing else, which the arbitrary works
+  around by shrinking the value of no kind and giving the kind back. FsCheck writes `Shrunk:` in a failure only after one
+  shrink at least: a test reading the counterexample falls back on `Original:`. The namespaces `AdCodicem.ValueObjects.AutoFixture`, `.Bogus` and `.FsCheck` hide the root `AutoFixture`,
+  `Bogus` and `FsCheck` namespaces in every `AdCodicem.ValueObjects.*` namespace, as Swashbuckle's, Serilog's, MongoDB's
+  and MessagePack's do: name their types through usings at the top of the file, and name no test folder or namespace after
+  one of them (the unit suite's is `TestData/`).
 - **`#pragma` does not silence a diagnostic the generator reports.** `VO0025`, `VO0026` and the generator's other
   warnings fail the build under `TreatWarningsAsErrors` whatever surrounds the declaration: a test needing a type that
   trips one writes the value object by hand, as `Persistence/MongoDbShapedCode.cs` does for a pattern matched under
@@ -561,7 +581,8 @@ Four suites, each with a distinct job:
   `UnregisteredCode`, which nothing may resolve.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
-  input, the values each type accepts drawn by `ValueObjectSampler` from a seed FsCheck draws, the IBAN's from the
+  input, the values each type accepts drawn by the FsCheck package's `ValueObjectArbitrary`, over `ValueObjectSampler`,
+  from a seed FsCheck draws, the IBAN's from the
   MOD-97 generator registered with `Use<Iban, string>`, and the deliberately invalid input written by hand. Two things
   keep such a suite honest and both are easy to lose: a property conditioned on "the value was
   accepted" passes vacuously unless the generator produces values the type accepts, so each one counts how often
@@ -572,7 +593,11 @@ Four suites, each with a distinct job:
   through `Declared<TDeclaration, TValue>`, a value object written by hand over any underlying type: the sampler's typed
   path never asks the registry, and a test of its boxed path resolves only generated value objects, never a shared one
   written by hand, which `TryResolve` would keep registered for the process. `GeneratedSurface/` draws every value object
-  of `Domain/` through it too.
+  of `Domain/` through it too. `AutoFixtureTests`, `BogusTests` and `FsCheckTests` drive the three adapters over the
+  objects of `TestDataOrders.cs`, which hold value objects in every shape a member takes; the adapters resolve through
+  the registry, so the only hand-written value objects they meet are `Declared<,>` constructions over declarations
+  those tests own (`Tally`, `WatchedTally`), and `FsCheckTests` merges a fresh `AssemblyLoadContext` copy of the
+  untouched fixture, whose registration only the merge can have run.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
   `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Snippets compile **without** implicit usings, which
@@ -654,7 +679,7 @@ on where they apply.
   (CS0104). A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
   (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-three packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, on System.Text.Json and on
@@ -664,7 +689,7 @@ validator and entity identifiers minted on insert, MessagePack, with SignalR's M
 and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, FluentValidation, Newtonsoft.Json,
 Serilog, `XmlSerializer` and
 `DataContractSerializer` over its domain, which opts into XML serialization, the contract kit and the test-data sampler,
-with no transitive
+through AutoFixture, Bogus and FsCheck too, with no transitive
 pinning, so the dependency floors of the packages meet the next
 major as an application's would. `AdCodicem.ValueObjects.Swashbuckle` is installed by a second project, `tests/Compat/Swashbuckle`,
 which the main one excludes from its sources: Swashbuckle 10 over `Microsoft.OpenApi` 2, on which it is built, since it

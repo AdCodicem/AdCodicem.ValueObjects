@@ -43,7 +43,7 @@ be corrected.
 | Other serializers and stores | Newtonsoft.Json; XML (`XmlSerializer`, `DataContractSerializer`, opted in per assembly, read with validation, rules in the XSD); MongoDB.Driver (BSON, `.Value` in LINQ, read with validation, rules in a `$jsonSchema` validator, entity identifiers minted on insert); MessagePack and SignalR's MessagePack hub protocol (bare values, read with validation) | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
 | Structured logging | Serilog: `{@X}`, and `{X}` on request, as the underlying value | no | no | Serilog destructuring policy, `{@X}` only |
 | Contract test kit for your own types | yes, with the values its schema rules out, on request | no | no | no |
-| Valid test data from the declared rules | a sampler, for any test framework | no | no | no |
+| Valid test data from the declared rules | AutoFixture, Bogus and FsCheck packages over a dependency-free sampler | no (Vogen#153, AutoFixture specimen builders, closed as not planned) | no | no |
 | Prefixed public identifiers (`acc_…`) | yes | no | no | no |
 | Beyond single values | no | no | no | complex value objects, smart enums, discriminated unions |
 | Licence | MIT | Apache-2.0 | MIT | BSD-3-Clause |

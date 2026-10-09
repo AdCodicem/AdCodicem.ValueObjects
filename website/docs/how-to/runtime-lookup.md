@@ -64,11 +64,13 @@ Every integration that closes an adapter over a value object it knows only by it
 integration registers its handlers, the MongoDB provider builds the serializer the driver asks it for, the MessagePack
 resolver the formatter MessagePack asks it for, the MVC model binder provider creates its binders, the minimal API
 filter of `AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains, the JSON converter
-factory closes the general-purpose converter it gives a value object written by hand, and the Entity Framework Core
-conventions map each value object and each entity identifier, while a model is built. One converter is the exception:
-that of an optional property, `Iban?`, which C# names only under a constraint `Visit` cannot prove, so the value object
-conventions close it with `MakeGenericType`, over the type arguments the visitor received. Entity Framework Core builds
-no model under native AOT, so that never runs there.
+factory closes the general-purpose converter it gives a value object written by hand, the test-data sampler's
+`Next(descriptor)` draws a value, the AutoFixture customization answers a request, the Bogus extensions give a member a
+rule, FsCheck's `MergeValueObjects` merges an arbitrary, and the Entity Framework Core conventions map each value object
+and each entity identifier, while a model is built. One converter is the exception: that of an optional property,
+`Iban?`, which C# names only under a constraint `Visit` cannot prove, so the value object conventions close it with
+`MakeGenericType`, over the type arguments the visitor received. Entity Framework Core builds no model under native AOT,
+so that never runs there.
 
 An entity identifier's descriptor, from `EntityIdRegistry`, has the same way out: `EntityIdDescriptor.Accept` hands an
 `IEntityIdVisitor<TResult>` the identifier type, constrained to `IEntityId<TId>`, so the visitor reaches `TId.New()`.
