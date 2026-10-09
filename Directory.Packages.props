@@ -62,6 +62,10 @@
     <PackageVersion Include="AutoFixture" Version="4.18.1" />
     <PackageVersion Include="Bogus" Version="35.6.5" />
     <PackageVersion Include="FsCheck" Version="3.4.0" />
+    <!-- The AI package's floor, the version it is built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its net10.0 asset depends on
+         nothing. -->
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.1" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
@@ -101,6 +105,14 @@
     <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />
     <PackageVersion Include="Serilog.Expressions" Version="5.0.0" />
     <PackageVersion Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <!-- FunctionInvokingChatClient and ChatResponse<T>, which the unit suite drives the AI package through, as an
+         application does, and the OpenAI adapter whose strict-mode request it captures; no package under src/ references
+         them. Microsoft.Extensions.AI has no 10.10.1. -->
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.10.1" />
+    <!-- Agent Framework's ChatClientAgent, which the unit suite runs the AI package's tools and response format through,
+         as an application does; no package under src/ references it. -->
+    <PackageVersion Include="Microsoft.Agents.AI" Version="1.24.0" />
   </ItemGroup>
 
 </Project>

@@ -32,7 +32,8 @@ refuse an uninitialized instance whose value its type rejects, and an optional E
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value is
 valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in their own
 terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver
-`FormatException`, a MessagePack `MessagePackSerializationException` ([what each one throws](./reference/errors.md)).
+`FormatException`, a MessagePack `MessagePackSerializationException`, a tool result a language model reads
+([what each one throws](./reference/errors.md)).
 Each carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions ([the code in
 an exception](./reference/errors.md#the-code-in-an-exception)). `Create` throws `ValueObjectException`, and is for the
 call sites that want it; a strict EF Core read goes through it, and fails the query. Validation is fail-fast: the first

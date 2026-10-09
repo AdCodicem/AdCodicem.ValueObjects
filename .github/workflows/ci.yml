@@ -158,7 +158,8 @@ jobs:
   # SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core
   # model binding, on System.Text.Json and on Newtonsoft.Json, minimal API problem
   # details, MongoDB.Driver on MongoDB 8, MessagePack, with SignalR's MessagePack hub protocol over TestHost, Serilog,
-  # the contract kit and the test-data packages over AutoFixture, Bogus and FsCheck,
+  # Microsoft.Extensions.AI tools and structured output, the contract kit and the test-data packages over AutoFixture,
+  # Bogus and FsCheck,
   # and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3, and Swashbuckle 10
   # over Microsoft.OpenApi 2 in a project of its own. The island has its own global.json, so the SDK it needs
   # is installed from there and everything runs from its folder. Not a required check
@@ -224,7 +225,9 @@ jobs:
   # JSON package with a source-generated context and the JSON Schema it exports,
   # the identifiers and FluentValidation, every value object reached through the
   # visitor its descriptor accepts, and over Kestrel through the Request
-  # Delegate Generator, the minimal API problem details included. The analyzers
+  # Delegate Generator, the minimal API problem details included, the Serilog
+  # policy and enricher, and the Microsoft.Extensions.AI tools and response
+  # format. The analyzers
   # see what each library calls; this runs it, once under the JIT and once as
   # the native binary, and a trimming or AOT warning, or any difference between
   # the two outputs, fails the job. Then the compiled model of the build job,

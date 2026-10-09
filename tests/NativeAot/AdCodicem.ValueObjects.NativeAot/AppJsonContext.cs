@@ -8,8 +8,9 @@ namespace AdCodicem.ValueObjects.NativeAot;
 /// serialization is off in both runs. It names the factory of the JSON package, which hands each value object the
 /// converter the generator registered for it, or its general-purpose one to a value object written by hand, and lists
 /// every value object the application registers, which the script finds here by type and reports missing otherwise,
-/// every underlying type, which the script writes a raw value with, and the one value object written by hand that nothing
-/// registers, which the factory refuses.
+/// every underlying type, which the script writes a raw value with, the one value object written by hand that nothing
+/// registers, which the factory refuses, and the types of the language-model tools' parameters, never their underlying
+/// types.
 /// </summary>
 [JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]
 [JsonSerializable(typeof(Consent))]
@@ -72,6 +73,7 @@ namespace AdCodicem.ValueObjects.NativeAot;
 [JsonSerializable(typeof(Page))]
 [JsonSerializable(typeof(Tally))]
 [JsonSerializable(typeof(Bookmark))]
+[JsonSerializable(typeof(List<EmailAddress>))]
 internal sealed partial class AppJsonContext : JsonSerializerContext;
 
 /// <summary>An order, as a request body carries it and as the endpoint answers it.</summary>

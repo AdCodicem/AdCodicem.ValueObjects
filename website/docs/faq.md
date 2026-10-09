@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The twenty-three packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The twenty-four packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -173,6 +173,19 @@ that `StrictMode(true)` accepts, and `AdCodicem.ValueObjects.FsCheck` merges an 
 [CsCheck](./how-to/test-value-objects.md#cscheck). [AutoFixture, Bogus and
 FsCheck](./how-to/test-value-objects.md#autofixture-bogus-and-fscheck) shows the wiring of each.
 
+### Does it work with Microsoft.Extensions.AI or Agent Framework?
+
+Through Microsoft.Extensions.AI, with `AdCodicem.ValueObjects.AI`, and so through what is built on it. Left to itself,
+`AIFunctionFactory` describes a value object a tool takes as `true`, the schema that accepts anything, and
+`FunctionInvokingChatClient` answers a value its converter refuses with "Error: Function failed.".
+`new AIJsonSchemaCreateOptions().WithValueObjects()` puts the rules in the tool's schema, and
+`.WithValueObjectValidation()` on the function answers a refused argument with its rule and its code, as a result the
+model reads and can correct, never with the value it sent; `ValueObjectResponseFormat.ForJsonSchema<T>()` carries the
+rules to a structured answer. Agent Framework's `ChatClientAgent` calls its tools through `FunctionInvokingChatClient`,
+so the same calls apply; its `RunAsync<T>` drops the rules of a structured answer, which a plain `RunAsync` takes
+through its run options.
+[Language models](./how-to/language-models.md) has the wiring, the result, and the limits.
+
 ## Performance
 
 ### Does a value object cost more than the primitive it wraps?
@@ -200,8 +213,11 @@ written by hand, the test-data sampler, the AutoFixture customization, the Bogus
 `MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
 value object and each entity identifier, all but the converter of an optional value object, which C# cannot name there
 and which they close with `MakeGenericType`; they do so only while a model is built, never under native AOT. The
+Microsoft.Extensions.AI integration closes nothing: it reads a tool's parameters once, when it wraps the function, and
+each argument through the function's own contracts. The
 contracts, the generated code, the JSON package, the minimal API problem details, FluentValidation, identifiers and the
-Serilog integration are marked AOT-compatible and built with the trimming and AOT analyzers on, and CI publishes an
+Serilog and Microsoft.Extensions.AI integrations are marked AOT-compatible and built with the trimming and AOT
+analyzers on, and CI publishes an
 application using them all with native AOT on every pull request, which merges only once that passes: it fails on any
 trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The EF Core,
 ASP.NET Core MVC, OpenAPI, Swashbuckle, Dapper, MongoDB, MongoDB identifiers, MessagePack and Newtonsoft.Json

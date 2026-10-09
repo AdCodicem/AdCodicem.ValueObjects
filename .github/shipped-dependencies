@@ -20,6 +20,7 @@ Microsoft.AspNetCore.OpenApi
 Microsoft.AspNetCore.SignalR.Protocols.MessagePack
 Microsoft.EntityFrameworkCore
 Microsoft.EntityFrameworkCore.Relational
+Microsoft.Extensions.AI.Abstractions
 Microsoft.Extensions.DependencyInjection.Abstractions
 Microsoft.Extensions.Options
 Microsoft.OpenApi

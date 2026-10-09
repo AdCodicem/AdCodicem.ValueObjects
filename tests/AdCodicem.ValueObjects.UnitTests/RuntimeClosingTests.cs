@@ -41,6 +41,7 @@ public sealed class RuntimeClosingTests
                 "ValueObjectRegistry.Describe calls Activator.CreateInstance",
             ]
         },
+        { "AdCodicem.ValueObjects.AI", [] },
         { "AdCodicem.ValueObjects.AspNetCore", [] },
         { "AdCodicem.ValueObjects.AspNetCore.Http", [] },
         { "AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson", [] },

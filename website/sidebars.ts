@@ -35,6 +35,7 @@ const sidebars: SidebarsConfig = {
         'how-to/fluentvalidation',
         'how-to/messaging',
         'how-to/logging',
+        'how-to/language-models',
         'how-to/azure',
         'how-to/mapping',
         'how-to/http-clients',

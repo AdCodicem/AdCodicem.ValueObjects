@@ -4,6 +4,7 @@
     "projects": [
       "src/AdCodicem.ValueObjects/AdCodicem.ValueObjects.csproj",
       "src/AdCodicem.ValueObjects.Abstractions/AdCodicem.ValueObjects.Abstractions.csproj",
+      "src/AdCodicem.ValueObjects.AI/AdCodicem.ValueObjects.AI.csproj",
       "src/AdCodicem.ValueObjects.AspNetCore/AdCodicem.ValueObjects.AspNetCore.csproj",
       "src/AdCodicem.ValueObjects.AspNetCore.Http/AdCodicem.ValueObjects.AspNetCore.Http.csproj",
       "src/AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson/AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson.csproj",

@@ -3,15 +3,18 @@ using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AdCodicem.ValueObjects.AI;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.NewtonsoftJson;
 using AdCodicem.ValueObjects.Testing.Data;
 using AdCodicem.ValueObjects.UnitTests.BinarySerialization;
+using AdCodicem.ValueObjects.UnitTests.LanguageModels;
 using AdCodicem.ValueObjects.UnitTests.Logging;
 using AdCodicem.ValueObjects.UnitTests.Persistence;
 using AdCodicem.ValueObjects.UnitTests.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.AI;
 
 namespace AdCodicem.ValueObjects.UnitTests.GeneratedSurface;
 
@@ -105,6 +108,15 @@ public abstract class Sample
     /// standard options and under the <c>Native*</c> resolvers.
     /// </summary>
     public abstract void RoundTripsThroughMessagePackAsItsUnderlyingValue();
+
+    /// <summary>
+    /// Builds a tool taking the value object alone, nullable and in a list, with the schema options of
+    /// <c>WithValueObjects()</c> and wrapped by <c>WithValueObjectValidation()</c>, and checks that each is described as the
+    /// JSON Schema core describes it for a language model, that the refused text is answered with the code and the message
+    /// the converter refuses it with, alone or in the list, and that accepted values reach the tool.
+    /// </summary>
+    /// <returns>The check.</returns>
+    public abstract Task AnswersARefusedToolArgumentWithItsRuleAsync();
 
     /// <summary>
     /// Draws values of the value object from its schema with <c>ValueObjectSampler</c>, and checks that each is a value its
@@ -533,6 +545,45 @@ public class Sample<TSelf, TValue> : Sample
     {
         MessagePackParity.Check<TSelf, TValue>(Small);
         MessagePackParity.Check<TSelf, TValue>(Large);
+    }
+
+    public override async Task AnswersARefusedToolArgumentWithItsRuleAsync()
+    {
+        var tool = AIFunctionFactory.Create(
+                (TSelf value, TSelf? optional, List<TSelf> values) => $"{value}|{optional}|{values.Count}",
+                new AIFunctionFactoryOptions { JsonSchemaCreateOptions = new AIJsonSchemaCreateOptions().WithValueObjects() })
+            .WithValueObjectValidation();
+
+        var properties = ToolSchemaTests.Parse(tool.JsonSchema)["properties"]!;
+        ToolSchemaTests.ShouldEqual(properties["value"]!, ToolSchemaTests.Core(typeof(TSelf)), "value");
+        ToolSchemaTests.ShouldEqual(properties["optional"]!, ToolSchemaTests.Core(typeof(TSelf?)), "optional");
+        ToolSchemaTests.ShouldEqual(properties["values"]!["items"]!, ToolSchemaTests.Core(typeof(TSelf)), "values");
+
+        var small = JsonSerializer.Serialize(Small, AIJsonUtilities.DefaultOptions);
+        var large = JsonSerializer.Serialize(Large, AIJsonUtilities.DefaultOptions);
+        var isNumber = !small.StartsWith('"') && small is not ("true" or "false");
+        var token = isNumber && IsJsonNumber(Refused) ? Refused : JsonSerializer.Serialize(Refused);
+        var refusal = LanguageModelTools.RefusalOf<TSelf>(token);
+
+        // A token the reader cannot read at all leaves the message to System.Text.Json, which writes the path of the value
+        // after it: the answer then names the value object alone, nullable or in a list.
+        var nullableRefusal = LanguageModelTools.RefusalOf<TSelf?>(token);
+        var listRefusal = LanguageModelTools.RefusalOf<List<TSelf>>($"[{large},{token}]");
+
+        (await LanguageModelTools.InvokeAsync(tool, LanguageModelTools.Arguments($$"""{"value":{{token}},"optional":null,"values":[]}""")))
+            .Should().Be(LanguageModelTools.Rejection("value", refusal.ErrorCode, LanguageModelTools.AnsweredMessage(refusal)));
+        (await LanguageModelTools.InvokeAsync(tool, LanguageModelTools.Arguments($$"""{"value":{{small}},"optional":{{token}},"values":[]}""")))
+            .Should().Be(LanguageModelTools.Rejection("optional", nullableRefusal.ErrorCode, LanguageModelTools.AnsweredMessage(nullableRefusal)));
+        (await LanguageModelTools.InvokeAsync(tool, LanguageModelTools.Arguments($$"""{"value":{{small}},"optional":null,"values":[{{large}},{{token}}]}""")))
+            .Should().Be(LanguageModelTools.Rejection("values", listRefusal.ErrorCode, LanguageModelTools.AnsweredMessage(listRefusal)))
+            .And.NotContain("Path:");
+        (await LanguageModelTools.InvokeAsync(tool, LanguageModelTools.Arguments($$"""{"value":null,"optional":null,"values":[]}""")))
+            .Should().Be(LanguageModelTools.Rejection("value", ValueObjectErrorCodes.Required, "A value is required."));
+
+        var accepted = await tool.InvokeAsync(
+            LanguageModelTools.Arguments($$"""{"value":{{small}},"optional":{{large}},"values":[{{small}},{{large}}]}"""),
+            TestContext.Current.CancellationToken);
+        ((JsonElement)accepted!).GetString().Should().Be($"{Small}|{Large}|2");
     }
 
     public override void DrawsValuesItsRulesAccept()

@@ -128,6 +128,8 @@ that treats a rejected value as a bug, for a strict EF Core read, and for an EF 
 | MongoDB.Driver, through [`AdCodicem.ValueObjects.MongoDB`](../how-to/mongodb.md#reading) | `FormatException`, "The value read is not a valid Iban: …", carrying the code in its `Data`, for a value the type refuses unless the serializer is trusted, and, whatever the trust, for a BSON `null` or a value the serializer of the underlying type cannot read; inside the driver's own `FormatException`, naming the member and its class, when it reads a document. |
 | MessagePack, through [`AdCodicem.ValueObjects.MessagePack`](../how-to/messagepack.md#reading) | `MessagePackSerializationException`, "The value read is not a valid Iban: …", carrying the code in its `Data`, for a value the type refuses unless the formatter is trusted, and, whatever the trust, for a `nil` or a value the formatter of the underlying type cannot read; inside MessagePack's own `MessagePackSerializationException`, "Failed to deserialize … value.". A dictionary whose keys normalize to one value object fails with MessagePack's own `ArgumentException`, which carries no code and quotes the key ([value-object keys](../how-to/messagepack.md#security-and-value-object-keys)). Through [SignalR](../how-to/messagepack.md#signalr), the hub method is not invoked: the client gets a `HubException` that names neither the rule nor its code, and the server logs the binding failure at `Debug`, with the code in the exception's chain. |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly marked `[assembly: ValueObjectXmlSerialization]` | `XmlException`, with the message of the rule and the line of the element, carrying the code in its `Data`, inside `XmlSerializer`'s `InvalidOperationException` ("There is an error in XML document …") or `DataContractSerializer`'s `SerializationException`: [XML](../how-to/xml.md#reading). |
+| A tool argument, through [`AdCodicem.ValueObjects.AI`](../how-to/language-models.md#a-refused-argument)'s `WithValueObjectValidation()` | Nothing is thrown: the function returns `{"error":"invalid_argument","argument":…,"code":…,"message":…}`, which `FunctionInvokingChatClient` hands the model as it is, with the converter's message, or `A value is required.` and `value_object.required` for an absent argument or a `null` sent to a value object that cannot be `null`. Where the converter writes no message, for a number the underlying type cannot hold, and where a converter of the application's own, or the underlying contract of a value object written by hand, refuses with an exception of its own, the message is "The value is not a valid Quantity.", and the code the one that exception carries in its `Data`, or `value_object.not_parsable`. Without the wrapper, the converter's `ValueObjectJsonException` reaches `FunctionInvokingChatClient`, which answers the model "Error: Function failed.", followed by the message alone under `IncludeDetailedErrors`. |
+| A structured answer, read through `ChatResponse<T>.Result` | The converters' `ValueObjectJsonException`, whose code the application can ask again with ([structured output](../how-to/language-models.md#structured-output)). |
 
 The other reads do not validate. EF Core by default, Dapper for a value the provider returns as the underlying type or
 as its date and time counterpart, a trusted MongoDB serializer and a trusted MessagePack formatter build the value
@@ -239,6 +241,12 @@ catch (Exception exception) when (ValueObjectErrors.TryGetCode(exception, out va
     logger.LogWarning(exception, "A value was refused: {Code}", code);
 }
 ```
+
+A tool argument refused through `AdCodicem.ValueObjects.AI` throws nothing: the code is the `code` of the result the
+model reads ([language models](../how-to/language-models.md#a-refused-argument)). Where reflection-based serialization
+is off and the serializer options have no contract for a type, `AIFunctionFactory` and
+`ValueObjectResponseFormat.ForJsonSchema<T>()` throw a `NotSupportedException`, which carries no code: the options lack
+a source-generated context ([native AOT](../how-to/language-models.md#native-aot-and-reflection-free-serialization)).
 
 A logger that writes out the data of an exception finds the code there too, under the key
 `AdCodicem.ValueObjects.ErrorCode`. An integration of your own stores a code the same way,

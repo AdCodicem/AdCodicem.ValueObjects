@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (with a $jsonSchema validator and entity identifiers minted on insert), MessagePack and SignalR, FluentValidation, OpenAPI (built-in stack and Swashbuckle) and Serilog integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (with a $jsonSchema validator and entity identifiers minted on insert), MessagePack and SignalR, FluentValidation, OpenAPI (built-in stack and Swashbuckle), Serilog and Microsoft.Extensions.AI (tools, structured output) integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -240,7 +240,10 @@ Every exception an integration throws for a refused value carries the rule's cod
 `ValueObjectErrors.TryGetCode(exception, out var code)`, and see `references/integrations.md` for where each keeps it.
 Reflection-based `System.Text.Json` needs nothing either; a source-generated `JsonSerializerContext` needs the
 `AdCodicem.ValueObjects.Json` package, and so does a JSON Schema exported for a tool, structured output or an MCP server
-(`ValueObjectJsonSchema.TransformSchemaNode`), which otherwise describes every value object as `true`. Per-package details, EF `strict` mode and problem-details payloads:
+(`ValueObjectJsonSchema.TransformSchemaNode`), which otherwise describes every value object as `true`. A
+Microsoft.Extensions.AI tool takes `AdCodicem.ValueObjects.AI`: `new AIJsonSchemaCreateOptions().WithValueObjects()` in
+its `AIFunctionFactoryOptions`, and `.WithValueObjectValidation()` on the function, which answers a refused argument
+with its rule code instead of "Error: Function failed.". Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.
 
 ## Test with the contract kit
@@ -289,7 +292,7 @@ library. AutoFixture, Bogus and FsCheck get the same values through `AdCodicem.V
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, FluentValidation, OpenAPI (built-in and Swashbuckle), Newtonsoft, Serilog, test data for AutoFixture, Bogus and FsCheck. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, FluentValidation, OpenAPI (built-in and Swashbuckle), Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), test data for AutoFixture, Bogus and FsCheck. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, their EF Core columns and MongoDB id generation, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0038`, with the fix for each. |
 
