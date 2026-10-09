@@ -12,8 +12,8 @@ const FeatureList: FeatureItem[] = [
     title: 'Normalize, then validate, then assign',
     description: (
       <>
-        A non-default instance is by construction normalized and valid — everywhere except the EF Core read
-        path, which trusts values this same application already validated.
+        A non-default instance is by construction normalized and valid — everywhere except the read paths
+        that trust values this same application already validated.
       </>
     ),
   },

@@ -6,7 +6,7 @@ site, and the decisions that were costly to reverse are recorded in [`docs/adr/`
 
 ## What the repository ships
 
-Twenty-four NuGet packages for single-value DDD value objects. A `readonly partial struct` marked `[ValueObject<T>]`
+Twenty-five NuGet packages for single-value DDD value objects. A `readonly partial struct` marked `[ValueObject<T>]`
 gets its whole implementation from a Roslyn incremental generator, and crosses every boundary as its underlying
 type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object wrapper. Consumers
 define their own value objects; this repository ships the frame.
@@ -14,7 +14,7 @@ define their own value objects; this repository ships the frame.
 ## Layout
 
 ```
-src/          the twenty-four shipped packages
+src/          the twenty-five shipped packages
 tests/        four suites with distinct jobs (see below)
   NativeAot/  applications CI publishes with native AOT and compiles an EF Core model for
   Compat/     the packed packages in .NET 11 applications, outside the solution
@@ -81,7 +81,9 @@ This distinction is where bugs hide, so it is worth knowing before changing anyt
   scalar type. Neither does the Microsoft.Extensions.AI integration: it tells a value-object parameter of a tool by
   `ValueObjectRegistry.IsValueObject`, and reads each argument through the contract the tool's serializer options hold
   for the parameter, as the tool's own binding does; its argument check, `src/Shared/ValueObjectArguments.cs`, names no
-  type of Microsoft.Extensions.AI, so that another host of tools can link it.
+  type of Microsoft.Extensions.AI, and the Model Context Protocol integration links it too. That one keeps the tools
+  the SDK's own, which the SDK alone knows how to describe to an older client, and checks their arguments in a
+  call-tool filter placed after every filter the server's options are configured with.
 
 The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them. That is
 how the descriptor once flattened every rejection into a generic `not_parsable`, discarding the rule that
@@ -101,11 +103,12 @@ actually fired. `DescriptorTests.cs` covers that surface.
   integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a `JsonException` or
   `JsonSerializationException`, a model state error, the validation problem of a minimal API, a FluentValidation
   failure, a Dapper `DataException`, a MongoDB.Driver `FormatException` or `BsonSerializationException`, a MessagePack
-  `MessagePackSerializationException`, the result of a Microsoft.Extensions.AI tool, which a model reads as it is. The
-  one that throws `ValueObjectException` is a strict EF Core read, which goes
-  through `Create` and fails the query; `Create`, `Parse` and an explicit conversion throw it for code that treats a
-  rejected value as a bug. The [error reference](website/docs/reference/errors.md) names what each integration throws.
-  Validation is fail-fast: the first violated rule wins.
+  `MessagePackSerializationException`, an `XmlException` from `XmlSerializer` or `DataContractSerializer` in an assembly
+  marked `[assembly: ValueObjectXmlSerialization]`, the result of a Microsoft.Extensions.AI tool, which a model reads as
+  it is, a Model Context Protocol tool execution error carrying the code. The one that throws `ValueObjectException` is
+  a strict EF Core read, which goes through `Create` and fails the query; `Create`, `Parse` and an explicit conversion
+  throw it for code that treats a rejected value as a bug. The [error reference](website/docs/reference/errors.md) names
+  what each integration throws. Validation is fail-fast: the first violated rule wins.
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column, and becomes the OpenAPI
   `maxLength`. Anything added to `[ValueObject<T>]` should feed all three. A hook can feed the schema too: the
   `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off the attribute at
@@ -122,7 +125,8 @@ actually fired. `DescriptorTests.cs` covers that surface.
   draws every test value from the same schema, lengths, pattern, bounds and known values, and keeps a candidate only once
   the type's own rules accept it, so a test never restates a rule the type declares. The JSON Schema core of the JSON
   package, `ValueObjectJsonSchema`, reads it once more for a language model, and the AI package carries what it writes
-  to the schemas of Microsoft.Extensions.AI tools and structured output.
+  to the schemas of Microsoft.Extensions.AI tools and structured output, the Model Context Protocol package to the input
+  and output schemas of a server's tools.
 
 ## Testing
 
@@ -159,5 +163,5 @@ build's own dependencies are pinned, and why NuGet lock files are not part of it
 [ADR-0005](docs/adr/0005-version-the-documentation-site.md) records how the documentation site follows the same
 two tracks: every `preview.yml` run redeploys the preview pages, and each stable release freezes its own.
 [ADR-0010](docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md) records the versioning
-policy: one version for the twenty-four packages, never aligned with .NET, and a framework's next major supported in
+policy: one version for the twenty-five packages, never aligned with .NET, and a framework's next major supported in
 the same packages.

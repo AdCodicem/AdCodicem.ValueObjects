@@ -39,7 +39,7 @@ body:
       label: Reproduction
       description: >-
         The smallest code that shows it. If the problem only appears through an integration,
-        say which call path reaches it — model binding, EF Core read, Dapper, a MongoDB read, query or validator, a MessagePack or SignalR message, JSON, OpenAPI, a Serilog log event, a tool call or a structured answer.
+        say which call path reaches it — model binding, EF Core read, Dapper, a MongoDB read, query or validator, a MessagePack or SignalR message, JSON, OpenAPI, a Serilog log event, a tool call, an MCP tool call or a structured answer.
       render: csharp
     validations:
       required: true
@@ -62,6 +62,7 @@ body:
         - Entity identifiers (AdCodicem.ValueObjects.Identifiers)
         - Logging (AdCodicem.ValueObjects.Serilog)
         - Language models (AdCodicem.ValueObjects.AI — Microsoft.Extensions.AI tools, structured output)
+        - Model Context Protocol servers (AdCodicem.ValueObjects.ModelContextProtocol)
         - XML (XmlSerializer, DataContractSerializer, ValueObjectXmlSerialization)
         - Testing (contract kit, test data — AdCodicem.ValueObjects.Testing, .Testing.Data, .AutoFixture, .Bogus, .FsCheck)
         - Somewhere else / not sure

@@ -13,7 +13,7 @@
 #                         run decides from a nuget.org that has caught up.
 #   NUGET_SOURCE, NUGET_FLAT_CONTAINER, NUGET_SYMBOL_PACKAGES override the endpoints.
 #
-# nuget.org has no transaction: a push of twenty-four packages is twenty-four requests, and
+# nuget.org has no transaction: a push of twenty-five packages is twenty-five requests, and
 # a run that stops halfway leaves some of them published. So the set is pushed in
 # dependency order -- AdCodicem.ValueObjects.Abstractions before everything that
 # depends on it -- and a pass stops at the first package that fails, so that
