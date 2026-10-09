@@ -170,7 +170,8 @@ A value object is described the same way wherever it appears, not only as a prop
   and **a value of a dictionary**, `Dictionary<string, Quantity>`: `items` and `additionalProperties` refer to the
   value object's component, as a property of that type does. System.Text.Json leaves them out for a type with a
   converter of its own, so they would otherwise be an array or an object of anything. An element of a nullable value
-  object, `List<Quantity?>`, is described in place instead, with `null` added to its type.
+  object, `List<Quantity?>`, is described in place instead, with `null` added to its type, and to its `enum` for a
+  closed set, `List<CountryCode?>`, after the known values, whose names it keeps as the component gives them.
 - **A key of a dictionary**, `Dictionary<CountryCode, int>` or `Dictionary<Quantity, int>`: a key is written as text,
   so its rules go to `propertyNames`, which an OpenAPI 3.0 document carries as the `x-jsonschema-propertyNames`
   extension, as the key is written. A value object documented as a string is described as its component is; one over a
@@ -245,17 +246,17 @@ each one alike when numbers are read as numbers only. What differs is Swashbuckl
 - **Nullable value objects.** Swashbuckle refers to the component of a nullable value object as of a non-nullable one,
   as it does for a nullable enumeration, and a reference cannot say that `null` is allowed. A nullable property, element
   of a collection or value of a dictionary, a dictionary keyed by an enumeration included, is described in place
-  instead, the value object or `null`, as Swashbuckle describes a nullable `int`; a property keeps what Swashbuckle reads
-  off its member, its summary, `[Obsolete]`, `[DefaultValue]`, and whether it is only ever read or only ever written.
-  The member's validation attributes, `[MaxLength]` or `[Range]`, are not applied to it, where Swashbuckle applies them
-  to a nullable `int`: Swashbuckle applies none beside a reference, so the non-nullable member goes without them too,
-  and both are documented with the rules of their type. A property marked `[Required]`, on the member or on the type
-  `[ModelMetadataType]` names, which Swashbuckle makes non-nullable, keeps its reference, as do a nullable parameter,
-  whose being optional says it, and a nullable value object that is a whole request or response body. Under
-  `UseAllOfToExtendReferenceSchemas`, Swashbuckle wraps the reference of a nullable member in an `allOf` it marks `null`
-  alone, which no value satisfies in OpenAPI 3.1: the wrapper is kept, with what Swashbuckle writes beside a reference
-  there, the member's validation attributes included, as for a non-nullable member, and the value object is described
-  in place inside it, `null` allowed.
+  instead, the value object or `null`, as Swashbuckle describes a nullable `int`, `null` joining the `enum` of a closed
+  set too; a property keeps what Swashbuckle reads off its member, its summary, `[Obsolete]`, `[DefaultValue]`, and
+  whether it is only ever read or only ever written. The member's validation attributes, `[MaxLength]` or `[Range]`, are
+  not applied to it, where Swashbuckle applies them to a nullable `int`: Swashbuckle applies none beside a reference, so
+  the non-nullable member goes without them too, and both are documented with the rules of their type. A property marked
+  `[Required]`, on the member or on the type `[ModelMetadataType]` names, which Swashbuckle makes non-nullable, keeps
+  its reference, as do a nullable parameter, whose being optional says it, and a nullable value object that is a whole
+  request or response body. Under `UseAllOfToExtendReferenceSchemas`, Swashbuckle wraps the reference of a nullable
+  member in an `allOf` it marks `null` alone, which no value satisfies in OpenAPI 3.1: the wrapper is kept, with what
+  Swashbuckle writes beside a reference there, the member's validation attributes included, as for a non-nullable
+  member, and the value object is described in place inside it, `null` allowed.
 - **Names.** The enumeration of a closed set is named after its component as Swashbuckle names it,
   `AccountFilterNoticeChannel` for `NoticeChannel<AccountFilter>` by default, or under the identifier `CustomSchemaIds`
   gives it.

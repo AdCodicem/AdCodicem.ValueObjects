@@ -225,6 +225,8 @@ public sealed record EveryValueObject(
     List<List<Iban>> Groups,
     IReadOnlyList<CountryCode> Countries,
     List<Quantity?> Optional,
+    List<CountryCode?> OptionalCountries,
+    Dictionary<string, CountryCode?> MaybeCountryPerSite,
     Dictionary<CountryCode, Quantity> StockPerCountry,
     Dictionary<Quantity, int> CountPerQuantity,
     List<ServiceHour> Hours,

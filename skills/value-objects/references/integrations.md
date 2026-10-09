@@ -517,7 +517,8 @@ constant form, as the built-in stack documents a plain `TimeSpan`; a `TimeOnly` 
 `date-time` (RFC 3339 requires an offset they are written without) but the pattern of the form they are written in; a
 `char` gets `minLength` and `maxLength` 1. Route, query and header parameters (minimal APIs, MVC, `[AsParameters]`)
 carry the same schema in place, keeping the stricter bound or length of a route constraint; `items` of a collection
-and `additionalProperties` of a dictionary refer to the component; a key goes to `propertyNames` as the text it is
+and `additionalProperties` of a dictionary refer to the component, but a nullable element or value is described in
+place, `null` in its type and, for a closed set, in its `enum`; a key goes to `propertyNames` as the text it is
 written in, a string held to a number's pattern for a key over a number.
 
 ### Swashbuckle
@@ -540,7 +541,7 @@ does, with these differences, all Swashbuckle's own:
 - A route, query or header parameter refers to the component (`$ref`), minimal APIs included; a route constraint beside
   it is dropped, unless `UseAllOfToExtendReferenceSchemas` keeps it beside an `allOf`.
 - A nullable property, element or dictionary value (an enumeration-keyed dictionary's included) is described in place
-  with `null` allowed, as a nullable `int` is, but without the member's validation attributes (`[MaxLength]`, `[Range]`),
+  with `null` allowed, in a closed set's `enum` too, as a nullable `int` is, but without the member's validation attributes (`[MaxLength]`, `[Range]`),
   which Swashbuckle never applies beside a value object's reference; put the rules on the type. Under
   `UseAllOfToExtendReferenceSchemas` it is described inside Swashbuckle's `allOf` wrapper, which keeps them. A
   `[Required]` property (on the member or its `[ModelMetadataType]`), a nullable parameter and a nullable whole body keep
