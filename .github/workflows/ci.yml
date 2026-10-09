@@ -158,6 +158,7 @@ jobs:
   # SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core
   # model binding, on System.Text.Json and on Newtonsoft.Json, minimal API problem
   # details, MongoDB.Driver on MongoDB 8, MessagePack, with SignalR's MessagePack hub protocol over TestHost, Serilog,
+  # the contract kit and the test-data packages over AutoFixture, Bogus and FsCheck,
   # and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3, and Swashbuckle 10
   # over Microsoft.OpenApi 2 in a project of its own. The island has its own global.json, so the SDK it needs
   # is installed from there and everything runs from its folder. Not a required check

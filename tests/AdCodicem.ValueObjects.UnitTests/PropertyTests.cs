@@ -1,3 +1,4 @@
+using AdCodicem.ValueObjects.FsCheck;
 using AdCodicem.ValueObjects.Testing.Data;
 using FsCheck;
 using FsCheck.Fluent;
@@ -17,8 +18,9 @@ namespace AdCodicem.ValueObjects.UnitTests;
 /// <c>[InlineData]</c> for.
 /// </para>
 /// <para>
-/// The values each type accepts are drawn by <c>ValueObjectSampler</c>, from the rules the type declares,
-/// rather than by generators restating them here; FsCheck draws the seed, so that a failing run replays.
+/// The values each type accepts are drawn by the FsCheck package's arbitraries, <c>ValueObjectArbitrary</c>,
+/// from the rules the type declares, rather than by generators restating them here; FsCheck draws the seed,
+/// so that a failing run replays.
 /// The IBAN's MOD-97 check digits are a rule no schema carries, so its generator is registered with the
 /// sampler. The deliberately invalid input -- the junk, the near misses -- stays written by hand.
 /// </para>
@@ -387,12 +389,12 @@ public class PropertyTests
     }
 
     /// <summary>
-    /// Draws a value the type accepts with the sampler, from a seed FsCheck draws, so that a failing run replays.
+    /// Draws a value the type accepts through the FsCheck package's arbitrary, from a seed FsCheck draws, so that a failing
+    /// run replays, one value in four at the edges the type declares.
     /// </summary>
     private static Gen<TSelf> Sampled<TSelf, TValue>()
         where TSelf : struct, IValueObject<TSelf, TValue>
-        => Gen.Choose(int.MinValue, int.MaxValue)
-            .Select(seed => new ValueObjectSampler(new Random(seed), Sampling).Next<TSelf, TValue>());
+        => ValueObjectArbitrary.For<TSelf, TValue>(Sampling).Generator;
 
     /// <summary>
     /// The quantities at the edges of the declared range and one step past them, as the sampler derives them.

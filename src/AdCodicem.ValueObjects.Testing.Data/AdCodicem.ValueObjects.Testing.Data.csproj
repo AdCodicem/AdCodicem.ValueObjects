@@ -18,6 +18,8 @@
   <ItemGroup>
     <!-- The reader of a .NET pattern, whose tree the sampler draws strings from. -->
     <Compile Include="..\Shared\ValueObjectPatternSyntax.cs" Link="Shared\ValueObjectPatternSyntax.cs" />
+    <!-- The names of the registration a message shows, which the AutoFixture, Bogus and FsCheck packages write too. -->
+    <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
   </ItemGroup>
 
 </Project>

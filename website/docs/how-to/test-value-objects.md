@@ -2,7 +2,7 @@
 title: Test Your Value Objects
 sidebar_label: Testing value objects
 slug: /how-to/test-value-objects
-description: Derive over a dozen behavioural checks for your own value objects from a list of accepted and rejected values with the xUnit contract kit, draw test data each type accepts from the rules it declares, and keep value objects bare values in Verify snapshots.
+description: Derive over a dozen behavioural checks for your own value objects from a list of accepted and rejected values with the xUnit contract kit, draw test data each type accepts from the rules it declares, for AutoFixture, Bogus and FsCheck too, and keep value objects bare values in Verify snapshots.
 ---
 
 # Test your value objects
@@ -217,8 +217,9 @@ repository's own property tests do for a quantity bounded 0..1000: `{0, 1000}` a
 
 `ValueObjectSampler.Shrink<TSelf, TValue>(value, shrinkUnderlying)` proposes simpler values for a property-based
 testing library to shrink a counterexample to: the type's `Minimum`, its first known value and its example, ranked in
-that order, then the shrinks of the underlying value the type accepts, none equal to the value once normalized. From
-one of the declared values it proposes only those ranked before it, so every chain of shrinks ends.
+that order, then the shrinks of the underlying value the type accepts as they are, those its normalizer would change
+left out: upper-cased, the `b` a shrinker proposes for `C` is a `B`, which shrinks back to `C`. From one of the declared
+values it proposes only those ranked before it, so every chain of shrinks ends where the underlying shrinker's do.
 
 ### Seeds and threads
 
@@ -233,6 +234,117 @@ gives it value objects:
 ```csharp skip
 var ibans = Gen.Int.Select(seed => new ValueObjectSampler(new Random(seed), options).Next<Iban, string>());
 ```
+
+## AutoFixture, Bogus and FsCheck
+
+Left to themselves, the three libraries cannot build a value object its rules accept. AutoFixture calls `Create` with
+values of its own: strings built on a `Guid`, longer than a declared `MaxLength`, numbers walked from 1 whatever the
+bounds, and always the first known value of a closed set. Bogus leaves a value-object member without a rule at its
+default, the instance no rule accepted. FsCheck refuses the type outright, and every type holding one. One package per
+library hands each the values the sampler draws, with the same options:
+
+```bash
+dotnet add package AdCodicem.ValueObjects.AutoFixture
+dotnet add package AdCodicem.ValueObjects.Bogus
+dotnet add package AdCodicem.ValueObjects.FsCheck
+```
+
+The AutoFixture and Bogus packages find a value object through `ValueObjectRegistry.TryResolve`, closed through its
+descriptor: a construction of a generic value object and a value object written by hand are described the first time
+they are asked for, and stay registered for the process. The FsCheck package merges the value objects of an assembly the
+registry holds, and leaves the others to a merge of their own. A `ValueObjectSamplingException` names the registration
+to add in the library's own terms.
+
+### AutoFixture
+
+```csharp skip
+var fixture = new Fixture().Customize(new ValueObjectCustomization());
+
+var order = fixture.Create<Order>();   // every value object it holds is one its rules accept
+var iban = fixture.Create<Iban>();
+```
+
+The customization answers the request for any value object, its nullable form, and each one inside an object, a list or
+an array the fixture builds. A registration of the fixture wins, whether it comes before or after the customization, and
+so does a specimen builder added to `fixture.Customizations` before it:
+`fixture.Register(() => EvenCode.Create(...))` meets a checksum in AutoFixture's terms, as
+`ValueObjectSamplerOptions.Use` does in the sampler's, which the customization takes too, with the `Random` to draw
+from:
+
+```csharp skip
+fixture.Customize(new ValueObjectCustomization(options, new Random(42)));
+```
+
+A seeded `Random` replays the same values for the same requests made from one thread. There is no
+`[AutoValueObjectData]` attribute for AutoFixture.Xunit3: the customization is one line in a data attribute of your own.
+
+### Bogus
+
+```csharp skip
+var orders = new Faker<Order>()
+    .StrictMode(true)
+    .RuleForValueObjects()
+    .RuleFor(o => o.Note, f => f.Lorem.Sentence());
+
+var quantity = new Faker().ValueObject<Quantity>();
+var iban = new Faker().ValueObject<Iban, string>(f => f.Finance.Iban()); // still checked through TryCreate
+```
+
+`RuleForValueObjects` gives a rule to every member of `T` whose type is a value object, its nullable form (a value,
+never `null`), an array or a `List<T>` of it (one to three values), through Bogus's `RuleForType`, so `StrictMode(true)`
+is met. Call it first: Bogus keeps the last rule of a member, so a rule written after it wins, and one written before
+is replaced. An array or a list of a nullable value object is left to your rules.
+
+Each value object takes one number from the faker's `Randomizer`, which seeds the sampler drawing it: `UseSeed`
+replays the same objects. `new Faker<Iban>()` does not compile, since `Faker<T>` wants a class (CS0452): a value object
+on its own comes from `faker.ValueObject<TSelf>()`, and from a semantic generator of Bogus's with
+`faker.ValueObject<TSelf, TValue>(generator)`, whose candidates are kept only once the type accepts them, the example it
+declares coming out when none is.
+
+### FsCheck
+
+```csharp skip
+var arbitraries = ArbMap.Default
+    .MergeValueObjects(typeof(Iban).Assembly, options)
+    .MergeValueObject<Reference<PurchaseOrder>, string>();
+
+Prop.ForAll(arbitraries.ArbFor<Order>(), order => /* ... */).Check(config);
+Prop.ForAll(ValueObjectArbitrary.For<Quantity, short>(), quantity => /* ... */).Check(config);
+```
+
+The package depends on the bare FsCheck package, and a property runs from a plain `[Fact]` through
+`Check(Config.QuickThrowOnFailure)`, or from the `[Property]` of FsCheck.Xunit.v3, the package for xUnit v3
+(FsCheck.Xunit is for xUnit 2). `[Property]` takes no map: its `Arbitrary` option names a class of yours whose static
+members return the arbitraries, `ValueObjectArbitrary.For<TSelf, TValue>()` each, from which FsCheck derives the types
+holding them.
+
+```csharp skip
+public static class ValueObjectArbitraries
+{
+    public static Arbitrary<Quantity> Quantity() => ValueObjectArbitrary.For<Quantity, short>();
+}
+
+[Property(Arbitrary = [typeof(ValueObjectArbitraries)])]
+public bool A_line_holds_a_quantity_in_range(OrderLine line) => line.Quantity.Value is >= 0 and <= 1000;
+```
+
+`MergeValueObjects` merges one arbitrary per value object the assembly's generated registration lists, and per value
+object of that assembly the registry holds by then, and so derives every type holding them; the other types stay
+FsCheck's. A construction of a generic value object, even one the registry holds, and a value object written by hand
+that nothing registered, are left out: merge each with `MergeValueObject<TSelf, TValue>()`, or FsCheck refuses the type
+holding it, "not handled automatically", naming it.
+
+Each arbitrary draws its seed from FsCheck, so a failing run replays from the seed FsCheck reports. One value in four is
+one of the type's [boundaries](#edges-and-shrinking). A counterexample shrinks through `ValueObjectSampler.Shrink`:
+towards the type's `Minimum`, its first known value and its example, then through FsCheck's own shrinker of the
+underlying value, keeping only what the type accepts as it is. FsCheck has a shrinker for the integers up to 64 bits,
+`float`, `double`, `decimal`, `char`, `string`, `DateTime`, `DateTimeOffset` and `TimeSpan`, and none of its own for
+`bool`, `Guid`, the 128-bit integers, `DateOnly` or `TimeOnly`: a value object over one of those shrinks to its declared
+values alone. Once a shrink reaches a declared value, it goes on only to the declared values ranked before it: a
+property failing from 100 on, over an amount whose example is `1250.00`, shrinks to that example rather than to 100,
+while one failing from 50 on, over a quantity bounded 0..1000 with no example, shrinks to 50. FsCheck stops any run at
+5,000 shrinks. Nothing of a value object is read until its arbitrary draws, so merging an assembly runs no type
+initializer.
 
 ## Constructing an invalid instance on purpose
 

@@ -23,6 +23,9 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.Identifiers[.EntityFrameworkCore\|.MongoDB]` | Stripe-style public identifiers, their columns, their minting on insert. See `identifiers.md`. |
 | `AdCodicem.ValueObjects.Testing` | The xUnit contract kit. |
 | `AdCodicem.ValueObjects.Testing.Data` | Values each type accepts, drawn from its rules; the values at its edges and the values its schema rules out. |
+| `AdCodicem.ValueObjects.AutoFixture` | An AutoFixture customization creating every value object from its rules. |
+| `AdCodicem.ValueObjects.Bogus` | `RuleForValueObjects()` on a `Faker<T>`, and `faker.ValueObject<T>()`, deterministic under `UseSeed`. |
+| `AdCodicem.ValueObjects.FsCheck` | Arbitraries merged into an `ArbMap`, biased towards the edges, shrinking to accepted values. |
 
 ## JSON
 
@@ -630,6 +633,44 @@ public readonly partial struct Quantity : IValueObjectMinimum<int>, IValueObject
 - Never call `ReadXml` on a variable: it changes the instance it is called on.
 - A value object written by hand implements `IXmlSerializable` through `ValueObjectXml.Read<TSelf, TValue>`,
   `Write<TSelf, TValue>` and `ProvideSchema<TSelf, TValue>`.
+
+## Test data
+
+Never write a generator, a fixture registration or a Bogus rule that restates a value object's rules.
+
+```csharp skip
+var options = new ValueObjectSamplerOptions().Use<Iban, string>(random => /* an IBAN with its check digits */ ...);
+
+// AutoFixture
+var fixture = new Fixture().Customize(new ValueObjectCustomization(options));
+
+// Bogus
+var orders = new Faker<Order>()
+    .StrictMode(true)
+    .RuleForValueObjects(options)              // first: a rule written before it is replaced
+    .RuleFor(o => o.Note, f => f.Lorem.Sentence());
+var iban = new Faker().ValueObject<Iban, string>(f => f.Finance.Iban());
+
+// FsCheck, from a [Fact]
+var arbitraries = ArbMap.Default
+    .MergeValueObjects(typeof(Iban).Assembly, options)
+    .MergeValueObject<Reference<PurchaseOrder>, string>(); // a construction, or a value object written by hand
+Prop.ForAll(arbitraries.ArbFor<Order>(), order => /* ... */).Check(Config.QuickThrowOnFailure);
+```
+
+- A checksum or another validator no schema carries: `Use<TSelf, TValue>` on the options, or `fixture.Register(...)`
+  in AutoFixture, which wins over the customization before or after it.
+- Bogus: a nullable member gets a value, an array or a `List<T>` one to three; an array or list of a nullable value
+  object gets no rule. `new Faker<Iban>()` does not compile (CS0452): use `faker.ValueObject<Iban>()`.
+- FsCheck: `MergeValueObjects` merges what the assembly's generated registration lists; a construction of a generic
+  value object, or a hand-written one nothing registers, needs `MergeValueObject<TSelf, TValue>()`, or FsCheck answers
+  "not handled automatically". One value in four is a boundary. A counterexample shrinks to accepted values: the
+  declared ones (`Minimum`, first known value, example), then FsCheck's shrinks of the underlying value the normalizer
+  leaves unchanged; over `bool`, `Guid`, `Int128`, `UInt128`, `DateOnly` or `TimeOnly`, to the declared ones alone.
+  A property also runs from FsCheck.Xunit.v3's `[Property(Arbitrary = [typeof(Arbitraries)])]`, `Arbitraries` being
+  a static class of yours whose static members return `ValueObjectArbitrary.For<TSelf, TValue>()`; FsCheck.Xunit is
+  for xUnit 2.
+- A `ValueObjectSamplingException` names the registration to add, in the library's terms.
 
 ## Run-time lookup, when only a `Type` is known
 

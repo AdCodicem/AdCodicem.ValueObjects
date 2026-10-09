@@ -19,7 +19,12 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Testing\AdCodicem.ValueObjects.Testing.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Testing.Data\AdCodicem.ValueObjects.Testing.Data.csproj" />
+    <!-- Under an alias too: src/Shared/TypeNames.cs is compiled into the sampler and into each of its library adapters,
+         and its tests name the sampler's copy through the alias. -->
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Testing.Data\AdCodicem.ValueObjects.Testing.Data.csproj" Aliases="global,testingdata" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AutoFixture\AdCodicem.ValueObjects.AutoFixture.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Bogus\AdCodicem.ValueObjects.Bogus.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FsCheck\AdCodicem.ValueObjects.FsCheck.csproj" />
     <!-- The integrations, whose behaviour is tested here directly; the integration suite keeps what only a real
          database or a real HTTP pipeline can confirm (docs/adr/0006-coverage-is-a-signal-not-a-goal.md). -->
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore\AdCodicem.ValueObjects.AspNetCore.csproj" />
@@ -53,10 +58,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Property-based testing, in PropertyTests.cs. Deliberately the bare FsCheck package and not
-         FsCheck.Xunit, whose xunit.extensibility.execution [2.4.1, 3.0.0) dependency conflicts with
-         xunit.v3; the properties run from plain [Fact]s through Check(Config) instead. -->
+    <!-- Property-based testing, in PropertyTests.cs, and the libraries the test-data packages are driven through, in
+         TestData/. Deliberately the bare FsCheck package, as the FsCheck package depends on, and not FsCheck.Xunit,
+         whose xunit.extensibility.execution [2.4.1, 3.0.0) dependency conflicts with xunit.v3; the properties run from
+         plain [Fact]s through Check(Config) instead. -->
     <PackageReference Include="FsCheck" />
+    <PackageReference Include="AutoFixture" />
+    <PackageReference Include="Bogus" />
     <!-- A JSON Schema validator, which checks that what the serializer writes is what the exported schema describes. -->
     <PackageReference Include="LateApexEarlySpeed.Json.Schema" />
     <!-- A provider, so that a DbContext can build the model the Entity Framework Core conventions shape; building it

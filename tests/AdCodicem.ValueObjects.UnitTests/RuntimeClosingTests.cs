@@ -44,6 +44,8 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.AspNetCore", [] },
         { "AdCodicem.ValueObjects.AspNetCore.Http", [] },
         { "AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson", [] },
+        { "AdCodicem.ValueObjects.AutoFixture", [] },
+        { "AdCodicem.ValueObjects.Bogus", [] },
         { "AdCodicem.ValueObjects.Dapper", [] },
 
         // The converter of a TSelf? property, which C# names only under a constraint a visitor cannot prove, closed over
@@ -56,6 +58,7 @@ public sealed class RuntimeClosingTests
             ]
         },
         { "AdCodicem.ValueObjects.FluentValidation", [] },
+        { "AdCodicem.ValueObjects.FsCheck", [] },
         { "AdCodicem.ValueObjects.Identifiers", [] },
         { "AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore", [] },
         { "AdCodicem.ValueObjects.Identifiers.MongoDB", [] },

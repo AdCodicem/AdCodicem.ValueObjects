@@ -287,7 +287,23 @@ refused (checksum), and it declares no example its rules accept. Make the genera
 options.Use<EvenCode, string>(random => ...) give values its rules accept.
 ```
 
-`TryNext` reports the same without throwing: `false`, and the refusal of the last candidate. The contract kit's check of
+`TryNext` reports the same without throwing: `false`, and the refusal of the last candidate.
+
+The AutoFixture, Bogus and FsCheck packages throw the same exception, with the last sentence in their own terms when the
+candidates came from the schema: `fixture.Register(() => EvenCode.Create(...))` for AutoFixture, which wraps it in its
+`ObjectCreationExceptionWithPath`; `faker.ValueObject<EvenCode, string>(f => ...)` for Bogus, from `Generate` or from
+`ValueObject`; and `options.Use<EvenCode, string>(random => ...)`, on the options given to `MergeValueObjects` or
+`ValueObjectArbitrary.For`, for FsCheck, from the draw, out of the property's check. A generator of Bogus's handed to
+`faker.ValueObject<TSelf, TValue>(generator)` whose values the type refuses is named as that call.
+
+Two refusals come before any draw. `faker.ValueObject<TSelf>()` throws an `ArgumentException`,
+`'MarkerOnlyValue' is not a value object: it implements no IValueObject<TSelf, TValue> over itself.`, for a type that
+carries the `IValueObject` marker and nothing more, and registers nothing. FsCheck refuses a type it has no arbitrary
+for with an exception of its own, `The type … is not handled automatically by FsCheck.`, naming it in full, from the
+property that needs it or from any type holding it: a construction of a generic value object, or a value object written
+by hand that nothing registered, which `MergeValueObjects` leaves out and `MergeValueObject<TSelf, TValue>()` merges.
+
+The contract kit's check of
 the values a schema rules out fails with the value and the rule it breaks, `'-1' breaks Minimum (0) declared on 'Dial'
 but is accepted.`, a test value and no user input. [Test your value objects](../how-to/test-value-objects.md#rules-no-schema-carries)
 says when each happens.

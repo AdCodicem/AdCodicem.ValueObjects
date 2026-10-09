@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The twenty packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The twenty-three packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -164,13 +164,14 @@ has the forms written, the errors and the limits: `DataContractSerializer` needs
 
 ### Does it work with AutoFixture, Bogus or FsCheck?
 
-Left to themselves, AutoFixture feeds `Create` strings and numbers the rules refuse, Bogus leaves a value object without
-a rule at its default, and FsCheck refuses the type. `AdCodicem.ValueObjects.Testing.Data` draws values each type
-accepts from the rules it declares, for any test framework, so a generator of each can call it:
-`RuleFor(o => o.Quantity, _ => sampler.Next<Quantity, short>())` in Bogus,
-`fixture.Register(() => sampler.Next<Quantity, short>())` in AutoFixture, or a generator seeded by FsCheck, as
-[the CsCheck one](./how-to/test-value-objects.md#cscheck) is.
-[Generate valid values](./how-to/test-value-objects.md#generate-valid-values) says how each value is drawn.
+Yes, through a package each. Left to themselves, AutoFixture feeds `Create` strings and numbers the rules refuse,
+Bogus leaves a value object without a rule at its default, and FsCheck refuses the type.
+`AdCodicem.ValueObjects.AutoFixture` adds a customization, `AdCodicem.ValueObjects.Bogus` a `RuleForValueObjects()`
+that `StrictMode(true)` accepts, and `AdCodicem.ValueObjects.FsCheck` merges an arbitrary per value object into an
+`ArbMap`, biased towards the type's edges and shrinking to values it accepts. All three draw from
+`AdCodicem.ValueObjects.Testing.Data`, which any other library can call: a one-line generator does for
+[CsCheck](./how-to/test-value-objects.md#cscheck). [AutoFixture, Bogus and
+FsCheck](./how-to/test-value-objects.md#autofixture-bogus-and-fscheck) shows the wiring of each.
 
 ## Performance
 
@@ -195,17 +196,18 @@ integration registers its handlers that way, the MongoDB provider builds its ser
 formatter MessagePack asks it for, the MongoDB identifiers package its id generators, through the visitor of an entity
 identifier's descriptor, the MVC model binder provider creates its binders, the minimal API filter closes the check of
 each parameter it explains, the JSON converter factory closes the general-purpose converter it gives a value object
-written by hand, and the Entity Framework Core conventions map each value object and each entity identifier, all but the
-converter of an optional value object, which C# cannot name there and which they close with `MakeGenericType`; they do
-so only while a model is built, never under native AOT. The contracts, the generated code, the JSON package, the minimal
-API problem details, FluentValidation, identifiers and the Serilog integration are marked AOT-compatible and built with
-the trimming and AOT analyzers on, and CI publishes an application using them all with native AOT on every pull request,
-which merges only once that passes: it fails on any trimming or AOT warning, and unless the native binary does exactly
-what the application does under the JIT. The EF Core, ASP.NET Core MVC, OpenAPI, Swashbuckle, Dapper, MongoDB, MongoDB
-identifiers, MessagePack and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into
-are not. Dapper, for one, files each handler in a cache it closes over the type at run time, so under native AOT a
-handler this package built without dynamic code still fails inside Dapper: native AOT goes through
-[Dapper.AOT](./how-to/dapper.md#dapperaot).
+written by hand, the test-data sampler, the AutoFixture customization, the Bogus extensions and FsCheck's
+`MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
+value object and each entity identifier, all but the converter of an optional value object, which C# cannot name there
+and which they close with `MakeGenericType`; they do so only while a model is built, never under native AOT. The
+contracts, the generated code, the JSON package, the minimal API problem details, FluentValidation, identifiers and the
+Serilog integration are marked AOT-compatible and built with the trimming and AOT analyzers on, and CI publishes an
+application using them all with native AOT on every pull request, which merges only once that passes: it fails on any
+trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The EF Core,
+ASP.NET Core MVC, OpenAPI, Swashbuckle, Dapper, MongoDB, MongoDB identifiers, MessagePack and Newtonsoft.Json
+integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
+in a cache it closes over the type at run time, so under native AOT a handler this package built without dynamic code
+still fails inside Dapper: native AOT goes through [Dapper.AOT](./how-to/dapper.md#dapperaot).
 
 ### Does a pattern run compiled under native AOT?
 

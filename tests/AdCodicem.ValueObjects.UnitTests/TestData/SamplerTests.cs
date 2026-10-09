@@ -1,6 +1,10 @@
+// The AutoFixture, Bogus and FsCheck packages compile their own copy of TypeNames, which the alias keeps apart.
+extern alias testingdata;
+
 using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.Testing.Data;
+using TypeNames = testingdata::AdCodicem.ValueObjects.Shared.TypeNames;
 
 namespace AdCodicem.ValueObjects.UnitTests.TestData;
 

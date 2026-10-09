@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.FsCheck</RootNamespace>
+    <Description>FsCheck support for AdCodicem value objects: an arbitrary per value object, merged into an ArbMap for a whole assembly, drawn from the rules each type declares, biased towards the edges it declares, and shrinking to values it accepts.</Description>
+    <PackageTags>$(PackageTags);testing;fscheck;property-based-testing</PackageTags>
+
+    <!-- Test-only, as AdCodicem.ValueObjects.Testing.Data. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Testing.Data\AdCodicem.ValueObjects.Testing.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The bare FsCheck package: FsCheck.Xunit's dependency on xunit.extensibility.execution [2.4.1, 3.0.0) conflicts
+         with xunit.v3. -->
+    <PackageReference Include="FsCheck" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The names of the registration its message shows, written as the sampler writes its own. -->
+    <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
+  </ItemGroup>
+
+</Project>

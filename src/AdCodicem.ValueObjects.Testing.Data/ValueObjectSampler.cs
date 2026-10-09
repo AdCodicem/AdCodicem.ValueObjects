@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.Shared;
 
 namespace AdCodicem.ValueObjects.Testing.Data;
 
@@ -267,16 +268,23 @@ public sealed class ValueObjectSampler
     /// <summary>
     /// Proposes simpler values the type accepts than one it holds, for a property-based testing library to shrink a
     /// counterexample to: the values its schema declares, its <c>Minimum</c>, its first known value and its example, then
-    /// the shrinks of the underlying value the type accepts.
+    /// the shrinks of the underlying value the type accepts as they are.
     /// </summary>
     /// <typeparam name="TSelf">The value object.</typeparam>
     /// <typeparam name="TValue">Its underlying type.</typeparam>
     /// <param name="value">The value to shrink.</param>
     /// <param name="shrinkUnderlying">The shrinker of the underlying type, or <see langword="null"/> to propose the declared values alone.</param>
-    /// <returns>The proposals, none equal to the value or to one another once normalized.</returns>
+    /// <returns>The proposals, none equal to the value or to one another.</returns>
     /// <remarks>
+    /// <para>
+    /// A shrink of the underlying value is proposed only when the type accepts it and its normalizer leaves it unchanged: a
+    /// normalizer maps a shrink to a value that may be no simpler, as upper-casing maps the <c>'b'</c> a character shrinks to
+    /// back to <c>'B'</c>, and two values would then shrink to each other until the library gives up.
+    /// </para>
+    /// <para>
     /// The declared values are ranked in that order, and from one of them only those ranked before it are proposed, and no
-    /// shrink of its underlying value: every chain of shrinks ends, whatever the normalizer makes of a shrunk value.
+    /// shrink of its underlying value: every chain of shrinks ends wherever the chains of the underlying shrinker end.
+    /// </para>
     /// </remarks>
     public static IEnumerable<TSelf> Shrink<TSelf, TValue>(TSelf value, Func<TValue, IEnumerable<TValue>>? shrinkUnderlying = null)
         where TSelf : struct, IValueObject<TSelf, TValue>
@@ -296,7 +304,9 @@ public sealed class ValueObjectSampler
         var proposed = new HashSet<TSelf>(targets) { value };
         foreach (var smaller in shrinkUnderlying(value.Value))
         {
-            if (TSelf.TryCreate(smaller, out var created) && proposed.Add(created))
+            if (TSelf.TryCreate(smaller, out var created)
+                && EqualityComparer<TValue>.Default.Equals(created.Value, smaller)
+                && proposed.Add(created))
             {
                 yield return created;
             }

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.AutoFixture</RootNamespace>
+    <Description>AutoFixture support for AdCodicem value objects: a customization that creates every value object, its nullable form and the ones inside the objects a fixture builds, from the rules its type declares, so that a fixture never builds one its rules refuse.</Description>
+    <PackageTags>$(PackageTags);testing;autofixture;test-data</PackageTags>
+
+    <!-- Test-only, as AdCodicem.ValueObjects.Testing.Data. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Testing.Data\AdCodicem.ValueObjects.Testing.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoFixture" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The names of the registration its message shows, written as the sampler writes its own. -->
+    <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
+  </ItemGroup>
+
+</Project>

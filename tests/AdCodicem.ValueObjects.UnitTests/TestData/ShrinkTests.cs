@@ -4,7 +4,7 @@ namespace AdCodicem.ValueObjects.UnitTests.TestData;
 
 /// <summary>
 /// The shrinks the sampler proposes for a property-based testing library: the declared values first, ranked, then the
-/// shrinks of the underlying value the type accepts, none of them the value again once normalized.
+/// shrinks of the underlying value the type accepts as they are, its normalizer leaving them unchanged.
 /// </summary>
 public class ShrinkTests
 {
@@ -37,13 +37,15 @@ public class ShrinkTests
     }
 
     [Fact]
-    public void A_shrink_equal_to_the_value_once_normalized_is_dropped()
+    public void A_shrink_its_normalizer_changes_is_dropped()
     {
         var iban = Iban.Create("DE89370400440532013000");
 
         var shrinks = ValueObjectSampler.Shrink<Iban, string>(iban, text => [text.ToLowerInvariant(), $" {text} ", text[..^1]]).ToList();
 
         shrinks.Should().Equal(Iban.Example);
+        ValueObjectSampler.Shrink<Grade, char>(Grade.Create('C'), _ => ['b']).Should()
+            .Equal([Grade.Create('A')], "'b' is upper-cased to 'B', whose own shrink 'c' would lead back to 'C'");
     }
 
     [Fact]
@@ -56,11 +58,15 @@ public class ShrinkTests
         Ends<Port, ushort>(sampler, random, HalvePort);
         Ends<Ordering.OrderReference, string>(sampler, random, text => text.Length > 0 ? [text[..^1], text[1..], text.ToUpperInvariant()] : []);
         Ends<Iban, string>(sampler, random, text => text.Length > 0 ? [text[..^1], text.ToLowerInvariant()] : []);
+        Ends<Grade, char>(sampler, random, TowardsLowerCase);
     }
 
     private static IEnumerable<short> Halve(short value) => value == 0 ? [] : [(short)(value / 2), (short)(value - 1)];
 
     private static IEnumerable<ushort> HalvePort(ushort value) => value == 0 ? [] : [(ushort)(value / 2), (ushort)(value - 1)];
+
+    /// <summary>Shrinks a character as FsCheck does, towards 'a', 'b' and 'c': an upper-case letter to all three.</summary>
+    private static IEnumerable<char> TowardsLowerCase(char value) => "abc".Where(simpler => char.IsUpper(value) || simpler < value);
 
     private static void Ends<TSelf, TValue>(ValueObjectSampler sampler, Random random, Func<TValue, IEnumerable<TValue>> shrink)
         where TSelf : struct, IValueObject<TSelf, TValue>
@@ -68,12 +74,12 @@ public class ShrinkTests
         for (var start = 0; start < 100; start++)
         {
             var current = sampler.Next<TSelf, TValue>();
-            var steps = 0;
+            var visited = new HashSet<TSelf> { current };
             while (ValueObjectSampler.Shrink(current, shrink).ToList() is { Count: > 0 } shrinks)
             {
                 current = shrinks[random.Next(shrinks.Count)];
-                steps++;
-                steps.Should().BeLessThan(5000, "a chain of shrinks of {0} ends", typeof(TSelf).Name);
+                visited.Add(current).Should().BeTrue("a chain of shrinks of {0} never comes back to a value it left", typeof(TSelf).Name);
+                visited.Count.Should().BeLessThan(5000, "a chain of shrinks of {0} ends", typeof(TSelf).Name);
             }
         }
     }

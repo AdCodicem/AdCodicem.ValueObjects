@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Bogus</RootNamespace>
+    <Description>Bogus support for AdCodicem value objects: a rule for every value-object member of a Faker&lt;T&gt;, its nullable, array and list members included, and a value object drawn from a Faker, each from the rules its type declares and deterministic under UseSeed.</Description>
+    <PackageTags>$(PackageTags);testing;bogus;faker;test-data</PackageTags>
+
+    <!-- Test-only, as AdCodicem.ValueObjects.Testing.Data. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Testing.Data\AdCodicem.ValueObjects.Testing.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Bogus" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The names of the registration its message shows, written as the sampler writes its own. -->
+    <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
+  </ItemGroup>
+
+</Project>
