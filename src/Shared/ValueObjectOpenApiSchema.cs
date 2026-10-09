@@ -39,7 +39,8 @@ internal static class ValueObjectOpenApiSchema
     /// <remarks>
     /// Describing a schema a second time leaves it as the first time did: ASP.NET Core hands the element of a
     /// collection back to the transformers after this one gave it its schema. A schema that allows <c>null</c> keeps
-    /// allowing it.
+    /// allowing it, and the <c>enum</c> of a closed set then lists <c>null</c> after the known values, or it would
+    /// refuse the <c>null</c> its type allows.
     /// </remarks>
     internal static void Describe(
         OpenApiSchema schema,
@@ -121,8 +122,17 @@ internal static class ValueObjectOpenApiSchema
 
         if (declared.IsClosedValueSet && !declared.KnownValues.IsDefaultOrEmpty)
         {
-            schema.Enum = [.. declared.KnownValues.Select(value => ValueObjectSchemaKeywords.WriteKnownValue(value, descriptor, options, asKey))];
+            List<JsonNode> values = [.. declared.KnownValues.Select(value => ValueObjectSchemaKeywords.WriteKnownValue(value, descriptor, options, asKey))];
+            schema.Enum = values;
             NameKnownValues(schema, declared, enumName());
+
+            // null joins the values of a nullable set, or the enum would refuse the null its type allows: OpenAPI 3.0
+            // asks it beside nullable, and JSON Schema checks enum beside type. The names stay those of the known
+            // values alone; Microsoft.OpenApi writes its sentinel as null.
+            if (nullable)
+            {
+                values.Add(JsonNullSentinel.JsonNull.DeepClone());
+            }
         }
 
         if (!asKey

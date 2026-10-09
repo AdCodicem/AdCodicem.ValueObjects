@@ -567,6 +567,32 @@ public class OpenApiDocumentTests(OpenApiDocument document) : IClassFixture<Open
     }
 
     /// <summary>
+    /// A closed set described in place for a nullable element or a nullable value of a dictionary lists <c>null</c> after
+    /// its known values, or its <c>enum</c> would refuse the <c>null</c> its type allows; the names of its values stay
+    /// those the component gives the known values.
+    /// </summary>
+    /// <param name="property">The property of the body.</param>
+    /// <param name="keyword">Where the property holds the value object.</param>
+    [Theory]
+    [InlineData("optionalCountries", "items")]
+    [InlineData("maybeCountryPerSite", "additionalProperties")]
+    public void A_nullable_element_or_value_of_a_closed_set_lists_null_among_its_values(string property, string keyword)
+    {
+        var schema = document.BodyProperty(property).GetProperty(keyword);
+        var country = document.Schema(nameof(CountryCode));
+
+        Types(schema.GetProperty("type")).Should().BeEquivalentTo(Types(country.GetProperty("type")).Append("null"));
+        schema.GetProperty("enum").EnumerateArray().Select(static value => value.GetRawText())
+            .Should().Equal(country.GetProperty("enum").EnumerateArray().Select(static value => value.GetRawText()).Append("null"));
+        Keywords(schema).Should().BeEquivalentTo(Keywords(country));
+
+        static IEnumerable<(string, string)> Keywords(JsonElement schema)
+            => schema.EnumerateObject()
+                .Where(static keyword => keyword.Name is not ("type" or "enum"))
+                .Select(static keyword => (keyword.Name, JsonSerializer.Serialize(keyword.Value)));
+    }
+
+    /// <summary>
     /// A value object keys a dictionary as the text it writes, so the key's rules hold for the names of its members,
     /// which <c>propertyNames</c> states. A value object over a number is described as the text it writes a key in: a
     /// string held to the pattern of that number, its bounds, which <c>minimum</c> and <c>maximum</c> cannot hold on a

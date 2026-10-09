@@ -337,7 +337,7 @@ public sealed class SwashbuckleDocumentTests(SwashbuckleDocument fixture) : ICla
     /// A reference cannot say that a value may be <c>null</c>, and Swashbuckle loses it for a nullable value object as
     /// for a nullable enumeration. A nullable value object is described in place instead, as Swashbuckle describes a
     /// nullable primitive: as the value object, <c>null</c> allowed, in each version's own way, as a property, an
-    /// element of a collection and a value of a dictionary.
+    /// element of a collection and a value of a dictionary, and among the values of a closed set.
     /// </summary>
     /// <param name="version">The document's version.</param>
     [Theory]
@@ -353,6 +353,8 @@ public sealed class SwashbuckleDocumentTests(SwashbuckleDocument fixture) : ICla
         InPlace(version, Documents.Property(version, Members, "perShade").GetProperty("properties").GetProperty(nameof(Shade.Dark)), nameof(Quantity));
         InPlace(version, Documents.Property(version, Members, "optional").GetProperty("items"), nameof(Quantity));
         InPlace(version, Documents.Property(version, nameof(EveryValueObject), "optional").GetProperty("items"), nameof(Quantity));
+        InPlace(version, Documents.Property(version, nameof(EveryValueObject), "optionalCountries").GetProperty("items"), nameof(CountryCode));
+        InPlace(version, Documents.Property(version, nameof(EveryValueObject), "maybeCountryPerSite").GetProperty("additionalProperties"), nameof(CountryCode));
         AllowsNull(version, raw).Should().BeTrue("Swashbuckle describes a nullable primitive so");
         AllowsNull(version, Documents.Property(version, Members, "rawOptional").GetProperty("items")).Should().BeTrue();
         AllowsNull(version, Documents.Property(version, Members, "rawPerShade").GetProperty("properties").GetProperty(nameof(Shade.Light))).Should().BeTrue();
@@ -581,7 +583,7 @@ public sealed class SwashbuckleDocumentTests(SwashbuckleDocument fixture) : ICla
 
     /// <summary>
     /// Asserts a schema describes a value object in place, <c>null</c> allowed: everything its component says, and
-    /// <c>null</c>, in the way of the document's version.
+    /// <c>null</c>, in the way of the document's version, among the values of a closed set too.
     /// </summary>
     private void InPlace(string version, JsonElement schema, string component, SwashbuckleDocuments? documents = null)
     {
@@ -590,10 +592,16 @@ public sealed class SwashbuckleDocumentTests(SwashbuckleDocument fixture) : ICla
         AllowsNull(version, schema).Should().BeTrue($"{schema.GetRawText()} allows null");
         Keywords(schema).Should().BeEquivalentTo(Keywords(described), $"{schema.GetRawText()} describes {component}");
         TypesOf(schema).Where(static type => type != "null").Should().Equal(TypesOf(described));
+        schema.TryGetProperty("enum", out var values).Should().Be(described.TryGetProperty("enum", out var known));
+        if (known.ValueKind == JsonValueKind.Array)
+        {
+            values.EnumerateArray().Select(static value => value.GetRawText())
+                .Should().Equal(known.EnumerateArray().Select(static value => value.GetRawText()).Append("null"), $"{schema.GetRawText()} allows null");
+        }
 
         static IEnumerable<(string, string)> Keywords(JsonElement schema)
             => schema.EnumerateObject()
-                .Where(static keyword => keyword.Name is not ("type" or "nullable"))
+                .Where(static keyword => keyword.Name is not ("type" or "nullable" or "enum"))
                 .Select(static keyword => (keyword.Name, keyword.Value.GetRawText()));
     }
 
