@@ -188,6 +188,9 @@ which is exactly what minimal API parameter binding looks for:
 app.MapGet("/accounts/{iban}", (Iban iban) => ...);
 ```
 
+An optional value object is `T?`, `(CountryCode? country) => ...`, `null` when absent, never
+`CountryCode country = default`, which is `VO0010`.
+
 A rejected value is a bare 400 there: no parameter name, no message, no code, `AddProblemDetails()` and
 `AddValidation()` notwithstanding, and a 500 in Development behind `UseExceptionHandler`, where the
 `BadHttpRequestException` of a body wraps the converter's exception: `ValueObjectErrors.TryGetCode` reads the code from

@@ -172,7 +172,8 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
 
 ## Never do these
 
-- `default(Iban)` or `new Iban()`, and the same on an `[EntityId]` — build error `VO0010`, because those bypass
+- `default(Iban)` or `new Iban()`, and the same on an `[EntityId]` or as a parameter's default value
+  (`Iban iban = default`, a minimal API handler's included) — build error `VO0010`, because those bypass
   validation. Construct through `Create`/`TryCreate`; express absence as `Iban?`, never as an empty or default
   instance. A test that needs one disables `VO0010` on that line with a comment saying why. One that slips past the
   analyzer (an entity property never set) is refused by every writer when its type rejects the default (JSON,
