@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace AdCodicem.ValueObjects.GeneratorTests;
 
@@ -105,6 +106,201 @@ public sealed class UninitializedValueObjectTests
             ("default", "public static int Count(Code code = default) => 0;"),
             ("new Code()", "public static int Measure(Code code = new Code()) => 0;"),
             ("default", "public static int Written() => Count(default);"));
+    }
+
+    /// <summary>
+    /// The compiler hands an analyzer the default value of a member's parameter as an operation, and not that of a
+    /// lambda's or a local function's parameter: each is reported all the same, once, on the expression written, with the
+    /// message a method's parameter gets. A call leaving the argument out is not reported, nor is a <c>default</c> in a
+    /// lambda's body reported twice.
+    /// </summary>
+    [Fact]
+    public async Task A_parameter_of_a_lambda_or_a_local_function_defaulting_to_default_is_reported_as_a_method_parameter_is()
+    {
+        var diagnostics = await RunAsync("""
+            [ValueObject<string>(MaxLength = 10)]
+            public readonly partial struct Sku;
+
+            public static class Cases
+            {
+                public static string Method(Sku sku = default) => sku.ToString();
+
+                public static string MethodNew(Sku sku = new()) => sku.ToString();
+
+                public static string MethodTyped(Sku sku = default(Sku)) => sku.ToString();
+
+                public static object Run()
+                {
+                    var lambda = string (Sku sku = default) => sku.ToString();
+                    var lambdaNew = string (Sku sku = new()) => sku.ToString();
+                    var lambdaTyped = string (Sku sku = default(Sku)) => sku.ToString();
+                    static string Local(Sku sku = default) => sku.ToString();
+                    static string LocalNew(Sku sku = new()) => sku.ToString();
+                    var inBody = string () => { Sku sku = default; return sku.ToString(); };
+
+                    return (lambda(), lambdaNew(), lambdaTyped(), Local(), LocalNew(), inBody());
+                }
+            }
+            """);
+
+        Located(diagnostics).Should().Equal(
+            ("default", "public static string Method(Sku sku = default) => sku.ToString();"),
+            ("new()", "public static string MethodNew(Sku sku = new()) => sku.ToString();"),
+            ("default(Sku)", "public static string MethodTyped(Sku sku = default(Sku)) => sku.ToString();"),
+            ("default", "var lambda = string (Sku sku = default) => sku.ToString();"),
+            ("new()", "var lambdaNew = string (Sku sku = new()) => sku.ToString();"),
+            ("default(Sku)", "var lambdaTyped = string (Sku sku = default(Sku)) => sku.ToString();"),
+            ("default", "static string Local(Sku sku = default) => sku.ToString();"),
+            ("new()", "static string LocalNew(Sku sku = new()) => sku.ToString();"),
+            ("default", "var inBody = string () => { Sku sku = default; return sku.ToString(); };"));
+
+        diagnostics.Should().AllSatisfy(diagnostic =>
+        {
+            diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+            diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
+                "'Sku' produced here never went through validation. Build it with Create or TryCreate, or declare it "
+                + "with AllowDefault when its default state is meaningful.");
+        });
+    }
+
+    /// <summary>
+    /// A minimal API handler is where a lambda's parameter usually takes a default value, and the Request Delegate
+    /// Generator hands <c>(Sku sku = default) =&gt; …</c> a default instance for a request that leaves the value out. An
+    /// optional parameter is <c>Sku?</c>, which binds <c>null</c>. <c>Map</c> stands for <c>MapGet</c>, which takes the
+    /// handler as a <see cref="Delegate"/>.
+    /// </summary>
+    [Fact]
+    public async Task A_handler_defaulting_a_value_object_is_reported_and_an_optional_one_is_not()
+    {
+        var diagnostics = await RunAsync("""
+            [ValueObject<string>(MaxLength = 10)]
+            public readonly partial struct Sku;
+
+            public static class Endpoints
+            {
+                public static void Map(string pattern, Delegate handler)
+                {
+                }
+
+                public static void MapAll()
+                {
+                    Map("/search", (Sku sku = default) => sku.ToString());
+                    Map("/optional", (Sku? sku) => sku?.ToString());
+                    Map("/absent", (Sku? sku = null) => sku?.ToString());
+                }
+            }
+            """);
+
+        Located(diagnostics).Should().Equal(("default", "Map(\"/search\", (Sku sku = default) => sku.ToString());"));
+    }
+
+    /// <summary>
+    /// What stays quiet on a method's parameter stays quiet on a lambda's or a local function's: a nullable value object
+    /// defaulting to <c>default</c> or <c>null</c> is null, a value object declared with <c>AllowDefault = true</c> means its
+    /// default, and a number is no value object.
+    /// </summary>
+    [Fact]
+    public async Task A_lambda_or_local_function_parameter_defaulting_to_null_or_to_an_allowed_default_is_not_reported()
+    {
+        var diagnostics = await RunAsync("""
+            [ValueObject<string>(MaxLength = 10)]
+            public readonly partial struct Sku;
+
+            [ValueObject<int>(AllowDefault = true)]
+            public readonly partial struct Sequence;
+
+            public static class Use
+            {
+                public static object Run()
+                {
+                    var nullable = (Sku? sku = default) => sku?.ToString();
+                    var absent = (Sku? sku = null) => sku?.ToString();
+                    var allowed = (Sequence sequence = default) => sequence.ToString();
+                    var allowedNew = (Sequence sequence = new()) => sequence.ToString();
+                    var number = (int count = default) => count;
+                    static string? Local(Sku? sku = default) => sku?.ToString();
+                    static string Allowed(Sequence sequence = new()) => sequence.ToString();
+
+                    return (nullable(), absent(), allowed(), allowedNew(), number(), Local(), Allowed());
+                }
+            }
+            """);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The default value is reported wherever the lambda or the local function is declared - a field initializer, another
+    /// lambda, a lambda's body - over a construction of a generic value object and an entity identifier alike, written
+    /// in parentheses too, and only on the parameter that declares it. The semantic model binds a parenthesized
+    /// expression to no operation, so the whole initializer is bound, as a method's parameter is handed it.
+    /// </summary>
+    [Fact]
+    public async Task The_default_value_of_a_lambda_or_a_local_function_parameter_is_reported_wherever_it_is_declared()
+    {
+        var diagnostics = await RunAsync("""
+            [ValueObject<string>]
+            public readonly partial struct Code<T>;
+
+            [EntityId("acc")]
+            public readonly partial struct AccountId;
+
+            public static class Use
+            {
+                public static readonly Delegate InField = (AccountId id = new()) => id.ToString();
+
+                public static object Run()
+                {
+                    var construction = (Code<int> code = default) => code.ToString();
+                    var parenthesized = (AccountId id = (default)) => id.ToString();
+                    var nested = () => (AccountId inner = default) => inner.ToString();
+                    var second = (int count, AccountId id = new AccountId()) => id.ToString() + count;
+                    static string Generic<T>(Code<T> code = default) => code.ToString();
+                    var enclosing = () =>
+                    {
+                        string Inner(AccountId id = default(AccountId)) => id.ToString();
+                        return Inner();
+                    };
+
+                    return (construction(), parenthesized(), nested()(), second(1), Generic<int>(), enclosing());
+                }
+            }
+            """);
+
+        Located(diagnostics).Should().Equal(
+            ("new()", "public static readonly Delegate InField = (AccountId id = new()) => id.ToString();"),
+            ("default", "var construction = (Code<int> code = default) => code.ToString();"),
+            ("default", "var parenthesized = (AccountId id = (default)) => id.ToString();"),
+            ("default", "var nested = () => (AccountId inner = default) => inner.ToString();"),
+            ("new AccountId()", "var second = (int count, AccountId id = new AccountId()) => id.ToString() + count;"),
+            ("default", "static string Generic<T>(Code<T> code = default) => code.ToString();"),
+            ("default(AccountId)", "string Inner(AccountId id = default(AccountId)) => id.ToString();"));
+    }
+
+    /// <summary>
+    /// Generated code is left alone, lambdas included: the Request Delegate Generator writes, for each handler whose
+    /// parameter has a default value, a lambda declaring the same default, <c>(global::Sku arg0= default) =&gt; throw
+    /// null!</c>, and the default is reported once, in the handler the author wrote. A member carrying
+    /// <c>[GeneratedCode]</c> stands for the generated file here.
+    /// </summary>
+    [Fact]
+    public async Task A_lambda_in_generated_code_is_not_analyzed()
+    {
+        var diagnostics = await RunAsync("""
+            [ValueObject<string>]
+            public readonly partial struct Sku;
+
+            public static class Interceptors
+            {
+                [System.CodeDom.Compiler.GeneratedCode("Microsoft.AspNetCore.Http.RequestDelegateGenerator", "10.0.0.0")]
+                public static Delegate Cast() => string (Sku arg0 = default) => throw null!;
+
+                public static Delegate Written() => string (Sku sku = default) => sku.ToString();
+            }
+            """);
+
+        Located(diagnostics).Should().Equal(
+            ("default", "public static Delegate Written() => string (Sku sku = default) => sku.ToString();"));
     }
 
     /// <summary>
@@ -295,6 +491,44 @@ public sealed class UninitializedValueObjectTests
             """);
 
         Located(diagnostics).Should().Equal(("default(Code)", "public static Code Missing() => default(Code);"));
+    }
+
+    /// <summary>
+    /// The length of a fixed-size buffer must be a constant, so a lambda written there is an error the compiler reports,
+    /// and the semantic model binds the default values of its local function's parameters to no operation. An analyzer
+    /// runs on the text as the author types it: there is nothing to report there, and it must not fail.
+    /// </summary>
+    [Fact]
+    public async Task A_default_value_the_semantic_model_binds_to_no_operation_is_left_alone()
+    {
+        const string Source = """
+            using System;
+            using AdCodicem.ValueObjects.Annotations;
+
+            namespace Test;
+
+            [ValueObject<string>]
+            public readonly partial struct Code;
+
+            public unsafe struct Buffer
+            {
+                public fixed int Data[((Func<int>)(() => { static int Size(Code code = new()) => 1; return Size(); }))()];
+            }
+            """;
+
+        var compilation = CSharpCompilationOf(Source, GeneratorHarness.LibraryReferences);
+        var tree = compilation.SyntaxTrees.Single();
+        var initializer = tree.GetRoot(TestContext.Current.CancellationToken)
+            .DescendantNodes()
+            .OfType<ParameterSyntax>()
+            .Single()
+            .Default!;
+        compilation.GetSemanticModel(tree).GetOperation(initializer, TestContext.Current.CancellationToken)
+            .Should().BeNull("a fixed-size buffer's length is bound to no operation");
+
+        var diagnostics = await GeneratorHarness.RunAnalyzerAsync<UninitializedValueObjectAnalyzer>(Source);
+
+        diagnostics.Should().BeEmpty();
     }
 
     /// <summary>

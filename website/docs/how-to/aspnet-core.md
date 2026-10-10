@@ -16,6 +16,11 @@ exactly what minimal API parameter binding looks for, and its `[JsonConverter]` 
 app.MapGet("/accounts/{iban}", (Iban iban) => /* … */);
 ```
 
+An optional value object is declared `T?`: `(CountryCode? country) => …` binds `null` when the request leaves the value
+out. A default value is no way to make one optional, and `VO0010` refuses `(CountryCode country = default) => …`: the
+Request Delegate Generator hands such a handler a default instance no rule checked, and the reflection-based binding of
+ASP.NET Core 10.0.12 fails to build the endpoints, answering every request with a 500.
+
 A value the value object rejects is answered with a 400 before the handler runs, and without the package of
 [the problem details for minimal APIs](#problem-details-for-minimal-apis) that 400 says nothing of why.
 It names no parameter and carries no message and no code: its body is empty, or holds bare problem details, a title

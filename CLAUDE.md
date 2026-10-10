@@ -665,7 +665,10 @@ Four suites, each with a distinct job:
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
   `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Snippets compile **without** implicit usings, which
-  is what catches unqualified names in emitted code. The harness also runs the framework's regex generator beside
+  is what catches unqualified names in emitted code. They compile with the Roslyn `Directory.Packages.props` pins,
+  4.14, under `LanguageVersion.Preview`, which runs a syntax node action three times per node inside a C# 14
+  extension block, where the compilers of SDK 10 and 11 run it once: a VO0010 test puts no lambda and no local
+  function in one. The harness also runs the framework's regex generator beside
   this one, so a snippet implementing `IValueObjectPatternValidator` compiles; the `CopyRegexGenerator` target in
   the test project copies it from the targeting pack the SDK resolved, so the SDK decides its version, on a laptop
   and in CI alike. The incrementality tests assert on
