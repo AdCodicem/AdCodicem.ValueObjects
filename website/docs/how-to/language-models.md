@@ -26,7 +26,8 @@ parameter is published as `true`, the schema that accepts anything; a `[Descript
 {"type":"object","properties":{"iban":{"description":"The account to debit."},"quantity":true,"country":true},"required":["iban","quantity","country"]}
 ```
 
-Under OpenAI's strict mode, Microsoft.Extensions.AI.OpenAI sends each such parameter as `{}`. The model gets no length,
+Under OpenAI's strict mode, Microsoft.Extensions.AI.OpenAI sends each such parameter as `{}`, which OpenAI refuses: the
+request fails with a 400, `schema must have a 'type' key`. Where a provider takes the schema, the model gets no length,
 pattern, bound or allowed value, and guesses.
 
 Binding does validate: the generated converter runs for each argument, and refuses a value its rules reject. But the
@@ -84,12 +85,18 @@ example. A format JSON Schema does not define, `iban`, `int32` or `decimal`, mov
 "country": {"description": "A country the shop delivers to.", "type": "string", "enum": ["FR", "DE"]}
 ```
 
-Under strict mode, Microsoft.Extensions.AI.OpenAI moves what strict mode refuses, the lengths, the pattern, the
-bounds and the format, into the description, and keeps `type`, `enum` and `examples`; the rules still reach the model:
+Under strict mode, Microsoft.Extensions.AI.OpenAI moves the lengths, the pattern, the bounds and the format into the
+description, though OpenAI accepts each of them in a strict schema but a format it does not know, `iban`, and keeps
+`type`, `enum` and `examples`; the rules still reach the model:
 
 ```json
 "quantity": {"description": "A quantity ordered.\n\nFormat: int32.\nminimum: 1\nmaximum: 100", "type": "integer"}
 ```
+
+On Windows the adapter starts each line it adds with `\r\n`, where this sample shows `\n`. OpenAI accepts that schema,
+`examples` included, in a tool and in a response format, on Chat Completions and on Responses: no test calls a model,
+and this was run by hand in October 2026 against `gpt-4o-mini`, `gpt-6-luna`, which takes a function tool on Chat
+Completions only with `reasoning_effort` set to `none`, and `gpt-6.1-sol`, which takes none there.
 
 ### A refused argument
 
@@ -190,7 +197,8 @@ var order = new AgentResponse<Order>(response, AppJsonContext.Default.Options).R
 
 `RunAsync<T>` also wraps the schema of an answer that is no object, a list or a lone value object, in an object under
 `data`, and unwraps the answer; this way does neither, so give such an answer a record of its own. This was run on
-Agent Framework 1.24.0, with a scripted model in place of a provider.
+Agent Framework 1.24.0: by the tests with a scripted model in place of a provider, and by hand against a local one,
+`granite4.1:8b` on Ollama 0.40, through OllamaSharp and through the OpenAI adapter.
 
 ## Native AOT and reflection-free serialization
 
@@ -374,16 +382,23 @@ not see the converter of a value object declared in the context's own project.
 - Prompts and resources are not covered: only tools.
 - The HTTP transport is not run by the tests, which use streams in process; it was run by hand over
   ModelContextProtocol.AspNetCore 2.2, stateful and stateless, with and without its authorization filters.
+- What a client does with a schema is the client's. Run by hand in October 2026, the MCP Inspector, the official
+  TypeScript and Python clients, Claude Code, Claude Desktop and a claude.ai connector were each given the tools: none
+  refuses the list, and Claude Code, Claude Desktop and claude.ai hand the model the text of a refusal, its code
+  included. Claude Desktop's model, in a local agent session, reported the bounds and the allowed values, not the
+  lengths or the pattern: Claude Desktop checks a number against its bounds itself, and answers one out of range in its
+  own words, without calling the server; it sends a text shorter than its `minLength`, which the server refuses.
 - The `outputSchema` is written under the language-model profile, which describes what a model should send, and can
   be narrower than what the type holds. A closed set looked up ignoring case, or as a culture compares, lists its known
   values in `enum`, while the value object keeps the spelling it was given, `"Final"` for `final`, and a closed set of
   dates and times, whose equality ignores the offset or the kind, keeps the one it was given; `minLength` is the
   declared `MinLength`, which .NET counts in UTF-16 code units and JSON Schema in characters, an emoji counting two in
   one and one in the other. A client that validates the structured content against the schema refuses a result holding
-  such a value: a normalizer that returns each known value in its declared spelling keeps a closed set within its
-  `enum`.
+  such a value, the whole of it, after the tool ran, as every client above but claude.ai does: a normalizer that returns
+  each known value in its declared spelling keeps a closed set within its `enum`.
 - With `UseStructuredContent`, the SDK lists a nullable member of the result in `outputSchema.required`, and leaves it
-  out of the structured content when it is `null`: a client that validates the result against the schema refuses it.
+  out of the structured content when it is `null`: a client that validates the result against the schema refuses it,
+  the same clients.
   That is the SDK's own behaviour, with or without the package.
 
 ## Limits
@@ -391,8 +406,8 @@ not see the converter of a value object declared in the context's own project.
 Of the Microsoft.Extensions.AI package; the Model Context Protocol package's are [above](#what-it-does-not-cover).
 
 
-- Whether OpenAI accepts `examples` in strict mode has not been checked against the live API; Microsoft.Extensions.AI
-  keeps it on the wire.
+- No test calls a model: what OpenAI accepts under strict mode was checked by hand ([above](#what-the-schema-says)),
+  and can change with the model.
 - The path of a value object refused inside a collection or an object is not reported: `argument` names the parameter,
   and the message the value object.
 - A parameter that a `ConfigureParameterBinding` callback binds while the schema still lists it is checked as the
