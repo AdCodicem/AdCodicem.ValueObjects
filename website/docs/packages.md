@@ -51,7 +51,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects` | `net10.0` | the .NET 10 SDK | the .NET 11 SDK, whose compiler runs the generator |
 | `AdCodicem.ValueObjects.Abstractions` | `net10.0` | .NET 10 | .NET 11 |
 | `AdCodicem.ValueObjects.Json` | `net10.0` | .NET 10, source generation included | .NET 11, source generation included |
-| `AdCodicem.ValueObjects.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
+| `AdCodicem.ValueObjects.EntityFrameworkCore` | `net10.0` | EF Core 10, on SQLite, PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.AspNetCore` | `net10.0` | ASP.NET Core 10 | ASP.NET Core 11 |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | `net10.0` | ASP.NET Core 10, reflection-based binding, the Request Delegate Generator and native AOT | ASP.NET Core 11 |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | `net10.0` | ASP.NET Core 10, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 10 | ASP.NET Core 11, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11 |

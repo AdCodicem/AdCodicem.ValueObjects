@@ -96,6 +96,14 @@ Yes to both. The generated equality and hashing make dictionary lookups allocati
 serializes as a JSON property name. In EF Core it can be a primary or a foreign key; for a string key compared
 without case, give the column a matching collation.
 
+### Can an entity hold a list of value objects?
+
+Yes. `ConfigureValueObjects` maps a `List<Iban>`, a `Quantity[]` or an `IReadOnlyList<Iban?>` as a primitive collection:
+an array of `character varying(34)` on PostgreSQL, a JSON array elsewhere, each element converted, compared and sized as
+its value object, and queried with `Contains` or `Any`.
+[Collections of value objects](./how-to/ef-core.md#collections-of-value-objects) says which properties it takes, and
+what it writes for an element its type rejects.
+
 ### Why are values read from the database not validated?
 
 Because the EF Core and Dapper read paths are the hottest in most applications, and they read values the same
@@ -226,10 +234,10 @@ identifier's descriptor, the MVC model binder provider creates its binders, the 
 each parameter it explains, the JSON converter factory closes the general-purpose converter it gives a value object
 written by hand, the test-data sampler, the AutoFixture customization, the Bogus extensions and FsCheck's
 `MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
-value object and each entity identifier, all but the converter of an optional value object, which C# cannot name there
-and which they close with `MakeGenericType`; they do so only while a model is built, never under native AOT. The
-Microsoft.Extensions.AI integration closes nothing: it reads a tool's parameters once, when it wraps the function, and
-each argument through the function's own contracts. Nor does the Model Context Protocol one, which finds the tool methods
+value object, each element of a collection of them, and each entity identifier, all but the converter of an optional
+value object, which C# cannot name there and which they close with `MakeGenericType`; they do so only while a model is
+built, never under native AOT. The Microsoft.Extensions.AI integration closes nothing: it reads a tool's parameters
+once, when it wraps the function, and each argument through the function's own contracts. Nor does the Model Context Protocol one, which finds the tool methods
 of a type as the SDK does, the generic registration through a type parameter carrying the SDK's trimming annotation. The
 contracts, the generated code, the JSON package, the minimal API problem details, FluentValidation, identifiers and the
 Serilog, Microsoft.Extensions.AI and Model Context Protocol integrations are marked AOT-compatible and built with the

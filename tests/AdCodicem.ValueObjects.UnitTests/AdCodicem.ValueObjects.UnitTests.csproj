@@ -70,8 +70,11 @@
     <!-- A JSON Schema validator, which checks that what the serializer writes is what the exported schema describes. -->
     <PackageReference Include="LateApexEarlySpeed.Json.Schema" />
     <!-- A provider, so that a DbContext can build the model the Entity Framework Core conventions shape; building it
-         opens no connection. Round trips through a real engine stay in the integration suite. -->
+         opens no connection. SQLite in memory, which needs no server, runs what only an engine shows of a primitive
+         collection of value objects: the JSON it stores, the queries over its elements, change tracking. What a real
+         server makes of them stays in the integration suite. -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <!-- An in-memory server, so that the ASP.NET Core and OpenAPI integrations are driven by real requests without
          a socket. The sample's end-to-end flows stay in the integration suite. -->
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />

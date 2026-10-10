@@ -32,7 +32,7 @@ be corrected.
 | String comparison | ordinal, or declared per type | ordinal, configurable | ordinal | case-insensitive by default, configurable |
 | System.Text.Json | yes | yes | yes | yes |
 | Source-generated `JsonSerializerContext` | declared on the context, at compile time | a factory passed in the options at run time | converters passed in the options | not documented |
-| EF Core mapping | every value object of an assembly in one call | per property, or a marker class listing the types | per type | every value object in one call |
+| EF Core mapping | every value object of an assembly in one call, collections of them included | per property, or a marker class listing the types | per type | every value object in one call |
 | Column size from the type's rules | yes | no | no | no, a max-length strategy can be configured |
 | EF Core reads validate | on request (`strict: true`) | by default | — | no, reads use the constructor |
 | ASP.NET Core model binding | yes | through the `TypeConverter` | through the `TypeConverter` | yes |

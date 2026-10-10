@@ -130,6 +130,74 @@ public sealed class EntityFrameworkCoreTests : IDisposable
     }
 
     [Fact]
+    public async Task A_collection_of_value_objects_is_a_primitive_collection_that_round_trips_and_is_queried()
+    {
+        var belgian = Iban.Create("BE68539007547034");
+        await using (var write = new ShopContext(_options))
+        {
+            var portfolio = write.Model.FindEntityType(typeof(Portfolio))!;
+            var ibans = portfolio.FindProperty(nameof(Portfolio.Ibans))!;
+            ibans.IsPrimitiveCollection.Should().BeTrue();
+            ibans.GetElementType()!.GetValueConverter().Should().BeOfType<ValueObjectConverter<Iban, string>>();
+            ibans.GetElementType()!.GetValueComparer().Should().BeOfType<ValueObjectComparer<Iban>>();
+            ibans.GetElementType()!.GetMaxLength().Should().Be(34);
+            portfolio.FindProperty(nameof(Portfolio.Previous))!.GetElementType()!.GetValueConverter()
+                .Should().BeOfType<NullableValueObjectConverter<Iban>>();
+            portfolio.FindProperty(nameof(Portfolio.Orders))!.GetElementType()!.GetValueConverter()
+                .Should().BeOfType<ValueObjectConverter<Reference<PurchaseOrder>, string>>();
+
+            write.Portfolios.Add(new Portfolio
+            {
+                Id = 1,
+                Ibans = [Iban.Create("FR7630006000011234567890189"), belgian],
+                Previous = [null, belgian],
+                Quantities = [Quantity.Create(2)],
+                Orders = [Reference<PurchaseOrder>.Create("po-1")],
+            });
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var read = new ShopContext(_options);
+        var query = read.Portfolios.Where(entity => entity.Ibans.Contains(belgian));
+        query.ToQueryString().Should().Contain("json_each");
+        var reloaded = await query.AsNoTracking().SingleAsync(TestContext.Current.CancellationToken);
+        reloaded.Ibans.Should().Equal(Iban.Create("FR7630006000011234567890189"), belgian);
+        reloaded.Previous.Should().Equal(null, belgian);
+        reloaded.Quantities.Should().Equal(Quantity.Create(2));
+        reloaded.Orders.Should().Equal(Reference<PurchaseOrder>.Create("PO-1"));
+    }
+
+    [Fact]
+    public async Task An_element_a_value_object_rejects_is_refused_or_stored_as_a_null()
+    {
+#pragma warning disable VO0010 // The uninitialized instances are what the converters refuse, or store as a null.
+        var refused = new Portfolio { Id = 2, Ibans = [default] };
+        var stored = new Portfolio { Id = 3, Previous = [default(Iban)] };
+#pragma warning restore VO0010
+
+        await using (var write = new ShopContext(_options))
+        {
+            write.Portfolios.Add(refused);
+            var save = () => write.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            var thrown = await save.Should().ThrowAsync<DbUpdateException>();
+            ValueObjectErrors.TryGetCode(thrown.Which, out var code).Should().BeTrue();
+            code.Should().Be(ValueObjectErrorCodes.Required);
+        }
+
+        await using (var write = new ShopContext(_options))
+        {
+            write.Portfolios.Add(stored);
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var read = new ShopContext(_options);
+        (await read.Portfolios.AnyAsync(entity => entity.Id == 2, TestContext.Current.CancellationToken)).Should().BeFalse();
+        var reloaded = await read.Portfolios.AsNoTracking().SingleAsync(entity => entity.Id == 3, TestContext.Current.CancellationToken);
+        reloaded.Previous.Should().ContainSingle().Which.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Change_tracking_compares_the_way_the_value_object_does()
     {
         var customer = new Customer { Id = CustomerId.New(), Email = EmailAddress.Create("tracking@example.com"), Country = CountryCode.France };

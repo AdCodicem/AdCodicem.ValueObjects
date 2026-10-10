@@ -22,7 +22,7 @@ internal static class ConverterTypes
 
     /// <summary>
     /// Gives the converter of a property holding an optional value object, which stores a value the value object
-    /// rejects as <c>NULL</c>.
+    /// rejects as <c>NULL</c>, and of such an element of a collection over text.
     /// </summary>
     /// <typeparam name="TSelf">Value object type.</typeparam>
     /// <typeparam name="TValue">Underlying value type.</typeparam>

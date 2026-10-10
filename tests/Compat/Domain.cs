@@ -203,6 +203,25 @@ public sealed class Order
     public Quantity Quantity { get; set; }
 }
 
+/// <summary>A portfolio, holding collections of value objects, which the convention maps as primitive collections.</summary>
+public sealed class Portfolio
+{
+    /// <summary>Gets or sets the key.</summary>
+    public int Id { get; set; }
+
+    /// <summary>Gets or sets the IBANs.</summary>
+    public List<Iban> Ibans { get; set; } = [];
+
+    /// <summary>Gets or sets the IBANs the portfolio held, a null for one unknown.</summary>
+    public List<Iban?> Previous { get; set; } = [];
+
+    /// <summary>Gets or sets the quantities.</summary>
+    public Quantity[] Quantities { get; set; } = [];
+
+    /// <summary>Gets or sets the purchase orders, constructions of a generic value object.</summary>
+    public List<Reference<PurchaseOrder>> Orders { get; set; } = [];
+}
+
 /// <summary>The model, mapped by the two conventions as the README says.</summary>
 /// <param name="options">Options.</param>
 public class ShopContext(DbContextOptions options) : DbContext(options)
@@ -218,6 +237,9 @@ public class ShopContext(DbContextOptions options) : DbContext(options)
 
     /// <summary>Gets the orders.</summary>
     public DbSet<Order> Orders => Set<Order>();
+
+    /// <summary>Gets the portfolios.</summary>
+    public DbSet<Portfolio> Portfolios => Set<Portfolio>();
 
     /// <summary>Gets a value indicating whether values read from the database are validated again.</summary>
     protected virtual bool Strict => false;
@@ -267,6 +289,12 @@ public class ShopContext(DbContextOptions options) : DbContext(options)
             order.ToTable("orders");
             order.HasKey(entity => entity.Id);
             order.Property(entity => entity.Id).ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<Portfolio>(portfolio =>
+        {
+            portfolio.ToTable("portfolios");
+            portfolio.Property(entity => entity.Id).ValueGeneratedNever();
         });
     }
 }

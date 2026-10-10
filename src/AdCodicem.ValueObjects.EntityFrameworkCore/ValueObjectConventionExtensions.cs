@@ -34,9 +34,20 @@ public static class ValueObjectConventionExtensions
     /// constructions: each property of one gets the converter, the comparer and the length closed over its own.
     /// </para>
     /// <para>
+    /// A property holding a collection of value objects, <c>List&lt;Iban&gt;</c>, <c>Quantity[]</c> or
+    /// <c>IReadOnlyList&lt;Iban?&gt;</c>, in an entity type, an owned type or a complex type, is mapped as a primitive
+    /// collection: each element gets the converter, the comparer and the length of its value object, so that an IBAN
+    /// lands in a <c>character varying(34)[]</c> on PostgreSQL, and in a JSON array elsewhere, which SQL Server reads as
+    /// <c>nvarchar(34)</c>. Only a property Entity Framework Core would map itself, one with a setter, is made one; a
+    /// primitive collection the application declares, over a read-only property, gets its elements configured too,
+    /// unless the application set their converter.
+    /// </para>
+    /// <para>
     /// Writing refuses a value the value object rejects, which only an instance equal to <c>default(TSelf)</c> can hold,
     /// rather than store it for a read to trust: a property of the value object's type throws a
-    /// <see cref="ValueObjectException"/>, and a property of its nullable type, <c>TSelf?</c>, stores a <c>NULL</c>.
+    /// <see cref="ValueObjectException"/>, and a property of its nullable type, <c>TSelf?</c>, stores a <c>NULL</c>. An
+    /// element of a collection does the same, but for an element of <c>TSelf?</c> over a value type, which throws too:
+    /// Entity Framework Core cannot write the <c>null</c> there.
     /// </para>
     /// <para>
     /// A compiled model, which <c>dotnet ef dbcontext optimize</c> generates, holds the same mapping. A property of
@@ -49,9 +60,9 @@ public static class ValueObjectConventionExtensions
     /// Each converter and comparer is closed over its value object through the type arguments the descriptor hands back
     /// to a visitor (<see cref="ValueObjectDescriptor.Accept{TResult}(IValueObjectVisitor{TResult})"/>), never with
     /// <see cref="Type.MakeGenericType(Type[])"/> over a <see cref="Type"/> read off the descriptor. The converter of a
-    /// <c>TSelf?</c> property, which C# cannot name without a constraint the visitor does not carry, is closed with it
-    /// over those type arguments. Entity Framework Core builds no model under native AOT, where it reads a compiled
-    /// model instead, so none of this runs there.
+    /// <c>TSelf?</c> property, or of such an element over text, which C# cannot name without a constraint the visitor
+    /// does not carry, is closed with it over those type arguments. Entity Framework Core builds no model under native
+    /// AOT, where it reads a compiled model instead, so none of this runs there.
     /// </para>
     /// </remarks>
     public static ModelConfigurationBuilder ConfigureValueObjects(
@@ -64,8 +75,9 @@ public static class ValueObjectConventionExtensions
     /// </summary>
     /// <param name="builder">Model configuration builder, from <c>DbContext.ConfigureConventions</c>.</param>
     /// <param name="strict">
-    /// When <see langword="true"/>, values read from the database are normalized and validated again. Use it for
-    /// tables another system also writes to; it costs a validation per materialized value.
+    /// When <see langword="true"/>, values read from the database are normalized and validated again, the elements of a
+    /// collection included. Use it for tables another system also writes to; it costs a validation per materialized
+    /// value.
     /// </param>
     /// <param name="assemblies">Assemblies declaring the value objects.</param>
     /// <returns>The same builder, so calls can be chained.</returns>
@@ -91,11 +103,15 @@ public static class ValueObjectConventionExtensions
 #pragma warning restore IL2026
         }
 
+        var mapped = new Dictionary<Type, ValueObjectDescriptor>();
         foreach (var descriptor in ValueObjectRegistry.GetRegistered())
         {
             // The length is the descriptor's: a registration made by hand may give a value object another schema than
             // the one its type declares.
-            descriptor.Accept(new PropertiesConfiguration(builder, strict, descriptor.Schema.MaxLength));
+            if (descriptor.Accept(new PropertiesConfiguration(builder, strict, descriptor.Schema.MaxLength)))
+            {
+                mapped.Add(descriptor.ValueObjectType, descriptor);
+            }
         }
 
         // A generic value object is configured by its definition, which makes each construction a scalar property, and
@@ -112,6 +128,10 @@ public static class ValueObjectConventionExtensions
 
             builder.Conventions.Add(_ => new GenericValueObjectConvention(definitions, strict));
         }
+
+        // A collection of value objects, mapped or of a generic definition, is a primitive collection whose elements get
+        // the converter, the comparer and the length of their value object.
+        builder.Conventions.Add(_ => new ValueObjectCollectionConvention(mapped, definitions, strict));
 
         return builder;
     }

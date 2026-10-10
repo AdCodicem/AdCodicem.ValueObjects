@@ -2,7 +2,7 @@
 title: Use with Entity Framework Core
 sidebar_label: Entity Framework Core
 slug: /how-to/ef-core
-description: Map every value object of an assembly to its underlying column type in one call, size columns from declared rules, choose when reads are validated, never store a value a type rejects, compile the model, and work with JSON columns, raw SQL, other providers, bulk extensions, Always Encrypted and data masking.
+description: Map every value object of an assembly to its underlying column type in one call, collections of them as primitive collections, size columns from declared rules, choose when reads are validated, never store a value a type rejects, compile the model, and work with JSON columns, raw SQL, other providers, bulk extensions, Always Encrypted and data masking.
 ---
 
 # Use with Entity Framework Core
@@ -108,6 +108,74 @@ up front. `ConfigureValueObjects` maps its generic definition instead, and each 
 as the model meets it. `strict: true` applies to them as to any other value object, and a property mapped explicitly
 with `HasValueObjectConversion<Reference<PurchaseOrder>, string>()` keeps what it was mapped with.
 
+## Collections of value objects
+
+A property holding a collection of value objects, `List<Iban>`, `Quantity[]` or `IReadOnlyList<Iban?>`, is mapped as a
+primitive collection, in an entity type, an owned type or a complex type, a complex collection included. Each element
+gets the converter, the comparer and the length of its value object, a construction of a generic one included:
+
+```csharp skip
+public sealed class Account
+{
+    public int Id { get; set; }
+
+    public List<Iban> Ibans { get; set; } = [];
+
+    public Quantity[] Limits { get; set; } = [];
+}
+```
+
+PostgreSQL stores such a collection as an array of the element's column type, `character varying(34)[]` for an IBAN,
+`smallint[]` for a quantity over `short`. SQL Server and SQLite store a JSON array, in `nvarchar(max)` and in `TEXT`, and
+a query reads its elements as the value object's column type: `OPENJSON([a].[Ibans]) WITH ([value] nvarchar(34) '$')`
+on SQL Server, `json_each` on SQLite. At compatibility level 170, which SQL Server 2025 offers, Entity Framework Core 10
+makes the column `json` (from a script, not run).
+
+A query over the elements translates, `Contains`, `Any`, `Count` or an index: `= ANY` and `unnest` on PostgreSQL,
+`OPENJSON` on SQL Server, `json_each` on SQLite. Hoist the value into a variable, as for a
+[column](#columns-sized-by-the-type):
+
+```csharp skip
+var iban = Iban.Create("BE68539007547034");
+var accounts = await db.Accounts.Where(a => a.Ibans.Contains(iban)).ToListAsync();
+```
+
+Only a property Entity Framework Core would map itself becomes one: a property with a setter, of any accessibility. A
+read-only property over a backing field, as an aggregate exposes its collection, stays out of the model, as it always
+did. Declare it, and the convention configures its elements:
+
+```csharp skip
+modelBuilder.Entity<Account>().PrimitiveCollection(account => account.Ibans);
+```
+
+`strict: true` validates each element read, as it validates a column. On write, an element the value object rejects,
+which only an instance that never went through `Create` can hold, is treated as a [column](#validation-on-write) is:
+
+- in a `List<Iban>`, `SaveChanges` throws the `DbUpdateException` around the `ValueObjectException`, and nothing is
+  written;
+- in a `List<Iban?>`, a collection of an optional value object over text, the element is stored as a JSON `null`, a
+  `NULL` in a PostgreSQL array, as an optional column stores a `NULL`;
+- in a `List<Quantity?>`, a collection of an optional value object over a value type, the element is refused as in a
+  `List<Quantity>`. Entity Framework Core's JSON writer throws a `NullReferenceException` on the `null` a converter hands
+  it for such an element, so the element takes the converter of the value object, which refuses with the
+  `ValueObjectException` instead.
+
+A `null` element is stored as `null`, in either collection of an optional value object.
+
+The convention leaves alone a property marked `[NotMapped]` or ignored, a whole collection you convert yourself with
+`HasConversion`, an element whose converter you set, through `ElementType(e => e.HasConversion<…>())`, and a collection
+of [128-bit value objects](#128-bit-value-objects), which it maps nowhere. A collection type Entity Framework Core takes
+for no primitive collection is its to refuse, whatever the element: a `HashSet<Iban>` builds the model, and is refused
+once tracked, `The type 'HashSet<Iban>' cannot be used as a primitive collection because it is not an array and does not
+implement 'IList<Iban?>'`, as a `HashSet<string>` is.
+
+An [entity identifier](#public-identifiers) in a collection is mapped as the value object it is: it takes its length,
+not the fixed width, the non-Unicode type or the collation `ConfigureEntityIds` gives a column. `MaxLength` is the one
+rule that reaches the database for an element, where the provider gives the element a type of its own.
+
+Collections were checked on PostgreSQL, SQL Server and SQLite, not on Azure Cosmos DB nor on
+MongoDB.EntityFrameworkCore.
+
 ## 128-bit value objects
 
 Entity Framework Core maps neither `Int128` nor `UInt128`, on any provider, so the convention leaves a value object
@@ -147,6 +215,9 @@ builder.Properties<LedgerBalance?>()
     .HaveConversion<LedgerBalanceToDecimal, NullableValueObjectComparer<LedgerBalance>>();
 ```
 
+The elements of a [collection](#collections-of-value-objects) compile there too, with their converters and comparers,
+an optional element compared by `NullableValueObjectComparer<T>` as an optional property is.
+
 Regenerate the compiled model when a rule that shapes a column changes, `MaxLength` say, as after any other change to
 the model.
 
@@ -165,7 +236,8 @@ or passed to `Add`, fails with a `ValueObjectException`. A query with `AsNoTrack
 model built at run time. Keep a strict context on the model built at run time, or read through it untracked.
 
 CI compiles both models, for the JIT and for native AOT, of a context mapping every value object the conventions map,
-required and optional, beside a strict one, and takes the first on a round trip through SQL Server.
+required and optional, and collections of them, beside a strict one, and takes the first on a round trip through SQL
+Server.
 
 ### Native AOT
 
@@ -182,6 +254,11 @@ The code it writes does not always compile either, with or without this library:
 precompiled code that does not compile for an untracked query and for a sealed entity type, and model code that
 cannot tell a type of the model named as one of its own internal types, `Reference<T>` among them, from that type.
 
+Two queries over a primitive collection fail to precompile, whatever its element, `int` included. `Contains` over an
+array, which C# 14 binds to `MemoryExtensions.Contains` over a span, is refused: call it on the array as a sequence,
+`((IEnumerable<Quantity>)shipment.Batches).Contains(batch)`. `Contains` over a `List<T?>` handed a `T` is refused:
+hand it a variable of type `T?`.
+
 The conventions never run in the native binary. Entity Framework Core builds no model under native AOT, and refuses to
 start without a compiled one, so `ConfigureValueObjects` and `ConfigureEntityIds` run only where a model is built:
 under the JIT, and in `dotnet ef dbcontext optimize`, which writes the model the binary reads.
@@ -191,7 +268,7 @@ under the JIT, and in `dotnet ef dbcontext optimize`, which writes the model the
 Complex types, `ToJson`, complex collections and owned types mapped to JSON work with the convention, and the rules
 still shape the query: a value object declaring `MaxLength = 34` is read as
 `JSON_VALUE([i].[Shipping], '$.Account' RETURNING nvarchar(34)) = @iban` on SQL Server. A collection of value objects
-inside them fails, as a collection of value objects does anywhere in the model.
+inside them is a [primitive collection](#collections-of-value-objects), as anywhere in the model.
 
 ## Raw SQL
 

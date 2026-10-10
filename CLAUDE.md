@@ -217,11 +217,12 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   `MergeValueObjects`, and EF Core's `ConfigureValueObjects` and `ConfigureEntityIds` do. An entity identifier's descriptor has a visitor of its
   own: `EntityIdDescriptor.Accept` hands an `IEntityIdVisitor<TResult>` the identifier type, under `IEntityId<TId>`,
   through which `EntityIdBson.Register` of `Identifiers.MongoDB` closes each id generator and reaches `TId.New()`.
-  `ConfigureValueObjects` still closes the converter of a `TSelf?` property with `MakeGenericType`, over the visitor's
-  own type arguments: C# names it only under `TValue : struct` or `TSelf : IValueObject<TSelf, string>`, which `Visit`
-  cannot prove, and it must stay the type a compiled model names. It and the convention it adds for generic
-  constructions are also the exception to a typed adapter reading `TSelf.Schema`: they size a column by the descriptor's
-  `Schema`, which a registration made by hand may set apart from the type's, handed to their visitor in a field.
+  `ConfigureValueObjects` still closes the converter of a `TSelf?` property, or of such an element of a collection over
+  text, with `MakeGenericType`, over the visitor's own type arguments: C# names it only under `TValue : struct` or
+  `TSelf : IValueObject<TSelf, string>`, which `Visit` cannot prove, and it must stay the type a compiled model names.
+  It and the conventions it adds, for generic constructions and for collections, are also the exception to a typed
+  adapter reading `TSelf.Schema`: they size a column or an element by the descriptor's `Schema`, which a registration
+  made by hand may set apart from the type's, handed to their visitor in a field.
   `ConfigureEntityIds` needs none: an identifier is over `string`, so its visitor casts itself to an interface it
   implements over `string`, whose method takes that constraint. It visits the identifier's `ValueObjectDescriptor`, from
   `TryResolve`, for the column it sizes from the descriptor's `Schema`: an identifier registered with `EntityIdRegistry`
@@ -232,7 +233,7 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   calls no `TryResolve` either: it tells a value-object parameter of a tool by `ValueObjectRegistry.IsValueObject`, and
   reads each argument through the contract the tool's serializer options hold for the parameter, the one the tool's own
   binding reads it through; nor the Model Context Protocol one, which reads them through the same checker,
-  `src/Shared/ValueObjectArguments.cs`, linked into both packages. Neither EF Core convention runs under native AOT, where EF
+  `src/Shared/ValueObjectArguments.cs`, linked into both packages. No EF Core convention runs under native AOT, where EF
   Core reads the compiled model and builds none, and the MVC binder provider runs in no native binary, MVC not being
   AOT-compatible, so the `native AOT` job guards the JSON factory's visitor and the minimal API filter's, and
   `EntityIdDescriptor.Accept`, which the application calls on every identifier registered. `RuntimeClosingTests` guards
@@ -460,6 +461,17 @@ These are all load-bearing, and each cost real debugging time:
   `nuget.config`. It is in no solution, so the root build, `dotnet format`, coverage and Dependabot never see it, and
   it must be run from its folder: from the root, the root `global.json` selects SDK 10 and the build stops. Its SDK
   and its .NET 11 packages are bumped by hand, Npgsql's provider in the same change as EF Core, which it pins exactly.
+- **The EF Core package is built against EF Core 10 and runs under 11, which removed members a convention could
+  reach.** EF Core 11 has no `IConventionPropertyBuilder.SetElementType` and no `IPropertyElementTypeChangedConvention`:
+  a package built against 10 calling the first throws `MissingMethodException` when the calling method is compiled, and
+  one implementing the second `TypeLoadException` when the convention loads, which would fail every model
+  `ConfigureValueObjects` builds, collections or not. `ValueObjectCollectionConvention` therefore marks a primitive
+  collection through `IConventionProperty.SetElementType`, when an entity type or a complex property is added, and
+  configures the elements as the model finalizes, which also reaches a primitive collection the application declares.
+  Every suite runs EF Core 10: only the compatibility island notices such a break. An element of `TSelf?` over a value
+  type takes the converter of `TSelf`, not a nullable one: EF Core's JSON writer throws a `NullReferenceException` on
+  the `null` a nullable converter hands it there, so such an element is refused where an optional column stores a
+  `NULL`, and over text it is stored as a JSON `null`.
 - **Swashbuckle 10 is built on `Microsoft.OpenApi` 2, and fails on 3.** Its document generator throws
   `MissingMethodException` once `Microsoft.OpenApi` 3 is resolved, which `Microsoft.AspNetCore.OpenApi` 11 forces: the
   island's main project references that package, so `AdCodicem.ValueObjects.Swashbuckle` is installed by a project of
@@ -642,7 +654,12 @@ Four suites, each with a distinct job:
   through Agent Framework's `ChatClientAgent`, over a scripted model. The folder's `Mcp*` files run a Model Context
   Protocol server in process, over a pair of pipes, against the SDK's own client (`McpHarness`), the tools of
   `McpTools.cs` and one over every sample; `McpRegistrationTests.cs` silences `MCPEXP002` around the one statement
-  setting `CallToolWithAlternateHandler`.
+  setting `CallToolWithAlternateHandler`. The Entity Framework Core tests of `Persistence/` build models on Npgsql,
+  which opens no connection to build one, and run collections of value objects through SQLite in memory, each test on a
+  database of its own (`PrimitiveCollectionTests`): the JSON stored, the queries over the elements, change tracking,
+  strict reads, refused elements, owned and complex types, and every sample in a list, an array and a list of its
+  optional type (`PrimitiveCollectionParity`). EF Core builds a model once per context type, so each model shape there
+  has a context type of its own.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
   input, the values each type accepts drawn by the FsCheck package's `ValueObjectArbitrary`, over `ValueObjectSampler`,
@@ -682,7 +699,9 @@ Four suites, each with a distinct job:
   `website/docs/_homepage-example.md` rather than in the TSX. `website/versioned_docs/` is deliberately out of
   scope: those snapshots describe older releases, not the current generator.
 - **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
-  objects reach the column types they claim, plus the API surface end to end; and a real MongoDB 8 server, which stores
+  objects reach the column types they claim, a collection of them the PostgreSQL array of its element's type, whose
+  length only `format_type` shows, or SQL Server's `nvarchar(max)` JSON, read as the element's type by a query over its
+  elements, plus the API surface end to end; and a real MongoDB 8 server, which stores
   a value object of every underlying type MongoDB.Bson can represent, linked from the unit suite's
   `Domain/UnderlyingTypes.cs`, as the document its primitive writes, refuses one over `Int128` or `UInt128`, and
   answers each LINQ and `Builders` shape over value objects with the documents the same query over the primitives
@@ -734,7 +753,8 @@ on where they apply.
   reads the compiled code, so a warning the library suppresses takes `[UnconditionalSuppressMessage]` and a guard, as
   `MustParseAs` found out.
 - `AdCodicem.ValueObjects.CompiledModel` holds a context mapping every value object the EF Core convention maps,
-  required and optional, a generic one and an `[EntityId]` key, and a strict context beside it.
+  required and optional, a generic one, an `[EntityId]` key and collections of them, nullable elements included, and a
+  strict context beside it.
   `.github/scripts/compiled-model.sh` writes their model with `dotnet ef dbcontext optimize` under
   `artifacts/compiled-model/`, never committed, and builds on it with `CompiledModel=jit` or `aot`. The build job
   takes the `jit` one on a round trip through SQL Server; the native AOT job publishes the `aot` one, written with its
@@ -750,14 +770,17 @@ on where they apply.
   query on a context held in a local and over locals (a context passed as a parameter is a "dynamic" query, a method
   parameter inside the query throws), tracked (it writes an untracked query that does not compile), on an entity type
   that is not sealed, in a model with no type named as one of EF Core's internal ones, `Reference<T>` among them
-  (CS0104). A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
+  (CS0104), with `Contains` over an array called on it as an `IEnumerable<T>` (C# 14 binds the span overload, which the
+  precompilation cannot translate) and `Contains` over a `List<T?>` handed a local of type `T?`, whatever the element
+  type. A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
   (`UNTRACKED_READS`); the EF Core guide says why.
 
 Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-five packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
-Server and PostgreSQL 17, System.Text.Json source generation, ASP.NET Core model binding, on System.Text.Json and on
-Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal API problem details,
+Server and PostgreSQL 17, collections of value objects included, System.Text.Json source generation, ASP.NET Core
+model binding, on System.Text.Json and on Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal
+API problem details,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection
 validator and entity identifiers minted on insert, MessagePack, with SignalR's MessagePack hub protocol 11 between a hub
 and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, FluentValidation, Newtonsoft.Json,

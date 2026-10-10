@@ -3,7 +3,8 @@ namespace AdCodicem.ValueObjects.CompiledModel;
 /// <summary>
 /// An entity holding every value object of the domain the convention maps, each required and optional: every
 /// underlying type but <see cref="Int128"/> and <see cref="UInt128"/>, which the convention leaves to the application, a
-/// construction of a generic value object, and an entity identifier as its key.
+/// construction of a generic value object, an entity identifier as its key, and collections of value objects, over text
+/// and over a value type, of optional ones and of a construction, which the convention maps as primitive collections.
 /// </summary>
 /// <remarks>
 /// Not sealed: a query Entity Framework Core 10 precompiles casts each entity it materializes to an interface of its
@@ -112,4 +113,14 @@ public class Shipment
     public DocumentNumber<PurchaseOrder> Number { get; set; }
 
     public DocumentNumber<PurchaseOrder>? OptionalNumber { get; set; }
+
+    public List<EmailAddress> Contacts { get; set; } = [];
+
+    public List<EmailAddress?> OptionalContacts { get; set; } = [];
+
+    public Quantity[] Batches { get; set; } = [];
+
+    public List<Quantity?> OptionalBatches { get; set; } = [];
+
+    public List<DocumentNumber<PurchaseOrder>> Related { get; set; } = [];
 }
