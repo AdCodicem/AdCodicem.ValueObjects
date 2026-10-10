@@ -31,6 +31,9 @@ public abstract class DatabaseFixture : IAsyncLifetime
     /// <summary>Gets the byte-wise collation of this provider, as its catalog reports it.</summary>
     public abstract string BinaryCollation { get; }
 
+    /// <summary>Gets the SQL this provider reads the elements of a primitive collection through.</summary>
+    public abstract string ElementsSql { get; }
+
     public async ValueTask InitializeAsync()
     {
         ConnectionString = await StartAsync();
@@ -83,6 +86,8 @@ public sealed class PostgreSqlFixture : DatabaseFixture
 
     public override string BinaryCollation => "C";
 
+    public override string ElementsSql => "= ANY (";
+
     public override DbConnection CreateConnection() => new NpgsqlConnection(ConnectionString);
 
     public override string Quote(string identifier) => $"\"{identifier}\"";
@@ -111,6 +116,8 @@ public sealed class SqlServerFixture : DatabaseFixture
     public override string GuidType => "uniqueidentifier";
 
     public override string BinaryCollation => "Latin1_General_BIN2";
+
+    public override string ElementsSql => "OPENJSON(";
 
     public override DbConnection CreateConnection() => new SqlConnection(ConnectionString);
 
@@ -204,6 +211,34 @@ public abstract class DatabaseTests<TFixture>(TFixture fixture) : IClassFixture<
         var order = await read.Orders.SingleAsync(entity => entity.Id == id && entity.Purchase == Reference<PurchaseOrder>.Create("PO-9"), TestContext.Current.CancellationToken);
 
         order.Invoice.Should().Be(Reference<SalesInvoice>.Create("INV-9"));
+    }
+
+    [Fact]
+    public async Task A_collection_of_value_objects_round_trips_and_a_query_over_its_elements_is_translated()
+    {
+        var id = Random.Shared.Next();
+        var belgian = Iban.Create("BE68539007547034");
+        await using (var write = fixture.CreateContext())
+        {
+            write.Portfolios.Add(new Portfolio
+            {
+                Id = id,
+                Ibans = [Iban.Create("FR7630006000011234567890189"), belgian],
+                Previous = [null, belgian],
+                Quantities = [Quantity.Create(2)],
+                Orders = [Reference<PurchaseOrder>.Create("po-1")],
+            });
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var read = fixture.CreateContext();
+        var query = read.Portfolios.Where(entity => entity.Id == id && entity.Ibans.Contains(belgian));
+        query.ToQueryString().Should().Contain(fixture.ElementsSql, "the elements are read on the database");
+        var reloaded = await query.AsNoTracking().SingleAsync(TestContext.Current.CancellationToken);
+        reloaded.Ibans.Should().Equal(Iban.Create("FR7630006000011234567890189"), belgian);
+        reloaded.Previous.Should().Equal(null, belgian);
+        reloaded.Quantities.Should().Equal(Quantity.Create(2));
+        reloaded.Orders.Should().Equal(Reference<PurchaseOrder>.Create("PO-1"));
     }
 
     [Fact]

@@ -290,6 +290,17 @@ per row.
   property never set): on an `Iban` property `SaveChanges` throws `DbUpdateException` around the
   `ValueObjectException`, and nothing is written; an optional `Iban?` property stores `NULL`. A type whose zero is
   valid writes it; one that must never hold `Guid.Empty` says so with a validator.
+- **Collections are primitive collections.** A property with a public getter and a setter holding `List<Iban>`,
+  `Quantity[]`, `IReadOnlyList<Iban?>`, in an entity, owned or complex type, is mapped by the same call: each element
+  gets the value object's converter, comparer and `MaxLength` (`character varying(34)[]` on PostgreSQL, a JSON array
+  elsewhere), and `a.Ibans.Contains(iban)` translates. A read-only property over a backing field is left out, as EF Core
+  leaves it: declare it with `modelBuilder.Entity<Account>().PrimitiveCollection(a => a.Ibans)` and the convention
+  fills the element in. An element whose converter you set (`ElementType(e => e.HasConversion<…>())`), and a whole
+  collection you convert yourself (`HasConversion`, or `HaveConversion` in `ConfigureConventions`), are left alone.
+  `HashSet<T>` is refused by EF Core once tracked, as for `HashSet<string>`: use a list or an array, and make a
+  property typed `IReadOnlyCollection<Iban>` or `IEnumerable<Iban>` hold one. A refused element throws in a
+  `List<Iban>`, is stored as a JSON `null` in a `List<Iban?>` (over text), and throws in a `List<Quantity?>` (over a
+  value type, whose `null` EF Core cannot write).
 - A value object created inside a predicate, `Where(a => a.Iban == Iban.Create("DE89…"))`, becomes a SQL literal:
   hoist it into a variable, or wrap it in `EF.Parameter(...)`, so it goes as a parameter, as a captured value does.
 - Departing from the convention for a single property: `builder.Property(e => e.Iban).HasValueObjectConversion<Iban, string>()`
@@ -303,6 +314,8 @@ per row.
   numeric column (sorts as numbers, but `System.Decimal` caps it near ±7.9 × 10²⁸) or a text one (full range,
   sorts as text), and its optional form with
   `builder.Properties<LedgerBalance?>().HaveConversion<MyConverter, NullableValueObjectComparer<LedgerBalance>>()`.
+  A collection of one (`List<LedgerBalance>`) fails model building until declared, with the element's converter:
+  `modelBuilder.Entity<Ledger>().PrimitiveCollection(l => l.Balances).ElementType(e => e.HasConversion<MyConverter, ValueObjectComparer<LedgerBalance>>())`.
 - **Compiled models** (`dotnet ef dbcontext optimize`) hold everything the conventions map. Regenerate after
   changing a rule that shapes a column. A `string` value object property with a database default is written, not
   defaulted, when left unset under a compiled model: declare it `Iban?` to let the default apply. A strict context
@@ -310,8 +323,9 @@ per row.
   refuses the default of its underlying type (`0`, `""`, `Guid.Empty`): keep it on the model built at run time, or
   read through it with `AsNoTracking()`. `--nativeaot`
   builds and publishes, but EF Core's precompiled queries fail on a converted key or parameter, value object or not:
-  do not ship EF Core under native AOT yet. Never call the converters' `ToProvider`/`FromProvider`; they are public
-  only for the generated model.
+  do not ship EF Core under native AOT yet. `--precompile-queries` refuses `array.Contains(x)` (write
+  `((IEnumerable<T>)array).Contains(x)`) and `list.Contains(x)` over a `List<T?>` handed a `T` (hand it a `T?`
+  variable). Never call the converters' `ToProvider`/`FromProvider`; they are public only for the generated model.
 
 ## Dapper
 

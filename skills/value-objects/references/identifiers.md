@@ -90,7 +90,9 @@ whole row.
 Use `ConfigureEntityIds` **in addition to** `ConfigureValueObjects`: the identifier convention is the one that
 produces the narrow fixed-width column. It also sets the identifiers' converter, so a context reading strictly passes
 `strict: true` to both: `ConfigureEntityIds(collation, strict: true, assemblies)`, or
-`HasEntityIdConversion(collation, strict: true)` for one property.
+`HasEntityIdConversion(collation, strict: true)` for one property. An identifier in a collection (`List<AccountId>`) is
+mapped by `ConfigureValueObjects` as a value object: its elements take its length, not the fixed width, the non-Unicode
+type or the collation.
 
 ## MongoDB
 

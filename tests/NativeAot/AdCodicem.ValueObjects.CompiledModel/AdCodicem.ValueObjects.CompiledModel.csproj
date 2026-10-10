@@ -2,11 +2,12 @@
 
   <!--
     The model `dotnet ef dbcontext optimize` compiles in CI, of a context mapping every value object of the domain, each
-    underlying type but the 128-bit ones, required and optional, a generic one and an entity identifier as the key, and
-    of a strict context beside it (ci.yml). The model is written under artifacts/compiled-model/, never committed, and
-    compiled only when CompiledModel names it: "jit" for the model `optimize` writes, which Program.cs takes on a round
-    trip through SQL Server, "aot" for the one it writes for native AOT, with the queries of Program.cs precompiled,
-    published with native AOT and never run: two bugs of Entity Framework Core stop its queries there.
+    underlying type but the 128-bit ones, required and optional, a generic one, an entity identifier as the key, and
+    collections of them, nullable elements included, and of a strict context beside it (ci.yml). The model is written
+    under artifacts/compiled-model/, never committed, and compiled only when CompiledModel names it: "jit" for the model
+    `optimize` writes, which Program.cs takes on a round trip through SQL Server, "aot" for the one it writes for native
+    AOT, with the queries of Program.cs precompiled, published with native AOT and never run: two bugs of Entity
+    Framework Core stop its queries there.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>

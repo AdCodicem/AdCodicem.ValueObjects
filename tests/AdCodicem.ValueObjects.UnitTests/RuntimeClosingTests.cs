@@ -49,8 +49,9 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.Bogus", [] },
         { "AdCodicem.ValueObjects.Dapper", [] },
 
-        // The converter of a TSelf? property, which C# names only under a constraint a visitor cannot prove, closed over
-        // the visitor's own type arguments while a model is built, which Entity Framework Core never does under native AOT.
+        // The converter of a TSelf? property, or of such an element of a collection over text, which C# names only under a
+        // constraint a visitor cannot prove, closed over the visitor's own type arguments while a model is built, which
+        // Entity Framework Core never does under native AOT.
         {
             "AdCodicem.ValueObjects.EntityFrameworkCore",
             [
