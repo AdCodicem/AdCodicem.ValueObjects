@@ -27,8 +27,8 @@ reports it in the code of Riok.Mapperly and of the configuration binding generat
 boundary the analyzer cannot see — an entity property never set, a default array element — is not written as it stands:
 the JSON converters, the Dapper handler, the MongoDB serializers, the MessagePack formatters, the XML serialization of
 an assembly marked `[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized instance
-whose value its type rejects, and an optional EF Core column stores a `NULL` instead
-([what each one throws](./reference/errors.md#a-value-refused-on-write)).
+whose value its type rejects, and an optional EF Core column stores a `NULL` instead, as does an element of a
+`List<Iban?>` ([what each one throws](./reference/errors.md#a-value-refused-on-write)).
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value is
 valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in their own
@@ -49,8 +49,8 @@ also writes to. MongoDB and MessagePack reads validate, since a collection or a 
 program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
 `WithValueObjects(trusted: true)`.
 
-**Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, and becomes the `maxLength`
-keyword of the OpenAPI schema, and of the [MongoDB collection
+**Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
+collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema, and of the [MongoDB collection
 validator](./how-to/mongodb.md#a-collection-validator-from-the-rules). The members marked `[KnownValue]` become a frozen
 membership lookup and the `enum` keyword of the schema, whose values generated clients name after them.
 

@@ -129,7 +129,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects` | `net10.0` | the .NET 10 SDK | the .NET 11 SDK, whose compiler runs the generator |
 | `AdCodicem.ValueObjects.Abstractions` | `net10.0` | .NET 10 | .NET 11 |
 | `AdCodicem.ValueObjects.Json` | `net10.0` | .NET 10, source generation included | .NET 11, source generation included |
-| `AdCodicem.ValueObjects.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
+| `AdCodicem.ValueObjects.EntityFrameworkCore` | `net10.0` | EF Core 10, on SQLite, PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.AspNetCore` | `net10.0` | ASP.NET Core 10 | ASP.NET Core 11 |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | `net10.0` | ASP.NET Core 10, reflection-based binding, the Request Delegate Generator and native AOT | ASP.NET Core 11 |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | `net10.0` | ASP.NET Core 10, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 10 | ASP.NET Core 11, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11 |
@@ -201,7 +201,7 @@ of any generator a `.globalconfig` adds. What reaches a boundary the analyzer ca
 set, a default array element — is not written as it stands: the JSON converters, the Dapper handler, the MongoDB
 serializers, the MessagePack formatters, the XML serialization of an assembly marked
 `[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized instance whose value its
-type rejects, and an optional EF Core column stores a `NULL` instead.
+type rejects, and an optional EF Core column stores a `NULL` instead, as does an element of a `List<Iban?>`.
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
@@ -223,10 +223,11 @@ also writes to. MongoDB and MessagePack reads validate, since a collection or a 
 program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
 `WithValueObjects(trusted: true)`.
 
-**Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, and becomes the
-`maxLength` keyword of the OpenAPI schema. The `[GeneratedRegex]` behind `IValueObjectPatternValidator`
-validates the value, and its text becomes the `pattern` keyword. The members marked `[KnownValue]` become a frozen
-membership lookup and the `enum` keyword of the schema, with their names beside it for generated clients.
+**Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
+collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema. The `[GeneratedRegex]` behind
+`IValueObjectPatternValidator` validates the value, and its text becomes the `pattern` keyword. The members marked
+`[KnownValue]` become a frozen membership lookup and the `enum` keyword of the schema, with their names beside it for
+generated clients.
 The same rules fill in the JSON Schema System.Text.Json exports, which AI tools, structured output and MCP servers
 describe their parameters with, through `ValueObjectJsonSchema`; `AdCodicem.ValueObjects.AI` carries them to the tools
 and the structured output of Microsoft.Extensions.AI in one call, and `AdCodicem.ValueObjects.ModelContextProtocol` to

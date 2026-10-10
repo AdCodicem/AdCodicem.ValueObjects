@@ -1,3 +1,5 @@
+using System.Collections;
+
 namespace AdCodicem.ValueObjects.CompiledModel;
 
 /// <summary>The shipments the round trip writes, and what it compares them by.</summary>
@@ -58,9 +60,14 @@ internal static class Shipments
         OptionalLabel = Label.Create("fragile"),
         Number = DocumentNumber<PurchaseOrder>.Create("po-1042"),
         OptionalNumber = DocumentNumber<PurchaseOrder>.Create("PO-7"),
+        Contacts = [EmailAddress.Create("ada@example.com"), EmailAddress.Create(" Grace@Example.org")],
+        OptionalContacts = [null, EmailAddress.Create("ada@example.com")],
+        Batches = [Quantity.Create(1), Quantity.Create(1000)],
+        OptionalBatches = [Quantity.Create(5), null],
+        Related = [DocumentNumber<PurchaseOrder>.Create("po-1"), DocumentNumber<PurchaseOrder>.Create("PO-2")],
     };
 
-    /// <summary>Gets a shipment holding every required value object and none of the optional ones.</summary>
+    /// <summary>Gets a shipment holding every required value object, none of the optional ones, and empty collections.</summary>
     public static Shipment Sparse { get; } = new()
     {
         Id = OrderId.New(),
@@ -98,11 +105,21 @@ internal static class Shipments
         => context.Model.GetType() == typeof(Microsoft.EntityFrameworkCore.Metadata.RuntimeModel) && strict == context is StrictShopContext;
 #endif
 
-    /// <summary>Lists the properties two shipments hold different values in.</summary>
+    /// <summary>Lists the properties two shipments hold different values in, a collection compared element by element.</summary>
     public static string Differences(Shipment expected, Shipment actual)
         => string.Join(
             ", ",
             typeof(Shipment).GetProperties()
-                .Where(property => !Equals(property.GetValue(expected), property.GetValue(actual)))
-                .Select(property => $"{property.Name} {property.GetValue(actual) ?? "null"} for {property.GetValue(expected) ?? "null"}"));
+                .Where(property => !Same(property.GetValue(expected), property.GetValue(actual)))
+                .Select(property => $"{property.Name} {Show(property.GetValue(actual))} for {Show(property.GetValue(expected))}"));
+
+    private static bool Same(object? expected, object? actual)
+        => expected is IEnumerable elements and not string && actual is IEnumerable others
+            ? elements.Cast<object?>().SequenceEqual(others.Cast<object?>())
+            : Equals(expected, actual);
+
+    private static string Show(object? value)
+        => value is IEnumerable elements and not string
+            ? $"[{string.Join(", ", elements.Cast<object?>().Select(static element => element ?? "null"))}]"
+            : value?.ToString() ?? "null";
 }

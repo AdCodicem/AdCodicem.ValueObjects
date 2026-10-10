@@ -106,6 +106,13 @@ public abstract class Sample
     public abstract void RoundTripsThroughBsonAsItsUnderlyingValue();
 
     /// <summary>
+    /// Stores the value object in a list, an array and a list of its optional type, which the Entity Framework Core
+    /// convention maps as primitive collections, on SQLite in memory, and checks that each element gets the converter,
+    /// the comparer and the length of the value object, and that the collections round-trip, a null element included.
+    /// </summary>
+    public abstract void RoundTripsThroughAPrimitiveCollection();
+
+    /// <summary>
     /// Writes the value object through MessagePack, with the resolver <c>WithValueObjects</c> puts in front of the
     /// options' own, and checks that it writes and reads back what the bare value it carries writes and reads, under the
     /// standard options and under the <c>Native*</c> resolvers.
@@ -553,6 +560,8 @@ public class Sample<TSelf, TValue> : Sample
         MongoDbParity.Check<TSelf, TValue>(Small);
         MongoDbParity.Check<TSelf, TValue>(Large);
     }
+
+    public override void RoundTripsThroughAPrimitiveCollection() => PrimitiveCollectionParity.Check<TSelf, TValue>(Small, Large);
 
     public override void RoundTripsThroughMessagePackAsItsUnderlyingValue()
     {
