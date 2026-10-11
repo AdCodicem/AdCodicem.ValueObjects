@@ -423,6 +423,13 @@ internal static class ValueObjectEmitter
             properties.Add($"Example = {IdFormat}.Example(Prefix, Granularity),");
         }
 
+        // Stated on every value object over text, Ordinal included: a check compared exactly reads it to tell whether the
+        // type stores its known values as they are spelled.
+        if (underlying.IsString)
+        {
+            properties.Add($"Comparison = global::System.StringComparison.{model.ComparisonName},");
+        }
+
         if (model.IsClosedValueSet)
         {
             properties.Add("IsClosedValueSet = true,");

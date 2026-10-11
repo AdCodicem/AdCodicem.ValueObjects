@@ -42,4 +42,10 @@ The EF Core comparer follows the same rule, so change tracking agrees with the a
 not: give the column a case-insensitive collation, or a query and the application will disagree about which
 values are equal.
 
+The schema states it too, as `Schema.Comparison`, which the
+[MongoDB collection validator](./mongodb.md#a-collection-validator-from-the-rules) and the
+[EF Core CHECK constraints](./ef-core.md#check-constraints-from-the-rules) read: they write the `enum` or the `IN` of a
+closed set compared as a culture compares nowhere, since the culture takes spellings of a known value the type stores as
+written, and one compared ignoring case only where its normalizer spells every other case back.
+
 `Comparison` applies to string value objects only.

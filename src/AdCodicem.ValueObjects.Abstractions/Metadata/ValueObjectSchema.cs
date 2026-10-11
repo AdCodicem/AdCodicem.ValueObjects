@@ -104,4 +104,31 @@ public sealed record ValueObjectSchema
     /// </para>
     /// </remarks>
     public ImmutableArray<KnownValueInfo> KnownValueDetails { get; init; } = [];
+
+    /// <summary>
+    /// Gets how the value object compares two values of its text, if the schema states it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The generator states here the <c>Comparison</c> of the <c>ValueObjectAttribute</c> on every value object over
+    /// text, <see cref="StringComparison.Ordinal"/> where the attribute declares none, and leaves it
+    /// <see langword="null"/> on a value object over any other type. Equality, ordering and hashing compare this way, and
+    /// so does the lookup of a closed set's <see cref="KnownValues"/>.
+    /// </para>
+    /// <para>
+    /// A check written from the known values alone and compared exactly, the <c>enum</c> of the MongoDB collection
+    /// validator or the <c>IN</c> of an Entity Framework Core CHECK constraint, reads it: a closed set compared
+    /// <see cref="StringComparison.Ordinal"/> stores each value as its known value is spelled and gets one; a set compared
+    /// as a culture compares may store another spelling of a known value, longer, shorter or of the same length, and gets
+    /// none; a set compared <see cref="StringComparison.OrdinalIgnoreCase"/> gets one when its normalizer spells every
+    /// other case back.
+    /// </para>
+    /// <para>
+    /// A schema built by hand states the comparison its <c>Validate</c> looks the known values up with. Left
+    /// <see langword="null"/>, those checks try the spellings a comparison ignoring case, or a culture's ignoring a soft
+    /// hyphen, would take for a known value, and write one when the type stores none of them; a culture's comparison
+    /// takes other spellings still, so a schema over such a set states it.
+    /// </para>
+    /// </remarks>
+    public StringComparison? Comparison { get; init; }
 }

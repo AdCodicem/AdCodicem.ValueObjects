@@ -82,6 +82,7 @@ public sealed class MongoDbSchemaTests
         { "ShapedCode<LineByLine>", """{ "bsonType" : "string", "minLength" : 2 }""" },
         { "ShapedCode<SpacedOut>", """{ "bsonType" : "string", "minLength" : 2 }""" },
         { nameof(CulturedStatus), """{ "bsonType" : "string", "description" : "A status from a closed set looked up as the invariant culture compares text." }""" },
+        { nameof(MassUnit), """{ "bsonType" : "string", "description" : "A unit of mass, from a closed set looked up ignoring case and stored in lower case." }""" },
     };
 
     private static readonly Dictionary<string, Func<BsonDocument>> Validators = new()
@@ -120,6 +121,7 @@ public sealed class MongoDbSchemaTests
         ["ShapedCode<LineByLine>"] = ValueOf<ShapedCode<LineByLine>>,
         ["ShapedCode<SpacedOut>"] = ValueOf<ShapedCode<SpacedOut>>,
         [nameof(CulturedStatus)] = ValueOf<CulturedStatus>,
+        [nameof(MassUnit)] = ValueOf<MassUnit>,
     };
 
     /// <summary>
@@ -132,8 +134,9 @@ public sealed class MongoDbSchemaTests
     /// <remarks>
     /// <c>CountryCode</c> has no pattern to keep a value in the Basic Multilingual Plane, so its minimum length is halved;
     /// each <c>ShapedCode</c>'s pattern is matched ignoring case, line by line, or with its spaces ignored, which a
-    /// pattern alone cannot say, so it is left out and its minimum length halved; <c>DocumentStatus</c> and
-    /// <c>CulturedStatus</c> accept other spellings of their known values, which an <c>enum</c> would refuse.
+    /// pattern alone cannot say, so it is left out and its minimum length halved; <c>DocumentStatus</c>,
+    /// <c>CulturedStatus</c> and <c>MassUnit</c> accept other spellings of their known values, which an <c>enum</c> would
+    /// refuse.
     /// </remarks>
     [Theory]
     [MemberData(nameof(Members))]
@@ -418,10 +421,47 @@ public sealed class MongoDbSchemaTests
             .Should().Be("""{ "bsonType" : "string" }""", "Label accepts A as well, and stores it as spelled");
         Describe<DocumentStatus, string>(closed with { KnownValues = ["DRAFT", "FINAL"] }, new StringSerializer())
             .Should().Be("""{ "bsonType" : "string" }""", "DocumentStatus accepts draft as well, and stores it as spelled");
+        Describe<MassUnit, string>(MassUnit.Schema with { Description = null }, new StringSerializer())
+            .Should().Be("""{ "bsonType" : "string" }""", "MassUnit accepts the micro sign for the Greek mu, and stores it as spelled");
+        Describe<MassUnit, string>(closed with { KnownValues = ["mg"] }, new StringSerializer())
+            .Should().Be("""{ "bsonType" : "string", "enum" : ["mg"] }""", "MassUnit stores every other spelling of mg as mg");
+        Describe<DeseretCapital, string>(DeseretCapital.Schema with { Description = null }, new StringSerializer())
+            .Should().Be("""{ "bsonType" : "string" }""", "DeseretCapital accepts its small letter, outside the Basic Multilingual Plane, and stores it");
+        Describe<DeseretSmall, string>(DeseretSmall.Schema with { Description = null }, new StringSerializer())
+            .Should().Be("""{ "bsonType" : "string" }""", "DeseretSmall accepts its capital, outside the Basic Multilingual Plane, and stores it");
         Describe<OccurredAt, DateTimeOffset>(closed with { KnownValues = [new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)] }, new DateTimeOffsetSerializer())
             .Should().Be("""{ "bsonType" : "object" }""", "two instants equal whatever their offset are written apart");
         Describe<HandWrittenLink, Uri>(closed with { KnownValues = [new Uri("https://example.com/a")] }, new UriSerializer())
             .Should().Be("{ }", "two addresses equal whatever the case of their host are written apart");
+    }
+
+    /// <summary>
+    /// A closed set of text is published by the comparison its schema states: compared ordinally, as its known values are
+    /// spelled; compared as a culture compares, never, since the culture also takes spellings of the same length for a
+    /// known value, a modifier letter for its letter or the Kelvin sign for <c>K</c>, which a length rule lets through;
+    /// ignoring case, where no other case of a known value is stored as written, at any position. A schema stating no
+    /// comparison is tried with the other cases and a trailing soft hyphen, which a culture's comparison ignores.
+    /// </summary>
+    [Fact]
+    public void A_closed_set_of_text_is_published_by_the_comparison_its_schema_states()
+    {
+        SettlementCurrency.Create("k\u02B3w").Value.Should().Be("K\u02B3W", "the invariant culture takes the modifier letter for R");
+        SettlementCurrency.Create("\u1D37RW").Value.Should().Be("\u1D37RW", "the invariant culture takes the modifier letter for K");
+        ScaleSymbol.Create("\u212A").Value.Should().Be("\u212A", "the invariant culture takes the Kelvin sign for K");
+        UnitPrefix.Create("M\u00B5").Value.Should().Be("m\u00B5", "the micro sign shares the upper case of the Greek mu");
+
+        Describe<SettlementCurrency, string>(SettlementCurrency.Schema with { Description = null }, new StringSerializer())
+            .Should().Be("""{ "bsonType" : "string", "maxLength" : 3 }""", "SettlementCurrency stores K\u02B3W and \u1D37RW as written");
+        Describe<ScaleSymbol, string>(ScaleSymbol.Schema with { Description = null }, new StringSerializer())
+            .Should().Be("""{ "bsonType" : "string", "maxLength" : 1 }""", "ScaleSymbol stores the Kelvin sign as written");
+        Describe<UnitPrefix, string>(UnitPrefix.Schema with { Description = null }, new StringSerializer())
+            .Should().Be("""{ "bsonType" : "string" }""", "UnitPrefix stores the micro sign it takes for its second character");
+        Describe<MassUnit, string>(MassUnit.Schema with { KnownValues = ["mg"], KnownValueDetails = [], Description = null }, new StringSerializer())
+            .Should().Be("""{ "bsonType" : "string", "enum" : ["mg"] }""", "MassUnit stores every other case of mg as mg");
+        Describe<CountryCode, string>(CountryCode.Schema with { Description = null }, new StringSerializer())
+            .Should().Be("""{ "bsonType" : "string", "minLength" : 1, "maxLength" : 2, "enum" : ["FR", "BE", "LU"] }""", "CountryCode compares ordinally");
+        Describe<CulturedStatus, string>(CulturedStatus.Schema with { Comparison = null, Description = null }, new StringSerializer())
+            .Should().Be("""{ "bsonType" : "string" }""", "CulturedStatus stores open followed by a soft hyphen as written");
     }
 
     [Fact]
@@ -577,4 +617,73 @@ public readonly partial struct CulturedStatus
 {
     [KnownValue]
     public static readonly CulturedStatus Open = Known("open");
+}
+
+/// <summary>A unit of mass, from a closed set looked up ignoring case and stored in lower case.</summary>
+/// <remarks>
+/// The comparison takes the micro sign <c>µ</c> for the Greek <c>μ</c> of <c>μg</c>, since both have the upper case
+/// <c>Μ</c>, and lower case leaves it as it is: the type stores <c>µg</c>, which neither case of the whole value reaches.
+/// </remarks>
+[ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.OrdinalIgnoreCase)]
+public readonly partial struct MassUnit : IValueObjectNormalizer<string>
+{
+    [KnownValue]
+    public static readonly MassUnit Microgram = Known("\u03BCg");
+
+    [KnownValue]
+    public static readonly MassUnit Milligram = Known("mg");
+
+    public static string NormalizeValue(string value) => value.ToLowerInvariant();
+}
+
+/// <summary>A Deseret capital looked up ignoring case, with no normalizer: its small letter is stored as it is.</summary>
+[ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.OrdinalIgnoreCase)]
+public readonly partial struct DeseretCapital
+{
+    [KnownValue]
+    public static readonly DeseretCapital LongI = Known("\U00010400");
+}
+
+/// <summary>A Deseret small letter looked up ignoring case, with no normalizer: its capital is stored as it is.</summary>
+[ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.OrdinalIgnoreCase)]
+public readonly partial struct DeseretSmall
+{
+    [KnownValue]
+    public static readonly DeseretSmall LongI = Known("\U00010428");
+}
+
+/// <summary>A currency, from a closed set looked up as the invariant culture compares ignoring case, three characters long.</summary>
+/// <remarks>
+/// The culture takes a modifier letter for its letter, <c>KʳW</c> for <c>KRW</c>, of the same length, which the type
+/// stores as written; its length rule refuses the soft hyphen a schema stating no comparison is tried with.
+/// </remarks>
+[ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.InvariantCultureIgnoreCase, MaxLength = 3)]
+public readonly partial struct SettlementCurrency : IValueObjectNormalizer<string>
+{
+    [KnownValue]
+    public static readonly SettlementCurrency Won = Known("KRW");
+
+    [KnownValue]
+    public static readonly SettlementCurrency Euro = Known("EUR");
+
+    public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
+}
+
+/// <summary>The symbol of a temperature scale, looked up as the invariant culture compares, one character long.</summary>
+/// <remarks>The culture takes the Kelvin sign for the letter <c>K</c>, which the type stores as written.</remarks>
+[ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.InvariantCulture, MaxLength = 1)]
+public readonly partial struct ScaleSymbol
+{
+    [KnownValue]
+    public static readonly ScaleSymbol Kelvin = Known("K");
+}
+
+/// <summary>A unit prefix looked up ignoring case and stored in lower case, the Greek <c>μ</c> its second character.</summary>
+[ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.OrdinalIgnoreCase)]
+public readonly partial struct UnitPrefix : IValueObjectNormalizer<string>
+{
+    [KnownValue]
+    public static readonly UnitPrefix Millimicro = Known("m\u03BC");
+
+    public static string NormalizeValue(string value) => value.ToLowerInvariant();
 }

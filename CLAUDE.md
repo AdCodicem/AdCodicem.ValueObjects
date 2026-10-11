@@ -285,12 +285,17 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI `maxLength`, and
   the `maxLength` of the MongoDB `$jsonSchema` validator (`ValueObjectBsonSchema`, which writes each rule of
   `TSelf.Schema` only where the server refuses no value the type accepts, the pattern in PCRE2 through `PcrePattern`
-  over the shared reader below, each class escape listed from .NET's own Unicode tables). Opted in,
+  over the shared reader below, each class escape listed from .NET's own Unicode tables, the `enum` of a closed set of
+  text only where the type stores no other spelling of a known value, as the CHECK constraints below, both through
+  `src/Shared/KnownValueSpellings.cs`, by the `Comparison` the schema states, which the generator writes on every value
+  object over text: always under `Ordinal`; never under a culture's, which takes spellings of the same length too; under
+  `OrdinalIgnoreCase`, or a schema stating none, only where the type stores neither another case of a known value, nor a
+  character sharing its upper case, `µ` for `μ` among them, nor the value followed by a soft hyphen). Opted in,
   `AddValueObjectCheckConstraints` writes `MinLength`, the bounds and the closed sets of `TSelf.Schema`, and the pattern
   in a dialect the options name, as CHECK constraints of the EF columns, the maximum length staying the column size,
   only where the database refuses no value the type accepts: a length in bytes, a bound or set left out where the
   column compares apart from .NET, a closed set of text left out when the type stores another spelling of a known value
-  (its case, a character sharing its upper case, `µ` for `μ`, or a soft hyphen), a column two types of a hierarchy share
+  (by the same comparison), a column two types of a hierarchy share
   for two value objects left alone, no pattern on a fixed-length column; a name
   ends with its rule, and with a hash of its table and column when the provider would cut it, another check constraint
   of the model holds it already, in its table or, on SQL Server, in its schema, or, on SQL Server, another table of the
@@ -664,7 +669,10 @@ These are all load-bearing, and each cost real debugging time:
   answers a refusal with, name no type of Microsoft.Extensions.AI, and are linked by the AI and the Model Context
   Protocol packages, each overload of `FirstRejection` called by one of them: no test names them, `LanguageModels/`
   reaching them through `WithValueObjectValidation()` and `WithValueObjectTools` alone, so that neither copy needs an
-  alias, and coverage counts a line of the file covered by either copy.
+  alias, and coverage counts a line of the file covered by either copy. `KnownValueSpellings.cs`, which tells whether a
+  closed set of text stores another spelling of a known value, is linked by the MongoDB and the EF Core packages the
+  same way: no test names it, the MongoDB copy is tested through the validator's `enum` (`MongoDbSchemaTests`), the EF
+  Core copy through the CHECK constraint's `IN` (`EntityFrameworkCoreCheckConstraintTests`).
 - **The test-data adapters each meet their library's own rules.** AutoFixture stays at 4.18.1 while 5.0 is a release
   candidate: a stable package depending on a prerelease is NU5104, which fails the pack; Dependabot proposes 5.0 as
   `fix(deps)!` once it ships. Bogus keeps the last rule of a member, so `RuleForValueObjects` replaces a rule written

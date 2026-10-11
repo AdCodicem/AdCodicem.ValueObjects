@@ -391,6 +391,23 @@ public sealed class DescriptorTests
     }
 
     /// <summary>
+    /// The schema states how a value object over text compares, the comparison its attribute declares or <c>Ordinal</c>,
+    /// and the descriptor carries it with the rest of the schema, the one the registry builds by reflection for a
+    /// construction included; over another type, or in a schema written by hand that states none, it is unset.
+    /// </summary>
+    [Fact]
+    public void The_schema_states_how_a_value_object_over_text_compares_and_the_descriptor_carries_it()
+    {
+        ValueObjectRegistry.TryResolve(typeof(Reference<SalesInvoice>), out var reference).Should().BeTrue();
+
+        Descriptor<DocumentStatus>().Schema.Comparison.Should().Be(StringComparison.OrdinalIgnoreCase);
+        Descriptor<CountryCode>().Schema.Comparison.Should().Be(StringComparison.Ordinal);
+        reference!.Schema.Comparison.Should().Be(StringComparison.Ordinal);
+        Descriptor<Quantity>().Schema.Comparison.Should().BeNull();
+        SchemaOf<HandWrittenCode, string>().Comparison.Should().BeNull();
+    }
+
+    /// <summary>
     /// The registration native AOT asks of a construction takes its converter alone and reads the schema off the type;
     /// its descriptor, built in code, hands a visitor its type arguments like a generated one.
     /// </summary>

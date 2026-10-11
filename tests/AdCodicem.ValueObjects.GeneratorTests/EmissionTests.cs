@@ -139,6 +139,36 @@ public sealed class EmissionTests
     }
 
     /// <summary>
+    /// The schema states the comparison of a value object over text, the one its attribute declares or
+    /// <c>Ordinal</c>, an identifier's and a generic one's included, and none over another type, where it means nothing.
+    /// </summary>
+    /// <param name="declaration">The declaration.</param>
+    /// <param name="comparison">The comparison the schema states, or <see langword="null"/> for none.</param>
+    [Theory]
+    [InlineData("[ValueObject<string>] public readonly partial struct Code;", "Ordinal")]
+    [InlineData("[ValueObject<string>(Comparison = System.StringComparison.OrdinalIgnoreCase)] public readonly partial struct Code;", "OrdinalIgnoreCase")]
+    [InlineData("[ValueObject<string>(Comparison = System.StringComparison.InvariantCultureIgnoreCase)] public readonly partial struct Code<TOwner>;", "InvariantCultureIgnoreCase")]
+    [InlineData("[ValueObject<string>(Comparison = System.StringComparison.CurrentCulture)] public readonly partial struct Code;", "CurrentCulture")]
+    [InlineData("[EntityId(\"acc\")] public readonly partial struct AccountId;", "Ordinal")]
+    [InlineData("[ValueObject<int>] public readonly partial struct Quantity;", null)]
+    [InlineData("[ValueObject<char>(Comparison = System.StringComparison.OrdinalIgnoreCase)] public readonly partial struct Grade;", null)]
+    public void The_schema_states_the_comparison_of_a_value_object_over_text(string declaration, string? comparison)
+    {
+        var run = GeneratorHarness.Run(declaration);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        if (comparison is null)
+        {
+            run.SingleValueObject.Should().NotContain("Comparison = global::System.StringComparison.");
+        }
+        else
+        {
+            run.SingleValueObject.Should().Contain($"Comparison = global::System.StringComparison.{comparison},");
+        }
+    }
+
+    /// <summary>
     /// A tool reading the public instance properties of a type publishes each as data, so <c>IsDefault</c>, a guard
     /// for code, is implemented explicitly: over a string it tells an instance holding no string, over a value type an
     /// instance equal to the type's zero.

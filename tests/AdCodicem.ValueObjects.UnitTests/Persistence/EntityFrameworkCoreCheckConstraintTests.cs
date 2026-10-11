@@ -577,9 +577,11 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
     /// <summary>
     /// A closed set of text whose type stores another spelling of a known value gets no <c>IN</c>, which would refuse the
     /// application's own write: a set looked up with <c>OrdinalIgnoreCase</c> and normalized to lower case, which stores
-    /// the micro sign <c>µg</c> for its Greek <c>μg</c> and <c>ςa</c> for <c>σa</c>, since the two share their upper case
-    /// and no lower case reaches the other; one with no normalizer, which stores <c>kg</c> for <c>KG</c>, or the
-    /// lower or the upper case of a letter outside the Basic Multilingual Plane. SQLite writes each of them.
+    /// the micro sign <c>µg</c> for its Greek <c>μg</c>, <c>mµ</c> for <c>mμ</c> and <c>ςa</c> for <c>σa</c>, since the
+    /// two share their upper case and no lower case reaches the other; one with no normalizer, which stores <c>kg</c> for
+    /// <c>KG</c>, or the lower or the upper case of a letter outside the Basic Multilingual Plane; and one looked up as a
+    /// culture compares, which stores spellings of the same length its length rule lets through, <c>KʳW</c> for
+    /// <c>KRW</c> or the Kelvin sign for <c>K</c>. SQLite writes each of them.
     /// </summary>
     [Fact]
     public async Task A_closed_set_whose_type_stores_another_spelling_of_a_known_value_gets_no_IN()
@@ -594,8 +596,28 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
             Checks(write, "spellings").Should().BeEmpty();
             write.Database.EnsureCreated();
             write.Spellings.AddRange(
-                new Spelling { Id = 1, Phase = Phase.Create("\u00B5g"), Weight = Weight.Create("kg"), Letter = Letter.Create("\U00010428"), LowerLetter = LowerLetter.Create("\U00010400") },
-                new Spelling { Id = 2, Phase = Phase.Create("\u03C2a"), Weight = Weight.Create("KG"), Letter = Letter.Create("\U00010400"), LowerLetter = LowerLetter.Create("\U00010428") });
+                new Spelling
+                {
+                    Id = 1,
+                    Phase = Phase.Create("\u00B5g"),
+                    Weight = Weight.Create("kg"),
+                    Letter = Letter.Create("\U00010428"),
+                    LowerLetter = LowerLetter.Create("\U00010400"),
+                    SubUnit = SubUnit.Create("M\u00B5"),
+                    Tender = Tender.Create(" k\u02B3w"),
+                    Scale = Scale.Create("\u212A"),
+                },
+                new Spelling
+                {
+                    Id = 2,
+                    Phase = Phase.Create("\u03C2a"),
+                    Weight = Weight.Create("KG"),
+                    Letter = Letter.Create("\U00010400"),
+                    LowerLetter = LowerLetter.Create("\U00010428"),
+                    SubUnit = SubUnit.Millimicro,
+                    Tender = Tender.Create("\u1D37RW"),
+                    Scale = Scale.Kelvin,
+                });
             await write.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
@@ -604,6 +626,41 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
         stored.Select(static spelling => spelling.Phase.Value).Should().Equal("\u00B5g", "\u03C2a");
         stored.Select(static spelling => spelling.Weight.Value).Should().Equal("kg", "KG");
         stored.Select(static spelling => spelling.Letter.Value).Should().Equal("\U00010428", "\U00010400");
+        stored.Select(static spelling => spelling.SubUnit.Value).Should().Equal("m\u00B5", "m\u03BC");
+        stored.Select(static spelling => spelling.Tender.Value).Should().Equal("K\u02B3W", "\u1D37RW");
+        stored.Select(static spelling => spelling.Scale.Value).Should().Equal("\u212A", "K");
+    }
+
+    /// <summary>
+    /// A closed set over a reference type other than text gets no <c>IN</c>, since its equality need not be the column's: a
+    /// link looked up by <see cref="Uri"/>'s equality, which ignores a fragment, stores <c>https://example.com/a#top</c>,
+    /// which <c>IN ('https://example.com/a')</c> would refuse. A closed set over a <see cref="bool"/> or a
+    /// <see cref="Guid"/>, whose equality the column shares, gets its <c>IN</c>. SQLite writes each of them.
+    /// </summary>
+    [Fact]
+    public async Task A_closed_set_over_a_reference_type_other_than_text_gets_no_IN()
+    {
+        await using (var write = Sqlite<LinkContext>())
+        {
+            Checks(write, "links").Should().BeEquivalentTo(new Dictionary<string, string>
+            {
+                ["CK_links_Flag_KnownValues"] = "\"Flag\" IN (1)",
+                ["CK_links_Token_KnownValues"] = "\"Token\" IN ('0F8FAD5B-D9CB-469F-A165-70867728950E')",
+            });
+            write.Database.EnsureCreated();
+            write.Add(new Linked
+            {
+                Id = 1,
+                Link = Declared<ClosedLink, Uri>.Create(new Uri("https://example.com/a#top")),
+                Flag = Declared<ClosedFlag, bool>.Create(true),
+                Token = Declared<ClosedToken, Guid>.Create(ClosedToken.Known),
+            });
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var read = Sqlite<LinkContext>();
+        var stored = await read.Set<Linked>().SingleAsync(TestContext.Current.CancellationToken);
+        stored.Link.Value.Fragment.Should().Be("#top");
     }
 
     /// <summary>
@@ -1214,6 +1271,24 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
         public Letter Letter { get; set; }
 
         public LowerLetter LowerLetter { get; set; }
+
+        public SubUnit SubUnit { get; set; }
+
+        public Tender Tender { get; set; }
+
+        public Scale Scale { get; set; }
+    }
+
+    /// <summary>A closed set of links, and closed sets over a value type the column compares alike.</summary>
+    private sealed class Linked
+    {
+        public int Id { get; set; }
+
+        public Declared<ClosedLink, Uri> Link { get; set; }
+
+        public Declared<ClosedFlag, bool> Flag { get; set; }
+
+        public Declared<ClosedToken, Guid> Token { get; set; }
     }
 
     /// <summary>The root of a table-per-concrete-type hierarchy, whose complex property its leaf inherits.</summary>
@@ -1620,6 +1695,19 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
             });
     }
 
+    private sealed class LinkContext(DbContextOptions options) : CheckContext(options)
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+            => modelBuilder.Entity<Linked>(linked =>
+            {
+                linked.ToTable("links");
+                linked.Property(static entity => entity.Id).ValueGeneratedNever();
+                linked.Property(static entity => entity.Link).HasValueObjectConversion<Declared<ClosedLink, Uri>, Uri>();
+                linked.Property(static entity => entity.Flag).HasValueObjectConversion<Declared<ClosedFlag, bool>, bool>();
+                linked.Property(static entity => entity.Token).HasValueObjectConversion<Declared<ClosedToken, Guid>, Guid>();
+            });
+    }
+
     private sealed class VesselContext(DbContextOptions options) : CheckContext(options)
     {
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -1719,6 +1807,37 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
     private sealed class MixedKnownValues : IDeclaration<int>
     {
         public static ValueObjectSchema Schema { get; } = new() { IsClosedValueSet = true, KnownValues = [1, "two"] };
+    }
+
+    /// <summary>A closed set of one link, looked up by <see cref="Uri"/>'s equality, which ignores a fragment.</summary>
+    private sealed class ClosedLink : IDeclaration<Uri>
+    {
+        private static readonly Uri Home = new("https://example.com/a");
+
+        public static ValueObjectSchema Schema { get; } = new() { IsClosedValueSet = true, KnownValues = [Home] };
+
+        public static ValidationResult Validate(Uri value)
+            => value == Home ? ValidationResult.Success : ValidationResult.Failure(ValueObjectErrorCodes.NotAKnownValue, "Not known.");
+    }
+
+    /// <summary>A closed set of one flag.</summary>
+    private sealed class ClosedFlag : IDeclaration<bool>
+    {
+        public static ValueObjectSchema Schema { get; } = new() { IsClosedValueSet = true, KnownValues = [true] };
+
+        public static ValidationResult Validate(bool value)
+            => value ? ValidationResult.Success : ValidationResult.Failure(ValueObjectErrorCodes.NotAKnownValue, "Not known.");
+    }
+
+    /// <summary>A closed set of one token.</summary>
+    private sealed class ClosedToken : IDeclaration<Guid>
+    {
+        public static readonly Guid Known = new("0f8fad5b-d9cb-469f-a165-70867728950e");
+
+        public static ValueObjectSchema Schema { get; } = new() { IsClosedValueSet = true, KnownValues = [Known] };
+
+        public static ValidationResult Validate(Guid value)
+            => value == Known ? ValidationResult.Success : ValidationResult.Failure(ValueObjectErrorCodes.NotAKnownValue, "Not known.");
     }
 
     /// <summary>Three lower-case letters, under options its text carries.</summary>
@@ -1952,5 +2071,45 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
     {
         [KnownValue]
         public static readonly LowerLetter LongI = Known("\U00010428");
+    }
+
+    /// <summary>
+    /// A unit prefix looked up ignoring case and stored in lower case, whose Greek <c>μ</c>, its second character, the
+    /// comparison takes the micro sign <c>µ</c> for.
+    /// </summary>
+    [ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.OrdinalIgnoreCase)]
+    public readonly partial struct SubUnit : IValueObjectNormalizer<string>
+    {
+        [KnownValue]
+        public static readonly SubUnit Millimicro = Known("m\u03BC");
+
+        public static string NormalizeValue(string value) => value.ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Currencies looked up as the invariant culture compares ignoring case, three characters long: the culture takes
+    /// <c>KʳW</c> for <c>KRW</c>, which the type stores as written, and the length rule refuses a trailing soft hyphen.
+    /// </summary>
+    [ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.InvariantCultureIgnoreCase, MaxLength = 3)]
+    public readonly partial struct Tender : IValueObjectNormalizer<string>
+    {
+        [KnownValue]
+        public static readonly Tender Won = Known("KRW");
+
+        [KnownValue]
+        public static readonly Tender Euro = Known("EUR");
+
+        public static string NormalizeValue(string value) => value.Trim().ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// The symbol of a temperature scale looked up as the invariant culture compares, one character long: the culture
+    /// takes the Kelvin sign for the letter <c>K</c>, which the type stores as written.
+    /// </summary>
+    [ValueObject<string>(ValueSet = ValueSetKind.Closed, Comparison = StringComparison.InvariantCulture, MaxLength = 1)]
+    public readonly partial struct Scale
+    {
+        [KnownValue]
+        public static readonly Scale Kelvin = Known("K");
     }
 }

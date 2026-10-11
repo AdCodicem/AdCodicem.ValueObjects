@@ -21,8 +21,11 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// written as the provider writes a literal of the underlying type, and left out where the column does not order or
 /// compare values as .NET does: text that does not sort as numbers or instants, a column that rounds the bound away, a
 /// value SQL Server's <c>time</c> cannot hold. A closed set of text is written only when the type stores no other
-/// spelling of a known value, which a set looked up ignoring case, or as a culture compares, would. A pattern is written
-/// in the dialect the options name, or fails the model when that dialect would read it apart from .NET.
+/// spelling of a known value, by the comparison its schema states: one compared ordinally always, one compared as a
+/// culture does never, one ignoring case when no other case of a known value is stored as written. A closed set of
+/// another type is written only where the column shares its equality, never over another reference type, such as the
+/// <see cref="Uri"/> a value object written by hand may hold, whose equality ignores a fragment. A pattern is written in
+/// the dialect the options name, or fails the model when that dialect would read it apart from .NET.
 /// </para>
 /// <para>
 /// The rules are <c>TSelf.Schema</c>, which <c>Validate</c> enforces, not the schema a registration made by hand may
@@ -74,6 +77,14 @@ internal sealed class CheckConstraintRules(
         [typeof(DateTime)] = static text
             => DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var instant) ? instant : null,
     }.ToFrozenDictionary();
+
+    /// <summary>
+    /// The underlying types other than text whose equality the column shares, so that a closed set of them is written as
+    /// an <c>IN</c>: those a bound is read into, a <see cref="bool"/> and a <see cref="Guid"/>. Any other type, a
+    /// reference type above all, may tell two values equal that the column stores apart, or apart that it stores alike.
+    /// </summary>
+    private static readonly FrozenSet<Type> ComparedAlike =
+        BoundParsers.Keys.Append(typeof(bool)).Append(typeof(Guid)).ToFrozenSet();
 
     /// <summary>
     /// Writes the checks of the column.
@@ -135,7 +146,9 @@ internal sealed class CheckConstraintRules(
         if ((rules & ValueObjectChecks.KnownValues) != 0
             && schema.IsClosedValueSet
             && !schema.KnownValues.IsDefaultOrEmpty
-            && (typeof(TValue) != typeof(string) || KeepsSpelling<TSelf, TValue>(schema))
+            && (typeof(TValue) == typeof(string)
+                ? KnownValueSpellings.KeepsSpelling<TSelf, TValue>(schema)
+                : ComparedAlike.Contains(typeof(TValue)))
             && Literals<TValue>(schema, mapping) is { } values)
         {
             checks.Add(("KnownValues", $"{column} IN ({values})"));
@@ -168,92 +181,6 @@ internal sealed class CheckConstraintRules(
     private static object? Parse<T>(string text)
         where T : IParsable<T>
         => T.TryParse(text, CultureInfo.InvariantCulture, out var value) ? value : null;
-
-    /// <summary>
-    /// Tells whether a closed set of text stores no other spelling of a known value: neither its upper nor its lower case,
-    /// nor the value with one of its characters replaced by another that shares its upper case, which a set looked up
-    /// ignoring case accepts, nor the value followed by a soft hyphen, which a culture's comparison ignores.
-    /// </summary>
-    private static bool KeepsSpelling<TSelf, TValue>(ValueObjectSchema schema)
-        where TSelf : struct, IValueObject<TSelf, TValue>
-    {
-        var known = schema.KnownValues.OfType<string>().ToFrozenSet(StringComparer.Ordinal);
-        foreach (var text in known)
-        {
-            foreach (var variant in Spellings(text))
-            {
-                if (TSelf.TryCreate((TValue)(object)variant, out var created) && !known.Contains((string)(object)created.Value!))
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Spells a known value each other way a set looked up ignoring case, or as a culture compares, may take it.
-    /// </summary>
-    private static IEnumerable<string> Spellings(string text)
-    {
-        yield return text.ToUpperInvariant();
-        yield return text.ToLowerInvariant();
-        yield return text + (char)0x00AD;
-        for (var index = 0; index < text.Length; index++)
-        {
-            if (!SharedCases.Others.TryGetValue(text[index], out var others))
-            {
-                continue;
-            }
-
-            foreach (var other in others)
-            {
-                yield return string.Create(text.Length, (text, index, other), static (span, state) =>
-                {
-                    state.text.CopyTo(span);
-                    span[state.index] = state.other;
-                });
-            }
-        }
-    }
-
-    /// <summary>
-    /// The characters of the Basic Multilingual Plane that share their upper case with another, each with the others,
-    /// which a comparison ignoring case takes for it: the micro sign <c>µ</c> for the Greek <c>μ</c>, the final
-    /// <c>ς</c> for <c>σ</c>, which the upper and the lower case of a whole value never reach. A character outside the
-    /// plane has one other case at most, which they reach.
-    /// </summary>
-    private static class SharedCases
-    {
-        public static readonly FrozenDictionary<char, char[]> Others = Build();
-
-        private static FrozenDictionary<char, char[]> Build()
-        {
-            var groups = new Dictionary<char, List<char>>();
-            for (var code = 0; code <= char.MaxValue; code++)
-            {
-                var character = (char)code;
-                if (char.IsSurrogate(character))
-                {
-                    continue;
-                }
-
-                var upper = char.ToUpperInvariant(character);
-                if (!groups.TryGetValue(upper, out var group))
-                {
-                    groups.Add(upper, group = []);
-                }
-
-                group.Add(character);
-            }
-
-            return groups.Values
-                .Where(static group => group.Count > 1)
-                .SelectMany(static group => group.Select(character => (character, others: group.Where(other => other != character).ToArray())))
-                .ToFrozenDictionary(static pair => pair.character, static pair => pair.others);
-        }
-    }
 
     /// <summary>
     /// Writes the pattern of a value object in the named dialect, or fails the model when the dialect reads it apart.

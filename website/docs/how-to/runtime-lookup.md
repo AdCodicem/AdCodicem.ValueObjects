@@ -139,7 +139,11 @@ A value object written by hand implements `IValueObject<TSelf, TValue>` in full,
 included: the rules its `Validate` enforces, as data, or `ValueObjectSchema.Unconstrained` when it publishes none. Its
 known values go in `KnownValues`, and their names, which the OpenAPI document publishes, in `KnownValueDetails`, one
 `KnownValueInfo` per value, in the same order, which the [contract kit](./test-value-objects.md#what-it-checks)
-checks.
+checks. Over text, `Comparison` states the comparison its `Validate` looks them up with, which the
+[MongoDB collection validator](./mongodb.md#a-collection-validator-from-the-rules) and the
+[EF Core CHECK constraints](./ef-core.md#check-constraints-from-the-rules) read before they write a closed set: left
+`null`, they try the other cases of each known value and a trailing soft hyphen, fewer spellings than a culture's
+comparison takes.
 Nothing registers it, so `TryResolve` describes it by reflection, the first time it is asked, with that schema, the one
 generic code constrained on it reads, whatever `[ValueObject<T>]` or `[KnownValue]` annotation it also carries. Where no
 generator runs, nothing reads an annotation: state each rule in the schema. Under native AOT, which cannot describe it

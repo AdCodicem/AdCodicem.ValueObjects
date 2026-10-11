@@ -125,7 +125,10 @@ actually fired. `DescriptorTests.cs` covers that surface.
   reader of a .NET pattern each package writing one in another dialect links, which refuses what it cannot read with
   certainty. The MongoDB package links it too, and writes the pattern in PCRE2 for the `$jsonSchema` collection
   validator it builds from `TSelf.Schema`, where `MaxLength` becomes `maxLength` once more: each rule only where the
-  server refuses no value the type accepts. The test-data sampler links it as well, and draws strings from the tree; it
+  server refuses no value the type accepts, the `enum` of a closed set of text, as the `IN` of a CHECK constraint, only
+  where the type stores no other spelling of a known value, by the comparison the schema states, `Schema.Comparison`,
+  which the generator writes on every value object over text: never under a culture's
+  (`src/Shared/KnownValueSpellings.cs`, linked by both packages). The test-data sampler links the reader as well, and draws strings from the tree; it
   draws every test value from the same schema, lengths, pattern, bounds and known values, and keeps a candidate only once
   the type's own rules accept it, so a test never restates a rule the type declares. The JSON Schema core of the JSON
   package, `ValueObjectJsonSchema`, reads it once more for a language model, and the AI package carries what it writes
