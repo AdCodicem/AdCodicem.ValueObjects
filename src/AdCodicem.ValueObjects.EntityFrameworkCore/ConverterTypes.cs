@@ -1,10 +1,12 @@
 using System.Collections.Frozen;
+using System.Diagnostics.CodeAnalysis;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 
 /// <summary>
-/// Picks the converter the conventions map a value object through, closed over it, and lists the converters of this
-/// package.
+/// Picks the converter the conventions map a value object through, closed over it, lists the converters of this
+/// package, and tells the value object one of them maps.
 /// </summary>
 /// <remarks>
 /// The conventions call it from a visitor, with the type arguments a descriptor hands back
@@ -25,6 +27,22 @@ internal static class ConverterTypes
         typeof(NullableValueObjectConverter<>),
         typeof(StrictNullableValueObjectConverter<>),
     }.ToFrozenSet();
+
+    /// <summary>
+    /// Tells the value object a converter of this package maps, which stores its bare underlying value.
+    /// </summary>
+    /// <param name="converter">The converter of a property, if any.</param>
+    /// <param name="valueObjectType">The value object it maps.</param>
+    /// <returns><see langword="false"/> for no converter, or for a converter of the application's own.</returns>
+    public static bool TryGetValueObjectType(ValueConverter? converter, [NotNullWhen(true)] out Type? valueObjectType)
+    {
+        var type = converter?.GetType();
+        valueObjectType = type is { IsGenericType: true } && Definitions.Contains(type.GetGenericTypeDefinition())
+            ? type.GetGenericArguments()[0]
+            : null;
+
+        return valueObjectType is not null;
+    }
 
     /// <summary>
     /// Gives the converter of a property holding a value object.

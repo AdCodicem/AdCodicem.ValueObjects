@@ -2,7 +2,7 @@
 title: Use with Entity Framework Core
 sidebar_label: Entity Framework Core
 slug: /how-to/ef-core
-description: Map every value object of an assembly to its underlying column type in one call, collections of them as primitive collections, size columns from declared rules, translate `.Value` in queries to the column, choose when reads are validated, never store a value a type rejects, generate keys the provider's way and refuse a Guid key left unset, compile the model, and work with JSON columns, raw SQL, other providers, bulk extensions, Always Encrypted and data masking.
+description: Map every value object of an assembly to its underlying column type in one call, collections of them as primitive collections, size columns from declared rules, translate `.Value` in queries to the column, choose when reads are validated, never store a value a type rejects, write the rules as CHECK constraints, generate keys the provider's way and refuse a Guid key left unset, compile the model, and work with JSON columns, raw SQL, other providers, bulk extensions, Always Encrypted and data masking.
 ---
 
 # Use with Entity Framework Core
@@ -125,6 +125,10 @@ the table holds. An update or a delete of that row through the strict context ma
 throws a `DbUpdateConcurrencyException`, as it does for a row another writer deleted. Normalize such keys in the
 table before relying on strict reads to write them back.
 
+Such a table can also refuse a bad row when it is written, with [CHECK constraints from the
+rules](#check-constraints-from-the-rules): a constraint stops a bad row when it is written, whoever writes it; a strict
+read catches one that was already there, or that was written while the constraint was off. Use both.
+
 `strict` is read once per context type, not per instance. Entity Framework Core builds the model the first time a
 context type is used and caches it for every later instance, so a context whose constructor chooses `strict` from an
 argument gets whichever model was built first, and the other value does nothing. Give strict reads a context type of
@@ -153,6 +157,131 @@ its entity is refused when it is added, whatever the type's rules, with an `Inva
 
 `dotnet ef dbcontext optimize` converts the default of each property to write it into the compiled model. That writes
 no column, and runs under `EF.IsDesignTime`, so the converters let it through.
+
+## CHECK constraints from the rules
+
+Only a column size reaches the database by default. Another writer, an ETL job, a migration script, a legacy
+application, can still store `GBP` in a closed `CountryCode` or `-1` in a `Quantity` bounded from 0. On request, the
+rules become CHECK constraints, and the database refuses such a row whoever writes it:
+
+```csharp skip
+protected override void ConfigureConventions(ModelConfigurationBuilder builder)
+    => builder
+        .ConfigureValueObjects(typeof(Iban).Assembly)
+        .AddValueObjectCheckConstraints();
+```
+
+It is off unless called, so no existing migration changes. Each column one of the package's converters maps, through
+`ConfigureValueObjects`, `ConfigureEntityIds`, `HasValueObjectConversion` or `HasEntityIdConversion`, gets a constraint
+per rule its value object declares, named `CK_{table}_{column}_{rule}`:
+
+| Rule | SQL Server | PostgreSQL | SQLite |
+| --- | --- | --- | --- |
+| `MinLength` | `DATALENGTH([Iban]) / 2 >= 15`, or `DATALENGTH([Iban]) >= 15` on a column that is not Unicode | `octet_length("Iban") >= 15` | `length(CAST("Iban" AS BLOB)) >= 15` |
+| `Minimum`, `Maximum` | `[Quantity] >= CAST(0 AS smallint)` | `"Quantity" >= 0` | `"Quantity" >= 0` |
+| A closed set | `[Country] IN (N'FR', N'BE', N'LU')` | `"Country" IN ('FR', 'BE', 'LU')` | `"Country" IN ('FR', 'BE', 'LU')` |
+
+A migration picks them up, as it picks up a column size: change a rule on the type, and the next migration drops the
+constraint and adds the new one. A column that takes a `NULL` wraps each check, `"Quantity" IS NULL OR ("Quantity" >=
+0)`, so that a `NULL` passes.
+
+### Never stricter than the type
+
+A constraint stricter than the type would fail a `SaveChanges` the application validated, which is worse than no
+constraint. So each rule is written only where the database refuses no value the type accepts, and is left out
+elsewhere:
+
+- A length is counted in bytes where the database cannot count UTF-16 code units, as .NET does. A character never takes
+  fewer bytes than code units, so the check is exact for ASCII text, an IBAN or a country code, and laxer for other
+  text. `LEN` would drop trailing spaces, and `char_length` would count a character outside the Basic Multilingual
+  Plane once, where .NET counts two.
+- A bound is written as the provider writes a literal of the underlying type, and compared as .NET compares: a `char`
+  under a binary collation, by code point; a `float` as the exact `double` the column holds; an instant with its offset,
+  and on PostgreSQL an instant in a `timestamp with time zone`, as the UTC instant.
+- A bound is left out where the column does not order values as .NET does: on SQLite, a `decimal`, a `TimeSpan` and a
+  `DateTimeOffset`, which it stores as text, and a `ulong`, which it stores as a signed integer; on SQL Server, a
+  `TimeSpan` outside `[0, 1 day)`, which `time` holds without its days, and any bound on a `datetime` or
+  `smalldatetime` column; on PostgreSQL, a `char` minimum at or below a space, which `character(1)` drops; everywhere,
+  a `decimal` bound finer than the column's scale, SQL Server's default `decimal(18,2)` included, and an instant finer
+  than the column keeps, 100 ns in SQL Server's `datetime2` unless its precision says less, a microsecond on
+  PostgreSQL.
+- A closed set of text is written only when the type stores no other spelling of a known value: one looked up with
+  `OrdinalIgnoreCase` and normalized to upper case gets `IN ('KG', 'L')`; one looked up ignoring case without a
+  normalizer, or as a culture compares, gets none, since it stores `kg` as it was written, and so does one normalized
+  to lower case whose known value holds a Greek `μ`, since it also takes the micro sign `µ`, which shares the upper case
+  of `μ`, and stores it as it was written. The check compares as the
+  column's collation does: under SQL Server's default collation, which ignores case, `IN (N'FR', …)` also takes `fr`,
+  laxer than the type. A closed set holding a value that is not a number gets none, and neither does one of instants
+  with their offset on SQLite.
+- A rule only code checks, the checksum of an `IValueObjectValidator<T>`, has no SQL form and stays in the
+  application.
+
+Columns mapped to JSON, the elements of a [primitive collection](#collections-of-value-objects), a view, a property
+split into another table with `SplitToTable`, and a column mapped by a converter of the application's own get none.
+The columns an owned type or a complex type shares a table with get theirs, named after their column,
+`CK_Orders_Shipping_City_Zip_MinLength`; an owned type in a table of its own gets them in that table. In a
+table-per-concrete-type hierarchy, a type other types derive from gets none: Entity Framework Core would copy its
+constraints into their tables under the same name, which SQL Server refuses; a type with no derived type constrains the
+columns it inherits too, but for those of a complex property it inherits, which Entity Framework Core 10 maps to no
+column of its table. A column two types of a table-per-hierarchy share is constrained only when both map the same value
+object there, since the constraint of one would also judge the rows of the other. SQL Server, PostgreSQL and SQLite are
+known; another provider gets no constraint.
+
+A name longer than the provider takes, 63 bytes on PostgreSQL and 128 characters on SQL Server, keeps its start, cut as
+short as it needs, then the rule, whole, and eight hexadecimal digits of the hash of its table and its column:
+`CK_{table}_{column}_{rule}_{hash}`. So does a name another check constraint of the model already holds, one you
+declared with `HasCheckConstraint`, in the same table, or anywhere in the schema on SQL Server; and a name another table
+would take too, on SQL Server, which keeps a constraint name per schema and compares it ignoring case:
+`CK_a_b_C_Maximum` for column `C` of table `a_b` and column `B_C` of table `a`, or a complex property's column
+`Line_Score` in `orders` and a table `orders_Line`. Every name ends with its rule, or with its rule and a hash.
+
+`Rules` leaves a family out:
+
+```csharp skip
+builder.AddValueObjectCheckConstraints(checks => checks.Rules = ValueObjectChecks.Lengths | ValueObjectChecks.KnownValues);
+```
+
+The options are read once per context type, as `strict` is: give a context that needs other options a type of its own.
+
+### Rows already in the table
+
+Adding a constraint to a table that already holds a row the rule refuses fails the migration: "The ALTER TABLE
+statement conflicted with the CHECK constraint" on SQL Server, `23514` on PostgreSQL. That is the constraint doing its
+job, but the row has to be corrected first. Rows an earlier version stored for a value object that was never set, `''`
+or `0`, are among them. Count them, constraint by constraint, from the model the constraints are written in, before the
+migration that adds them:
+
+```csharp skip
+var sql = db.GetService<ISqlGenerationHelper>();
+foreach (var table in db.GetService<IDesignTimeModel>().Model.GetRelationalModel().Tables)
+{
+    foreach (var check in table.CheckConstraints)
+    {
+        var count = $"SELECT COUNT(*) AS {sql.DelimitIdentifier("Value")} FROM {sql.DelimitIdentifier(table.Name, table.Schema)} WHERE NOT ({check.Sql})";
+        var refused = await db.Database.SqlQueryRaw<int>(count).SingleAsync();
+        Console.WriteLine($"{check.Name}: {refused} row(s) refused");
+    }
+}
+```
+
+A check passes a `NULL`, and `NOT` of an unknown is unknown, so the count is what the constraint would refuse. The
+relational model lists each constraint once, in the table it lies in: an entity type's `GetCheckConstraints()` also
+lists those of its base type, which a table-per-type hierarchy keeps in another table, and a table-per-hierarchy in the
+same one, so that a query built from it would fail on a column the table lacks, or count a constraint once per derived
+type.
+
+### When a constraint fires
+
+The application's own writes pass: the value objects it writes went through their rules. A constraint fires for
+another writer, and for an invalid instance a lax read let in and the application writes back. Through Entity
+Framework Core, `SaveChanges` then throws a `DbUpdateException` around the provider's error, SQL Server's 547,
+PostgreSQL's 23514 or SQLite's 19, which names the constraint, and so its rule, and its column unless the name was
+shortened, but carries no rule code. It complements `strict: true` rather than replace it: a constraint stops a bad row when it is written, a strict
+read catches one stored before the constraint existed.
+
+The constraints are part of the model a migration, `EnsureCreated` or `GenerateCreateScript` is made from, never of a
+[compiled model](#compiled-models), which holds none: `EnsureCreated` on a context using one builds the model that does.
+Nothing runs per query or per row.
 
 ## One property, differently
 
@@ -437,7 +566,8 @@ an optional element compared by `NullableValueObjectComparer<T>` as an optional 
 `new UnassignedValueObjectKeyGeneratorFactory().Create` for a `Guid` key refused unset.
 
 Regenerate the compiled model when a rule that shapes a column changes, `MaxLength` say, as after any other change to
-the model.
+the model. [CHECK constraints](#check-constraints-from-the-rules) are not in it: a compiled model holds none, and
+`EnsureCreated` on a context using one builds the model that holds them.
 
 One difference remains, on a value object over `string` whose property has a database default, through
 `HasDefaultValue` or `HasDefaultValueSql`. Left unset, the property holds `default(T)`, which a model built at run
@@ -454,9 +584,9 @@ or passed to `Add`, fails with a `ValueObjectException`. A query with `AsNoTrack
 model built at run time. Keep a strict context on the model built at run time, or read through it untracked.
 
 CI compiles both models, for the JIT and for native AOT, of a context mapping every value object the conventions map,
-required and optional, collections of them, and keys it generates or refuses unset, beside a strict one, filters on
-`.Value` through [`UseValueObjectQueries()`](#the-value-in-a-query), and takes the first on a round trip through SQL
-Server.
+required and optional, collections of them, and keys it generates or refuses unset, with CHECK constraints, beside a
+strict one, filters on `.Value` through [`UseValueObjectQueries()`](#the-value-in-a-query), and takes the first on a
+round trip through SQL Server, whose tables `EnsureCreated` creates with the constraints.
 
 ### Native AOT
 

@@ -33,7 +33,8 @@ public class ShopContext(string connectionString) : DbContext
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         => configurationBuilder
             .ConfigureValueObjects(Strict, typeof(OrderId).Assembly)
-            .ConfigureEntityIds(Strict, typeof(OrderId).Assembly);
+            .ConfigureEntityIds(Strict, typeof(OrderId).Assembly)
+            .AddValueObjectCheckConstraints();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -93,7 +93,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | **`AdCodicem.ValueObjects`** | The one to install: contracts, source generator and analyzers. |
 | `AdCodicem.ValueObjects.Abstractions` | The contracts alone, with no dependency at all. |
 | `AdCodicem.ValueObjects.Json` | Covers source-generated serializer contexts and hand-written value objects, and fills in the JSON Schema System.Text.Json exports. |
-| `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, a convention that maps a whole assembly, keys generated the provider's way, and `.Value` translated in queries. |
+| `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, a convention that maps a whole assembly, keys generated the provider's way, `.Value` translated in queries, and opt-in CHECK constraints from the rules. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, native AOT included. |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | The same problem details for a body MVC reads with Newtonsoft.Json. |
@@ -230,7 +230,8 @@ program, unless the application trusts them: `ValueObjectBson.Register(trusted: 
 collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema. The `[GeneratedRegex]` behind
 `IValueObjectPatternValidator` validates the value, and its text becomes the `pattern` keyword. The members marked
 `[KnownValue]` become a frozen membership lookup and the `enum` keyword of the schema, with their names beside it for
-generated clients.
+generated clients. On request, `AddValueObjectCheckConstraints()` writes the lengths, the bounds and the closed sets as
+CHECK constraints of the EF Core columns, wherever the database reads them as .NET does.
 The same rules fill in the JSON Schema System.Text.Json exports, which AI tools, structured output and MCP servers
 describe their parameters with, through `ValueObjectJsonSchema`; `AdCodicem.ValueObjects.AI` carries them to the tools
 and the structured output of Microsoft.Extensions.AI in one call, and `AdCodicem.ValueObjects.ModelContextProtocol` to

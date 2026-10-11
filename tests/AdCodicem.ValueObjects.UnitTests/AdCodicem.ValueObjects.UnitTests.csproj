@@ -72,8 +72,9 @@
     <!-- A provider, so that a DbContext can build the model the Entity Framework Core conventions shape; building it
          opens no connection. SQLite in memory, which needs no server, runs what only an engine shows: of a primitive
          collection of value objects, the JSON it stores, the queries over its elements and change tracking; the keys
-         SQLite generates; and `.Value` translated to the column. The in-memory provider, which is not relational,
-         generates no integer key. What a real server makes of them stays in the integration suite. -->
+         SQLite generates; `.Value` translated to the column; and the CHECK constraints written from the rules,
+         accepting and refusing rows. The in-memory provider, which is not relational, generates no integer key. What a
+         real server makes of them stays in the integration suite. -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />

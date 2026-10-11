@@ -118,7 +118,9 @@ it, Entity Framework Core refuses `.Value` as untranslatable; a comparison betwe
 
 Because the EF Core and Dapper read paths are the hottest in most applications, and they read values the same
 application validated when writing them. `ConfigureValueObjects(strict: true, …)` validates EF Core reads for tables
-other systems also write to; Dapper validates only a column the value object cannot have written, text read into a
+other systems also write to, and
+[`AddValueObjectCheckConstraints()`](./how-to/ef-core.md#check-constraints-from-the-rules) makes such a table refuse a
+row breaking a rule when another writer stores it; Dapper validates only a column the value object cannot have written, text read into a
 value object over a number, say. MongoDB reads are the other way round: validated, since a collection has no schema and
 is often written by more than one program, unless the serializer is registered with
 `ValueObjectBson.Register(trusted: true, …)`. So are MessagePack reads, since the bytes may come from another service,

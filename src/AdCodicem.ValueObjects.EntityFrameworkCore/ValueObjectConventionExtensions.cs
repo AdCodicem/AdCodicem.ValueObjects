@@ -59,6 +59,10 @@ public static class ValueObjectConventionExtensions
     /// <see cref="UnassignedValueObjectKeyGeneratorFactory"/>).
     /// </para>
     /// <para>
+    /// The columns can also carry the rules as CHECK constraints, on request: see
+    /// <see cref="AddValueObjectCheckConstraints(ModelConfigurationBuilder, Action{ValueObjectCheckOptions})"/>.
+    /// </para>
+    /// <para>
     /// A compiled model, which <c>dotnet ef dbcontext optimize</c> generates, holds the same mapping. A property of
     /// <c>TSelf?</c> is compared by <see cref="NullableValueObjectComparer{TSelf}"/>, which such a model can write.
     /// </para>
@@ -224,6 +228,71 @@ public static class ValueObjectConventionExtensions
     public static PropertyBuilder<TSelf> HasValueObjectKeyGeneration<TSelf>(this PropertyBuilder<TSelf> builder)
         where TSelf : struct, IValueObject<TSelf, Guid>
         => KeyGeneration.Configure<TSelf, Guid>(builder);
+
+    /// <summary>
+    /// Writes the rules value objects declare as CHECK constraints on the columns this package maps them to, so that the
+    /// database refuses a row another writer stores with a value the type rejects.
+    /// </summary>
+    /// <param name="builder">Model configuration builder, from <c>DbContext.ConfigureConventions</c>.</param>
+    /// <param name="configure">
+    /// Chooses the rules; when it is not given, lengths, bounds and closed value sets are written.
+    /// </param>
+    /// <returns>The same builder, so calls can be chained.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="builder"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// <para>
+    /// Off unless called. Each column one of this package's converters maps, through <c>ConfigureValueObjects</c>,
+    /// <c>ConfigureEntityIds</c> or one property at a time, gets a constraint per rule its value object declares:
+    /// <c>MinLength</c>, the bounds of <see cref="IValueObjectMinimum{TValue}"/> and
+    /// <see cref="IValueObjectMaximum{TValue}"/>, and the known values of a closed value set. A migration picks them up,
+    /// so a rule changed on the type reaches the next migration, as a column size does; a table already holding a row the
+    /// rule refuses fails that migration.
+    /// </para>
+    /// <para>
+    /// A constraint is laxer than the type where the database cannot say the rule as .NET reads it, never stricter: a
+    /// length is counted in bytes where the database cannot count UTF-16 code units, and a bound or a closed set is left
+    /// out where the column does not compare values as .NET does. A rule only code checks, in
+    /// <see cref="IValueObjectValidator{TValue}"/>, stays in the application. SQL Server, PostgreSQL and SQLite are known;
+    /// another provider gets no constraint. A column mapped to JSON, the elements of a primitive collection, and a
+    /// property mapped by a converter of the application's own get none either.
+    /// </para>
+    /// <para>
+    /// The application's own writes pass, since the value objects it writes went through their rules. A constraint refuses
+    /// what another writer stores, and an invalid instance a lax read let in and the application writes back, with the
+    /// provider's error inside a <see cref="DbUpdateException"/> for a write through Entity Framework Core: it complements
+    /// <c>strict: true</c>, which refuses on read a row stored before the constraint existed.
+    /// </para>
+    /// <para>
+    /// The options are read once per context type, as <c>strict</c> is: Entity Framework Core builds the model the first
+    /// time a context type is used and caches it for every later instance. The constraints are part of the model a
+    /// migration, <c>EnsureCreated</c> or a script is made from, never of a compiled model, which reads none: nothing here
+    /// runs per query or per row.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// protected override void ConfigureConventions(ModelConfigurationBuilder builder)
+    ///     => builder
+    ///         .ConfigureValueObjects(typeof(Iban).Assembly)
+    ///         .AddValueObjectCheckConstraints();
+    /// </code>
+    /// </example>
+    public static ModelConfigurationBuilder AddValueObjectCheckConstraints(
+        this ModelConfigurationBuilder builder,
+        Action<ValueObjectCheckOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var options = new ValueObjectCheckOptions();
+        configure?.Invoke(options);
+
+        // Read now: the convention is created each time a model is built, and the options are not the caller's to change
+        // afterwards.
+        var rules = options.Rules;
+        builder.Conventions.Add(services => new ValueObjectCheckConstraintConvention(services, rules));
+
+        return builder;
+    }
 
     private static bool Is128Bit(Type? valueType) => valueType == typeof(Int128) || valueType == typeof(UInt128);
 

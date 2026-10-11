@@ -34,6 +34,7 @@ be corrected.
 | Source-generated `JsonSerializerContext` | declared on the context, at compile time | a factory passed in the options at run time | converters passed in the options | not documented |
 | EF Core mapping | every value object of an assembly in one call, collections of them included | per property, or a marker class listing the types | per type | every value object in one call |
 | Column size from the type's rules | yes | no | no | no, a max-length strategy can be configured |
+| CHECK constraints from the type's rules | on request: lengths, bounds, closed sets | no | no | no |
 | EF Core reads validate | on request (`strict: true`) | by default | — | no, reads use the constructor |
 | EF Core `.Value` in LINQ | translated to the column, on request (`UseValueObjectQueries()`) | no: compare the value objects | no: compare the value objects | no |
 | ASP.NET Core model binding | yes | through the `TypeConverter` | through the `TypeConverter` | yes |
@@ -57,7 +58,9 @@ be corrected.
 the OpenAPI `maxLength`; the bound of `IValueObjectMinimum<T>`, and the `[GeneratedRegex]` behind
 `IValueObjectPatternValidator`, do the same for the schema; known values become the `enum`, under the names a generated
 client gives its members; and, wherever the server reads them as .NET does, they reach a MongoDB server as a
-`$jsonSchema` validator ([what is carried](../how-to/mongodb.md#a-collection-validator-from-the-rules)). In the other
+`$jsonSchema` validator ([what is carried](../how-to/mongodb.md#a-collection-validator-from-the-rules)), and, on
+request, a relational database as CHECK constraints ([what is written](../how-to/ef-core.md#check-constraints-from-the-rules)).
+In the other
 three, a length or a pattern is code inside a validation method, so the column and the schema have to be told separately
 — which is exactly the drift that primitive obsession produces.
 
