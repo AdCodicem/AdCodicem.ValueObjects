@@ -125,6 +125,13 @@ public sealed class MongoDbValidatorTests(MongoDbFixture fixture) : IClassFixtur
         await AcceptedAsync(Iban.Create(French), Iban.Create("DE89370400440532013000"));
         await AcceptedAsync(CountryCode.France, CountryCode.Germany);
         await AcceptedAsync(DocumentStatus.Draft, DocumentStatus.Create("FINAL"), DocumentStatus.Create("Draft"));
+
+        // The micro sign shares the upper case of the Greek mu, which the type takes for it and stores as written.
+        await AcceptedAsync(MassUnit.Microgram, MassUnit.Create("\u00B5g"), MassUnit.Create("MG"));
+
+        // The invariant culture takes a modifier letter for its letter, and the Kelvin sign for K, of the same length.
+        await AcceptedAsync(SettlementCurrency.Won, SettlementCurrency.Create("k\u02B3w"), SettlementCurrency.Create("\u1D37RW"));
+        await AcceptedAsync(ScaleSymbol.Kelvin, ScaleSymbol.Create("\u212A"));
         await AcceptedAsync(Label.Create(string.Empty), Label.Create("a"), Label.Create(string.Concat(Enumerable.Repeat(Emoji, 100))));
         await AcceptedAsync(PhoneNumber.Create("+33612345678"));
         await AcceptedAsync(EmailAddress.Create("ada@example.com"));

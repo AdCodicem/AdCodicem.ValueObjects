@@ -321,8 +321,9 @@ per row.
   provider's error, 547, 23514 or 19, no rule code). Never stricter than the type: a length is counted in bytes, and a
   bound or closed set is left out where the column compares apart from .NET (SQLite's `decimal`, `TimeSpan`,
   `DateTimeOffset` and `ulong`, SQL Server's `time` outside a day and `datetime`, a decimal bound finer than the scale, a
-  set looked up ignoring case without a normalizer). JSON columns, collection elements, views and converters of your own
-  get none; a validator stays in code. Leave a family out with
+  set of text compared by culture, or ignoring case without a normalizer that spells each other case back, by its
+  `Schema.Comparison`, a set over a reference type other than `string`). JSON columns, collection elements, views and
+  converters of your own get none; a validator stays in code. Leave a family out with
   `checks => checks.Rules = ValueObjectChecks.Lengths | ValueObjectChecks.KnownValues`; a second call replaces the
   first's options. A migration picks the
   constraints up, and fails on a table holding a refused row: correct the rows first. Keep `strict: true` for rows
@@ -482,12 +483,14 @@ await database.CreateCollectionAsync("orders", new CreateCollectionOptions<BsonD
   value object; dictionaries and members with a serializer of your own are left free.
 - Each rule is carried only where the server refuses no value the type accepts: `minLength` is halved unless the
   published pattern is anchored at both ends (the server counts an emoji once); a pattern with `.`, a negated class,
-  `\D`/`\W`/`\S`/`\P{…}`, `\p{C}`, a surrogate, `\b`, a class subtraction or a named block is left out, and so is
-  one whose regex sets `IgnoreCase`, `Multiline` or `IgnorePatternWhitespace`; a value object written by hand without
-  the pattern hook has its `Schema.Pattern` published as declared, which its validation must run with no option; no
-  `enum` for a set compared ignoring case or by culture, nor for reals or decimals stored as text, nor for dates; no
-  bound for text, dates, under `AllowOverflow`, for a time or a duration written as an Int32, or through a serializer
-  of the underlying type that is not MongoDB.Bson's.
+  `\D`/`\W`/`\S`/`\P{…}`, `\p{C}`, a surrogate, `\b`, a class subtraction or a named block is left out, and so is one
+  whose regex sets `IgnoreCase`, `Multiline` or `IgnorePatternWhitespace`; a value object written by hand without the
+  pattern hook has its `Schema.Pattern` published as declared, which its validation must run with no option; no `enum`
+  for a set of text that stores another spelling of a known value, by the `Schema.Comparison` the generator writes:
+  never for a culture's comparison, and for `OrdinalIgnoreCase` only with a normalizer that spells each other case back
+  (`µ` taken for `μ` included); a value object written by hand states `Comparison` in its schema. No `enum` for reals
+  or decimals stored as text, nor for dates; no bound for text, dates, under `AllowOverflow`, for a time or a duration
+  written as an Int32, or through a serializer of the underlying type that is not MongoDB.Bson's.
 - The server refuses with a `MongoWriteException` (`MongoBulkWriteException` from `InsertMany`), write error code 121,
   "Document failed validation", naming the field and keyword; no rule code. It checks updates too, so it catches an
   `Update.Inc(x => x.Quantity.Value, …)` past the maximum. `bsonType` refuses a number of another BSON type the reader

@@ -20,6 +20,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Whether a closed set of text stores another spelling of a known value, which the IN of a CHECK constraint needs. -->
+    <Compile Include="..\Shared\KnownValueSpellings.cs" Link="Shared\KnownValueSpellings.cs" />
     <!-- The names of the types its refusals show, written as C# names them: a key, a value object and its pattern. -->
     <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
     <!-- The reader of a .NET pattern, which a CHECK constraint writes in the dialect of the database. -->

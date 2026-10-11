@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.Shared;
 using MongoDB.Bson;
 using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
@@ -208,10 +209,13 @@ internal static class ValueObjectBsonRules
     /// </summary>
     /// <remarks>
     /// The server compares an <c>enum</c> exactly, which holds the type's accepted values only when two values the type
-    /// holds equal are written alike: for text, when the set is not looked up ignoring case or as a culture compares, which
-    /// the type would store as spelled; for a real or a decimal, when it is stored as a number, since <c>-0</c> and
-    /// <c>0</c>, or <c>1.0</c> and <c>1.00</c>, are written apart as text; never for a date, whose kind or offset
-    /// equality ignores, or for a type the table does not know. Every value has to be written, or none is.
+    /// holds equal are written alike: for text, when the type stores no other spelling of a known value, by the
+    /// comparison its schema states: always when it compares ordinally, never when it compares as a culture does, which
+    /// takes spellings of any length for a known value, and when it ignores case, only if no other case of a known value,
+    /// the micro sign <c>µ</c> for the Greek <c>μ</c> included, is stored as written; for a real or a decimal, when it is
+    /// stored as a number, since <c>-0</c> and <c>0</c>, or <c>1.0</c> and <c>1.00</c>, are written apart as text; never
+    /// for a date, whose kind or offset equality ignores, or for a type the table does not know. Every value has to be
+    /// written, or none is.
     /// </remarks>
     private static BsonArray? Enumeration<TSelf, TValue>(ValueObjectSchema schema, IBsonSerializer<TValue> valueSerializer, BsonType representation)
         where TSelf : struct, IValueObject<TSelf, TValue>
@@ -249,30 +253,7 @@ internal static class ValueObjectBsonRules
             return representation is BsonType.Int32 or BsonType.Int64 or BsonType.Double or BsonType.Decimal128;
         }
 
-        return typeof(TValue) == typeof(string) ? KeepsSpelling<TSelf, TValue>(schema) : ExactlyEqual.Contains(typeof(TValue));
-    }
-
-    /// <summary>
-    /// Tells whether a closed set of text stores no other spelling of a known value: neither its upper nor its lower case,
-    /// which a set looked up ignoring case accepts, nor the value followed by a soft hyphen, which a culture's comparison
-    /// ignores.
-    /// </summary>
-    private static bool KeepsSpelling<TSelf, TValue>(ValueObjectSchema schema)
-        where TSelf : struct, IValueObject<TSelf, TValue>
-    {
-        var known = schema.KnownValues.OfType<string>().ToFrozenSet(StringComparer.Ordinal);
-        foreach (var text in known)
-        {
-            foreach (var variant in (string[])[text.ToUpperInvariant(), text.ToLowerInvariant(), text + (char)0x00AD])
-            {
-                if (TSelf.TryCreate((TValue)(object)variant, out var created) && !known.Contains((string)(object)created.Value!))
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
+        return typeof(TValue) == typeof(string) ? KnownValueSpellings.KeepsSpelling<TSelf, TValue>(schema) : ExactlyEqual.Contains(typeof(TValue));
     }
 
     /// <summary>

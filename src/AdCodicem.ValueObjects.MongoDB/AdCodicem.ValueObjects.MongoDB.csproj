@@ -21,6 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Whether a closed set of text stores another spelling of a known value, which the validator's enum needs. -->
+    <Compile Include="..\Shared\KnownValueSpellings.cs" Link="Shared\KnownValueSpellings.cs" />
     <!-- The reader of a .NET pattern, which the validator writes in the PCRE2 dialect the server reads. -->
     <Compile Include="..\Shared\ValueObjectPatternSyntax.cs" Link="Shared\ValueObjectPatternSyntax.cs" />
   </ItemGroup>

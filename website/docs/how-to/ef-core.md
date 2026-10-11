@@ -203,17 +203,25 @@ elsewhere:
   `DateTimeOffset`, which it stores as text, and a `ulong`, which it stores as a signed integer; on SQL Server, a
   `TimeSpan` outside `[0, 1 day)`, which `time` holds without its days, and any bound on a `datetime` or
   `smalldatetime` column; on PostgreSQL, a `char` minimum at or below a space, which `character(1)` drops; everywhere,
-  a `decimal` bound finer than the column's scale, SQL Server's default `decimal(18,2)` included, and an instant finer
+  a `decimal` bound finer than the column's scale, SQL Server's default `decimal(18,2)` included, an instant finer
   than the column keeps, 100 ns in SQL Server's `datetime2` unless its precision says less, a microsecond on
-  PostgreSQL.
-- A closed set of text is written only when the type stores no other spelling of a known value: one looked up with
-  `OrdinalIgnoreCase` and normalized to upper case gets `IN ('KG', 'L')`; one looked up ignoring case without a
-  normalizer, or as a culture compares, gets none, since it stores `kg` as it was written, and so does one normalized
-  to lower case whose known value holds a Greek `μ`, since it also takes the micro sign `µ`, which shares the upper case
-  of `μ`, and stores it as it was written. The check compares as the
+  PostgreSQL, and a `float` or `double` bound at an infinity.
+- A closed set of text is written only when the type stores no other spelling of a known value, by the comparison its
+  schema states, `Schema.Comparison`: one compared `Ordinal`, the default, gets its `IN`; one compared as a culture
+  compares gets none, since the culture takes other spellings for a known value, some of the same length, `KʳW` for
+  `KRW` or the Kelvin sign for `K`, which the type stores as written; one looked up with `OrdinalIgnoreCase` and
+  normalized to upper case gets `IN ('KG', 'L')`, one without a normalizer none, since it stores `kg` as it was written,
+  and neither does one normalized to lower case whose known value holds a Greek `μ`, since it also takes the micro sign
+  `µ`, which shares the upper case of `μ`, and stores it as it was written. A value object written by hand states its
+  comparison in its schema: one stating none is tried with the other cases of each known value and a trailing soft
+  hyphen, fewer spellings than a culture's comparison takes. The check compares as the
   column's collation does: under SQL Server's default collation, which ignores case, `IN (N'FR', …)` also takes `fr`,
-  laxer than the type. A closed set holding a value that is not a number gets none, and neither does one of instants
-  with their offset on SQLite.
+  laxer than the type.
+- A closed set of another type gets its `IN` where the column compares its values as .NET does: numbers, a `char`, a
+  `bool`, a `Guid`, dates, times, durations and instants. A closed set of floating-point numbers holding `NaN` or an
+  infinity gets none, and neither does one of instants with their offset on SQLite, nor one over a reference type other
+  than text, such as the `Uri` a value object written by hand may hold, whose equality ignores a fragment that its
+  column's text keeps.
 - A rule only code checks, the checksum of an `IValueObjectValidator<T>`, has no SQL form and stays in the
   application. A pattern is [a separate opt-in](#patterns).
 
