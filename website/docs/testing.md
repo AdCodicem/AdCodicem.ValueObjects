@@ -92,7 +92,8 @@ Serilog, each value object logged checked against the bare value it carries, the
 built over the context answering refused arguments with their rule, a Model Context Protocol server in process listing
 its tools on two protocol versions and answering refused arguments, and requests over Kestrel to minimal API
 endpoints the Request Delegate Generator binds, refused values answered with problem details in each setting of
-`ThrowOnBadRequest`, each answer checked against the status and the codes the script expects — once under the JIT and
+`ThrowOnBadRequest`, in English and with the messages of a resource read through the localizer, each answer checked
+against the status, the codes and, translated, the messages the script expects — once under the JIT and
 once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT warning in the publish, and on any
 difference between the two outputs, and a pull request merges only once it passes, so the claim of AOT compatibility is
 run, not only analysed.
@@ -114,7 +115,8 @@ versions and no transitive pinning, so the dependency floors of the packages mee
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
 PostgreSQL, collections of value objects, queries on `.Value`, CHECK constraints from the rules on SQLite and a pattern
 constraint on PostgreSQL included, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json and on Newtonsoft.Json,
-and a minimal API with its problem details, `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
+and a minimal API with its problem details, their messages and FluentValidation's in the language of the request,
+`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
 MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
 SignalR's MessagePack hub protocol 11 over TestHost, FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI
 tools and structured output, Model Context Protocol tools over the SDK's own client, `XmlSerializer` and

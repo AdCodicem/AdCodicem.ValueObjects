@@ -9,8 +9,9 @@ namespace AdCodicem.ValueObjects.AspNetCore.ModelBinding;
 /// </summary>
 /// <remarks>
 /// Providers are consulted once per action parameter while the application starts, so closing the generic
-/// binder over the concrete types here costs nothing per request. The instances are cached anyway, because MVC
-/// creates metadata for the same type in many places.
+/// binder over the concrete types here costs nothing per request. The instances are cached anyway, by each provider,
+/// because MVC creates metadata for the same type in many places. Each binder reads the messages of its provider, which
+/// <c>AddValueObjects(messages =&gt; …)</c> configures, when it refuses a value.
 /// <para>
 /// Each binder is closed over its value object at compile time, through the type arguments the descriptor hands back
 /// to a visitor (<see cref="ValueObjectDescriptor.Accept{TResult}(IValueObjectVisitor{TResult})"/>), never at run time
@@ -27,7 +28,13 @@ namespace AdCodicem.ValueObjects.AspNetCore.ModelBinding;
 /// </remarks>
 public sealed class ValueObjectModelBinderProvider : IModelBinderProvider
 {
-    private static readonly ConcurrentDictionary<Type, IModelBinder?> Binders = new();
+    private readonly ConcurrentDictionary<Type, IModelBinder?> _binders = new();
+
+    /// <summary>
+    /// Gets the messages the binders answer a refusal with, which the application configures through
+    /// <c>AddValueObjects(messages =&gt; …)</c> and the input formatter reads too.
+    /// </summary>
+    internal ValueObjectMessageOptions Messages { get; } = new();
 
     /// <inheritdoc />
     public IModelBinder? GetBinder(ModelBinderProviderContext context)
@@ -40,10 +47,10 @@ public sealed class ValueObjectModelBinderProvider : IModelBinderProvider
             return null;
         }
 
-        return Binders.GetOrAdd(context.Metadata.ModelType, static modelType => Create(modelType));
+        return _binders.GetOrAdd(context.Metadata.ModelType, static (modelType, messages) => Create(modelType, messages), Messages);
     }
 
-    private static IModelBinder? Create(Type modelType)
+    private static IModelBinder? Create(Type modelType, ValueObjectMessageOptions messages)
     {
         // A descriptor exists for a struct implementing IValueObject<TSelf, TValue> over itself, the one shape the
         // binder can be closed over. Anything else carrying the marker - an interface, a class, a struct with the
@@ -54,16 +61,15 @@ public sealed class ValueObjectModelBinderProvider : IModelBinderProvider
             return null;
         }
 
-        return descriptor.Accept(BinderFactory.Instance);
+        return descriptor.Accept(new BinderFactory(messages));
     }
 
     /// <summary>
     /// Creates the binder of the value object a descriptor stands for, closed over the type arguments it hands back.
     /// </summary>
-    private sealed class BinderFactory : IValueObjectVisitor<IModelBinder>
+    /// <param name="messages">The messages of the provider, which the binder answers a refusal with.</param>
+    private sealed class BinderFactory(ValueObjectMessageOptions messages) : IValueObjectVisitor<IModelBinder>
     {
-        public static readonly BinderFactory Instance = new();
-
         /// <summary>
         /// Creates the binder of the value object, whatever its underlying type: MVC binds it from text, through
         /// <c>TryParse</c>.
@@ -73,6 +79,6 @@ public sealed class ValueObjectModelBinderProvider : IModelBinderProvider
         /// <returns>The binder, closed over the value object.</returns>
         public IModelBinder Visit<TSelf, TValue>()
             where TSelf : struct, IValueObject<TSelf, TValue>
-            => new ValueObjectModelBinder<TSelf, TValue>();
+            => new ValueObjectModelBinder<TSelf, TValue>(messages);
     }
 }

@@ -68,6 +68,11 @@ public static class ValueObjectEndpointConventionBuilderExtensions
     /// request needs them, with an <see cref="InvalidOperationException"/> naming the call, rather than answer each
     /// refusal with a 500 where the framework answers a 400.
     /// </para>
+    /// <para>
+    /// The messages are the English ones of the rules.
+    /// <see cref="WithValueObjectProblemDetails{TBuilder}(TBuilder, Action{ValueObjectMessageOptions})"/> answers in the
+    /// application's language.
+    /// </para>
     /// </remarks>
     public static TBuilder WithValueObjectProblemDetails<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder
@@ -75,6 +80,54 @@ public static class ValueObjectEndpointConventionBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Add(ValueObjectBindingFilter.Apply);
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Answers a value object these endpoints could not bind with problem details carrying the code of the rule it
+    /// broke, and the message the application's resource gives that code.
+    /// </summary>
+    /// <typeparam name="TBuilder">The builder: a route group, one endpoint, or any other convention builder.</typeparam>
+    /// <param name="builder">The endpoints to cover.</param>
+    /// <param name="configure">Names the resource the messages are read from, through <see cref="ValueObjectMessageOptions.UseResource{TResource}"/>.</param>
+    /// <returns>The same builder, so calls can be chained.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="builder"/> or <paramref name="configure"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// <para>
+    /// The endpoints are covered as <see cref="WithValueObjectProblemDetails{TBuilder}(TBuilder)"/> covers them, and
+    /// <c>errors</c> holds, for each refused member, the message the resource holds under the key of the rule's code,
+    /// <c>ValueObject.value_object.out_of_range</c>, looked up after <c>ValueObject.value_object.out_of_range.minimum</c>
+    /// or <c>.maximum</c> for a type declaring one bound alone. It is formatted with the name the member binds from as
+    /// <c>{0}</c>, the name of the value object for a request body, whose JSON path may hold a refused dictionary key, and
+    /// the arguments the type's rules supply from <c>{1}</c>: a length, both bounds, the known values. The codes under
+    /// <see cref="ValueObjectProblemDetails.ExtensionName"/> are the same in every language. A key the resource lacks
+    /// keeps the English message.
+    /// </para>
+    /// <para>
+    /// The resource is read through the request's <c>IStringLocalizerFactory</c>: register
+    /// <c>builder.Services.AddLocalization()</c>, without which a refusal throws an <see cref="InvalidOperationException"/>
+    /// naming it, and <c>app.UseRequestLocalization()</c>, so that the request chooses the culture. The current UI culture
+    /// chooses the template and the current culture formats the arguments. The exception handler that answers with
+    /// <c>ThrowOnBadRequest</c> on runs in the request's culture, whatever the order of <c>UseRequestLocalization()</c>
+    /// and <c>UseExceptionHandler()</c>. A template quoting an argument its code does not supply throws its
+    /// <see cref="FormatException"/>, which is not caught.
+    /// </para>
+    /// <para>
+    /// The options belong to the endpoint: covered twice, through a route group and the endpoint itself, it takes those
+    /// of the convention that runs last, the endpoint's own over its group's, and a call without options keeps the
+    /// other's.
+    /// </para>
+    /// </remarks>
+    public static TBuilder WithValueObjectProblemDetails<TBuilder>(this TBuilder builder, Action<ValueObjectMessageOptions> configure)
+        where TBuilder : IEndpointConventionBuilder
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var messages = new ValueObjectMessageOptions();
+        configure(messages);
+        builder.Add(endpoint => ValueObjectBindingFilter.Apply(endpoint, messages));
 
         return builder;
     }

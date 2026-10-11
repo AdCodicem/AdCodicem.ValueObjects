@@ -69,7 +69,10 @@ code and a message, and allocates nothing when the value is valid. The code trav
 MVC controllers, for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a query value, and of minimal
 APIs, native AOT included, for a route, query or header value, and for a body where `ThrowOnBadRequest` is on, to
 FluentValidation failures and to every exception an integration throws, so an API client branches on
-`value_object.too_long` rather than on English.
+`value_object.too_long` rather than on English. The same code keys the message an application shows in its users'
+language, which MVC (for a route, query, header or form value, and a body System.Text.Json reads), minimal APIs and
+FluentValidation look up in its translations with the length, the bounds or the known values the type declares
+([a message in the application's language](../reference/errors.md#a-message-in-the-applications-language)).
 
 **Rules are found by interface, not by name.** `IValueObjectValidator<T>` and `IValueObjectNormalizer<T>` let the
 compiler check each signature, and `VO0011` reports the one mistake left: a rule written without its interface,

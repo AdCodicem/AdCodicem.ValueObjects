@@ -1,5 +1,7 @@
 using System.Text;
 using System.Text.Json;
+using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.Shared;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -32,6 +34,13 @@ namespace AdCodicem.ValueObjects.AspNetCore.Formatters;
 /// codes ride on the request for <see cref="ValueObjectMvcExtensions.AddValueObjectProblemDetails"/>.
 /// </para>
 /// <para>
+/// With messages configured through <c>AddValueObjects(messages =&gt; …)</c>, the message the model state keeps for a
+/// refused value object, under <see cref="JsonOptions.AllowInputFormatterExceptionMessages"/>, is the one the
+/// application's resource holds for the code, quoting the name of the value object as <c>{0}</c>, never the JSON path,
+/// which holds the key a dictionary keyed by a value object refused, and the arguments its rules supply from <c>{1}</c>.
+/// A key the resource lacks keeps the converter's message.
+/// </para>
+/// <para>
 /// It derives from <see cref="SystemTextJsonInputFormatter"/>, so the media types and encodings it reads, what API
 /// descriptions say of a body, and code looking for the framework's formatter by its type, find what they expect.
 /// </para>
@@ -45,6 +54,7 @@ internal sealed partial class ValueObjectJsonInputFormatter : SystemTextJsonInpu
 
     private readonly JsonOptions _options;
     private readonly ILogger<SystemTextJsonInputFormatter> _logger;
+    private readonly ValueObjectMessageOptions? _messages;
     private readonly bool _readsStream;
 
     /// <summary>
@@ -52,11 +62,15 @@ internal sealed partial class ValueObjectJsonInputFormatter : SystemTextJsonInpu
     /// </summary>
     /// <param name="options">The application's options, which the framework's formatter reads with.</param>
     /// <param name="logger">The framework formatter's logger.</param>
-    public ValueObjectJsonInputFormatter(JsonOptions options, ILogger<SystemTextJsonInputFormatter> logger)
+    /// <param name="messages">
+    /// The messages of the value object binder provider, or <see langword="null"/> for the converter's English ones.
+    /// </param>
+    public ValueObjectJsonInputFormatter(JsonOptions options, ILogger<SystemTextJsonInputFormatter> logger, ValueObjectMessageOptions? messages = null)
         : base(options, logger)
     {
         _options = options;
         _logger = logger;
+        _messages = messages;
         _readsStream = AppContext.TryGetSwitch(StreamBasedParsingSwitch, out var enabled) && enabled;
     }
 
@@ -97,15 +111,17 @@ internal sealed partial class ValueObjectJsonInputFormatter : SystemTextJsonInpu
         catch (JsonException exception)
         {
             var path = exception.Path ?? string.Empty;
+            string? message = null;
             if (ValueObjectErrors.TryGetCode(exception, out var code))
             {
                 ValueObjectProblemDetails.RecordErrorCode(context.HttpContext, path, code);
+                message = Localize(exception, code, context.HttpContext.RequestServices);
             }
 
             // An InputFormatterException tells the model state its message is safe to answer with.
             context.ModelState.TryAddModelError(
                 path,
-                _options.AllowInputFormatterExceptionMessages ? new InputFormatterException(exception.Message, exception) : exception,
+                _options.AllowInputFormatterExceptionMessages ? new InputFormatterException(message ?? exception.Message, exception) : exception,
                 context.Metadata);
             LogRefusal(_logger, exception.Message);
 
@@ -136,6 +152,26 @@ internal sealed partial class ValueObjectJsonInputFormatter : SystemTextJsonInpu
         LogSuccess(_logger, context.ModelType.FullName);
 
         return InputFormatterResult.Success(model);
+    }
+
+    /// <summary>
+    /// Looks up the message the application's resource holds for the code of a refused value object, where MVC answers
+    /// with the formatter's message.
+    /// </summary>
+    /// <returns>The message, or <see langword="null"/> to keep the converter's.</returns>
+    private string? Localize(JsonException exception, string code, IServiceProvider services)
+    {
+        if (_messages?.ResourceType is not { } resource || !_options.AllowInputFormatterExceptionMessages || exception is not ValueObjectJsonException refusal)
+        {
+            return null;
+        }
+
+        return ValueObjectLocalizedMessages.Find(
+            resource,
+            services,
+            ValueObjectRegistry.TryResolve(refusal.ValueObjectType, out var descriptor) ? descriptor : null,
+            code,
+            ValueObjectLocalizedMessages.NameOf(refusal.ValueObjectType));
     }
 
     [LoggerMessage(1, LogLevel.Debug, "JSON input formatter threw an exception: {Message}", EventName = "SystemTextJsonInputException")]

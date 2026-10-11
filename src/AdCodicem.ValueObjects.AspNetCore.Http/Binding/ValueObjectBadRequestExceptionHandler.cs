@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Localization;
 
 namespace AdCodicem.ValueObjects.AspNetCore.Http.Binding;
 
@@ -20,6 +22,12 @@ namespace AdCodicem.ValueObjects.AspNetCore.Http.Binding;
 /// the code of a value object the serializer refused: a body the serializer cannot read at all, a form, an anti-forgery
 /// token, keep the framework's answer, as they do with <c>ThrowOnBadRequest</c> off, where no filter runs for them.
 /// </para>
+/// <para>
+/// The messages are read in the culture of the request, which <c>UseRequestLocalization()</c> sets: in the usual order,
+/// where <c>UseExceptionHandler()</c> comes first, that middleware has restored the server's culture by the time the
+/// exception reaches the handler, and the handler applies the culture its <see cref="IRequestCultureFeature"/> names
+/// again while it answers.
+/// </para>
 /// </remarks>
 internal sealed class ValueObjectBadRequestExceptionHandler : IExceptionHandler
 {
@@ -33,30 +41,47 @@ internal sealed class ValueObjectBadRequestExceptionHandler : IExceptionHandler
             return false;
         }
 
-        var refusals = new ValueObjectRefusals();
-
-        // A body the serializer refused: the exception it threw is wrapped, and carries the code, never the value. Its
-        // message is the converter's; the framework's own message names the refused text, and is not copied. A body or a
-        // form the binder could not read for another reason is not the package's to explain.
-        if (exception.InnerException is not null)
+        // The exception handler middleware runs before the request localization middleware in the usual order, and the
+        // culture that middleware set has been restored by the time the exception reaches it: the messages are read in the
+        // request's culture again, which the feature that middleware left on the request still names.
+        var current = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
+        if (httpContext.Features.Get<IRequestCultureFeature>() is { } requested)
         {
-            if (FirstJsonException(exception) is not { } json || !ValueObjectErrors.TryGetCode(json, out var code))
+            CultureInfo.CurrentCulture = requested.RequestCulture.Culture;
+            CultureInfo.CurrentUICulture = requested.RequestCulture.UICulture;
+        }
+
+        try
+        {
+            var refusals = new ValueObjectRefusals(metadata.Messages, httpContext.RequestServices);
+
+            // A body the serializer refused: the exception it threw is wrapped, and carries the code, never the value. Its
+            // message is the converter's; the framework's own message names the refused text, and is not copied. A body or
+            // a form the binder could not read for another reason is not the package's to explain.
+            if (exception.InnerException is not null)
+            {
+                if (FirstJsonException(exception) is not { } json || !ValueObjectErrors.TryGetCode(json, out var code))
+                {
+                    return false;
+                }
+
+                refusals.AddBody(json, code);
+            }
+
+            metadata.Collect(httpContext.Request, feature.RouteValues, refusals);
+            if (refusals.Count == 0)
             {
                 return false;
             }
 
-            refusals.Add(json.Path ?? string.Empty, json.Message, code);
-        }
+            await refusals.ToProblem(httpContext).ExecuteAsync(httpContext);
 
-        metadata.Collect(httpContext.Request, feature.RouteValues, refusals);
-        if (refusals.Count == 0)
+            return true;
+        }
+        finally
         {
-            return false;
+            (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture) = current;
         }
-
-        await refusals.ToProblem(httpContext).ExecuteAsync(httpContext);
-
-        return true;
     }
 
     private static JsonException? FirstJsonException(Exception exception)

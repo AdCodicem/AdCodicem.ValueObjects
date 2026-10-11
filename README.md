@@ -214,6 +214,9 @@ result a language model reads, an MCP tool execution error. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
 query value, and those of a minimal API for a route, query or header value.
+The message is English; the code keys the one an application shows in its users' language, which the MVC, minimal API
+and FluentValidation integrations look up with the arguments the declared rules supply
+([a message in the application's language](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/reference/errors#a-message-in-the-applications-language)).
 `Create` throws `ValueObjectException`, and is for the call sites that want it; a strict EF Core read goes through
 it, and fails the query. Validation is fail-fast: the first violated rule wins.
 

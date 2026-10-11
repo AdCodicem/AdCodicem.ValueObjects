@@ -270,6 +270,35 @@ Under native AOT, list `Dictionary<string, string>` in the `JsonSerializerContex
 `ConfigureHttpJsonOptions`, or build the codes as a `JsonElement`: the framework's context for problem details knows
 no dictionary, and the response otherwise fails to serialize.
 
+**Messages in the application's language.** The rules' messages stay English; each target looks a translation up by
+the rule's code, under `ValueObject.{code}` (`ValueObjectMessages.KeyFor`), and keeps the English message for a key it
+does not find. No translation ships.
+
+```csharp skip
+builder.Services.AddLocalization();                                                         // required by both
+builder.Services.AddControllers().AddValueObjects(m => m.UseResource<ValidationMessages>()); // MVC: binder and JSON body
+app.UseRequestLocalization(o => o.SetDefaultCulture("fr-FR").AddSupportedCultures("fr-FR", "en-US").AddSupportedUICultures("fr-FR", "en-US"));
+app.MapGroup("/api").WithValueObjectProblemDetails(m => m.UseResource<ValidationMessages>()); // minimal APIs
+```
+
+- `ValidationMessages` is an empty class beside `ValidationMessages.fr.resx` (one `.resx` per culture), in a namespace
+  equal to the project's root namespace followed by its folder, or every key reads as missing. Read through the
+  request's `IStringLocalizerFactory`: without `AddLocalization()`, a refusal throws `InvalidOperationException`.
+- Positional arguments: `{0}` the member (MVC's display name; the name a minimal API value binds from; in a JSON body,
+  the value object's type name without arity, never the path), `{1}` `MinLength` (`too_short`) or `MaxLength`
+  (`too_long`) or `KnownValues` (`not_a_known_value`), `{1}` `Minimum` and `{2}` `Maximum` (`out_of_range`, either
+  empty). Text formatted in `CurrentCulture` (`0,01` in French; known values joined with the culture's list separator
+  and a space); the template is chosen by `CurrentUICulture`. Never the refused value.
+- `out_of_range` on a type declaring one bound: `ValueObject.value_object.out_of_range.minimum` (or `.maximum`) is
+  looked up first, then the bare key; a `.maximum` template quotes `{2}`.
+- A template quoting an argument its code lacks throws its `FormatException`, uncaught.
+- MVC: `AddValueObjects(m => …)` exists on `MvcOptions` too (binder only, a body stays English unless the builder's
+  `AddValueObjects()` also runs); one binder provider whatever the calls, last configuration wins. A body is translated
+  only under `JsonOptions.AllowInputFormatterExceptionMessages` (default on); Newtonsoft.Json bodies are not. Blank text
+  keeps MVC's `ModelBindingMessageProvider` message.
+- Minimal APIs: options per endpoint, the endpoint's own over its group's, none keeping the group's; the exception
+  handler applies the request's culture whatever the middleware order. AOT-compatible.
+
 ## Entity Framework Core
 
 ```csharp skip
@@ -560,11 +589,28 @@ RuleFor(x => x.Iban).Cascade(CascadeMode.Stop).NotEmpty().MustParseAs(typeof(Iba
 
 Each failure carries the value object's own stable error code, so the API answers with the same vocabulary
 everywhere. Options chained on `MustParseAs` or `MustSatisfy` (`WithErrorCode`, `WithMessage`, `WithSeverity`,
-`WithState`, `WithName`) replace the value object's code or message; `{Reason}` quotes the value object's message. `MustParseAs` and `MustSatisfy` let `null` through: chain `NotEmpty()` when the member is required.
+`WithState`, `WithName`) replace the value object's code or message; `{Reason}` quotes the value object's message,
+`{ValueObject}` the type's name, and the declared rules supply `{MinLength}`, `{MaxLength}`, `{Minimum}`, `{Maximum}`
+and `{KnownValues}` for their codes, in every message. `MustParseAs` and `MustSatisfy` let `null` through: chain `NotEmpty()` when the member is required.
 Empty text reaching `MustParseAs` is the value object's to judge: `value_object.required` for a string value object,
 `value_object.not_parsable` for one over another type, and a pass for one declaring `AllowEmpty = true`.
 Under native AOT, register a construction of a generic value object (`ValueObjectRegistry.Register<TSelf, TValue>`)
 before a rule names it in `MustParseAs`, or building the rule throws `ArgumentException`.
+
+Translations go in FluentValidation's `LanguageManager`, under `ValueObject.{code}` (the value object's code, whatever
+`WithErrorCode` chains), read when no `WithMessage` is chained; a missing one keeps `{Reason}`. `out_of_range` on a
+type declaring one bound tries `ValueObject.value_object.out_of_range.minimum` (or `.maximum`) first. `NotDefault`
+reads `ValueObject.value_object.required`, else `'{PropertyName}' is required.`.
+
+```csharp skip
+public sealed class AppLanguageManager : LanguageManager
+{
+    public AppLanguageManager() =>
+        AddTranslation("fr", "ValueObject.value_object.too_short", "« {PropertyName} » : au moins {MinLength} caractères.");
+}
+
+ValidatorOptions.Global.LanguageManager = new AppLanguageManager();
+```
 
 ## OpenAPI
 

@@ -30,4 +30,10 @@
     <ProjectReference Include="..\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The lookup of a refusal's message in the application's resource, compiled into the minimal API package too, whose
+         internals this one does not see. -->
+    <Compile Include="..\Shared\ValueObjectLocalizedMessages.cs" Link="Shared\ValueObjectLocalizedMessages.cs" />
+  </ItemGroup>
+
 </Project>

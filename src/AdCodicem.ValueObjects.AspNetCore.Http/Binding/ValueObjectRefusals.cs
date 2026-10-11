@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Text.Json;
+using AdCodicem.ValueObjects.Shared;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,7 +13,15 @@ namespace AdCodicem.ValueObjects.AspNetCore.Http.Binding;
 /// The value objects a request was refused for, each member with the messages of the rules it broke and the code of the
 /// first, and the validation problem that reports them.
 /// </summary>
-internal sealed class ValueObjectRefusals
+/// <param name="messages">
+/// The messages the endpoint's convention configured, or <see langword="null"/> for the English ones of the rules.
+/// </param>
+/// <param name="services">The request's services, which hold the localizer the messages are read through.</param>
+/// <remarks>
+/// Every refusal is listed through this class, so that each gets the message the application's resource holds for its
+/// code, when the endpoint names one, and keeps the English message of the rule otherwise.
+/// </remarks>
+internal sealed class ValueObjectRefusals(ValueObjectMessageOptions? messages, IServiceProvider services)
 {
     /// <summary>What an absent value is reported with: the message of a <see langword="null"/> the generated code refuses.</summary>
     private const string RequiredMessage = "A value is required.";
@@ -40,9 +49,58 @@ internal sealed class ValueObjectRefusals
         _codes[member] = code;
     }
 
+    /// <summary>
+    /// Adds the refusal of a value object parsed from text, with the message the resource holds for its code, if any.
+    /// </summary>
+    /// <typeparam name="TSelf">Value object type.</typeparam>
+    /// <typeparam name="TValue">Underlying value type.</typeparam>
+    /// <param name="member">The name it binds from, which the refusal is listed under and the message quotes as <c>{0}</c>.</param>
+    /// <param name="message">The English message of the rule.</param>
+    /// <param name="code">The code of the rule.</param>
+    public void Add<TSelf, TValue>(string member, string message, string code)
+        where TSelf : struct, IValueObject<TSelf, TValue>
+        => Add(member, ValueObjectLocalizedMessages.Find<TSelf, TValue>(messages, services, code, member) ?? message, code);
+
     /// <summary>Adds a required value object that is absent.</summary>
     /// <param name="member">The name it binds from.</param>
-    public void AddRequired(string member) => Add(member, RequiredMessage, ValueObjectErrorCodes.Required);
+    public void AddRequired(string member)
+    {
+        var message = messages?.ResourceType is { } resource
+            ? ValueObjectLocalizedMessages.Find(resource, services, descriptor: null, ValueObjectErrorCodes.Required, member)
+            : null;
+
+        Add(member, message ?? RequiredMessage, ValueObjectErrorCodes.Required);
+    }
+
+    /// <summary>
+    /// Adds the value object a request body refused, under its JSON path, with the message the resource holds for its
+    /// code, if any, or the serializer's.
+    /// </summary>
+    /// <param name="json">The exception the serializer threw.</param>
+    /// <param name="code">The code it carries.</param>
+    /// <remarks>
+    /// The message quotes the value object by the name of its type as <c>{0}</c>, never by the JSON path, which holds the
+    /// key a dictionary keyed by a value object refused, the refused value itself. A type the registry cannot describe,
+    /// such as <c>AnyEntityId</c>, has the key of the code alone and no argument. An exception that names no value object
+    /// keeps its message.
+    /// </remarks>
+    public void AddBody(JsonException json, string code)
+    {
+        string? message = null;
+        if (messages?.ResourceType is { } resource && json is ValueObjectJsonException refusal)
+        {
+            // Described only when a resource is named, so that an endpoint keeping the English messages asks the registry
+            // nothing more than it did.
+            message = ValueObjectLocalizedMessages.Find(
+                resource,
+                services,
+                ValueObjectBindingFilter.TryDescribe(refusal.ValueObjectType, out var descriptor) ? descriptor : null,
+                code,
+                ValueObjectLocalizedMessages.NameOf(refusal.ValueObjectType));
+        }
+
+        Add(json.Path ?? string.Empty, message ?? json.Message, code);
+    }
 
     /// <summary>
     /// Creates the validation problem MVC writes for a refused value, with the codes under

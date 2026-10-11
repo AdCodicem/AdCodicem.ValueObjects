@@ -26,13 +26,46 @@ namespace AdCodicem.ValueObjects.FluentValidation;
 /// element of a collection, <c>{CollectionIndex}</c>. The global options apply as well: the default severity, and the
 /// <c>OnFailureCreated</c> callback.
 /// </para>
+/// <para>
+/// A template can also quote <c>{ValueObject}</c>, the name of the value object type, and the arguments its declared
+/// rules supply for the code that refused the value, formatted in the current culture: <c>{MinLength}</c> for
+/// <c>value_object.too_short</c>, <c>{MaxLength}</c> for <c>value_object.too_long</c>, <c>{Minimum}</c> and
+/// <c>{Maximum}</c> for <c>value_object.out_of_range</c>, either empty when the type declares no such bound, and
+/// <c>{KnownValues}</c> for <c>value_object.not_a_known_value</c>, as <see cref="ValueObjectMessages.ArgumentsFor(ValueObjectDescriptor, string, IFormatProvider?)"/>
+/// reads them. FluentValidation leaves a placeholder it has no value for, a positional one included, as it is.
+/// </para>
+/// <para>
+/// Unless a message is chained, a failure looks its message up in <see cref="ValidatorOptions"/>'
+/// <c>LanguageManager</c>, which reads the current UI culture, under the keys of
+/// <see cref="ValueObjectMessages.KeysFor"/>: <c>ValueObject.value_object.too_short</c>, after
+/// <c>ValueObject.value_object.out_of_range.minimum</c> or <c>.maximum</c> for a type declaring one bound alone. An
+/// application adds its translations to a <c>LanguageManager</c> of its own, as FluentValidation documents it, and the
+/// value object's English message, <c>{Reason}</c>, stands for any key it does not translate. The key is that of the code
+/// of the value object's rule, whose arguments the message quotes, whatever code <c>WithErrorCode</c> chains.
+/// <see cref="NotDefault{T, TSelf, TValue}"/> does the same under <c>ValueObject.value_object.required</c>.
+/// </para>
 /// </remarks>
 public static class ValueObjectRuleBuilderExtensions
 {
     /// <summary>
-    /// The message a failure carries unless one is chained: the message of the value object's rule.
+    /// The message a failure carries unless one is chained, or the language manager holds one for its code: the message
+    /// of the value object's rule.
     /// </summary>
     private const string ReasonTemplate = "{Reason}";
+
+    /// <summary>
+    /// What the message factory of a rule answers until a message is chained, which replaces it: text no template holds,
+    /// and which formatting leaves as it is, since it holds no placeholder.
+    /// </summary>
+    private const string DefaultMessage = "\u0000AdCodicem.ValueObjects.DefaultMessage";
+
+    /// <summary>
+    /// The message of <see cref="NotDefault{T, TSelf, TValue}"/> unless one is chained, or the language manager holds one.
+    /// </summary>
+    private const string RequiredTemplate = "'{PropertyName}' is required.";
+
+    /// <summary>The placeholder the name of the value object type is quoted under.</summary>
+    private const string ValueObjectPlaceholder = "ValueObject";
 
     /// <summary>
     /// The key under which FluentValidation hands a child validator, run for each element of a collection, the index of
@@ -67,7 +100,10 @@ public static class ValueObjectRuleBuilderExtensions
         ArgumentNullException.ThrowIfNull(valueObjectType);
 
         var descriptor = Resolve(valueObjectType);
-        var options = new ChainedOptions<T, string?>();
+        var options = new ChainedOptions<T, string?>(
+            descriptor.ValueObjectType,
+            code => ValueObjectMessages.KeysFor(descriptor.Schema, code),
+            code => ValueObjectMessages.ArgumentsFor(descriptor, code, CultureInfo.CurrentCulture));
 
         return ruleBuilder
             .Must((instance, value, context) =>
@@ -81,7 +117,6 @@ public static class ValueObjectRuleBuilderExtensions
 
                 return true; // The failure is already reported, with the code of the rule it breaks.
             })
-            .WithMessage(ReasonTemplate)
             .Configure(options.Capture);
     }
 
@@ -102,7 +137,10 @@ public static class ValueObjectRuleBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(ruleBuilder);
 
-        var options = new ChainedOptions<T, TValue>();
+        var options = new ChainedOptions<T, TValue>(
+            typeof(TSelf),
+            static code => ValueObjectMessages.KeysFor(TSelf.Schema, code),
+            static code => ValueObjectMessages.ArgumentsFor<TSelf, TValue>(code, CultureInfo.CurrentCulture));
 
         return ruleBuilder
             .Must((instance, value, context) =>
@@ -123,7 +161,6 @@ public static class ValueObjectRuleBuilderExtensions
 
                 return true; // The failure is already reported, with the code of the rule it breaks.
             })
-            .WithMessage(ReasonTemplate)
             .Configure(options.Capture);
     }
 
@@ -146,6 +183,12 @@ public static class ValueObjectRuleBuilderExtensions
     /// the default too, so the rule refuses a valid zero as <c>value_object.required</c>. Keep it for a value object
     /// over <see cref="string"/>, or over a value type whose rules refuse its zero anyway.
     /// </para>
+    /// <para>
+    /// Unless a message is chained, a failure carries the message <see cref="ValidatorOptions"/>' <c>LanguageManager</c>
+    /// holds under <c>ValueObject.value_object.required</c> for the current UI culture, or
+    /// <c>'{PropertyName}' is required.</c> when it holds none. A template can quote <c>{ValueObject}</c>, the name of the
+    /// value object type, besides FluentValidation's own placeholders.
+    /// </para>
     /// </remarks>
     public static IRuleBuilderOptions<T, TSelf> NotDefault<T, TSelf, TValue>(this IRuleBuilder<T, TSelf> ruleBuilder)
         where TSelf : struct, IValueObject<TSelf, TValue>
@@ -153,9 +196,19 @@ public static class ValueObjectRuleBuilderExtensions
         ArgumentNullException.ThrowIfNull(ruleBuilder);
 
         return ruleBuilder
-            .Must(static value => !value.IsDefault)
+            .Must(static (_, value, context) =>
+            {
+                if (!value.IsDefault)
+                {
+                    return true;
+                }
+
+                context.MessageFormatter.AppendArgument(ValueObjectPlaceholder, NameOf(typeof(TSelf)));
+
+                return false;
+            })
             .WithErrorCode(ValueObjectErrorCodes.Required)
-            .WithMessage("'{PropertyName}' is required.");
+            .WithMessage(static (_, _) => Translation([ValueObjectMessages.KeyFor(ValueObjectErrorCodes.Required)]) ?? RequiredTemplate);
     }
 
     /// <summary>
@@ -195,6 +248,37 @@ public static class ValueObjectRuleBuilderExtensions
     }
 
     /// <summary>
+    /// Gets the first message the language manager holds, in the current UI culture, under one of the keys.
+    /// </summary>
+    /// <param name="keys">The keys, the most specific first.</param>
+    /// <returns>The message, or <see langword="null"/> when it holds none.</returns>
+    /// <remarks>
+    /// FluentValidation's language manager answers a missing key with empty text, never <see langword="null"/>, and falls
+    /// back from a culture to its parent, then to English: an application's English translation of a key answers every
+    /// specific culture, and the invariant culture, that has none of its own. A neutral culture never falls back to
+    /// English, and keeps <c>{Reason}</c> without a translation of its own.
+    /// </remarks>
+    private static string? Translation(IReadOnlyList<string> keys)
+    {
+        foreach (var key in keys)
+        {
+            var message = ValidatorOptions.Global.LanguageManager.GetString(key);
+            if (!string.IsNullOrEmpty(message))
+            {
+                return message;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gets the name a value object type is quoted under: the name of the type, without the arity of a generic one,
+    /// <c>Reference</c> for <c>Reference&lt;PurchaseOrder&gt;</c>.
+    /// </summary>
+    private static string NameOf(Type valueObjectType) => valueObjectType.Name.Split('`')[0];
+
+    /// <summary>
     /// Reports a refusal with the options chained on the rule, falling back on the value object's code and message.
     /// </summary>
     /// <typeparam name="T">Validated object.</typeparam>
@@ -204,29 +288,47 @@ public static class ValueObjectRuleBuilderExtensions
     /// FluentValidation gives a rule one error code, fixed when the rule is built, while each rule of a value object
     /// has its own. The failure is therefore built here, as FluentValidation builds it from the rule: the code
     /// chained with <c>WithErrorCode</c> when there is one, else the value object's; the message template of the rule,
-    /// <c>{Reason}</c> unless another is chained, formatted with the placeholders FluentValidation prepares for any
-    /// failure, the index of a collection element included; the severity chained, else the global one; the state
-    /// chained, if any; and the global <c>OnFailureCreated</c> callback last. A message builder set on the rule through
-    /// <c>Configure</c> is the one thing left out: FluentValidation lets it be set, but not read back.
+    /// the one chained, else the language manager's for the code, else <c>{Reason}</c>, formatted with the placeholders
+    /// FluentValidation prepares for any failure, the index of a collection element included, and those of the value
+    /// object; the severity chained, else the global one; the state chained, if any; and the global
+    /// <c>OnFailureCreated</c> callback last. A message builder set on the rule through <c>Configure</c> is the one thing
+    /// left out: FluentValidation lets it be set, but not read back.
     /// </para>
     /// <para>
-    /// The rule is built once and validated concurrently, so the component is only read here, never written.
+    /// FluentValidation does not tell a message chained either: the rule's message factory answers
+    /// <see cref="DefaultMessage"/> until <c>WithMessage</c> replaces it, and that answer is what calls for the language
+    /// manager. To the tools that read a rule's message without validating anything, through
+    /// <c>GetUnformattedErrorMessage</c>, which hands the factory no context, it answers <c>{Reason}</c>, as before.
+    /// </para>
+    /// <para>
+    /// The rule is built once and validated concurrently, so the component is only read here, never written once
+    /// captured.
     /// </para>
     /// </remarks>
-    private sealed class ChainedOptions<T, TProperty>
+    /// <param name="valueObjectType">The value object type, quoted as <c>{ValueObject}</c>.</param>
+    /// <param name="keys">Gets the keys a code's message is looked up under.</param>
+    /// <param name="arguments">Gets the arguments of a code, which join the placeholders.</param>
+    private sealed class ChainedOptions<T, TProperty>(
+        Type valueObjectType,
+        Func<string, IReadOnlyList<string>> keys,
+        Func<string, IReadOnlyList<KeyValuePair<string, object?>>> arguments)
     {
+        private readonly string _name = NameOf(valueObjectType);
+
         private IValidationRule<T, TProperty>? _rule;
 
         private RuleComponent<T, TProperty>? _component;
 
         /// <summary>
-        /// Captures the rule and the component holding the options chained on it, once, when the rule is built.
+        /// Captures the rule and the component holding the options chained on it, once, when the rule is built, and gives
+        /// the component the default message a chained one replaces.
         /// </summary>
         /// <param name="rule">The rule.</param>
         public void Capture(IValidationRule<T, TProperty> rule)
         {
             _rule = rule;
             _component = (RuleComponent<T, TProperty>)rule.Current;
+            _component.SetErrorMessage(static (context, _) => context is null ? ReasonTemplate : DefaultMessage);
         }
 
         /// <summary>
@@ -240,11 +342,18 @@ public static class ValueObjectRuleBuilderExtensions
             var rule = _rule!;
             var component = _component!;
 
+            // A refusal always carries a code: the descriptor's parser gives one to a parser written by hand that omits it.
+            var code = validation.ErrorCode!;
             var formatter = context.MessageFormatter
                 .AppendPropertyName(context.DisplayName)
                 .AppendPropertyValue(value)
                 .AppendArgument("PropertyPath", context.PropertyPath)
-                .AppendArgument("Reason", validation.ErrorMessage);
+                .AppendArgument("Reason", validation.ErrorMessage)
+                .AppendArgument(ValueObjectPlaceholder, _name);
+            foreach (var (name, argument) in arguments(code))
+            {
+                formatter.AppendArgument(name, argument);
+            }
 
             // A child validator run for each element of a collection is handed the index of the element.
             if (context.RootContextData.TryGetValue(CollectionIndexKey, out var index)
@@ -253,9 +362,15 @@ public static class ValueObjectRuleBuilderExtensions
                 formatter.AppendArgument("CollectionIndex", index);
             }
 
-            var failure = new ValidationFailure(context.PropertyPath, component.GetErrorMessage(context, value), value)
+            var message = component.GetErrorMessage(context, value);
+            if (string.Equals(message, DefaultMessage, StringComparison.Ordinal))
             {
-                ErrorCode = component.ErrorCode ?? validation.ErrorCode,
+                message = formatter.BuildMessage(Translation(keys(code)) ?? ReasonTemplate);
+            }
+
+            var failure = new ValidationFailure(context.PropertyPath, message, value)
+            {
+                ErrorCode = component.ErrorCode ?? code,
                 FormattedMessagePlaceholderValues = new(formatter.PlaceholderValues),
                 Severity = component.SeverityProvider is { } severity ? severity(context, value) : ValidatorOptions.Global.Severity,
             };

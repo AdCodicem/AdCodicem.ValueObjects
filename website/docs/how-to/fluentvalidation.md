@@ -73,11 +73,66 @@ RuleFor(request => request.Iban)
 
 `{Reason}` is the value object's own message — `The IBAN check digits are incorrect.` — beside the usual
 `{PropertyName}`, `{PropertyValue}` and `{PropertyPath}`, and `{CollectionIndex}` in a child validator run for each
-element of a collection. A message chained alone keeps the value object's code, so a client still branches on
+element of a collection. A message can also quote `{ValueObject}`, the name of the value object type, and the
+arguments of its declared rules for the code that refused the value — `{MinLength}`, `{MaxLength}`, `{Minimum}`,
+`{Maximum}`, `{KnownValues}` — as [messages in another language](#messages-in-another-language) lists them. A message
+chained alone keeps the value object's code, so a client still branches on
 `value_object.invalid_format` while a person reads your wording. `WithName` and `WithState` apply too, and so do the
 same options on `MustSatisfy`. So do the global options: `ValidatorOptions.Global.Severity` when no severity is
 chained, and `ValidatorOptions.Global.OnFailureCreated`. A message builder set on the rule through `Configure` is not
 applied, since FluentValidation does not let it be read back.
+
+## Messages in another language
+
+FluentValidation translates its own messages through `ValidatorOptions.Global.LanguageManager`, and the rules of value
+objects read it too. With no message chained, a failure of `MustParseAs` or `MustSatisfy` takes the message the
+language manager holds, for the current UI culture, under the key `ValueObject.` followed by the code of the rule, and
+the value object's English message, `{Reason}`, when it holds none. An application adds its translations as
+FluentValidation documents it:
+
+```csharp skip
+public sealed class AppLanguageManager : LanguageManager
+{
+    public AppLanguageManager()
+    {
+        AddTranslation("fr", "ValueObject.value_object.too_short", "« {PropertyName} » : au moins {MinLength} caractères.");
+        AddTranslation("fr", "ValueObject.value_object.out_of_range", "« {PropertyName} » doit être compris entre {Minimum} et {Maximum}.");
+        AddTranslation("fr", "ValueObject.value_object.out_of_range.minimum", "« {PropertyName} » doit valoir au moins {Minimum}.");
+        AddTranslation("fr", "ValueObject.value_object.required", "« {PropertyName} » est obligatoire.");
+    }
+}
+
+ValidatorOptions.Global.LanguageManager = new AppLanguageManager();
+```
+
+```text
+Iban: "XX"  →  value_object.too_short  « Iban » : au moins 15 caractères.
+```
+
+- The placeholders are those of every rule, `{ValueObject}`, the name of the value object type, and the arguments the
+  type's declared rules supply for the code: `{MinLength}` for `value_object.too_short`, `{MaxLength}` for
+  `value_object.too_long`, `{Minimum}` and `{Maximum}` for `value_object.out_of_range`, either empty when the type
+  declares no such bound, and `{KnownValues}` for `value_object.not_a_known_value`. Each is text formatted in the
+  current culture, so a format given in the placeholder changes nothing, and a placeholder the code does not supply is
+  left as it is. They join the placeholders whatever message is chained: `.WithMessage("Au plus {MaxLength} caractères.")`
+  quotes the length declared once on the type.
+- For a type declaring one bound alone, `value_object.out_of_range` is looked up under the key followed by `.minimum`
+  or `.maximum` first: `ValueObject.value_object.out_of_range.minimum` for `Amount`, which declares a minimum alone.
+- The key is the code of the value object's rule, whatever code `WithErrorCode` chains.
+- `NotDefault` reads the language manager under `ValueObject.value_object.required`, and keeps
+  `'{PropertyName}' is required.` when it holds nothing; `{ValueObject}` is a placeholder there too.
+- FluentValidation's language manager falls back from `fr-FR` to `fr`, then to English: an English translation of a
+  key, `AddTranslation("en", …)`, answers every specific culture, `fr-FR` or `de-DE`, and the invariant culture, that
+  has none of its own, before the key without `.minimum` is looked up, so an English `.minimum` message wins over a
+  French message under the key without it. A neutral culture, `fr` or `de` alone, which `UseRequestLocalization()`
+  sets when the application lists neutral UI cultures, never falls back to English: without a translation of its own,
+  it keeps `{Reason}`.
+- `{PropertyValue}` quotes the refused value, as on any FluentValidation rule: a message shown to someone else should
+  not quote it.
+
+The keys, the arguments and a French example are in
+[the errors reference](../reference/errors.md#a-message-in-the-applications-language), and the
+[ASP.NET Core](./aspnet-core.md#messages-in-the-applications-language) integrations read the same keys from a resource.
 
 ## An underlying value, without building the value object
 

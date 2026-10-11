@@ -58,6 +58,48 @@ public sealed class MinimalApiProblemDetailsInternalsTests
         endpoint.Metadata.OfType<ValueObjectBindingMetadata>().Should().ContainSingle();
     }
 
+    /// <summary>
+    /// The options of the convention that covers an endpoint last replace those of the one before, a route group's, and a
+    /// convention without options keeps them.
+    /// </summary>
+    [Fact]
+    public void An_endpoint_covered_again_takes_the_messages_of_the_last_convention_that_names_some()
+    {
+        var group = new ValueObjectMessageOptions().UseResource<ValidationMessages>();
+        var own = new ValueObjectMessageOptions().UseResource<SparseMessages>();
+        var endpoint = new RouteEndpointBuilder(static _ => Task.CompletedTask, RoutePatternFactory.Parse("/lines"), 0)
+        {
+            Metadata = { Handler },
+        };
+
+        ValueObjectBindingFilter.Apply(endpoint, group);
+        endpoint.Metadata.OfType<ValueObjectBindingMetadata>().Single().Messages.Should().BeSameAs(group);
+        ValueObjectBindingFilter.Apply(endpoint, own);
+        ValueObjectBindingFilter.Apply(endpoint);
+
+        endpoint.Metadata.OfType<ValueObjectBindingMetadata>().Single().Messages.Should().BeSameAs(own);
+        endpoint.FilterFactories.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// An exception carrying a code without naming a value object, which no converter of the library throws, keeps its
+    /// message on an endpoint whose messages name a resource: there is no type to describe.
+    /// </summary>
+    [Fact]
+    public async Task The_handler_keeps_the_message_of_a_refusal_that_names_no_value_object()
+    {
+        var metadata = new ValueObjectBindingMetadata { Messages = new ValueObjectMessageOptions().UseResource<ValidationMessages>() };
+        var context = RequestContext(string.Empty, new Endpoint(null, new EndpointMetadataCollection(metadata), "covered"));
+        var refusal = new JsonException("The converter refused the value.") { Data = { [ValueObjectErrors.ErrorCodeKey] = ValueObjectErrorCodes.TooShort } };
+
+        (await TryHandleAsync(context, new BadHttpRequestException("refused", StatusCodes.Status400BadRequest, refusal))).Should().BeTrue();
+
+        context.Response.Body.Position = 0;
+        var problem = JsonDocument.Parse(context.Response.Body).RootElement;
+        problem.GetProperty("errors").GetProperty(string.Empty)[0].GetString().Should().Be("The converter refused the value.");
+        problem.GetProperty(ValueObjectProblemDetails.ExtensionName).GetProperty(string.Empty).GetString().Should().Be(ValueObjectErrorCodes.TooShort);
+    }
+
     [Fact]
     public void An_endpoint_whose_binder_describes_no_value_object_keeps_the_next_delegate()
     {

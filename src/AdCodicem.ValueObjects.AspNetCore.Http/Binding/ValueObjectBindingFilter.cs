@@ -16,7 +16,7 @@ using HttpJsonOptions = Microsoft.AspNetCore.Http.Json.JsonOptions;
 namespace AdCodicem.ValueObjects.AspNetCore.Http.Binding;
 
 /// <summary>
-/// The convention <see cref="ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails"/> adds, and
+/// The convention <see cref="ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails{TBuilder}(TBuilder)"/> adds, and
 /// the endpoint filter it puts on an endpoint that may bind a value object from text.
 /// </summary>
 internal static class ValueObjectBindingFilter
@@ -54,16 +54,31 @@ internal static class ValueObjectBindingFilter
     /// would without the package. The marker is added all the same: a body the exception handler explains needs none of
     /// the parameters.
     /// </remarks>
-    public static void Apply(EndpointBuilder endpoint)
+    public static void Apply(EndpointBuilder endpoint) => Apply(endpoint, messages: null);
+
+    /// <summary>
+    /// Covers an endpoint, with the messages the refusals are answered with.
+    /// </summary>
+    /// <param name="endpoint">The endpoint being built.</param>
+    /// <param name="messages">
+    /// The messages of the convention, or <see langword="null"/> for the English ones of the rules. On an endpoint
+    /// covered already, they replace the messages of the convention that ran before, a route group's, and
+    /// <see langword="null"/> keeps those.
+    /// </param>
+    /// <exception cref="InvalidOperationException">
+    /// The HTTP JSON options cannot serialize the problem details the endpoint would answer with.
+    /// </exception>
+    public static void Apply(EndpointBuilder endpoint, ValueObjectMessageOptions? messages)
     {
-        if (endpoint.Metadata.OfType<ValueObjectBindingMetadata>().Any())
+        if (endpoint.Metadata.OfType<ValueObjectBindingMetadata>().FirstOrDefault() is { } covered)
         {
+            covered.Messages = messages ?? covered.Messages;
             return;
         }
 
         EnsureProblemsCanBeWritten(endpoint.ApplicationServices);
 
-        var metadata = new ValueObjectBindingMetadata();
+        var metadata = new ValueObjectBindingMetadata { Messages = messages };
         endpoint.Metadata.Add(metadata);
 
         if (endpoint.Metadata.OfType<MethodInfo>().FirstOrDefault() is { } handler && MayBindFromText(handler))
@@ -114,7 +129,7 @@ internal static class ValueObjectBindingFilter
     private static ValueTask<object?> Explain(EndpointFilterInvocationContext invocation, ValueObjectBindingMetadata metadata, EndpointFilterDelegate next)
     {
         var httpContext = invocation.HttpContext;
-        var refusals = new ValueObjectRefusals();
+        var refusals = new ValueObjectRefusals(metadata.Messages, httpContext.RequestServices);
         metadata.Collect(httpContext.Request, httpContext.Request.RouteValues, refusals);
 
         return refusals.Count == 0
@@ -222,8 +237,11 @@ internal static class ValueObjectBindingFilter
     /// Finds the descriptor of a value object, registered or, where the runtime supports dynamic code, described by
     /// reflection.
     /// </summary>
+    /// <param name="type">The value object type.</param>
+    /// <param name="descriptor">Its descriptor, when one is found.</param>
+    /// <returns>Whether a descriptor was found.</returns>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = RegisteredOnly)]
-    private static bool TryDescribe(Type type, [NotNullWhen(true)] out ValueObjectDescriptor? descriptor)
+    internal static bool TryDescribe(Type type, [NotNullWhen(true)] out ValueObjectDescriptor? descriptor)
         => ValueObjectRegistry.TryGet(type, out descriptor)
            || (RuntimeFeature.IsDynamicCodeSupported && ValueObjectRegistry.TryResolve(type, out descriptor));
 }

@@ -69,8 +69,13 @@ foreach (var (mode, throwOnBadRequest) in new[] { ("production", false), ("devel
     problemsBuilder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context => context.ProblemDetails.Extensions.Remove("traceId"));
     problemsBuilder.Services.AddValueObjectHttpProblemDetails();
 
+    // The messages of the /localized group are read from a resource, through the localizer, and the request localization
+    // middleware, after the exception handler as usual, names the request's culture, the invariant one here.
+    problemsBuilder.Services.AddLocalization();
+
     await using var problems = problemsBuilder.Build();
     problems.UseExceptionHandler();
+    problems.UseRequestLocalization();
     Problems.Map(problems);
     await problems.StartAsync();
     try

@@ -11,7 +11,8 @@ A rejected value always carries two things: a stable, machine-readable **code**,
 **message**. The code is the contract — it reaches the problem details of MVC controllers and minimal APIs,
 FluentValidation failures and [every exception an integration throws](#the-code-in-an-exception), and a client may
 branch on it. The
-message is for people, and may change.
+message is for people, and may change: it is English, and an application that answers in its users' language looks a
+message up [by the code](#a-message-in-the-applications-language) instead.
 
 ## Framework codes
 
@@ -32,6 +33,75 @@ Defined as constants on `ValueObjectErrorCodes`:
 A validator hook returns `ValidationResult.Failure("delivery_date.sunday", "Nothing is delivered on a Sunday.")`
 for a rule of its own. Prefer a specific code of your own over a framework code that means something else: a
 client can act on `delivery_date.sunday`, not on a generic `value_object.invalid_format`.
+
+## A message in the application's language
+
+The message of a rule is English, and stays so for the developers who read exceptions and logs. An application that
+answers its users in another language translates it by code, and the integrations look the translation up when they
+refuse a value: `AddValueObjects(messages => messages.UseResource<T>())` on MVC and
+`WithValueObjectProblemDetails(messages => messages.UseResource<T>())` on a minimal API
+([ASP.NET Core](../how-to/aspnet-core.md#messages-in-the-applications-language)), and FluentValidation's
+`LanguageManager` under `MustParseAs`, `MustSatisfy` and `NotDefault`
+([FluentValidation](../how-to/fluentvalidation.md#messages-in-another-language)). No translation ships with the
+packages: each application writes the messages it wants, and a key it leaves out keeps the English message.
+
+The key of a code is `ValueObject.` followed by the code, as `ValueObjectMessages.KeyFor` gives it:
+`ValueObject.value_object.too_short`, `ValueObject.value_object.id.invalid_length` for an
+[entity identifier](../entity-identifiers.md), `ValueObject.delivery_date.sunday` for a code of your own. For
+`value_object.out_of_range` on a type declaring one bound alone, a more specific key is looked up first:
+`ValueObject.value_object.out_of_range.minimum` when the type declares a minimum alone, `.maximum` when it declares a
+maximum alone, then the key of the code. The key follows the bounds the type declares, not the side the value crossed,
+which a refusal does not tell. `ValueObjectMessages.KeysFor` lists them in that order.
+
+A message quotes arguments the rules the type declares supply, through `ValueObjectMessages.ArgumentsFor`: each has a
+name, which FluentValidation quotes as a placeholder, and a position, which an `IStringLocalizer` formats with
+`string.Format`.
+
+| Code | Named (FluentValidation) | Positional (MVC, minimal APIs) |
+| --- | --- | --- |
+| Every code | `{PropertyName}`, `{ValueObject}` | `{0}`, the member |
+| `value_object.too_short` | `{MinLength}` | `{1}` |
+| `value_object.too_long` | `{MaxLength}` | `{1}` |
+| `value_object.out_of_range` | `{Minimum}`, `{Maximum}` | `{1}`, `{2}` |
+| `value_object.not_a_known_value` | `{KnownValues}` | `{1}` |
+
+- `{ValueObject}` is the name of the value object type, without the arity of a generic one: `Reference` for
+  `Reference<PurchaseOrder>`. `{0}` is the member the refusal is listed under: the display name MVC gives it, the
+  name a minimal API value binds from, or, in a request body, the name of the value object, never the JSON path, which
+  holds the key a dictionary keyed by a value object refused.
+- Each argument is text, formatted in the current culture: a bound is read back from the invariant text the schema
+  holds and written for the culture, `0,01` in French, a date in the culture's order, and the known values are joined
+  with the culture's list separator followed by a space, `, ` in English and `; ` in French, where the comma separates
+  the decimals. A rule the type does not declare, the other bound of a range of one, is an empty text, and a format
+  given in a placeholder, `{Minimum:N2}`, changes nothing.
+- The refused value is never an argument: a message shown to someone else must not quote what was sent.
+  FluentValidation's own `{PropertyValue}` still quotes it, as on any rule.
+- Every other code, `value_object.required`, `value_object.invalid_format`, `value_object.not_parsable`, an entity
+  identifier's or a code of your own, has the arguments of every code alone. A code of the table always has its
+  arguments, an empty text for a rule the type does not declare.
+
+The current UI culture chooses the message and the current culture formats the arguments, as .NET does elsewhere: with
+`UseRequestLocalization()`, both follow the request. A template quoting an argument its code does not supply is the
+application's error: an `IStringLocalizer` throws its `FormatException`, which the integrations let through, while
+FluentValidation leaves a placeholder it has no value for as it is. On MVC and minimal APIs, a resource read without
+`builder.Services.AddLocalization()` throws an `InvalidOperationException` naming the call.
+
+A French resource for the codes of the framework, as an example:
+
+| Key | Message |
+| --- | --- |
+| `ValueObject.value_object.required` | `« {0} » est obligatoire.` |
+| `ValueObject.value_object.invalid_format` | `Le format de « {0} » n'est pas valide.` |
+| `ValueObject.value_object.out_of_range` | `« {0} » doit être compris entre {1} et {2}.` |
+| `ValueObject.value_object.out_of_range.minimum` | `« {0} » doit valoir au moins {1}.` |
+| `ValueObject.value_object.out_of_range.maximum` | `« {0} » doit valoir au plus {2}.` |
+| `ValueObject.value_object.too_long` | `« {0} » : au plus {1} caractères.` |
+| `ValueObject.value_object.too_short` | `« {0} » : au moins {1} caractères.` |
+| `ValueObject.value_object.not_a_known_value` | `« {0} » doit être l'une des valeurs suivantes : {1}.` |
+| `ValueObject.value_object.not_parsable` | `« {0} » n'a pas la forme attendue.` |
+
+A `.maximum` message quotes `{2}`: the positions are fixed, the maximum always second. The same messages serve
+FluentValidation's `LanguageManager` once `{0}` reads `{PropertyName}` and each position its name.
 
 ## `ValidationResult`
 

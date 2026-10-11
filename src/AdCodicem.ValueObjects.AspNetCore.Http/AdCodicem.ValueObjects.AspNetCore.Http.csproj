@@ -20,4 +20,10 @@
     <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The lookup of a refusal's message in the application's resource, compiled into the MVC package too, which sees
+         none of this one's internals. -->
+    <Compile Include="..\Shared\ValueObjectLocalizedMessages.cs" Link="Shared\ValueObjectLocalizedMessages.cs" />
+  </ItemGroup>
+
 </Project>

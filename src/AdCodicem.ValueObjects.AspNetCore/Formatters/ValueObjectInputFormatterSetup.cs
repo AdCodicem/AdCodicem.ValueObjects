@@ -1,3 +1,4 @@
+using AdCodicem.ValueObjects.AspNetCore.ModelBinding;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,11 @@ namespace AdCodicem.ValueObjects.AspNetCore.Formatters;
 /// media types and encodings the application gave the formatter it replaces. A formatter the application built with
 /// options of its own, or derived, is left as it is.
 /// </para>
+/// <para>
+/// The replacement answers a refused value object with the messages of the value object binder provider, which
+/// <c>AddValueObjects(messages =&gt; …)</c> configured, so that a body speaks the language the route and query values
+/// speak.
+/// </para>
 /// </remarks>
 /// <param name="jsonOptions">MVC's JSON options, the application's.</param>
 /// <param name="loggerFactory">The factory of the framework formatter's logger.</param>
@@ -35,6 +41,7 @@ internal sealed class ValueObjectInputFormatterSetup(
         ArgumentNullException.ThrowIfNull(options);
 
         var application = jsonOptions.Value;
+        var messages = options.ModelBinderProviders.OfType<ValueObjectModelBinderProvider>().FirstOrDefault()?.Messages;
         var formatters = options.InputFormatters;
         for (var index = 0; index < formatters.Count; index++)
         {
@@ -47,7 +54,8 @@ internal sealed class ValueObjectInputFormatterSetup(
 
             var replacement = new ValueObjectJsonInputFormatter(
                 application,
-                loggerFactory.CreateLogger<SystemTextJsonInputFormatter>());
+                loggerFactory.CreateLogger<SystemTextJsonInputFormatter>(),
+                messages);
 
             replacement.SupportedMediaTypes.Clear();
             foreach (var mediaType in framework.SupportedMediaTypes)

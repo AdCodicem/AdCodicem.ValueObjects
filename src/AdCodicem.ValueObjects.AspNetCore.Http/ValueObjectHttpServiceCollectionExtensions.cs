@@ -22,7 +22,7 @@ public static class ValueObjectHttpServiceCollectionExtensions
     /// With <c>ThrowOnBadRequest</c> on, the default in Development, a minimal API throws a
     /// <see cref="Microsoft.AspNetCore.Http.BadHttpRequestException"/> where it would answer a bare 400, before any
     /// endpoint filter runs. The handler takes that exception, on an endpoint covered by
-    /// <see cref="ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails"/> alone, and answers 400
+    /// <see cref="ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails{TBuilder}(TBuilder)"/> alone, and answers 400
     /// with the problem details the filter writes: the route, query and header values of the endpoint parsed again, and
     /// the value object a request body refused, under its JSON path, with the code
     /// <see cref="ValueObjectErrors.TryGetCode"/> reads from the exception the serializer threw. It never copies the
@@ -30,7 +30,9 @@ public static class ValueObjectHttpServiceCollectionExtensions
     /// under its JSON path, which holds the key, as MVC lists it. Any other exception, a 400 no value object caused among
     /// them, is left to the next handler, a body the serializer cannot read at all included, even beside a refused route,
     /// query or header value: with <c>ThrowOnBadRequest</c> off, the framework answers such a body before any filter
-    /// runs, and the handler keeps that answer.
+    /// runs, and the handler keeps that answer. On an endpoint whose convention names a resource of messages, the handler
+    /// answers with them, in the culture of the request, whatever the order of <c>UseRequestLocalization()</c> and
+    /// <c>UseExceptionHandler()</c>.
     /// </para>
     /// <para>
     /// It is an <see cref="IExceptionHandler"/>, which the exception handler middleware calls: register

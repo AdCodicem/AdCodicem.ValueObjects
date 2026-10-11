@@ -1,5 +1,6 @@
 using AdCodicem.ValueObjects.FluentValidation;
 using FluentValidation;
+using FluentValidation.Resources;
 
 namespace AdCodicem.ValueObjects.NativeAot;
 
@@ -42,6 +43,36 @@ internal static class Validation
             var result = validator.Validate(form);
             var errors = result.Errors.Select(error => $"{error.PropertyName} {error.ErrorCode} \"{error.ErrorMessage}\"");
             report.Line($"FluentValidation {form}", result.IsValid ? "valid" : string.Join("; ", errors));
+        }
+
+        // The same forms with the application's translations, which the invariant culture the application runs in reads
+        // from the English entries: each refusal whose code has one quotes the arguments of its rules.
+        var original = ValidatorOptions.Global.LanguageManager;
+        ValidatorOptions.Global.LanguageManager = new Translations();
+        try
+        {
+            foreach (var form in forms)
+            {
+                var result = validator.Validate(form);
+                var errors = result.Errors.Select(error => $"{error.PropertyName} {error.ErrorCode} \"{error.ErrorMessage}\"");
+                report.Line($"FluentValidation translated {form}", result.IsValid ? "valid" : string.Join("; ", errors));
+            }
+        }
+        finally
+        {
+            ValidatorOptions.Global.LanguageManager = original;
+        }
+    }
+
+    /// <summary>The translations of an application, under the keys of the value objects' rule codes.</summary>
+    private sealed class Translations : LanguageManager
+    {
+        public Translations()
+        {
+            AddTranslation("en", "ValueObject.value_object.out_of_range", "{PropertyName} lies outside {Minimum}..{Maximum} ({ValueObject}).");
+            AddTranslation("en", "ValueObject.value_object.too_long", "{PropertyName} holds more than {MaxLength} characters ({ValueObject}).");
+            AddTranslation("en", "ValueObject.value_object.required", "{PropertyName} is missing ({ValueObject}).");
+            AddTranslation("en", "ValueObject.value_object.not_a_known_value", "{PropertyName} is none of {KnownValues}.");
         }
     }
 }
