@@ -1,8 +1,9 @@
 namespace AdCodicem.ValueObjects.Shared;
 
 /// <summary>
-/// Writes a type the way C# names it in code, for a message that shows the registration to add: the test-data sampler
-/// and each library adapter over it link this file, so that each writes its own registration with the same names.
+/// Writes a type the way C# names it in code, for a message: the test-data sampler and each library adapter over it link
+/// this file, so that each writes the registration to add with the same names, and so does the Entity Framework Core
+/// package, which names the type of a key it refuses.
 /// </summary>
 internal static class TypeNames
 {

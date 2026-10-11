@@ -73,13 +73,16 @@ These were sources too, and no longer are:
 | --- | --- |
 | AutoMapper 16, no explicit map | The mapping throws `AutoMapperMappingException`, "Missing type map configuration or unsupported mapping.", since no constructor takes the value alone. Map each type: `CreateMap<string, Iban>().ConvertUsing(s => Iban.Create(s))`. |
 | Entity Framework Core, writing a default | Refused: on a property of the value object's type, `SaveChanges` throws and writes nothing; an optional property stores `NULL`. An element of a collection is refused as a property is, but in a `List<Iban?>`, over text, where it is stored as a JSON `null`. No later read finds an empty `Iban` to trust. EFCore.BulkExtensions writes through the same converter (inferred, not run). |
+| Entity Framework Core, under `ConfigureValueObjects`, a `Guid` value-object primary key of one property left unset | Refused when the entity is added, attached or updated, with an `InvalidOperationException` carrying `value_object.required`, whatever the type's rules, unless the key is generated, with `HasValueObjectKeyGeneration()`, or opted out, with `ValueGeneratedNever()` ([A Guid key left unset](../how-to/ef-core.md#a-guid-key-left-unset)). |
 | Dapper, a default as a parameter | Refused with a `DataException` before the command runs, from an `Iban` and an `Iban?` alike. |
 | MongoDB.Driver with `AdCodicem.ValueObjects.MongoDB`, writing a default | Refused with a `BsonSerializationException` before anything is sent, from an `Iban` and an `Iban?` alike, in a document, an update or a query constant. |
 | MessagePack and SignalR with `AdCodicem.ValueObjects.MessagePack`, writing a default | Refused with a `MessagePackSerializationException`, from an `Iban`, a dictionary key and an `Iban?` holding one alike: a .NET client's invocation throws before it is sent, and a hub method's result fails to be written, which closes the connection. |
 | System.Text.Json and Newtonsoft.Json with its converter, writing a default | Refused with a `JsonException` or a `JsonSerializationException`, so a service reading the payload never receives it. |
 
 A type that accepts its zero, an `Amount` with a minimum of 0 or an unconstrained `Guid`, is still written as zero:
-over a value type, nothing tells the default from a constructed zero.
+over a value type, nothing tells the default from a constructed zero. The exception is a `Guid` value object as an
+Entity Framework Core primary key, above; an integer key over a type that accepts zero is written as zero, as a key the
+domain chose.
 
 ## Guards
 

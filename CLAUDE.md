@@ -214,9 +214,12 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, the
   MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, the test-data sampler's
   `Next(descriptor)`, the AutoFixture specimen builder, Bogus's `RuleForValueObjects` and `ValueObject<TSelf>`, FsCheck's
-  `MergeValueObjects`, and EF Core's `ConfigureValueObjects` and `ConfigureEntityIds` do. An entity identifier's descriptor has a visitor of its
-  own: `EntityIdDescriptor.Accept` hands an `IEntityIdVisitor<TResult>` the identifier type, under `IEntityId<TId>`,
-  through which `EntityIdBson.Register` of `Identifiers.MongoDB` closes each id generator and reaches `TId.New()`.
+  `MergeValueObjects`, and EF Core's `ConfigureValueObjects` and `ConfigureEntityIds` do. The key convention
+  `ConfigureValueObjects` adds closes nothing: it tells a value object over `Guid` by `IValueObject<Guid>` and names a
+  factory that is not generic, and `HasValueObjectKeyGeneration<TSelf>()` is typed. An entity identifier's descriptor
+  has a visitor of its own: `EntityIdDescriptor.Accept` hands an `IEntityIdVisitor<TResult>` the identifier type, under
+  `IEntityId<TId>`, through which `EntityIdBson.Register` of `Identifiers.MongoDB` closes each id generator and reaches
+  `TId.New()`.
   `ConfigureValueObjects` still closes the converter of a `TSelf?` property, or of such an element of a collection over
   text, with `MakeGenericType`, over the visitor's own type arguments: C# names it only under `TValue : struct` or
   `TSelf : IValueObject<TSelf, string>`, which `Visit` cannot prove, and it must stay the type a compiled model names.
@@ -248,16 +251,18 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
 
 ### Invariants worth knowing before changing anything
 
-- **Normalize, then validate, then assign**, so a non-default instance is by construction normalized and valid.
-  The exceptions are the EF Core and Dapper read paths, which use `CreateUnchecked` because they read values this
-  same application already validated. `ConfigureValueObjects(strict: true)` turns validation back on for EF Core;
-  Dapper validates only a column the value object cannot have written: text read into a value object over another
-  type, or a number or a `Guid` read into one over `string`. MongoDB reads the other way round: strict, through
-  `TryCreate`, unless the serializer is trusted (`ValueObjectBson.Register(trusted: true, …)`), since a collection has
-  no schema and is often written by more than one program; so does MessagePack, unless the resolver is trusted
-  (`WithValueObjects(trusted: true)`, `UseValueObjects(trusted: true)`), since the bytes may come from another service.
-  A `nil`, a BSON `null`, and a value the underlying type's own formatter or serializer cannot read are refused whatever
-  the trust.
+- **Normalize, then validate, then assign**, so a non-default instance is by construction normalized and valid. The
+  exceptions are the EF Core and Dapper read paths, which use `CreateUnchecked` because they read values this same
+  application already validated, and the temporary value of an integer key `HasValueObjectKeyGeneration` generates,
+  which the database replaces and nothing writes; the GUID it generates for a key goes through `Create`, since a write
+  validates only an instance equal to the default and trusts any other to have gone through it.
+  `ConfigureValueObjects(strict: true)` turns validation back on for EF Core; Dapper validates only a column the value
+  object cannot have written: text read into a value object over another type, or a number or a `Guid` read into one
+  over `string`. MongoDB reads the other way round: strict, through `TryCreate`, unless the serializer is trusted
+  (`ValueObjectBson.Register(trusted: true, …)`), since a collection has no schema and is often written by more than one
+  program; so does MessagePack, unless the resolver is trusted (`WithValueObjects(trusted: true)`,
+  `UseValueObjects(trusted: true)`), since the bytes may come from another service. A `nil`, a BSON `null`, and a value
+  the underlying type's own formatter or serializer cannot read are refused whatever the trust.
 - **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on success. The
   integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a `JsonException` or
   `JsonSerializationException`, a model state error, the validation problem of a minimal API, a FluentValidation
@@ -472,6 +477,26 @@ These are all load-bearing, and each cost real debugging time:
   type takes the converter of `TSelf`, not a nullable one: EF Core's JSON writer throws a `NullReferenceException` on
   the `null` a nullable converter hands it there, so such an element is refused where an optional column stores a
   `NULL`, and over text it is stored as a JSON `null`.
+- **EF Core generates a key, and calls a key's generator, by rules that look past the value object only halfway.** Its
+  conventions make a key generated on add from the key's own CLR type, so a key typed as a value object is generated by
+  nothing, and `ValueGeneratedOnAdd()` alone gets its random GUID generator, or its temporary integers converted through
+  a strict converter, which refuses them. It calls a property's generator whenever the property has one, even at
+  `ValueGenerated.Never`, for an entity whose key equals its sentinel, `default(TSelf)`, in `Add`, `Attach`, `Update`
+  and `Remove` alike: that is how `ValueObjectKeyConvention` refuses an unset `Guid` key without changing the column or
+  the migration snapshot, with `value_object.required` under `ValueObjectErrors.ErrorCodeKey`, and why `HasData` of a
+  `Guid.Empty` key then fails model building. The same generator makes it take a dependent whose key holds a foreign key
+  to that key, left at its default for the navigation, for a new one: `Attach` of a stored aggregate adds it, as for a
+  `Guid` key, which the guide and the changelog say. It caches a generator per property in its internal service
+  provider, which serves one provider, so `ProviderGuidValueGenerator` reads the provider's name once. A temporary
+  integer is replaced by a relational database only: the in-memory provider would store it as the key, so
+  `ValueObjectKeyGenerator` refuses the add on a provider that is not relational, which the unit suite checks on
+  `Microsoft.EntityFrameworkCore.InMemory`, a test-only reference. `HasValueObjectKeyGeneration` is declared once per
+  underlying type it supports, `Guid` in `ValueObjectConventionExtensions` and `short`, `int` and `long` in a static
+  class each, `ValueObjectInt16KeyGenerationExtensions`, `ValueObjectInt32KeyGenerationExtensions` and
+  `ValueObjectInt64KeyGenerationExtensions`: C# refuses two methods differing only by their constraints in one class
+  (CS0111), and drops from overload resolution a candidate whose constraints fail, so the call needs no type argument.
+  A further integer type is one more class, provided SQL Server and PostgreSQL make its identity column of the type's
+  own width, or the identity overflows the type.
 - **Swashbuckle 10 is built on `Microsoft.OpenApi` 2, and fails on 3.** Its document generator throws
   `MissingMethodException` once `Microsoft.OpenApi` 3 is resolved, which `Microsoft.AspNetCore.OpenApi` 11 forces: the
   island's main project references that package, so `AdCodicem.ValueObjects.Swashbuckle` is installed by a project of
@@ -578,8 +603,9 @@ These are all load-bearing, and each cost real debugging time:
   `ValueObjectPatternSyntaxTests` names the contracts' copy through `extern alias abstractions`; the MongoDB copy is
   tested through `PcrePattern`, and the copy of `AdCodicem.ValueObjects.Testing.Data` through `PatternSampler`, whose
   tests name no node type. A further package linking it is tested the same way. `TypeNames.cs`, which writes a type as C#
-  names it in a message, is linked by `Testing.Data` and by its AutoFixture, Bogus and FsCheck adapters: the unit suite
-  references `Testing.Data` under `Aliases="global,testingdata"`, and `SamplerTests` names its copy through the alias.
+  names it in a message, is linked by `Testing.Data`, by its AutoFixture, Bogus and FsCheck adapters, and by the EF Core
+  package, for the key it refuses: the unit suite references `Testing.Data` under `Aliases="global,testingdata"`, and
+  `SamplerTests` names its copy through the alias.
   `ValueObjectArguments.cs` and `ValueObjectArgumentRejection.cs`, the check of a tool's arguments and the result it
   answers a refusal with, name no type of Microsoft.Extensions.AI, and are linked by the AI and the Model Context
   Protocol packages, each overload of `FirstRejection` called by one of them: no test names them, `LanguageModels/`
@@ -658,7 +684,11 @@ Four suites, each with a distinct job:
   which opens no connection to build one, and run collections of value objects through SQLite in memory, each test on a
   database of its own (`PrimitiveCollectionTests`): the JSON stored, the queries over the elements, change tracking,
   strict reads, refused elements, owned and complex types, and every sample in a list, an array and a list of its
-  optional type (`PrimitiveCollectionParity`). EF Core builds a model once per context type, so each model shape there
+  optional type (`PrimitiveCollectionParity`); and keys typed as value objects (`EntityFrameworkCoreKeyTests`): the
+  refusal of a `Guid` key left unset and its code, in every shape the convention concerns or leaves alone, an owned
+  collection item and a dependent attached through a navigation included, and keys generated, over a `Guid` and over
+  each integer type, a temporary value, a strict context, a migration's operations, a round trip through SQLite and the
+  refusal of the in-memory provider included. EF Core builds a model once per context type, so each model shape there
   has a context type of its own.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
@@ -701,8 +731,10 @@ Four suites, each with a distinct job:
 - **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
   objects reach the column types they claim, a collection of them the PostgreSQL array of its element's type, whose
   length only `format_type` shows, or SQL Server's `nvarchar(max)` JSON, read as the element's type by a query over its
-  elements, plus the API surface end to end; and a real MongoDB 8 server, which stores
-  a value object of every underlying type MongoDB.Bson can represent, linked from the unit suite's
+  elements, `Guid` value-object keys generated as each provider generates a `Guid` (SQL Server's sequential GUIDs,
+  version 7 on PostgreSQL) and sorted by the engine as they were generated, and integer ones by an identity column of
+  their width, which SQL Server refuses an explicit key for, plus the API surface end to end; and a real MongoDB 8
+  server, which stores a value object of every underlying type MongoDB.Bson can represent, linked from the unit suite's
   `Domain/UnderlyingTypes.cs`, as the document its primitive writes, refuses one over `Int128` or `UInt128`, and
   answers each LINQ and `Builders` shape over value objects with the documents the same query over the primitives
   would; under the `$jsonSchema` validator built from the rules, it refuses another writer's document, stores every
@@ -753,7 +785,8 @@ on where they apply.
   reads the compiled code, so a warning the library suppresses takes `[UnconditionalSuppressMessage]` and a guard, as
   `MustParseAs` found out.
 - `AdCodicem.ValueObjects.CompiledModel` holds a context mapping every value object the EF Core convention maps,
-  required and optional, a generic one, an `[EntityId]` key and collections of them, nullable elements included, and a
+  required and optional, a generic one, an `[EntityId]` key and collections of them, nullable elements included, keys
+  typed as value objects it generates, over a `Guid` and an `int`, and one over a `Guid` it refuses to add unset, and a
   strict context beside it.
   `.github/scripts/compiled-model.sh` writes their model with `dotnet ef dbcontext optimize` under
   `artifacts/compiled-model/`, never committed, and builds on it with `CompiledModel=jit` or `aot`. The build job
@@ -778,7 +811,8 @@ on where they apply.
 Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-five packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
-Server and PostgreSQL 17, collections of value objects included, System.Text.Json source generation, ASP.NET Core
+Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
+key refused unset, System.Text.Json source generation, ASP.NET Core
 model binding, on System.Text.Json and on Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal
 API problem details,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection

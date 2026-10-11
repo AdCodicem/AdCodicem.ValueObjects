@@ -179,7 +179,9 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   analyzer (an entity property never set) is refused by every writer when its type rejects the default (JSON,
   Dapper, MongoDB, MessagePack, XML in an assembly marked `[assembly: ValueObjectXmlSerialization]`, EF Core
   `SaveChanges`); an EF Core `Iban?` column stores `NULL` instead, and so does an element of a `List<Iban?>` (over
-  text only: an element of a `List<Quantity?>` is refused).
+  text only: an element of a `List<Quantity?>` is refused). Under `ConfigureValueObjects`, an EF Core primary key of one
+  property over a `Guid` value object that nothing generates refuses an entity added without it (`value_object.required`
+  in the exception's `Data`): assign it, or call `HasValueObjectKeyGeneration()`.
 - `NormalizeCore` / `ValidateCore` / `TryFormatCore` — the pre-interface names. They compile, they never run.
 - `Pattern = "..."` on `[ValueObject<T>]` — a compile error (`VO0021`). Move the text to the hook, with
   `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`; behaviour is unchanged.

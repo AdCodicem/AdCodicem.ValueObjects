@@ -244,6 +244,50 @@ public sealed class EntityFrameworkCoreTests : IDisposable
         Chain(thrown.Which).Should().ContainItemsAssignableTo<ValueObjectException>();
     }
 
+    [Fact]
+    public async Task A_Guid_value_object_key_is_generated_as_a_version_7_GUID_and_round_trips()
+    {
+        var parcels = new[] { new Parcel { Label = "first" }, new Parcel { Label = "second" } };
+        await using (var write = new ShopContext(_options))
+        {
+            write.Parcels.AddRange(parcels);
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        parcels.Select(parcel => parcel.Id.Value).Should().OnlyHaveUniqueItems().And.OnlyContain(key => key.Version == 7);
+        await using var read = new ShopContext(_options);
+        var key = parcels[1].Id;
+        (await read.Parcels.SingleAsync(parcel => parcel.Id == key, TestContext.Current.CancellationToken)).Label.Should().Be("second");
+    }
+
+    [Fact]
+    public void An_entity_added_without_its_Guid_key_is_refused()
+    {
+        using var context = new ShopContext(_options);
+
+        var add = () => context.Customers.Add(new Customer { Email = EmailAddress.Create("no.key@example.com"), Country = CountryCode.France });
+
+        add.Should().Throw<InvalidOperationException>().WithMessage("'Customer' was added without its key: *");
+        context.ChangeTracker.Entries().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task An_integer_value_object_key_is_generated_by_the_database_and_read_back_strictly()
+    {
+        var tickets = new[] { new Ticket { Label = "first" }, new Ticket { Label = "second" } };
+        await using (var write = new StrictShopContext(_options))
+        {
+            write.Tickets.AddRange(tickets);
+            write.Entry(tickets[0]).Property(ticket => ticket.Id).IsTemporary.Should().BeTrue();
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        tickets.Select(ticket => ticket.Id.Value).Should().Equal(1, 2);
+        await using var read = new StrictShopContext(_options);
+        var key = tickets[1].Id;
+        (await read.Tickets.SingleAsync(ticket => ticket.Id == key, TestContext.Current.CancellationToken)).Label.Should().Be("second");
+    }
+
     private static IEnumerable<Exception> Chain(Exception? exception)
     {
         for (; exception is not null; exception = exception.InnerException)

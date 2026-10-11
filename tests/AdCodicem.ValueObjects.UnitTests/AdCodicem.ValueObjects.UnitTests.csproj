@@ -19,8 +19,8 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Testing\AdCodicem.ValueObjects.Testing.csproj" />
-    <!-- Under an alias too: src/Shared/TypeNames.cs is compiled into the sampler and into each of its library adapters,
-         and its tests name the sampler's copy through the alias. -->
+    <!-- Under an alias too: src/Shared/TypeNames.cs is compiled into the sampler, into each of its library adapters and
+         into the Entity Framework Core package, and its tests name the sampler's copy through the alias. -->
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Testing.Data\AdCodicem.ValueObjects.Testing.Data.csproj" Aliases="global,testingdata" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AutoFixture\AdCodicem.ValueObjects.AutoFixture.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Bogus\AdCodicem.ValueObjects.Bogus.csproj" />
@@ -71,10 +71,12 @@
     <PackageReference Include="LateApexEarlySpeed.Json.Schema" />
     <!-- A provider, so that a DbContext can build the model the Entity Framework Core conventions shape; building it
          opens no connection. SQLite in memory, which needs no server, runs what only an engine shows of a primitive
-         collection of value objects: the JSON it stores, the queries over its elements, change tracking. What a real
-         server makes of them stays in the integration suite. -->
+         collection of value objects: the JSON it stores, the queries over its elements, change tracking, and the keys
+         SQLite generates. The in-memory provider, which is not relational, generates no integer key. What a real server
+         makes of them stays in the integration suite. -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <!-- An in-memory server, so that the ASP.NET Core and OpenAPI integrations are driven by real requests without
          a socket. The sample's end-to-end flows stay in the integration suite. -->
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />

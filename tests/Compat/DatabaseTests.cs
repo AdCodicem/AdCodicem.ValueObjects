@@ -34,6 +34,12 @@ public abstract class DatabaseFixture : IAsyncLifetime
     /// <summary>Gets the SQL this provider reads the elements of a primitive collection through.</summary>
     public abstract string ElementsSql { get; }
 
+    /// <summary>Gets the version of the GUIDs this provider generates for a Guid key.</summary>
+    public abstract int GuidVersion { get; }
+
+    /// <summary>Gets the query telling whether a column is an identity, 1 or 0 in a column named Value, taking the table and the column.</summary>
+    public abstract string IdentitySql { get; }
+
     public async ValueTask InitializeAsync()
     {
         ConnectionString = await StartAsync();
@@ -88,6 +94,12 @@ public sealed class PostgreSqlFixture : DatabaseFixture
 
     public override string ElementsSql => "= ANY (";
 
+    public override int GuidVersion => 7;
+
+    public override string IdentitySql
+        => "SELECT CASE WHEN is_identity = 'YES' THEN 1 ELSE 0 END AS \"Value\" FROM information_schema.columns "
+           + "WHERE table_name = {0} AND column_name = {1}";
+
     public override DbConnection CreateConnection() => new NpgsqlConnection(ConnectionString);
 
     public override string Quote(string identifier) => $"\"{identifier}\"";
@@ -118,6 +130,10 @@ public sealed class SqlServerFixture : DatabaseFixture
     public override string BinaryCollation => "Latin1_General_BIN2";
 
     public override string ElementsSql => "OPENJSON(";
+
+    public override int GuidVersion => 4;
+
+    public override string IdentitySql => "SELECT COLUMNPROPERTY(OBJECT_ID({0}), {1}, 'IsIdentity') AS [Value]";
 
     public override DbConnection CreateConnection() => new SqlConnection(ConnectionString);
 
@@ -263,6 +279,40 @@ public abstract class DatabaseTests<TFixture>(TFixture fixture) : IClassFixture<
 
         var thrown = await read.Should().ThrowAsync<Exception>();
         Chain(thrown.Which).Should().ContainItemsAssignableTo<ValueObjectException>();
+    }
+
+    [Fact]
+    public async Task A_generated_Guid_value_object_key_is_the_one_the_provider_generates_for_a_Guid()
+    {
+        var parcels = new[] { new Parcel { Label = "first" }, new Parcel { Label = "second" } };
+        await using (var write = fixture.CreateContext())
+        {
+            write.Parcels.AddRange(parcels);
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        parcels.Should().OnlyContain(parcel => parcel.Id.Value.Version == fixture.GuidVersion);
+        await using var read = fixture.CreateContext();
+        var key = parcels[1].Id;
+        (await read.Parcels.SingleAsync(parcel => parcel.Id == key, TestContext.Current.CancellationToken)).Label.Should().Be("second");
+    }
+
+    [Fact]
+    public async Task An_integer_value_object_key_is_an_identity_column()
+    {
+        var tickets = new[] { new Ticket { Label = "first" }, new Ticket { Label = "second" } };
+        await using (var write = fixture.CreateContext(strict: true))
+        {
+            write.Tickets.AddRange(tickets);
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        tickets[1].Id.Value.Should().Be(tickets[0].Id.Value + 1).And.BePositive();
+        await using var read = fixture.CreateContext(strict: true);
+        var key = tickets[1].Id;
+        (await read.Tickets.SingleAsync(ticket => ticket.Id == key, TestContext.Current.CancellationToken)).Label.Should().Be("second");
+        (await read.Database.SqlQueryRaw<int>(fixture.IdentitySql, "tickets", "Id").SingleAsync(TestContext.Current.CancellationToken))
+            .Should().Be(1);
     }
 
     [Fact]

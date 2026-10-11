@@ -1,4 +1,5 @@
-// The AutoFixture, Bogus and FsCheck packages compile their own copy of TypeNames, which the alias keeps apart.
+// The AutoFixture, Bogus, FsCheck and Entity Framework Core packages compile their own copy of TypeNames, which the alias
+// keeps apart.
 extern alias testingdata;
 
 using System.Text.RegularExpressions;

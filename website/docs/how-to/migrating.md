@@ -110,6 +110,7 @@ Three differences to plan for:
 | `OrderId.New()` | A `New()` of your own, below — or an [`[EntityId]`](../tutorials/public-identifiers.md) for an identifier clients see |
 | `OrderId.Empty` | `OrderId?` for absence; `default(OrderId)` is now a build error |
 | `new OrderId.EfCoreValueConverter()`, one per type | `ConfigureValueObjects(assembly)`, once |
+| `.HasConversion(...).ValueGeneratedOnAdd()` on a key | [`HasValueObjectKeyGeneration()`](./ef-core.md#value-objects-as-keys), which keeps the provider's sequential GUIDs, or its identity column for an `int` or a `long` identifier; a `Guid` key left unset is refused |
 | `SqlMapper.AddTypeHandler(new OrderId.DapperTypeHandler())`, one per type | `ValueObjectDapper.AddValueObjectHandlers(assembly)`, once |
 | Converters passed to a source-generated context's options | `[JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]` |
 

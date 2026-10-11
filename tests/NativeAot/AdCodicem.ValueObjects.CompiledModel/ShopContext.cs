@@ -11,6 +11,12 @@ public class ShopContext(string connectionString) : DbContext
 {
     public DbSet<Shipment> Shipments => Set<Shipment>();
 
+    public DbSet<Parcel> Parcels => Set<Parcel>();
+
+    public DbSet<Consignment> Consignments => Set<Consignment>();
+
+    public DbSet<Page> Pages => Set<Page>();
+
     /// <summary>Gets a value indicating whether the context validates what it reads.</summary>
     protected virtual bool Strict => false;
 
@@ -26,6 +32,13 @@ public class ShopContext(string connectionString) : DbContext
         => configurationBuilder
             .ConfigureValueObjects(Strict, typeof(OrderId).Assembly)
             .ConfigureEntityIds(Strict, typeof(OrderId).Assembly);
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Parcel>().Property(parcel => parcel.Id).HasValueObjectKeyGeneration();
+        modelBuilder.Entity<Consignment>();
+        modelBuilder.Entity<Page>().Property(page => page.Id).HasValueObjectKeyGeneration();
+    }
 }
 
 /// <summary>The same model, validating every value it reads.</summary>

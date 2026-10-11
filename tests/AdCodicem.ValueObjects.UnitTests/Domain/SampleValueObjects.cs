@@ -85,7 +85,10 @@ public readonly partial struct Percentage : IValueObjectMinimum<decimal>, IValue
 [ValueObject<Guid>]
 public readonly partial struct CustomerId : IValueObjectValidator<Guid>
 {
-    /// <summary>Creates a new identifier, sequential enough to keep a clustered index happy.</summary>
+    /// <summary>
+    /// Creates a new identifier, a version 7 GUID, ordered by the time it was created where the database compares GUIDs
+    /// byte by byte, as PostgreSQL does; SQL Server compares its last bytes first, and generates its own sequential ones.
+    /// </summary>
     /// <returns>A new identifier.</returns>
     public static CustomerId New() => CreateUnchecked(Guid.CreateVersion7());
 

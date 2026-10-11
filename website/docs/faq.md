@@ -94,7 +94,10 @@ something else, call `TryCreate` and throw your own exception from the `Validati
 
 Yes to both. The generated equality and hashing make dictionary lookups allocation-free, and a value object
 serializes as a JSON property name. In EF Core it can be a primary or a foreign key; for a string key compared
-without case, give the column a matching collation.
+without case, give the column a matching collation. `HasValueObjectKeyGeneration()` generates a `Guid` key with GUIDs
+the database keeps in order, and makes a `short`, `int` or `long` key an identity column; under `ConfigureValueObjects`,
+a `Guid` key nothing generates refuses an entity added without it
+([Value objects as keys](./how-to/ef-core.md#value-objects-as-keys)).
 
 ### Can an entity hold a list of value objects?
 

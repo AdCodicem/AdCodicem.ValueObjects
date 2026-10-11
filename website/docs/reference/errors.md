@@ -206,6 +206,26 @@ A log is no such write: nothing reads one back into a value object. The
 [Serilog integration](../how-to/logging.md#serilog) logs a default instance as the default of its underlying type,
 `0`, `""` or `false`, and throws nothing, whatever it logs.
 
+### An entity added without its key
+
+Under `ConfigureValueObjects`, a primary key of one property over a `Guid` value object, which is no foreign key and
+which nothing generates, refuses an entity added without it ([A Guid key left
+unset](../how-to/ef-core.md#a-guid-key-left-unset)), whatever the value object's rules, and the exception carries
+`value_object.required` in its `Data`, as [below](#the-code-in-an-exception). Entity Framework Core asks for the key,
+and so throws, in `Add`, in `Attach`, `Update` and `Remove`, which take such an entity for a new one, and in
+`DetectChanges` or `SaveChanges` for a new entity found through a navigation. Nothing is written, and the refused entity
+is not tracked; in a graph, the entities attached before it stay tracked, so clear the change tracker before saving the
+same context again.
+
+| Situation | Exception |
+| --- | --- |
+| An entity added without its `Guid` key | `InvalidOperationException`, carrying `value_object.required` in its `Data`, "'Shipment' was added without its key: 'Shipment.Id' holds default(ParcelId), Guid.Empty, and nothing generates it. Assign the key in the domain, or have it generated with HasValueObjectKeyGeneration()." The first name is the entity added, the second the key's declaring type: the root of a hierarchy, or the principal whose key a dependent shares. |
+| A GUID `HasValueObjectKeyGeneration()` generated, which the value object refuses | `ValueObjectException` from `Add`, with the code of the rule, as from `Create`. |
+| `HasData` seeding a `Guid` key with `Guid.Empty` | Entity Framework Core's `InvalidOperationException`, while the model is built: "The seed entity for entity type 'Shipment' cannot be added because a default value was provided for the required property 'Id'." |
+| An entity added without an integer key `HasValueObjectKeyGeneration()` generates, on a provider that is not relational, Entity Framework Core's in-memory database for one | `InvalidOperationException` from `Add`, "'Folio' was added with its key left to the database, but 'Folio.Id' is numbered by the identity column of a relational database, and Microsoft.EntityFrameworkCore.InMemory is not one. …", which carries no code: the model asks for what the provider cannot do, and no value was refused. |
+| An integer key the domain set, generated as an identity column, on SQL Server | Entity Framework Core's `DbUpdateException` from `SaveChanges`, around SQL Server's refusal to insert a value into an identity column while `IDENTITY_INSERT` is off. |
+| A migration turning an existing integer key into an identity column, on SQL Server | Entity Framework Core's `InvalidOperationException`: "To change the IDENTITY property of a column, the column needs to be dropped and recreated." |
+
 ## The code in an exception
 
 Every exception an integration throws for a value it refuses carries the code of the rule, in the exception type its
@@ -218,6 +238,7 @@ reading English:
 | The Newtonsoft.Json converter | `JsonSerializationException` | In `Data` |
 | Dapper | `DataException` | In `Data` |
 | EF Core, a refused write or a strict read | `ValueObjectException`, inside the `DbUpdateException` or the exception the query fails with | `ErrorCode` |
+| EF Core, an entity added without its `Guid` key, under `ConfigureValueObjects` | `InvalidOperationException`, `value_object.required` | In `Data` |
 | MongoDB.Driver, a read or a refused write | `FormatException` on read, `BsonSerializationException` on write, inside the driver's exception of the same type, naming the member, when it reads or writes a document | In `Data` |
 | MessagePack, a read or a refused write | `MessagePackSerializationException`, inside MessagePack's own of the same type when the serializer reads or writes a value | In `Data` |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly that opts into XML serialization | `XmlException`, inside the serializer's `InvalidOperationException` or `SerializationException` | In `Data` |
@@ -230,7 +251,7 @@ another type, beyond a range, not of the underlying type's shape, or truncated. 
 cannot be `null` is expected carries `value_object.required`: a JSON `null`, a SQL `NULL`, a BSON `null` or a
 MessagePack `nil` read into an `Iban` rather than an `Iban?`, an element
 marked `xsi:nil` that `XmlSerializer` hands a member that cannot be `null` (`DataContractSerializer` refuses that one
-itself, without a code). The messages
+itself, without a code). So does an entity [added without its key](#an-entity-added-without-its-key). The messages
 are the ones the exceptions carried before; where the System.Text.Json reader itself cannot read a token, as for a
 number beyond the range of an `int`, the message is still the serializer's own, "The JSON value could not be converted
 to …", followed by the path. No exception carries the refused value.

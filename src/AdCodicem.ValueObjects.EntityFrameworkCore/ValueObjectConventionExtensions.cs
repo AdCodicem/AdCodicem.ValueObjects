@@ -50,11 +50,21 @@ public static class ValueObjectConventionExtensions
     /// Entity Framework Core cannot write the <c>null</c> there.
     /// </para>
     /// <para>
+    /// A primary key of one property over a <see cref="Guid"/> value object, which is no foreign key and which nothing
+    /// generates, refuses an entity added without it, with an <see cref="InvalidOperationException"/> carrying
+    /// <see cref="ValueObjectErrorCodes.Required"/>, whatever the value object's rules, rather than store it with
+    /// <see cref="Guid.Empty"/>, a value a value object without a rule against it accepts. Have the key generated with
+    /// <see cref="HasValueObjectKeyGeneration{TSelf}(PropertyBuilder{TSelf})"/>, or written as it stands with
+    /// <c>ValueGeneratedNever()</c>; the refusal changes neither the column nor the migration snapshot (see
+    /// <see cref="UnassignedValueObjectKeyGeneratorFactory"/>).
+    /// </para>
+    /// <para>
     /// A compiled model, which <c>dotnet ef dbcontext optimize</c> generates, holds the same mapping. A property of
     /// <c>TSelf?</c> is compared by <see cref="NullableValueObjectComparer{TSelf}"/>, which such a model can write.
     /// </para>
     /// <para>
-    /// This runs once, while the model is built. Nothing here happens per query or per row.
+    /// What it configures is decided once, while the model is built. Nothing here happens per query or per row, but for
+    /// the generator of a key, which Entity Framework Core creates once and asks for a value when an entity is added.
     /// </para>
     /// <para>
     /// Each converter and comparer is closed over its value object through the type arguments the descriptor hands back
@@ -133,6 +143,9 @@ public static class ValueObjectConventionExtensions
         // the converter, the comparer and the length of their value object.
         builder.Conventions.Add(_ => new ValueObjectCollectionConvention(mapped, definitions, strict));
 
+        // A primary key over a Guid value object that nothing generates refuses an entity added without it.
+        builder.Conventions.Add(static _ => new ValueObjectKeyConvention());
+
         return builder;
     }
 
@@ -148,7 +161,9 @@ public static class ValueObjectConventionExtensions
     /// Use this for a property that needs to depart from the convention; otherwise prefer the convention. It cannot
     /// map a value object over <see cref="Int128"/> or <see cref="UInt128"/>, which Entity Framework Core maps to no
     /// column: such a property needs a converter of the application's own. Writing refuses a value the value object
-    /// rejects with a <see cref="ValueObjectException"/>, as the convention does.
+    /// rejects with a <see cref="ValueObjectException"/>, as the convention does. A primary key over a
+    /// <see cref="Guid"/> value object is refused unset only under <c>ConfigureValueObjects</c>, whose convention does
+    /// it; <c>HasValueObjectKeyGeneration()</c> generates a key over a <see cref="Guid"/> or an integer either way.
     /// </remarks>
     public static PropertyBuilder<TSelf> HasValueObjectConversion<TSelf, TValue>(
         this PropertyBuilder<TSelf> builder,
@@ -172,6 +187,43 @@ public static class ValueObjectConventionExtensions
 
         return builder;
     }
+
+    /// <summary>
+    /// Generates a key over a <see cref="Guid"/> when an entity is added, with GUIDs the database keeps in order: SQL
+    /// Server's sequential ones on SQL Server, as Entity Framework Core generates for a <see cref="Guid"/> key there,
+    /// and version 7 ones on every other provider, as Npgsql generates for PostgreSQL.
+    /// </summary>
+    /// <typeparam name="TSelf">Value object type, over <see cref="Guid"/>.</typeparam>
+    /// <param name="builder">Property builder of the key.</param>
+    /// <returns>The same builder, so calls can be chained.</returns>
+    /// <remarks>
+    /// <para>
+    /// The key becomes generated on add, as a <see cref="Guid"/> key is by convention, and gets the generator of
+    /// <see cref="ValueObjectKeyGeneratorFactory{TSelf, TValue}"/>, which a compiled model can write.
+    /// <c>ValueGeneratedOnAdd()</c> alone would not do: Entity Framework Core would then wrap its random generator in a
+    /// conversion on every provider, losing the order SQL Server's clustered index and PostgreSQL's version 7 keep. On
+    /// SQLite and the other providers, where Entity Framework Core generates a random GUID for a <see cref="Guid"/>
+    /// key, the key is a version 7 one all the same.
+    /// </para>
+    /// <para>
+    /// A key the domain set is kept: Entity Framework Core asks a generator only for a key still at its default,
+    /// <c>default(TSelf)</c>, which a value object holding <see cref="Guid.Empty"/> equals, so that one is generated over.
+    /// The GUID goes through the value object's <c>Create</c>, so a rule it breaks fails the add with a
+    /// <see cref="ValueObjectException"/>. <c>Attach</c> or <c>Update</c> of an entity whose key is unset adds it, as for a
+    /// <see cref="Guid"/> key. The key is generated in the application: a default the column declares is not used.
+    /// </para>
+    /// <para>
+    /// It works with or without <c>ConfigureValueObjects</c>, beside
+    /// <see cref="HasValueObjectConversion{TSelf, TValue}(PropertyBuilder{TSelf}, bool)"/>. A key over a
+    /// <see cref="short"/>, an <see cref="int"/> or a <see cref="long"/> is generated by the database, through the method
+    /// of the same name of <see cref="ValueObjectInt16KeyGenerationExtensions"/>,
+    /// <see cref="ValueObjectInt32KeyGenerationExtensions"/> and <see cref="ValueObjectInt64KeyGenerationExtensions"/>,
+    /// which a call picks by the key's type; a value object over any other type is a compile error.
+    /// </para>
+    /// </remarks>
+    public static PropertyBuilder<TSelf> HasValueObjectKeyGeneration<TSelf>(this PropertyBuilder<TSelf> builder)
+        where TSelf : struct, IValueObject<TSelf, Guid>
+        => KeyGeneration.Configure<TSelf, Guid>(builder);
 
     private static bool Is128Bit(Type? valueType) => valueType == typeof(Int128) || valueType == typeof(UInt128);
 

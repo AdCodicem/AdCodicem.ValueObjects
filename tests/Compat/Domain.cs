@@ -25,6 +25,18 @@ public readonly partial struct CustomerId : IValueObjectValidator<Guid>
         => value == Guid.Empty ? ValidationResult.Required("A customer identifier must not be empty.") : ValidationResult.Success;
 }
 
+/// <summary>A Guid value object with no rule, which accepts Guid.Empty.</summary>
+[ValueObject<Guid>]
+public readonly partial struct ParcelId;
+
+/// <summary>An int value object counted from one, as a key the database numbers.</summary>
+[ValueObject<int>]
+public readonly partial struct TicketNumber : IValueObjectMinimum<int>
+{
+    /// <inheritdoc />
+    public static int Minimum => 1;
+}
+
 /// <summary>A string value object with a normalizer and a source-generated pattern.</summary>
 [ValueObject<string>(MaxLength = 254, SchemaFormat = "email")]
 public readonly partial struct EmailAddress : IValueObjectNormalizer<string>, IValueObjectPatternValidator
@@ -222,6 +234,26 @@ public sealed class Portfolio
     public List<Reference<PurchaseOrder>> Orders { get; set; } = [];
 }
 
+/// <summary>A parcel, whose key is generated as the provider generates a Guid key.</summary>
+public sealed class Parcel
+{
+    /// <summary>Gets or sets the key.</summary>
+    public ParcelId Id { get; set; }
+
+    /// <summary>Gets or sets the label.</summary>
+    public string Label { get; set; } = string.Empty;
+}
+
+/// <summary>A ticket, whose key is the database's identity.</summary>
+public sealed class Ticket
+{
+    /// <summary>Gets or sets the key.</summary>
+    public TicketNumber Id { get; set; }
+
+    /// <summary>Gets or sets the label.</summary>
+    public string Label { get; set; } = string.Empty;
+}
+
 /// <summary>The model, mapped by the two conventions as the README says.</summary>
 /// <param name="options">Options.</param>
 public class ShopContext(DbContextOptions options) : DbContext(options)
@@ -240,6 +272,12 @@ public class ShopContext(DbContextOptions options) : DbContext(options)
 
     /// <summary>Gets the portfolios.</summary>
     public DbSet<Portfolio> Portfolios => Set<Portfolio>();
+
+    /// <summary>Gets the parcels.</summary>
+    public DbSet<Parcel> Parcels => Set<Parcel>();
+
+    /// <summary>Gets the tickets.</summary>
+    public DbSet<Ticket> Tickets => Set<Ticket>();
 
     /// <summary>Gets a value indicating whether values read from the database are validated again.</summary>
     protected virtual bool Strict => false;
@@ -295,6 +333,18 @@ public class ShopContext(DbContextOptions options) : DbContext(options)
         {
             portfolio.ToTable("portfolios");
             portfolio.Property(entity => entity.Id).ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<Parcel>(parcel =>
+        {
+            parcel.ToTable("parcels");
+            parcel.Property(entity => entity.Id).HasValueObjectKeyGeneration();
+        });
+
+        modelBuilder.Entity<Ticket>(ticket =>
+        {
+            ticket.ToTable("tickets");
+            ticket.Property(entity => entity.Id).HasValueObjectKeyGeneration();
         });
     }
 }

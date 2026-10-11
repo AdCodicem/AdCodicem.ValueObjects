@@ -10,7 +10,10 @@ public readonly partial struct CustomerId : IValueObjectValidator<Guid>, IValueO
 {
     public static CustomerId Example => Create(new Guid("0193b1c0-0000-7000-8000-000000000001"));
 
-    /// <summary>Creates a new identifier that a clustered index can live with.</summary>
+    /// <summary>
+    /// Creates a new identifier, a version 7 GUID, ordered by the time it was created where the database compares GUIDs
+    /// byte by byte, as PostgreSQL does; SQL Server compares its last bytes first, and generates its own sequential ones.
+    /// </summary>
     /// <returns>A new identifier.</returns>
     public static CustomerId New() => CreateUnchecked(Guid.CreateVersion7());
 
