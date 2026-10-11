@@ -1,7 +1,8 @@
 // A round trip through SQL Server, under the model the project is built with: the compiled one that ci.yml has
 // `dotnet ef dbcontext optimize` write, when it builds with CompiledModel=jit. The relaxed context writes a shipment
 // holding every value object and another leaving every optional one out, both contexts read them back and filter on
-// them, collections of value objects included, and the relaxed one tracks a change, an element added in place included.
+// them, collections of value objects included, on .Value too, which UseValueObjectQueries() translates to the column, and
+// the relaxed one tracks a change, an element added in place included.
 // The relaxed context also generates keys typed as value objects, a Guid one as SQL Server generates a Guid and an int
 // one by the identity, refuses an entity added without a Guid key nothing generates, and reads the keys back.
 //
@@ -68,6 +69,13 @@ var contact = Shipments.Full.Contacts[1];
 // array, which C# 14 binds to MemoryExtensions.Contains over a span, is called on the array as a sequence, and
 // List<T?>.Contains takes a local of the optional type, never a T.
 Quantity? optionalBatch = Shipments.Full.OptionalBatches[0];
+
+// The values .Value is compared with: none of a type Entity Framework Core converts on SQL Server (a ushort, a uint, a
+// ulong), whose parameter a precompiled query fails to map under native AOT, as without this library.
+short least = 2;
+var emailPrefix = "ada@";
+var numberPrefix = "PO-";
+var idPrefix = OrderId.Prefix + "_";
 foreach (var strict in (bool[])[false, true])
 {
     var name = strict ? "strict" : "relaxed";
@@ -95,6 +103,21 @@ foreach (var strict in (bool[])[false, true])
     Report(
         $"{name}: filtered on an element of a collection of optional value objects",
         await context.Shipments.CountAsync(shipment => shipment.OptionalBatches.Contains(optionalBatch)) == 1);
+
+    Report($"{name}: filtered on the value of a quantity", await context.Shipments.CountAsync(shipment => shipment.Quantity.Value > least) == 1);
+    Report(
+        $"{name}: filtered on the value of an optional quantity",
+        await context.Shipments.CountAsync(shipment => shipment.OptionalQuantity!.Value.Value > least) == 1);
+    Report($"{name}: filtered on the value of an email address", await context.Shipments.CountAsync(shipment => shipment.Email.Value.StartsWith(emailPrefix)) == 2);
+    Report(
+        $"{name}: filtered on the value of a construction of a generic value object",
+        await context.Shipments.CountAsync(shipment => shipment.Number.Value.StartsWith(numberPrefix)) == 2);
+    Report($"{name}: filtered on the value of an identifier", await context.Shipments.CountAsync(shipment => shipment.Id.Value.StartsWith(idPrefix)) == 2);
+#pragma warning disable CA1310 // A query, whose comparison the column's collation decides, not code to run.
+    Report(
+        $"{name}: filtered on the value of an element of a collection",
+        await context.Shipments.CountAsync(shipment => shipment.Contacts.Any(contact => contact.Value.StartsWith(emailPrefix))) == 1);
+#pragma warning restore CA1310
 }
 
 await using (var context = new ShopContext(connectionString))

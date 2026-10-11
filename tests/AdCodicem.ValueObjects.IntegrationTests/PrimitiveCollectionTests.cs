@@ -19,6 +19,9 @@ public abstract class PrimitiveCollectionTests<TFixture>(TFixture fixture) : ICl
     /// <summary>The table of portfolios each fixture creates once, which the sample's model does not hold.</summary>
     private static readonly ConditionalWeakTable<DatabaseFixture, Task> Portfolios = new();
 
+    /// <summary>Gets the predicate a prefix search on the value of an element of a collection translates to.</summary>
+    protected abstract string ElementValueSql { get; }
+
     /// <summary>Gets the SQL the provider reads the elements of a collection through, in a query over them.</summary>
     protected abstract string ElementsSql { get; }
 
@@ -85,6 +88,42 @@ public abstract class PrimitiveCollectionTests<TFixture>(TFixture fixture) : ICl
     }
 
     /// <summary>
+    /// Under <c>UseValueObjectQueries()</c>, <c>.Value</c> of an element of a collection is read on the database, through a
+    /// <c>CAST</c> to the element's own store type, over text and over an optional number; on PostgreSQL, whose provider
+    /// infers the type of the array it unnests from the element, which a re-typed element would make it fail to rebuild.
+    /// </summary>
+    [Fact]
+    public async Task The_value_of_an_element_is_read_on_the_database()
+    {
+        await EnsureTableAsync();
+        var portfolio = new Portfolio
+        {
+            Id = Random.Shared.Next(),
+            Ibans = [Iban.Create("FR7630006000011234567890189"), Iban.Create("BE68539007547034")],
+            Limits = [Amount.Create(10m), null],
+        };
+
+        await using (var write = CreateContext())
+        {
+            write.Portfolios.Add(portfolio);
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var read = CreateContext(valueObjectQueries: true);
+        var id = portfolio.Id;
+        var prefix = "FR";
+        var least = 5m;
+
+#pragma warning disable CA1310 // A query, whose comparison the column's collation decides, not code to run.
+        var byIban = read.Portfolios.Where(entity => entity.Id == id && entity.Ibans.Any(iban => iban.Value.StartsWith(prefix)));
+#pragma warning restore CA1310
+        byIban.ToQueryString().Should().Contain(ElementValueSql);
+        (await byIban.CountAsync(TestContext.Current.CancellationToken)).Should().Be(1);
+        (await read.Portfolios.CountAsync(entity => entity.Id == id && entity.Limits.Any(limit => limit!.Value.Value > least), TestContext.Current.CancellationToken))
+            .Should().Be(1);
+    }
+
+    /// <summary>
     /// An element the value object rejects is refused in a collection of the value object, before anything reaches the
     /// table, and stored as a null in a collection of the optional value object over text.
     /// </summary>
@@ -144,10 +183,14 @@ public abstract class PrimitiveCollectionTests<TFixture>(TFixture fixture) : ICl
 
     private Task EnsureTableAsync() => Portfolios.GetValue(fixture, static database => CreateTableAsync(database));
 
-    private PortfolioContext CreateContext()
+    private PortfolioContext CreateContext(bool valueObjectQueries = false)
     {
         var builder = new DbContextOptionsBuilder<PortfolioContext>();
         fixture.Configure(builder, fixture.ConnectionString);
+        if (valueObjectQueries)
+        {
+            builder.UseValueObjectQueries();
+        }
 
         return new PortfolioContext(builder.Options);
     }
@@ -191,6 +234,9 @@ public abstract class PrimitiveCollectionTests<TFixture>(TFixture fixture) : ICl
 public sealed class PostgreSqlPrimitiveCollectionTests(PostgreSqlFixture fixture)
     : PrimitiveCollectionTests<PostgreSqlFixture>(fixture)
 {
+    /// <inheritdoc />
+    protected override string ElementValueSql => "WHERE i.value::character varying(34) LIKE @prefix_startswith";
+
     /// <inheritdoc />
     protected override string ElementsSql => "= ANY (";
 
@@ -243,6 +289,9 @@ public sealed class PostgreSqlPrimitiveCollectionTests(PostgreSqlFixture fixture
 public sealed class SqlServerPrimitiveCollectionTests(SqlServerFixture fixture)
     : PrimitiveCollectionTests<SqlServerFixture>(fixture)
 {
+    /// <inheritdoc />
+    protected override string ElementValueSql => "WHERE CAST([i].[value] AS nvarchar(34)) LIKE @prefix_startswith";
+
     /// <inheritdoc />
     protected override string ElementsSql => "OPENJSON([p].[Ibans]) WITH ([value] nvarchar(34) '$')";
 

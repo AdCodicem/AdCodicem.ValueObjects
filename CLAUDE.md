@@ -236,7 +236,10 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   calls no `TryResolve` either: it tells a value-object parameter of a tool by `ValueObjectRegistry.IsValueObject`, and
   reads each argument through the contract the tool's serializer options hold for the parameter, the one the tool's own
   binding reads it through; nor the Model Context Protocol one, which reads them through the same checker,
-  `src/Shared/ValueObjectArguments.cs`, linked into both packages. No EF Core convention runs under native AOT, where EF
+  `src/Shared/ValueObjectArguments.cs`, linked into both packages; nor the EF Core query translator
+  `UseValueObjectQueries()` registers, which asks no registry: it tells a property this package maps by the converter on
+  the SQL expression EF Core hands it, one of `ConverterTypes.Definitions` or EF Core's composition of one with its own
+  conversion of the underlying type. No EF Core convention runs under native AOT, where EF
   Core reads the compiled model and builds none, and the MVC binder provider runs in no native binary, MVC not being
   AOT-compatible, so the `native AOT` job guards the JSON factory's visitor and the minimal API filter's, and
   `EntityIdDescriptor.Accept`, which the application calls on every identifier registered. `RuntimeClosingTests` guards
@@ -497,6 +500,31 @@ These are all load-bearing, and each cost real debugging time:
   (CS0111), and drops from overload resolution a candidate whose constraints fail, so the call needs no type argument.
   A further integer type is one more class, provided SQL Server and PostgreSQL make its identity column of the type's
   own width, or the identity overflows the type.
+- **The translator of `.Value` re-types a column of a table only.** `ValueObjectMemberTranslator`, which
+  `ValueObjectMemberTranslatorPlugin`, the `IMemberTranslatorPlugin` an `IDbContextOptionsExtension`
+  (`ValueObjectQueryOptionsExtension`) registers, hands EF Core (query services cannot come from
+  `ConfigureConventions`), answers `.Value` of a property whose converter is one of the package's six, alone or composed
+  by EF Core with its own conversion of the underlying type. `CompositeValueConverter` is internal to EF Core, so it
+  reads the `ConvertToProviderExpression`: where the provider stores the underlying type as it stands, the mapping
+  `FindMapping(TValue, storeType)` finds for the column's store type carries no converter, and the conversion must be
+  the call to a package converter's `ToProvider` alone, since one written around it is the application's
+  (`ComposeWith`), which may store something else; where the provider converts the type itself, a call to it anywhere
+  will do, so an application's composition there is taken for EF Core's. It returns a `ColumnExpression` typed as the
+  underlying value, under that mapping, only where EF Core links the column to its table (`ColumnExpression.Column`
+  set), and a `JsonScalarExpression` likewise; anything else, the element of a table-valued function, a column an
+  optional navigation joins in, a `COALESCE`, it converts by a `CAST` to that same store type. Npgsql infers the type
+  mapping of the array an `unnest` reads from the columns referencing its element, and rebuilds the array over a
+  re-typed element, whose comparer it then fails to fit (`ArgumentException` inside a `TargetInvocationException`): the
+  unit suite's Npgsql text pins the cast there. A `CAST` on the column of a table would cost its index on SQL Server,
+  which scans it. EF Core 11 leaves the no-op casts out of the SQL, which the island pins. Once translated, a projected
+  `.Value` is read from the column as SQL reads it, which a strict context does not validate. A query `dotnet ef
+  dbcontext optimize --precompile-queries` precompiles carries the SQL the translator wrote, so the design-time options
+  must call `UseValueObjectQueries()` too, or the precompilation fails on that query. EF Core adds the services of an
+  options extension only to a service provider it builds, never to the one `UseInternalServiceProvider` names, and runs
+  the extensions' `Validate` each time a context starts on such a provider, before it initializes the provider's
+  singleton options: there, `Validate` refuses a provider that lacks the mark `ApplyServices` adds, and resolves nothing
+  else, since resolving the plugin would build the type mapping source, Npgsql's reading those options, before they are
+  set.
 - **Swashbuckle 10 is built on `Microsoft.OpenApi` 2, and fails on 3.** Its document generator throws
   `MissingMethodException` once `Microsoft.OpenApi` 3 is resolved, which `Microsoft.AspNetCore.OpenApi` 11 forces: the
   island's main project references that package, so `AdCodicem.ValueObjects.Swashbuckle` is installed by a project of
@@ -688,8 +716,13 @@ Four suites, each with a distinct job:
   refusal of a `Guid` key left unset and its code, in every shape the convention concerns or leaves alone, an owned
   collection item and a dependent attached through a navigation included, and keys generated, over a `Guid` and over
   each integer type, a temporary value, a strict context, a migration's operations, a round trip through SQLite and the
-  refusal of the in-memory provider included. EF Core builds a model once per context type, so each model shape there
-  has a context type of its own.
+  refusal of the in-memory provider included; and `.Value` in a query under `UseValueObjectQueries()`
+  (`ValueObjectQueryTests`), run on SQLite and written in Npgsql's text: a column, an optional one, a JSON path, an
+  element of a collection, a joined column, a generic construction, an identifier, a composed converter, a converter of
+  the application's own left alone, composed around the package's one included, a strict context, what stays
+  untranslated, a service provider of the application's own refused unless it holds the translator, and every sample
+  against the same query over a property of its underlying type (`ValueQueryParity`). EF Core builds a model once per
+  context type, so each model shape there has a context type of its own.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
   input, the values each type accepts drawn by the FsCheck package's `ValueObjectArbitrary`, over `ValueObjectSampler`,
@@ -733,7 +766,9 @@ Four suites, each with a distinct job:
   length only `format_type` shows, or SQL Server's `nvarchar(max)` JSON, read as the element's type by a query over its
   elements, `Guid` value-object keys generated as each provider generates a `Guid` (SQL Server's sequential GUIDs,
   version 7 on PostgreSQL) and sorted by the engine as they were generated, and integer ones by an identity column of
-  their width, which SQL Server refuses an explicit key for, plus the API surface end to end; and a real MongoDB 8
+  their width, which SQL Server refuses an explicit key for, a prefix search on `.Value` under `UseValueObjectQueries()`
+  reading the column itself, a parameter declared as the column, `.Value` of a value object over a type the provider
+  converts, and of an element of a collection, plus the API surface end to end; and a real MongoDB 8
   server, which stores a value object of every underlying type MongoDB.Bson can represent, linked from the unit suite's
   `Domain/UnderlyingTypes.cs`, as the document its primitive writes, refuses one over `Int128` or `UInt128`, and
   answers each LINQ and `Builders` shape over value objects with the documents the same query over the primitives
@@ -787,7 +822,8 @@ on where they apply.
 - `AdCodicem.ValueObjects.CompiledModel` holds a context mapping every value object the EF Core convention maps,
   required and optional, a generic one, an `[EntityId]` key and collections of them, nullable elements included, keys
   typed as value objects it generates, over a `Guid` and an `int`, and one over a `Guid` it refuses to add unset, and a
-  strict context beside it.
+  strict context beside it, both filtering on `.Value` through `UseValueObjectQueries()`, which `ShopContext` calls in
+  `OnConfiguring`, so that the design-time factory precompiles those queries with it.
   `.github/scripts/compiled-model.sh` writes their model with `dotnet ef dbcontext optimize` under
   `artifacts/compiled-model/`, never committed, and builds on it with `CompiledModel=jit` or `aot`. The build job
   takes the `jit` one on a round trip through SQL Server; the native AOT job publishes the `aot` one, written with its
@@ -805,14 +841,16 @@ on where they apply.
   that is not sealed, in a model with no type named as one of EF Core's internal ones, `Reference<T>` among them
   (CS0104), with `Contains` over an array called on it as an `IEnumerable<T>` (C# 14 binds the span overload, which the
   precompilation cannot translate) and `Contains` over a `List<T?>` handed a local of type `T?`, whatever the element
-  type. A strict context cannot track on a compiled model, so the `jit` round trip reads untracked
-  (`UNTRACKED_READS`); the EF Core guide says why.
+  type, naming no value object nested in a generic type (`Catalog<T>.Stock`: "Couldn't find nested type"), and comparing
+  `.Value` with no local of a type EF Core converts on SQL Server, a `ushort`, a `uint` or a `ulong`, whose parameter a
+  precompiled query fails to map under native AOT. A strict context cannot track on a compiled model, so the `jit` round
+  trip reads untracked (`UNTRACKED_READS`); the EF Core guide says why.
 
 Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-five packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
-key refused unset, System.Text.Json source generation, ASP.NET Core
+key refused unset, `.Value` translated under `UseValueObjectQueries()`, System.Text.Json source generation, ASP.NET Core
 model binding, on System.Text.Json and on Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal
 API problem details,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection

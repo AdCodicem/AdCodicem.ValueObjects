@@ -113,6 +113,13 @@ public abstract class Sample
     public abstract void RoundTripsThroughAPrimitiveCollection();
 
     /// <summary>
+    /// Queries the value object's <c>.Value</c> through Entity Framework Core under <c>UseValueObjectQueries()</c>, on SQLite
+    /// in memory and in Npgsql's query text, and checks that it translates as the same query over a property of the
+    /// underlying type does.
+    /// </summary>
+    public abstract void TranslatesItsValueInAQueryAsItsUnderlyingValue();
+
+    /// <summary>
     /// Writes the value object through MessagePack, with the resolver <c>WithValueObjects</c> puts in front of the
     /// options' own, and checks that it writes and reads back what the bare value it carries writes and reads, under the
     /// standard options and under the <c>Native*</c> resolvers.
@@ -562,6 +569,8 @@ public class Sample<TSelf, TValue> : Sample
     }
 
     public override void RoundTripsThroughAPrimitiveCollection() => PrimitiveCollectionParity.Check<TSelf, TValue>(Small, Large);
+
+    public override void TranslatesItsValueInAQueryAsItsUnderlyingValue() => ValueQueryParity.Check<TSelf, TValue>(Small, Large);
 
     public override void RoundTripsThroughMessagePackAsItsUnderlyingValue()
     {

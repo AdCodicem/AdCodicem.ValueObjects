@@ -198,6 +198,39 @@ public sealed class EntityFrameworkCoreTests : IDisposable
     }
 
     [Fact]
+    public async Task The_value_of_a_value_object_is_read_from_its_column_under_UseValueObjectQueries()
+    {
+        var options = new DbContextOptionsBuilder().UseSqlite(_connection).UseValueObjectQueries().Options;
+        var french = Iban.Create("FR7630006000011234567890189");
+        var customer = new Customer { Id = CustomerId.New(), Email = EmailAddress.Create("value@example.com"), Country = CountryCode.France };
+        customer.Accounts.Add(new BankAccount { Iban = french, CustomerId = customer.Id, Balance = Amount.Create(10m) });
+        customer.Accounts.Add(new BankAccount { Iban = Iban.Create("BE68539007547034"), CustomerId = customer.Id, Balance = Amount.Create(20m) });
+
+        await using (var write = new ShopContext(options))
+        {
+            write.Customers.Add(customer);
+            write.Orders.Add(new Order { Id = 1, Purchase = Reference<PurchaseOrder>.Create("po-1"), Quantity = Quantity.Create(5) });
+            write.Portfolios.Add(new Portfolio { Id = 1, Ibans = [french], Previous = [null, french] });
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var read = new ShopContext(options);
+        var prefix = "FR";
+        short least = 2;
+
+        var byPrefix = read.Accounts.Where(account => account.Iban.Value.StartsWith(prefix)).Select(account => account.Iban);
+        byPrefix.ToQueryString().Should().Contain("\"a\".\"Iban\" LIKE @prefix_startswith").And.NotContain("CAST");
+        (await byPrefix.ToListAsync(TestContext.Current.CancellationToken)).Should().Equal(french);
+        (await read.Orders.CountAsync(order => order.Quantity.Value > least && order.Purchase.Value.StartsWith("PO"), TestContext.Current.CancellationToken))
+            .Should().Be(1);
+        var byElement = read.Portfolios.Where(entity => entity.Ibans.Any(iban => iban.Value.StartsWith(prefix)));
+        byElement.ToQueryString().Should().NotContain("CAST", "Entity Framework Core 11 leaves out the conversion of an element to its own store type");
+        (await byElement.CountAsync(TestContext.Current.CancellationToken)).Should().Be(1);
+        (await read.Portfolios.CountAsync(entity => entity.Previous.Any(iban => iban!.Value.Value.StartsWith(prefix)), TestContext.Current.CancellationToken))
+            .Should().Be(1);
+    }
+
+    [Fact]
     public async Task Change_tracking_compares_the_way_the_value_object_does()
     {
         var customer = new Customer { Id = CustomerId.New(), Email = EmailAddress.Create("tracking@example.com"), Country = CountryCode.France };

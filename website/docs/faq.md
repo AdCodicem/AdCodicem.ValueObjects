@@ -107,6 +107,13 @@ its value object, and queried with `Contains` or `Any`.
 [Collections of value objects](./how-to/ef-core.md#collections-of-value-objects) says which properties it takes, and
 what it writes for an element its type rejects.
 
+### Can an EF Core query filter on `.Value`?
+
+Yes, once the context's options call `UseValueObjectQueries()`: `x.Iban.Value.StartsWith("FR")` then reads the column
+itself, which its index serves, and a parameter compared with it is declared as the column is, `nvarchar(34)`. Without
+it, Entity Framework Core refuses `.Value` as untranslatable; a comparison between value objects translates either way.
+[The value in a query](./how-to/ef-core.md#the-value-in-a-query) says what it covers.
+
 ### Why are values read from the database not validated?
 
 Because the EF Core and Dapper read paths are the hottest in most applications, and they read values the same

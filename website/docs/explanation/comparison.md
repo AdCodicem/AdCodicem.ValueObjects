@@ -35,6 +35,7 @@ be corrected.
 | EF Core mapping | every value object of an assembly in one call, collections of them included | per property, or a marker class listing the types | per type | every value object in one call |
 | Column size from the type's rules | yes | no | no | no, a max-length strategy can be configured |
 | EF Core reads validate | on request (`strict: true`) | by default | — | no, reads use the constructor |
+| EF Core `.Value` in LINQ | translated to the column, on request (`UseValueObjectQueries()`) | no: compare the value objects | no: compare the value objects | no |
 | ASP.NET Core model binding | yes | through the `TypeConverter` | through the `TypeConverter` | yes |
 | Problem details carry the violated rule's code | MVC controllers and minimal APIs | no | no | no |
 | OpenAPI | built-in stack and Swashbuckle 10, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |

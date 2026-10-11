@@ -22,7 +22,9 @@ public class ShopContext(string connectionString) : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseSqlServer(connectionString);
+        // The design-time factory builds the context through here, so that the queries precompiled for native AOT are
+        // translated with .Value read from the column, as they are at run time.
+        optionsBuilder.UseSqlServer(connectionString).UseValueObjectQueries();
 #if COMPILED_MODEL
         optionsBuilder.UseModel(Strict ? Compiled.Strict.StrictShopContextModel.Instance : Compiled.Relaxed.ShopContextModel.Instance);
 #endif
