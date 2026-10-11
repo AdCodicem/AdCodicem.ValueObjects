@@ -91,14 +91,15 @@ actually fired. `DescriptorTests.cs` covers that surface.
 
 ## Invariants
 
-- **Normalize, then validate, then assign** — a non-default instance is by construction normalized and valid.
-  The exceptions are the EF Core and Dapper read paths, which use `CreateUnchecked` because they read values this
-  same application already validated. `ConfigureValueObjects(strict: true)` turns validation back on for EF Core;
-  Dapper validates only a column the value object cannot have written: text read into a value object over another
-  type, or a number read into one over `string`. MongoDB reads the other way round, strict unless the serializer is
-  trusted (`ValueObjectBson.Register(trusted: true, …)`), since a collection has no schema and is often written by
-  more than one program; so does MessagePack, strict unless trusted (`WithValueObjects(trusted: true)`), since the
-  bytes may come from another service or a client.
+- **Normalize, then validate, then assign** — a non-default instance is by construction normalized and valid. The
+  exceptions are the EF Core and Dapper read paths, which use `CreateUnchecked` because they read values this same
+  application already validated, and the temporary value of an integer key EF Core generates, which the database
+  replaces and nothing writes; a GUID key it generates goes through `Create`. `ConfigureValueObjects(strict: true)`
+  turns validation back on for EF Core; Dapper validates only a column the value object cannot have written: text read
+  into a value object over another type, or a number read into one over `string`. MongoDB reads the other way round,
+  strict unless the serializer is trusted (`ValueObjectBson.Register(trusted: true, …)`), since a collection has no
+  schema and is often written by more than one program; so does MessagePack, strict unless trusted
+  (`WithValueObjects(trusted: true)`), since the bytes may come from another service or a client.
 - **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on success. The
   integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a `JsonException` or
   `JsonSerializationException`, a model state error, the validation problem of a minimal API, a FluentValidation
@@ -134,7 +135,7 @@ actually fired. `DescriptorTests.cs` covers that surface.
 |---|---|
 | `UnitTests` | Behaviour of generated code, over value objects defined in `Domain/` — one per underlying type and per option or hook — and of every integration package called directly, a SignalR hub over TestHost and collections of value objects on SQLite in memory included; four fixture assemblies hold what the test assembly cannot, value objects of an assembly that opts into XML serialization among them. Its property-based tests draw the values each type accepts with the test-data sampler, through the FsCheck package's arbitraries, the AutoFixture, Bogus and FsCheck packages fill objects holding value objects, every contract of `Domain/` checks the values its schema rules out, and Microsoft.Extensions.AI tools are called by a scripted model, the OpenAI adapter's strict-mode request captured with no network. |
 | `GeneratorTests` | The generator itself: emission, every diagnostic, hook detection, the analyzers, incremental caching, and every published documentation snippet. |
-| `IntegrationTests` | Real PostgreSQL and SQL Server via Testcontainers, asserting against `information_schema`, a collection of value objects included, plus the API surface end to end; and a real MongoDB server, storing every underlying type MongoDB.Bson can represent as its primitive does, refusing the two 128-bit integers, answering each LINQ and `Builders` shape over value objects, applying the `$jsonSchema` validator built from the rules, and minting entity identifiers on insert. |
+| `IntegrationTests` | Real PostgreSQL and SQL Server via Testcontainers, asserting against `information_schema`, a collection of value objects included, and keys typed as value objects generated as each provider generates a key of their underlying type, plus the API surface end to end; and a real MongoDB server, storing every underlying type MongoDB.Bson can represent as its primitive does, refusing the two 128-bit integers, answering each LINQ and `Builders` shape over value objects, applying the `$jsonSchema` validator built from the rules, and minting entity identifiers on insert. |
 | `RdgTests` | Minimal API endpoints whose binding the Request Delegate Generator writes, over value objects declared in the endpoints' own project, which list their contract (`VO0033`), and the problem details their refusals are answered with. |
 | `tests/NativeAot` | Not a suite: an application referencing every AOT-compatible package, run under the JIT and as a native AOT binary by the `native AOT` job of `ci.yml`, a required check, which fails on a trimming or AOT warning or on any difference between the two outputs; and an EF Core model compiled with `dotnet ef dbcontext optimize`, taken on a round trip through SQL Server and published for native AOT. |
 | `tests/Compat` | Not a suite of the solution: the packages exactly as packed, installed into `net11.0` applications on the .NET 11 release candidate, the Swashbuckle package into one of its own, with its own `global.json` and package versions. Run by the `compat (.NET 11)` job of `ci.yml`, informational until .NET 11 ships. |

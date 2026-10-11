@@ -32,7 +32,10 @@ Four suites, each with a distinct job:
   whose schema and whose answer to a refused argument are checked, and a scripted model stands for a real one: no test
   calls a model, and the request the OpenAI adapter sends in strict mode is captured before it leaves. A Model Context
   Protocol server lists a tool over every sample value object to the SDK's own client, over a pair of pipes in process,
-  and answers each refused argument with a tool execution error carrying its rule.
+  and answers each refused argument with a tool execution error carrying its rule. Keys typed as value objects are
+  generated over a `Guid` and each integer type, a round trip through SQLite in memory included, a `Guid` one left unset
+  is refused in every shape the convention concerns, and an integer key to generate is refused on Entity Framework
+  Core's in-memory provider, which is not relational.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that
@@ -41,7 +44,9 @@ Four suites, each with a distinct job:
   every IDE keystroke re-run the pipeline.
 - **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
   objects reach the column types they claim, a collection of them the PostgreSQL array of its element's type, Dapper and
-  EF Core round trips, a query over the elements of a collection included, plus the API surface end to end; and a
+  EF Core round trips, a query over the elements of a collection included, `Guid` value-object keys generated as each
+  provider generates a `Guid`, in the order the engine sorts them, and integer ones by the engine's identity column,
+  plus the API surface end to end; and a
   real MongoDB server, which stores a value object of every underlying type MongoDB.Bson can represent as the document
   its primitive writes, refuses one over `Int128` or `UInt128`, and answers each LINQ and `Builders` shape over them,
   `.Value` included; which, given the `$jsonSchema` validator built from the rules, refuses another writer's document
@@ -85,7 +90,8 @@ difference between the two outputs, and a pull request merges only once it passe
 run, not only analysed.
 
 The second holds an Entity Framework Core context mapping every value object the conventions map, required and
-optional, a generic one, an identifier as the key and collections of them, beside a strict context. `dotnet ef dbcontext optimize`
+optional, a generic one, an identifier as the key and collections of them, `Guid` and `int` keys it generates and a
+`Guid` key it refuses to add unset, beside a strict context. `dotnet ef dbcontext optimize`
 writes its compiled model on every pull request, which the project then builds on and takes on a round trip through
 SQL Server; the native AOT job also writes the model for native AOT, with its queries precompiled, and publishes it.
 [Compiled models](./how-to/ef-core.md#compiled-models) says what holds there.
@@ -104,7 +110,8 @@ SignalR's MessagePack hub protocol 11 over TestHost, FluentValidation, Newtonsof
 tools and structured output, Model Context Protocol tools over the SDK's own client, `XmlSerializer` and
 `DataContractSerializer` over a domain that opts into XML serialization, the contract kit, and the test-data sampler
 drawing each value object of that domain from the schema the generator of that SDK wrote, through AutoFixture, Bogus and
-FsCheck too. A second project installs
+FsCheck too. On Entity Framework Core 11, keys typed as value objects are generated over a `Guid` and an `int`, and a
+`Guid` one left unset is refused. A second project installs
 the Swashbuckle package, Swashbuckle 10 failing on the `Microsoft.OpenApi` 3 the first one's
 `Microsoft.AspNetCore.OpenApi` 11 brings: there, Swashbuckle documents a minimal API over `Microsoft.OpenApi` 2, as in
 an application that takes Swashbuckle alone.

@@ -28,7 +28,10 @@ boundary the analyzer cannot see — an entity property never set, a default arr
 the JSON converters, the Dapper handler, the MongoDB serializers, the MessagePack formatters, the XML serialization of
 an assembly marked `[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized instance
 whose value its type rejects, and an optional EF Core column stores a `NULL` instead, as does an element of a
-`List<Iban?>` ([what each one throws](./reference/errors.md#a-value-refused-on-write)).
+`List<Iban?>` ([what each one throws](./reference/errors.md#a-value-refused-on-write)). Under
+`ConfigureValueObjects`, an EF Core primary key of one property over a `Guid` value object, which nothing generates,
+refuses an entity added without it, whatever the type's rules
+([an entity added without its key](./reference/errors.md#an-entity-added-without-its-key)).
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value is
 valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in their own
@@ -44,7 +47,8 @@ violated rule wins.
 **Normalize, then validate, then assign.** So a non-default instance is by construction both normalized and
 valid. It happens on construction, on parsing, on deserialization and on model binding — but *not* when
 materializing a row through EF Core or Dapper, which is the hottest path in most applications and reads values this
-same application wrote. `ConfigureValueObjects(strict: true)` turns that back on for a table another system
+same application wrote, nor for the temporary value EF Core holds for an integer key it generates, which the database
+replaces before anything is written. `ConfigureValueObjects(strict: true)` turns that back on for a table another system
 also writes to. MongoDB and MessagePack reads validate, since a collection or a message may come from another
 program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
 `WithValueObjects(trusted: true)`.

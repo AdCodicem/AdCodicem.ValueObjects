@@ -309,6 +309,26 @@ per row.
   correct change tracking for a case-insensitive or otherwise custom comparison.
 - A value object is a perfectly good key. Set the collation of a string key column to match the declared
   `Comparison`, or the database and the application will disagree about equality.
+- EF Core generates no key typed as a value object by itself. Have it generated with
+  `modelBuilder.Entity<Shipment>().Property(s => s.Id).HasValueObjectKeyGeneration()`, never with
+  `ValueGeneratedOnAdd()` alone: over `Guid`, GUIDs the database keeps in order (SQL Server's sequential ones on SQL
+  Server, version 7 on every other provider), through `Create`; over `short`, `int` or `long`, the identity column of
+  SQL Server or PostgreSQL, the row identifier on SQLite (add `.UseAutoincrement()` for `AUTOINCREMENT`), with a
+  temporary value until `SaveChanges`, which a type counted from one accepts, strict included. An integer key is
+  generated on a relational provider only: on the in-memory provider, adding an entity without it throws an
+  `InvalidOperationException`. Any other underlying type is a compile error. SQL Server cannot alter an existing
+  integer column into an identity: such a migration fails, so recreate the table; on PostgreSQL, restart the identity
+  past the highest key in the migration.
+- Under `ConfigureValueObjects`, a single-property primary key over a `Guid` value object that nothing generates (no
+  foreign key, no database default, no generator of your own; an owned collection item's own key included) refuses an
+  entity added, attached or updated without it with an `InvalidOperationException` carrying `value_object.required`
+  in its `Data` (`ValueObjectErrors.TryGetCode` reads it), rather than store `Guid.Empty`. Assign the key in the
+  domain, generate it, or opt out with `.ValueGeneratedNever()` (also needed to seed `Guid.Empty` with `HasData`).
+  `Attach` or `Update` of a stored aggregate now tracks as added a dependent whose key holds the foreign key (a shared
+  key, or the principal's key and a number) left for the navigation to fill: set its foreign key or its state by hand,
+  or opt the principal's key out. A refusal inside a graph leaves what was attached before it tracked: call
+  `ChangeTracker.Clear()` before saving that context. An integer key nothing generates is not refused: it is written
+  as it stands.
 - EF Core maps no `Int128` or `UInt128`, so the convention skips a value object over either. Map it yourself:
   `builder.Properties<LedgerBalance>().HaveConversion<MyConverter, ValueObjectComparer<LedgerBalance>>()`, to a
   numeric column (sorts as numbers, but `System.Decimal` caps it near ±7.9 × 10²⁸) or a text one (full range,

@@ -93,7 +93,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | **`AdCodicem.ValueObjects`** | The one to install: contracts, source generator and analyzers. |
 | `AdCodicem.ValueObjects.Abstractions` | The contracts alone, with no dependency at all. |
 | `AdCodicem.ValueObjects.Json` | Covers source-generated serializer contexts and hand-written value objects, and fills in the JSON Schema System.Text.Json exports. |
-| `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, and a convention that maps a whole assembly. |
+| `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, a convention that maps a whole assembly, and keys generated the provider's way. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, native AOT included. |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | The same problem details for a body MVC reads with Newtonsoft.Json. |
@@ -201,7 +201,9 @@ of any generator a `.globalconfig` adds. What reaches a boundary the analyzer ca
 set, a default array element — is not written as it stands: the JSON converters, the Dapper handler, the MongoDB
 serializers, the MessagePack formatters, the XML serialization of an assembly marked
 `[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized instance whose value its
-type rejects, and an optional EF Core column stores a `NULL` instead, as does an element of a `List<Iban?>`.
+type rejects, and an optional EF Core column stores a `NULL` instead, as does an element of a `List<Iban?>`. Under
+`ConfigureValueObjects`, an EF Core primary key of one property over a `Guid` value object, which nothing generates,
+refuses an entity added without it, whatever the type's rules.
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
@@ -218,7 +220,8 @@ it, and fails the query. Validation is fail-fast: the first violated rule wins.
 **Normalize, then validate, then assign.** So a non-default instance is by construction both normalized and
 valid. It happens on construction, on parsing, on deserialization and on model binding — but *not* when
 materializing a row through EF Core or Dapper, which is the hottest path in most applications and reads values this
-same application wrote. `ConfigureValueObjects(strict: true)` turns that back on for a table another system
+same application wrote, nor for the temporary value EF Core holds for an integer key it generates, which the database
+replaces before anything is written. `ConfigureValueObjects(strict: true)` turns that back on for a table another system
 also writes to. MongoDB and MessagePack reads validate, since a collection or a message may come from another
 program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
 `WithValueObjects(trusted: true)`.
