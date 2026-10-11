@@ -323,9 +323,18 @@ per row.
   `DateTimeOffset` and `ulong`, SQL Server's `time` outside a day and `datetime`, a decimal bound finer than the scale, a
   set looked up ignoring case without a normalizer). JSON columns, collection elements, views and converters of your own
   get none; a validator stays in code. Leave a family out with
-  `checks => checks.Rules = ValueObjectChecks.Lengths | ValueObjectChecks.KnownValues`. A migration picks the
+  `checks => checks.Rules = ValueObjectChecks.Lengths | ValueObjectChecks.KnownValues`; a second call replaces the
+  first's options. A migration picks the
   constraints up, and fails on a table holding a refused row: correct the rows first. Keep `strict: true` for rows
-  already stored. A compiled model holds none; `EnsureCreated` and migrations do.
+  already stored. A compiled model holds none; `EnsureCreated` and migrations do. Patterns are a second opt-in naming
+  the database's dialect: `checks => checks.Patterns = ValueObjectPatternDialect.PostgreSql` (`~`, under `COLLATE "C"`)
+  or `ValueObjectPatternDialect.SqlServer2025` (`REGEXP_LIKE`, compatibility level 170); a dialect the provider does not
+  run writes none. The model then fails to build on a pattern the dialect reads apart from .NET (`\d`, `\w`, `.`,
+  `[^…]`, `\b`, a `$` or `\Z` before the end of the pattern or of a top-level alternative, a lookaround, counts above
+  255 or 1000, any option but `CultureInvariant`, `Compiled`, `ExplicitCapture` and `NonBacktracking`, `IgnoreCase` or
+  `ECMAScript` say): use `[0-9]`, listed classes, the anchor moved after the group (`^(?:a|b)$`, not `^(?:a$|b$)`), or
+  `checks.ExcludePattern<EmailAddress>()` to leave one value object's pattern to the application. No pattern on a
+  fixed-length column.
 - Departing from the convention for a single property: `builder.Property(e => e.Iban).HasValueObjectConversion<Iban, string>()`
   (with an optional `strict: true`). Prefer the convention.
 - Never write `HasConversion` by hand for a value object: you would lose the generated comparer, and with it

@@ -4,7 +4,8 @@ namespace AdCodicem.ValueObjects.IntegrationTests.Fixtures;
 
 // Value objects whose rules a column compares apart from .NET unless the CHECK constraint is written with care: bounds
 // finer than a column's scale or past what a column holds, floats no decimal fraction states, instants at other offsets,
-// closed sets of each kind. CheckConstraintTests writes every value each accepts, and refuses another writer's row.
+// closed sets of each kind, and patterns. CheckConstraintTests writes every value each accepts, and refuses another
+// writer's row; CheckConstraintPatternTests does so for the patterns.
 
 /// <summary>A tracking code, counted as .NET counts it: no normalizer trims it.</summary>
 [ValueObject<string>(MinLength = 5, MaxLength = 10)]
@@ -115,4 +116,26 @@ public readonly partial struct Milestone
 {
     [KnownValue]
     public static readonly Milestone Start = Known(new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero));
+}
+
+/// <summary>A slug, lower-case words joined by hyphens, whose pattern a CHECK constraint states.</summary>
+[ValueObject<string>(MaxLength = 40)]
+public readonly partial struct Slug : IValueObjectPatternValidator
+{
+    [System.Text.RegularExpressions.GeneratedRegex(
+        "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+        matchTimeoutMilliseconds: 1000)]
+    public static partial System.Text.RegularExpressions.Regex Pattern { get; }
+}
+
+/// <summary>A ticket code, three letters, a hyphen and four digits, whose pattern a CHECK constraint states.</summary>
+[ValueObject<string>(MaxLength = 8)]
+public readonly partial struct TicketCode : IValueObjectPatternValidator
+{
+    [System.Text.RegularExpressions.GeneratedRegex(
+        "^[A-Z]{3}-[0-9]{4}$",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+        matchTimeoutMilliseconds: 1000)]
+    public static partial System.Text.RegularExpressions.Regex Pattern { get; }
 }

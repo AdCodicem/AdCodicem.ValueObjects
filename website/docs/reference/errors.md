@@ -207,9 +207,20 @@ followed by eight hexadecimal digits when the name was shortened to the provider
 already taken: by a check constraint of the model, one the application declared, in the same table or, on SQL Server,
 in the schema, or by another
 table's, and the column, unless the name was shortened. None carries a rule code: the server checks the SQL, not the
-value object. A migration adding a constraint to a table that already
-holds a row it refuses fails with the same error, "The ALTER TABLE statement conflicted with the CHECK constraint" on SQL
-Server.
+value object. A migration adding a constraint to a table that already holds a row it refuses fails with the same error,
+"The ALTER TABLE statement conflicted with the CHECK constraint" on SQL Server. With
+[patterns](../how-to/ef-core.md#patterns) named, building the model throws an `InvalidOperationException`, which
+carries no code, for a pattern the dialect would read apart from .NET, naming the value object, the construct, the
+dialect and the remedies: "AddValueObjectCheckConstraints cannot write the pattern of EmailAddress for PostgreSql: it
+holds a negated class, [^…], which .NET matches over one UTF-16 code unit and the database over a whole character: list
+the characters it accepts. Write the pattern within what .NET and the database read alike, leave it out with
+`ExcludePattern<EmailAddress>()`, or leave Patterns at None." A hook whose regular expression sets an option the text
+does not carry, any but `CultureInvariant`, `Compiled`, `ExplicitCapture` and `NonBacktracking`, fails it with a
+message of its own, naming the option: "…its regular expression sets IgnoreCase, which the text of the pattern does not
+carry, and the database would read the text as .NET reads it with no option. Write the pattern so that it means the
+same without them, …". The first use of the context throws it, and so do `dotnet ef migrations add` and
+`dotnet ef dbcontext optimize`. A dialect `ValueObjectPatternDialect` does not define is an
+`ArgumentOutOfRangeException` when the conventions are configured.
 
 `AdCodicem.ValueObjects.MessagePack` also lets through exceptions that carry no code. A read or a write through options
 whose resolver holds no formatter for the underlying type throws MessagePack's `FormatterNotRegisteredException`: a

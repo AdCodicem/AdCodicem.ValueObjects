@@ -119,9 +119,19 @@ public sealed class PostgreSqlFixture : DatabaseFixture
 /// <summary>
 /// SQL Server, which differs from PostgreSQL on identifier storage and on default collation.
 /// </summary>
-public sealed class SqlServerFixture : DatabaseFixture
+public class SqlServerFixture : DatabaseFixture
 {
-    private readonly MsSqlContainer _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+    private readonly MsSqlContainer _container;
+
+    /// <summary>Initializes a new instance of the <see cref="SqlServerFixture"/> class, on SQL Server 2022.</summary>
+    public SqlServerFixture()
+        : this("mcr.microsoft.com/mssql/server:2022-latest")
+    {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="SqlServerFixture"/> class, on the image given.</summary>
+    /// <param name="image">The image of the server.</param>
+    protected SqlServerFixture(string image) => _container = new MsSqlBuilder(image).Build();
 
     /// <inheritdoc />
     public override string ProviderName => "SqlServer";
@@ -146,7 +156,11 @@ public sealed class SqlServerFixture : DatabaseFixture
     public override string BinaryCollation => "Latin1_General_BIN2";
 
     /// <inheritdoc />
-    public override async ValueTask DisposeAsync() => await _container.DisposeAsync();
+    public override async ValueTask DisposeAsync()
+    {
+        await _container.DisposeAsync();
+        GC.SuppressFinalize(this);
+    }
 
     /// <inheritdoc />
     protected override async Task<string> StartAsync()
@@ -156,3 +170,9 @@ public sealed class SqlServerFixture : DatabaseFixture
         return _container.GetConnectionString();
     }
 }
+
+/// <summary>
+/// SQL Server 2025, whose new databases are at compatibility level 170, the one <c>REGEXP_LIKE</c> needs: the CHECK
+/// constraints written from the patterns run there, and only there.
+/// </summary>
+public sealed class SqlServer2025Fixture() : SqlServerFixture("mcr.microsoft.com/mssql/server:2025-latest");

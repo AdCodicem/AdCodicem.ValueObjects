@@ -20,8 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The names of the key its refusal shows, written as C# names the type. -->
+    <!-- The names of the types its refusals show, written as C# names them: a key, a value object and its pattern. -->
     <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
+    <!-- The reader of a .NET pattern, which a CHECK constraint writes in the dialect of the database. -->
+    <Compile Include="..\Shared\ValueObjectPatternSyntax.cs" Link="Shared\ValueObjectPatternSyntax.cs" />
   </ItemGroup>
 
 </Project>

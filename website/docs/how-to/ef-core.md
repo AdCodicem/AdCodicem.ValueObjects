@@ -161,8 +161,9 @@ no column, and runs under `EF.IsDesignTime`, so the converters let it through.
 ## CHECK constraints from the rules
 
 Only a column size reaches the database by default. Another writer, an ETL job, a migration script, a legacy
-application, can still store `GBP` in a closed `CountryCode` or `-1` in a `Quantity` bounded from 0. On request, the
-rules become CHECK constraints, and the database refuses such a row whoever writes it:
+application, can still store `GBP` in a closed `CountryCode` or `0` in a `Quantity` bounded from 1. On request, the
+rules become CHECK constraints, and the database refuses such a row whoever writes it, patterns included [on a second
+request](#patterns):
 
 ```csharp skip
 protected override void ConfigureConventions(ModelConfigurationBuilder builder)
@@ -178,12 +179,12 @@ per rule its value object declares, named `CK_{table}_{column}_{rule}`:
 | Rule | SQL Server | PostgreSQL | SQLite |
 | --- | --- | --- | --- |
 | `MinLength` | `DATALENGTH([Iban]) / 2 >= 15`, or `DATALENGTH([Iban]) >= 15` on a column that is not Unicode | `octet_length("Iban") >= 15` | `length(CAST("Iban" AS BLOB)) >= 15` |
-| `Minimum`, `Maximum` | `[Quantity] >= CAST(0 AS smallint)` | `"Quantity" >= 0` | `"Quantity" >= 0` |
+| `Minimum`, `Maximum` | `[Quantity] >= 1` | `"Quantity" >= 1` | `"Quantity" >= 1` |
 | A closed set | `[Country] IN (N'FR', N'BE', N'LU')` | `"Country" IN ('FR', 'BE', 'LU')` | `"Country" IN ('FR', 'BE', 'LU')` |
 
 A migration picks them up, as it picks up a column size: change a rule on the type, and the next migration drops the
 constraint and adds the new one. A column that takes a `NULL` wraps each check, `"Quantity" IS NULL OR ("Quantity" >=
-0)`, so that a `NULL` passes.
+1)`, so that a `NULL` passes.
 
 ### Never stricter than the type
 
@@ -214,7 +215,7 @@ elsewhere:
   laxer than the type. A closed set holding a value that is not a number gets none, and neither does one of instants
   with their offset on SQLite.
 - A rule only code checks, the checksum of an `IValueObjectValidator<T>`, has no SQL form and stays in the
-  application.
+  application. A pattern is [a separate opt-in](#patterns).
 
 Columns mapped to JSON, the elements of a [primitive collection](#collections-of-value-objects), a view, a property
 split into another table with `SplitToTable`, and a column mapped by a converter of the application's own get none.
@@ -241,7 +242,66 @@ would take too, on SQL Server, which keeps a constraint name per schema and comp
 builder.AddValueObjectCheckConstraints(checks => checks.Rules = ValueObjectChecks.Lengths | ValueObjectChecks.KnownValues);
 ```
 
-The options are read once per context type, as `strict` is: give a context that needs other options a type of its own.
+The options are read once per context type, as `strict` is: give a context that needs other options a type of its own,
+which may derive from the other and call `AddValueObjectCheckConstraints` again, since a second call replaces the first.
+
+### Patterns
+
+A pattern becomes a constraint only when the options name the dialect of regular expressions the database runs, which
+the model cannot tell, the compatibility level of a SQL Server database least of all:
+
+```csharp skip
+builder
+    .ConfigureValueObjects(typeof(Iban).Assembly)
+    .AddValueObjectCheckConstraints(checks => checks.Patterns = ValueObjectPatternDialect.PostgreSql);
+```
+
+| Dialect | The constraint of an IBAN |
+| --- | --- |
+| `ValueObjectPatternDialect.PostgreSql` | `"Iban" COLLATE "C" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}\n?$'` |
+| `ValueObjectPatternDialect.SqlServer2025` | `REGEXP_LIKE([Iban], N'^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}\n?$')` |
+
+`REGEXP_LIKE` needs SQL Server 2025 and a database at compatibility level 170, which a new database of SQL Server 2025
+is: at an earlier level, or on SQL Server 2022, the migration fails with "'REGEXP_LIKE' is not a recognized built-in
+function name". On PostgreSQL the constraint matches under the `C` collation: a column under a nondeterministic
+collation, the case-insensitive one recommended for a key compared ignoring case, would otherwise fail every write, since
+PostgreSQL runs no regular expression under one. A dialect that does not match the provider at hand writes no pattern:
+PostgreSQL's under SQLite, in tests, writes the other rules alone. SQLite has no regular expressions.
+
+The pattern is translated, not copied, so that the database matches what .NET matches: groups become non-capturing,
+lazy quantifiers greedy, which changes which match is found, never whether one is, a character outside printable ASCII
+is escaped as each dialect reads it, and a `$` or a `\Z` ending the pattern, or one of its top-level alternatives, is
+written `\n?$`, since .NET also matches it before a final line feed and both databases match `$` at the end alone. What
+either database would read apart from .NET is refused:
+
+| Construct | Why | Instead |
+| --- | --- | --- |
+| `\d`, `\w`, `\s`, `\p{…}` | .NET reads them over Unicode, the database over ASCII or its locale: `\d` matches `٣` in .NET | `[0-9]`, or the characters listed in a class |
+| `.`, `[^…]`, `\D`, `\W`, `\S` | .NET matches one UTF-16 code unit, the database a whole character | a class listing what is accepted |
+| `$` or `\Z` anywhere but at the end of the pattern or of a top-level alternative, inside a group included | .NET also matches before a final line feed | the anchor moved after the group, `^(?:a\|b)$` rather than `^(?:a$\|b$)`; `\z` means the end in .NET too, but OpenAPI clients, which read ECMA-262, do not know it |
+| `\b`, `\B`, a class subtraction, a lookaround, a backreference, an atomic or conditional group, an inline option | no equivalent, or another meaning | a pattern without them |
+| A count above 255 on PostgreSQL, 1000 on SQL Server, or repetitions matching more than 1000 characters once written out | the database refuses them as too complex when it first checks a value, failing every write | smaller counts |
+| Any `RegexOptions` of the hook's regular expression but `CultureInvariant`, `Compiled`, `ExplicitCapture` and `NonBacktracking`: `IgnoreCase`, `Multiline`, `Singleline` and `IgnorePatternWhitespace`, which `VO0025` warns of, and `ECMAScript` and `RightToLeft`, which it does not | the database reads the text as .NET reads it with no option, and would refuse what the type accepts | a pattern that means the same without them, `[A-Za-z]` for `IgnoreCase` |
+
+Naming a dialect checks the pattern of each column the convention constrains when the model is built, under SQLite as
+under the database it names, and from `dotnet ef migrations add` and `dotnet ef dbcontext optimize` too: one refused
+fails the model with an `InvalidOperationException` naming the value object, the construct or the option, and the
+dialect. An email
+address's `^[^@\s]+@[^@\s]+\.[^@\s]+$` is such a pattern. Leave that one value object without a pattern constraint,
+its other rules written as before, and its pattern checked by the application alone:
+
+```csharp skip
+builder.AddValueObjectCheckConstraints(checks =>
+{
+    checks.Patterns = ValueObjectPatternDialect.PostgreSql;
+    checks.ExcludePattern<EmailAddress>();
+});
+```
+
+A fixed-length column, an entity identifier's `char(n)`, gets no pattern: SQL Server pads it with spaces, which the
+pattern would see, and PostgreSQL drops them before it matches. A pattern a value object written by hand states in its
+schema alone, with no hook, is translated and checked from its text alone: there is no regular expression whose options
+could be checked.
 
 ### Rows already in the table
 

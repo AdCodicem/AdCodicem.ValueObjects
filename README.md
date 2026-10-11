@@ -230,8 +230,10 @@ program, unless the application trusts them: `ValueObjectBson.Register(trusted: 
 collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema. The `[GeneratedRegex]` behind
 `IValueObjectPatternValidator` validates the value, and its text becomes the `pattern` keyword. The members marked
 `[KnownValue]` become a frozen membership lookup and the `enum` keyword of the schema, with their names beside it for
-generated clients. On request, `AddValueObjectCheckConstraints()` writes the lengths, the bounds and the closed sets as
-CHECK constraints of the EF Core columns, wherever the database reads them as .NET does.
+generated clients. On request, `AddValueObjectCheckConstraints()` writes the minimum length, the bounds and the closed
+sets as CHECK constraints of the EF Core columns, wherever the database reads them as .NET does, and, once the options
+name the dialect of SQL Server 2025 or PostgreSQL, the patterns, refusing to build the model on one the database would
+read apart from .NET unless `ExcludePattern<TSelf>()` leaves it to the application.
 The same rules fill in the JSON Schema System.Text.Json exports, which AI tools, structured output and MCP servers
 describe their parameters with, through `ValueObjectJsonSchema`; `AdCodicem.ValueObjects.AI` carries them to the tools
 and the structured output of Microsoft.Extensions.AI in one call, and `AdCodicem.ValueObjects.ModelContextProtocol` to

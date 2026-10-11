@@ -36,12 +36,14 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// </para>
 /// <para>
 /// Each constraint is named <c>CK_{table}_{column}_{rule}</c>, the rule being <c>MinLength</c>, <c>Minimum</c>,
-/// <c>Maximum</c> or <c>KnownValues</c>. A name longer than the provider takes, 63 bytes on PostgreSQL, 128
-/// characters on SQL Server, and on SQL Server, where a constraint name is unique in its schema, a name another table
-/// of the schema also takes, <c>CK_a_b_C_Maximum</c> for column <c>C</c> of table <c>a_b</c> and column <c>B_C</c> of
-/// table <c>a</c>, keeps the rule whole and ends with eight hexadecimal digits of the SHA-256 of the table and the
-/// column, its start cut as short as the provider needs: <c>CK_{table}_{column}_{rule}_{hash}</c>. A column that
-/// takes a <c>NULL</c> wraps the check: <c>[c] IS NULL OR (…)</c>.
+/// <c>Maximum</c>, <c>KnownValues</c> or <c>Pattern</c>. A name longer than the provider takes, 63 bytes on PostgreSQL,
+/// 128 characters on SQL Server, a name another check constraint of the model already holds, one the application
+/// declared, in the same table, or in the schema on SQL Server, and on SQL Server, where a constraint name is unique in
+/// its schema, a name another table of the schema also takes, <c>CK_a_b_C_Maximum</c> for column <c>C</c> of table
+/// <c>a_b</c> and column <c>B_C</c> of table <c>a</c>, keeps the rule whole and ends with eight hexadecimal digits of the
+/// SHA-256 of the table and the column, its start cut as short as the provider needs:
+/// <c>CK_{table}_{column}_{rule}_{hash}</c>. A column that takes a <c>NULL</c> wraps the check:
+/// <c>[c] IS NULL OR (…)</c>.
 /// </para>
 /// <para>
 /// SQL Server, PostgreSQL and SQLite are known; another provider gets no constraint. Nothing here runs per query or per
@@ -51,7 +53,13 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// </remarks>
 /// <param name="services">The services of the context whose model is built.</param>
 /// <param name="rules">The rules written.</param>
-internal sealed class ValueObjectCheckConstraintConvention(IServiceProvider services, ValueObjectChecks rules)
+/// <param name="patterns">The dialect a pattern is written in.</param>
+/// <param name="exclusions">The value objects whose pattern is left out.</param>
+internal sealed class ValueObjectCheckConstraintConvention(
+    IServiceProvider services,
+    ValueObjectChecks rules,
+    ValueObjectPatternDialect patterns,
+    IReadOnlySet<Type> exclusions)
     : IModelFinalizingConvention
 {
     /// <inheritdoc />
@@ -75,6 +83,8 @@ internal sealed class ValueObjectCheckConstraintConvention(IServiceProvider serv
         var writer = new Writer(
             known,
             rules,
+            patterns,
+            exclusions,
             services.GetRequiredService<IRelationalTypeMappingSource>(),
             services.GetRequiredService<ISqlGenerationHelper>(),
             model.GetMaxIdentifierLength());
@@ -149,12 +159,16 @@ internal sealed class ValueObjectCheckConstraintConvention(IServiceProvider serv
     /// </summary>
     /// <param name="engine">The database.</param>
     /// <param name="rules">The rules written.</param>
+    /// <param name="patterns">The dialect a pattern is written in.</param>
+    /// <param name="exclusions">The value objects whose pattern is left out.</param>
     /// <param name="mappings">The type mappings of the provider.</param>
     /// <param name="sql">The SQL helper of the provider, which delimits a column.</param>
     /// <param name="maxLength">The longest identifier the provider takes.</param>
     private sealed class Writer(
         CheckEngine engine,
         ValueObjectChecks rules,
+        ValueObjectPatternDialect patterns,
+        IReadOnlySet<Type> exclusions,
         IRelationalTypeMappingSource mappings,
         ISqlGenerationHelper sql,
         int maxLength)
@@ -227,7 +241,7 @@ internal sealed class ValueObjectCheckConstraintConvention(IServiceProvider serv
                 _ = ValueObjectRegistry.TryResolve(valueObjectType, out var descriptor);
                 var delimited = sql.DelimitIdentifier(column);
                 var nullable = property.IsColumnNullable(table);
-                var checks = descriptor!.Accept(new CheckConstraintRules(engine, rules, mappings, property, delimited));
+                var checks = descriptor!.Accept(new CheckConstraintRules(engine, rules, patterns, exclusions, mappings, property, delimited));
                 foreach (var (rule, check) in checks)
                 {
                     var wrapped = nullable ? $"{delimited} IS NULL OR ({check})" : check;

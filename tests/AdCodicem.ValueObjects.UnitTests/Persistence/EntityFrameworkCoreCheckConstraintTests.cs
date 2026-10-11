@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects.EntityFrameworkCore;
 using AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
 using AdCodicem.ValueObjects.Metadata;
@@ -296,6 +297,22 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
     }
 
     /// <summary>
+    /// A second call replaces the first, as a context deriving from another calls it: its options alone apply, each
+    /// constraint is written once, under its plain name, and a dialect of patterns the first call named neither writes a
+    /// pattern nor fails the model on one it would read apart.
+    /// </summary>
+    [Fact]
+    public void A_second_call_replaces_the_options_of_the_first()
+    {
+        using var narrowed = Npgsql<NarrowedLedgerContext>();
+        using var unpatterned = Sqlite<UnpatternedEmailContext>();
+
+        Checks(narrowed, "ledgers").Keys.Should().BeEquivalentTo(
+            "CK_ledgers_Quantity_Minimum", "CK_ledgers_Quantity_Maximum", "CK_ledgers_Backorder_Minimum", "CK_ledgers_Backorder_Maximum");
+        Checks(unpatterned, "mailed").Keys.Should().BeEquivalentTo("CK_mailed_Iban_MinLength");
+    }
+
+    /// <summary>
     /// The columns of each table are constrained under its own name: those of a type of a table-per-hierarchy in the
     /// root's table, those of a table-per-type hierarchy in each type's, those an owned type or a complex type shares a
     /// table with, nested ones named by their column's path, and those of an owned type in a table of its own. A type of
@@ -352,6 +369,128 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
             ["CK_accounts_Id_MinLength"] = "octet_length(\"Id\") >= 25",
             ["CK_accounts_Holder_Code_MinLength"] = "octet_length(\"Holder_Code\") >= 5",
         });
+    }
+
+    /// <summary>
+    /// <see cref="ValueObjectCheckOptions.Patterns"/> naming PostgreSQL writes each pattern its <c>~</c> reads as .NET
+    /// does, under the C collation, its final <c>$</c> written <c>\n?$</c>: a generated hook's, one implemented
+    /// explicitly, one whose regular expression sets the options its text keeps its meaning under, explicit captures, no
+    /// backtracking and compiled, and a pattern a value object written by hand states in its schema alone, translated
+    /// from its text alone. A fixed-length column, an
+    /// entity identifier's <c>character(n)</c>, gets none, since PostgreSQL drops the spaces that pad it. Its other rules
+    /// are written as before, and with no rule at all the patterns alone.
+    /// </summary>
+    [Fact]
+    public void PostgreSQL_gets_each_pattern_in_its_own_dialect_when_the_options_name_it()
+    {
+        using var context = Npgsql<PostgreSqlPatternContext>();
+        using var patternsOnly = Npgsql<PatternOnlyContext>();
+
+        var checks = Checks(context, "patterned");
+        checks.Should().Contain(new Dictionary<string, string>
+        {
+            ["CK_patterned_Iban_Pattern"] = "\"Iban\" COLLATE \"C\" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}\\n?$'",
+            ["CK_patterned_Phone_Pattern"] = "\"Phone\" IS NULL OR (\"Phone\" COLLATE \"C\" ~ '^\\+[0-9]{6,15}\\n?$')",
+            ["CK_patterned_Currency_Pattern"] = "\"Currency\" COLLATE \"C\" ~ '^[A-Z]{3}\\n?$'",
+            ["CK_patterned_Lowered_Pattern"] = "\"Lowered\" COLLATE \"C\" ~ '^[a-z]{3}\\n?$'",
+            ["CK_patterned_Portable_Pattern"] = "\"Portable\" COLLATE \"C\" ~ '^[a-z]{3}\\n?$'",
+            ["CK_patterned_Stated_Pattern"] = "\"Stated\" COLLATE \"C\" ~ '^[0-9]{4}\\n?$'",
+            ["CK_patterned_Iban_MinLength"] = "octet_length(\"Iban\") >= 15",
+        });
+        checks.Keys.Should().NotContain("CK_patterned_Account_Pattern", "a fixed-length column gets no pattern");
+        checks.Should().ContainKey("CK_patterned_Account_MinLength");
+        Checks(patternsOnly, "patterned").Keys.Should().OnlyContain(static name => name.EndsWith("_Pattern", StringComparison.Ordinal))
+            .And.HaveCount(6);
+    }
+
+    /// <summary>
+    /// A dialect another provider than the one at hand runs writes no pattern: PostgreSQL's under SQLite, as in tests,
+    /// and SQL Server 2025's under Npgsql. The other rules are written as before.
+    /// </summary>
+    [Fact]
+    public void A_dialect_the_provider_does_not_run_writes_no_pattern()
+    {
+        using var sqlite = Sqlite<PostgreSqlPatternContext>();
+        using var postgres = Npgsql<SqlServerPatternContext>();
+
+        Checks(sqlite, "patterned").Should().NotContainKey("CK_patterned_Iban_Pattern").And.ContainKey("CK_patterned_Iban_MinLength");
+        Checks(postgres, "patterned").Keys.Should().NotContain(static name => name.EndsWith("_Pattern", StringComparison.Ordinal))
+            .And.Contain("CK_patterned_Iban_MinLength");
+    }
+
+    /// <summary>
+    /// Naming a dialect checks every pattern of a column the convention constrains, under SQLite as under the database it
+    /// names: an email address's negated class, which .NET matches over one UTF-16 code unit, fails the model, naming the
+    /// value object, the construct and the dialect, and the remedies, <c>ExcludePattern</c> among them.
+    /// </summary>
+    [Fact]
+    public void A_pattern_the_dialect_reads_apart_fails_the_model_naming_the_value_object_the_construct_and_the_remedy()
+    {
+        using var context = Sqlite<EmailPatternContext>();
+
+        var build = () => context.Model;
+
+        build.Should().Throw<InvalidOperationException>().WithMessage(
+            "AddValueObjectCheckConstraints cannot write the pattern of EmailAddress for PostgreSql: it holds a negated class, "
+            + "[^…], which .NET matches over one UTF-16 code unit and the database over a whole character: list the characters it "
+            + "accepts. Write the pattern within what .NET and the database read alike, leave it out with "
+            + "ExcludePattern<EmailAddress>(), or leave Patterns at None.");
+    }
+
+    /// <summary>
+    /// A hook whose regular expression sets an option its text cannot carry fails the model, whatever the provider at
+    /// hand: <c>IgnoreCase</c>, implemented explicitly, with which the text alone would refuse a value the type accepts,
+    /// and <c>ECMAScript</c>, which VO0025 does not report.
+    /// </summary>
+    [Fact]
+    public void A_pattern_matched_under_an_option_its_text_cannot_carry_fails_the_model()
+    {
+        using var context = Npgsql<CaseFreePatternContext>();
+        using var ecma = Sqlite<EcmaPatternContext>();
+
+        var build = () => context.Model;
+        var buildEcma = () => ecma.Model;
+
+        build.Should().Throw<InvalidOperationException>().WithMessage(
+            "AddValueObjectCheckConstraints cannot write the pattern of ShapedCode<EntityFrameworkCoreCheckConstraintTests.CaseFreeShape> "
+            + "for SqlServer2025: its regular expression sets IgnoreCase, which the text of the pattern does not carry, and the "
+            + "database would read the text as .NET reads it with no option. Write the pattern so that it means the same without "
+            + "them, leave it out with ExcludePattern<ShapedCode<EntityFrameworkCoreCheckConstraintTests.CaseFreeShape>>(), "
+            + "or leave Patterns at None.");
+        buildEcma.Should().Throw<InvalidOperationException>().WithMessage("*for PostgreSql: its regular expression sets ECMAScript, *");
+    }
+
+    /// <summary>
+    /// <c>ExcludePattern</c> leaves one value object's pattern out, written by no constraint and checked by nothing, its
+    /// other rules written as before; the other patterns are still written.
+    /// </summary>
+    [Fact]
+    public void An_excluded_pattern_is_neither_written_nor_checked()
+    {
+        using var context = Npgsql<ExcludedPatternContext>();
+
+        var checks = Checks(context, "mailed");
+        checks.Keys.Should().NotContain(static name => name.Contains("Email", StringComparison.Ordinal));
+        checks.Keys.Should().BeEquivalentTo("CK_mailed_Iban_MinLength", "CK_mailed_Iban_Pattern", "CK_mailed_Shouted_MinLength");
+        new ValueObjectCheckOptions().ExcludePattern<EmailAddress>().Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// A dialect <see cref="ValueObjectPatternDialect"/> does not define is refused when the conventions are configured,
+    /// and another provider gets no constraint, and so no check of its patterns.
+    /// </summary>
+    [Fact]
+    public void An_undefined_dialect_is_refused_and_another_provider_checks_no_pattern()
+    {
+        using var undefined = Npgsql<UndefinedDialectContext>();
+        using var renamed = Create<EmailPatternContext>(builder => builder
+            .UseSqlite(_connection)
+            .ReplaceService<IDatabaseProvider, RenamedProvider>());
+
+        var build = () => undefined.Model;
+
+        build.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("configure");
+        RelationalModel(renamed).Tables.SelectMany(static table => table.CheckConstraints).Should().BeEmpty();
     }
 
     /// <summary>
@@ -1011,6 +1150,44 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
         public Quantity AQuantityWhoseNameKeepsGoingPastWhatPostgreSqlTakesAsAnIdentifierTwo { get; set; }
     }
 
+    private sealed class Patterned
+    {
+        public int Id { get; set; }
+
+        public Iban Iban { get; set; }
+
+        public PhoneNumber? Phone { get; set; }
+
+        public CurrencyCode Currency { get; set; }
+
+        public AccountId Account { get; set; }
+
+        public ShapedCode<LowerCaseShape> Lowered { get; set; }
+
+        public ShapedCode<PortableShape> Portable { get; set; }
+
+        public Declared<StatedPattern, string> Stated { get; set; }
+    }
+
+    private sealed class Mailed
+    {
+        public int Id { get; set; }
+
+        public EmailAddress Email { get; set; }
+
+        public ShapedCode<CaseFreeShape> Shouted { get; set; }
+
+        public Iban Iban { get; set; }
+    }
+
+    /// <summary>A code whose pattern is read under an option VO0025 does not report.</summary>
+    private sealed class Ruled
+    {
+        public int Id { get; set; }
+
+        public ShapedCode<EcmaShape> Code { get; set; }
+    }
+
     private sealed class Marked
     {
         public int Id { get; set; }
@@ -1202,6 +1379,37 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
         protected override Action<ValueObjectCheckOptions>? Choose => static checks => checks.Rules = ValueObjectChecks.None;
     }
 
+    /// <summary>Every rule written by the first call, the bounds alone by the second.</summary>
+    /// <param name="options">The provider.</param>
+    private sealed class NarrowedLedgerContext(DbContextOptions options) : LedgerContext(options)
+    {
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+        {
+            base.ConfigureConventions(configurationBuilder);
+            configurationBuilder.AddValueObjectCheckConstraints(static checks => checks.Rules = ValueObjectChecks.Bounds);
+        }
+    }
+
+    /// <summary>The patterns of an email address, which PostgreSQL's dialect would read apart, named by the first call alone.</summary>
+    /// <param name="options">The provider.</param>
+    private sealed class UnpatternedEmailContext(DbContextOptions options) : CheckContext(options)
+    {
+        protected override Action<ValueObjectCheckOptions>? Choose => static checks => checks.Patterns = ValueObjectPatternDialect.PostgreSql;
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+        {
+            base.ConfigureConventions(configurationBuilder);
+            configurationBuilder.AddValueObjectCheckConstraints();
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+            => modelBuilder.Entity<Mailed>(mailed =>
+            {
+                mailed.ToTable("mailed");
+                mailed.Ignore(static entity => entity.Shouted);
+            });
+    }
+
     private sealed class SpecimenContext(DbContextOptions options) : CheckContext(options)
     {
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -1303,6 +1511,92 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
         protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.Entity<LongNamed>().ToTable(LongTable);
     }
 
+    private class PostgreSqlPatternContext(DbContextOptions options) : CheckContext(options)
+    {
+        protected override Action<ValueObjectCheckOptions>? Choose => static checks => checks.Patterns = ValueObjectPatternDialect.PostgreSql;
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+            => modelBuilder.Entity<Patterned>(patterned =>
+            {
+                patterned.ToTable("patterned");
+                patterned.Property(static entity => entity.Lowered).HasValueObjectConversion<ShapedCode<LowerCaseShape>, string>();
+                patterned.Property(static entity => entity.Portable).HasValueObjectConversion<ShapedCode<PortableShape>, string>();
+                patterned.Property(static entity => entity.Stated).HasValueObjectConversion<Declared<StatedPattern, string>, string>();
+            });
+    }
+
+    private sealed class SqlServerPatternContext(DbContextOptions options) : PostgreSqlPatternContext(options)
+    {
+        protected override Action<ValueObjectCheckOptions>? Choose => static checks => checks.Patterns = ValueObjectPatternDialect.SqlServer2025;
+    }
+
+    private sealed class PatternOnlyContext(DbContextOptions options) : PostgreSqlPatternContext(options)
+    {
+        protected override Action<ValueObjectCheckOptions>? Choose => static checks =>
+        {
+            checks.Rules = ValueObjectChecks.None;
+            checks.Patterns = ValueObjectPatternDialect.PostgreSql;
+        };
+    }
+
+    private sealed class EmailPatternContext(DbContextOptions options) : CheckContext(options)
+    {
+        protected override Action<ValueObjectCheckOptions>? Choose => static checks => checks.Patterns = ValueObjectPatternDialect.PostgreSql;
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+            => modelBuilder.Entity<Mailed>(mailed =>
+            {
+                mailed.ToTable("mailed");
+                mailed.Ignore(static entity => entity.Shouted);
+            });
+    }
+
+    private sealed class EcmaPatternContext(DbContextOptions options) : CheckContext(options)
+    {
+        protected override Action<ValueObjectCheckOptions>? Choose => static checks => checks.Patterns = ValueObjectPatternDialect.PostgreSql;
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+            => modelBuilder.Entity<Ruled>(ruled =>
+            {
+                ruled.ToTable("ruled");
+                ruled.Property(static entity => entity.Code).HasValueObjectConversion<ShapedCode<EcmaShape>, string>();
+            });
+    }
+
+    private sealed class CaseFreePatternContext(DbContextOptions options) : CheckContext(options)
+    {
+        protected override Action<ValueObjectCheckOptions>? Choose => static checks => checks.Patterns = ValueObjectPatternDialect.SqlServer2025;
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+            => modelBuilder.Entity<Mailed>(mailed =>
+            {
+                mailed.ToTable("mailed");
+                mailed.Ignore(static entity => entity.Email);
+                mailed.Property(static entity => entity.Shouted).HasValueObjectConversion<ShapedCode<CaseFreeShape>, string>();
+            });
+    }
+
+    private sealed class ExcludedPatternContext(DbContextOptions options) : CheckContext(options)
+    {
+        protected override Action<ValueObjectCheckOptions>? Choose => static checks =>
+        {
+            checks.Patterns = ValueObjectPatternDialect.PostgreSql;
+            checks.ExcludePattern<EmailAddress>().ExcludePattern<ShapedCode<CaseFreeShape>>();
+        };
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+            => modelBuilder.Entity<Mailed>(mailed =>
+            {
+                mailed.ToTable("mailed");
+                mailed.Property(static entity => entity.Shouted).HasValueObjectConversion<ShapedCode<CaseFreeShape>, string>();
+            });
+    }
+
+    private sealed class UndefinedDialectContext(DbContextOptions options) : LedgerContext(options)
+    {
+        protected override Action<ValueObjectCheckOptions>? Choose => static checks => checks.Patterns = (ValueObjectPatternDialect)7;
+    }
+
     private sealed class MarkContext(DbContextOptions options) : CheckContext(options)
     {
         protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.Entity<Marked>().ToTable("marked");
@@ -1391,6 +1685,12 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
         public override string Name => Renamed;
     }
 
+    /// <summary>A pattern a value object written by hand states in its schema, with no hook.</summary>
+    private sealed class StatedPattern : IDeclaration<string>
+    {
+        public static ValueObjectSchema Schema { get; } = new() { Pattern = "^[0-9]{4}$" };
+    }
+
     /// <summary>A count, its bounds stated as text, as a value object written by hand states them.</summary>
     private sealed class Words : IDeclaration<int>
     {
@@ -1419,6 +1719,38 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
     private sealed class MixedKnownValues : IDeclaration<int>
     {
         public static ValueObjectSchema Schema { get; } = new() { IsClosedValueSet = true, KnownValues = [1, "two"] };
+    }
+
+    /// <summary>Three lower-case letters, under options its text carries.</summary>
+    public sealed partial class LowerCaseShape : ICodeShape
+    {
+        [GeneratedRegex("^[a-z]{3}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+        public static partial Regex Shape { get; }
+    }
+
+    /// <summary>
+    /// Three lower-case letters, under the options the text keeps its meaning under: explicit captures, no backtracking
+    /// and compiled, which no generated regular expression of a test sets.
+    /// </summary>
+    public sealed class PortableShape : ICodeShape
+    {
+        public static Regex Shape { get; } = new(
+            "^[a-z]{3}$",
+            RegexOptions.ExplicitCapture | RegexOptions.NonBacktracking | RegexOptions.Compiled | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+    }
+
+    /// <summary>Three lower-case letters, read as ECMAScript reads them, which VO0025 does not report.</summary>
+    public sealed class EcmaShape : ICodeShape
+    {
+        public static Regex Shape { get; } = new("^[a-z]{3}$", RegexOptions.ECMAScript, TimeSpan.FromSeconds(1));
+    }
+
+    /// <summary>Three letters in either case, which the text alone refuses in upper case.</summary>
+    public sealed partial class CaseFreeShape : ICodeShape
+    {
+        [GeneratedRegex("^[a-z]{3}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+        public static partial Regex Shape { get; }
     }
 
     /// <summary>A mark, which one test registers by hand with a schema of its own.</summary>
