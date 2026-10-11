@@ -139,7 +139,12 @@ as its date and time counterpart, a trusted MongoDB serializer and a trusted Mes
 object with `CreateUnchecked`: they read what this application validated when it wrote it. A trusted MongoDB serializer
 still refuses a BSON `null` and a value the serializer of the underlying type cannot read, which no instance can hold,
 and a trusted MessagePack formatter a `nil` and a value the formatter of the underlying type cannot read.
-[EF Core](../how-to/ef-core.md#validation-on-read) says when to read strictly.
+[EF Core](../how-to/ef-core.md#validation-on-read) says when to read strictly. A `.Value` an EF Core query projects
+under [`UseValueObjectQueries()`](../how-to/ef-core.md#the-value-in-a-query) is read from the column as it stands, in a
+strict context too: it builds no value object, so nothing validates it. A context whose options call it, started on a
+service provider of the application's own, named by `UseInternalServiceProvider`, that does not hold its translator,
+throws an `InvalidOperationException` as it starts, which carries no code: Entity Framework Core adds no service of an
+options extension to such a provider, and would leave `.Value` untranslated without a word.
 
 ## A value refused on write
 

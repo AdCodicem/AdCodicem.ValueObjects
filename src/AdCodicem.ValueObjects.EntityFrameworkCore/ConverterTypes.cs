@@ -1,7 +1,10 @@
+using System.Collections.Frozen;
+
 namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 
 /// <summary>
-/// Picks the converter the conventions map a value object through, closed over it.
+/// Picks the converter the conventions map a value object through, closed over it, and lists the converters of this
+/// package.
 /// </summary>
 /// <remarks>
 /// The conventions call it from a visitor, with the type arguments a descriptor hands back
@@ -9,6 +12,20 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// </remarks>
 internal static class ConverterTypes
 {
+    /// <summary>
+    /// The converters of this package, each closed over a value object as its first type argument, and each storing
+    /// the bare underlying value.
+    /// </summary>
+    public static readonly FrozenSet<Type> Definitions = new[]
+    {
+        typeof(ValueObjectConverter<,>),
+        typeof(StrictValueObjectConverter<,>),
+        typeof(NullableValueObjectConverter<,>),
+        typeof(StrictNullableValueObjectConverter<,>),
+        typeof(NullableValueObjectConverter<>),
+        typeof(StrictNullableValueObjectConverter<>),
+    }.ToFrozenSet();
+
     /// <summary>
     /// Gives the converter of a property holding a value object.
     /// </summary>

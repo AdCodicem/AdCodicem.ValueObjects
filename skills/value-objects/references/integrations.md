@@ -8,7 +8,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects` | Contracts, source generator, analyzers, and XML serialization on request (below). The one to install. |
 | `AdCodicem.ValueObjects.Abstractions` | The contracts alone, no dependency. For a domain assembly that must stay bare. |
 | `AdCodicem.ValueObjects.Json` | Source-generated `JsonSerializerContext` support, hand-written value objects, and the JSON Schema transform. |
-| `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, an assembly-wide convention. |
+| `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, an assembly-wide convention, `.Value` in LINQ (opt-in). |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, AOT-compatible. |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | MVC on Newtonsoft.Json: the converter in MVC's settings, and the codes of a refused body. |
@@ -303,6 +303,18 @@ per row.
   value type, whose `null` EF Core cannot write).
 - A value object created inside a predicate, `Where(a => a.Iban == Iban.Create("DE89…"))`, becomes a SQL literal:
   hoist it into a variable, or wrap it in `EF.Parameter(...)`, so it goes as a parameter, as a captured value does.
+- **`.Value` in a query** (`a.Iban.Value.StartsWith("FR")`, `o.Quantity.Value > 2`) is refused by EF Core as
+  untranslatable unless the context's options call `UseValueObjectQueries()`, after the provider:
+  `options.UseSqlServer(connectionString).UseValueObjectQueries()`, in `AddDbContext` or `OnConfiguring`, and in the
+  options the design-time factory builds when queries are precompiled. It then reads the column itself, which its index
+  serves, and declares a parameter as the column (`nvarchar(34)`), in an optional value object, a JSON column, an
+  element of a collection and a generic construction too. Only properties this package maps translate, not one with a
+  converter of your own. `ToString()` stays untranslated, `EF.Property<string>` fails with an `InvalidCastException`, a
+  conversion operator stays a `CAST` to the unbounded type, and a strict context does not validate a projected
+  `.Value`: project the value object. Never reach the value with `(string)(object)a.Iban`, a `CAST` that costs the
+  index on SQL Server. With `UseInternalServiceProvider`, the context throws an `InvalidOperationException` as it
+  starts, unless that provider holds the services of the options' extensions
+  (`IDbContextOptionsExtension.ApplyServices`).
 - Departing from the convention for a single property: `builder.Property(e => e.Iban).HasValueObjectConversion<Iban, string>()`
   (with an optional `strict: true`). Prefer the convention.
 - Never write `HasConversion` by hand for a value object: you would lose the generated comparer, and with it

@@ -2,7 +2,7 @@
 title: Use with Entity Framework Core
 sidebar_label: Entity Framework Core
 slug: /how-to/ef-core
-description: Map every value object of an assembly to its underlying column type in one call, collections of them as primitive collections, size columns from declared rules, choose when reads are validated, never store a value a type rejects, generate keys the provider's way and refuse a Guid key left unset, compile the model, and work with JSON columns, raw SQL, other providers, bulk extensions, Always Encrypted and data masking.
+description: Map every value object of an assembly to its underlying column type in one call, collections of them as primitive collections, size columns from declared rules, translate `.Value` in queries to the column, choose when reads are validated, never store a value a type rejects, generate keys the provider's way and refuse a Guid key left unset, compile the model, and work with JSON columns, raw SQL, other providers, bulk extensions, Always Encrypted and data masking.
 ---
 
 # Use with Entity Framework Core
@@ -43,6 +43,69 @@ var accounts = await db.Accounts.Where(a => a.Iban == iban).ToListAsync();
 ```
 
 A static property, `Currency.Eur`, is sent as a parameter already.
+
+## The value in a query
+
+A comparison between value objects translates, but nothing a query reads of the value one holds:
+`x.Iban.Value.StartsWith("FR")`, `x.Quantity.Value > 2` and `x.Total.Value * 2 > 10` fail, as "could not be
+translated". The cast that does translate, `((string)(object)x.Iban).StartsWith("FR")`, becomes
+`CAST([o].[Iban] AS nvarchar(max)) LIKE N'FR%'`, for which SQL Server can no longer seek the index on the column: it
+scans it.
+
+`UseValueObjectQueries()`, on the options of the context, translates `.Value` to the column itself:
+
+```csharp skip
+services.AddDbContext<ShopContext>(options => options
+    .UseSqlServer(connectionString)
+    .UseValueObjectQueries());
+```
+
+A context configuring itself calls it in `OnConfiguring`, after the provider:
+`optionsBuilder.UseSqlServer(connectionString).UseValueObjectQueries()`.
+
+`x.Iban.Value.StartsWith(prefix)` then becomes `WHERE [o].[Iban] LIKE @prefix_startswith`, which the index serves: on
+SQL Server 2022, over 100,000 rows, an index seek reading 5 pages where the cast scanned 888. The column keeps the type
+the rules of its value object gave it, so a parameter compared with it is declared as the column is,
+`DECLARE @text nvarchar(34)` for `x.Iban.Value == text`, and `char(25)` for the fixed-width column of an
+[entity identifier](#public-identifiers), whose `StartsWith` pattern is a `varchar` of that length. Comparisons,
+arithmetic, `OrderBy`, `GroupBy`, string functions, `ExecuteUpdate`, `ExecuteDelete` and compiled queries take `.Value`
+as they take a property of the underlying type. It translates in an optional value object, `x.Previous!.Value.Value`,
+inside a [JSON column](#complex-types-and-json-columns), in an element of a
+[collection](#collections-of-value-objects), `x.Ibans.Any(i => i.Value.StartsWith(prefix))`, and in a construction of
+a [generic value object](#generic-value-objects).
+
+Only a property this package maps is translated, through `ConfigureValueObjects`, `HasValueObjectConversion`,
+`ConfigureEntityIds` or `HasEntityIdConversion`, including where Entity Framework Core composes its converter with its
+own conversion of the underlying type, a `ushort` stored in an `int` column, say. A property mapped through a converter
+of your own, as a [128-bit value object](#128-bit-value-objects) must be, keeps Entity Framework Core's refusal: what
+its column holds may not be the value. So does this package's converter composed with a conversion of your own,
+`ComposeWith`, except over a type the provider converts itself, a `ushort` or a `Uri`, where it cannot be told from
+Entity Framework Core's composition: compose none there.
+
+A column of a table is read as it stands. A column an optional navigation joins in, an element of a collection, and an
+expression such as a `COALESCE`, are read through a `CAST` to their own store type, `CAST([i].[value] AS nvarchar(34))`,
+which Entity Framework Core 11 leaves out of the SQL. On PostgreSQL, a `LIKE` prefix uses a B-tree index only under the
+`C` collation or with `varchar_pattern_ops`, as it does on a column of text; an equality uses the index whatever the
+collation.
+
+`.Value` reads what the column holds, in a projection too: `Select(x => x.Iban.Value)` returns the text as stored, which
+a [strict context](#validation-on-read) does not validate, since it validates the value objects it materializes. Project
+the value object to have it validated.
+
+Nothing else changes. `ToString()`, which follows the formatting hooks, and `EF.Property` still fail, and so does
+`.Value` of an element of a list passed as a parameter, `ibans.Any(i => i.Value.StartsWith(prefix))`, which has no type
+mapping yet when it is translated: compare the value objects there, or hoist the values,
+`var texts = ibans.Select(i => i.Value).ToList();`. A conversion operator the value object declares, `(string)x.Iban`,
+stays the cast to the unbounded type above.
+
+The translation runs once per query shape, which Entity Framework Core caches: nothing more runs per execution. It
+works on a relational provider, and does nothing on any other.
+
+Entity Framework Core adds the translator to the service provider it builds for the context, never to one you hand it
+with `UseInternalServiceProvider`. A context started on such a provider throws an `InvalidOperationException` naming
+both calls, rather than leave `.Value` untranslated, unless that provider holds the services of the extensions of the
+context's options, added through `IDbContextOptionsExtension.ApplyServices` as Entity Framework Core adds them to a
+provider it builds.
 
 ## Validation on read
 
@@ -391,8 +454,9 @@ or passed to `Add`, fails with a `ValueObjectException`. A query with `AsNoTrack
 model built at run time. Keep a strict context on the model built at run time, or read through it untracked.
 
 CI compiles both models, for the JIT and for native AOT, of a context mapping every value object the conventions map,
-required and optional, collections of them, and keys it generates or refuses unset, beside a strict one, and takes the
-first on a round trip through SQL Server.
+required and optional, collections of them, and keys it generates or refuses unset, beside a strict one, filters on
+`.Value` through [`UseValueObjectQueries()`](#the-value-in-a-query), and takes the first on a round trip through SQL
+Server.
 
 ### Native AOT
 
@@ -407,12 +471,18 @@ AOT-compatible.
 
 The code it writes does not always compile either, with or without this library: Entity Framework Core 10 writes
 precompiled code that does not compile for an untracked query and for a sealed entity type, and model code that
-cannot tell a type of the model named as one of its own internal types, `Reference<T>` among them, from that type.
+cannot tell a type of the model named as one of its own internal types, `Reference<T>` among them, from that type. It
+cannot precompile a query naming a value object nested in a generic type, `Catalog<TItem>.Stock`, whose nested type it
+does not find.
 
 Two queries over a primitive collection fail to precompile, whatever its element, `int` included. `Contains` over an
 array, which C# 14 binds to `MemoryExtensions.Contains` over a span, is refused: call it on the array as a sequence,
 `((IEnumerable<Quantity>)shipment.Batches).Contains(batch)`. `Contains` over a `List<T?>` handed a `T` is refused:
 hand it a variable of type `T?`.
+
+A query precompiled by `--precompile-queries` carries the SQL Entity Framework Core wrote for it, so a query on `.Value`
+carries the column [`UseValueObjectQueries()`](#the-value-in-a-query) reads: the context the design-time factory builds
+calls it too, in `OnConfiguring` or in the options the factory passes, or the precompilation fails on that query.
 
 The conventions never run in the native binary. Entity Framework Core builds no model under native AOT, and refuses to
 start without a compiled one, so `ConfigureValueObjects` and `ConfigureEntityIds` run only where a model is built:
@@ -463,7 +533,8 @@ type rejects is refused as [on write](#validation-on-write) (inferred, not run).
 
 **linq2db.EntityFrameworkCore 10.6.0**: after `LinqToDBForEFTools.Initialize()`, `ToLinqToDB()` queries, `BulkCopy`,
 `Merge` and `Update().Set(…)` use the converters and the column sizes of the model, `DECLARE @iban NVarChar(34)`.
-Compare value objects there too, not `.Value`, which linq2db cannot translate.
+Compare value objects there too, not `.Value`, which linq2db cannot translate: `UseValueObjectQueries()` reaches the
+translation of Entity Framework Core, not linq2db's.
 
 ## Always Encrypted
 

@@ -70,10 +70,10 @@
     <!-- A JSON Schema validator, which checks that what the serializer writes is what the exported schema describes. -->
     <PackageReference Include="LateApexEarlySpeed.Json.Schema" />
     <!-- A provider, so that a DbContext can build the model the Entity Framework Core conventions shape; building it
-         opens no connection. SQLite in memory, which needs no server, runs what only an engine shows of a primitive
-         collection of value objects: the JSON it stores, the queries over its elements, change tracking, and the keys
-         SQLite generates. The in-memory provider, which is not relational, generates no integer key. What a real server
-         makes of them stays in the integration suite. -->
+         opens no connection. SQLite in memory, which needs no server, runs what only an engine shows: of a primitive
+         collection of value objects, the JSON it stores, the queries over its elements and change tracking; the keys
+         SQLite generates; and `.Value` translated to the column. The in-memory provider, which is not relational,
+         generates no integer key. What a real server makes of them stays in the integration suite. -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />

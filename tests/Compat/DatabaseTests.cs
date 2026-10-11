@@ -1,5 +1,6 @@
 using System.Data.Common;
 using AdCodicem.ValueObjects.Dapper;
+using AdCodicem.ValueObjects.EntityFrameworkCore;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -34,6 +35,9 @@ public abstract class DatabaseFixture : IAsyncLifetime
     /// <summary>Gets the SQL this provider reads the elements of a primitive collection through.</summary>
     public abstract string ElementsSql { get; }
 
+    /// <summary>Gets the predicate a prefix search on the value of an IBAN translates to, under UseValueObjectQueries().</summary>
+    public abstract string PrefixSql { get; }
+
     /// <summary>Gets the version of the GUIDs this provider generates for a Guid key.</summary>
     public abstract int GuidVersion { get; }
 
@@ -52,11 +56,16 @@ public abstract class DatabaseFixture : IAsyncLifetime
 
     /// <summary>Creates a context bound to the running container.</summary>
     /// <param name="strict">Whether values read are validated again.</param>
+    /// <param name="valueObjectQueries">Whether .Value of a value object is translated in a query.</param>
     /// <returns>A new context.</returns>
-    public ShopContext CreateContext(bool strict = false)
+    public ShopContext CreateContext(bool strict = false, bool valueObjectQueries = false)
     {
         var builder = new DbContextOptionsBuilder();
         Configure(builder);
+        if (valueObjectQueries)
+        {
+            builder.UseValueObjectQueries();
+        }
 
         return strict ? new StrictShopContext(builder.Options) : new ShopContext(builder.Options);
     }
@@ -94,6 +103,8 @@ public sealed class PostgreSqlFixture : DatabaseFixture
 
     public override string ElementsSql => "= ANY (";
 
+    public override string PrefixSql => "a.\"Iban\" LIKE @prefix_startswith";
+
     public override int GuidVersion => 7;
 
     public override string IdentitySql
@@ -130,6 +141,8 @@ public sealed class SqlServerFixture : DatabaseFixture
     public override string BinaryCollation => "Latin1_General_BIN2";
 
     public override string ElementsSql => "OPENJSON(";
+
+    public override string PrefixSql => "[a].[Iban] LIKE @prefix_startswith";
 
     public override int GuidVersion => 4;
 
@@ -255,6 +268,37 @@ public abstract class DatabaseTests<TFixture>(TFixture fixture) : IClassFixture<
         reloaded.Previous.Should().Equal(null, belgian);
         reloaded.Quantities.Should().Equal(Quantity.Create(2));
         reloaded.Orders.Should().Equal(Reference<PurchaseOrder>.Create("PO-1"));
+    }
+
+    [Fact]
+    public async Task The_value_of_a_value_object_is_read_from_its_column_under_UseValueObjectQueries()
+    {
+        var customer = NewCustomer("value.query@example.com");
+        var british = Iban.Create("GB82WEST12345698765432");
+        customer.Accounts.Add(new BankAccount { Iban = british, CustomerId = customer.Id, Balance = Amount.Create(10m) });
+        customer.Accounts.Add(new BankAccount { Iban = Iban.Create("NL91ABNA0417164300"), CustomerId = customer.Id, Balance = Amount.Create(20m) });
+        var portfolio = new Portfolio { Id = Random.Shared.Next(), Ibans = [british], Quantities = [Quantity.Create(5)] };
+
+        await using (var write = fixture.CreateContext())
+        {
+            write.Customers.Add(customer);
+            write.Portfolios.Add(portfolio);
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var read = fixture.CreateContext(valueObjectQueries: true);
+        var id = customer.Id;
+        var portfolioId = portfolio.Id;
+        var prefix = "GB";
+        short least = 2;
+
+        var byPrefix = read.Accounts.Where(account => account.CustomerId == id && account.Iban.Value.StartsWith(prefix)).Select(account => account.Iban);
+        byPrefix.ToQueryString().Should().Contain(fixture.PrefixSql).And.NotContain("CAST").And.NotContain("::");
+        (await byPrefix.ToListAsync(TestContext.Current.CancellationToken)).Should().Equal(british);
+        (await read.Portfolios.CountAsync(entity => entity.Id == portfolioId && entity.Ibans.Any(iban => iban.Value.StartsWith(prefix)), TestContext.Current.CancellationToken))
+            .Should().Be(1);
+        (await read.Portfolios.CountAsync(entity => entity.Id == portfolioId && entity.Quantities.Any(quantity => quantity.Value > least), TestContext.Current.CancellationToken))
+            .Should().Be(1);
     }
 
     [Fact]

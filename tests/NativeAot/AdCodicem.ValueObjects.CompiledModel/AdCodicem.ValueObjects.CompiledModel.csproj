@@ -4,7 +4,8 @@
     The model `dotnet ef dbcontext optimize` compiles in CI, of a context mapping every value object of the domain, each
     underlying type but the 128-bit ones, required and optional, a generic one, an entity identifier as the key, and
     collections of them, nullable elements included, with keys typed as value objects it generates, over a Guid and an
-    int, and one over a Guid it refuses unset, and of a strict context beside it (ci.yml). The model is written
+    int, and one over a Guid it refuses unset, and of a strict context beside it, both translating .Value in a query
+    through UseValueObjectQueries(), which the queries precompiled for native AOT need too (ci.yml). The model is written
     under artifacts/compiled-model/, never committed, and compiled only when CompiledModel names it: "jit" for the model
     `optimize` writes, which Program.cs takes on a round trip through SQL Server, "aot" for the one it writes for native
     AOT, with the queries of Program.cs precompiled, published with native AOT and never run: two bugs of Entity
