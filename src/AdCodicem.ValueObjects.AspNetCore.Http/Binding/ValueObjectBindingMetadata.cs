@@ -5,7 +5,7 @@ namespace AdCodicem.ValueObjects.AspNetCore.Http.Binding;
 
 /// <summary>
 /// Marks an endpoint covered by
-/// <see cref="ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails"/>, and holds the value
+/// <see cref="ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails{TBuilder}(TBuilder)"/>, and holds the value
 /// objects it binds from text, for the filter and for the exception handler, which finds the endpoint in the feature the
 /// exception handler middleware hands it.
 /// </summary>
@@ -19,6 +19,12 @@ internal sealed class ValueObjectBindingMetadata
     /// query text without parsing it, and takes an empty header for an absent one.
     /// </summary>
     private bool _skipsEmptyText;
+
+    /// <summary>
+    /// Gets or sets the messages the refusals are answered with: those of the convention that covered the endpoint last
+    /// with messages, or <see langword="null"/> for the English ones of the rules.
+    /// </summary>
+    public ValueObjectMessageOptions? Messages { get; set; }
 
     /// <summary>Records what the filter factory found, once the binder has described the parameters.</summary>
     /// <param name="parameters">The value objects bound from text.</param>

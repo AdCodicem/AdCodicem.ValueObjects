@@ -9,8 +9,9 @@ namespace AdCodicem.ValueObjects.NativeAot;
 
 /// <summary>
 /// The minimal API endpoints whose refusals are answered with problem details carrying the rule code, under a
-/// <c>/problems</c> group covered by <see cref="ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails"/>,
-/// and the requests the script sends them. Each handler names its parameters apart from those of <see cref="Endpoints"/>:
+/// <c>/problems</c> group covered by <see cref="ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails{TBuilder}(TBuilder)"/>,
+/// and under a <c>/localized</c> group answering with the messages of <see cref="ProblemMessages"/>, and the requests the
+/// script sends them. Each handler names its parameters apart from those of <see cref="Endpoints"/> and of the other group:
 /// the Request Delegate Generator writes one interceptor for two handlers of the same parameter types and names, and
 /// drops the attributes of the second.
 /// </summary>
@@ -36,6 +37,16 @@ internal static class Problems
 
         // A body, which only the exception handler explains, with ThrowOnBadRequest on.
         problems.MapPost("/orders", (Order placed) => placed.Number.Value);
+
+        // The same refusals, answered with the messages of a resource of the application's, read through the localizer.
+        var localized = app.MapGroup("/localized").WithValueObjectProblemDetails(static messages => messages.UseResource<ProblemMessages>());
+        localized.MapGet("/stock/{units}", (Quantity units) => units.ToString());
+        localized.MapGet("/pages", (PageNumber first) => first.ToString());
+        localized.MapGet("/scores", (Score mark) => mark.ToString());
+        localized.MapGet("/rates", (VatRate? vat) => $"{vat}");
+        localized.MapGet("/clients", (CustomerId client) => client.ToString());
+        localized.MapGet("/labels/{label}", (HandWrittenCode label) => label.Value);
+        localized.MapPost("/orders", (Order submitted) => submitted.Number.Value);
     }
 
     /// <summary>
@@ -109,6 +120,37 @@ internal static class Problems
             };
             await ExpectAsync(report, client, request, $"{mode} /problems/orders {body}", expected);
         }
+
+        // The messages of the resource, in the invariant culture the application runs in: the key naming the one bound
+        // declared first, then the key of the code, and the English message for a code the resource lacks. Each answer is
+        // checked with its messages, since both runs keeping the English ones would agree.
+        (string Path, string Expected)[] localized =
+        [
+            ("/localized/stock/7", "200"),
+            ("/localized/stock/0", """400 {"units":"value_object.out_of_range"} {"units":["units lies outside 1..1000."]}"""),
+            ("/localized/pages?first=0", """400 {"first":"value_object.out_of_range"} {"first":["first is below 1."]}"""),
+            ("/localized/scores?mark=200", """400 {"mark":"value_object.out_of_range"} {"mark":["mark lies outside ..100."]}"""),
+            ("/localized/rates?vat=7", """400 {"vat":"value_object.not_a_known_value"} {"vat":["vat is none of 20.0, 5.5."]}"""),
+            ("/localized/clients", """400 {"client":"value_object.required"} {"client":["client is missing."]}"""),
+            ("/localized/clients?client=" + Guid.Empty, """400 {"client":"value_object.required"} {"client":["client is missing."]}"""),
+            ("/localized/scores?mark=x", """400 {"mark":"value_object.not_parsable"} {"mark":["mark cannot be read."]}"""),
+            ("/localized/labels/123", """400 {"label":"value_object.invalid_format"} {"label":["A code holds ASCII letters only."]}"""),
+        ];
+        foreach (var (path, expected) in localized)
+        {
+            await ExpectAsync(report, client, new HttpRequestMessage(HttpMethod.Get, path), $"{mode} {path}", expected);
+        }
+
+        var submitted = new HttpRequestMessage(HttpMethod.Post, "/localized/orders")
+        {
+            Content = new StringContent(Order, Encoding.UTF8, "application/json"),
+        };
+        await ExpectAsync(
+            report,
+            client,
+            submitted,
+            $"{mode} /localized/orders {Order}",
+            development ? """400 {"$.Quantity":"value_object.out_of_range"} {"$.Quantity":["Quantity lies outside 1..1000."]}""" : "400");
     }
 
     /// <summary>
@@ -146,7 +188,7 @@ internal static class Problems
             var status = (int)response.StatusCode;
             report.Line($"{request.Method} {subject}", $"{status} {body}");
 
-            var outcome = Outcome(status, body);
+            var outcome = Outcome(request.RequestUri!.AbsolutePath, status, body);
             if (outcome != expected)
             {
                 report.Fail($"{request.Method} {subject}", $"expected {expected}, answered {outcome}");
@@ -154,8 +196,11 @@ internal static class Problems
         }
     }
 
-    /// <summary>The status, followed by the codes of the problem details when they carry any.</summary>
-    private static string Outcome(int status, string body)
+    /// <summary>
+    /// The status, followed by the codes of the problem details when they carry any, and by their messages when they
+    /// answer an endpoint of the <c>/localized</c> group.
+    /// </summary>
+    private static string Outcome(string path, int status, string body)
     {
         var text = status.ToString(CultureInfo.InvariantCulture);
         if (!body.StartsWith('{'))
@@ -164,10 +209,14 @@ internal static class Problems
         }
 
         using var problem = JsonDocument.Parse(body);
+        if (!problem.RootElement.TryGetProperty(ValueObjectProblemDetails.ExtensionName, out var codes))
+        {
+            return text;
+        }
 
-        return problem.RootElement.TryGetProperty(ValueObjectProblemDetails.ExtensionName, out var codes)
-            ? $"{text} {codes.GetRawText()}"
-            : text;
+        return path.StartsWith("/localized/", StringComparison.Ordinal)
+            ? $"{text} {codes.GetRawText()} {problem.RootElement.GetProperty("errors").GetRawText()}"
+            : $"{text} {codes.GetRawText()}";
     }
 }
 

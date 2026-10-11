@@ -192,6 +192,9 @@ endpoints `WithValueObjectProblemDetails()` covers fail to build, at the first r
 `InvalidOperationException` naming `AddProblemDetails()`, rather than answer each refusal with a 500 where the
 framework answers a 400.
 
+The messages can be in the application's language too, read from a resource by the code of the rule:
+[messages in the application's language](#messages-in-the-applications-language).
+
 `ValueObjectProblemDetails`, which names the member, ships with this package and keeps the namespace
 `AdCodicem.ValueObjects.AspNetCore`; the MVC package references it and forwards the type, so that code compiled
 against either finds it.
@@ -246,7 +249,8 @@ member to the stable code of the rule it violated:
 }
 ```
 
-A client branches on `value_object.not_a_known_value`, not on English. The member name is available as
+A client branches on `value_object.not_a_known_value`, not on English, and the message can be in the application's
+language: [messages in the application's language](#messages-in-the-applications-language). The member name is available as
 `ValueObjectProblemDetails.ExtensionName`. A member refused more than once, as the elements of a query array, which MVC
 binds under the array's name, or a key repeated in a body Newtonsoft.Json reads, lists every message in `errors` and
 keeps the code of the first in `errorCodes`, the rule its first message states, as a minimal API does.
@@ -273,13 +277,15 @@ builder puts in place of MVC's System.Text.Json input formatter, at its index, o
 the very `JsonSerializerOptions` the framework's formatter read with and reads the code off that exception before the
 exception is dropped. The `errors` member is the one MVC writes without the package, whatever
 `JsonOptions.AllowInputFormatterExceptionMessages` says: the message of the exception by default, "The input was not
-valid." when it is turned off. A change made to the JSON options once the application runs reaches it as it reaches
-the framework's, and the media types and encodings the application gave the framework's formatter are kept. A
-System.Text.Json input formatter the application built with options of its own, or derived, is left as it is, and
-records no code. A body read by Newtonsoft.Json, after `AddNewtonsoftJson()`, has no System.Text.Json formatter to
-replace, and records no code unless `AddValueObjectsNewtonsoftJson()` replaces Newtonsoft.Json's
-([below](#a-body-read-by-newtonsoftjson)); neither does a body when the binder alone was added, through
-`AddValueObjects()` on `MvcOptions`.
+valid." when it is turned off. Messages configured with `AddValueObjects(messages => …)` replace the message of the
+exception with the resource's, under that default
+([messages in the application's language](#messages-in-the-applications-language)). A change made to the JSON options
+once the application runs reaches it as it reaches the framework's, and the media types and encodings the application
+gave the framework's formatter are kept. A System.Text.Json input formatter the application built with options of its
+own, or derived, is left as it is, and records no code. A body read by Newtonsoft.Json, after `AddNewtonsoftJson()`,
+has no System.Text.Json formatter to replace, and records no code unless `AddValueObjectsNewtonsoftJson()` replaces
+Newtonsoft.Json's ([below](#a-body-read-by-newtonsoftjson)); neither does a body when the binder alone was added,
+through `AddValueObjects()` on `MvcOptions`.
 
 The swap is a post-configuration of `MvcOptions`. To take the System.Text.Json input formatter out,
 `InputFormatters.RemoveType<SystemTextJsonInputFormatter>()` still works in `AddMvcOptions`, in
@@ -398,6 +404,116 @@ object as `XmlSerializer` or `DataContractSerializer` does: as an empty element 
 assembly opts into [XML serialization](xml.md), which makes them read and write it as its underlying value, through
 its rules. A body holding a value the type refuses is then answered 400 with MVC's own message, "An error occurred
 while deserializing input data.", and no code: no formatter of this library records the code of an XML body yet.
+
+## Messages in the application's language
+
+The messages in `errors` are the English ones of the rules. An application that answers in its users' language names a
+resource, and every value object an endpoint refuses is answered with the message the resource holds for the code of
+the rule, under the key `ValueObject.` followed by the code, with the arguments the type's rules supply. The codes in
+`errorCodes` stay the same in every language. The keys, the arguments and a French example are in
+[the errors reference](../reference/errors.md#a-message-in-the-applications-language).
+
+For MVC controllers:
+
+```csharp skip
+builder.Services.AddLocalization();
+builder.Services.AddControllers()
+    .AddValueObjects(messages => messages.UseResource<ValidationMessages>());
+builder.Services.Configure<ApiBehaviorOptions>(options => options.AddValueObjectProblemDetails());
+
+var app = builder.Build();
+app.UseRequestLocalization(options => options
+    .SetDefaultCulture("fr-FR")
+    .AddSupportedCultures("fr-FR", "en-US")
+    .AddSupportedUICultures("fr-FR", "en-US"));
+```
+
+```json
+{
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": { "country": ["« country » doit être l'une des valeurs suivantes : FR; BE; LU."] },
+  "errorCodes": { "country": "value_object.not_a_known_value" }
+}
+```
+
+- A route, query, header or form value is quoted by the display name MVC gives its member, `{0}`, as MVC's own
+  messages are, an element of an array by its type's.
+- A value a JSON body refuses is translated too, under its JSON path, quoting the name of the value object, never the
+  path, which holds the key a dictionary keyed by a value object refused. MVC answers with the formatter's message only
+  under `JsonOptions.AllowInputFormatterExceptionMessages`, its default: turned off, a body is answered "The input was
+  not valid." whatever the resource holds. A body read by Newtonsoft.Json, through
+  `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson`, keeps its English message.
+- Blank text keeps MVC's own message, "The value ' ' is invalid.", which the application localises through
+  `ModelBindingMessageProvider`, as it does for every other type.
+- `AddValueObjects(messages => …)` exists on `MvcOptions` too, the wiring an application that configures MVC directly
+  uses. It configures the binder alone, so a body keeps its English message there, unless `AddValueObjects()` on the
+  MVC builder puts the input formatter in place as well, which reads the same messages. The options hold one binder
+  provider, whichever of these is called and however often: the last configuration of its messages wins.
+
+For minimal APIs, the convention takes the same option, per endpoint:
+
+```csharp skip
+builder.Services.AddLocalization();
+builder.Services.AddProblemDetails();
+builder.Services.AddValueObjectHttpProblemDetails();
+
+var app = builder.Build();
+app.UseExceptionHandler();
+app.UseRequestLocalization(options => options.SetDefaultCulture("fr-FR").AddSupportedCultures("fr-FR", "en-US").AddSupportedUICultures("fr-FR", "en-US"));
+
+var api = app.MapGroup("/api").WithValueObjectProblemDetails(messages => messages.UseResource<ValidationMessages>());
+```
+
+- A route, query or header value is quoted by the name it binds from, `{0}`, an absent required one included; a body
+  the exception handler explains, by the name of the value object, as on MVC.
+- The options belong to each endpoint: one covered by its group and by itself takes its own, and a call without options
+  keeps the group's.
+- The exception handler answers in the culture of the request whatever the order of `UseExceptionHandler()` and
+  `UseRequestLocalization()`: in the usual order above, the culture that middleware set is gone by the time the
+  exception reaches the handler, which applies the culture of `IRequestCultureFeature` again.
+- `AddLocalization()` and a `.resx` resource publish with native AOT without a warning, and the package's lookup reads
+  no annotation: the minimal API path runs in a native binary. Under `InvariantGlobalization`, every request runs in the
+  invariant culture, which reads the neutral resource, the `.resx` without a culture in its name.
+
+Each target reads the resource through the request's `IStringLocalizerFactory`, which `AddLocalization()` registers:
+without it, the first refusal that needs a message throws an `InvalidOperationException` naming the call. The current UI
+culture chooses the message, falling back from `fr-FR` to `fr` and then to the neutral resource, and a key the resource
+lacks keeps the English message: a resource that holds `ValidationMessages.fr.resx` alone answers every other culture
+in English. A message quoting an argument its code does not supply throws its `FormatException`, the application's
+error to see rather than hide behind the English text.
+
+The resource is named after a type, an empty class beside a `.resx` file of the same name for each culture:
+
+```csharp skip
+namespace MyApp.Resources;
+
+public sealed class ValidationMessages;
+```
+
+```xml
+<!-- Resources/ValidationMessages.fr.resx -->
+<data name="ValueObject.value_object.too_short" xml:space="preserve">
+  <value>« {0} » : au moins {1} caractères.</value>
+</data>
+<data name="ValueObject.value_object.out_of_range.minimum" xml:space="preserve">
+  <value>« {0} » doit valoir au moins {1}.</value>
+</data>
+```
+
+The build names the resource after the root namespace of the project followed by its folder, and the localizer looks
+it up after the namespace of the type: keep the type's namespace the root namespace followed by the folder, or every key
+reads as missing, with no error.
+
+On .NET 11, the built-in validation of minimal APIs localises its own messages through
+`ValidationOptions.LocalizerProvider`, which resolves an `IStringLocalizer` per type. One resource type can serve both,
+a key of its own beside each `ValueObject.` key:
+
+```csharp skip
+// .NET 11 (Microsoft.Extensions.Validation 11.0.0-rc.1): an API this library, which targets net10.0, does not call.
+builder.Services.AddValidation(options =>
+    options.LocalizerProvider = (_, factory) => factory.Create(typeof(ValidationMessages)));
+```
 
 ## Codes for a payload you validate yourself
 

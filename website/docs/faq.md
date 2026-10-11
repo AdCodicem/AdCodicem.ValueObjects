@@ -90,6 +90,18 @@ uninitialized struct would skip every rule. A type whose zero value is genuinely
 [classified as personal data](./reference/errors.md#personal-data-in-an-exception), the attempted value. To throw
 something else, call `TryCreate` and throw your own exception from the `ValidationResult` it returns.
 
+### Can the messages be in another language?
+
+Yes, by the code of the rule. The messages of the rules stay English, for the developers who read exceptions and logs,
+and an application translates them under the key `ValueObject.` followed by the code, with arguments the declared rules
+supply: the length, the bounds, the known values, formatted in the request's culture. MVC and minimal APIs read the
+translations from a resource the application names, `AddValueObjects(messages => messages.UseResource<T>())` and
+`WithValueObjectProblemDetails(messages => messages.UseResource<T>())`, and FluentValidation from its
+`LanguageManager`. No translation ships with the packages. The
+[errors reference](./reference/errors.md#a-message-in-the-applications-language) lists the keys and the arguments, with a
+French example, and the guides for [ASP.NET Core](./how-to/aspnet-core.md#messages-in-the-applications-language) and
+[FluentValidation](./how-to/fluentvalidation.md#messages-in-another-language) the wiring.
+
 ### Can a value object be a dictionary key, or an EF Core key?
 
 Yes to both. The generated equality and hashing make dictionary lookups allocation-free, and a value object

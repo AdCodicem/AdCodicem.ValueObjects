@@ -40,9 +40,12 @@ terms: a JSON exception, a model state error, a FluentValidation failure, a Dapp
 `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool result a language model
 reads, a Model Context Protocol tool execution error ([what each one throws](./reference/errors.md)).
 Each carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions ([the code in
-an exception](./reference/errors.md#the-code-in-an-exception)). `Create` throws `ValueObjectException`, and is for the
-call sites that want it; a strict EF Core read goes through it, and fails the query. Validation is fail-fast: the first
-violated rule wins.
+an exception](./reference/errors.md#the-code-in-an-exception)). The message is English; the code keys the one an
+application shows in its users' language, which the MVC, minimal API and FluentValidation integrations look up with the
+arguments the declared rules supply ([a message in the application's
+language](./reference/errors.md#a-message-in-the-applications-language)). `Create` throws `ValueObjectException`, and is
+for the call sites that want it; a strict EF Core read goes through it, and fails the query. Validation is fail-fast: the
+first violated rule wins.
 
 **Normalize, then validate, then assign.** So a non-default instance is by construction both normalized and
 valid. It happens on construction, on parsing, on deserialization and on model binding — but *not* when

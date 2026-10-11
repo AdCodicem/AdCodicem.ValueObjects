@@ -7,7 +7,10 @@ namespace AdCodicem.ValueObjects;
 /// </summary>
 /// <remarks>
 /// Codes are stable strings so they can safely cross process boundaries: they are surfaced in
-/// <c>ProblemDetails</c> responses and can be mapped to localized messages by the consumer.
+/// <c>ProblemDetails</c> responses, and each keys the message an application shows in its users' language,
+/// <see cref="Metadata.ValueObjectMessages.KeyFor"/> giving the key and
+/// <see cref="Metadata.ValueObjectMessages.ArgumentsFor(Metadata.ValueObjectDescriptor, string, IFormatProvider?)"/>
+/// the arguments the declared rules supply, which the MVC, minimal API and FluentValidation integrations look up.
 /// Consumers are free to define their own codes; these are only the ones the framework itself emits.
 /// </remarks>
 public static class ValueObjectErrorCodes

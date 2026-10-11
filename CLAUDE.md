@@ -281,7 +281,13 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   code, and whose structured content is that object when the tool declares no output schema. The one that throws
   `ValueObjectException` is a strict EF Core read, which goes through `Create` and fails the query; `Create`, `Parse`
   and an explicit conversion throw it for code that treats a rejected value as a bug. `website/docs/reference/errors.md`
-  names what each integration throws. Validation is fail-fast: the first violated rule wins.
+  names what each integration throws. Validation is fail-fast: the first violated rule wins. The message of a rule stays
+  English, for exceptions and logs; an application localises it by code, under `ValueObject.{code}`
+  (`ValueObjectMessages` in the contracts), and keeps the English message for a key it lacks: MVC through
+  `AddValueObjects(messages => messages.UseResource<T>())` on `MvcOptions` or the builder (the binder and the JSON input
+  formatter), a minimal API through `WithValueObjectProblemDetails(messages => …)` (the filter and the exception
+  handler), each reading the resource through the request's `IStringLocalizerFactory`, and FluentValidation from
+  `ValidatorOptions.Global.LanguageManager` when no message is chained. No translation ships.
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI `maxLength`, and
   the `maxLength` of the MongoDB `$jsonSchema` validator (`ValueObjectBsonSchema`, which writes each rule of
   `TSelf.Schema` only where the server refuses no value the type accepts, the pattern in PCRE2 through `PcrePattern`
@@ -326,7 +332,12 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   the test-data sampler (`PatternSampler` in `AdCodicem.ValueObjects.Testing.Data`) draws strings
   from the same tree, and leaves a pattern outside its subset to rejection sampling, over the tree of the pattern read
   without its lookarounds and with its categories reduced to printable ASCII. The rules a test draws values from
-  are the same `TSelf.Schema`: lengths, pattern, bounds, known values, and the example as a fallback.
+  are the same `TSelf.Schema`: lengths, pattern, bounds, known values, and the example as a fallback. So are the
+  arguments of a localised message: `ValueObjectMessages.ArgumentsFor` reads `MinLength`, `MaxLength`, `Minimum` and
+  `Maximum` (the invariant text read back as the underlying type and written in the current culture) and `KnownValues`
+  (joined with the culture's list separator) off `TSelf.Schema`, or off a descriptor's, and `KeysFor` puts
+  `ValueObject.value_object.out_of_range.minimum` or `.maximum` before the bare key for a type declaring one bound. The
+  refused value is never an argument; `{0}` is the member, the value object's type name in a JSON body.
 - **`default(T)` is a build error** (`VO0010`). Tests that deliberately construct one need a targeted
   `#pragma warning disable VO0010` with a comment.
 - **A known value is the author's member, created before the lookup it belongs to.** `[KnownValue]` marks a
@@ -409,7 +420,11 @@ These are all load-bearing, and each cost real debugging time:
   details, as without reflection and without `AddProblemDetails()`, rather than let each refusal end in a 500.
   `ValueObjectProblemDetails` lives in `AdCodicem.ValueObjects.AspNetCore.Http`, under the namespace
   `AdCodicem.ValueObjects.AspNetCore`, and the MVC package forwards it (`TypeForwards.cs`), so that code compiled
-  against an earlier MVC package still finds it: keep both the namespace and the forward.
+  against an earlier MVC package still finds it: keep both the namespace and the forward. `ValueObjectMessageOptions`
+  lives beside it, under the same namespace, which the MVC package shares. The messages a convention names belong to
+  the endpoint's marker: a group's conventions run before the endpoint's own, so the last convention naming messages
+  wins, and one without keeps them. The exception handler runs outside `UseRequestLocalization()` in the usual order,
+  whose culture is gone by then: it applies the culture of `IRequestCultureFeature` again while it answers.
 - **MVC does not narrow its value providers to a greedy binding source.** `AddValueObjects` inserts
   `ValueObjectModelBinderProvider` first, ahead of MVC's providers for a header, the body, the services and a binder
   `[ModelBinder(typeof(…))]` names, whose sources are greedy: claiming one bound a `[FromHeader]` or `[FromBody]` value
@@ -669,10 +684,13 @@ These are all load-bearing, and each cost real debugging time:
   answers a refusal with, name no type of Microsoft.Extensions.AI, and are linked by the AI and the Model Context
   Protocol packages, each overload of `FirstRejection` called by one of them: no test names them, `LanguageModels/`
   reaching them through `WithValueObjectValidation()` and `WithValueObjectTools` alone, so that neither copy needs an
-  alias, and coverage counts a line of the file covered by either copy. `KnownValueSpellings.cs`, which tells whether a
-  closed set of text stores another spelling of a known value, is linked by the MongoDB and the EF Core packages the
-  same way: no test names it, the MongoDB copy is tested through the validator's `enum` (`MongoDbSchemaTests`), the EF
-  Core copy through the CHECK constraint's `IN` (`EntityFrameworkCoreCheckConstraintTests`).
+  alias, and coverage counts a line of the file covered by either copy. `ValueObjectLocalizedMessages.cs`, the lookup
+  of a refusal's message in the application's resource, is linked by the minimal API and the MVC packages the same
+  way, which no test names: the localized tests of `Web/` reach each copy through its package's public API.
+  `KnownValueSpellings.cs`, which tells whether a closed set of text stores another spelling of a known value, is
+  linked by the MongoDB and the EF Core packages the same way: no test names it, the MongoDB copy is tested through the
+  validator's `enum` (`MongoDbSchemaTests`), the EF Core copy through the CHECK constraint's `IN`
+  (`EntityFrameworkCoreCheckConstraintTests`).
 - **The test-data adapters each meet their library's own rules.** AutoFixture stays at 4.18.1 while 5.0 is a release
   candidate: a stable package depending on a prerelease is NU5104, which fails the pack; Dependabot proposes 5.0 as
   `fix(deps)!` once it ships. Bogus keeps the last rule of a member, so `RuleForValueObjects` replaces a rule written
@@ -767,6 +785,15 @@ Four suites, each with a distinct job:
   `IgnoreCase` is a construction of the hand-written `ShapedCode<TShape>` of `MongoDbShapedCode.cs` over a shape of the
   test's own, since a generated one trips VO0025. EF Core builds a model once per context type, so each model shape
   there has a context type of its own.
+  The localized messages are tested in fr-FR, whose ICU formats the expected strings spell out (a decimal comma, a
+  day-first date, `;` between known values), never in en-US times: `ValueObjectMessagesTests` builds the argument table
+  of every code and bounded underlying type, `Web/LocalizedModelBindingTests` and `Web/LocalizedMinimalApiProblemDetailsTests`
+  answer requests of each culture through `UseRequestLocalization`, the exception handler outside it, and
+  `FluentValidationLocalizationTests` runs in the `FluentValidationGlobalOptions` collection, since the language manager
+  is global, restoring it with the cultures it sets. Their resources are `Web/ValidationMessages.fr.resx`, the French
+  example of the errors reference word for word, and `Web/SparseMessages.fr.resx`, a range of two bounds and a
+  malformed template, each French alone, so that another culture keeps English; a resource type's namespace is the root
+  namespace followed by its folder, or every key reads as missing, with no error.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
   input, the values each type accepts drawn by the FsCheck package's `ValueObjectArbitrary`, over `ValueObjectSampler`,
@@ -847,7 +874,10 @@ on where they apply.
   and links `UnregisteredCode`, registered by nothing, which the factory refuses with a `NotSupportedException`. Two
   more applications answer refusals with the minimal API problem details (`Problems.cs`), with `ThrowOnBadRequest` off
   and on, each answer checked against the status and the codes the script expects, since both runs explaining nothing
-  would agree; a third, without `AddProblemDetails()`, must fail to build its endpoints. `Logging.cs` logs every
+  would agree; their `/localized` group answers with the messages of the neutral `ProblemMessages.resx`, the
+  application running under the invariant culture of `InvariantGlobalization`, each answer checked with its messages
+  too; a third, without `AddProblemDetails()`, must fail to build its endpoints. `Validation.cs` runs its forms a
+  second time with a `LanguageManager` holding English translations, which the invariant culture reads. `Logging.cs` logs every
   registered value object through Serilog with and without `@`, under the policy and the option, and fails the run when
   one is not the scalar of its underlying type, written as the bare value is. `LanguageModels.cs` describes every
   registered value object in a Microsoft.Extensions.AI tool's schema, builds tools from method groups over
@@ -906,7 +936,7 @@ Server and PostgreSQL 17, collections of value objects included, keys generated 
 key refused unset, `.Value` translated under `UseValueObjectQueries()`, CHECK constraints from the rules on SQLite, and
 a pattern constraint on PostgreSQL 17 with `ExcludePattern`, System.Text.Json source generation, ASP.NET Core
 model binding, on System.Text.Json and on Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal
-API problem details,
+API problem details, the messages of both and of FluentValidation in the language of the request,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection
 validator and entity identifiers minted on insert, MessagePack, with SignalR's MessagePack hub protocol 11 between a hub
 and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, FluentValidation, Newtonsoft.Json,

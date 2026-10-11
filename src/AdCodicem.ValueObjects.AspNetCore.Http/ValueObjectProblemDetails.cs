@@ -12,7 +12,7 @@ namespace AdCodicem.ValueObjects.AspNetCore;
 /// stable error code rides alongside it on the request, and <c>AddValueObjectProblemDetails()</c> on
 /// <c>ApiBehaviorOptions</c>, in <c>AdCodicem.ValueObjects.AspNetCore</c>, folds it into the RFC 9457 body as an
 /// <c>errorCodes</c> extension. A minimal API endpoint covered by
-/// <see cref="Http.ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails"/> writes the same
+/// <see cref="Http.ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails{TBuilder}(TBuilder)"/> writes the same
 /// member, so both answer a refused value object with one shape.
 /// </para>
 /// <para>

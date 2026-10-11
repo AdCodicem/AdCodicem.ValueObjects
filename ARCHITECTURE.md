@@ -109,7 +109,10 @@ actually fired. `DescriptorTests.cs` covers that surface.
   it is, a Model Context Protocol tool execution error carrying the code. The one that throws `ValueObjectException` is
   a strict EF Core read, which goes through `Create` and fails the query; `Create`, `Parse` and an explicit conversion
   throw it for code that treats a rejected value as a bug. The [error reference](website/docs/reference/errors.md) names
-  what each integration throws. Validation is fail-fast: the first violated rule wins.
+  what each integration throws. Validation is fail-fast: the first violated rule wins. The message of a rule stays
+  English; its code keys the one an application shows in its users' language, `ValueObject.{code}`, which MVC and minimal
+  APIs read from the application's resource through `IStringLocalizer`, in one source file both ASP.NET Core packages
+  compile, `src/Shared/ValueObjectLocalizedMessages.cs`, and FluentValidation from its `LanguageManager`.
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column, and becomes the OpenAPI
   `maxLength`; opted in, `AddValueObjectCheckConstraints()` writes the minimum length, the bounds, the closed sets
   and, in a dialect the options name, the patterns as CHECK constraints of the EF Core columns, the maximum length
@@ -133,7 +136,9 @@ actually fired. `DescriptorTests.cs` covers that surface.
   the type's own rules accept it, so a test never restates a rule the type declares. The JSON Schema core of the JSON
   package, `ValueObjectJsonSchema`, reads it once more for a language model, and the AI package carries what it writes
   to the schemas of Microsoft.Extensions.AI tools and structured output, the Model Context Protocol package to the input
-  and output schemas of a server's tools.
+  and output schemas of a server's tools. A localised message quotes the same rules: `ValueObjectMessages`, in the
+  contracts, reads the length, the bounds and the known values of `TSelf.Schema` as the arguments of the message of a
+  code, formatted for the culture, so a translation never states a rule a second time.
 
 ## Testing
 

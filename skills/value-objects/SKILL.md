@@ -219,6 +219,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddValueObjectHttpProblemDetails();                                   // AspNetCore.Http, minimal APIs
 app.UseExceptionHandler();                                                             // where ThrowOnBadRequest is on
 app.MapGroup("/api").WithValueObjectProblemDetails();                                  // AspNetCore.Http, minimal APIs
+// Messages in the request's language: AddLocalization() + AddValueObjects(m => m.UseResource<T>()) / WithValueObjectProblemDetails(m => m.UseResource<T>())
 builder.Services.AddOpenApi(o => o.AddValueObjects());                                 // OpenApi
 builder.Services.AddSwaggerGen(o => o.AddValueObjects());                              // Swashbuckle, after IncludeXmlComments
 ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);                       // Dapper

@@ -50,7 +50,7 @@ internal sealed class ValueObjectTextCheck<TSelf, TValue> : ValueObjectTextCheck
     {
         if (!TSelf.TryParse(text, CultureInfo.InvariantCulture, out _, out var validation))
         {
-            refusals.Add(
+            refusals.Add<TSelf, TValue>(
                 member,
                 validation.ErrorMessage ?? $"The value is not a valid {typeof(TSelf).Name}.",
                 validation.ErrorCode ?? ValueObjectErrorCodes.NotParsable);

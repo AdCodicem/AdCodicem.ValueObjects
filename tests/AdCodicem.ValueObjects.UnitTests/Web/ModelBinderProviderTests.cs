@@ -1,9 +1,13 @@
+using System.Globalization;
 using AdCodicem.ValueObjects.AspNetCore.ModelBinding;
 using AdCodicem.ValueObjects.Identifiers;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
+using Microsoft.Extensions.Primitives;
 
 namespace AdCodicem.ValueObjects.UnitTests.Web;
 
@@ -112,6 +116,31 @@ public class ModelBinderProviderTests
     [Fact]
     public void A_type_that_is_no_value_object_is_declined()
         => GetBinder(typeof(string)).Should().BeNull();
+
+    /// <summary>
+    /// A binder an application builds itself, outside any provider, has no messages configured, and answers a refusal
+    /// with the English message of the rule.
+    /// </summary>
+    [Fact]
+    public async Task A_binder_built_by_hand_refuses_with_the_English_message_of_the_rule()
+    {
+        var context = new DefaultModelBindingContext
+        {
+            ActionContext = new ActionContext { HttpContext = new DefaultHttpContext() },
+            ModelMetadata = new EmptyModelMetadataProvider().GetMetadataForType(typeof(Quantity)),
+            ModelName = "quantity",
+            ModelState = new ModelStateDictionary(),
+            ValueProvider = new QueryStringValueProvider(
+                BindingSource.Query,
+                new QueryCollection(new Dictionary<string, StringValues> { ["quantity"] = "5000" }),
+                CultureInfo.InvariantCulture),
+        };
+
+        await new ValueObjectModelBinder<Quantity, short>().BindModelAsync(context);
+
+        context.ModelState["quantity"]!.Errors.Should().ContainSingle()
+            .Which.ErrorMessage.Should().Be(MinimalApiProblemDetailsTests.Refusal<Quantity, short>("5000").Message);
+    }
 
     private static IModelBinder? GetBinder(Type modelType)
     {

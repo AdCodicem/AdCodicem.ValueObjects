@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.AspNetCore;
 using AdCodicem.ValueObjects.AspNetCore.Formatters;
+using AdCodicem.ValueObjects.AspNetCore.ModelBinding;
 using AdCodicem.ValueObjects.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -307,6 +308,48 @@ public class InputFormatterTests
         {
             [string.Empty] = ValueObjectErrorCodes.InvalidFormat,
         });
+    }
+
+    /// <summary>
+    /// An exception carrying a code without naming a value object, here one the request's pipe fails with, keeps its
+    /// message beside messages naming a resource: there is no type whose rules the message could quote.
+    /// </summary>
+    [Fact]
+    public async Task A_refusal_that_names_no_value_object_keeps_its_message_beside_localized_messages()
+    {
+        var formatter = new ValueObjectJsonInputFormatter(
+            new JsonOptions(),
+            NullLogger(),
+            new ValueObjectMessageOptions().UseResource<ValidationMessages>());
+        var http = Request("{}", "utf-8");
+        http.Features.Set<IRequestBodyPipeFeature>(new RefusingPipe(
+            new JsonException("The pipe refused the body.") { Data = { [ValueObjectErrors.ErrorCodeKey] = ValueObjectErrorCodes.InvalidFormat } }));
+        var modelState = new ModelStateDictionary();
+
+        var result = await formatter.ReadAsync(Context(http, typeof(ProbeOrder), modelState, false));
+
+        result.HasError.Should().BeTrue();
+        Describe(modelState).Should().ContainSingle().Which.Should().StartWith(" | The pipe refused the body. | ");
+        ValueObjectProblemDetails.GetErrorCodes(http).Should().Equal(new Dictionary<string, string> { [string.Empty] = ValueObjectErrorCodes.InvalidFormat });
+    }
+
+    /// <summary>
+    /// An application that removed the value object binder provider has no messages configured: the formatter still
+    /// takes the framework's place, and answers a refused value object with the converter's message.
+    /// </summary>
+    [Fact]
+    public async Task Without_the_binder_provider_the_formatter_keeps_the_converter_s_message()
+    {
+        using var provider = Build(static mvc => mvc
+            .AddValueObjects(static messages => messages.UseResource<ValidationMessages>())
+            .AddMvcOptions(static options => options.ModelBinderProviders.RemoveType<ValueObjectModelBinderProvider>()));
+        var formatter = provider.GetRequiredService<IOptions<MvcOptions>>().Value.InputFormatters.OfType<ValueObjectJsonInputFormatter>().Single();
+
+        var (result, modelState, _) = await ReadAsync(formatter, """{"reference":"x"}""");
+
+        result.HasError.Should().BeTrue();
+        modelState["$.reference"]!.Errors.Should().ContainSingle()
+            .Which.ErrorMessage.Should().Be("The value is not a valid OrderReference: The value must be at least 3 characters long.");
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System.Globalization;
+using AdCodicem.ValueObjects.Shared;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace AdCodicem.ValueObjects.AspNetCore.ModelBinding;
@@ -22,10 +23,33 @@ namespace AdCodicem.ValueObjects.AspNetCore.ModelBinding;
 /// value is invalid" message and <see cref="ValueObjectErrorCodes.Required"/>, rather than reaching the action as the
 /// default instance no rule has checked.
 /// </para>
+/// <para>
+/// A refusal carries the English message of the rule, unless the application configured its messages through
+/// <c>AddValueObjects(messages =&gt; …)</c>: the message the resource holds under the key of the rule's code then takes
+/// its place, quoting the display name of the member as <c>{0}</c> and the arguments the type's rules supply from
+/// <c>{1}</c>. Blank text keeps the framework's message, which the application localises through MVC's own message
+/// provider.
+/// </para>
 /// </remarks>
 public sealed class ValueObjectModelBinder<TSelf, TValue> : IModelBinder
     where TSelf : struct, IValueObject<TSelf, TValue>
 {
+    private readonly ValueObjectMessageOptions? _messages;
+
+    /// <summary>
+    /// Initializes a binder that answers a refusal with the English message of the rule.
+    /// </summary>
+    public ValueObjectModelBinder()
+        : this(null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a binder that answers a refusal with the messages of its provider.
+    /// </summary>
+    /// <param name="messages">The messages, or <see langword="null"/> for the English ones of the rules.</param>
+    internal ValueObjectModelBinder(ValueObjectMessageOptions? messages) => _messages = messages;
+
     /// <inheritdoc />
     public Task BindModelAsync(ModelBindingContext bindingContext)
     {
@@ -69,14 +93,18 @@ public sealed class ValueObjectModelBinder<TSelf, TValue> : IModelBinder
             return Task.CompletedTask;
         }
 
+        var code = validation.ErrorCode ?? ValueObjectErrorCodes.NotParsable;
         bindingContext.ModelState.TryAddModelError(
             bindingContext.ModelName,
-            validation.ErrorMessage ?? $"The value is not a valid {typeof(TSelf).Name}.");
+            ValueObjectLocalizedMessages.Find<TSelf, TValue>(
+                _messages,
+                bindingContext.HttpContext.RequestServices,
+                code,
+                bindingContext.ModelMetadata.GetDisplayName())
+            ?? validation.ErrorMessage
+            ?? $"The value is not a valid {typeof(TSelf).Name}.");
 
-        ValueObjectProblemDetails.RecordErrorCode(
-            bindingContext.HttpContext,
-            bindingContext.ModelName,
-            validation.ErrorCode ?? ValueObjectErrorCodes.NotParsable);
+        ValueObjectProblemDetails.RecordErrorCode(bindingContext.HttpContext, bindingContext.ModelName, code);
 
         return Task.CompletedTask;
     }

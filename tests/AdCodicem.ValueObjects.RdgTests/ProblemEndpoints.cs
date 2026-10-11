@@ -5,7 +5,7 @@ namespace AdCodicem.ValueObjects.RdgTests;
 
 /// <summary>
 /// The endpoints whose refusals the problem details tests send, under a <c>/problems</c> group covered by
-/// <see cref="ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails"/>: one call site per
+/// <see cref="ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails{TBuilder}(TBuilder)"/>: one call site per
 /// endpoint, which every application mapping them shares.
 /// </summary>
 /// <remarks>
