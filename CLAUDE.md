@@ -405,6 +405,15 @@ These are all load-bearing, and each cost real debugging time:
   `ValueObjectProblemDetails` lives in `AdCodicem.ValueObjects.AspNetCore.Http`, under the namespace
   `AdCodicem.ValueObjects.AspNetCore`, and the MVC package forwards it (`TypeForwards.cs`), so that code compiled
   against an earlier MVC package still finds it: keep both the namespace and the forward.
+- **MVC does not narrow its value providers to a greedy binding source.** `AddValueObjects` inserts
+  `ValueObjectModelBinderProvider` first, ahead of MVC's providers for a header, the body, the services and a binder
+  `[ModelBinder(typeof(…))]` names, whose sources are greedy: claiming one bound a `[FromHeader]` or `[FromBody]` value
+  object from a route, query or form value of its name, or left it at its default instance. The provider declines a
+  greedy source, before its cache, which is keyed by type alone. MVC's header binder then asks for a binder again under
+  `BindingSource.ModelBinding`, which is the package's, and hands it a value provider holding the header alone, so a
+  refused header records its code as a query value does, under the key MVC gives the error, as for an `int`: the name
+  the attribute gives, or else the member's, prefixed as MVC prefixes a model's members, and for a parameter naming no
+  header the empty key, unless a route, query or form value carries the parameter's name, which is then the key.
 - **MVC's Newtonsoft.Json input formatter keeps its settings protected and changes its exception policy for a
   subclass.** `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` derives from `NewtonsoftJsonInputFormatter`, which
   answers `InputFormatterExceptionPolicy.AllExceptions` for any type but its own, under which MVC turns any exception a

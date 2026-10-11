@@ -5,6 +5,7 @@ using System.Text.Json;
 using AdCodicem.ValueObjects.AspNetCore;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.TestHost;
@@ -14,8 +15,8 @@ using Microsoft.Extensions.Options;
 namespace AdCodicem.ValueObjects.UnitTests.Web;
 
 /// <summary>
-/// Value objects bound by MVC from the query string and the route, through an application served in memory, and
-/// the codes of the rules they break carried into the automatic 400 response.
+/// Value objects bound by MVC from the query string, the route, headers and bodies, through an application served in
+/// memory, and the codes of the rules they break carried into the automatic 400 response.
 /// </summary>
 public sealed class ModelBindingTests : IAsyncLifetime
 {
@@ -188,6 +189,117 @@ public sealed class ModelBindingTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// A value object read from a header binds through MVC's header binder, which hands the package's binder the header
+    /// alone: normalized, <see langword="null"/> where an optional one is absent or blank, under the parameter's or the
+    /// member's name when the attribute names no header, every comma-separated value of an array, a construction of a
+    /// generic value object, one written by hand, and a member of a model bound from the query string.
+    /// </summary>
+    /// <param name="url">The action.</param>
+    /// <param name="header">The header.</param>
+    /// <param name="value">Its value, or <see langword="null"/> to send none.</param>
+    /// <param name="expected">What the action answers.</param>
+    [Theory]
+    [InlineData("/probe/headers/country", "X-Country", " lu", "LU")]
+    [InlineData("/probe/headers/country", "X-Country", null, "none")]
+    [InlineData("/probe/headers/country", "X-Country", "", "none")]
+    [InlineData("/probe/headers/country", "X-Country", " ", "none")]
+    [InlineData("/probe/headers/customer", "customer", "0192f4a0-0000-7000-8000-000000000001", "0192f4a0-0000-7000-8000-000000000001")]
+    [InlineData("/probe/headers/quantities", "X-Quantity", "1, 2", "2")]
+    [InlineData("/probe/headers/reference", "X-Reference", " po-1042", "PO-1042")]
+    [InlineData("/probe/headers/counter", "X-Counter", "5", "5")]
+    [InlineData("/probe/headers/search?page=1", "X-Country", "be", "BE")]
+    [InlineData("/probe/headers/search?page=1", "ShipTo", " lu", "LU")]
+    public async Task A_value_object_binds_from_the_header_its_parameter_names(string url, string header, string? value, string expected)
+    {
+        var (status, body) = await SendAsync(url, header, value);
+
+        status.Should().Be(HttpStatusCode.OK);
+        body.Should().Be(expected);
+    }
+
+    /// <summary>
+    /// A header the value object refuses is answered 400, with the message of the rule and its code under the key MVC
+    /// gives the error, as it keys an <see cref="int"/> it refuses: the name the attribute gives the header, prefixed as
+    /// MVC prefixes the members of a model; where the attribute names none, the member's name, prefixed likewise, and
+    /// for a parameter the empty key, unless a route, query or form value carries the parameter's name, which is then
+    /// the key. Blank text where the value object cannot be <see langword="null"/> gets MVC's own message and
+    /// <c>value_object.required</c>, and every refused element of an array is listed, under the code of the first.
+    /// </summary>
+    /// <param name="url">The action.</param>
+    /// <param name="header">The header.</param>
+    /// <param name="value">Its value.</param>
+    /// <param name="key">The key of the errors and of the code.</param>
+    /// <param name="code">The code of the rule it breaks.</param>
+    /// <param name="messages">Every message listed under the key, in order.</param>
+    [Theory]
+    [InlineData("/probe/headers/country", "X-Country", "ZZ", "X-Country", ValueObjectErrorCodes.NotAKnownValue, "The value is not one of the accepted values.")]
+    [InlineData("/probe/headers/country", "X-Country", "lu,fr", "X-Country", ValueObjectErrorCodes.TooLong, "The value must be at most 2 characters long.")]
+    [InlineData("/probe/headers/customer", "customer", "not-a-guid", "", ValueObjectErrorCodes.NotParsable, "The text is not a valid System.Guid.")]
+    [InlineData("/probe/headers/customer?customer=x", "customer", "not-a-guid", "customer", ValueObjectErrorCodes.NotParsable, "The text is not a valid System.Guid.")]
+    [InlineData("/probe/headers/customer", "customer", "00000000-0000-0000-0000-000000000000", "", ValueObjectErrorCodes.Required, "A customer identifier must not be empty.")]
+    [InlineData("/probe/headers/customer", "customer", "", "", ValueObjectErrorCodes.Required, "The value '' is invalid.")]
+    [InlineData("/probe/headers/customer", "customer", " ", "", ValueObjectErrorCodes.Required, "The value ' ' is invalid.")]
+    [InlineData("/probe/headers/quantities", "X-Quantity", "1,-1,x", "X-Quantity", ValueObjectErrorCodes.OutOfRange, "The value must be greater than or equal to 0.", "The text is not a valid short.")]
+    [InlineData("/probe/headers/reference", "X-Reference", "PO-1042-AND-MORE", "X-Reference", ValueObjectErrorCodes.TooLong, "The value must be at most 12 characters long.")]
+    [InlineData("/probe/headers/counter", "X-Counter", "abc", "X-Counter", ValueObjectErrorCodes.NotParsable, "The value is not a valid HandWrittenCounter.")]
+    [InlineData("/probe/headers/search?page=1", "X-Country", "ZZ", "X-Country", ValueObjectErrorCodes.NotAKnownValue, "The value is not one of the accepted values.")]
+    [InlineData("/probe/headers/search?search.page=1", "X-Country", "ZZ", "search.X-Country", ValueObjectErrorCodes.NotAKnownValue, "The value is not one of the accepted values.")]
+    [InlineData("/probe/headers/search?page=1", "ShipTo", "ZZ", "ShipTo", ValueObjectErrorCodes.NotAKnownValue, "The value is not one of the accepted values.")]
+    [InlineData("/probe/headers/search?search.page=1", "ShipTo", "ZZ", "search.ShipTo", ValueObjectErrorCodes.NotAKnownValue, "The value is not one of the accepted values.")]
+    public async Task A_refused_header_is_answered_with_the_code_of_the_rule_under_the_key_MVC_gives_its_error(
+        string url,
+        string header,
+        string value,
+        string key,
+        string code,
+        params string[] messages)
+    {
+        var (status, body) = await SendAsync(url, header, value);
+
+        status.Should().Be(HttpStatusCode.BadRequest);
+        var problem = JsonSerializer.Deserialize<JsonElement>(body);
+        problem.GetProperty("errorCodes").Deserialize<Dictionary<string, string>>().Should()
+            .Equal(new Dictionary<string, string> { [key] = code });
+        var errors = problem.GetProperty("errors").Deserialize<Dictionary<string, string[]>>()!;
+        errors.Keys.Should().Equal([key], "every error is listed under the key of the code, and none elsewhere");
+        errors[key].Should().Equal(messages);
+    }
+
+    /// <summary>
+    /// MVC does not narrow its value providers to a header, which a binder reads alone: a route, query or form value
+    /// named as the header is never bound to it, accepted or refused.
+    /// </summary>
+    /// <param name="query">The query string, naming the header.</param>
+    [Theory]
+    [InlineData("?X-Country=lu")]
+    [InlineData("?X-Country=ZZ")]
+    public async Task A_header_parameter_never_binds_from_a_query_value_named_as_the_header(string query)
+        => (await _client.GetStringAsync($"/probe/headers/country{query}", TestContext.Current.CancellationToken)).Should().Be("none");
+
+    /// <summary>
+    /// A value object read from the body itself is read by the input formatter, as a JSON string, never from a query
+    /// value of the same name, and a refused one is answered with its code under the root of the body.
+    /// </summary>
+    [Fact]
+    public async Task A_value_object_read_from_the_body_itself_binds_through_the_input_formatter()
+    {
+        using var accepted = new StringContent("\"fr\"", Encoding.UTF8, "application/json");
+        using var response = await _client.PostAsync("/probe/countries?country=be", accepted, TestContext.Current.CancellationToken);
+        var problem = await PostProblemAsync(_client, "/probe/countries?country=be", "\"ZZ\"");
+
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().Be("FR");
+        problem.GetProperty("errorCodes").Deserialize<Dictionary<string, string>>().Should()
+            .Equal(new Dictionary<string, string> { ["$"] = ValueObjectErrorCodes.NotAKnownValue });
+    }
+
+    /// <summary>
+    /// A binder the parameter names, through <c>[ModelBinder(typeof(…))]</c>, binds it, whatever the request holds.
+    /// </summary>
+    [Fact]
+    public async Task A_binder_the_parameter_names_binds_it()
+        => (await _client.GetStringAsync("/probe/countries/named-binder?country=be", TestContext.Current.CancellationToken)).Should().Be("LU");
+
+    /// <summary>
     /// A body that fails for a reason no value object gave, here JSON cut short, carries no code: the response is the
     /// framework's own, with no empty extension added to it.
     /// </summary>
@@ -347,6 +459,30 @@ public sealed class ModelBindingTests : IAsyncLifetime
         await application.StartAsync(TestContext.Current.CancellationToken);
 
         return application;
+    }
+
+    /// <summary>
+    /// Sends a request with a header through the test server itself, since <see cref="HttpClient"/> drops a header whose
+    /// value is empty.
+    /// </summary>
+    private async Task<(HttpStatusCode Status, string Body)> SendAsync(string url, string header, string? value)
+    {
+        var query = url.IndexOf('?', StringComparison.Ordinal);
+        var context = await _application.GetTestServer().SendAsync(
+            request =>
+            {
+                request.Request.Method = HttpMethods.Get;
+                request.Request.Path = query < 0 ? url : url[..query];
+                request.Request.QueryString = query < 0 ? QueryString.Empty : new QueryString(url[query..]);
+                if (value is not null)
+                {
+                    request.Request.Headers[header] = value;
+                }
+            },
+            TestContext.Current.CancellationToken);
+        using var reader = new StreamReader(context.Response.Body);
+
+        return ((HttpStatusCode)context.Response.StatusCode, await reader.ReadToEndAsync(TestContext.Current.CancellationToken));
     }
 
     private static async Task<JsonElement> PostProblemAsync(HttpClient client, string url, string json)
