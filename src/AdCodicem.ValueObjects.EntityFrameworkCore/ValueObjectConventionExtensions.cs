@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Reflection;
 using AdCodicem.ValueObjects.Metadata;
 using Microsoft.EntityFrameworkCore;
@@ -235,10 +236,14 @@ public static class ValueObjectConventionExtensions
     /// </summary>
     /// <param name="builder">Model configuration builder, from <c>DbContext.ConfigureConventions</c>.</param>
     /// <param name="configure">
-    /// Chooses the rules; when it is not given, lengths, bounds and closed value sets are written.
+    /// Chooses the rules and the dialect of patterns; when it is not given, lengths, bounds and closed value sets are
+    /// written, and no pattern.
     /// </param>
     /// <returns>The same builder, so calls can be chained.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="builder"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="configure"/> names a dialect of patterns <see cref="ValueObjectPatternDialect"/> does not define.
+    /// </exception>
     /// <remarks>
     /// <para>
     /// Off unless called. Each column one of this package's converters maps, through <c>ConfigureValueObjects</c>,
@@ -257,6 +262,12 @@ public static class ValueObjectConventionExtensions
     /// property mapped by a converter of the application's own get none either.
     /// </para>
     /// <para>
+    /// A pattern is written only when <see cref="ValueObjectCheckOptions.Patterns"/> names the dialect of the database,
+    /// which the model cannot tell: <c>REGEXP_LIKE</c> on SQL Server 2025, <c>~</c> on PostgreSQL, none on SQLite. Naming
+    /// one fails the model, with an <see cref="InvalidOperationException"/>, on a pattern the dialect would read apart from
+    /// .NET, unless <see cref="ValueObjectCheckOptions.ExcludePattern{TSelf}"/> leaves that value object's pattern out.
+    /// </para>
+    /// <para>
     /// The application's own writes pass, since the value objects it writes went through their rules. A constraint refuses
     /// what another writer stores, and an invalid instance a lax read let in and the application writes back, with the
     /// provider's error inside a <see cref="DbUpdateException"/> for a write through Entity Framework Core: it complements
@@ -264,9 +275,10 @@ public static class ValueObjectConventionExtensions
     /// </para>
     /// <para>
     /// The options are read once per context type, as <c>strict</c> is: Entity Framework Core builds the model the first
-    /// time a context type is used and caches it for every later instance. The constraints are part of the model a
-    /// migration, <c>EnsureCreated</c> or a script is made from, never of a compiled model, which reads none: nothing here
-    /// runs per query or per row.
+    /// time a context type is used and caches it for every later instance. A second call replaces the first, whose
+    /// options then apply nowhere, so that a context deriving from another can call it again with options of its own. The
+    /// constraints are part of the model a migration, <c>EnsureCreated</c> or a script is made from, never of a compiled
+    /// model, which reads none: nothing here runs per query or per row.
     /// </para>
     /// </remarks>
     /// <example>
@@ -274,7 +286,7 @@ public static class ValueObjectConventionExtensions
     /// protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     ///     => builder
     ///         .ConfigureValueObjects(typeof(Iban).Assembly)
-    ///         .AddValueObjectCheckConstraints();
+    ///         .AddValueObjectCheckConstraints(checks => checks.Patterns = ValueObjectPatternDialect.PostgreSql);
     /// </code>
     /// </example>
     public static ModelConfigurationBuilder AddValueObjectCheckConstraints(
@@ -285,11 +297,24 @@ public static class ValueObjectConventionExtensions
 
         var options = new ValueObjectCheckOptions();
         configure?.Invoke(options);
+        if (!Enum.IsDefined(options.Patterns))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(configure),
+                options.Patterns,
+                "The dialect of patterns is none of those ValueObjectPatternDialect defines.");
+        }
 
         // Read now: the convention is created each time a model is built, and the options are not the caller's to change
         // afterwards.
         var rules = options.Rules;
-        builder.Conventions.Add(services => new ValueObjectCheckConstraintConvention(services, rules));
+        var patterns = options.Patterns;
+        var exclusions = options.PatternExclusions.ToFrozenSet();
+
+        // A second call replaces the first, as a second strict does: beside it, the first convention would still write
+        // and check what its options name, and the second would write every constraint again under a hashed name.
+        builder.Conventions.Remove<ValueObjectCheckConstraintConvention>();
+        builder.Conventions.Add(services => new ValueObjectCheckConstraintConvention(services, rules, patterns, exclusions));
 
         return builder;
     }

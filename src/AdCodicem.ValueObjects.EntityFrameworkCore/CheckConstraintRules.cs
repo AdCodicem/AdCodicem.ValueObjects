@@ -1,6 +1,8 @@
 using System.Collections.Frozen;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -19,7 +21,8 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// written as the provider writes a literal of the underlying type, and left out where the column does not order or
 /// compare values as .NET does: text that does not sort as numbers or instants, a column that rounds the bound away, a
 /// value SQL Server's <c>time</c> cannot hold. A closed set of text is written only when the type stores no other
-/// spelling of a known value, which a set looked up ignoring case, or as a culture compares, would.
+/// spelling of a known value, which a set looked up ignoring case, or as a culture compares, would. A pattern is written
+/// in the dialect the options name, or fails the model when that dialect would read it apart from .NET.
 /// </para>
 /// <para>
 /// The rules are <c>TSelf.Schema</c>, which <c>Validate</c> enforces, not the schema a registration made by hand may
@@ -28,16 +31,24 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// </remarks>
 /// <param name="engine">The database.</param>
 /// <param name="rules">The rules written.</param>
+/// <param name="patterns">The dialect a pattern is written in.</param>
+/// <param name="exclusions">The value objects whose pattern is left out.</param>
 /// <param name="mappings">The type mappings of the provider.</param>
 /// <param name="property">The property whose column is constrained.</param>
 /// <param name="column">The column, delimited.</param>
 internal sealed class CheckConstraintRules(
     CheckEngine engine,
     ValueObjectChecks rules,
+    ValueObjectPatternDialect patterns,
+    IReadOnlySet<Type> exclusions,
     IRelationalTypeMappingSource mappings,
     IReadOnlyProperty property,
     string column) : IValueObjectVisitor<IReadOnlyList<(string Rule, string Sql)>>
 {
+    /// <summary>The options a pattern keeps its meaning under once read with none.</summary>
+    private const RegexOptions PortableOptions =
+        RegexOptions.CultureInvariant | RegexOptions.Compiled | RegexOptions.ExplicitCapture | RegexOptions.NonBacktracking;
+
     /// <summary>
     /// The underlying types a bound is read into, from the invariant text the schema holds it in, each as its own parser
     /// reads it.
@@ -70,10 +81,18 @@ internal sealed class CheckConstraintRules(
     /// <typeparam name="TSelf">Value object type.</typeparam>
     /// <typeparam name="TValue">Underlying value type.</typeparam>
     /// <returns>Each rule written, with its SQL, the column not yet allowed its <c>NULL</c>.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// A dialect of patterns is named, and the pattern of the value object holds a construct it reads apart from .NET, or
+    /// its regular expression sets an option its text does not carry.
+    /// </exception>
     public IReadOnlyList<(string Rule, string Sql)> Visit<TSelf, TValue>()
         where TSelf : struct, IValueObject<TSelf, TValue>
     {
         var schema = TSelf.Schema;
+
+        // Checked first and whatever the column: a pattern the named dialect cannot read as .NET does fails the model,
+        // under SQLite in tests as under the database it names.
+        var pattern = typeof(TValue) == typeof(string) ? PatternOf<TSelf>(schema.Pattern) : null;
         var checks = new List<(string Rule, string Sql)>();
         if (mappings.FindMapping(
                 typeof(TValue),
@@ -120,6 +139,24 @@ internal sealed class CheckConstraintRules(
             && Literals<TValue>(schema, mapping) is { } values)
         {
             checks.Add(("KnownValues", $"{column} IN ({values})"));
+        }
+
+        if (pattern is not null && !mapping.IsFixedLength)
+        {
+            // SQL Server pads a fixed-length column with spaces, which the pattern would see; PostgreSQL drops them
+            // before it matches, and a value that ends with spaces would lose them.
+            var text = mappings.FindMapping(typeof(string))!.GenerateSqlLiteral(pattern);
+            switch (engine, patterns)
+            {
+                case (CheckEngine.SqlServer, ValueObjectPatternDialect.SqlServer2025):
+                    checks.Add(("Pattern", $"REGEXP_LIKE({column}, {text})"));
+                    break;
+                case (CheckEngine.PostgreSql, ValueObjectPatternDialect.PostgreSql):
+                    // A nondeterministic collation refuses a regular expression, and the C collation reads classes and
+                    // ranges by code point, as .NET does.
+                    checks.Add(("Pattern", $"{column} COLLATE \"C\" ~ {text}"));
+                    break;
+            }
         }
 
         return checks;
@@ -216,6 +253,45 @@ internal sealed class CheckConstraintRules(
                 .SelectMany(static group => group.Select(character => (character, others: group.Where(other => other != character).ToArray())))
                 .ToFrozenDictionary(static pair => pair.character, static pair => pair.others);
         }
+    }
+
+    /// <summary>
+    /// Writes the pattern of a value object in the named dialect, or fails the model when the dialect reads it apart.
+    /// </summary>
+    /// <returns>
+    /// The pattern in the dialect, or <see langword="null"/> when no dialect is named, the type has no pattern, or the
+    /// options leave its pattern out.
+    /// </returns>
+    private string? PatternOf<TSelf>(string? pattern)
+    {
+        if (patterns == ValueObjectPatternDialect.None || pattern is null || exclusions.Contains(typeof(TSelf)))
+        {
+            return null;
+        }
+
+        var name = TypeNames.Of(typeof(TSelf));
+        var remedy = $"leave it out with ExcludePattern<{name}>(), or leave Patterns at None.";
+        if (typeof(TSelf).IsAssignableTo(typeof(IValueObjectPatternValidator)))
+        {
+            // The hook is a static abstract member, which only a type parameter constrained to the interface reaches; the
+            // interface map finds it, implemented implicitly or explicitly.
+            var getter = typeof(TSelf).GetInterfaceMap(typeof(IValueObjectPatternValidator)).TargetMethods.Single();
+            var options = ((Regex)getter.Invoke(null, null)!).Options & ~PortableOptions;
+            if (options != RegexOptions.None)
+            {
+                throw new InvalidOperationException(
+                    $"AddValueObjectCheckConstraints cannot write the pattern of {name} for {patterns}: its regular "
+                    + $"expression sets {options}, which the text of the pattern does not carry, and the database would "
+                    + $"read the text as .NET reads it with no option. Write the pattern so that it means the same "
+                    + $"without them, {remedy}");
+            }
+        }
+
+        return SqlPattern.TryWrite(pattern, patterns, out var written, out var refusal)
+            ? written
+            : throw new InvalidOperationException(
+                $"AddValueObjectCheckConstraints cannot write the pattern of {name} for {patterns}: it holds {refusal}. "
+                + $"Write the pattern within what .NET and the database read alike, {remedy}");
     }
 
     /// <summary>

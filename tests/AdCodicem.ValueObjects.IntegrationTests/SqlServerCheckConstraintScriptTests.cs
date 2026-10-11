@@ -103,6 +103,22 @@ public sealed class SqlServerCheckConstraintScriptTests
             => model.FindTable(table, schema)!.CheckConstraints.Should().ContainSingle().Subject.Name!;
     }
 
+    /// <summary>
+    /// PostgreSQL's dialect of patterns writes none on SQL Server, which does not run it; the other rules are written as
+    /// before.
+    /// </summary>
+    [Fact]
+    public void Another_dialect_than_SQL_Servers_writes_no_pattern()
+    {
+        using var context = new PostgreSqlDialectContext();
+
+        var checks = context.GetService<IDesignTimeModel>().Model.GetRelationalModel()
+            .FindTable("scripted", null)!.CheckConstraints.Select(static check => check.Name!).ToList();
+
+        checks.Should().Contain("CK_scripted_Iban_MinLength");
+        checks.Should().NotContain(static name => name.EndsWith("_Pattern", StringComparison.Ordinal));
+    }
+
     /// <summary>A value object of each kind the rules concern, each in the column type it is checked against.</summary>
     private sealed class Scripted
     {
@@ -166,8 +182,10 @@ public sealed class SqlServerCheckConstraintScriptTests
     }
 
     /// <summary>The values, on SQL Server, with the check constraints.</summary>
-    private sealed class ScriptedContext : DbContext
+    private class ScriptedContext : DbContext
     {
+        protected virtual ValueObjectPatternDialect Patterns => ValueObjectPatternDialect.None;
+
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder.UseSqlServer("Server=unused");
 
@@ -175,7 +193,7 @@ public sealed class SqlServerCheckConstraintScriptTests
             => configurationBuilder
                 .ConfigureValueObjects(typeof(Iban).Assembly, typeof(Grade).Assembly)
                 .ConfigureEntityIds(typeof(PaymentId).Assembly)
-                .AddValueObjectCheckConstraints();
+                .AddValueObjectCheckConstraints(checks => checks.Patterns = Patterns);
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<Scripted>(scripted =>
@@ -187,6 +205,12 @@ public sealed class SqlServerCheckConstraintScriptTests
                 scripted.Property(static entity => entity.RecordedAsSmalldatetime).HasColumnType("smalldatetime");
                 scripted.Property(static entity => entity.StampInMilliseconds).HasPrecision(3);
             });
+    }
+
+    /// <summary>The same values, with PostgreSQL's dialect of patterns named.</summary>
+    private sealed class PostgreSqlDialectContext : ScriptedContext
+    {
+        protected override ValueObjectPatternDialect Patterns => ValueObjectPatternDialect.PostgreSql;
     }
 
     /// <summary>A score in column <c>C</c> of table <c>clash_a_b</c>.</summary>

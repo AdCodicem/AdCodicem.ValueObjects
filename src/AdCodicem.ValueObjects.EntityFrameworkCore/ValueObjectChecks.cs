@@ -13,7 +13,7 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 public enum ValueObjectChecks
 {
     /// <summary>
-    /// No rule.
+    /// No rule: only a pattern, when <see cref="ValueObjectCheckOptions.Patterns"/> names a dialect.
     /// </summary>
     None = 0,
 

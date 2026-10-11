@@ -286,13 +286,15 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   the `maxLength` of the MongoDB `$jsonSchema` validator (`ValueObjectBsonSchema`, which writes each rule of
   `TSelf.Schema` only where the server refuses no value the type accepts, the pattern in PCRE2 through `PcrePattern`
   over the shared reader below, each class escape listed from .NET's own Unicode tables). Opted in,
-  `AddValueObjectCheckConstraints` writes `MinLength`, the bounds and the closed sets of `TSelf.Schema` as CHECK
-  constraints of the EF columns, the maximum length staying the column size, only where the database refuses no value
-  the type accepts: a length in bytes, a bound or set left out where the column compares apart from .NET, a closed set
-  of text left out when the type stores another spelling of a known value (its case, a character sharing its upper case,
-  `µ` for `μ`, or a soft hyphen), a column two types of a hierarchy share for two value objects left alone; a name
-  ends with its rule, and with a hash of its table and column when the provider would cut it or, on SQL Server, another
-  table of the schema would take it. Anything added to `[ValueObject<T>]` should feed all of them, the validator wherever
+  `AddValueObjectCheckConstraints` writes `MinLength`, the bounds and the closed sets of `TSelf.Schema`, and the pattern
+  in a dialect the options name, as CHECK constraints of the EF columns, the maximum length staying the column size,
+  only where the database refuses no value the type accepts: a length in bytes, a bound or set left out where the
+  column compares apart from .NET, a closed set of text left out when the type stores another spelling of a known value
+  (its case, a character sharing its upper case, `µ` for `μ`, or a soft hyphen), a column two types of a hierarchy share
+  for two value objects left alone, no pattern on a fixed-length column; a name
+  ends with its rule, and with a hash of its table and column when the provider would cut it, another check constraint
+  of the model holds it already, in its table or, on SQL Server, in its schema, or, on SQL Server, another table of the
+  schema would take it. Anything added to `[ValueObject<T>]` should feed all of them, the validator wherever
   the server reads the rule as .NET does, the CHECK constraints wherever the database does. A hook can
   feed the schema too: the `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off
   the attribute at compile time, becomes the OpenAPI `pattern`. The OpenAPI transformer, the Swashbuckle filters and the
@@ -312,7 +314,11 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   `TSelf.Schema`. A pattern leaving .NET goes through `src/Shared/ValueObjectPatternSyntax.cs`, the reader every package
   that writes a .NET pattern in another dialect, or draws values from one, links: it reads a pattern into a tree,
   refusing what it cannot read with certainty, and each dialect writes what it reads alike from the tree, `XsdPattern` in
-  the contracts for XSD; the test-data sampler (`PatternSampler` in `AdCodicem.ValueObjects.Testing.Data`) draws strings
+  the contracts for XSD, `SqlPattern` in the EF Core package for PostgreSQL's `~` and SQL Server 2025's `REGEXP_LIKE`
+  (a CHECK constraint, opted in with `ValueObjectCheckOptions.Patterns`, which fails the model on a pattern the dialect
+  reads apart, unless `ExcludePattern<TSelf>()` leaves that value object out; it also refuses repetitions matching more
+  than 1000 characters once written out, which both engines refuse as too complex only when they first check a value);
+  the test-data sampler (`PatternSampler` in `AdCodicem.ValueObjects.Testing.Data`) draws strings
   from the same tree, and leaves a pattern outside its subset to rejection sampling, over the tree of the pattern read
   without its lookarounds and with its categories reduced to printable ASCII. The rules a test draws values from
   are the same `TSelf.Schema`: lengths, pattern, bounds, known values, and the example as a fallback.
@@ -636,14 +642,15 @@ These are all load-bearing, and each cost real debugging time:
   `DataContractSerializer` cannot read an `IXmlSerializable` struct without dynamic code; the native AOT domain opts in
   as a guard that the emission adds no warning, and calls neither serializer.
 - **A file of `src/Shared/` linked into two assemblies the unit suite sees is two internal types.** Both are visible
-  through `InternalsVisibleTo`, so a test naming one is CS0433. The contracts and the MongoDB package both link
+  through `InternalsVisibleTo`, so a test naming one is CS0433. The contracts, the MongoDB and the EF Core packages link
   `ValueObjectPatternSyntax.cs`: the unit suite references the contracts under `Aliases="global,abstractions"`, and
   `ValueObjectPatternSyntaxTests` names the contracts' copy through `extern alias abstractions`; the MongoDB copy is
-  tested through `PcrePattern`, and the copy of `AdCodicem.ValueObjects.Testing.Data` through `PatternSampler`, whose
-  tests name no node type. A further package linking it is tested the same way. `TypeNames.cs`, which writes a type as C#
-  names it in a message, is linked by `Testing.Data`, by its AutoFixture, Bogus and FsCheck adapters, and by the EF Core
-  package, for the key it refuses: the unit suite references `Testing.Data` under `Aliases="global,testingdata"`, and
-  `SamplerTests` names its copy through the alias.
+  tested through `PcrePattern`, the EF Core copy through `SqlPattern`, and the copy of
+  `AdCodicem.ValueObjects.Testing.Data` through `PatternSampler`, whose tests name no node type. A further package
+  linking it is tested the same way. `TypeNames.cs`, which writes a type as C# names it in a message, is linked by
+  `Testing.Data`, by its AutoFixture, Bogus and FsCheck adapters, and by the EF Core package, for the key and the
+  pattern it refuses: the unit suite references `Testing.Data` under `Aliases="global,testingdata"`, and `SamplerTests`
+  names its copy through the alias.
   `ValueObjectArguments.cs` and `ValueObjectArgumentRejection.cs`, the check of a tool's arguments and the result it
   answers a refusal with, name no type of Microsoft.Extensions.AI, and are linked by the AI and the Model Context
   Protocol packages, each overload of `FirstRejection` called by one of them: no test names them, `LanguageModels/`
@@ -737,8 +744,12 @@ Four suites, each with a distinct job:
   row refused on SQLite, closed sets whose type stores another spelling of a known value, nullable columns, each shape
   of table a column lies in, a complex property a table-per-concrete-type leaf inherits included, shared columns, long
   names and names kept apart from another the table holds, the create script, the converters of the package and one of
-  the application's own, another provider. EF Core builds a model once per context type, so each model shape there has
-  a context type of its own.
+  the application's own, another provider, and the patterns: written per dialect, none for a dialect the provider does
+  not run or a fixed-length column, a refused construct or option failing the model, an option the text keeps its
+  meaning under left alone, `ExcludePattern`; `SqlPatternTests` tests the writer itself. A pattern matched under
+  `IgnoreCase` is a construction of the hand-written `ShapedCode<TShape>` of `MongoDbShapedCode.cs` over a shape of the
+  test's own, since a generated one trips VO0025. EF Core builds a model once per context type, so each model shape
+  there has a context type of its own.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
   input, the values each type accepts drawn by the FsCheck package's `ValueObjectArbitrary`, over `ValueObjectSampler`,
@@ -788,7 +799,10 @@ Four suites, each with a distinct job:
   value each type accepts and refusing another writer's row with the provider's error, listed by the catalog, and failing
   to be added to a table holding a refused row the guide's audit query counts, tables whose constraint names read alike
   created side by side (`CheckConstraintTests`; SQL Server's text and script, names kept apart per schema included,
-  which need no server, in `SqlServerCheckConstraintScriptTests`), plus the API surface end to end; and a real MongoDB 8
+  which need no server, in `SqlServerCheckConstraintScriptTests`), and their patterns, matched on PostgreSQL and on a
+  SQL Server 2025 container (`SqlServer2025Fixture`, the only one that runs `REGEXP_LIKE`, which SQL Server 2022 lacks)
+  as .NET matches them, value by value (`CheckConstraintPatternTests`), plus the API surface end to end; and a real
+  MongoDB 8
   server, which stores a value object of every underlying type MongoDB.Bson can represent, linked from the unit suite's
   `Domain/UnderlyingTypes.cs`, as the document its primitive writes, refuses one over `Int128` or `UInt128`, and
   answers each LINQ and `Builders` shape over value objects with the documents the same query over the primitives
@@ -872,8 +886,8 @@ Beside them, outside the solution, `tests/Compat` is the **compatibility island*
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
-key refused unset, `.Value` translated under `UseValueObjectQueries()`, CHECK constraints from the rules on SQLite,
-System.Text.Json source generation, ASP.NET Core
+key refused unset, `.Value` translated under `UseValueObjectQueries()`, CHECK constraints from the rules on SQLite, and
+a pattern constraint on PostgreSQL 17 with `ExcludePattern`, System.Text.Json source generation, ASP.NET Core
 model binding, on System.Text.Json and on Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal
 API problem details,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection

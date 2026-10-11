@@ -66,7 +66,9 @@ jobs:
           --coverage --coverage-output-format cobertura --coverage-output generator.cobertura.xml
 
       # The runner ships a Docker daemon, which is what Testcontainers needs to start
-      # PostgreSQL, SQL Server and MongoDB for the persistence and API tests.
+      # PostgreSQL, SQL Server and MongoDB for the persistence and API tests. It pulls
+      # SQL Server 2025 beside 2022, for the CHECK constraints of patterns alone:
+      # REGEXP_LIKE exists from SQL Server 2025 on.
       - name: Integration tests
         run: >-
           dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests
