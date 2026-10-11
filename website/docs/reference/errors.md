@@ -198,6 +198,19 @@ whose write error has code 121, "Document failed validation", and details naming
 `pattern`, `maximum`, `enum`, `required`. The value it refused is in those details, as the server reports it, and no
 rule code is: the server checks the keywords, not the value object.
 
+A table given [CHECK constraints from the rules](../how-to/ef-core.md#check-constraints-from-the-rules) refuses another
+writer's row on the server, and an invalid instance a lax read let in that the application writes back. Through Entity
+Framework Core, `SaveChanges` throws a `DbUpdateException` around the provider's error: a `SqlException` with number
+547 on SQL Server, a `PostgresException` with SQL state `23514` on PostgreSQL, a `SqliteException` with error code 19
+on SQLite. Each names the constraint, `CK_{table}_{column}_{rule}`, and so the rule, which every name ends with,
+followed by eight hexadecimal digits when the name was shortened to the provider's limit, or kept apart from a name
+already taken: by a check constraint of the model, one the application declared, in the same table or, on SQL Server,
+in the schema, or by another
+table's, and the column, unless the name was shortened. None carries a rule code: the server checks the SQL, not the
+value object. A migration adding a constraint to a table that already
+holds a row it refuses fails with the same error, "The ALTER TABLE statement conflicted with the CHECK constraint" on SQL
+Server.
+
 `AdCodicem.ValueObjects.MessagePack` also lets through exceptions that carry no code. A read or a write through options
 whose resolver holds no formatter for the underlying type throws MessagePack's `FormatterNotRegisteredException`: a
 misconfiguration, not a value refused. Under `MessagePackSecurity.UntrustedData`, which SignalR's hub protocol sets,

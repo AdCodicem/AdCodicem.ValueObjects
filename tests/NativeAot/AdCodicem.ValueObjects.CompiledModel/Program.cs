@@ -5,6 +5,8 @@
 // the relaxed one tracks a change, an element added in place included.
 // The relaxed context also generates keys typed as value objects, a Guid one as SQL Server generates a Guid and an int
 // one by the identity, refuses an entity added without a Guid key nothing generates, and reads the keys back.
+// Both contexts add the CHECK constraints of the rules, which no compiled model holds: EnsureCreated builds the
+// design-time model and creates them, and every value written passes them.
 //
 // The queries are also the ones the native AOT variant precompiles, which is why they sit here, each on a context held
 // in a local and filtering on locals: query precompilation takes a context passed as a parameter for a dynamic query,
@@ -32,6 +34,13 @@ await using (var context = new ShopContext(connectionString))
     await context.Database.EnsureCreatedAsync();
     context.Shipments.AddRange(Shipments.Full, Shipments.Sparse);
     Report("relaxed: saved", await context.SaveChangesAsync() == 2);
+}
+
+await using (var connection = new SqlConnection(connectionString))
+{
+    await connection.OpenAsync();
+    await using var command = new SqlCommand("SELECT COUNT(*) FROM information_schema.check_constraints", connection);
+    Report("relaxed: CHECK constraints created from the rules", (int)(await command.ExecuteScalarAsync())! > 0);
 }
 
 Parcel[] parcels = [new(), new()];

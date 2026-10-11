@@ -8,7 +8,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects` | Contracts, source generator, analyzers, and XML serialization on request (below). The one to install. |
 | `AdCodicem.ValueObjects.Abstractions` | The contracts alone, no dependency. For a domain assembly that must stay bare. |
 | `AdCodicem.ValueObjects.Json` | Source-generated `JsonSerializerContext` support, hand-written value objects, and the JSON Schema transform. |
-| `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, an assembly-wide convention, `.Value` in LINQ (opt-in). |
+| `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, an assembly-wide convention (collections included), keys generated the provider's way, `.Value` in LINQ and CHECK constraints from the rules (both opt-in). |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, AOT-compatible. |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | MVC on Newtonsoft.Json: the converter in MVC's settings, and the codes of a refused body. |
@@ -315,6 +315,17 @@ per row.
   index on SQL Server. With `UseInternalServiceProvider`, the context throws an `InvalidOperationException` as it
   starts, unless that provider holds the services of the options' extensions
   (`IDbContextOptionsExtension.ApplyServices`).
+- **CHECK constraints from the rules**, opt-in: `builder.ConfigureValueObjects(typeof(Iban).Assembly).AddValueObjectCheckConstraints()`
+  writes `MinLength`, the bounds and closed sets as CHECK constraints, `CK_{table}_{column}_{rule}`, on every column a
+  converter of this package maps, so that the database refuses another writer's bad row (`DbUpdateException` around the
+  provider's error, 547, 23514 or 19, no rule code). Never stricter than the type: a length is counted in bytes, and a
+  bound or closed set is left out where the column compares apart from .NET (SQLite's `decimal`, `TimeSpan`,
+  `DateTimeOffset` and `ulong`, SQL Server's `time` outside a day and `datetime`, a decimal bound finer than the scale, a
+  set looked up ignoring case without a normalizer). JSON columns, collection elements, views and converters of your own
+  get none; a validator stays in code. Leave a family out with
+  `checks => checks.Rules = ValueObjectChecks.Lengths | ValueObjectChecks.KnownValues`. A migration picks the
+  constraints up, and fails on a table holding a refused row: correct the rows first. Keep `strict: true` for rows
+  already stored. A compiled model holds none; `EnsureCreated` and migrations do.
 - Departing from the convention for a single property: `builder.Property(e => e.Iban).HasValueObjectConversion<Iban, string>()`
   (with an optional `strict: true`). Prefer the convention.
 - Never write `HasConversion` by hand for a value object: you would lose the generated comparer, and with it

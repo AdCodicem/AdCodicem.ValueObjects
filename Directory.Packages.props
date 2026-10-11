@@ -91,8 +91,8 @@
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
     <!-- An engine in memory, which needs no server and through which the unit suite runs what only an engine shows:
-         primitive collections of value objects, their JSON included, the keys it generates, and `.Value` translated in
-         queries; no package under src/ references it. -->
+         primitive collections of value objects, their JSON included, the keys it generates, `.Value` translated in
+         queries, and the CHECK constraints accepting and refusing rows; no package under src/ references it. -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
     <!-- A provider that is not relational, on which the unit suite checks that an integer key is not generated; no
          package under src/ references it. -->

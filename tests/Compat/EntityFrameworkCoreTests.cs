@@ -321,6 +321,39 @@ public sealed class EntityFrameworkCoreTests : IDisposable
         (await read.Tickets.SingleAsync(ticket => ticket.Id == key, TestContext.Current.CancellationToken)).Label.Should().Be("second");
     }
 
+    /// <summary>
+    /// The CHECK constraints written from the rules reach the next major's SQLite tables: the application's own row is
+    /// written, and another writer's row breaking a rule is refused by the engine, the constraint named.
+    /// </summary>
+    [Fact]
+    public async Task The_rules_are_written_as_CHECK_constraints_that_refuse_another_writers_row()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        var options = new DbContextOptionsBuilder<CheckedContext>().UseSqlite(connection).Options;
+
+        await using (var write = new CheckedContext(options))
+        {
+            await write.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+            write.Holdings.Add(new Holding { Id = 1, Iban = Iban.Create("BE68539007547034"), Quantity = Quantity.Create(100), Country = CountryCode.Create("lu") });
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await RefusedAsync("""INSERT INTO "holdings" ("Id", "Iban", "Quantity", "Country") VALUES (2, 'BE6853900754', 1, 'FR')""", "CK_holdings_Iban_MinLength");
+        await RefusedAsync("""INSERT INTO "holdings" ("Id", "Iban", "Quantity", "Country") VALUES (2, 'BE68539007547034', 0, 'FR')""", "CK_holdings_Quantity_Minimum");
+        await RefusedAsync("""INSERT INTO "holdings" ("Id", "Iban", "Quantity", "Country") VALUES (2, 'BE68539007547034', 1, 'GB')""", "CK_holdings_Country_KnownValues");
+
+        async Task RefusedAsync(string insert, string constraint)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = insert;
+            var run = () => command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+            var refusal = (await run.Should().ThrowAsync<SqliteException>()).Which;
+            refusal.SqliteErrorCode.Should().Be(19);
+            refusal.Message.Should().Contain($"CHECK constraint failed: {constraint}");
+        }
+    }
+
     private static IEnumerable<Exception> Chain(Exception? exception)
     {
         for (; exception is not null; exception = exception.InnerException)
@@ -328,4 +361,40 @@ public sealed class EntityFrameworkCoreTests : IDisposable
             yield return exception;
         }
     }
+}
+
+/// <summary>A holding, whose value objects each break a rule of their own when another writer stores them.</summary>
+public sealed class Holding
+{
+    /// <summary>Gets or sets the key.</summary>
+    public int Id { get; set; }
+
+    /// <summary>Gets or sets the account.</summary>
+    public Iban Iban { get; set; }
+
+    /// <summary>Gets or sets how many are held.</summary>
+    public Quantity Quantity { get; set; }
+
+    /// <summary>Gets or sets the country.</summary>
+    public CountryCode Country { get; set; }
+}
+
+/// <summary>The holdings, mapped by the convention, with the rules written as CHECK constraints.</summary>
+/// <param name="options">Options.</param>
+public sealed class CheckedContext(DbContextOptions<CheckedContext> options) : DbContext(options)
+{
+    /// <summary>Gets the holdings.</summary>
+    public DbSet<Holding> Holdings => Set<Holding>();
+
+    /// <inheritdoc />
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+        => configurationBuilder.ConfigureValueObjects(typeof(Iban).Assembly).AddValueObjectCheckConstraints();
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+        => modelBuilder.Entity<Holding>(holding =>
+        {
+            holding.ToTable("holdings");
+            holding.Property(entity => entity.Id).ValueGeneratedNever();
+        });
 }

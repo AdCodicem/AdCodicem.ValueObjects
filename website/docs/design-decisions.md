@@ -56,7 +56,10 @@ program, unless the application trusts them: `ValueObjectBson.Register(trusted: 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
 collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema, and of the [MongoDB collection
 validator](./how-to/mongodb.md#a-collection-validator-from-the-rules). The members marked `[KnownValue]` become a frozen
-membership lookup and the `enum` keyword of the schema, whose values generated clients name after them.
+membership lookup and the `enum` keyword of the schema, whose values generated clients name after them. On request,
+`AddValueObjectCheckConstraints()` writes the lengths, the bounds and the closed sets as [CHECK
+constraints](./how-to/ef-core.md#check-constraints-from-the-rules) of the EF Core columns, wherever the database reads
+them as .NET does.
 
 ## Constraints that shape the generated code
 

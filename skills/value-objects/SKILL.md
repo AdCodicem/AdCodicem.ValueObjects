@@ -49,8 +49,9 @@ Non-negotiable, each one a diagnostic if you get it wrong:
 
 ## Declare rules on the attribute first
 
-A rule stated on `[ValueObject<T>]` validates the value, sizes the EF Core column and becomes the OpenAPI
-schema keyword. A rule buried in code does only the first. Never restate a declared rule in a hook.
+A rule stated on `[ValueObject<T>]` validates the value, sizes the EF Core column and becomes the OpenAPI schema
+keyword; opted in with `AddValueObjectCheckConstraints()`, `MinLength` becomes a CHECK constraint there, `MaxLength`
+staying the column size. A rule buried in code does only the first. Never restate a declared rule in a hook.
 
 A pattern, bounds, known values and the example are the exceptions: each is a value the compiler checks, so it is
 declared in code rather than as text on the attribute. A pattern is declared through the

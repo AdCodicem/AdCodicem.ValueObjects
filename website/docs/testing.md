@@ -23,8 +23,10 @@ Four suites, each with a distinct job:
   every underlying type in an assembly that opts into XML serialization. What needs a server and no container runs
   here too, over TestHost: ASP.NET Core's pipelines, and a SignalR hub talking MessagePack with the .NET client; and
   over SQLite in memory: collections of value objects through Entity Framework Core, every sample value object among
-  them stored and read back, queries over their elements translated, and queries on `.Value` translated to the column,
-  for every sample value object as the same query over its underlying type is.
+  them stored and read back, queries over their elements translated, queries on `.Value` translated to the column,
+  for every sample value object as the same query over its underlying type is, and the CHECK constraints written from
+  the rules: each rule written or left out per provider, SQLite taking every value at the boundaries of the rules it
+  writes and refusing another writer's row, and the names, scripts and shapes of table the constraints come in.
   Property-based tests run the laws `IValueObject<TSelf, TValue>` states over generated input, the values each type
   accepts drawn by the [test-data sampler](./how-to/test-value-objects.md#generate-valid-values) from the rules it
   declares, through the arbitraries of the FsCheck package, and the test-data sampler itself draws a value of every
@@ -47,8 +49,10 @@ Four suites, each with a distinct job:
   objects reach the column types they claim, a collection of them the PostgreSQL array of its element's type, Dapper and
   EF Core round trips, a query over the elements of a collection included, `Guid` value-object keys generated as each
   provider generates a `Guid`, in the order the engine sorts them, and integer ones by the engine's identity column,
-  a prefix search on `.Value` reading the column itself, with a parameter declared as the column, and `.Value` of a
-  value object over a type the provider converts, plus the API surface end to end; and a
+  a prefix search on `.Value` reading the column itself, with a parameter declared as the column, `.Value` of a
+  value object over a type the provider converts, and the CHECK constraints written from the rules, on PostgreSQL and
+  SQL Server 2022, taking every value each type accepts and refusing another writer's row, plus the API surface end
+  to end; and a
   real MongoDB server, which stores a value object of every underlying type MongoDB.Bson can represent as the document
   its primitive writes, refuses one over `Int128` or `UInt128`, and answers each LINQ and `Builders` shape over them,
   `.Value` included; which, given the `$jsonSchema` validator built from the rules, refuses another writer's document
@@ -93,9 +97,10 @@ run, not only analysed.
 
 The second holds an Entity Framework Core context mapping every value object the conventions map, required and
 optional, a generic one, an identifier as the key and collections of them, `Guid` and `int` keys it generates and a
-`Guid` key it refuses to add unset, beside a strict context, both filtering on `.Value`. `dotnet ef dbcontext optimize`
-writes its compiled model on every pull request, which the project then builds on and takes on a round trip through
-SQL Server; the native AOT job also writes the model for native AOT, with its queries precompiled, and publishes it.
+`Guid` key it refuses to add unset, beside a strict context, both filtering on `.Value` and adding the CHECK
+constraints from the rules. `dotnet ef dbcontext optimize` writes its compiled model on every pull request, which the
+project then builds on and takes on a round trip through SQL Server, whose tables `EnsureCreated` creates with the
+constraints; the native AOT job also writes the model for native AOT, with its queries precompiled, and publishes it.
 [Compiled models](./how-to/ef-core.md#compiled-models) says what holds there.
 
 ## The compatibility island
@@ -105,7 +110,7 @@ installs the twenty-five packages exactly as they were packed — from the folde
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
-PostgreSQL, collections of value objects and queries on `.Value` included, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json and on Newtonsoft.Json,
+PostgreSQL, collections of value objects, queries on `.Value` and CHECK constraints from the rules on SQLite included, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json and on Newtonsoft.Json,
 and a minimal API with its problem details, `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
 MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
 SignalR's MessagePack hub protocol 11 over TestHost, FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI

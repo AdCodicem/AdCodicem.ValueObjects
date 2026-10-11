@@ -214,7 +214,9 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, the
   MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, the test-data sampler's
   `Next(descriptor)`, the AutoFixture specimen builder, Bogus's `RuleForValueObjects` and `ValueObject<TSelf>`, FsCheck's
-  `MergeValueObjects`, and EF Core's `ConfigureValueObjects` and `ConfigureEntityIds` do. The key convention
+  `MergeValueObjects`, EF Core's `ConfigureValueObjects` and `ConfigureEntityIds`, and the CHECK constraint convention
+  `AddValueObjectCheckConstraints` adds, which resolves the value object a converter of the package maps
+  (`ConverterTypes.TryGetValueObjectType`, over `ConverterTypes.Definitions`) through `TryResolve`, do. The key convention
   `ConfigureValueObjects` adds closes nothing: it tells a value object over `Guid` by `IValueObject<Guid>` and names a
   factory that is not generic, and `HasValueObjectKeyGeneration<TSelf>()` is typed. An entity identifier's descriptor
   has a visitor of its own: `EntityIdDescriptor.Accept` hands an `IEntityIdVisitor<TResult>` the identifier type, under
@@ -225,7 +227,8 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   `TSelf : IValueObject<TSelf, string>`, which `Visit` cannot prove, and it must stay the type a compiled model names.
   It and the conventions it adds, for generic constructions and for collections, are also the exception to a typed
   adapter reading `TSelf.Schema`: they size a column or an element by the descriptor's `Schema`, which a registration
-  made by hand may set apart from the type's, handed to their visitor in a field.
+  made by hand may set apart from the type's, handed to their visitor in a field. The CHECK constraint convention is
+  not: a constraint must be no stricter than what `Validate` enforces, so its visitor reads `TSelf.Schema`.
   `ConfigureEntityIds` needs none: an identifier is over `string`, so its visitor casts itself to an interface it
   implements over `string`, whose method takes that constraint. It visits the identifier's `ValueObjectDescriptor`, from
   `TryResolve`, for the column it sizes from the descriptor's `Schema`: an identifier registered with `EntityIdRegistry`
@@ -282,8 +285,15 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI `maxLength`, and
   the `maxLength` of the MongoDB `$jsonSchema` validator (`ValueObjectBsonSchema`, which writes each rule of
   `TSelf.Schema` only where the server refuses no value the type accepts, the pattern in PCRE2 through `PcrePattern`
-  over the shared reader below, each class escape listed from .NET's own Unicode tables). Anything added to
-  `[ValueObject<T>]` should feed all of them, the validator wherever the server reads the rule as .NET does. A hook can
+  over the shared reader below, each class escape listed from .NET's own Unicode tables). Opted in,
+  `AddValueObjectCheckConstraints` writes `MinLength`, the bounds and the closed sets of `TSelf.Schema` as CHECK
+  constraints of the EF columns, the maximum length staying the column size, only where the database refuses no value
+  the type accepts: a length in bytes, a bound or set left out where the column compares apart from .NET, a closed set
+  of text left out when the type stores another spelling of a known value (its case, a character sharing its upper case,
+  `µ` for `μ`, or a soft hyphen), a column two types of a hierarchy share for two value objects left alone; a name
+  ends with its rule, and with a hash of its table and column when the provider would cut it or, on SQL Server, another
+  table of the schema would take it. Anything added to `[ValueObject<T>]` should feed all of them, the validator wherever
+  the server reads the rule as .NET does, the CHECK constraints wherever the database does. A hook can
   feed the schema too: the `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off
   the attribute at compile time, becomes the OpenAPI `pattern`. The OpenAPI transformer, the Swashbuckle filters and the
   JSON Schema transform (`ValueObjectJsonSchema`, in the Json package) take what a rule becomes in a schema from
@@ -721,8 +731,14 @@ Four suites, each with a distinct job:
   element of a collection, a joined column, a generic construction, an identifier, a composed converter, a converter of
   the application's own left alone, composed around the package's one included, a strict context, what stays
   untranslated, a service provider of the application's own refused unless it holds the translator, and every sample
-  against the same query over a property of its underlying type (`ValueQueryParity`). EF Core builds a model once per
-  context type, so each model shape there has a context type of its own.
+  against the same query over a property of its underlying type (`ValueQueryParity`); and the CHECK constraints of
+  `AddValueObjectCheckConstraints` (`EntityFrameworkCoreCheckConstraintTests`), run on SQLite and written in Npgsql's
+  text: each rule written or left out per provider, a value of every rule at its boundary accepted and another writer's
+  row refused on SQLite, closed sets whose type stores another spelling of a known value, nullable columns, each shape
+  of table a column lies in, a complex property a table-per-concrete-type leaf inherits included, shared columns, long
+  names and names kept apart from another the table holds, the create script, the converters of the package and one of
+  the application's own, another provider. EF Core builds a model once per context type, so each model shape there has
+  a context type of its own.
   `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
   idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
   input, the values each type accepts drawn by the FsCheck package's `ValueObjectArbitrary`, over `ValueObjectSampler`,
@@ -768,7 +784,11 @@ Four suites, each with a distinct job:
   version 7 on PostgreSQL) and sorted by the engine as they were generated, and integer ones by an identity column of
   their width, which SQL Server refuses an explicit key for, a prefix search on `.Value` under `UseValueObjectQueries()`
   reading the column itself, a parameter declared as the column, `.Value` of a value object over a type the provider
-  converts, and of an element of a collection, plus the API surface end to end; and a real MongoDB 8
+  converts, and of an element of a collection, the CHECK constraints of `AddValueObjectCheckConstraints` accepting every
+  value each type accepts and refusing another writer's row with the provider's error, listed by the catalog, and failing
+  to be added to a table holding a refused row the guide's audit query counts, tables whose constraint names read alike
+  created side by side (`CheckConstraintTests`; SQL Server's text and script, names kept apart per schema included,
+  which need no server, in `SqlServerCheckConstraintScriptTests`), plus the API surface end to end; and a real MongoDB 8
   server, which stores a value object of every underlying type MongoDB.Bson can represent, linked from the unit suite's
   `Domain/UnderlyingTypes.cs`, as the document its primitive writes, refuses one over `Int128` or `UInt128`, and
   answers each LINQ and `Builders` shape over value objects with the documents the same query over the primitives
@@ -823,7 +843,9 @@ on where they apply.
   required and optional, a generic one, an `[EntityId]` key and collections of them, nullable elements included, keys
   typed as value objects it generates, over a `Guid` and an `int`, and one over a `Guid` it refuses to add unset, and a
   strict context beside it, both filtering on `.Value` through `UseValueObjectQueries()`, which `ShopContext` calls in
-  `OnConfiguring`, so that the design-time factory precompiles those queries with it.
+  `OnConfiguring`, so that the design-time factory precompiles those queries with it, and both adding the CHECK
+  constraints, which no compiled model holds: `EnsureCreated` builds the design-time model and creates them, so that the
+  round trip writes every value through them.
   `.github/scripts/compiled-model.sh` writes their model with `dotnet ef dbcontext optimize` under
   `artifacts/compiled-model/`, never committed, and builds on it with `CompiledModel=jit` or `aot`. The build job
   takes the `jit` one on a round trip through SQL Server; the native AOT job publishes the `aot` one, written with its
@@ -850,7 +872,8 @@ Beside them, outside the solution, `tests/Compat` is the **compatibility island*
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
-key refused unset, `.Value` translated under `UseValueObjectQueries()`, System.Text.Json source generation, ASP.NET Core
+key refused unset, `.Value` translated under `UseValueObjectQueries()`, CHECK constraints from the rules on SQLite,
+System.Text.Json source generation, ASP.NET Core
 model binding, on System.Text.Json and on Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal
 API problem details,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection
@@ -866,7 +889,7 @@ major as an application's would. `AdCodicem.ValueObjects.Swashbuckle` is install
 which the main one excludes from its sources: Swashbuckle 10 over `Microsoft.OpenApi` 2, on which it is built, since it
 fails on the `Microsoft.OpenApi` 3 the main project's `Microsoft.AspNetCore.OpenApi` 11 brings. `ci.yml`'s
 `compat (.NET 11)` job runs both against the packages its build job packed; it is not a required check until .NET 11 ships, and is
-measured by no coverage. Without Docker its 21 container tests fail rather than skip, so leave them out explicitly
+measured by no coverage. Without Docker its container tests fail rather than skip, so leave them out explicitly
 (Commands above). Tools that walk the repository rather than the solution do see it: CodeQL downloads its SDK, and
 GitHub's automatic dependency submission restores it with SDK 10 from the root, which is why its project files leave
 themselves empty on an SDK that cannot target `net11.0`. The suites above are still the four; the island checks the
