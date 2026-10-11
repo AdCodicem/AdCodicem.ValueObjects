@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AdCodicem.ValueObjects.CompatTests;
 
-/// <summary>A controller binding value objects from the route, the query string and the body.</summary>
+/// <summary>A controller binding value objects from the route, the query string, a header and the body.</summary>
 [ApiController]
 [Route("customers")]
 public sealed class CustomersController : ControllerBase
@@ -22,6 +22,9 @@ public sealed class CustomersController : ControllerBase
 
     [HttpGet]
     public IActionResult List([FromQuery] CountryCode? country) => Ok(country?.Value ?? "none");
+
+    [HttpGet("current")]
+    public IActionResult Current([FromHeader(Name = "X-Country")] CountryCode? country) => Ok(country?.Value ?? "none");
 
     [HttpPost("orders")]
     public IActionResult Place([FromBody] OrderPlaced order) => Ok(order?.Email.Value);
@@ -79,6 +82,29 @@ public sealed class AspNetCoreTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         problem.GetProperty(ValueObjectProblemDetails.ExtensionName).GetProperty("country").GetString()
+            .Should().Be(ValueObjectErrorCodes.NotAKnownValue);
+    }
+
+    /// <summary>
+    /// MVC's header binder of this major hands the package's binder the header alone: a query value named as the header
+    /// is not bound, and a refused header carries its code under the header's name.
+    /// </summary>
+    [Fact]
+    public async Task A_value_object_binds_from_a_header_alone_and_a_refused_one_carries_its_code()
+    {
+        using var accepted = new HttpRequestMessage(HttpMethod.Get, "/customers/current?X-Country=be");
+        accepted.Headers.Add("X-Country", " lu");
+        using var refused = new HttpRequestMessage(HttpMethod.Get, "/customers/current");
+        refused.Headers.Add("X-Country", "ZZ");
+
+        using var acceptedResponse = await _client.SendAsync(accepted, TestContext.Current.CancellationToken);
+        using var refusedResponse = await _client.SendAsync(refused, TestContext.Current.CancellationToken);
+
+        (await acceptedResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().Be("LU");
+        (await _client.GetStringAsync("/customers/current?X-Country=be", TestContext.Current.CancellationToken)).Should().Be("none");
+        refusedResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await refusedResponse.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        problem.GetProperty(ValueObjectProblemDetails.ExtensionName).GetProperty("X-Country").GetString()
             .Should().Be(ValueObjectErrorCodes.NotAKnownValue);
     }
 

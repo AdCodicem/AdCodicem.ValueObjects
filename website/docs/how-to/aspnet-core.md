@@ -219,6 +219,13 @@ as absent, as MVC binds an `int?` or a `Guid?`. A value object that cannot be `n
 `CustomerId id`, refuses blank text as MVC refuses it for an `int`: a 400 with "The value ' ' is invalid." and the
 code `value_object.required`, rather than an instance no rule has checked.
 
+A value object an attribute takes from elsewhere is read there, and never from a route, query or form value of the same
+name. `[FromHeader(Name = "X-Country")] CountryCode? country` reads the header alone, through MVC's header binder,
+which hands the package's binder the header's text: blank or absent, an optional one is `null`; refused, the request is
+a 400 with the rule's code, as for a query value; an array, `[FromHeader] Quantity[]`, takes each comma-separated
+value. `[FromBody] CountryCode country` reads the body itself, a JSON string, through the input formatter, and a binder
+the parameter names, `[ModelBinder(typeof(…))]`, binds it.
+
 ## Problem details carrying the rule
 
 For MVC controllers, with `AdCodicem.ValueObjects.AspNetCore`:
@@ -244,8 +251,13 @@ A client branches on `value_object.not_a_known_value`, not on English. The membe
 binds under the array's name, or a key repeated in a body Newtonsoft.Json reads, lists every message in `errors` and
 keeps the code of the first in `errorCodes`, the rule its first message states, as a minimal API does.
 
-This covers what the MVC model binder rejects, route values, query strings, headers and forms, under the name of the
-parameter, and a value inside a JSON body, under its JSON path, the key MVC gives its error:
+This covers what the MVC model binder rejects, route values, query strings, headers and forms, under the key MVC gives
+its error, as it keys an `int` it refuses: the name of the parameter, or of the member, prefixed as MVC prefixes the
+members of a model. A header goes under the name `[FromHeader(Name = …)]` gives it, prefixed likewise; where the
+attribute names none, a member's header goes under the member's name, and a parameter's under the empty key, unless a
+route, query or form value carries the parameter's name, which is then the key. A value inside a JSON body goes under
+its JSON path, the key MVC gives its error, and a value object read from the body itself under the key MVC gives the
+root of the body, `$` with System.Text.Json and the empty key with Newtonsoft.Json:
 
 ```json
 {

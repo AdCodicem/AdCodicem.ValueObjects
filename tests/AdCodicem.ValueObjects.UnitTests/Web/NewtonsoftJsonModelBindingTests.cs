@@ -71,6 +71,38 @@ public sealed class NewtonsoftJsonModelBindingTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// A value object read from the body itself, a JSON string, is read by Newtonsoft.Json, never from a query value of
+    /// the same name, which the model binder would read for a parameter naming no source.
+    /// </summary>
+    [Fact]
+    public async Task A_value_object_read_from_the_body_itself_binds_through_Newtonsoft_Json()
+    {
+        using var body = new StringContent("\"fr\"", Encoding.UTF8, "application/json");
+        using var response = await _client.PostAsync("/probe/countries?country=be", body, TestContext.Current.CancellationToken);
+
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().Be("FR");
+    }
+
+    /// <summary>
+    /// A value object the body itself refuses is answered with its code under the key MVC gives the root of a body
+    /// Newtonsoft.Json reads, the empty key, where System.Text.Json's is <c>$</c>.
+    /// </summary>
+    /// <param name="json">The body.</param>
+    /// <param name="code">The code of the rule it breaks.</param>
+    [Theory]
+    [InlineData("\"ZZ\"", ValueObjectErrorCodes.NotAKnownValue)]
+    [InlineData("42", ValueObjectErrorCodes.NotParsable)]
+    [InlineData("null", ValueObjectErrorCodes.Required)]
+    public async Task A_value_object_the_body_itself_refuses_is_answered_under_the_empty_key(string json, string code)
+    {
+        var problem = await PostProblemAsync(_client, "/probe/countries?country=be", json);
+
+        problem.GetProperty("errorCodes").Deserialize<Dictionary<string, string>>().Should()
+            .Equal(new Dictionary<string, string> { [string.Empty] = code });
+        problem.GetProperty("errors").Deserialize<Dictionary<string, string[]>>()!.Keys.Should().Equal(string.Empty);
+    }
+
+    /// <summary>
     /// Newtonsoft.Json sets the properties of an object one by one and reads on past a refused one, so every refused
     /// member of the body is answered with its own code, a construction of a generic value object and one written by
     /// hand among them, while an optional one holding null is no refusal.

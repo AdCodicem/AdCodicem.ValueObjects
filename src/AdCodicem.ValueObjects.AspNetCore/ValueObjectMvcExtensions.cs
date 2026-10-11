@@ -22,7 +22,9 @@ public static class ValueObjectMvcExtensions
     /// <remarks>
     /// <para>
     /// The provider is inserted first so that it wins over the built-in simple-type and complex-type binders,
-    /// which would otherwise try to bind a value object as an object with a <c>Value</c> property.
+    /// which would otherwise try to bind a value object as an object with a <c>Value</c> property. It declines a
+    /// greedy binding source, which MVC's own providers bind: a header, through this binder again, the body, through
+    /// the input formatter, the services, and a binder named by <c>[ModelBinder(typeof(…))]</c>.
     /// </para>
     /// <para>
     /// This adds the binder alone. <see cref="AddValueObjects(IMvcBuilder)"/> also configures the JSON options, and

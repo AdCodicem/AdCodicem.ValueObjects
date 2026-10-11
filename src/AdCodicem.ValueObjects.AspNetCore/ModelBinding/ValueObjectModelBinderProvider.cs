@@ -17,6 +17,13 @@ namespace AdCodicem.ValueObjects.AspNetCore.ModelBinding;
 /// with <see cref="Type.MakeGenericType(Type[])"/>. The registry still describes by reflection a value object nothing
 /// registered, one written by hand or a construction of a generic one, the first time it is asked for it.
 /// </para>
+/// <para>
+/// A greedy binding source is declined: a header (<c>[FromHeader]</c>), the body (<c>[FromBody]</c>), the services
+/// (<c>[FromServices]</c>) or a binder the application names (<c>[ModelBinder(typeof(…))]</c>). MVC binds each through a
+/// provider of its own, which this one, inserted first, would otherwise shadow, and does not narrow the value providers
+/// to a greedy source, so the binder would read a route, query or form value of the same name instead. MVC's header
+/// binder asks for this binder again, under <see cref="BindingSource.ModelBinding"/>, and hands it the header alone.
+/// </para>
 /// </remarks>
 public sealed class ValueObjectModelBinderProvider : IModelBinderProvider
 {
@@ -26,6 +33,12 @@ public sealed class ValueObjectModelBinderProvider : IModelBinderProvider
     public IModelBinder? GetBinder(ModelBinderProviderContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
+
+        // Declined before the cache, which is keyed by type alone: a greedy source is bound by MVC's provider for it.
+        if (context.BindingInfo?.BindingSource is { IsGreedy: true })
+        {
+            return null;
+        }
 
         return Binders.GetOrAdd(context.Metadata.ModelType, static modelType => Create(modelType));
     }
