@@ -13,7 +13,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, AOT-compatible. |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | MVC on Newtonsoft.Json: the converter in MVC's settings, and the codes of a refused body. |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
-| `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10 and later. |
+| `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10.3 and later. |
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, a `$jsonSchema` validator from the rules. |
@@ -660,7 +660,7 @@ builder.Services.AddSwaggerGen(o =>
 });
 ```
 
-`AdCodicem.ValueObjects.Swashbuckle`, for Swashbuckle 10 and later, describes a value object as the built-in package
+`AdCodicem.ValueObjects.Swashbuckle`, for Swashbuckle 10.3 and later, describes a value object as the built-in package
 does, with these differences, all Swashbuckle's own:
 
 - A number is a number (`integer` or `number`, no numeric pattern), as Swashbuckle documents the underlying type,
@@ -679,6 +679,9 @@ does, with these differences, all Swashbuckle's own:
   `UseSwagger(o => o.OpenApiVersion = OpenApiSpecVersion.OpenApi3_1)` writes 3.1.
 - A closed set's `x-ms-enum` is named after Swashbuckle's component, `AccountFilterNoticeChannel` for
   `NoticeChannel<AccountFilter>`, or the identifier `CustomSchemaIds` gives it.
+- It needs `Swashbuckle.AspNetCore.SwaggerGen` 10.3.0 or later: a direct reference to
+  `Swashbuckle.AspNetCore.SwaggerGen` or `Swashbuckle.AspNetCore.Swagger` below it is NuGet's downgrade error NU1605
+  until raised to 10.3.0.
 - Swashbuckle 10 needs `Microsoft.OpenApi` 2: never reference `Microsoft.AspNetCore.OpenApi` 11 beside it, which brings
   3 and makes Swashbuckle throw `MissingMethodException` when it builds a document.
 

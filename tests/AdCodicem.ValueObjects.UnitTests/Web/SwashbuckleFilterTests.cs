@@ -8,6 +8,7 @@ using System.Text.Json.Serialization.Metadata;
 using AdCodicem.ValueObjects.Swashbuckle;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -368,6 +369,34 @@ public sealed class SwashbuckleFilterTests
             => ((JsonNodeExtension)schema.Extensions!["x-ms-enum"]).Node["name"]!.GetValue<string>();
     }
 
+    /// <summary>
+    /// Swashbuckle creates the filter while it configures the schema options its data contract resolver is built from:
+    /// the filter asks the container for nothing until it describes a schema, then for the resolver once, and for the
+    /// schema options each time it names a closed set before its component, and never when the component exists.
+    /// </summary>
+    [Fact]
+    public void The_filter_resolves_what_Swashbuckle_builds_from_its_schema_options_only_as_it_describes_a_schema()
+    {
+        var services = Substitute.For<IServiceProvider>();
+        services.GetService(typeof(ISerializerDataContractResolver))
+            .Returns(new JsonSerializerDataContractResolver(new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        services.GetService(typeof(IOptions<SchemaGeneratorOptions>)).Returns(Options.Create(new SchemaGeneratorOptions()));
+        var registered = new SchemaRepository();
+        registered.RegisterType(typeof(CountryCode), "Country");
+        services.ClearReceivedCalls();
+
+        var filter = new ValueObjectSchemaFilter(Options.Create(new HttpJsonOptions()), services, new ValueObjectSwaggerSettings(null));
+        services.ReceivedCalls().Should().BeEmpty("Swashbuckle creates the filter while it configures its schema options");
+        filter.Apply(new OpenApiSchema(), Context(typeof(List<Quantity?>)));
+        filter.Apply(new OpenApiSchema(), Context(typeof(SwashbuckleMembers)));
+        filter.Apply(new OpenApiSchema(), new SchemaFilterContext(typeof(CountryCode), null!, registered));
+        filter.Apply(new OpenApiSchema(), Context(typeof(CountryCode)));
+        filter.Apply(new OpenApiSchema(), Context(typeof(CountryCode)));
+
+        services.Received(1).GetService(typeof(ISerializerDataContractResolver));
+        services.Received(2).GetService(typeof(IOptions<SchemaGeneratorOptions>));
+    }
+
     [Fact]
     public void A_parameter_reference_is_left_as_it_is()
     {
@@ -486,8 +515,10 @@ public sealed class SwashbuckleFilterTests
         SchemaGeneratorOptions? generator = null)
         => new(
             Options.Create(http ?? new HttpJsonOptions()),
-            Options.Create(generator ?? new SchemaGeneratorOptions()),
-            contracts ?? new JsonSerializerDataContractResolver(new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+            new ServiceCollection()
+                .AddSingleton(contracts ?? new JsonSerializerDataContractResolver(new JsonSerializerOptions(JsonSerializerDefaults.Web)))
+                .AddSingleton(Options.Create(generator ?? new SchemaGeneratorOptions()))
+                .BuildServiceProvider(),
             new ValueObjectSwaggerSettings(named));
 
     /// <summary>Describes a value object's component as the filter does.</summary>

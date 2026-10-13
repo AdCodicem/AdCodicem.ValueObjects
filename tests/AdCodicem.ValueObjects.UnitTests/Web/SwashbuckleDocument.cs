@@ -69,6 +69,13 @@ public sealed class SwashbuckleParityDocument : IAsyncLifetime
 /// <param name="BuiltIn">The built-in stack's document, an OpenAPI 3.1 one, if any.</param>
 public sealed record SwashbuckleDocuments(JsonElement V30, JsonElement V31, JsonElement? BuiltIn)
 {
+    /// <summary>
+    /// How long a document request may take. Swashbuckle answers in well under a second; a filter whose dependencies
+    /// Swashbuckle builds from the options it creates the filter in leaves the request unanswered, with no error, which
+    /// fails the test rather than the job's time limit.
+    /// </summary>
+    private static readonly TimeSpan DocumentTimeout = TimeSpan.FromSeconds(30);
+
     /// <summary>The versions a test runs over.</summary>
     public static TheoryData<string> Versions => ["3.0", "3.1"];
 
@@ -100,7 +107,8 @@ public sealed record SwashbuckleDocuments(JsonElement V30, JsonElement V31, Json
             .Single(parameter => parameter.GetProperty("name").GetString() == name);
 
     /// <summary>
-    /// Builds an application whose documents describe the domain's value objects, and reads its documents.
+    /// Builds an application whose documents describe the domain's value objects, and reads its documents, each request
+    /// awaited with a timeout.
     /// </summary>
     /// <param name="configure">Configures Swashbuckle, the document <c>v1</c> declared.</param>
     /// <param name="services">Configures the application's services, if anything more is needed.</param>
@@ -173,14 +181,22 @@ public sealed record SwashbuckleDocuments(JsonElement V30, JsonElement V31, Json
         await application.StartAsync();
 
         using var client = application.GetTestClient();
-        var v30 = Compact(await client.GetFromJsonAsync<JsonElement>("/swagger/v1/swagger.json"));
-        var v31 = Compact(await client.GetFromJsonAsync<JsonElement>("/swagger31/v1/swagger.json"));
-        JsonElement? builtInDocument = builtIn ? Compact(await client.GetFromJsonAsync<JsonElement>("/openapi/v1.json")) : null;
+        var v30 = Compact(await Read(client, "/swagger/v1/swagger.json"));
+        var v31 = Compact(await Read(client, "/swagger31/v1/swagger.json"));
+        JsonElement? builtInDocument = builtIn ? Compact(await Read(client, "/openapi/v1.json")) : null;
 
         await application.StopAsync();
 
         return new SwashbuckleDocuments(v30, v31, builtInDocument);
     }
+
+    /// <summary>Reads a document, failing the test when it is not served in time.</summary>
+    /// <param name="client">The application's client.</param>
+    /// <param name="path">The document's path.</param>
+    /// <returns>The document.</returns>
+    private static Task<JsonElement> Read(HttpClient client, string path)
+        => client.GetFromJsonAsync<JsonElement>(path, TestContext.Current.CancellationToken)
+            .WaitAsync(DocumentTimeout, TestContext.Current.CancellationToken);
 
     /// <summary>Writes a document without the indentation it was served with, so that a schema's text is its JSON.</summary>
     private static JsonElement Compact(JsonElement document) => JsonElement.Parse(JsonSerializer.Serialize(document));

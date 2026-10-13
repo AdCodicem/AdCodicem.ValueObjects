@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.Swashbuckle</RootNamespace>
-    <Description>Swashbuckle support for AdCodicem value objects: schema and parameter filters for Swashbuckle 10 and later that document a value object as its underlying type, carrying over the pattern, bounds, length, example and accepted values declared on the type.</Description>
+    <Description>Swashbuckle support for AdCodicem value objects: schema and parameter filters for Swashbuckle 10.3 and later that document a value object as its underlying type, carrying over the pattern, bounds, length, example and accepted values declared on the type.</Description>
     <PackageTags>$(PackageTags);openapi;swagger;swashbuckle</PackageTags>
 
     <!-- Swashbuckle walks the application model by reflection, and is no AOT target. -->
