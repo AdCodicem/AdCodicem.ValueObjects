@@ -17,10 +17,11 @@ Four suites, each with a distinct job:
   generator emits for every one of them runs rather than only compiles. Generated sources are emitted to disk
   during the build, so they can be read when diagnosing a failure instead of decompiled from memory. Value
   objects written by hand reach what the generator always replaces, such as the default members of the
-  contracts, and four small fixture assemblies hold what the test assembly cannot: a generated value object whose
+  contracts, and five small fixture assemblies hold what the test assembly cannot: a generated value object whose
   module has not been used yet, annotated value objects in an assembly the generator does not run on,
-  generated value objects in an assembly that does not reference the JSON package, and generated value objects of
-  every underlying type in an assembly that opts into XML serialization. What needs a server and no container runs
+  generated value objects in an assembly that does not reference the JSON package, generated value objects of
+  every underlying type in an assembly that opts into XML serialization, and generated value objects beside a query
+  type HotChocolate's source generator binds. What needs a server and no container runs
   here too, over TestHost: ASP.NET Core's pipelines, and a SignalR hub talking MessagePack with the .NET client; and
   over SQLite in memory: collections of value objects through Entity Framework Core, every sample value object among
   them stored and read back, queries over their elements translated, queries on `.Value` translated to the column,
@@ -44,7 +45,10 @@ Four suites, each with a distinct job:
   and answers each refused argument with a tool execution error carrying its rule. The Azure Functions converter is
   called as the isolated worker calls it, over every sample value object, and the problem details middleware runs over
   invocations written by the test, through the worker's own abstractions, answering each refusal as a minimal API
-  answers it, in the request's language too. Keys typed as value objects are
+  answers it, in the request's language too. HotChocolate schemas built in process take every sample value object as a
+  scalar of its own, from the edges its rules declare to the values they rule out, as literals and variables, and answer
+  each refusal with its code, in the language of the execution and, over TestHost, of the request; the guide's filtering
+  recipe runs over SQLite. Keys typed as value objects are
   generated over a `Guid` and each integer type, a round trip through SQLite in memory included, a `Guid` one left unset
   is refused in every shape the convention concerns, and an integer key to generate is refused on Entity Framework
   Core's in-memory provider, which is not relational.
@@ -98,7 +102,9 @@ Two applications, built as an application builds them, are published rather than
 
 The first references every package that claims to be AOT-compatible: the contracts, the generated code, the JSON package
 with a source-generated context and the JSON Schema it exports, the minimal API problem details, the identifiers,
-FluentValidation, the Serilog integration, the Microsoft.Extensions.AI one and the Model Context Protocol one. Its value
+FluentValidation, the Serilog integration, the Microsoft.Extensions.AI one and the Model Context Protocol one, all but
+the HotChocolate one, whose framework warns on its own publish and starts natively only rooted
+([GraphQL](./how-to/graphql.md#native-aot)). Its value
 objects cover each of the 22 underlying types, a pattern hook, a
 closed set, an identifier, a generic value object registered by hand, and two value objects written by hand, registered
 without a converter, which the JSON factory serves its general-purpose one, beside a third that nothing registers, which
@@ -124,7 +130,7 @@ constraints, a row SQL writes breaking a rule refused with the rule's code; the 
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the twenty-seven packages exactly as they were packed — from the folder the build packs into, at that one
+installs the twenty-eight packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -135,7 +141,8 @@ and a minimal API with its problem details, their messages and FluentValidation'
 MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
 SignalR's MessagePack hub protocol 11 over TestHost, FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI
 tools and structured output, Model Context Protocol tools over the SDK's own client, the Azure Functions converter and
-the problem details middleware beside ASP.NET Core 11, `XmlSerializer` and
+the problem details middleware beside ASP.NET Core 11, HotChocolate 16 scalars in a schema built in process, their
+messages in the language of the execution, `XmlSerializer` and
 `DataContractSerializer` over a domain that opts into XML serialization, the contract kit, and the test-data sampler
 drawing each value object of that domain from the schema the generator of that SDK wrote, through AutoFixture, Bogus and
 FsCheck too. On Entity Framework Core 11, keys typed as value objects are generated over a `Guid` and an `int`, and a

@@ -18,6 +18,7 @@
       "src/AdCodicem.ValueObjects.FluentValidation/AdCodicem.ValueObjects.FluentValidation.csproj",
       "src/AdCodicem.ValueObjects.FsCheck/AdCodicem.ValueObjects.FsCheck.csproj",
       "src/AdCodicem.ValueObjects.Generators/AdCodicem.ValueObjects.Generators.csproj",
+      "src/AdCodicem.ValueObjects.HotChocolate/AdCodicem.ValueObjects.HotChocolate.csproj",
       "src/AdCodicem.ValueObjects.Identifiers/AdCodicem.ValueObjects.Identifiers.csproj",
       "src/AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore/AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj",
       "src/AdCodicem.ValueObjects.Identifiers.MongoDB/AdCodicem.ValueObjects.Identifiers.MongoDB.csproj",

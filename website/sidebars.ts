@@ -28,6 +28,7 @@ const sidebars: SidebarsConfig = {
         'how-to/xml',
         'how-to/aspnet-core',
         'how-to/openapi',
+        'how-to/graphql',
         'how-to/ef-core',
         'how-to/dapper',
         'how-to/mongodb',

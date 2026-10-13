@@ -28,9 +28,10 @@
     <!-- No project references these two: they are transitive pins. They raise the 6.0.0 that BenchmarkDotNet's
          Microsoft.Extensions.Logging asks for in the benchmarks to the version Entity Framework Core asks for,
          and pinning lists them as dependencies of both Entity Framework Core packages, of the MessagePack
-         package, which reaches them through the hub protocol's Microsoft.AspNetCore.SignalR.Common, and of the Model
-         Context Protocol package, which reaches them through Microsoft.Extensions.Hosting.Abstractions: removing them
-         changes what those four pack. -->
+         package, which reaches them through the hub protocol's Microsoft.AspNetCore.SignalR.Common, of the Model
+         Context Protocol package, which reaches them through Microsoft.Extensions.Hosting.Abstractions, of the Azure
+         Functions package, which reaches them through Worker.Core, and of the HotChocolate package, which reaches them
+         through HotChocolate.Types: removing them changes what those six pack. -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.12" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
@@ -84,6 +85,13 @@
          2.52.0, and pinning lists it as a dependency of AdCodicem.ValueObjects.AzureFunctions.AspNetCore, so that an HTTP
          application takes the worker at the version of its core: removing it changes what that package packs. -->
     <PackageVersion Include="Microsoft.Azure.Functions.Worker" Version="2.52.0" />
+    <!-- The HotChocolate package's floor, the version it is built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); HotChocolate 17 is a decision, not a
+         bump. Its other HotChocolate and GreenDonut packages come with it, at exactly its version, and are pinned by
+         nothing here: a pin would make them dependencies of the package. -->
+    <PackageVersion Include="HotChocolate.Types" Version="16.6.8" />
+    <!-- IStringLocalizerFactory, for the HotChocolate package's localized messages; its net10.0 asset depends on nothing. -->
+    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
@@ -146,6 +154,12 @@
          trigger whose binding data it reads; no package under src/ references them. -->
     <PackageVersion Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.1.0" />
     <PackageVersion Include="Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues" Version="5.5.5" />
+    <!-- What the unit suite drives the HotChocolate package through, as an application does: the HTTP endpoint, the
+         filtering recipe of the guide and, in a fixture, HotChocolate's source generator; no package under src/
+         references them. -->
+    <PackageVersion Include="HotChocolate.AspNetCore" Version="16.6.8" />
+    <PackageVersion Include="HotChocolate.Data" Version="16.6.8" />
+    <PackageVersion Include="HotChocolate.Types.Analyzers" Version="16.6.8" />
   </ItemGroup>
 
 </Project>

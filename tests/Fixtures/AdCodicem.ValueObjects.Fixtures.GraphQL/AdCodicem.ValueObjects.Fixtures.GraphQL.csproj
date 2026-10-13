@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A [QueryType] HotChocolate's source generator binds at compile time, with value objects declared beside it, in an
+    assembly of its own, so that the unit test assembly gets no generated module and none of its analyzers. It does not
+    reference the HotChocolate package: an application's domain declares its queries without it, and the composition
+    root adds AddValueObjects().
+  -->
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Fixtures.GraphQL</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HotChocolate.Types" />
+    <PackageReference Include="HotChocolate.Types.Analyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

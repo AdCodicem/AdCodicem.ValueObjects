@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (with a $jsonSchema validator and entity identifiers minted on insert), MessagePack and SignalR, FluentValidation, OpenAPI (built-in stack and Swashbuckle), Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers (tool schemas, refused tool arguments) and Azure Functions (isolated worker) integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (with a $jsonSchema validator and entity identifiers minted on insert), MessagePack and SignalR, FluentValidation, OpenAPI (built-in stack and Swashbuckle), Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker) and HotChocolate (GraphQL) integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -228,6 +228,7 @@ ValueObjectBson.Register(typeof(Iban).Assembly);                                
 EntityIdBson.Register(typeof(AccountId).Assembly);                                     // Identifiers.MongoDB, on insert
 var msgpack = MessagePackSerializerOptions.Standard.WithValueObjects();                // MessagePack
 builder.Services.AddSignalR().AddMessagePackProtocol(o => o.UseValueObjects());        // MessagePack, client too
+builder.Services.AddGraphQLServer().AddQueryType<Query>().AddValueObjects();           // HotChocolate, a scalar per value object
 new LoggerConfiguration().Enrich.FromLogContext()                                      // Serilog, after FromLogContext
     .Destructure.ValueObjects(o => { o.CaptureAsUnderlyingValue = true; o.Assemblies.Add(typeof(Iban).Assembly); });
 // [assembly: ValueObjectXmlSerialization]  in the domain assembly: XmlSerializer, DataContractSerializer, MVC XML formatters
@@ -258,7 +259,8 @@ with its rule code instead of "Error: Function failed.". A Model Context Protoco
 isolated worker binds a value object from a route, a query or binding data only where its text happens to be JSON
 (`7`, never `007`), and fails a `Guid`, text or a date with a 500; it answers a refusal over HTTP with a 500 unless
 `UseValueObjectProblemDetails()` (`AdCodicem.ValueObjects.AzureFunctions.AspNetCore`) follows
-`ConfigureFunctionsWebApplication()`. Per-package details, EF `strict` mode and problem-details payloads:
+`ConfigureFunctionsWebApplication()`. Without `AddValueObjects()` (`AdCodicem.ValueObjects.HotChocolate`), a HotChocolate
+schema taking a value object as an argument does not start. Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.
 
 ## Test with the contract kit

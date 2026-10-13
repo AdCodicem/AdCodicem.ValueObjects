@@ -296,7 +296,9 @@ Core](./how-to/ef-core.md#generic-value-objects) maps each construction a proper
 by reflection the first time it meets it, or takes one registered with `ValueObjectBson.Register<TSelf, TValue>()`. [The
 MessagePack resolver](./how-to/messagepack.md#generic-value-objects-and-value-objects-written-by-hand) describes one by
 reflection the first time MessagePack asks for it, or takes one registered with
-`ValueObjectRegistry.Register<TSelf, TValue>()`. Under native AOT, where describing a construction by reflection is out
+`ValueObjectRegistry.Register<TSelf, TValue>()`, and so does [the HotChocolate
+handler](./how-to/graphql.md#generic-value-objects-and-value-objects-written-by-hand), beside a scalar
+`AddValueObjectScalar<TSelf, TValue>()` adds typed. Under native AOT, where describing a construction by reflection is out
 of reach, register each construction a type-driven integration needs; the registration reads its schema off the type:
 
 ```csharp skip

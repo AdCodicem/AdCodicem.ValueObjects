@@ -42,7 +42,8 @@ refuse a value: `AddValueObjects(messages => messages.UseResource<T>())` on MVC 
 `WithValueObjectProblemDetails(messages => messages.UseResource<T>())` on a minimal API
 ([ASP.NET Core](../how-to/aspnet-core.md#messages-in-the-applications-language)),
 `UseValueObjectProblemDetails(messages => messages.UseResource<T>())` on an Azure Functions HTTP trigger
-([Azure](../how-to/azure.md#messages-in-the-requests-language)), and FluentValidation's
+([Azure](../how-to/azure.md#messages-in-the-requests-language)), `AddValueObjects(options => options.UseResource<T>())`
+on a HotChocolate schema ([GraphQL](../how-to/graphql.md#messages-in-the-applications-language)), and FluentValidation's
 `LanguageManager` under `MustParseAs`, `MustSatisfy` and `NotDefault`
 ([FluentValidation](../how-to/fluentvalidation.md#messages-in-another-language)). No translation ships with the
 packages: each application writes the messages it wants, and a key it leaves out keeps the English message.
@@ -59,7 +60,7 @@ A message quotes arguments the rules the type declares supply, through `ValueObj
 name, which FluentValidation quotes as a placeholder, and a position, which an `IStringLocalizer` formats with
 `string.Format`.
 
-| Code | Named (FluentValidation) | Positional (MVC, minimal APIs, Azure Functions) |
+| Code | Named (FluentValidation) | Positional (MVC, minimal APIs, Azure Functions, HotChocolate) |
 | --- | --- | --- |
 | Every code | `{PropertyName}`, `{ValueObject}` | `{0}`, the member |
 | `value_object.too_short` | `{MinLength}` | `{1}` |
@@ -69,8 +70,10 @@ name, which FluentValidation quotes as a placeholder, and a position, which an `
 
 - `{ValueObject}` is the name of the value object type, without the arity of a generic one: `Reference` for
   `Reference<PurchaseOrder>`. `{0}` is the member the refusal is listed under: the display name MVC gives it, the
-  name a minimal API value binds from, the name of the parameter of an Azure Functions HTTP trigger, or, in a request
-  body, the name of the value object, never the JSON path, which holds the key a dictionary keyed by a value object
+  name a minimal API value binds from, the name of the parameter of an Azure Functions HTTP trigger, the argument, the
+  input field or the variable of a GraphQL refusal (the scalar's name for a variable's default value, which HotChocolate
+  names no variable for), the field of a refused output, or, in a request body, the name of
+  the value object, never the JSON path, which holds the key a dictionary keyed by a value object
   refused.
 - Each argument is text, formatted in the current culture: a bound is read back from the invariant text the schema
   holds and written for the culture, `0,01` in French, a date in the culture's order, and the known values are joined
@@ -89,9 +92,10 @@ request's, so the Functions middleware applies the request's cultures itself, th
 those the application's `RequestLocalizationOptions` choose from the request
 ([Azure](../how-to/azure.md#messages-in-the-requests-language)). A template quoting an argument its code does not
 supply is the application's error: an `IStringLocalizer` throws its `FormatException`, which the integrations let
-through, while FluentValidation leaves a placeholder it has no value for as it is. On MVC, minimal APIs and Azure
-Functions HTTP triggers, a resource read without `builder.Services.AddLocalization()` throws an
-`InvalidOperationException` naming the call.
+through, HotChocolate answering a field it fails with its own unexpected error, while FluentValidation leaves a
+placeholder it has no value for as it is. On MVC, minimal APIs and Azure Functions HTTP triggers, a resource read without
+`builder.Services.AddLocalization()` throws an `InvalidOperationException` naming the call; on HotChocolate, the request
+executor fails to start with that exception.
 
 A French resource for the codes of the framework, as an example:
 
@@ -211,6 +215,7 @@ that treats a rejected value as a bug, for a strict EF Core read, and for an EF 
 | A structured answer, read through `ChatResponse<T>.Result` | The converters' `ValueObjectJsonException`, whose code the application can ask again with ([structured output](../how-to/language-models.md#structured-output)). |
 | A Model Context Protocol tool argument, through [`AdCodicem.ValueObjects.ModelContextProtocol`](../how-to/language-models.md#a-refused-argument-as-a-tool-execution-error)'s `WithValueObjectTools` | Nothing is thrown: the server answers a tool execution error, `isError: true`, whose text is `Argument 'quantity' rejected (value_object.out_of_range): …`, and whose structured content is the object above when the tool declares no output schema, its code and message read the same way. Without the package, the SDK answers `An error occurred invoking 'place_order'.`, and the rule and its code are lost. |
 | An Azure Functions isolated worker binding, through [`AdCodicem.ValueObjects.AzureFunctions`](../how-to/azure.md#route-values-query-values-and-binding-data)'s `UseValueObjects()` | The converter fails the parameter with a `FormatException`, "The value is not a valid Quantity: The value must be less than or equal to 100. (value_object.out_of_range)", carrying the code in its `Data` and at the end of its message; the worker keeps that text alone, in a `FunctionInputConverterException` with no inner exception, which fails the invocation. Over HTTP, with [`UseValueObjectProblemDetails()`](../how-to/azure.md#problem-details-for-http-triggers) after `ConfigureFunctionsWebApplication()`, a validation problem carrying the code of each refused route or query value, and of a `[FromBody]` value object where the MVC package's `AddValueObjects()` reads the body; the middleware throws nothing of its own. Without the package, the worker's JSON conversion refuses the text, a valid `Guid` or date included, and the host logs the reader's message, which can quote part of the value: `'not-a-guid' is an invalid JSON literal`. |
+| A GraphQL argument, input field or variable, through [`AdCodicem.ValueObjects.HotChocolate`](../how-to/graphql.md#a-refused-value)'s `AddValueObjects()` | `LeafCoercionException`, carrying the code in its `Data`, whose GraphQL error has the message of the rule, the code as `extensions.code`, and a `ValueObjectException` with the type and the code on `IError.Exception`: a field error at the argument's `inputPath`, a request error at the variable's `path`. A variable of another JSON kind is `value_object.not_parsable`; a literal of another kind and a `null` literal are its own validation errors, with no code, and a `null` variable its `HC0018`. Without the package, a schema taking a value object as an argument does not start: ``No compatible constructor found for input type type `Shop.Iban`.``. |
 
 The other reads do not validate. EF Core by default, Dapper for a value the provider returns as the underlying type or
 as its date and time counterpart, a trusted MongoDB serializer and a trusted MessagePack formatter build the value
@@ -249,6 +254,7 @@ without being validated again.
 | MongoDB.Driver, through [`AdCodicem.ValueObjects.MongoDB`](../how-to/mongodb.md#writing) | `BsonSerializationException`, with the same message: from `InsertOne`, `InsertMany` or `ReplaceOne`, inside the driver's own, which names the member; from an update or a query constant, as it is. An `Iban?` holding a default `Iban` is refused too; an `Iban?` holding nothing is written as `null`. Nothing is written. An update through `.Value`, `Update.Set(x => x.Page.Value, 0)`, writes the raw value unchecked: set the value object instead. |
 | MessagePack, through [`AdCodicem.ValueObjects.MessagePack`](../how-to/messagepack.md#writing) | `MessagePackSerializationException`, with the same message, inside MessagePack's own, "Failed to serialize … value.", from a value, a dictionary key, and an `Iban?` holding a default `Iban`; an `Iban?` holding nothing is written as `nil`. Through [SignalR](../how-to/messagepack.md#signalr), a .NET client's invocation throws it, and nothing is sent; a hub method's result fails to be written, the server logs it, and closes the connection. |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly marked `[assembly: ValueObjectXmlSerialization]` | `XmlException`, "The value to write is not a valid Quantity: …", inside `XmlSerializer`'s `InvalidOperationException` ("There was an error generating the XML document.") or `DataContractSerializer`'s `SerializationException`. |
+| HotChocolate, through [`AdCodicem.ValueObjects.HotChocolate`](../how-to/graphql.md#a-refused-value) | The field's error, with the message of the rule and HotChocolate's own code, `EXEC_INVALID_LEAF_VALUE`; the `ValueObjectException` on `IError.Exception` keeps the rule's code. A real that is not finite is refused the same way, as no GraphQL Float holds it. |
 
 The message names the type and the rule, never the value, and each exception carries the code of the rule, as
 [below](#the-code-in-an-exception).
@@ -360,6 +366,7 @@ reading English:
 | MessagePack, a read or a refused write | `MessagePackSerializationException`, inside MessagePack's own of the same type when the serializer reads or writes a value | In `Data` |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly that opts into XML serialization | `XmlException`, inside the serializer's `InvalidOperationException` or `SerializationException` | In `Data` |
 | The Azure Functions converter | `FormatException`, whose text alone the worker keeps, in its `FunctionInputConverterException` | In `Data`, and at the end of the message |
+| The HotChocolate scalars | `LeafCoercionException`, whose GraphQL error carries a `ValueObjectException` on `IError.Exception` | In `Data`; the error's `Exception` in `ErrorCode`, and its `extensions.code` but for a refused output |
 
 The code is the one the rule reports. A value that is not of the underlying type at all carries
 `value_object.not_parsable`: a JSON token of the wrong kind, a number the underlying type cannot hold, text not of its
@@ -396,6 +403,11 @@ neither the converter's exception nor its `Data` reaches a middleware, a log or 
 nothing on the worker's exception. The code at the end of the text, `(value_object.out_of_range)`, is what survives; an
 HTTP trigger answered through `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` carries it under `errorCodes`
 ([Azure Functions](../how-to/azure.md#azure-functions-isolated-worker)).
+
+HotChocolate keeps the `LeafCoercionException` to itself and hands an error filter the GraphQL error alone: an error
+filter of the application's own reads the code with `ValueObjectErrors.TryGetCode(error.Exception, out var code)`, an
+output refusal's included, whose `extensions.code` HotChocolate replaces with its own
+([GraphQL](../how-to/graphql.md#a-refused-value)).
 
 A tool argument refused through `AdCodicem.ValueObjects.AI` throws nothing: the code is the `code` of the result the
 model reads ([language models](../how-to/language-models.md#a-refused-argument)). Where reflection-based serialization

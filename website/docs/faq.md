@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The twenty-seven packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The twenty-eight packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -97,12 +97,13 @@ and an application translates them under the key `ValueObject.` followed by the 
 supply: the length, the bounds, the known values, formatted in the request's culture. MVC and minimal APIs read the
 translations from a resource the application names, `AddValueObjects(messages => messages.UseResource<T>())` and
 `WithValueObjectProblemDetails(messages => messages.UseResource<T>())`, so do the HTTP triggers of Azure Functions,
-`UseValueObjectProblemDetails(messages => messages.UseResource<T>())`, and FluentValidation reads them from its
-`LanguageManager`. No translation ships with the packages. The
+`UseValueObjectProblemDetails(messages => messages.UseResource<T>())`, and a HotChocolate schema,
+`AddValueObjects(options => options.UseResource<T>())`, and FluentValidation reads them from its `LanguageManager`. No
+translation ships with the packages. The
 [errors reference](./reference/errors.md#a-message-in-the-applications-language) lists the keys and the arguments, with a
 French example, and the guides for [ASP.NET Core](./how-to/aspnet-core.md#messages-in-the-applications-language),
-[Azure Functions](./how-to/azure.md#messages-in-the-requests-language) and
-[FluentValidation](./how-to/fluentvalidation.md#messages-in-another-language) the wiring.
+[Azure Functions](./how-to/azure.md#messages-in-the-requests-language),
+[GraphQL](./how-to/graphql.md#messages-in-the-applications-language) and [FluentValidation](./how-to/fluentvalidation.md#messages-in-another-language) the wiring.
 
 ### Can a value object be a dictionary key, or an EF Core key?
 
@@ -193,6 +194,16 @@ back a default instance, silently. SignalR's MessagePack hub protocol uses such 
 the invocation. MassTransit.MessagePack is not covered, and the package is not AOT-compatible:
 [MessagePack and SignalR](./how-to/messagepack.md).
 
+### Does it work with GraphQL?
+
+Through HotChocolate 16, with `AdCodicem.ValueObjects.HotChocolate`: `AddValueObjects()` on the schema's builder gives
+every value object a scalar of its own, `scalar Iban`, named and described by its type and serialized as its underlying
+value, a Boolean, an Int, a Float or a String, which reads an argument, an input field or a variable through its rules
+and answers a refused value with the rule's code under `extensions.code`. Without it, HotChocolate infers an input
+object type from a value object it meets as an argument and the schema does not start. Filtering through
+HotChocolate.Data takes one binding per value object, and the native binary of a HotChocolate application needs
+HotChocolate.Types and the application's assembly rooted: [GraphQL](./how-to/graphql.md).
+
 ### Does it work with `XmlSerializer`, `DataContractSerializer` or WCF?
 
 Once the assembly asks for it: `[assembly: ValueObjectXmlSerialization]` makes the generator implement
@@ -273,7 +284,8 @@ integration registers its handlers that way, the MongoDB provider builds its ser
 formatter MessagePack asks it for, the MongoDB identifiers package its id generators, through the visitor of an entity
 identifier's descriptor, the MVC model binder provider creates its binders, the minimal API filter closes the check of
 each parameter it explains, the Azure Functions converter the conversion of each value object a parameter binds and its
-middleware the check of each it explains, the JSON converter factory closes the general-purpose converter it gives a value object
+middleware the check of each it explains, the HotChocolate type discovery handler the scalar of each value object a schema
+meets, the JSON converter factory closes the general-purpose converter it gives a value object
 written by hand, the test-data sampler, the AutoFixture customization, the Bogus extensions and FsCheck's
 `MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
 value object, each element of a collection of them, and each entity identifier, all but the converter of an optional
@@ -285,7 +297,10 @@ contracts, the generated code, the JSON package, the minimal API problem details
 Serilog, Microsoft.Extensions.AI and Model Context Protocol integrations are marked AOT-compatible and built with the
 trimming and AOT analyzers on, and CI publishes an
 application using them all with native AOT on every pull request, which merges only once that passes: it fails on any
-trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The EF Core,
+trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The
+HotChocolate package is marked AOT-compatible too, and its own code publishes with no warning, but CI publishes no
+HotChocolate application: HotChocolate's own publish warns, and its binary starts only with HotChocolate.Types and the
+application's assembly rooted ([GraphQL](./how-to/graphql.md#native-aot)). The EF Core,
 ASP.NET Core MVC, OpenAPI, Swashbuckle, Dapper, MongoDB, MongoDB identifiers, MessagePack, Azure Functions and
 Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
 in a cache it closes over the type at run time, so under native AOT a handler this package built without dynamic code

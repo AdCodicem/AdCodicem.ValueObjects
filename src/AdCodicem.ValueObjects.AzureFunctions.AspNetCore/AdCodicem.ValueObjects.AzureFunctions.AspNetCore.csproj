@@ -35,6 +35,7 @@
     <Compile Include="..\Shared\ValueObjectBindingText.cs" Link="Shared\ValueObjectBindingText.cs" />
     <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
     <Compile Include="..\Shared\ValueObjectLocalizedMessages.cs" Link="Shared\ValueObjectLocalizedMessages.cs" />
+    <Compile Include="..\Shared\ValueObjectLocalizedMessages.AspNetCore.cs" Link="Shared\ValueObjectLocalizedMessages.AspNetCore.cs" />
   </ItemGroup>
 
 </Project>

@@ -10,6 +10,11 @@
     <!-- Microsoft.AspNetCore.OpenApi's generator reaches this project through the OpenApi project and intercepts
          AddOpenApi; the package's build targets, which allow its interceptors, come only with a direct reference. -->
     <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
+
+    <!-- HotChocolate.AspNetCore and HotChocolate.Data add global usings of HotChocolate's namespaces under ImplicitUsings,
+         whose DefaultValueAttribute, Path and Tag would collide with the suite's own names in every file: GraphQL/ names
+         HotChocolate's types through usings of its own. -->
+    <HotChocolateImplicitUsings>disable</HotChocolateImplicitUsings>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,6 +41,7 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Dapper\AdCodicem.ValueObjects.Dapper.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.HotChocolate\AdCodicem.ValueObjects.HotChocolate.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.MongoDB\AdCodicem.ValueObjects.Identifiers.MongoDB.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.MessagePack\AdCodicem.ValueObjects.MessagePack.csproj" />
@@ -53,12 +59,14 @@
   <ItemGroup>
     <!-- Value objects this assembly cannot hold: one in a module no test has touched yet, hand-written ones
          annotated where the generator does not run, generated ones in an assembly that does not reference the JSON
-         package, and generated ones in an assembly that opts into XML serialization
+         package, generated ones in an assembly that opts into XML serialization, and generated ones beside a query type
+         HotChocolate's source generator binds, whose generated module this assembly would otherwise get
          (tests/Fixtures/Directory.Build.props). -->
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Untouched\AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutGenerator\AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutJson\AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.XmlSerialization\AdCodicem.ValueObjects.Fixtures.XmlSerialization.csproj" />
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.GraphQL\AdCodicem.ValueObjects.Fixtures.GraphQL.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -102,6 +110,11 @@
     <!-- Agent Framework, whose ChatClientAgent calls the same tools through FunctionInvokingChatClient, and whose
          RunAsync<T> builds a response format no schema option reaches. -->
     <PackageReference Include="Microsoft.Agents.AI" />
+    <!-- What an application serves a HotChocolate schema through, its HTTP endpoint, over TestHost, and HotChocolate.Data,
+         whose filtering and sorting the guide's recipe binds value objects into; GraphQL/ drives the HotChocolate package
+         through both. -->
+    <PackageReference Include="HotChocolate.AspNetCore" />
+    <PackageReference Include="HotChocolate.Data" />
   </ItemGroup>
 
   <ItemGroup>

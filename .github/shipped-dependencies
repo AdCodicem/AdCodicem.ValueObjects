@@ -14,6 +14,7 @@ Bogus
 Dapper
 FluentValidation
 FsCheck
+HotChocolate.Types
 MessagePack
 Microsoft.AspNetCore.Mvc.NewtonsoftJson
 Microsoft.AspNetCore.OpenApi
@@ -25,6 +26,7 @@ Microsoft.EntityFrameworkCore
 Microsoft.EntityFrameworkCore.Relational
 Microsoft.Extensions.AI.Abstractions
 Microsoft.Extensions.DependencyInjection.Abstractions
+Microsoft.Extensions.Localization.Abstractions
 Microsoft.Extensions.Options
 Microsoft.OpenApi
 ModelContextProtocol

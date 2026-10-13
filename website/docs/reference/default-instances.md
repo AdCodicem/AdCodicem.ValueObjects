@@ -77,6 +77,7 @@ These were sources too, and no longer are:
 | Dapper, a default as a parameter | Refused with a `DataException` before the command runs, from an `Iban` and an `Iban?` alike. |
 | MongoDB.Driver with `AdCodicem.ValueObjects.MongoDB`, writing a default | Refused with a `BsonSerializationException` before anything is sent, from an `Iban` and an `Iban?` alike, in a document, an update or a query constant. |
 | MessagePack and SignalR with `AdCodicem.ValueObjects.MessagePack`, writing a default | Refused with a `MessagePackSerializationException`, from an `Iban`, a dictionary key and an `Iban?` holding one alike: a .NET client's invocation throws before it is sent, and a hub method's result fails to be written, which closes the connection. |
+| HotChocolate with `AdCodicem.ValueObjects.HotChocolate`, a field returning a default | Not written: the field's error carries the rule's message and HotChocolate's code, `EXEC_INVALID_LEAF_VALUE`, with the rule's code on `IError.Exception`. |
 | System.Text.Json and Newtonsoft.Json with its converter, writing a default | Refused with a `JsonException` or a `JsonSerializationException`, so a service reading the payload never receives it. |
 
 A type that accepts its zero, an `Amount` with a minimum of 0 or an unconstrained `Guid`, is still written as zero:
