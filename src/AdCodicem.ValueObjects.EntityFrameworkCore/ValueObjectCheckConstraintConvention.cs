@@ -42,8 +42,8 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// its schema, a name another table of the schema also takes, <c>CK_a_b_C_Maximum</c> for column <c>C</c> of table
 /// <c>a_b</c> and column <c>B_C</c> of table <c>a</c>, keeps the rule whole and ends with eight hexadecimal digits of the
 /// SHA-256 of the table and the column, its start cut as short as the provider needs:
-/// <c>CK_{table}_{column}_{rule}_{hash}</c>. A column that takes a <c>NULL</c> wraps the check:
-/// <c>[c] IS NULL OR (…)</c>.
+/// <c>CK_{table}_{column}_{rule}_{hash}</c>, which <see cref="ValueObjectCheckConstraints"/> reads back to the code of
+/// the rule. A column that takes a <c>NULL</c> wraps the check: <c>[c] IS NULL OR (…)</c>.
 /// </para>
 /// <para>
 /// SQL Server, PostgreSQL and SQLite are known; another provider gets no constraint. Nothing here runs per query or per

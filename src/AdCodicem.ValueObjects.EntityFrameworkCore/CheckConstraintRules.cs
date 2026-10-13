@@ -127,19 +127,19 @@ internal sealed class CheckConstraintRules(
                 CheckEngine.PostgreSql => $"octet_length({column})",
                 _ => $"length(CAST({column} AS BLOB))",
             };
-            checks.Add(("MinLength", string.Create(CultureInfo.InvariantCulture, $"{length} >= {minimum}")));
+            checks.Add((ValueObjectCheckConstraints.MinLength, string.Create(CultureInfo.InvariantCulture, $"{length} >= {minimum}")));
         }
 
         if ((rules & ValueObjectChecks.Bounds) != 0 && BoundParsers.TryGetValue(typeof(TValue), out var parse))
         {
             if (schema.Minimum is { } low && parse(low) is { } lower && Bound(lower, minimum: true, mapping) is { } literal)
             {
-                checks.Add(("Minimum", $"{Compared<TValue>()} >= {literal}"));
+                checks.Add((ValueObjectCheckConstraints.Minimum, $"{Compared<TValue>()} >= {literal}"));
             }
 
             if (schema.Maximum is { } high && parse(high) is { } upper && Bound(upper, minimum: false, mapping) is { } bound)
             {
-                checks.Add(("Maximum", $"{Compared<TValue>()} <= {bound}"));
+                checks.Add((ValueObjectCheckConstraints.Maximum, $"{Compared<TValue>()} <= {bound}"));
             }
         }
 
@@ -151,7 +151,7 @@ internal sealed class CheckConstraintRules(
                 : ComparedAlike.Contains(typeof(TValue)))
             && Literals<TValue>(schema, mapping) is { } values)
         {
-            checks.Add(("KnownValues", $"{column} IN ({values})"));
+            checks.Add((ValueObjectCheckConstraints.KnownValues, $"{column} IN ({values})"));
         }
 
         if (pattern is not null && !mapping.IsFixedLength)
@@ -162,12 +162,12 @@ internal sealed class CheckConstraintRules(
             switch (engine, patterns)
             {
                 case (CheckEngine.SqlServer, ValueObjectPatternDialect.SqlServer2025):
-                    checks.Add(("Pattern", $"REGEXP_LIKE({column}, {text})"));
+                    checks.Add((ValueObjectCheckConstraints.Pattern, $"REGEXP_LIKE({column}, {text})"));
                     break;
                 case (CheckEngine.PostgreSql, ValueObjectPatternDialect.PostgreSql):
                     // A nondeterministic collation refuses a regular expression, and the C collation reads classes and
                     // ranges by code point, as .NET does.
-                    checks.Add(("Pattern", $"{column} COLLATE \"C\" ~ {text}"));
+                    checks.Add((ValueObjectCheckConstraints.Pattern, $"{column} COLLATE \"C\" ~ {text}"));
                     break;
             }
         }

@@ -23,8 +23,9 @@ public class ShopContext(string connectionString) : DbContext
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // The design-time factory builds the context through here, so that the queries precompiled for native AOT are
-        // translated with .Value read from the column, as they are at run time.
-        optionsBuilder.UseSqlServer(connectionString).UseValueObjectQueries();
+        // translated with .Value read from the column, as they are at run time. A row a CHECK constraint refuses carries
+        // the code of its rule, read off the constraint's name, which no compiled model holds.
+        optionsBuilder.UseSqlServer(connectionString).UseValueObjectQueries().UseValueObjectCheckErrors();
 #if COMPILED_MODEL
         optionsBuilder.UseModel(Strict ? Compiled.Strict.StrictShopContextModel.Instance : Compiled.Relaxed.ShopContextModel.Instance);
 #endif

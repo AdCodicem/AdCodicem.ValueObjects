@@ -1,5 +1,7 @@
+using System.Data.Common;
 using AdCodicem.ValueObjects.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
@@ -8,7 +10,7 @@ namespace AdCodicem.ValueObjects.CompatTests;
 
 /// <summary>
 /// The patterns of the value objects, written as CHECK constraints in PostgreSQL's dialect by the package built against
-/// the current major, in a model of Npgsql's provider for the next one.
+/// the current major, in a model of Npgsql's provider for the next one, a violated one carrying the code of its rule.
 /// </summary>
 /// <param name="fixture">PostgreSQL container.</param>
 [Trait("Requires", "Docker")]
@@ -29,6 +31,34 @@ public sealed class CheckConstraintPatternTests(PostgreSqlFixture fixture) : ICl
         var refusal = (await write.Should().ThrowAsync<PostgresException>()).Which;
         refusal.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
         refusal.ConstraintName.Should().Be("CK_patterned_accounts_Iban_Pattern");
+        ValueObjectErrors.TryGetCode(refusal, out var code).Should().BeTrue();
+        code.Should().Be(ValueObjectErrorCodes.InvalidFormat);
+    }
+
+    /// <summary>
+    /// A refusal in the second statement of a batch, an <c>INSERT … RETURNING</c> reading back the key PostgreSQL
+    /// generates, reaches no command interceptor under the next major either: the save interceptor adds the code.
+    /// </summary>
+    [Fact]
+    public async Task A_refusal_in_a_later_statement_of_a_batch_carries_the_code()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var recorder = new FailureRecorder();
+        await using var context = new EntriesContext(
+            new DbContextOptionsBuilder<EntriesContext>().UseNpgsql(fixture.ConnectionString).AddInterceptors(recorder).UseValueObjectCheckErrors().Options);
+        await context.GetService<IRelationalDatabaseCreator>().CreateTablesAsync(ct);
+        context.Entries.AddRange(
+            new PatternedEntry { Iban = Iban.Create("FR7630006000011234567890189") },
+            new PatternedEntry { Iban = Iban.CreateUnchecked("fr7630006000011234567890189") });
+
+        var save = () => context.SaveChangesAsync(ct);
+
+        var update = (await save.Should().ThrowAsync<DbUpdateException>()).Which;
+        recorder.Failures.Should().Be(0);
+        var refusal = update.InnerException.Should().BeOfType<PostgresException>().Which;
+        refusal.ConstraintName.Should().Be("CK_patterned_entries_Iban_Pattern");
+        ValueObjectErrors.TryGetCode(update, out var code).Should().BeTrue();
+        code.Should().Be(ValueObjectErrorCodes.InvalidFormat);
     }
 
     [Fact]
@@ -45,7 +75,49 @@ public sealed class CheckConstraintPatternTests(PostgreSqlFixture fixture) : ICl
 
     private DbContextOptions<TContext> Options<TContext>()
         where TContext : DbContext
-        => new DbContextOptionsBuilder<TContext>().UseNpgsql(fixture.ConnectionString).Options;
+        => new DbContextOptionsBuilder<TContext>().UseNpgsql(fixture.ConnectionString).UseValueObjectCheckErrors().Options;
+
+    /// <summary>Counts the errors Entity Framework Core hands a command interceptor.</summary>
+    private sealed class FailureRecorder : DbCommandInterceptor
+    {
+        public int Failures { get; private set; }
+
+        public override void CommandFailed(DbCommand command, CommandErrorEventData eventData) => Failures++;
+
+        public override Task CommandFailedAsync(DbCommand command, CommandErrorEventData eventData, CancellationToken cancellationToken = default)
+        {
+            Failures++;
+
+            return Task.CompletedTask;
+        }
+    }
+}
+
+/// <summary>An entry, whose key PostgreSQL generates and whose IBAN's pattern it checks.</summary>
+public sealed class PatternedEntry
+{
+    /// <summary>Gets or sets the key.</summary>
+    public int Id { get; set; }
+
+    /// <summary>Gets or sets the account.</summary>
+    public Iban Iban { get; set; }
+}
+
+/// <summary>The entries, with the patterns written as CHECK constraints in PostgreSQL's dialect.</summary>
+/// <param name="options">Options.</param>
+public sealed class EntriesContext(DbContextOptions<EntriesContext> options) : DbContext(options)
+{
+    /// <summary>Gets the entries.</summary>
+    public DbSet<PatternedEntry> Entries => Set<PatternedEntry>();
+
+    /// <inheritdoc />
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+        => configurationBuilder
+            .ConfigureValueObjects(typeof(Iban).Assembly)
+            .AddValueObjectCheckConstraints(checks => checks.Patterns = ValueObjectPatternDialect.PostgreSql);
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.Entity<PatternedEntry>().ToTable("patterned_entries");
 }
 
 /// <summary>An account, whose IBAN's pattern the database checks.</summary>

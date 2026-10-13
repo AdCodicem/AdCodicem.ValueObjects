@@ -354,6 +354,48 @@ public sealed class EntityFrameworkCoreTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// A row a CHECK constraint refuses carries the code of its rule on SQLite's error under the next major, once the
+    /// options call <c>UseValueObjectCheckErrors()</c>: <c>SaveChanges</c> of an instance a lax read let in, inside the
+    /// <c>DbUpdateException</c>, and another writer's row, as it is. Without the call, the error is left alone and
+    /// <c>ValueObjectCheckConstraints.TryGetCode</c> reads the code off it.
+    /// </summary>
+    [Fact]
+    public async Task A_row_a_constraint_refuses_carries_the_code_of_its_rule()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync(ct);
+        await using var context = new CheckedContext(new DbContextOptionsBuilder<CheckedContext>().UseSqlite(connection).UseValueObjectCheckErrors().Options);
+        await context.Database.EnsureCreatedAsync(ct);
+        context.Holdings.Add(new Holding { Id = 1, Iban = Iban.Create("BE68539007547034"), Quantity = Quantity.CreateUnchecked(101), Country = CountryCode.Create("lu") });
+
+        var save = () => context.SaveChangesAsync(ct);
+
+        var update = (await save.Should().ThrowAsync<DbUpdateException>()).Which;
+        update.InnerException.Should().BeOfType<SqliteException>().Which.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(ValueObjectErrorCodes.OutOfRange);
+        ValueObjectErrors.TryGetCode(update, out var code).Should().BeTrue();
+        code.Should().Be(ValueObjectErrorCodes.OutOfRange);
+
+        var insert = () => context.Database.ExecuteSqlRawAsync(
+            """INSERT INTO "holdings" ("Id", "Iban", "Quantity", "Country") VALUES (2, 'BE68539007547034', 1, 'GB')""",
+            ct);
+
+        var refusal = (await insert.Should().ThrowAsync<SqliteException>()).Which;
+        ValueObjectErrors.TryGetCode(refusal, out var known).Should().BeTrue();
+        known.Should().Be(ValueObjectErrorCodes.NotAKnownValue);
+
+        await using var plain = new CheckedContext(new DbContextOptionsBuilder<CheckedContext>().UseSqlite(connection).Options);
+        var tooShort = () => plain.Database.ExecuteSqlRawAsync(
+            """INSERT INTO "holdings" ("Id", "Iban", "Quantity", "Country") VALUES (2, 'BE6853900754', 1, 'FR')""",
+            ct);
+
+        var unmarked = (await tooShort.Should().ThrowAsync<SqliteException>()).Which;
+        ValueObjectErrors.TryGetCode(unmarked, out _).Should().BeFalse();
+        ValueObjectCheckConstraints.TryGetCode(unmarked, out var read).Should().BeTrue();
+        read.Should().Be(ValueObjectErrorCodes.TooShort);
+    }
+
     private static IEnumerable<Exception> Chain(Exception? exception)
     {
         for (; exception is not null; exception = exception.InnerException)

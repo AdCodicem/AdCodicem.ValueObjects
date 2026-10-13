@@ -278,7 +278,11 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   `Data`; the AI package's wrapper throws nothing, and returns the result of a Microsoft.Extensions.AI tool,
   `{"error":"invalid_argument","argument","code","message"}`, which `FunctionInvokingChatClient` hands the model as it
   is, and the Model Context Protocol package answers a tool execution error (`isError: true`) whose text carries the
-  code, and whose structured content is that object when the tool declares no output schema. The one that throws
+  code, and whose structured content is that object when the tool declares no output schema. Under
+  `UseValueObjectCheckErrors()`, the EF Core package adds the code to the `Data` of the database provider's error for a
+  row a CHECK constraint from the rules refused, read off the constraint's name (`ValueObjectCheckConstraints`), never
+  off the model, and neither replaces nor wraps that error; `ValueObjectCheckConstraints.TryGetCode` reads it without
+  the call. The one that throws
   `ValueObjectException` is a strict EF Core read, which goes through `Create` and fails the query; `Create`, `Parse`
   and an explicit conversion throw it for code that treats a rejected value as a bug. `website/docs/reference/errors.md`
   names what each integration throws. Validation is fail-fast: the first violated rule wins. The message of a rule stays
@@ -570,6 +574,27 @@ These are all load-bearing, and each cost real debugging time:
   singleton options: there, `Validate` refuses a provider that lacks the mark `ApplyServices` adds, and resolves nothing
   else, since resolving the plugin would build the type mapping source, Npgsql's reading those options, before they are
   set.
+- **EF Core hands a command interceptor no error a provider reports while results are read.** It calls
+  `CommandFailed` only around `DbCommand.Execute*`: a statement after the first of a batch that returns rows, an
+  `INSERT … RETURNING` or `OUTPUT INSERTED` reading back a generated key, SQL Server's `MERGE` of several rows, an
+  `UPDATE … OUTPUT 1`, fails while `ReaderModificationCommandBatch` consumes the results, and only
+  `SaveChangesFailed` sees it, inside the `DbUpdateException`; so `ValueObjectCheckErrorInterceptor` is both an
+  `IDbCommandInterceptor` and an `ISaveChangesInterceptor`, and the unit suite stands for that path by throwing SQLite's
+  error from `DataReaderClosing`, which the integration suite runs for real. Nor does it hand any interceptor an error
+  a provider reports while the rows of a query are read: on SQL Server, a raw SQL query writing rows it reads back,
+  `SqlQueryRaw` or `FromSqlRaw` over `OUTPUT`, fails with SqlClient's 547 carrying no code, which the guide states and
+  an integration test pins, `ValueObjectCheckConstraints.TryGetCode` reading it; PostgreSQL's and SQLite's `RETURNING`
+  fail as the command runs, and carry it. EF Core logs a failure before it calls the
+  interceptors, and builds the event data of every command once any command interceptor is registered (about 0.8 KB
+  per query on SQLite), which the guide states. The rule is read off the name, `CK_…_{rule}` with an optional
+  `_[0-9A-F]{8}`, and only on an error reporting a violated CHECK constraint, or a migration's "There is already an
+  object named …" would get a code: PostgreSQL's SQL state `23514`, Npgsql naming the constraint under
+  `Data["ConstraintName"]`; SqlClient's `Data["HelpLink.EvtID"]` of `"547"`, which it sets in every language, the name
+  read off a token of the message; SQLite's `CHECK constraint failed: `, which it never translates. SQL Server's Czech
+  and Dutch messages name the constraint unquoted, followed by a full stop, so a token ends at white space or a
+  quotation mark and loses the sentence's punctuation, each of which a unit test reads a name past.
+  `CheckConstraintRules` and the reader share the rule words, the internal constants of `ValueObjectCheckConstraints`,
+  and a unit test reads every name the convention writes back to the rule its SQL states.
 - **Swashbuckle 10 is built on `Microsoft.OpenApi` 2, and fails on 3.** Its document generator throws
   `MissingMethodException` once `Microsoft.OpenApi` 3 is resolved, which `Microsoft.AspNetCore.OpenApi` 11 forces: the
   island's main project references that package, so `AdCodicem.ValueObjects.Swashbuckle` is installed by a project of
@@ -781,10 +806,17 @@ Four suites, each with a distinct job:
   names and names kept apart from another the table holds, the create script, the converters of the package and one of
   the application's own, another provider, and the patterns: written per dialect, none for a dialect the provider does
   not run or a fixed-length column, a refused construct or option failing the model, an option the text keeps its
-  meaning under left alone, `ExcludePattern`; `SqlPatternTests` tests the writer itself. A pattern matched under
-  `IgnoreCase` is a construction of the hand-written `ShapedCode<TShape>` of `MongoDbShapedCode.cs` over a shape of the
-  test's own, since a generated one trips VO0025. EF Core builds a model once per context type, so each model shape
-  there has a context type of its own.
+  meaning under left alone, `ExcludePattern`, and every name the convention writes read back to the rule its SQL
+  states; `SqlPatternTests` tests the writer itself; and the code of the rule a refused row broke under
+  `UseValueObjectCheckErrors()` (`EntityFrameworkCoreCheckErrorTests`), on SQLite's error, from `SaveChanges`,
+  `ExecuteUpdate`, raw SQL and a raw query reading back the row it writes, a refusal only the save interceptor sees,
+  thrown from `DataReaderClosing`, a default instance the converter refuses first, the registration, and on errors
+  shaped as Npgsql's, whose public constructor names the constraint, and SqlClient's, which has none, a `DbException`
+  carrying its `Data` standing for it, SQL Server's message 547 in each language it is translated into among them, a
+  name read past each separator the reader knows, and System.Data.SQLite's message, which the name ends. A pattern
+  matched under `IgnoreCase` is a construction of the hand-written `ShapedCode<TShape>` of `MongoDbShapedCode.cs` over
+  a shape of the test's own, since a generated one trips VO0025. EF Core builds a model once per context type, so each
+  model shape there has a context type of its own.
   The localized messages are tested in fr-FR, whose ICU formats the expected strings spell out (a decimal comma, a
   day-first date, `;` between known values), never in en-US times: `ValueObjectMessagesTests` builds the argument table
   of every code and bounded underlying type, `Web/LocalizedModelBindingTests` and `Web/LocalizedMinimalApiProblemDetailsTests`
@@ -840,10 +872,15 @@ Four suites, each with a distinct job:
   their width, which SQL Server refuses an explicit key for, a prefix search on `.Value` under `UseValueObjectQueries()`
   reading the column itself, a parameter declared as the column, `.Value` of a value object over a type the provider
   converts, and of an element of a collection, the CHECK constraints of `AddValueObjectCheckConstraints` accepting every
-  value each type accepts and refusing another writer's row with the provider's error, listed by the catalog, and failing
+  value each type accepts and refusing another writer's row with the provider's error, which carries the code of the
+  rule under `UseValueObjectCheckErrors()` for a row the context writes, from `SaveChanges`, a refusal in a later
+  statement of a batch that no command interceptor sees included, `ExecuteUpdate`, raw SQL and a migration, in every
+  language SQL Server writes its messages in, none on SQL Server for a raw query reading back the rows it writes, and no
+  code on a migration's error naming a constraint it already holds, listed by the catalog, and failing
   to be added to a table holding a refused row the guide's audit query counts, tables whose constraint names read alike
-  created side by side (`CheckConstraintTests`; SQL Server's text and script, names kept apart per schema included,
-  which need no server, in `SqlServerCheckConstraintScriptTests`), and their patterns, matched on PostgreSQL and on a
+  created side by side (`CheckConstraintTests`; SQL Server's text and script, names kept apart per schema included, and
+  each name read back to its rule, which need no server, in `SqlServerCheckConstraintScriptTests`), and their patterns,
+  refused with `value_object.invalid_format`, matched on PostgreSQL and on a
   SQL Server 2025 container (`SqlServer2025Fixture`, the only one that runs `REGEXP_LIKE`, which SQL Server 2022 lacks)
   as .NET matches them, value by value (`CheckConstraintPatternTests`), plus the API surface end to end; and a real
   MongoDB 8
@@ -906,7 +943,8 @@ on where they apply.
   strict context beside it, both filtering on `.Value` through `UseValueObjectQueries()`, which `ShopContext` calls in
   `OnConfiguring`, so that the design-time factory precompiles those queries with it, and both adding the CHECK
   constraints, which no compiled model holds: `EnsureCreated` builds the design-time model and creates them, so that the
-  round trip writes every value through them.
+  round trip writes every value through them, and an `UPDATE` in raw SQL breaking a rule is refused with the rule's
+  code, which `UseValueObjectCheckErrors()`, also called in `OnConfiguring`, reads off the constraint's name.
   `.github/scripts/compiled-model.sh` writes their model with `dotnet ef dbcontext optimize` under
   `artifacts/compiled-model/`, never committed, and builds on it with `CompiledModel=jit` or `aot`. The build job
   takes the `jit` one on a round trip through SQL Server; the native AOT job publishes the `aot` one, written with its
@@ -934,7 +972,8 @@ packed, installed from `artifacts/packages` at the one version just built into `
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
 key refused unset, `.Value` translated under `UseValueObjectQueries()`, CHECK constraints from the rules on SQLite, and
-a pattern constraint on PostgreSQL 17 with `ExcludePattern`, System.Text.Json source generation, ASP.NET Core
+a pattern constraint on PostgreSQL 17 with `ExcludePattern`, a refused row carrying the code of its rule, a refusal in
+a later statement of a batch included, System.Text.Json source generation, ASP.NET Core
 model binding, on System.Text.Json and on Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal
 API problem details, the messages of both and of FluentValidation in the language of the request,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection

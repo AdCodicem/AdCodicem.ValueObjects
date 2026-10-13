@@ -14,7 +14,10 @@ namespace AdCodicem.ValueObjects;
 /// either, and a <see cref="ValueObjectException"/>, from the exception or from one it wraps.
 /// </para>
 /// <para>
-/// An exception carries the code and the value object type, never the value it refused.
+/// An exception a value object's rule raised carries the code and the value object type, never the value it refused.
+/// The error of a database provider for a row a CHECK constraint from the rules refused, to which the Entity Framework
+/// Core package's <c>UseValueObjectCheckErrors()</c> adds the code of the constraint's rule, carries no type, and keeps
+/// the message its provider wrote, which may hold the row.
 /// </para>
 /// </remarks>
 public static class ValueObjectErrors
@@ -46,7 +49,10 @@ public static class ValueObjectErrors
     /// <see cref="Exception.Data"/> under <see cref="ErrorCodeKey"/>.
     /// </para>
     /// <para>
-    /// An exception no value object raised carries none, and a code of your own travels as the framework's do.
+    /// An exception that reports no broken rule carries none. The error of a database provider for a row a CHECK
+    /// constraint from the rules refused carries one under the Entity Framework Core package's
+    /// <c>UseValueObjectCheckErrors()</c>, though no value object raised it, and a code of your own travels as the
+    /// framework's do.
     /// </para>
     /// </remarks>
     public static bool TryGetCode(Exception exception, [NotNullWhen(true)] out string? code)

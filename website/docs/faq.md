@@ -132,7 +132,9 @@ Because the EF Core and Dapper read paths are the hottest in most applications, 
 application validated when writing them. `ConfigureValueObjects(strict: true, …)` validates EF Core reads for tables
 other systems also write to, and
 [`AddValueObjectCheckConstraints()`](./how-to/ef-core.md#check-constraints-from-the-rules) makes such a table refuse a
-row breaking a rule when another writer stores it; Dapper validates only a column the value object cannot have written, text read into a
+row breaking a rule when another writer stores it, and, under
+[`UseValueObjectCheckErrors()`](./how-to/ef-core.md#when-a-constraint-fires), a write of the application's own that a
+constraint refuses carries the rule's code; Dapper validates only a column the value object cannot have written, text read into a
 value object over a number, say. MongoDB reads are the other way round: validated, since a collection has no schema and
 is often written by more than one program, unless the serializer is registered with
 `ValueObjectBson.Register(trusted: true, …)`. So are MessagePack reads, since the bytes may come from another service,

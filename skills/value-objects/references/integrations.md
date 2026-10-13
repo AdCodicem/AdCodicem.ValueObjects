@@ -8,7 +8,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects` | Contracts, source generator, analyzers, and XML serialization on request (below). The one to install. |
 | `AdCodicem.ValueObjects.Abstractions` | The contracts alone, no dependency. For a domain assembly that must stay bare. |
 | `AdCodicem.ValueObjects.Json` | Source-generated `JsonSerializerContext` support, hand-written value objects, and the JSON Schema transform. |
-| `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, an assembly-wide convention (collections included), keys generated the provider's way, `.Value` in LINQ and CHECK constraints from the rules (both opt-in). |
+| `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, an assembly-wide convention (collections included), keys generated the provider's way, `.Value` in LINQ and CHECK constraints from the rules, a violated one carrying its rule code (all opt-in). |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, AOT-compatible. |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | MVC on Newtonsoft.Json: the converter in MVC's settings, and the codes of a refused body. |
@@ -64,7 +64,9 @@ with `Minimum` 0, an unconstrained `Guid`) writes it.
 `DataException`, MongoDB.Driver's `FormatException` (read) and `BsonSerializationException` (write), MessagePack's
 `MessagePackSerializationException`, and the `XmlException` of `XmlSerializer` and `DataContractSerializer` in an
 assembly marked `[assembly: ValueObjectXmlSerialization]`, inside the serializer's own exception:
-`exception.Data[ValueObjectErrors.ErrorCodeKey]`. EF Core: the `ValueObjectException` inside `DbUpdateException`. Read
+`exception.Data[ValueObjectErrors.ErrorCodeKey]`. EF Core: the `ValueObjectException` inside `DbUpdateException`; a
+row a CHECK constraint from the rules refused, under `options.UseValueObjectCheckErrors()`: the provider's error, inside
+it or as it is, in `Data`. Read
 any of them, wrapped or not, with `ValueObjectErrors.TryGetCode(exception, out var code)`. A token or column not of the
 underlying type carries `value_object.not_parsable`, a `null` for a value object that cannot be `null`
 `value_object.required`. An integration of your own sets `exception.Data[ValueObjectErrors.ErrorCodeKey] = code`. For a
@@ -347,7 +349,16 @@ per row.
 - **CHECK constraints from the rules**, opt-in: `builder.ConfigureValueObjects(typeof(Iban).Assembly).AddValueObjectCheckConstraints()`
   writes `MinLength`, the bounds and closed sets as CHECK constraints, `CK_{table}_{column}_{rule}`, on every column a
   converter of this package maps, so that the database refuses another writer's bad row (`DbUpdateException` around the
-  provider's error, 547, 23514 or 19, no rule code). Never stricter than the type: a length is counted in bytes, and a
+  provider's error, 547, 23514 or 19). `options.UseValueObjectCheckErrors()`, beside `UseValueObjectQueries()` in
+  `AddDbContext` or `OnConfiguring`, puts the rule's code in that error's `Data` (`MinLength` →
+  `value_object.too_short`, `Minimum`/`Maximum` → `value_object.out_of_range`, `KnownValues` →
+  `value_object.not_a_known_value`, `Pattern` → `value_object.invalid_format`), which `ValueObjectErrors.TryGetCode`
+  reads through the `DbUpdateException` and off the error of `ExecuteUpdate`, raw SQL or a migration; without it,
+  `ValueObjectCheckConstraints.TryGetCode(exception, out var code)` reads it in a `catch` (Dapper or ADO.NET too), as
+  it must for `SqlQuery` or `FromSql` over SQL Server's `OUTPUT`, whose refusal comes while the rows are read and
+  reaches no interceptor. The
+  code names the rule, not the culprit: answer it as a client's error only when the value came from the request. Never
+  stricter than the type: a length is counted in bytes, and a
   bound or closed set is left out where the column compares apart from .NET (SQLite's `decimal`, `TimeSpan`,
   `DateTimeOffset` and `ulong`, SQL Server's `time` outside a day and `datetime`, a decimal bound finer than the scale, a
   set of text compared by culture, or ignoring case without a normalizer that spells each other case back, by its

@@ -271,7 +271,11 @@ public static class ValueObjectConventionExtensions
     /// The application's own writes pass, since the value objects it writes went through their rules. A constraint refuses
     /// what another writer stores, and an invalid instance a lax read let in and the application writes back, with the
     /// provider's error inside a <see cref="DbUpdateException"/> for a write through Entity Framework Core: it complements
-    /// <c>strict: true</c>, which refuses on read a row stored before the constraint existed.
+    /// <c>strict: true</c>, which refuses on read a row stored before the constraint existed. Each constraint's name ends
+    /// with its rule, which
+    /// <see cref="ValueObjectDbContextOptionsBuilderExtensions.UseValueObjectCheckErrors(DbContextOptionsBuilder)"/>, on
+    /// the options of the context, adds to that error as the code <c>Validate</c> reports for the rule, and
+    /// <see cref="ValueObjectCheckConstraints.TryGetCode"/> reads without it.
     /// </para>
     /// <para>
     /// The options are read once per context type, as <c>strict</c> is: Entity Framework Core builds the model the first

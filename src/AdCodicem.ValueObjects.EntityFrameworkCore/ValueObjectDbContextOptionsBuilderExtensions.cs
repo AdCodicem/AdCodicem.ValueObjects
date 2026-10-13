@@ -4,7 +4,8 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 
 /// <summary>
-/// Translates what a LINQ query reads of a value object.
+/// Adds to the options of a context what the model cannot hold: the translation of what a LINQ query reads of a value
+/// object, and the code of the rule a CHECK constraint refused a row under.
 /// </summary>
 public static class ValueObjectDbContextOptionsBuilderExtensions
 {
@@ -87,4 +88,75 @@ public static class ValueObjectDbContextOptionsBuilderExtensions
     public static DbContextOptionsBuilder<TContext> UseValueObjectQueries<TContext>(this DbContextOptionsBuilder<TContext> optionsBuilder)
         where TContext : DbContext
         => (DbContextOptionsBuilder<TContext>)UseValueObjectQueries((DbContextOptionsBuilder)optionsBuilder);
+
+    /// <summary>
+    /// Adds the code of the rule a CHECK constraint of <c>AddValueObjectCheckConstraints</c> refused to the error the
+    /// database provider throws, under <see cref="ValueObjectErrors.ErrorCodeKey"/>.
+    /// </summary>
+    /// <param name="optionsBuilder">Options builder of the context.</param>
+    /// <returns>The same builder, so calls can be chained.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="optionsBuilder"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// <para>
+    /// The application's own writes pass the constraints, since the value objects it writes went through their rules. A
+    /// constraint fires for an invalid instance a lax read let in and the application writes back, and for a statement
+    /// that skips the converter, an <c>ExecuteUpdate</c> setting a column from SQL or raw SQL. Once this is called, the
+    /// provider's error carries the code of the rule, which <see cref="ValueObjectErrors.TryGetCode"/> reads through the
+    /// <c>DbUpdateException</c> <c>SaveChanges</c> wraps it in, and from the error <c>ExecuteUpdate</c>, raw SQL or a
+    /// migration throws as it is: <c>value_object.out_of_range</c> for <c>CK_Orders_Quantity_Minimum</c>. The error is
+    /// neither replaced nor wrapped, so the <c>catch</c> blocks that handle it keep working.
+    /// </para>
+    /// <para>
+    /// Entity Framework Core hands no interceptor an error a provider reports while the rows of a query are read. On SQL
+    /// Server, a raw SQL query that writes rows and reads them back, <c>SqlQuery</c> or <c>FromSql</c> over an
+    /// <c>INSERT</c> or an <c>UPDATE</c> with <c>OUTPUT</c>, reports a refusal there, so its error carries no code:
+    /// <see cref="ValueObjectCheckConstraints.TryGetCode"/> reads it in a <c>catch</c>. PostgreSQL and SQLite report the
+    /// refusal of such a query, over <c>RETURNING</c>, as the command runs, and their error carries the code.
+    /// </para>
+    /// <para>
+    /// The code is read off the name of the constraint, which ends with its rule, as
+    /// <see cref="ValueObjectCheckConstraints"/> describes, not off the model: a compiled model holds no check constraint,
+    /// so the code comes with one too. Only an error reporting a violated CHECK constraint is read, on SQL Server,
+    /// PostgreSQL and SQLite, in every language SQL Server writes its messages in; a migration's error naming a
+    /// constraint for another reason, "There is already an object named …", carries none. A migration adding a constraint
+    /// to a table that holds a row it refuses fails with the code, as a write does.
+    /// </para>
+    /// <para>
+    /// It runs when a command or <c>SaveChanges</c> fails, never when one succeeds; once a command interceptor is
+    /// registered, though, Entity Framework Core builds the event data of each command it sends, as for any interceptor.
+    /// It is an interceptor of the options, so it also runs on a service provider of the application's own, named by
+    /// <c>UseInternalServiceProvider</c>. An interceptor of the application's own registered before it sees the error
+    /// before the code is added, and Entity Framework Core may log the failure before then too. A second call adds
+    /// nothing. Without it, <see cref="ValueObjectCheckConstraints.TryGetCode"/> reads the code in a <c>catch</c>, from an
+    /// error whoever sent the command.
+    /// </para>
+    /// </remarks>
+    public static DbContextOptionsBuilder UseValueObjectCheckErrors(this DbContextOptionsBuilder optionsBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(optionsBuilder);
+
+        // One interceptor, however many times this is called: a second would only store the same code again.
+        if (optionsBuilder.Options.FindExtension<CoreOptionsExtension>()?.Interceptors?.Contains(ValueObjectCheckErrorInterceptor.Instance) != true)
+        {
+            optionsBuilder.AddInterceptors(ValueObjectCheckErrorInterceptor.Instance);
+        }
+
+        return optionsBuilder;
+    }
+
+    /// <summary>
+    /// Adds the code of the rule a CHECK constraint of <c>AddValueObjectCheckConstraints</c> refused to the error the
+    /// database provider throws, under <see cref="ValueObjectErrors.ErrorCodeKey"/>.
+    /// </summary>
+    /// <typeparam name="TContext">Type of the context.</typeparam>
+    /// <param name="optionsBuilder">Options builder of the context.</param>
+    /// <returns>The same builder, so calls can be chained and its options keep the type of the context.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="optionsBuilder"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// The same as <see cref="UseValueObjectCheckErrors(DbContextOptionsBuilder)"/>, for a builder of the options of one
+    /// context type.
+    /// </remarks>
+    public static DbContextOptionsBuilder<TContext> UseValueObjectCheckErrors<TContext>(this DbContextOptionsBuilder<TContext> optionsBuilder)
+        where TContext : DbContext
+        => (DbContextOptionsBuilder<TContext>)UseValueObjectCheckErrors((DbContextOptionsBuilder)optionsBuilder);
 }
