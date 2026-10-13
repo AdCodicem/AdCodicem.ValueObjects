@@ -148,6 +148,10 @@ public sealed record SwashbuckleDocuments(JsonElement V30, JsonElement V31, Json
             // The built-in stack writes a [DefaultValue] as the member's type, which the text of a nullable value object's
             // is not: it fails to build its document.
             application.MapPost("/members", static (SwashbuckleMembers body) => Results.Ok(body));
+
+            // A construction over a type of these documents' own, which nothing but the filter describes: the built-in
+            // stack's transformer, which the parity document runs, never sees it.
+            application.MapGet("/text-generic", static ([ParsesAs(typeof(Reference<TextOwner>))] string? reference) => Results.Ok());
         }
 
         application.MapGet(
@@ -166,6 +170,7 @@ public sealed record SwashbuckleDocuments(JsonElement V30, JsonElement V31, Json
         application.MapGet(
             "/constrained/{page:range(5,50)}/{quantity:max(5000)}/{iban:length(20,30)}/{country:minlength(1):maxlength(5):regex(^[A-Z]+$)}",
             static (PageNumber page, Quantity quantity, Iban iban, CountryCode country) => Results.Ok());
+        OpenApiDocument.MapText(application);
         application.MapControllers();
         application.UseSwagger();
         application.UseSwagger(static options =>
@@ -200,6 +205,12 @@ public sealed record SwashbuckleDocuments(JsonElement V30, JsonElement V31, Json
 
     /// <summary>Writes a document without the indentation it was served with, so that a schema's text is its JSON.</summary>
     private static JsonElement Compact(JsonElement document) => JsonElement.Parse(JsonSerializer.Serialize(document));
+
+    /// <summary>
+    /// The owner of the references of <c>/text-generic</c>, private to these documents, so that nothing else in the process
+    /// has the registry describe <c>Reference&lt;TextOwner&gt;</c>.
+    /// </summary>
+    private sealed class TextOwner;
 
     /// <summary>An application part holding one controller, so that the document describes that one alone.</summary>
     /// <param name="controller">The controller.</param>

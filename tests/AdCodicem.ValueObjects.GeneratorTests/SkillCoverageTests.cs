@@ -67,6 +67,22 @@ public sealed class SkillCoverageTests
         }
     }
 
+    /// <summary>
+    /// The DataAnnotations attributes change what a consumer writes on a DTO, an options class or a form model, and the
+    /// result they refuse with is what a consumer reads the code from.
+    /// </summary>
+    [Fact]
+    public void The_DataAnnotations_attributes_and_their_options_are_documented()
+    {
+        var skill = Skill();
+
+        foreach (var name in (string[])["[ParsesAs(typeof(", "[ParsesAs<", "[NotDefault]", nameof(ParsesAsAttribute.UseCurrentCulture),
+                     nameof(ValueObjectValidationResult), nameof(ValueObjectValidationResult.ErrorCode), "ErrorMessageResourceType"])
+        {
+            skill.Should().Contain(name, "'{0}' is what a consumer writes or reads with the DataAnnotations attributes", name);
+        }
+    }
+
     [Fact]
     public void Every_hook_interface_and_the_member_it_declares_is_documented()
     {

@@ -69,6 +69,21 @@ public class ErrorCodeCarrierTests
     }
 
     /// <summary>
+    /// DataAnnotations raises the exception of a refusal itself, from <c>Validator</c>'s throwing methods: the code travels
+    /// on the result <see cref="ParsesAsAttribute"/> and <see cref="NotDefaultAttribute"/> report, which it carries.
+    /// </summary>
+    [Fact]
+    public void The_code_is_read_from_the_result_a_DataAnnotations_refusal_carries()
+    {
+        var result = new ValueObjectValidationResult("refused", ["Account"], typeof(Iban), ValueObjectErrorCodes.TooShort);
+        var exception = new System.ComponentModel.DataAnnotations.ValidationException(result, new ParsesAsAttribute(typeof(Iban)), "FR76");
+
+        ValueObjectErrors.TryGetCode(exception, out var code).Should().BeTrue();
+        code.Should().Be(ValueObjectErrorCodes.TooShort);
+        exception.Data.Contains(ValueObjectErrors.ErrorCodeKey).Should().BeFalse("the code travels on the result");
+    }
+
+    /// <summary>
     /// A framework wraps the exception that carries the code, as a minimal API wraps a body it cannot read in a
     /// <see cref="BadHttpRequestException"/>: the chain is read down to it, and the outermost code wins.
     /// </summary>

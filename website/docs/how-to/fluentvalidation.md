@@ -15,6 +15,9 @@ them, and report the same error codes as the rest of the system.
 dotnet add package AdCodicem.ValueObjects.FluentValidation
 ```
 
+An application validating with DataAnnotations rather than FluentValidation has the same two checks as attributes,
+[`[ParsesAs]` and `[NotDefault]`](./data-annotations.md), in the contracts.
+
 ## Text that must become a value object
 
 ```csharp skip

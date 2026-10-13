@@ -37,6 +37,8 @@ public sealed class SwashbuckleTests : IAsyncLifetime
         await using var application = builder.Build();
         application.MapGet("/accounts/{iban}", static (Iban iban, Quantity quantity, CountryCode? country) => Results.Ok());
         application.MapPost("/accounts", static (OpenedAccount account) => Results.Ok(account));
+        application.MapPost("/text", static (TextAccount body) => Results.Ok());
+        application.MapGet("/text", static ([ParsesAs(typeof(CountryCode))] string? country) => Results.Ok());
         application.UseSwagger();
         application.UseSwagger(static options =>
         {
@@ -119,6 +121,23 @@ public sealed class SwashbuckleTests : IAsyncLifetime
         Property(_v31, "alternate").GetProperty("type").EnumerateArray().Select(static type => type.GetString())
             .Should().BeEquivalentTo("null", "string");
         Property(_v31, "perCountry").GetProperty("propertyNames").GetProperty("enum").GetArrayLength().Should().Be(2);
+    }
+
+    /// <summary>
+    /// Text a member or a parameter holds to a value object's rules with <c>[ParsesAs]</c> is described as that text,
+    /// whatever the underlying type, on the record's constructor parameter and on a query parameter.
+    /// </summary>
+    [Fact]
+    public void Text_held_to_a_value_objects_rules_is_described_as_that_text()
+    {
+        var text = Schema(_v30, nameof(TextAccount)).GetProperty("properties");
+        var country = _v30.GetProperty("paths").GetProperty("/text").GetProperty("get").GetProperty("parameters")[0].GetProperty("schema");
+
+        text.GetProperty("iban").GetProperty("pattern").GetString().Should().Be("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$");
+        text.GetProperty("iban").GetProperty("nullable").GetBoolean().Should().BeTrue();
+        text.GetProperty("quantity").GetProperty("type").GetString().Should().Be("string");
+        text.GetProperty("quantity").GetProperty("x-maximum").GetString().Should().Be("100");
+        country.GetProperty("enum").EnumerateArray().Select(static value => value.GetString()).Should().Equal("FR", "BE");
     }
 
     private static JsonElement Schema(JsonElement document, string id) => document.GetProperty("components").GetProperty("schemas").GetProperty(id);

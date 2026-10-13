@@ -507,6 +507,30 @@ public sealed class SwashbuckleFilterTests
         }
     }
 
+    /// <summary>
+    /// Text a field holds is described as a property's is, a collection schema Swashbuckle gave no items is left as it
+    /// is, and so is text whose attribute names no value object, which its first validation refuses.
+    /// </summary>
+    [Fact]
+    public void Text_held_by_a_member_is_described_where_its_schema_lets_it_be()
+    {
+        var field = new OpenApiSchema { Type = JsonSchemaType.String };
+        var withoutItems = new OpenApiSchema { Type = JsonSchemaType.Array };
+        var misnamed = new OpenApiSchema { Type = JsonSchemaType.String };
+        var repository = new SchemaRepository();
+
+        Filter().Apply(field, new SchemaFilterContext(typeof(string), null!, repository, typeof(TextFields).GetField(nameof(TextFields.Account))));
+        Filter().Apply(withoutItems, new SchemaFilterContext(typeof(string[]), null!, repository, typeof(TextFields).GetField(nameof(TextFields.Accounts))));
+        Filter().Apply(misnamed, new SchemaFilterContext(typeof(string), null!, repository, typeof(TextFields).GetField(nameof(TextFields.Misnamed))));
+
+        field.Pattern.Should().Be(Iban.Schema.Pattern);
+        field.MaxLength.Should().Be(34);
+        withoutItems.Items.Should().BeNull();
+        withoutItems.Pattern.Should().BeNull();
+        misnamed.Pattern.Should().BeNull("the attribute names no value object");
+        misnamed.Type.Should().Be(JsonSchemaType.String);
+    }
+
     /// <summary>Builds the schema filter Swashbuckle would build, with what a test needs in place of the container's.</summary>
     private static ValueObjectSchemaFilter Filter(
         HttpJsonOptions? http = null,
@@ -543,6 +567,23 @@ public sealed class SwashbuckleFilterTests
         var contracts = Substitute.For<ISerializerDataContractResolver>();
         contracts.GetDataContractForType(Arg.Any<Type>()).Returns(contract);
         return contracts;
+    }
+
+    /// <summary>Fields holding text, which Swashbuckle hands the filter as members, and no document here declares.</summary>
+    private sealed class TextFields
+    {
+#pragma warning disable CS0649 // Read by reflection alone.
+        [ParsesAs(typeof(Iban))]
+        public string? Account;
+
+        [ParsesAs(typeof(Iban))]
+        public string[]? Accounts;
+
+#pragma warning disable VO0040 // A type that is no value object, which the filter describes nothing for.
+        [ParsesAs(typeof(string))]
+        public string? Misnamed;
+#pragma warning restore VO0040
+#pragma warning restore CS0649
     }
 
     /// <summary>A converter of an application's that writes an amount as text, which only writes here.</summary>

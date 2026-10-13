@@ -179,6 +179,44 @@ A value object is described the same way wherever it appears, not only as a prop
   sentence, and one over a `bool` is `True` or `False`, as the generated converter writes it, or `true` or `false`, as
   System.Text.Json writes the key of a `bool`.
 
+## Text held to a value object's rules
+
+A DTO, an options class or a parameter that keeps the text of a value object and holds it to the value object's rules
+with [`[ParsesAs]`](./data-annotations.md) is described as that text, through the description a dictionary key gets:
+
+```csharp skip
+public sealed record Transfer([ParsesAs(typeof(Iban))] string? Iban, [ParsesAs<Quantity, int>] string? Quantity);
+
+app.MapGet("/accounts", ([ParsesAs(typeof(Iban))] string? iban, [ParsesAs(typeof(Iban))] string[]? alternates) => ...);
+```
+
+```json
+"iban": { "type": ["null", "string"], "minLength": 15, "maxLength": 34, "pattern": "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$", "format": "iban", "examples": ["FR7630006000011234567890189"], "description": "An international bank account number." }
+"quantity": { "type": ["null", "string"], "pattern": "^-?(?:0|[1-9]\\d*)$", "format": "int32", "x-minimum": "1", "x-maximum": "100", "description": "…\n\nBetween 1 and 100, inclusive." }
+```
+
+- **The text, whatever the underlying type.** A `string`, `null` allowed as the member allows it, with the value object's
+  pattern, its lengths, its `format`, its example, and the `enum` and names of a closed set, `null` following the known
+  values for a nullable member. A value object over a number is held to the pattern of that number's text, its bounds in
+  `x-minimum`, `x-maximum` and a sentence, which a string cannot take in `minimum` and `maximum`; its `format`, `int32`
+  beside `type: string`, still names the underlying type. A collection of text, `List<string>` or `string[]`, has its
+  `items` described.
+- **The canonical form.** The `enum` and the pattern describe the form the value object stores, which its normalizer may
+  reach from other text: `fr` is accepted for a `CountryCode` whose `enum` says `FR`, and an IBAN typed with spaces for
+  a pattern that has none. A date or an instant is described in the round-trip form it is written in as a key.
+- **Where the attribute is read.** On a property, on the primary constructor parameter of the same name, which is where
+  MVC requires it on a record, and on the parameter of a minimal API or an MVC action, a member gathered with
+  `[AsParameters]` and a member of a model MVC binds from the query string included, a class's property or a record's
+  constructor parameter. Either form names the value object.
+- **The declaration's own rules.** A rule a member or a parameter states itself and the document already holds, a
+  `[StringLength(20)]` on a class's property or a route constraint, is kept where it is stricter than the value object's,
+  as for a value object's parameter. Neither generator reads a validation attribute on a record's constructor parameter.
+- **`[AsParameters]` records.** Microsoft.AspNetCore.OpenApi 10.0.12 fails to build the whole document for an
+  `[AsParameters]` record with a validation attribute on a constructor parameter, `[Required]` alone included
+  (dotnet/aspnetcore#65348): put the attributes on its properties, `[property: ParsesAs(typeof(Iban))]`, or use a class.
+
+The JSON Schema transform of AdCodicem.ValueObjects.Json describes a `[ParsesAs]` member as plain text.
+
 ## Numbers written as text
 
 A value object over a number follows `JsonSerializerOptions.NumberHandling` as its underlying type does, and is
@@ -257,6 +295,11 @@ each one alike when numbers are read as numbers only. What differs is Swashbuckl
   member in an `allOf` it marks `null` alone, which no value satisfies in OpenAPI 3.1: the wrapper is kept, with what
   Swashbuckle writes beside a reference there, the member's validation attributes included, as for a non-nullable
   member, and the value object is described in place inside it, `null` allowed.
+- **Text.** [Text held to a value object's rules](#text-held-to-a-value-objects-rules) is described as on the built-in
+  stack, in place, whatever the options let numbers be read as, OpenAPI 3.0 writing a nullable member with
+  `nullable: true` and a required one without `null`. Swashbuckle copies the description of a parameter's schema onto
+  the parameter, as for any parameter. A `[StringLength]` Swashbuckle writes on a property before the filter runs is
+  kept where it is the stricter.
 - **Names.** The enumeration of a closed set is named after its component as Swashbuckle names it,
   `AccountFilterNoticeChannel` for `NoticeChannel<AccountFilter>` by default, or under the identifier `CustomSchemaIds`
   gives it.

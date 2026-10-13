@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.OpenApi</RootNamespace>
-    <Description>OpenAPI support for AdCodicem value objects on the built-in .NET stack: a schema transformer that documents a value object as its underlying type, carrying over the pattern, bounds, length and accepted values declared on the type.</Description>
+    <Description>OpenAPI support for AdCodicem value objects on the built-in .NET stack: a schema transformer that documents a value object as its underlying type, carrying over the pattern, bounds, length and accepted values declared on the type, and text a member or a parameter holds to those rules with [ParsesAs] as that text.</Description>
     <PackageTags>$(PackageTags);openapi;swagger</PackageTags>
 
     <!-- Document generation walks the application model by reflection. -->

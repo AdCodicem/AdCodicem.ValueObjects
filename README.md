@@ -91,7 +91,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | Package | What it gives you |
 | --- | --- |
 | **`AdCodicem.ValueObjects`** | The one to install: contracts, source generator and analyzers. |
-| `AdCodicem.ValueObjects.Abstractions` | The contracts alone, with no dependency at all. |
+| `AdCodicem.ValueObjects.Abstractions` | The contracts alone, with no dependency at all, and the DataAnnotations attributes `[ParsesAs]` and `[NotDefault]`. |
 | `AdCodicem.ValueObjects.Json` | Covers source-generated serializer contexts and hand-written value objects, and fills in the JSON Schema System.Text.Json exports. |
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, a convention that maps a whole assembly, keys generated the provider's way, `.Value` translated in queries, and opt-in CHECK constraints from the rules, whose violations carry the rule code under `UseValueObjectCheckErrors()`. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
@@ -217,8 +217,9 @@ their own terms: a JSON exception, a model state error, a FluentValidation failu
 MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationException`, an `XmlException` from
 `XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool
 result a language model reads, an MCP tool execution error, the `FormatException` that fails an Azure Functions
-parameter, whose text alone the worker keeps, and which therefore ends with the code, and a GraphQL error whose
-`extensions.code` is the rule's. Each
+parameter, whose text alone the worker keeps, and which therefore ends with the code, a GraphQL error whose
+`extensions.code` is the rule's, and a DataAnnotations `ValueObjectValidationResult`, from `[ParsesAs]` and
+`[NotDefault]`, which `Validator`'s throwing methods wrap in a `ValidationException`. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
 query value, those of a minimal API for a route, query or header value, and those of an Azure Functions HTTP trigger
@@ -226,7 +227,8 @@ for a route or query value. Under `UseValueObjectCheckErrors()`, the
 database provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the
 constraint's name.
 The message is English; the code keys the one an application shows in its users' language, which the MVC, minimal API,
-Azure Functions, HotChocolate and FluentValidation integrations look up with the arguments the declared rules supply
+Azure Functions, HotChocolate, FluentValidation and DataAnnotations integrations look up with the arguments the declared
+rules supply
 ([a message in the application's language](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/reference/errors#a-message-in-the-applications-language)).
 `Create` throws `ValueObjectException`, and is for the call sites that want it; a strict EF Core read goes through
 it, and fails the query. Validation is fail-fast: the first violated rule wins.
@@ -252,7 +254,9 @@ read apart from .NET unless `ExcludePattern<TSelf>()` leaves it to the applicati
 The same rules fill in the JSON Schema System.Text.Json exports, which AI tools, structured output and MCP servers
 describe their parameters with, through `ValueObjectJsonSchema`; `AdCodicem.ValueObjects.AI` carries them to the tools
 and the structured output of Microsoft.Extensions.AI in one call, and `AdCodicem.ValueObjects.ModelContextProtocol` to
-the tools of a Model Context Protocol server.
+the tools of a Model Context Protocol server. A DTO or an options class that keeps the text holds it to the same rules
+with DataAnnotations' `[ParsesAs(typeof(Iban))]`, which both OpenAPI generators describe as the value object's text,
+rather than restating them in `[StringLength]` and `[RegularExpression]`.
 
 ## Compared with other libraries
 
@@ -718,6 +722,10 @@ compile, and are retired. There is no `VO0012`.
 | `VO0036` | Error | A member marked `[KnownValue]` that is not a `static readonly` field or a static get-only auto-property of the type, initialized by `Known(...)` with the value as its one argument. |
 | `VO0037` | Error | `Known` called anywhere but in the initializer of a member marked `[KnownValue]`, which would skip the membership of a closed set. |
 | `VO0038` | Error | `IValueObjectExample<T>` over another type than the value object itself. |
+| `VO0039` | Error | `[ParsesAs]` on a member that is neither text nor a collection of text, `object` included, where it would throw when a value is validated. |
+| `VO0040` | Error | `[ParsesAs(typeof(T))]` naming a type that is no value object: text, a class, a generic definition, `null`. |
+| `VO0041` | Error | `[NotDefault]` on a member that is neither a value object nor its nullable type, a collection of value objects included. |
+| `VO0042` | Warning | Under `PublishAot`, `[ParsesAs(typeof(T))]` naming a construction of a generic value object, one nested in a generic type, or one written by hand, which a native binary finds only once registered: write `[ParsesAs<T, TValue>]`. |
 
 ## Using it with an AI coding agent
 

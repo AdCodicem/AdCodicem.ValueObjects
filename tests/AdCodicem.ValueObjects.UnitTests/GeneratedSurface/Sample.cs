@@ -9,6 +9,7 @@ using AdCodicem.ValueObjects.ModelContextProtocol;
 using AdCodicem.ValueObjects.NewtonsoftJson;
 using AdCodicem.ValueObjects.Testing.Data;
 using AdCodicem.ValueObjects.UnitTests.BinarySerialization;
+using AdCodicem.ValueObjects.UnitTests.DataAnnotations;
 using AdCodicem.ValueObjects.UnitTests.Functions;
 using AdCodicem.ValueObjects.UnitTests.GraphQL;
 using AdCodicem.ValueObjects.UnitTests.LanguageModels;
@@ -166,6 +167,19 @@ public abstract class Sample
     /// </summary>
     /// <returns>The check.</returns>
     public abstract Task AnswersARefusedGraphQLValueWithItsRuleAsync();
+
+    /// <summary>
+    /// Holds the value object's text to its rules through DataAnnotations, with <c>[ParsesAs(typeof(TSelf))]</c> and
+    /// <c>[ParsesAs&lt;TSelf, TValue&gt;]</c>, and checks that both accept the text the smaller instance is parsed from, and
+    /// refuse the refused text with the code and the message <c>TryParse</c> gives it.
+    /// </summary>
+    public abstract void HoldsTextToItsRulesThroughDataAnnotations();
+
+    /// <summary>
+    /// Checks that <c>[NotDefault]</c> refuses the value object's default instance with
+    /// <see cref="ValueObjectErrorCodes.Required"/>, and accepts the larger instance, which no sample makes its default.
+    /// </summary>
+    public abstract void RefusesItsDefaultThroughNotDefault();
 
     /// <summary>
     /// Draws values of the value object from its schema with <c>ValueObjectSampler</c>, and checks that each is a value its
@@ -688,6 +702,33 @@ public class Sample<TSelf, TValue> : Sample
     public override Task BindsThroughTheFunctionsWorkerAsync() => FunctionsParity.CheckAsync<TSelf, TValue>(Small, Text, Refused);
 
     public override Task AnswersARefusedGraphQLValueWithItsRuleAsync() => GraphQLParity.CheckAsync<TSelf, TValue>(Small, Large, Refused);
+
+    public override void HoldsTextToItsRulesThroughDataAnnotations()
+    {
+        TSelf.TryParse(Refused, CultureInfo.InvariantCulture, out _, out var expected).Should().BeFalse("{0} refuses {1}", this, Refused);
+
+        foreach (var attribute in (ParsesAsAttribute[])[new ParsesAsAttribute(typeof(TSelf)), new ParsesAsAttribute<TSelf, TValue>()])
+        {
+            Annotated.Check(attribute, Text).Should().BeNull("{0} accepts {1}", this, Text);
+
+            var refusal = Annotated.Refusal(attribute, Refused);
+            refusal.ErrorCode.Should().Be(expected.ErrorCode, "{0} refuses {1}", attribute.GetType().Name, Refused);
+            refusal.ErrorMessage.Should().Be(expected.ErrorMessage);
+            refusal.ValueObjectType.Should().Be<TSelf>();
+        }
+    }
+
+    public override void RefusesItsDefaultThroughNotDefault()
+    {
+#pragma warning disable VO0010 // The uninitialized instance is what the attribute refuses.
+        var refusal = Annotated.Refusal(new NotDefaultAttribute(), default(TSelf));
+#pragma warning restore VO0010
+
+        refusal.ErrorCode.Should().Be(ValueObjectErrorCodes.Required);
+        refusal.ValueObjectType.Should().Be<TSelf>();
+        refusal.ErrorMessage.Should().Be($"The {Annotated.Member} field is required.");
+        Annotated.Check(new NotDefaultAttribute(), Large).Should().BeNull("{0} is no default", Large);
+    }
 
     public override void DrawsValuesItsRulesAccept()
     {

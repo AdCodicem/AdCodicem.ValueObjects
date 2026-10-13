@@ -106,8 +106,8 @@ A value object is a struct implementing `IValueObject<TSelf, TValue>` over itsel
 exactly for the types `TryResolve` describes, and `false` for an interface, a class, or a struct carrying only the
 `IValueObject` marker or `IValueObject<TValue>`. `GetUnderlyingType` answers `null` for the same types, even one that
 declares a value through `IValueObject<TValue>`. The integrations claim a type by the same rule: the JSON converter
-factory, the Newtonsoft.Json converter, the MVC model binder and `MustParseAs` leave anything else to the framework,
-or refuse it, and the argument check of `AdCodicem.ValueObjects.AI` and `AdCodicem.ValueObjects.ModelContextProtocol`
+factory, the Newtonsoft.Json converter, the MVC model binder, `MustParseAs` and DataAnnotations' `[ParsesAs]` and
+`[NotDefault]` leave anything else to the framework, or refuse it, and the argument check of `AdCodicem.ValueObjects.AI` and `AdCodicem.ValueObjects.ModelContextProtocol`
 tells a value-object parameter by it.
 
 ## Nullable value objects

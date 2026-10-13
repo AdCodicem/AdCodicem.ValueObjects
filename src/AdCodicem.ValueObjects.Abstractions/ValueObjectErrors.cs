@@ -15,7 +15,12 @@ namespace AdCodicem.ValueObjects;
 /// </para>
 /// <para>
 /// An exception a value object's rule raised carries the code and the value object type, never the value it refused.
-/// The error of a database provider for a row a CHECK constraint from the rules refused, to which the Entity Framework
+/// A DataAnnotations <see cref="System.ComponentModel.DataAnnotations.ValidationException"/> that the throwing
+/// <c>Validator</c> methods raise for a refusal of <see cref="Annotations.ParsesAsAttribute"/> or
+/// <see cref="Annotations.NotDefaultAttribute"/> carries both on its
+/// <see cref="Annotations.ValueObjectValidationResult"/>, and holds the value it was handed in
+/// <see cref="System.ComponentModel.DataAnnotations.ValidationException.Value"/>, as DataAnnotations does for any
+/// attribute. The error of a database provider for a row a CHECK constraint from the rules refused, to which the Entity Framework
 /// Core package's <c>UseValueObjectCheckErrors()</c> adds the code of the constraint's rule, carries no type, and keeps
 /// the message its provider wrote, which may hold the row.
 /// </para>
@@ -45,7 +50,11 @@ public static class ValueObjectErrors
     /// minimal API answers a body it cannot read with a <c>BadHttpRequestException</c> around the
     /// <see cref="System.Text.Json.JsonException"/>, and Entity Framework Core fails <c>SaveChanges</c> with a
     /// <c>DbUpdateException</c> around the <see cref="ValueObjectException"/>. The first code found wins, read from
-    /// <see cref="ValueObjectException.ErrorCode"/>, then <see cref="ValueObjectJsonException.ErrorCode"/>, then
+    /// <see cref="ValueObjectException.ErrorCode"/>, then <see cref="ValueObjectJsonException.ErrorCode"/>, then the
+    /// <see cref="Annotations.ValueObjectValidationResult"/> a DataAnnotations
+    /// <see cref="System.ComponentModel.DataAnnotations.ValidationException"/> carries, which the throwing
+    /// <c>Validator.ValidateObject</c>, <c>ValidateProperty</c> and <c>ValidateValue</c> raise for a refusal of
+    /// <see cref="Annotations.ParsesAsAttribute"/> or <see cref="Annotations.NotDefaultAttribute"/>, then
     /// <see cref="Exception.Data"/> under <see cref="ErrorCodeKey"/>.
     /// </para>
     /// <para>
@@ -65,6 +74,7 @@ public static class ValueObjectErrors
             {
                 ValueObjectException { ErrorCode: { Length: > 0 } fromValueObject } => fromValueObject,
                 ValueObjectJsonException json => json.ErrorCode,
+                System.ComponentModel.DataAnnotations.ValidationException { ValidationResult: Annotations.ValueObjectValidationResult refused } => refused.ErrorCode,
                 _ => current.Data[ErrorCodeKey] as string,
             };
 

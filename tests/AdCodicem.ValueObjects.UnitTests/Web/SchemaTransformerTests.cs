@@ -663,6 +663,58 @@ public partial class SchemaTransformerTests
         depth.AnyOf[1].Enum!.Select(value => value.ToJsonString()).Should().Equal("\"Infinity\"");
     }
 
+    /// <summary>
+    /// A member holding text is described element by element when it holds a collection, whose schema ASP.NET Core always
+    /// gives its items; a collection schema without them, which another transformer could leave, is left as it is, and so
+    /// is a member whose attribute names no value object, which its first validation refuses.
+    /// </summary>
+    [Fact]
+    public async Task Text_held_by_a_member_is_described_where_its_schema_lets_it_be()
+    {
+        var options = JsonSerializerOptions.Default;
+        var members = options.GetTypeInfo(typeof(TextHolder)).Properties.ToDictionary(static property => property.Name);
+        var withoutItems = new OpenApiSchema { Type = JsonSchemaType.Array };
+        var misnamed = new OpenApiSchema { Type = JsonSchemaType.String };
+        var described = new OpenApiSchema { Type = JsonSchemaType.String | JsonSchemaType.Null };
+
+        await new ValueObjectSchemaTransformer().TransformAsync(withoutItems, MemberContext(options, typeof(List<string>), members[nameof(TextHolder.Accounts)]), TestContext.Current.CancellationToken);
+        await new ValueObjectSchemaTransformer().TransformAsync(misnamed, MemberContext(options, typeof(string), members[nameof(TextHolder.Misnamed)]), TestContext.Current.CancellationToken);
+        await new ValueObjectSchemaTransformer().TransformAsync(described, MemberContext(options, typeof(string), members[nameof(TextHolder.Account)]), TestContext.Current.CancellationToken);
+
+        withoutItems.Items.Should().BeNull();
+        withoutItems.Pattern.Should().BeNull();
+        misnamed.Pattern.Should().BeNull("the attribute names no value object");
+        misnamed.Type.Should().Be(JsonSchemaType.String);
+        described.Pattern.Should().Be(Iban.Schema.Pattern);
+        described.Type.Should().Be(JsonSchemaType.String | JsonSchemaType.Null);
+        described.MaxLength.Should().Be(34);
+    }
+
+    private static OpenApiSchemaTransformerContext MemberContext(JsonSerializerOptions options, Type type, JsonPropertyInfo property)
+        => new()
+        {
+            DocumentName = "v1",
+            JsonTypeInfo = options.GetTypeInfo(type),
+            JsonPropertyInfo = property,
+            ParameterDescription = null,
+            ApplicationServices = new ServiceCollection().BuildServiceProvider(),
+        };
+
+    /// <summary>Members holding text, which no document describes in the shapes a test gives their schemas.</summary>
+    private sealed class TextHolder
+    {
+        [ParsesAs(typeof(Iban))]
+        public string? Account { get; set; }
+
+        [ParsesAs(typeof(Iban))]
+        public List<string>? Accounts { get; set; }
+
+#pragma warning disable VO0040 // A type that is no value object, which the transformer describes nothing for.
+        [ParsesAs(typeof(string))]
+        public string? Misnamed { get; set; }
+#pragma warning restore VO0040
+    }
+
     private static OpenApiSchemaTransformerContext ContextFor<T>(JsonSerializerOptions? options = null, ApiParameterDescription? parameter = null)
         => new()
         {

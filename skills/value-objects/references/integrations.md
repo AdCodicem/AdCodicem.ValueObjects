@@ -6,7 +6,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | Package | Gives you |
 | --- | --- |
 | `AdCodicem.ValueObjects` | Contracts, source generator, analyzers, and XML serialization on request (below). The one to install. |
-| `AdCodicem.ValueObjects.Abstractions` | The contracts alone, no dependency. For a domain assembly that must stay bare. |
+| `AdCodicem.ValueObjects.Abstractions` | The contracts alone, no dependency, and the DataAnnotations attributes `[ParsesAs]` and `[NotDefault]`. For a domain assembly that must stay bare. |
 | `AdCodicem.ValueObjects.Json` | Source-generated `JsonSerializerContext` support, hand-written value objects, and the JSON Schema transform. |
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, an assembly-wide convention (collections included), keys generated the provider's way, `.Value` in LINQ and CHECK constraints from the rules, a violated one carrying its rule code (all opt-in). |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
@@ -675,6 +675,62 @@ public sealed class AppLanguageManager : LanguageManager
 ValidatorOptions.Global.LanguageManager = new AppLanguageManager();
 ```
 
+## DataAnnotations
+
+Raw text in a DTO, an options class or a form model, held to a value object's rules wherever DataAnnotations runs
+(`Validator`, MVC, minimal APIs under `AddValidation()`, `ValidateDataAnnotations()`, `[OptionsValidator]`,
+CommunityToolkit.Mvvm's `ObservableValidator`), and a value-object member refused at its default. Both attributes live in
+`AdCodicem.ValueObjects.Annotations`, in the contracts: no package to add.
+
+```csharp
+public sealed class SettlementOptions
+{
+    [ParsesAs(typeof(Iban))]
+    public string? Account { get; set; }
+
+    [ParsesAs<Iban, string>(UseCurrentCulture = true)]
+    public string? TypedAccount { get; set; }
+
+    [NotDefault]
+    public Iban Fallback { get; set; }
+}
+
+[ValueObject<string>(MinLength = 15, MaxLength = 34)]
+public readonly partial struct Iban;
+```
+
+- `[ParsesAs(typeof(T))]` resolves the descriptor the first time a value is validated (generated: registered; a generic
+  construction or a hand-written value object: by reflection, or registered by hand under native AOT, `VO0042`);
+  `[ParsesAs<TSelf, TValue>]` reads `TSelf.TryParse` and `TSelf.Schema`, no registry. Both refuse alike, and derive from
+  `ParsesAsAttribute`, whose `ValueObjectType` names the value object.
+- `null` passes (chain `[Required]`), and so does a default `ImmutableArray<string>`, which `[Required]` lets through;
+  empty text is the value object's to judge; text is read in the invariant culture,
+  `UseCurrentCulture = true` for a form a person types in (then create the value object in the same culture). An
+  `IEnumerable<string?>` has each element checked, `null` skipped, the first refusal under the member's own name. The
+  member keeps its text: create the value object where it is read.
+- Any other member type, or a type that is no value object, throws `InvalidOperationException` when validated:
+  `VO0039`, `VO0040` at build time.
+- `[NotDefault]` refuses `default(TSelf)` (a `TSelf?` holding it too; `null` passes), and over a value type a
+  constructed zero (`OrderId.Create(Guid.Empty)`), with `value_object.required` and `[Required]`'s message,
+  `The {0} field is required.`. On anything else, a collection of value objects included: `InvalidOperationException`,
+  `VO0041`.
+- A refusal is a `ValueObjectValidationResult` (`ErrorCode`, `ValueObjectType`). `Validator.TryValidate*` and
+  `ObservableValidator.GetErrors` keep it; `Validator.Validate*` throws a `ValidationException` that
+  `ValueObjectErrors.TryGetCode` reads; MVC's model state, `AddValidation()`'s errors and options failures keep the
+  message alone (no `errorCodes` entry).
+- Messages: nothing declared, the rule's English message; `ErrorMessage` or a named resource, DataAnnotations' own;
+  `ErrorMessageResourceType` alone, the resource's `ValueObject.{code}` entry (`.minimum`/`.maximum` first for one bound,
+  `ValueObject.value_object.required` for `[NotDefault]`), `{0}` the display name and the rule's arguments from `{1}`,
+  the English message for a missing key or culture. The resource is read through `ResourceManager(typeof(T))`: no
+  `LocalizationOptions.ResourcesPath`, or give the attributes a type whose full name is the manifest name. .NET 11's
+  validation looks up `ParsesAsAttribute_Error` for the `Type` form naming no resource (``ParsesAsAttribute`2_Error``
+  for the generic form, `NotDefaultAttribute_Error`), and lets an attribute's exception out of the request (.NET 10
+  answers 400).
+- Records: MVC wants the attributes on the primary constructor's parameters (no `property:`, which it refuses at the
+  first request); an `[AsParameters]` record takes `[property: ParsesAs(...)]`, or use a class. `AddValidation()` on
+  .NET 10 validates public types only.
+- Both OpenAPI generators describe a `[ParsesAs]` member or parameter as the value object's text (below).
+
 ## OpenAPI
 
 ```csharp skip
@@ -700,7 +756,10 @@ constant form, as the built-in stack documents a plain `TimeSpan`; a `TimeOnly` 
 carry the same schema in place, keeping the stricter bound or length of a route constraint; `items` of a collection
 and `additionalProperties` of a dictionary refer to the component, but a nullable element or value is described in
 place, `null` in its type and, for a closed set, in its `enum`; a key goes to `propertyNames` as the text it is
-written in, a string held to a number's pattern for a key over a number.
+written in, a string held to a number's pattern for a key over a number. A member or a parameter holding text under
+`[ParsesAs]` (on the property, the record's constructor parameter, or the parameter) is described as that text, as a key
+is: `type: string` with the value object's pattern, lengths, `format`, `x-minimum`/`x-maximum`, example and `enum`, and
+`items` for a collection of text; a stricter `[StringLength]` a class's property or a route constraint states is kept.
 
 ### Swashbuckle
 
@@ -731,6 +790,8 @@ does, with these differences, all Swashbuckle's own:
   `UseSwagger(o => o.OpenApiVersion = OpenApiSpecVersion.OpenApi3_1)` writes 3.1.
 - A closed set's `x-ms-enum` is named after Swashbuckle's component, `AccountFilterNoticeChannel` for
   `NoticeChannel<AccountFilter>`, or the identifier `CustomSchemaIds` gives it.
+- `[ParsesAs]` text is described as on the built-in stack, and Swashbuckle copies a parameter schema's description onto
+  the parameter.
 - It needs `Swashbuckle.AspNetCore.SwaggerGen` 10.3.0 or later: a direct reference to
   `Swashbuckle.AspNetCore.SwaggerGen` or `Swashbuckle.AspNetCore.Swagger` below it is NuGet's downgrade error NU1605
   until raised to 10.3.0.

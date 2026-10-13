@@ -43,9 +43,11 @@ refuse a value: `AddValueObjects(messages => messages.UseResource<T>())` on MVC 
 ([ASP.NET Core](../how-to/aspnet-core.md#messages-in-the-applications-language)),
 `UseValueObjectProblemDetails(messages => messages.UseResource<T>())` on an Azure Functions HTTP trigger
 ([Azure](../how-to/azure.md#messages-in-the-requests-language)), `AddValueObjects(options => options.UseResource<T>())`
-on a HotChocolate schema ([GraphQL](../how-to/graphql.md#messages-in-the-applications-language)), and FluentValidation's
+on a HotChocolate schema ([GraphQL](../how-to/graphql.md#messages-in-the-applications-language)), FluentValidation's
 `LanguageManager` under `MustParseAs`, `MustSatisfy` and `NotDefault`
-([FluentValidation](../how-to/fluentvalidation.md#messages-in-another-language)). No translation ships with the
+([FluentValidation](../how-to/fluentvalidation.md#messages-in-another-language)), and `ErrorMessageResourceType` named
+alone on DataAnnotations' `[ParsesAs]` and `[NotDefault]`
+([DataAnnotations](../how-to/data-annotations.md#messages-in-another-language)). No translation ships with the
 packages: each application writes the messages it wants, and a key it leaves out keeps the English message.
 
 The key of a code is `ValueObject.` followed by the code, as `ValueObjectMessages.KeyFor` gives it:
@@ -60,7 +62,7 @@ A message quotes arguments the rules the type declares supply, through `ValueObj
 name, which FluentValidation quotes as a placeholder, and a position, which an `IStringLocalizer` formats with
 `string.Format`.
 
-| Code | Named (FluentValidation) | Positional (MVC, minimal APIs, Azure Functions, HotChocolate) |
+| Code | Named (FluentValidation) | Positional (MVC, minimal APIs, Azure Functions, HotChocolate, DataAnnotations) |
 | --- | --- | --- |
 | Every code | `{PropertyName}`, `{ValueObject}` | `{0}`, the member |
 | `value_object.too_short` | `{MinLength}` | `{1}` |
@@ -72,7 +74,8 @@ name, which FluentValidation quotes as a placeholder, and a position, which an `
   `Reference<PurchaseOrder>`. `{0}` is the member the refusal is listed under: the display name MVC gives it, the
   name a minimal API value binds from, the name of the parameter of an Azure Functions HTTP trigger, the argument, the
   input field or the variable of a GraphQL refusal (the scalar's name for a variable's default value, which HotChocolate
-  names no variable for), the field of a refused output, or, in a request body, the name of
+  names no variable for), the field of a refused output, the display name of a member DataAnnotations validates, or, in
+  a request body, the name of
   the value object, never the JSON path, which holds the key a dictionary keyed by a value object
   refused.
 - Each argument is text, formatted in the current culture: a bound is read back from the invariant text the schema
@@ -128,6 +131,18 @@ validator hooks.
 | `Required`, `InvalidFormat`, `OutOfRange` | Rejections with the framework code and an optional message. |
 
 Validation is fail-fast: a result carries one reason, the first rule that failed.
+
+The DataAnnotations attributes report a refusal with `ValueObjectValidationResult`, which is not this struct but
+DataAnnotations' own `System.ComponentModel.DataAnnotations.ValidationResult`, a class, carrying `ErrorCode` and
+`ValueObjectType` beside its message and member names:
+
+| Member | |
+| --- | --- |
+| `string? ErrorMessage`, `IEnumerable<string> MemberNames` | DataAnnotations' own: the message the attribute gives, and the member it is reported under. |
+| `string ErrorCode` | The code of the rule that refused the text, `value_object.required` for `[NotDefault]`. |
+| `Type ValueObjectType` | The value object whose rule refused it. |
+
+[DataAnnotations](../how-to/data-annotations.md#messages-and-codes) lists which hosts keep it, and so the code.
 
 ## `ValueObjectException`
 
@@ -204,6 +219,7 @@ that treats a rejected value as a bug, for a strict EF Core read, and for an EF 
 | ASP.NET Core MVC model binding | A model state error; the [problem details](../how-to/aspnet-core.md#problem-details-carrying-the-rule) carry its code, for a route, query, header or form value and for a value inside a JSON body, read by System.Text.Json, or by Newtonsoft.Json through [`AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson`](../how-to/aspnet-core.md#a-body-read-by-newtonsoftjson), keyed as MVC keys its errors, which is the empty key for a `[FromHeader]` parameter naming no header unless a route, query or form value carries the parameter's name, and for the root of a body Newtonsoft.Json reads; a body Newtonsoft.Json reads without that package records no code, and neither does a value object Newtonsoft.Json reads as a dictionary key, through its type converter. Neither package throws anything of its own. Without the package's binder, MVC binds through the type converter, which throws `ValueObjectException`, and reports it with the message it gives bad input for an `int`, such as "The value 'ZZ' is not valid.", and no code. |
 | Minimal API parameter binding | A [bare 400](../how-to/aspnet-core.md#minimal-apis), naming neither the parameter nor the rule; in Development, a `BadHttpRequestException`, which `UseExceptionHandler` answers with a 500, and which wraps the converter's exception for a body. On the endpoints `AdCodicem.ValueObjects.AspNetCore.Http` covers, a [validation problem](../how-to/aspnet-core.md#problem-details-for-minimal-apis) carrying the code of each refused route, query or header value, and of a refused body where `ThrowOnBadRequest` is on, whose exception its handler answers; the package throws nothing of its own. |
 | FluentValidation, `MustParseAs` and `MustSatisfy` | A validation failure carrying the code. |
+| DataAnnotations, [`[ParsesAs]` and `[NotDefault]`](../how-to/data-annotations.md#messages-and-codes) | A `ValueObjectValidationResult` carrying the code, which `Validator.TryValidateObject`, `TryValidateProperty`, `TryValidateValue` and `ObservableValidator.GetErrors` keep; `Validator.ValidateObject`, `ValidateProperty` and `ValidateValue` throw DataAnnotations' `ValidationException` around it. MVC's model state, the errors of `AddValidation()` and the failures of options validation keep the message alone. A member of another type than the attribute takes, or a type that is no value object or that native AOT finds unregistered, throws `InvalidOperationException` when a value is validated, which carries no code: it reports a misuse, `VO0039` to `VO0042` at build time, never a broken rule. .NET 10's `AddValidation()` answers that exception with a 400 carrying its message, and .NET 11's lets it out of the request. |
 | Dapper | `DataException`, carrying the code in its `Data`, for a value it cannot convert, and for text read into a value object over another type, or a number or a `Guid` read into one over `string`, that the value object refuses. |
 | EF Core with `strict: true` | `ValueObjectException`, from `Create`, for a column or an element of a [collection](../how-to/ef-core.md#collections-of-value-objects): the query fails. |
 | MongoDB.Driver, through [`AdCodicem.ValueObjects.MongoDB`](../how-to/mongodb.md#reading) | `FormatException`, "The value read is not a valid Iban: …", carrying the code in its `Data`, for a value the type refuses unless the serializer is trusted, and, whatever the trust, for a BSON `null` or a value the serializer of the underlying type cannot read; inside the driver's own `FormatException`, naming the member and its class, when it reads a document. |
@@ -367,6 +383,7 @@ reading English:
 | `XmlSerializer` and `DataContractSerializer`, in an assembly that opts into XML serialization | `XmlException`, inside the serializer's `InvalidOperationException` or `SerializationException` | In `Data` |
 | The Azure Functions converter | `FormatException`, whose text alone the worker keeps, in its `FunctionInputConverterException` | In `Data`, and at the end of the message |
 | The HotChocolate scalars | `LeafCoercionException`, whose GraphQL error carries a `ValueObjectException` on `IError.Exception` | In `Data`; the error's `Exception` in `ErrorCode`, and its `extensions.code` but for a refused output |
+| DataAnnotations' throwing `Validator` methods, for a refusal of `[ParsesAs]` or `[NotDefault]` | `ValidationException`, which DataAnnotations raises around the result | `ErrorCode` of its `ValueObjectValidationResult` |
 
 The code is the one the rule reports. A value that is not of the underlying type at all carries
 `value_object.not_parsable`: a JSON token of the wrong kind, a number the underlying type cannot hold, text not of its
@@ -385,8 +402,11 @@ message its provider wrote, which on PostgreSQL holds the refused row when the c
 
 `ValueObjectErrors.TryGetCode` reads the code from any of these, and from an exception that wraps one: ASP.NET Core
 wraps a body it cannot read in a `BadHttpRequestException`, and Entity Framework Core a refused write in a
-`DbUpdateException`. It reads `ValueObjectException.ErrorCode`, then `ValueObjectJsonException.ErrorCode`, then
-`Data` under `ValueObjectErrors.ErrorCodeKey`, on each exception of the chain in turn, and the first code found wins.
+`DbUpdateException`. It reads `ValueObjectException.ErrorCode`, then `ValueObjectJsonException.ErrorCode`, then the
+`ValueObjectValidationResult` a DataAnnotations `ValidationException` carries, then `Data` under
+`ValueObjectErrors.ErrorCodeKey`, on each exception of the chain in turn, and the first code found wins.
+DataAnnotations raises its `ValidationException` itself, so its `Data` holds nothing, and its `Value` holds the value it
+validated, as for any attribute: log it only where the value may be logged.
 An exception that reports no broken rule carries none; the provider's error for a row a CHECK constraint from the rules
 refused, which no value object raised, carries one under `UseValueObjectCheckErrors()`.
 
@@ -497,8 +517,9 @@ analyzer cannot see: a default array element or another library's deserializer.
 Over a `string`, that is exactly an instance that never went through `Create`. Over a value type, a constructed
 instance holding the type's zero (`Amount.Create(0m)`, `OrderId.Create(Guid.Empty)`) equals the default too and reads
 `true`; only the analyzer and validation tell them apart. FluentValidation's
-[`NotDefault`](../how-to/fluentvalidation.md#an-uninitialized-value-object) rule checks it at the edge, and so refuses
-a valid zero. The writers do not stop at it: they validate the default, and refuse only the value its type rejects
+[`NotDefault`](../how-to/fluentvalidation.md#an-uninitialized-value-object) rule and DataAnnotations'
+[`[NotDefault]`](../how-to/data-annotations.md#an-uninitialized-value-object), which `[Required]` is not, since a struct
+is never `null`, check it at the edge, and so refuse a valid zero. The writers do not stop at it: they validate the default, and refuse only the value its type rejects
 ([above](#a-value-refused-on-write)).
 
 A generated value object implements it explicitly, as a member of `IValueObject<TSelf, TValue>`, so a tool reading

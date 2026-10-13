@@ -7,8 +7,8 @@ description: Every VO diagnostic the generator and the analyzers report, what it
 
 # Diagnostics
 
-Every rule the generator, the analyzers and the compiler enforce. `VO0008`, `VO0011`, `VO0025`, `VO0026` and `VO0033`
-are warnings; every other one is an error. There is no `VO0012`, and `VO0004`, `VO0006`, `VO0013`, `VO0014`, `VO0022`
+Every rule the generator, the analyzers and the compiler enforce. `VO0008`, `VO0011`, `VO0025`, `VO0026`, `VO0033` and
+`VO0042` are warnings; every other one is an error. There is no `VO0012`, and `VO0004`, `VO0006`, `VO0013`, `VO0014`, `VO0022`
 and `VO0029` are [retired](#retired-diagnostics).
 
 | Id | Meaning | Fix |
@@ -44,6 +44,10 @@ and `VO0029` are [retired](#retired-diagnostics).
 | `VO0036` | A member marked `[KnownValue]` that cannot be a known value. The message names the rule it breaks: it is not static; it can be written, a field that is not `readonly` or a property with a setter; it is of another type than the value object, `CountryCode?` included; or it is not initialized through `Known(...)` with the value as its one argument, which leaves out a property with a body. | Declare it as `public static readonly CountryCode France = Known("FR");`, or as `public static CountryCode France { get; } = Known("FR");`, of any accessibility. The type still generates, from its other known values. |
 | `VO0037` | `Known` called anywhere but in the initializer of a member marked `[KnownValue]`. | `Known` applies every rule of the type but membership, which a known value satisfies by declaration: anywhere else it would create a value a closed set refuses. Mark the member `[KnownValue]`, or create the value through `Create` or `TryCreate`. |
 | `VO0038` | `IValueObjectExample<T>` over another type than the value object itself. | The example would be published nowhere: implement `IValueObjectExample<TSelf>`, `Percentage : IValueObjectExample<Percentage>`. The type still generates, without an example. |
+| `VO0039` | `[ParsesAs]`, of either form, on a member, a field or a parameter whose declared type is neither `string` nor a collection of `string`, `object` included. | The attribute holds text to a value object's rules and would throw `InvalidOperationException` when a value is validated: under System.Text.Json an `object` member holds a `JsonElement`, never text. Declare the member `string?` or a collection of `string`, or declare it as the value object itself and drop the attribute. A type parameter is left alone. [DataAnnotations](../how-to/data-annotations.md#found-at-build-time) has the details. |
+| `VO0040` | `[ParsesAs(typeof(T))]` naming a type that is no value object: text, a class, a struct that does not implement `IValueObject<TSelf, TValue>` over itself, a generic definition such as `typeof(Reference<>)`, or `null`. | The attribute would throw `InvalidOperationException` when a value is validated. Name the value object, constructed when it is generic, `typeof(Reference<PurchaseOrder>)`; its nullable type is accepted. |
+| `VO0041` | `[NotDefault]` on a member, a field or a parameter that is neither a value object nor its nullable type: a number, text, an interface, or a collection of value objects, whose elements it does not check. | The attribute would throw `InvalidOperationException` when a value is validated. Declare the member as the value object or its nullable type, or drop the attribute; check the elements of a collection with FluentValidation's `RuleForEach`. A type parameter is left alone. |
+| `VO0042` | Under `PublishAot`, `[ParsesAs(typeof(T))]` naming a construction of a generic value object, a value object nested in a generic type, or a value object written by hand (warning). | A native binary finds them in the registry only once the application registers them, and the attribute throws `InvalidOperationException` until then: write `[ParsesAs<T, TValue>]`, which reads the type's static members and needs no registry, or register the type before a value is validated. A generated value object and an entity identifier are registered by their assembly. The package's build props make `PublishAot` visible to the analyzer. |
 
 `VO0011` deserves its warning more than most. The code it reports compiles and looks right, and in a project
 without `TreatWarningsAsErrors` it ships with the rule silently absent. It also recognizes the names hooks had
@@ -202,7 +206,7 @@ generators:
 | Generator | What it writes |
 | --- | --- |
 | Riok.Mapperly | `var target = new global::CountryCode();` for a mapping from a `string` to a value object declared in the mapper's own project. The value of the source is dropped, and every value object of the target is a default instance. |
-| The configuration binding generator, which `PublishAot` turns on | `var temp7 = new global::Quantity();` for a property of an options class. The options bind to default instances, and `ValidateOnStart` cannot tell. |
+| The configuration binding generator, which `PublishAot` turns on | `var temp7 = new global::Quantity();` for a property of an options class. The options bind to default instances, which `ValidateOnStart` lets through unless the member carries `[NotDefault]`. |
 
 It is reported in the generated file, which cannot be edited: the fix is on your side.
 
@@ -231,8 +235,10 @@ public partial class OrderMapper
 Write the methods out of a value object too. Without `FromOrderId`, Mapperly can map an `OrderId` to a `Guid` as
 `new Guid()`, which is `Guid.Empty`, silently: `VO0032` cannot see it, since a `Guid` is not a value object.
 
-**The configuration binding generator.** Keep the underlying type in the options class and create the value object
-where the options are read, or bind the value object in an `IConfigureOptions<T>` of your own that calls `Parse`.
+**The configuration binding generator.** Keep the underlying type in the options class, hold it to the value object's
+rules with [`[ParsesAs(typeof(T))]`](../how-to/data-annotations.md), which `ValidateDataAnnotations().ValidateOnStart()`
+and an `[OptionsValidator]` run, and create the value object where the options are read; or bind the value object in an
+`IConfigureOptions<T>` of your own that calls `Parse`.
 Without the generator, the binder that works by reflection goes through the generated `TypeConverter`, and reports
 a value its type rejects.
 

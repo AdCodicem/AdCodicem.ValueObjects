@@ -229,6 +229,11 @@ a 400 with the rule's code, as for a query value; an array, `[FromHeader] Quanti
 value. `[FromBody] CountryCode country` reads the body itself, a JSON string, through the input formatter, and a binder
 the parameter names, `[ModelBinder(typeof(…))]`, binds it.
 
+A model that keeps the text of a value object holds it to the value object's rules with DataAnnotations'
+[`[ParsesAs]`](./data-annotations.md), on a record's constructor parameter, which is where MVC requires a validation
+attribute on a record, and a value object a body may leave at its default with `[NotDefault]`, which `[Required]` cannot
+catch. MVC reports such a refusal in `errors` with the message of its rule, and without an `errorCodes` entry.
+
 ## Problem details carrying the rule
 
 For MVC controllers, with `AdCodicem.ValueObjects.AspNetCore`:
@@ -514,6 +519,14 @@ a key of its own beside each `ValueObject.` key:
 builder.Services.AddValidation(options =>
     options.LocalizerProvider = (_, factory) => factory.Create(typeof(ValidationMessages)));
 ```
+
+That validation looks the message of a DataAnnotations attribute naming no resource up under
+`{Type}_{Member}_{Attribute}_Error`, `{Type}_{Attribute}_Error` and `{Attribute}_Error`: a key `ParsesAsAttribute_Error`
+in that resource gives one template to every rule of every [`[ParsesAs(typeof(T))]`](./data-annotations.md#net-11)
+member that names none (``ParsesAsAttribute`2_Error`` for the generic form, `NotDefaultAttribute_Error` for
+`[NotDefault]`). An attribute naming `ErrorMessageResourceType` alone keeps the message of each rule, read by its code,
+which .NET 11 leaves alone. It also lets an exception an attribute throws out of the request, where .NET 10 answers it
+with a 400 carrying the exception's message.
 
 ## Codes for a payload you validate yourself
 

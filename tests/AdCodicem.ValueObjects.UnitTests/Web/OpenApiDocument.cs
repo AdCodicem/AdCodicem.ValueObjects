@@ -56,7 +56,7 @@ public sealed class OpenApiDocument : IAsyncLifetime
             .ConfigureApplicationPartManager(static manager =>
             {
                 manager.ApplicationParts.Clear();
-                manager.ApplicationParts.Add(new ControllerPart(typeof(DocumentedAccountsController)));
+                manager.ApplicationParts.Add(new ControllerPart(typeof(DocumentedAccountsController), typeof(HidingQueriesController)));
             })
             .AddValueObjects();
         builder.Services.AddOpenApi(static options =>
@@ -98,6 +98,10 @@ public sealed class OpenApiDocument : IAsyncLifetime
         application.MapGet(
             "/constrained/{page:range(5,50)}/{quantity:max(5000)}/{iban:length(20,30)}/{country:minlength(1):maxlength(5):regex(^[A-Z]+$)}",
             static (PageNumber page, Quantity quantity, Iban iban, CountryCode country) => Results.Ok());
+        MapText(application);
+
+        // A construction over a type of this document's own, which nothing but the transformer describes.
+        application.MapGet("/text-generic", static ([ParsesAs(typeof(Reference<TextOwner>))] string? reference) => Results.Ok());
         application.MapControllers();
         application.MapOpenApi();
         await application.StartAsync();
@@ -113,16 +117,91 @@ public sealed class OpenApiDocument : IAsyncLifetime
     /// <inheritdoc />
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    /// <summary>An application part holding one controller, so that the document describes that one alone.</summary>
-    /// <param name="controller">The controller.</param>
-    private sealed class ControllerPart(Type controller) : ApplicationPart, IApplicationPartTypeProvider
+    /// <summary>
+    /// Maps the endpoints taking the text of value objects held to their rules with <c>[ParsesAs]</c>: in bodies, as
+    /// route, query and header parameters, gathered with <c>[AsParameters]</c> in a class and in a record.
+    /// </summary>
+    /// <param name="application">The application.</param>
+    internal static void MapText(WebApplication application)
+    {
+        application.MapPost("/text", static (EveryValueObjectAsText body) => Results.Ok());
+        application.MapPost("/text-members", static (TextMembers body) => Results.Ok());
+        application.MapGet(
+            "/text/{iban:length(20,30)}",
+            static (
+                [ParsesAs(typeof(Iban))] string iban,
+                [ParsesAs(typeof(Quantity))] string? quantity,
+                [FromHeader(Name = "X-Country"), ParsesAs(typeof(CountryCode))] string? country,
+                [ParsesAs<PageNumber, int>] string? page,
+                [ParsesAs(typeof(Iban))] string[]? ibans,
+                string? note) => Results.Ok());
+        application.MapGet("/text-criteria", static ([AsParameters] TextCriteria criteria) => Results.Ok());
+        application.MapGet("/text-search", static ([AsParameters] PropertyTargetedSearch search) => Results.Ok());
+    }
+
+    /// <summary>An application part holding the controllers the document describes, and those alone.</summary>
+    /// <param name="controllers">The controllers.</param>
+    private sealed class ControllerPart(params Type[] controllers) : ApplicationPart, IApplicationPartTypeProvider
     {
         /// <inheritdoc />
-        public override string Name => controller.Name;
+        public override string Name => nameof(OpenApiDocument);
 
         /// <inheritdoc />
-        public IEnumerable<TypeInfo> Types => [controller.GetTypeInfo()];
+        public IEnumerable<TypeInfo> Types => controllers.Select(static controller => controller.GetTypeInfo());
     }
+
+    /// <summary>
+    /// The owner of the references of <c>/text-generic</c>, private to this document, so that nothing else in the process
+    /// has the registry describe <c>Reference&lt;TextOwner&gt;</c>.
+    /// </summary>
+    private sealed class TextOwner;
+}
+
+/// <summary>
+/// A query model whose members its derived model hides with <c>new</c>, each with another type: MVC binds the most
+/// derived one.
+/// </summary>
+public class TypedPagingQuery
+{
+    /// <summary>Gets or sets the text of a quantity, which the derived model hides with a number.</summary>
+    [ParsesAs(typeof(Quantity))]
+    public string? Page { get; set; }
+
+    /// <summary>Gets or sets a number, which the derived model hides with the text of an account.</summary>
+    public int Account { get; set; }
+
+    /// <summary>Gets or sets the text of a country, which the derived model inherits as it is.</summary>
+    [ParsesAs(typeof(CountryCode))]
+    public string? Country { get; set; }
+}
+
+/// <summary>
+/// A query model hiding the members of its base with <c>new</c>, of other types, which leaves both visible to
+/// <see cref="Type.GetProperty(string)"/>: one without <c>[ParsesAs]</c>, one with it.
+/// </summary>
+public sealed class HidingPagingQuery : TypedPagingQuery
+{
+    /// <summary>Gets or sets the page, a number, held to no value object.</summary>
+    public new int Page { get; set; }
+
+    /// <summary>Gets or sets the text of an account.</summary>
+    [ParsesAs(typeof(Iban))]
+    public new string? Account { get; set; }
+}
+
+/// <summary>
+/// An MVC action binding a query model that hides inherited members, which the built-in stack's document describes and
+/// Swashbuckle, which looks a member of a model up by its name alone, cannot.
+/// </summary>
+[ApiController]
+[Route("mvc/hiding")]
+public sealed class HidingQueriesController : ControllerBase
+{
+    /// <summary>Searches by criteria whose model hides inherited members.</summary>
+    /// <param name="query">The criteria.</param>
+    /// <returns>No content.</returns>
+    [HttpGet("search")]
+    public IActionResult Search([FromQuery] HidingPagingQuery query) => NoContent();
 }
 
 /// <summary>
@@ -166,6 +245,24 @@ public sealed class DocumentedAccountsController : ControllerBase
     /// <returns>No content.</returns>
     [HttpGet("search")]
     public IActionResult Search([FromQuery] AccountFilter filter) => NoContent();
+
+    /// <summary>Accepts the text of an account from the query string, held to its rules.</summary>
+    /// <param name="iban">The account.</param>
+    /// <returns>No content.</returns>
+    [HttpGet("text")]
+    public IActionResult Text([FromQuery, ParsesAs(typeof(Iban))] string? iban) => NoContent();
+
+    /// <summary>Searches by the text of value objects, bound from the query string as one model, a class.</summary>
+    /// <param name="search">The criteria.</param>
+    /// <returns>No content.</returns>
+    [HttpGet("text-search")]
+    public IActionResult TextSearch([FromQuery] RawSearch search) => NoContent();
+
+    /// <summary>Searches by the text of value objects, bound from the query string as one model, a record.</summary>
+    /// <param name="search">The criteria.</param>
+    /// <returns>No content.</returns>
+    [HttpGet("text-search-record")]
+    public IActionResult TextSearchRecord([FromQuery] RawSearchRecord search) => NoContent();
 }
 
 /// <summary>

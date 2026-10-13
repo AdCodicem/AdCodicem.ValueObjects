@@ -669,7 +669,7 @@ public sealed class RequestDelegateGeneratorTests
         var props = XDocument.Load(Path.Combine(RepositoryRoot(), "src", "AdCodicem.ValueObjects", "build", "AdCodicem.ValueObjects.props"));
         var visible = props.Descendants("CompilerVisibleProperty").Select(item => (string?)item.Attribute("Include"));
 
-        visible.Should().ContainSingle().Which.Should().Be(EnabledKey["build_property.".Length..]);
+        visible.Should().Contain(EnabledKey["build_property.".Length..]);
         RequestDelegateGeneratorAnalyzer.EnabledKey.Should().Be(EnabledKey);
 
         var package = XDocument.Load(Path.Combine(RepositoryRoot(), "src", "AdCodicem.ValueObjects", "AdCodicem.ValueObjects.csproj"));

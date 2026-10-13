@@ -207,7 +207,9 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   typed adapter reads `TSelf.Schema`, never the registry, which would describe a construction of a generic value object
   by reflection.
 - **Boxed path.** `ValueObjectDescriptor`, resolved from `ValueObjectRegistry`, for callers that only know a `Type` at
-  run time — `MustParseAs(Type)`, the OpenAPI transformer and the Swashbuckle filters, model-binder resolution.
+  run time — `MustParseAs(Type)`, DataAnnotations' `[ParsesAs(typeof(T))]` (`ValueObjectValidationAttributes.Resolve`,
+  `MustParseAs`'s lookup made when a value is first validated, since anything reading a member's attributes creates them,
+  the descriptor kept by the attribute), the OpenAPI transformer and the Swashbuckle filters, model-binder resolution.
   `descriptor.Accept` hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its
   adapter at compile time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's
   `AddValueObjectHandlers`, the MVC binder provider, the JSON factory's general-purpose converter, for a value object
@@ -217,7 +219,9 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, the
   MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, the HotChocolate type
   discovery handler, which closes, once per schema build, the scalar of each value object the schema meets (a typed
-  `AddValueObjectScalar<TSelf, TValue>()` asks no registry), the test-data sampler's
+  `AddValueObjectScalar<TSelf, TValue>()` asks no registry), DataAnnotations' `[NotDefault]`, which closes a check of
+  `IsDefault` once per type in a static cache (a failed resolution is not cached, so a registration made later is
+  found), the test-data sampler's
   `Next(descriptor)`, the AutoFixture specimen builder, Bogus's `RuleForValueObjects` and `ValueObject<TSelf>`, FsCheck's
   `MergeValueObjects`, EF Core's `ConfigureValueObjects` and `ConfigureEntityIds`, and the CHECK constraint convention
   `AddValueObjectCheckConstraints` adds, which resolves the value object a converter of the package maps
@@ -289,7 +293,13 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   the ASP.NET Core integration with the minimal API's validation problem. A HotChocolate scalar throws a
   `LeafCoercionException` carrying the code in its `Data`, whose GraphQL error carries it as `extensions.code`, and an
   internal `ValueObjectException` subclass (`ValueObjectScalarRefusal`) with the type and the code on `IError.Exception`;
-  HotChocolate replaces the code of a refused output with its own `EXEC_INVALID_LEAF_VALUE`. Under
+  HotChocolate replaces the code of a refused output with its own `EXEC_INVALID_LEAF_VALUE`. DataAnnotations'
+  `[ParsesAs]` and `[NotDefault]` refuse with a `ValueObjectValidationResult` (DataAnnotations' `ValidationResult`, the
+  code and the type beside the message), which `Validator.TryValidate*` and `ObservableValidator` keep and MVC,
+  `AddValidation()` and options validation reduce to its message; `Validator`'s throwing methods wrap it in a
+  `ValidationException` DataAnnotations raises itself, so `ValueObjectErrors.TryGetCode` reads the code off its result,
+  its `Data` being DataAnnotations'. A misuse, a member of the wrong type or a type no value object or unregistered under
+  native AOT, throws `InvalidOperationException`, with no code. Under
   `UseValueObjectCheckErrors()`, the EF Core package adds the code to the `Data` of the database provider's error for a
   row a CHECK constraint from the rules refused, read off the constraint's name (`ValueObjectCheckConstraints`), never
   off the model, and neither replaces nor wraps that error; `ValueObjectCheckConstraints.TryGetCode` reads it without
@@ -306,8 +316,11 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   reading the resource through the request's `IStringLocalizerFactory`, a HotChocolate schema through
   `AddValueObjects(options => options.UseResource<T>())`, an error filter reading the application's
   `IStringLocalizerFactory` through `GetRootServiceProvider()` in the culture of the execution, the executor failing to
-  start without `AddLocalization()`, and FluentValidation from `ValidatorOptions.Global.LanguageManager` when no
-  message is chained. No translation ships.
+  start without `AddLocalization()`, FluentValidation from `ValidatorOptions.Global.LanguageManager` when no
+  message is chained, and the DataAnnotations attributes from the resource their `ErrorMessageResourceType` names alone
+  (`ErrorMessage`, or a resource with its name, give DataAnnotations' single message), read through a
+  `ResourceManager(typeof(T))` cached per type, a `MissingManifestResourceException` taken for a missing key, the next
+  key looked up. No translation ships.
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI `maxLength`, and
   the `maxLength` of the MongoDB `$jsonSchema` validator (`ValueObjectBsonSchema`, which writes each rule of
   `TSelf.Schema` only where the server refuses no value the type accepts, the pattern in PCRE2 through `PcrePattern`
@@ -342,7 +355,12 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   refuse a result the server writes, which the guide states as a limit. The OpenAPI transformer and the Swashbuckle
   filters, both on the object model of `Microsoft.OpenApi` 2, share the whole description of a value object the same
   way, through `src/Shared/ValueObjectOpenApiSchema.cs`; what is particular to each host stays with it: how it finds
-  the value object, the options, the name of a closed set's enumeration, parameters and containers. The XSD facets the
+  the value object, the options, the name of a closed set's enumeration, parameters and containers. A member or a
+  parameter carrying `[ParsesAs]` is described as the value object's text through the same core (`Describe(...,
+  asText: true)`, a dictionary key's description), each host finding the attribute on the property, the constructor
+  parameter of the same name and the parameter, an MVC query model's member included, with
+  `GetCustomAttributes(...).OfType<ParsesAsAttribute>()`, since both forms may sit on one member; the rules the
+  declaration put on the schema are kept where stricter (`RulesOf`, `KeepStricterRules`), as for a route constraint. The XSD facets the
   schema provider of an assembly opted into XML serialization publishes (`ValueObjectXml.ProvideSchema`) read the same
   `TSelf.Schema`. A pattern leaving .NET goes through `src/Shared/ValueObjectPatternSyntax.cs`, the reader every package
   that writes a .NET pattern in another dialect, or draws values from one, links: it reads a pattern into a tree,
@@ -777,6 +795,25 @@ These are all load-bearing, and each cost real debugging time:
   `GraphQL/`). With `using HotChocolate;`, `Path` is ambiguous with `System.IO.Path` (alias it), and
   `HotChocolate.Types` holds a `Tag`. HotChocolate's source generator (`[QueryType]`) runs in a fixture of its own,
   `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.GraphQL`, so that the unit test assembly gets no generated module.
+- **DataAnnotations hosts disagree on what they read and keep.** MVC refuses a validation attribute on a record's
+  property (`InvalidOperationException` at the first request validating the record) and wants it on the primary
+  constructor's parameter, which neither OpenAPI generator reads a `[StringLength]` from, while
+  Microsoft.AspNetCore.OpenApi 10.0.12 fails to build the whole document for an `[AsParameters]` record with a
+  validation attribute on a constructor parameter (dotnet/aspnetcore#65348), and the RDG of 10.0.12 does not compile
+  an `[AsParameters]` positional record of `string?` (CS8639): the RdgTests use a class, the guide `property:` there.
+  .NET 10's validation generator describes public types only, so an internal body is never validated (the native AOT
+  application's body is public), and catches an attribute's exception into a 400 carrying its message, where .NET 11
+  lets it propagate and looks a message up under `{Attribute}_Error` keys of its own, both of which the island pins,
+  as it pins the display name the validator `[OptionsValidator]` writes hands a message: `Type.Member` on .NET 10, the
+  member alone on .NET 11. MVC, .NET 10 and .NET 11 keep the message of an attribute naming
+  `ErrorMessageResourceType`, which is why `[ParsesAs]` reads a resource named alone by code: through
+  `ResourceManager(typeof(T))`, whose base name is the type's full name, never a `ResourcesPath`. Every host but
+  `Validator.TryValidate*` and `ObservableValidator` keeps the message alone. A `Type`-form attribute resolves nothing
+  until a value is validated, and a test resolving `HandWrittenCode`, `HandWrittenLink` or `UnregisteredCode` through
+  it or `[NotDefault]` would register them for the process: the unit tests close `Reference<T>` and
+  `HandWrittenTag<T>` over a marker of their own instead. The analyzer runs in the unit suite, which does not import
+  the package's build props, so `VO0042` never fires there; a member misusing an attribute on purpose takes `#pragma
+  warning disable VO0039` (or `VO0040`), which, unlike the generator's diagnostics, an analyzer's honours.
 - **`XmlSerializer` reads a value object's schema before it serializes anything.** It calls the provider when the
   serializer is built, insists on finding it public and static, and compiles its `xs:simpleType`, refusing the whole
   type, and every serializer over a type holding it, for one facet System.Xml cannot read. System.Xml holds an
@@ -961,6 +998,14 @@ Four suites, each with a distinct job:
   the registry, so the only hand-written value objects they meet are `Declared<,>` constructions over declarations
   those tests own (`Tally`, `WatchedTally`), and `FsCheckTests` merges a fresh `AssemblyLoadContext` copy of the
   untouched fixture, whose registration only the merge can have run.
+  `DataAnnotations/` runs `[ParsesAs]` and `[NotDefault]` through `Validator`, a host's `ValidateDataAnnotations()`
+  and `ValidateOnStart()`, an `[OptionsValidator]` validator, whose generator runs in the suite, and CommunityToolkit.Mvvm's
+  `ObservableValidator` (test-only, its partial properties), with `SilentCode`, a value object written by hand private to
+  the tests, for a parser refusing without a code or a message; `Web/DataAnnotationsMvcTests.cs` and
+  `DataAnnotationsMinimalApiTests.cs` answer requests through MVC and `AddValidation()` over TestHost, whose validations
+  generator then walks every minimal API endpoint of the suite, and `Web/OpenApiTextTests.cs` and
+  `SwashbuckleTextTests.cs` read both documents' description of every value object's text, `EveryValueObjectAsText`,
+  against each other; `GeneratedSurface/` holds every sample to both forms and to `[NotDefault]`.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
   `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Snippets compile **without** implicit usings, which
@@ -973,8 +1018,10 @@ Four suites, each with a distinct job:
   and in CI alike. The incrementality tests assert on
   `IncrementalStepRunReason`, the only way to notice caching regressions — losing them breaks nothing visible
   while making every IDE keystroke re-run the pipeline. `DocumentationSnippetTests` also runs the generator and
-  both analyzers over every ```` ```csharp ```` block the repository publishes — `skills/value-objects/`,
-  `README.md` and `website/docs/` — so a snippet that stops generating, or that trips `VO0011`, fails the build.
+  three analyzers over every ```` ```csharp ```` block the repository publishes — `skills/value-objects/`,
+  `README.md` and `website/docs/` — so a snippet that stops generating, or that trips `VO0010`, `VO0011` or a
+  DataAnnotations attribute's `VO0039` to `VO0041`, fails the build (`VO0042` needs `PublishAot`, which the snippet run
+  does not set).
   A skill snippet must compile outright; a README or site snippet is prose and may elide a body, so only the
   declaration the generator sees is held to account. Tag a block ```` ```csharp skip ```` when it is a wiring or
   usage fragment rather than a declaration. The homepage example is covered too, because it lives in the partial
@@ -1025,7 +1072,8 @@ Four suites, each with a distinct job:
   and names, dropping the attribute of the second, a `[FromHeader]` included: name such parameters apart. Its problem
   details endpoints (`ProblemEndpoints.cs`) cover what only the RDG does: it refuses no empty query text and takes an
   empty header for an absent one, and the filter tells its endpoints by the `GeneratedCodeAttribute` it adds to their
-  metadata, which a test pins.
+  metadata, which a test pins. `AnnotationEndpoints.cs` validates `[ParsesAs]` and `[NotDefault]` with `AddValidation()`
+  over the RDG's binding, `[AsParameters]` over a class.
 
 Beside them, in the solution but no suite, `tests/NativeAot` holds applications built as consumers build them, which
 CI publishes rather than tests. None imports `tests/Directory.Build.props`, so the trimming and AOT analyzers stay
@@ -1041,7 +1089,11 @@ on where they apply.
   and on, each answer checked against the status and the codes the script expects, since both runs explaining nothing
   would agree; their `/localized` group answers with the messages of the neutral `ProblemMessages.resx`, the
   application running under the invariant culture of `InvariantGlobalization`, each answer checked with its messages
-  too; a third, without `AddProblemDetails()`, must fail to build its endpoints. `Validation.cs` runs its forms a
+  too; a third, without `AddProblemDetails()`, must fail to build its endpoints. `Annotations.cs` runs both forms of
+  `[ParsesAs]` and `[NotDefault]` through `Validator.TryValidateValue`, with a `ValidationContext` built with a display
+  name, the one constructor that is not `RequiresUnreferencedCode`, through the validator `[OptionsValidator]` writes, and
+  through a fourth application under `AddValidation()`, whose body type is public, failing the run on a refusal without
+  its code; an unregistered value object refused by the `Type` form is a line, alike in both runs. `Validation.cs` runs its forms a
   second time with a `LanguageManager` holding English translations, which the invariant culture reads. `Logging.cs` logs every
   registered value object through Serilog with and without `@`, under the policy and the option, and fails the run when
   one is not the scalar of its underlying type, written as the bare value is. `LanguageModels.cs` describes every
@@ -1103,7 +1155,10 @@ key refused unset, `.Value` translated under `UseValueObjectQueries()`, CHECK co
 a pattern constraint on PostgreSQL 17 with `ExcludePattern`, a refused row carrying the code of its rule, a refusal in
 a later statement of a batch included, System.Text.Json source generation, ASP.NET Core
 model binding, on System.Text.Json and on Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal
-API problem details, the messages of both and of FluentValidation in the language of the request,
+API problem details, the messages of both and of FluentValidation in the language of the request, the DataAnnotations
+attributes through `Validator`, options validation, an `[OptionsValidator]` validator, MVC 11 and the minimal API
+validation of Microsoft.Extensions.Validation 11, its `ParsesAsAttribute_Error` key and its propagation of an
+attribute's exception included, `[ParsesAs]` text in both OpenAPI documents,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection
 validator and entity identifiers minted on insert, MessagePack, with SignalR's MessagePack hub protocol 11 between a hub
 and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, FluentValidation, Newtonsoft.Json,
