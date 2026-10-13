@@ -13,7 +13,7 @@ application actually has.
 | Package | What it gives you |
 | --- | --- |
 | **`AdCodicem.ValueObjects`** | The one to install: contracts, source generator and analyzers. |
-| `AdCodicem.ValueObjects.Abstractions` | The contracts alone, with no dependency at all. |
+| `AdCodicem.ValueObjects.Abstractions` | The contracts alone, with no dependency at all, and the DataAnnotations attributes `[ParsesAs]` and `[NotDefault]`. |
 | `AdCodicem.ValueObjects.Json` | Covers source-generated serializer contexts and hand-written value objects, and fills in the JSON Schema System.Text.Json exports. |
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, a convention that maps a whole assembly, keys generated the provider's way, `.Value` translated in queries, and opt-in CHECK constraints from the rules, whose violations carry the rule code under `UseValueObjectCheckErrors()`. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |

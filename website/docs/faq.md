@@ -84,6 +84,23 @@ With `T?`. `default(T)` and `new T()` are build errors (`VO0010`), entity identi
 uninitialized struct would skip every rule. A type whose zero value is genuinely meaningful can opt out with
 `AllowDefault = true`, on `[ValueObject<T>]` as on `[EntityId]`.
 
+### Does `[Required]` catch a value object that was never created?
+
+No: a value object is a struct, never `null`, so DataAnnotations' `[Required]` passes on one left at its default, in
+`Validator`, MVC, `AddValidation()`, options validation and `ObservableValidator` alike. `[NotDefault]`, in the
+contracts, refuses it with `value_object.required` and `[Required]`'s message, and so refuses a valid zero over a value
+type, `OrderId.Create(Guid.Empty)`, as FluentValidation's `NotDefault` does
+([DataAnnotations](./how-to/data-annotations.md#an-uninitialized-value-object)).
+
+### How do I hold the raw text of a DTO or an options class to a value object's rules?
+
+With `[ParsesAs(typeof(Iban))]`, or `[ParsesAs<Iban, string>]`, on the `string` member: it runs the type's own parsing,
+normalization and rules included, wherever DataAnnotations runs, reports the rule's message, and carries its code on the
+`ValueObjectValidationResult` it refuses with. The member keeps the text; the application creates the value object where
+it reads it. An options class the configuration binding generator binds keeps the text that way, and `ValidateOnStart`
+then checks it ([DataAnnotations](./how-to/data-annotations.md)). FluentValidation's `MustParseAs` does the same in a
+validator.
+
 ### Can I throw my own exception type?
 
 `Create` always throws `ValueObjectException`, which carries the error code, the type and, unless the type is
@@ -98,12 +115,14 @@ supply: the length, the bounds, the known values, formatted in the request's cul
 translations from a resource the application names, `AddValueObjects(messages => messages.UseResource<T>())` and
 `WithValueObjectProblemDetails(messages => messages.UseResource<T>())`, so do the HTTP triggers of Azure Functions,
 `UseValueObjectProblemDetails(messages => messages.UseResource<T>())`, and a HotChocolate schema,
-`AddValueObjects(options => options.UseResource<T>())`, and FluentValidation reads them from its `LanguageManager`. No
+`AddValueObjects(options => options.UseResource<T>())`, FluentValidation reads them from its `LanguageManager`, and
+DataAnnotations' `[ParsesAs]` and `[NotDefault]` from the resource their `ErrorMessageResourceType` names alone. No
 translation ships with the packages. The
 [errors reference](./reference/errors.md#a-message-in-the-applications-language) lists the keys and the arguments, with a
 French example, and the guides for [ASP.NET Core](./how-to/aspnet-core.md#messages-in-the-applications-language),
 [Azure Functions](./how-to/azure.md#messages-in-the-requests-language),
-[GraphQL](./how-to/graphql.md#messages-in-the-applications-language) and [FluentValidation](./how-to/fluentvalidation.md#messages-in-another-language) the wiring.
+[GraphQL](./how-to/graphql.md#messages-in-the-applications-language), [FluentValidation](./how-to/fluentvalidation.md#messages-in-another-language)
+and [DataAnnotations](./how-to/data-annotations.md#messages-in-another-language) the wiring.
 
 ### Can a value object be a dictionary key, or an EF Core key?
 
@@ -290,7 +309,9 @@ written by hand, the test-data sampler, the AutoFixture customization, the Bogus
 `MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
 value object, each element of a collection of them, and each entity identifier, all but the converter of an optional
 value object, which C# cannot name there and which they close with `MakeGenericType`; they do so only while a model is
-built, never under native AOT. The Microsoft.Extensions.AI integration closes nothing: it reads a tool's parameters
+built, never under native AOT. DataAnnotations' `[NotDefault]` closes its check of the default instance per type through
+the visitor too, and `[ParsesAs(typeof(T))]` finds the descriptor as the registry does, its generic form reading the
+type's static members. The Microsoft.Extensions.AI integration closes nothing: it reads a tool's parameters
 once, when it wraps the function, and each argument through the function's own contracts. Nor does the Model Context Protocol one, which finds the tool methods
 of a type as the SDK does, the generic registration through a type parameter carrying the SDK's trimming annotation. The
 contracts, the generated code, the JSON package, the minimal API problem details, FluentValidation, identifiers and the

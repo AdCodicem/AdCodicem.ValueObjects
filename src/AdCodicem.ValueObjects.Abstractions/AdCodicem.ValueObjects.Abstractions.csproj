@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects</RootNamespace>
-    <Description>Dependency-free contracts for single-value DDD value objects: IValueObject&lt;TSelf, TValue&gt; with static abstract factories, allocation-free validation results and a runtime descriptor registry.</Description>
+    <Description>Dependency-free contracts for single-value DDD value objects: IValueObject&lt;TSelf, TValue&gt; with static abstract factories, allocation-free validation results, a runtime descriptor registry, and the DataAnnotations attributes [ParsesAs] and [NotDefault], which hold raw text and a value-object member to a value object's rules.</Description>
     <PackageTags>$(PackageTags);abstractions</PackageTags>
   </PropertyGroup>
 

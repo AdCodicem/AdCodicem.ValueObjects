@@ -89,6 +89,29 @@ foreach (var (mode, throwOnBadRequest) in new[] { ("production", false), ("devel
     }
 }
 
+// The DataAnnotations attributes under the minimal API's validation, which AddValidation() adds to every endpoint of an
+// application of its own, whose types the validations generator describes at build time.
+var annotationsBuilder = WebApplication.CreateSlimBuilder();
+annotationsBuilder.WebHost.UseKestrel(options => options.Listen(IPAddress.Loopback, 0));
+annotationsBuilder.Logging.ClearProviders();
+annotationsBuilder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonContext.Default));
+annotationsBuilder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context => context.ProblemDetails.Extensions.Remove("traceId"));
+annotationsBuilder.Services.AddValidation();
+await using (var annotations = annotationsBuilder.Build())
+{
+    Annotations.Map(annotations);
+    await annotations.StartAsync();
+    try
+    {
+        using var client = ClientOf(annotations);
+        await Annotations.RunAsync(report, client);
+    }
+    finally
+    {
+        await annotations.StopAsync();
+    }
+}
+
 // Without AddProblemDetails(), the HTTP JSON options of an application without reflection cannot write problem details,
 // and the convention fails the build of the endpoints rather than answer each refusal with a 500.
 await Problems.RunWithoutProblemDetailsAsync(report);

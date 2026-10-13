@@ -129,6 +129,16 @@ public class GeneratedSurfaceTests
         => Samples.All[type].DrawsValuesItsRulesAccept();
 
     [Theory]
+    [MemberData(nameof(Every))]
+    public void Every_value_object_holds_text_to_its_rules_through_ParsesAs(string type)
+        => Samples.All[type].HoldsTextToItsRulesThroughDataAnnotations();
+
+    [Theory]
+    [MemberData(nameof(Every))]
+    public void Every_value_object_refuses_its_default_through_NotDefault(string type)
+        => Samples.All[type].RefusesItsDefaultThroughNotDefault();
+
+    [Theory]
     [MemberData(nameof(EveryArithmetic))]
     public void Every_arithmetic_member_validates_its_result(string type)
         => Samples.All[type].ComputesThroughEveryArithmeticMember();

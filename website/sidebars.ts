@@ -34,6 +34,7 @@ const sidebars: SidebarsConfig = {
         'how-to/mongodb',
         'how-to/messagepack',
         'how-to/fluentvalidation',
+        'how-to/data-annotations',
         'how-to/messaging',
         'how-to/logging',
         'how-to/language-models',

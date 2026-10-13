@@ -115,6 +115,10 @@
          through both. -->
     <PackageReference Include="HotChocolate.AspNetCore" />
     <PackageReference Include="HotChocolate.Data" />
+    <!-- ObservableValidator, the view model base of CommunityToolkit.Mvvm, which validates the DataAnnotations attributes of
+         a property as it is set and keeps the results it reports; DataAnnotations/ runs [ParsesAs] and [NotDefault]
+         through it. -->
+    <PackageReference Include="CommunityToolkit.Mvvm" />
   </ItemGroup>
 
   <ItemGroup>

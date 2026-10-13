@@ -39,14 +39,15 @@ terms: a JSON exception, a model state error, a FluentValidation failure, a Dapp
 `FormatException`, a MessagePack `MessagePackSerializationException`, an `XmlException` from `XmlSerializer` or
 `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool result a language model
 reads, a Model Context Protocol tool execution error, the text of the Azure Functions worker's binding failure, which
-ends with the code, a validation problem for one of its HTTP triggers, and a GraphQL error whose `extensions.code` is the
-rule's ([what each one throws](./reference/errors.md)).
+ends with the code, a validation problem for one of its HTTP triggers, a GraphQL error whose `extensions.code` is the
+rule's, and the `ValueObjectValidationResult` DataAnnotations' `[ParsesAs]` and `[NotDefault]` refuse with
+([what each one throws](./reference/errors.md)).
 Each carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions ([the code in
 an exception](./reference/errors.md#the-code-in-an-exception)). Under `UseValueObjectCheckErrors()`, the database
 provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the constraint's
 name. The message is English; the code keys the one an
-application shows in its users' language, which the MVC, minimal API, Azure Functions, HotChocolate and FluentValidation
-integrations look up with the
+application shows in its users' language, which the MVC, minimal API, Azure Functions, HotChocolate, FluentValidation
+and DataAnnotations integrations look up with the
 arguments the declared rules supply ([a message in the application's
 language](./reference/errors.md#a-message-in-the-applications-language)). `Create` throws `ValueObjectException`, and is
 for the call sites that want it; a strict EF Core read goes through it, and fails the query. Validation is fail-fast: the
@@ -71,7 +72,9 @@ constraints](./how-to/ef-core.md#check-constraints-from-the-rules) of the EF Cor
 them as .NET does, and, once the options name the dialect of SQL Server 2025 or PostgreSQL, the patterns, refusing to
 build the model on one the database would read apart from .NET unless `ExcludePattern<TSelf>()` leaves it to the
 application. Each constraint is named after its rule, so that a row it refuses comes back with the rule's code under
-`UseValueObjectCheckErrors()` ([when a constraint fires](./how-to/ef-core.md#when-a-constraint-fires)).
+`UseValueObjectCheckErrors()` ([when a constraint fires](./how-to/ef-core.md#when-a-constraint-fires)). A DTO or an
+options class that keeps the text holds it to the same rules with [`[ParsesAs]`](./how-to/data-annotations.md), which
+both OpenAPI generators describe as the value object's text, rather than restating them in `[StringLength]`.
 
 ## Constraints that shape the generated code
 

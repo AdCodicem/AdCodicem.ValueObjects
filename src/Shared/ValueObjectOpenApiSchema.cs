@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -17,7 +18,10 @@ namespace AdCodicem.ValueObjects.Shared;
 /// AdCodicem.ValueObjects.Swashbuckle, so that both documents describe a value object alike: each compiles its own
 /// internal copy, and none depends on another for it. What is particular to a host stays with it: how it finds the
 /// value object, the options it describes the wire with, the name it gives the enumeration of a closed set, and its
-/// parameters, collections and dictionaries.
+/// parameters, collections and dictionaries. Text standing for a value object, the key of a dictionary or a member or a
+/// parameter <c>[ParsesAs]</c> holds to its rules, is described alike in both, and a rule the declaration of a
+/// parameter or a member states beside the value object's is kept where it is the stricter, through
+/// <see cref="KeepStricterRules"/>.
 /// </para>
 /// <para>
 /// What each rule becomes is read from <see cref="ValueObjectSchemaKeywords"/>, which the JSON Schema of
@@ -34,8 +38,8 @@ internal static class ValueObjectOpenApiSchema
     /// <param name="options">The options the document describes the wire with.</param>
     /// <param name="enumName">Gets the name of the enumeration of a closed set, for <c>x-ms-enum</c>; asked only for
     /// one.</param>
-    /// <param name="asKey">Whether the schema describes the key of a dictionary, which is written as text whatever the
-    /// underlying type.</param>
+    /// <param name="asText">Whether the schema describes text standing for the value object, written as text whatever the
+    /// underlying type: the key of a dictionary, or a member or a parameter <c>[ParsesAs]</c> holds to its rules.</param>
     /// <remarks>
     /// Describing a schema a second time leaves it as the first time did: ASP.NET Core hands the element of a
     /// collection back to the transformers after this one gave it its schema. A schema that allows <c>null</c> keeps
@@ -47,29 +51,29 @@ internal static class ValueObjectOpenApiSchema
         ValueObjectDescriptor descriptor,
         JsonSerializerOptions options,
         Func<string> enumName,
-        bool asKey = false)
+        bool asText = false)
     {
         var declared = descriptor.Schema;
 
         // A key is the text the converter writes it in, a number's included, which minimum and maximum cannot bound.
-        var jsonType = asKey ? JsonSchemaType.String : MapType(descriptor.ValueType);
+        var jsonType = asText ? JsonSchemaType.String : MapType(descriptor.ValueType);
         var numeric = jsonType is JsonSchemaType.Integer or JsonSchemaType.Number;
 
         // A number the options let be written or read as text is a number or a string, as System.Text.Json documents
         // the bare number under the same options, the string held to the form a number is written in.
-        var asText = numeric
-                     && (options.NumberHandling & (JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)) != 0;
+        var numberAsText = numeric
+                           && (options.NumberHandling & (JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)) != 0;
 
         // Whatever the generator inferred about the wrapper type is wrong by construction: it is the underlying
         // value that goes on the wire.
         schema.Properties?.Clear();
         schema.Required?.Clear();
         var nullable = AllowsNull(schema);
-        schema.Type = (asText ? jsonType | JsonSchemaType.String : jsonType) | (nullable ? JsonSchemaType.Null : default);
+        schema.Type = (numberAsText ? jsonType | JsonSchemaType.String : jsonType) | (nullable ? JsonSchemaType.Null : default);
         schema.Format = declared.Format;
-        schema.Pattern = declared.Pattern ?? (asKey
+        schema.Pattern = declared.Pattern ?? (asText
             ? ValueObjectSchemaKeywords.KeyPattern(descriptor.ValueType, declared)
-            : ValueObjectSchemaKeywords.WirePattern(descriptor.ValueType, asText));
+            : ValueObjectSchemaKeywords.WirePattern(descriptor.ValueType, numberAsText));
 
         var (minLength, maxLength) = ValueObjectSchemaKeywords.Lengths(declared, descriptor.ValueType);
         if (minLength is not null)
@@ -101,7 +105,7 @@ internal static class ValueObjectOpenApiSchema
         var writtenAsText = !numeric || (options.NumberHandling & JsonNumberHandling.WriteAsString) != 0;
         if (writtenAsText && (declared.Minimum is not null || declared.Maximum is not null))
         {
-            bounds = DescribeBounds(schema, declared, descriptor, options, asKey);
+            bounds = DescribeBounds(schema, declared, descriptor, options, asText);
         }
 
         if (!string.IsNullOrEmpty(declared.Description))
@@ -117,12 +121,12 @@ internal static class ValueObjectOpenApiSchema
 
         if (declared.Example is { } example && example is not "")
         {
-            schema.Examples = [ValueObjectSchemaKeywords.WriteExample(example, descriptor, options, asKey)];
+            schema.Examples = [ValueObjectSchemaKeywords.WriteExample(example, descriptor, options, asText)];
         }
 
         if (declared.IsClosedValueSet && !declared.KnownValues.IsDefaultOrEmpty)
         {
-            List<JsonNode> values = [.. declared.KnownValues.Select(value => ValueObjectSchemaKeywords.WriteKnownValue(value, descriptor, options, asKey))];
+            List<JsonNode> values = [.. declared.KnownValues.Select(value => ValueObjectSchemaKeywords.WriteKnownValue(value, descriptor, options, asText))];
             schema.Enum = values;
             NameKnownValues(schema, declared, enumName());
 
@@ -135,12 +139,88 @@ internal static class ValueObjectOpenApiSchema
             }
         }
 
-        if (!asKey
+        if (!asText
             && (options.NumberHandling & JsonNumberHandling.AllowNamedFloatingPointLiterals) != 0
             && (descriptor.ValueType == typeof(double) || descriptor.ValueType == typeof(float))
             && ValueObjectSchemaKeywords.NamedLiterals(declared) is { Count: > 0 } literals)
         {
             AllowNamedLiterals(schema, literals);
+        }
+    }
+
+    /// <summary>
+    /// Copies the rules a declaration put on a schema, a route constraint or a validation attribute, which describing it
+    /// as a value object replaces.
+    /// </summary>
+    /// <param name="schema">The schema, as the host described it.</param>
+    /// <returns>Its bounds, lengths and pattern.</returns>
+    internal static OpenApiSchema RulesOf(OpenApiSchema schema) => new()
+    {
+        Minimum = schema.Minimum,
+        Maximum = schema.Maximum,
+        MinLength = schema.MinLength,
+        MaxLength = schema.MaxLength,
+        Pattern = schema.Pattern,
+    };
+
+    /// <summary>
+    /// Keeps a rule the declaration of a parameter or a member put on its schema, such as a route constraint or a
+    /// validation attribute, that is stricter than the value object's or that the value object leaves out: the request
+    /// must satisfy both.
+    /// </summary>
+    /// <param name="schema">The schema, described as its value object.</param>
+    /// <param name="declared">What the declaration had put on it before, as <see cref="RulesOf"/> copied it.</param>
+    /// <remarks>
+    /// A bound or a length the value object declares too is replaced by the stricter of the two. A pattern is kept only
+    /// when the value object neither declares nor implies one, since a schema holds a single pattern.
+    /// </remarks>
+    internal static void KeepStricterRules(OpenApiSchema schema, OpenApiSchema declared)
+    {
+        if (Stricter(declared.Minimum, schema.Minimum, sign: 1))
+        {
+            schema.Minimum = declared.Minimum;
+        }
+
+        if (Stricter(declared.Maximum, schema.Maximum, sign: -1))
+        {
+            schema.Maximum = declared.Maximum;
+        }
+
+        if (declared.MinLength is { } minLength && !(schema.MinLength >= minLength))
+        {
+            schema.MinLength = minLength;
+        }
+
+        if (declared.MaxLength is { } maxLength && !(schema.MaxLength <= maxLength))
+        {
+            schema.MaxLength = maxLength;
+        }
+
+        schema.Pattern ??= declared.Pattern;
+
+        // Compared exactly where decimal holds both, as a double beyond its range; a bound that is no number, which no
+        // route constraint writes, stays the value object's.
+        static bool Stricter(string? parameter, string? valueObject, int sign)
+        {
+            if (parameter is null)
+            {
+                return false;
+            }
+
+            if (valueObject is null)
+            {
+                return true;
+            }
+
+            if (decimal.TryParse(parameter, NumberStyles.Float, CultureInfo.InvariantCulture, out var mine)
+                && decimal.TryParse(valueObject, NumberStyles.Float, CultureInfo.InvariantCulture, out var its))
+            {
+                return decimal.Compare(mine, its) == sign;
+            }
+
+            return double.TryParse(parameter, NumberStyles.Float, CultureInfo.InvariantCulture, out var mineReal)
+                   && double.TryParse(valueObject, NumberStyles.Float, CultureInfo.InvariantCulture, out var itsReal)
+                   && mineReal.CompareTo(itsReal) == sign;
         }
     }
 
@@ -254,7 +334,7 @@ internal static class ValueObjectOpenApiSchema
     /// <param name="declared">The declared rules.</param>
     /// <param name="descriptor">Descriptor of the value object.</param>
     /// <param name="options">The options the document describes the wire with.</param>
-    /// <param name="asKey">Whether the schema describes the key of a dictionary, whose bounds are written as the key.</param>
+    /// <param name="asText">Whether the schema describes text, whose bounds are written as the key of a dictionary is.</param>
     /// <returns>The sentence stating the bounds, for the description.</returns>
     /// <remarks>
     /// JSON Schema applies <c>minimum</c> and <c>maximum</c> to numbers only, so on a string, a 128-bit integer, a
@@ -269,9 +349,9 @@ internal static class ValueObjectOpenApiSchema
         ValueObjectSchema declared,
         ValueObjectDescriptor descriptor,
         JsonSerializerOptions options,
-        bool asKey)
+        bool asText)
     {
-        var (minimum, maximum) = ValueObjectSchemaKeywords.WriteBounds(declared, descriptor, options, asKey);
+        var (minimum, maximum) = ValueObjectSchemaKeywords.WriteBounds(declared, descriptor, options, asText);
 
         schema.Extensions ??= new Dictionary<string, IOpenApiExtension>();
         if (minimum is not null)

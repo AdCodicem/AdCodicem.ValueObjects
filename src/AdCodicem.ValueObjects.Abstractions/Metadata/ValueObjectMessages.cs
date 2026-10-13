@@ -27,9 +27,11 @@ namespace AdCodicem.ValueObjects.Metadata;
 /// The integrations look the messages up through this class: <c>AddValueObjects(messages =&gt; …)</c> on MVC,
 /// <c>WithValueObjectProblemDetails(messages =&gt; …)</c> on a minimal API,
 /// <c>UseValueObjectProblemDetails(messages =&gt; …)</c> on an Azure Functions HTTP trigger,
-/// <c>AddValueObjects(options =&gt; options.UseResource&lt;T&gt;())</c> on a HotChocolate schema, and FluentValidation's
-/// <c>LanguageManager</c> under <c>MustParseAs</c>, <c>MustSatisfy</c> and <c>NotDefault</c>. It reads no annotation and
-/// closes no generic type at run time, so it runs in a native binary.
+/// <c>AddValueObjects(options =&gt; options.UseResource&lt;T&gt;())</c> on a HotChocolate schema, FluentValidation's
+/// <c>LanguageManager</c> under <c>MustParseAs</c>, <c>MustSatisfy</c> and <c>NotDefault</c>, and DataAnnotations'
+/// <see cref="Annotations.ParsesAsAttribute"/> and <see cref="Annotations.NotDefaultAttribute"/> under the resource
+/// their <c>ErrorMessageResourceType</c> names alone. It reads no annotation and closes no generic type at run time, so
+/// it runs in a native binary.
 /// </para>
 /// </remarks>
 public static class ValueObjectMessages

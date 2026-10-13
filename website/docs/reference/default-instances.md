@@ -30,7 +30,7 @@ value its type rejects.
 | Riok.Mapperly 4.3.1, mapper in the value objects' own project | `var target = new global::Iban(); return target;` for every mapping into a value object. | `VO0032` fails the build. Give Mapperly [static mapping methods](../how-to/mapping.md#mapperly) that call `Create`. |
 | Mapperly, value objects in a referenced project | Mappings into a value object validate, through `Create` or `Parse`, but `OrderId` to `Guid` maps to `new Guid()`, `Guid.Empty`. | Static mapping methods out of the value objects too, returning `.Value`. |
 | The configuration binding generator, which `PublishAot` turns on | `new global::Domain.Iban()`: every value-object property of the options is default, even with valid input. | `VO0032` fails the build. Keep the underlying types in the options class. |
-| The reflection-based configuration binder, a missing key | A default instance, silently: `Iban=''`. | Declare the property `T?` and check it, or validate the options, with FluentValidation's [`NotDefault`](../how-to/fluentvalidation.md#an-uninitialized-value-object) for one. |
+| The reflection-based configuration binder, a missing key | A default instance, silently: `Iban=''`. | Declare the property `T?` and check it, or validate the options: DataAnnotations' [`[NotDefault]`](../how-to/data-annotations.md#an-uninitialized-value-object) under `ValidateDataAnnotations()` or an `[OptionsValidator]`, or FluentValidation's [`NotDefault`](../how-to/fluentvalidation.md#an-uninitialized-value-object). |
 | Bogus `Faker<T>` with no rule for a property | Every value-object property left without a rule is default. | `StrictMode(true)`, which refuses a `Faker<T>` that leaves a property without a rule, and `RuleForValueObjects()` from [`AdCodicem.ValueObjects.Bogus`](../how-to/test-value-objects.md#bogus), which gives each a value its rules accept. |
 | MongoDB.Driver 3.12, no serializer registered | Written as `{}`, read back as default, and `x.Iban == iban` matches every document. | [`AdCodicem.ValueObjects.MongoDB`](../how-to/mongodb.md): a value object is stored as its underlying value, and a default its type rejects is refused on write. |
 | MongoDB.Driver, a field missing from a stored document | The class map leaves the member as it was: a default instance, which no rule checks. | `[BsonRequired]` on the member, which makes the driver refuse the document: [MongoDB](../how-to/mongodb.md#reading). The [validator built from the rules](../how-to/mongodb.md#a-collection-validator-from-the-rules) lists the member as `required`, so the server refuses to store such a document in the first place. |
@@ -90,7 +90,11 @@ domain chose.
 - FluentValidation's [`NotDefault`](../how-to/fluentvalidation.md#an-uninitialized-value-object) rule checks
   `IsDefault` at the edge. Over a value type, `IsDefault` is `true` for a valid zero as well, `Amount.Create(0m)`, which
   it refuses too.
-- DataAnnotations `[Required]` passes on a default value object: a struct is never `null`. CommunityToolkit.Mvvm's
-  `ObservableValidator` showed it.
+- DataAnnotations' [`[NotDefault]`](../how-to/data-annotations.md#an-uninitialized-value-object) refuses a default value
+  object wherever DataAnnotations runs, with `value_object.required` and `[Required]`'s message, and refuses a valid
+  zero over a value type too, as `NotDefault` does.
+- DataAnnotations `[Required]` passes on a default value object: a struct is never `null`. `Validator`, MVC,
+  `AddValidation()`, options validation and CommunityToolkit.Mvvm's `ObservableValidator` all showed it on .NET 10.0.12:
+  pair it with `[NotDefault]`.
 - A [strict](../how-to/ef-core.md#validation-on-read) Entity Framework Core read refuses what the default read lets
   through.

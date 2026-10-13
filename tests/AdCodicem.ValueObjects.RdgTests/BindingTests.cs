@@ -84,7 +84,9 @@ public sealed partial class BindingTests(RdgApplication application) : IClassFix
     /// The suite tests the RDG only while the RDG writes the binding: were it off, the same requests would pass through
     /// the reflection-based binding, which the contracts listed on the declarations satisfy as well. And it binds each
     /// parameter through <c>TryParse</c>, never from the body, which is what it does for a value object it cannot see as
-    /// parsable; the two bodies the problem details endpoints read (<see cref="ProblemEndpoints"/>) excepted.
+    /// parsable; the two bodies the problem details endpoints read (<see cref="ProblemEndpoints"/>) excepted, and the text
+    /// and the body the DataAnnotations endpoints read (<see cref="AnnotationEndpoints"/>), which hold no value object to
+    /// parse.
     /// </summary>
     [Fact]
     public void The_Request_Delegate_Generator_binds_every_parameter_through_TryParse()
@@ -106,6 +108,7 @@ public sealed partial class BindingTests(RdgApplication application) : IClassFix
             ("sku", true), ("quantity", true), ("code", true), ("shelf", true), ("id", true), ("sku", true), ("customer", true),
             ("item", true), ("amount", true), ("product", true), ("count", true), ("units", true), ("owner", true),
             ("counts", true), ("warehouse", true), ("place", true), ("id", true), ("size", true), ("order", false), ("parcel", false),
+            ("skuText", false), ("quantityText", false), ("placement", false),
         ]);
     }
 

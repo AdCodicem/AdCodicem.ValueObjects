@@ -22,6 +22,11 @@
   <data name="ValueObject.value_object.not_a_known_value" xml:space="preserve">
     <value>« {0} » doit être l'une des valeurs suivantes : {1}.</value>
   </data>
+  <!-- The key .NET 11's validation looks a [ParsesAs] up under, for a message naming no resource: one template for every
+       rule (DataAnnotationsTests). -->
+  <data name="ParsesAsAttribute_Error" xml:space="preserve">
+    <value>« {0} » est refusé.</value>
+  </data>
   <data name="ValueObject.value_object.invalid_format" xml:space="preserve">
     <value>Le format de « {0} » n'est pas valide.</value>
   </data>

@@ -1,7 +1,7 @@
 # Diagnostics
 
 Every rule the generator, the analyzers and the compiler enforce, and what to do about each. `VO0008`, `VO0011`,
-`VO0025`, `VO0026` and `VO0033` are warnings; everything else is an error. There is no `VO0012`, and `VO0004`,
+`VO0025`, `VO0026`, `VO0033` and `VO0042` are warnings; everything else is an error. There is no `VO0012`, and `VO0004`,
 `VO0006`, `VO0013`, `VO0014`, `VO0022` and `VO0029` are retired: they reported options written as text, which no
 longer compile.
 
@@ -38,6 +38,10 @@ longer compile.
 | `VO0036` | A member marked `[KnownValue]` that cannot be one: an instance member, a field that is not `readonly`, a property with a setter, `init` or a body, a member of another type than the value object (`CountryCode?` included), or one not initialized by a call to `Known` with the value as its one argument. The message names the rule. | Declare it as `public static readonly CountryCode France = Known("FR");`, or as `public static CountryCode France { get; } = Known("FR");`, of any accessibility. The type still generates, from the other known values. |
 | `VO0037` | `Known` called anywhere but in the initializer of a member marked `[KnownValue]`. | `Known` skips the membership of a closed set, which a known value satisfies by declaration. Mark the member `[KnownValue]`, or create the value through `Create` or `TryCreate`. |
 | `VO0038` | `IValueObjectExample<T>` over another type than the value object itself. | Implement `IValueObjectExample<TSelf>`, `Percentage : IValueObjectExample<Percentage>`: the example is an instance of the type. The type still generates, without an example. |
+| `VO0039` | `[ParsesAs]` (either form) on a member, field or parameter declared neither `string` nor a collection of `string`, `object` included (a JSON body fills it with a `JsonElement`). | It would throw `InvalidOperationException` when validated. Declare the member `string?` or a collection of `string`, or declare it as the value object and drop the attribute. A type parameter is left alone. |
+| `VO0040` | `[ParsesAs(typeof(T))]` naming no value object: `string`, a class, a struct not implementing `IValueObject<TSelf, TValue>` over itself, a generic definition (`typeof(Reference<>)`), `null`. | Name the value object, constructed when generic: `typeof(Reference<PurchaseOrder>)`; `typeof(Iban?)` is accepted. |
+| `VO0041` | `[NotDefault]` on a member neither a value object nor its nullable type: a number, `string`, an interface, a collection of value objects. | It would throw when validated. Declare the member as the value object or `TSelf?`, or drop the attribute; check elements with FluentValidation's `RuleForEach`. |
+| `VO0042` | Warning, under `PublishAot`: `[ParsesAs(typeof(T))]` naming a construction of a generic value object, one nested in a generic type, or one written by hand. | A native binary finds them only once registered: write `[ParsesAs<T, TValue>]`, or register the type before a value is validated. |
 
 ## Diagnosing generated code
 

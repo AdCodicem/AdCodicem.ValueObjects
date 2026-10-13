@@ -32,6 +32,11 @@ public sealed record OpenAccount(
     PaymentId Payment,
     Reference<PurchaseOrder> Purchase);
 
+/// <summary>A body holding the text of value objects, held to their rules.</summary>
+/// <param name="Iban">The text of an account.</param>
+/// <param name="Quantity">The text of a quantity, through the generic form.</param>
+public sealed record TextAccount([ParsesAs(typeof(Iban))] string? Iban, [ParsesAs<Quantity, int>] string? Quantity);
+
 /// <summary>
 /// The schema transformer, compiled against the Microsoft.OpenApi major the current ASP.NET Core takes, inside the
 /// document generator of the next one, which takes the next Microsoft.OpenApi major: every member of the object model
@@ -136,6 +141,35 @@ public sealed class OpenApiTests : IAsyncLifetime
 
         anyOf[0].GetProperty("minimum").GetInt32().Should().Be(0);
         anyOf[1].GetProperty("enum").EnumerateArray().Select(static value => value.GetString()).Should().Equal("Infinity");
+    }
+
+    /// <summary>
+    /// Text a member or a parameter holds to a value object's rules with <c>[ParsesAs]</c> is described as that text,
+    /// whatever the underlying type, on the record's constructor parameter and on a query parameter.
+    /// </summary>
+    [Fact]
+    public async Task Text_held_to_a_value_objects_rules_is_described_as_that_text()
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Services.AddOpenApi(static options => options.AddValueObjects());
+        await using var application = builder.Build();
+        application.MapPost("/text", static (TextAccount body) => Results.Ok());
+        application.MapGet("/text", static ([ParsesAs(typeof(CountryCode))] string? country) => Results.Ok());
+        application.MapOpenApi();
+        await application.StartAsync(TestContext.Current.CancellationToken);
+        using var client = application.GetTestClient();
+
+        var document = await client.GetFromJsonAsync<JsonElement>("/openapi/v1.json", TestContext.Current.CancellationToken);
+        var text = document.GetProperty("components").GetProperty("schemas").GetProperty(nameof(TextAccount)).GetProperty("properties");
+        var country = document.GetProperty("paths").GetProperty("/text").GetProperty("get").GetProperty("parameters")[0].GetProperty("schema");
+
+        text.GetProperty("iban").GetProperty("pattern").GetString().Should().Be("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$");
+        text.GetProperty("iban").GetProperty("maxLength").GetInt32().Should().Be(34);
+        text.GetProperty("quantity").GetProperty("type").EnumerateArray().Select(static type => type.GetString()).Should().Equal("null", "string");
+        text.GetProperty("quantity").GetProperty("x-maximum").GetString().Should().Be("100");
+        country.GetProperty("enum").EnumerateArray().Select(static value => value.GetString()).Should().Equal("FR", "BE", "LU");
+        await application.StopAsync(TestContext.Current.CancellationToken);
     }
 
     private static async Task<JsonElement> SchemasAsync(Action<JsonOptions> configureJson)

@@ -32,3 +32,7 @@ VO0033 | AdCodicem.ValueObjects | Warning | Value object hidden from the Request
 VO0036 | AdCodicem.ValueObjects | Error | Invalid known value member
 VO0037 | AdCodicem.ValueObjects | Error | Known called outside a known value
 VO0038 | AdCodicem.ValueObjects | Error | An example hook over another type
+VO0039 | AdCodicem.ValueObjects | Error | [ParsesAs] on a member that holds no text
+VO0040 | AdCodicem.ValueObjects | Error | [ParsesAs] naming no value object
+VO0041 | AdCodicem.ValueObjects | Error | [NotDefault] on a member that is no value object
+VO0042 | AdCodicem.ValueObjects | Warning | [ParsesAs(typeof(T))] naming a value object native AOT finds only once registered

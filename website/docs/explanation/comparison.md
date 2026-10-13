@@ -41,6 +41,7 @@ be corrected.
 | Problem details carry the violated rule's code | MVC controllers and minimal APIs | no | no | no |
 | OpenAPI | built-in stack and Swashbuckle 10, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
 | FluentValidation | yes | third-party package | no | no |
+| DataAnnotations | raw text held to the type's rules (`[ParsesAs]`), a default instance refused (`[NotDefault]`), the rule's code on the result | no | no | no |
 | Dapper | yes | yes | through a template | no |
 | Other serializers and stores | Newtonsoft.Json; XML (`XmlSerializer`, `DataContractSerializer`, opted in per assembly, read with validation, rules in the XSD); MongoDB.Driver (BSON, `.Value` in LINQ, read with validation, rules in a `$jsonSchema` validator, entity identifiers minted on insert); MessagePack and SignalR's MessagePack hub protocol (bare values, read with validation) | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
 | Structured logging | Serilog: `{@X}`, and `{X}` on request, as the underlying value | no | no | Serilog destructuring policy, `{@X}` only |

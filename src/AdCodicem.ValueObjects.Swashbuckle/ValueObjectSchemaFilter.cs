@@ -1,6 +1,8 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using AdCodicem.ValueObjects.Annotations;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.Shared;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,6 +43,14 @@ namespace AdCodicem.ValueObjects.Swashbuckle;
 /// value satisfies in OpenAPI 3.1: the value object is described in place inside the wrapper instead, <c>null</c>
 /// allowed, and the wrapper keeps what Swashbuckle put beside the reference. A dictionary keyed by a value object states
 /// the key's rules in <c>propertyNames</c>, as the key is written.
+/// </para>
+/// <para>
+/// Text a member or a parameter holds to a value object's rules under <see cref="ParsesAsAttribute"/> is described as
+/// that text, through the same description as a dictionary key: a string with the value object's pattern, lengths,
+/// format, bounds, example and known values, whatever its underlying type, and each element of a collection of such
+/// text. The attribute is read on the member, on the constructor parameter of the same name, where MVC requires it on a
+/// record, and on the parameter of a minimal API or an MVC action. A rule the declaration states as well, such as
+/// <c>[StringLength]</c>, which Swashbuckle writes first, is kept where it is the stricter.
 /// </para>
 /// <para>
 /// Swashbuckle creates its schema filters while it configures its schema options, and, from 10.3.0, builds its data
@@ -85,6 +95,20 @@ internal sealed class ValueObjectSchemaFilter(
             return;
         }
 
+        // Text a member or a parameter holds to the rules of a value object, under [ParsesAs], is described as the text
+        // of that value object, whatever its underlying type; a collection of such text, element by element.
+        if (ParsedAs(context) is { } parsedAs)
+        {
+            if ((target.Type is { } type && (type & JsonSchemaType.Array) != 0 ? target.Items as OpenApiSchema : target) is { } text)
+            {
+                var declaredOnMember = ValueObjectOpenApiSchema.RulesOf(text);
+                ValueObjectOpenApiSchema.Describe(text, parsedAs, Options, () => EnumName(context.SchemaRepository, parsedAs.ValueObjectType), asText: true);
+                ValueObjectOpenApiSchema.KeepStricterRules(text, declaredOnMember);
+            }
+
+            return;
+        }
+
         if (ValueObjectRegistry.TryResolve(context.Type, out var descriptor))
         {
             if (target.AllOf is not { Count: > 0 })
@@ -111,6 +135,37 @@ internal sealed class ValueObjectSchemaFilter(
                 break;
         }
     }
+
+    /// <summary>
+    /// Finds the value object whose rules a member or a parameter holds its text to, under <see cref="ParsesAsAttribute"/>:
+    /// on the member, on the constructor parameter of the same name, which is where MVC requires it on a record, or on
+    /// the parameter of a minimal API or an MVC action.
+    /// </summary>
+    /// <param name="context">The context of the filter.</param>
+    /// <returns>The descriptor of the value object, or <see langword="null"/> when nothing holds the text to one.</returns>
+    private static ValueObjectDescriptor? ParsedAs(SchemaFilterContext context)
+    {
+        var attribute = ParsesAs(context.MemberInfo)
+                        ?? (context.MemberInfo is PropertyInfo property ? ConstructorParameterOf(property) : null)
+                        ?? ParsesAs(context.ParameterInfo);
+
+        return attribute is not null && ValueObjectRegistry.TryResolve(attribute.ValueObjectType, out var descriptor) ? descriptor : null;
+    }
+
+    /// <summary>
+    /// Gets the <see cref="ParsesAsAttribute"/> a constructor parameter named after a property carries, as a record's
+    /// does, the property taking the name of its parameter.
+    /// </summary>
+    private static ParsesAsAttribute? ConstructorParameterOf(PropertyInfo property)
+        => property.DeclaringType?.GetConstructors()
+            .SelectMany(static constructor => constructor.GetParameters())
+            .Where(parameter => string.Equals(parameter.Name, property.Name, StringComparison.OrdinalIgnoreCase))
+            .Select(static parameter => ParsesAs(parameter))
+            .FirstOrDefault(static attribute => attribute is not null);
+
+    /// <summary>Gets the <see cref="ParsesAsAttribute"/>, of either form, a member or a parameter carries.</summary>
+    private static ParsesAsAttribute? ParsesAs(ICustomAttributeProvider? provider)
+        => provider?.GetCustomAttributes(typeof(ParsesAsAttribute), inherit: true).OfType<ParsesAsAttribute>().FirstOrDefault();
 
     /// <summary>
     /// Describes the nullable value objects a dictionary holds, and the value object that keys it.
@@ -151,7 +206,7 @@ internal sealed class ValueObjectSchemaFilter(
         if (schema.PropertyNames is null && KeyOf(context.Type) is { } keyType && ValueObjectRegistry.TryResolve(keyType, out var key))
         {
             var names = new OpenApiSchema();
-            ValueObjectOpenApiSchema.Describe(names, key, Options, () => EnumName(context.SchemaRepository, key.ValueObjectType), asKey: true);
+            ValueObjectOpenApiSchema.Describe(names, key, Options, () => EnumName(context.SchemaRepository, key.ValueObjectType), asText: true);
             schema.PropertyNames = names;
         }
     }

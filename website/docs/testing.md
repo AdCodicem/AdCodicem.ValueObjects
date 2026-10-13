@@ -48,12 +48,17 @@ Four suites, each with a distinct job:
   answers it, in the request's language too. HotChocolate schemas built in process take every sample value object as a
   scalar of its own, from the edges its rules declare to the values they rule out, as literals and variables, and answer
   each refusal with its code, in the language of the execution and, over TestHost, of the request; the guide's filtering
-  recipe runs over SQLite. Keys typed as value objects are
+  recipe runs over SQLite. The DataAnnotations attributes hold the text of every sample value object to its rules, in
+  both forms, and refuse each default instance, through `Validator`, options validated as a host starts and by the
+  validator `[OptionsValidator]` writes, CommunityToolkit.Mvvm's `ObservableValidator`, MVC and a minimal API under
+  `AddValidation()` over TestHost, with their messages in French from a resource, and both OpenAPI documents describe
+  each value object's text as the other does. Keys typed as value objects are
   generated over a `Guid` and each integer type, a round trip through SQLite in memory included, a `Guid` one left unset
   is refused in every shape the convention concerns, and an integer key to generate is refused on Entity Framework
   Core's in-memory provider, which is not relational.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
-  incremental caching. It drives Roslyn directly rather than through a testing harness that binds to an older
+  incremental caching, the analyzer of the DataAnnotations attributes and its `PublishAot` gate included. It drives
+  Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that
   slipped into emitted code. The incrementality tests assert on the Roslyn incremental step run reason — the
   only way to notice a caching regression, since losing incrementality breaks nothing visible while making
@@ -87,7 +92,8 @@ Four suites, each with a distinct job:
   binds `null`, and a test fails if the RDG did not write the binding, so that the suite cannot silently become one
   more test of the reflection-based binding. The same refusals are answered with the minimal API problem details, in
   each setting of `ThrowOnBadRequest`, where the RDG refuses no empty query text and takes an empty header for an
-  absent one.
+  absent one, and the DataAnnotations attributes are validated by `AddValidation()` over the binding the RDG writes,
+  each refusal answered as the reflection-based binding answers it.
 
 `AdCodicem.ValueObjects.Testing` ships the contract kit (`ValueObjectContract`) described in
 [Test your value objects](./how-to/test-value-objects.md); the unit tests use it on every generated sample value
@@ -114,7 +120,9 @@ built over the context answering refused arguments with their rule, a Model Cont
 its tools on two protocol versions and answering refused arguments, and requests over Kestrel to minimal API
 endpoints the Request Delegate Generator binds, refused values answered with problem details in each setting of
 `ThrowOnBadRequest`, in English and with the messages of a resource read through the localizer, each answer checked
-against the status, the codes and, translated, the messages the script expects — once under the JIT and
+against the status, the codes and, translated, the messages the script expects, and the DataAnnotations attributes, both
+forms and `[NotDefault]`, through `Validator`, the validator `[OptionsValidator]` writes and a minimal API under
+`AddValidation()`, each refusal checked against its code — once under the JIT and
 once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT warning in the publish, and on any
 difference between the two outputs, and a pull request merges only once it passes, so the claim of AOT compatibility is
 run, not only analysed.
@@ -136,7 +144,10 @@ versions and no transitive pinning, so the dependency floors of the packages mee
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
 PostgreSQL, collections of value objects, queries on `.Value`, CHECK constraints from the rules on SQLite and a pattern
 constraint on PostgreSQL included, a refused row carrying the code of its rule, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json and on Newtonsoft.Json,
-and a minimal API with its problem details, their messages and FluentValidation's in the language of the request,
+and a minimal API with its problem details, their messages and FluentValidation's in the language of the request, the
+DataAnnotations attributes through `Validator`, options validation, the validator `[OptionsValidator]` writes, MVC 11 and
+the minimal API validation of Microsoft.Extensions.Validation 11, its own message keys and its handling of an
+attribute's exception included,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
 MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
 SignalR's MessagePack hub protocol 11 over TestHost, FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI

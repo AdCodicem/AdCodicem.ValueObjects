@@ -71,3 +71,8 @@ public sealed record OpenedAccount(
     CountryCode Country,
     NoticeChannel<PurchaseOrder> Notice,
     Dictionary<CountryCode, Quantity> PerCountry);
+
+/// <summary>A body holding the text of value objects, held to their rules.</summary>
+/// <param name="Iban">The text of an account.</param>
+/// <param name="Quantity">The text of a quantity, through the generic form.</param>
+public sealed record TextAccount([ParsesAs(typeof(Iban))] string? Iban, [ParsesAs<Quantity, int>] string? Quantity);

@@ -1,9 +1,12 @@
-using System.Globalization;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using AdCodicem.ValueObjects.Annotations;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.Shared;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 
@@ -40,6 +43,14 @@ namespace AdCodicem.ValueObjects.OpenApi;
 /// in <c>propertyNames</c>, as the text the key is written in.
 /// </para>
 /// <para>
+/// Text a member or a parameter holds to a value object's rules under <see cref="ParsesAsAttribute"/> is described as
+/// that text: a string with the value object's pattern, lengths, format, bounds, example and known values, whatever its
+/// underlying type, and each element of a collection of such text. The attribute is read on the property, on the
+/// constructor parameter of the same name, where MVC requires it on a record, and on the parameter of a minimal API or
+/// an MVC action, a member of a model MVC binds from the query string included. A rule the declaration states as well,
+/// such as <c>[StringLength]</c>, is kept where it is the stricter.
+/// </para>
+/// <para>
 /// A closed value set lists its values in <c>enum</c>, and their names, the names of the known values, in the
 /// <c>x-enum-varnames</c>, <c>x-enumNames</c> and <c>x-ms-enum</c> extensions, which client generators name the
 /// members of their enumeration after; <c>x-ms-enum</c> carries the description of each value declared with one.
@@ -58,20 +69,28 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
 
         var info = context.JsonTypeInfo;
 
+        // Text a member or a parameter holds to the rules of a value object, under [ParsesAs], is described as the text
+        // of that value object, whatever its underlying type; a collection of such text, element by element.
+        if (ParsedAs(context) is { } parsedAs)
+        {
+            var text = info.Kind == JsonTypeInfoKind.Enumerable ? schema.Items as OpenApiSchema : schema;
+            if (text is not null)
+            {
+                var declaredOnMember = ValueObjectOpenApiSchema.RulesOf(text);
+                ValueObjectOpenApiSchema.Describe(text, parsedAs, info.Options, () => EnumName(text, parsedAs, info.Options), asText: true);
+                ValueObjectOpenApiSchema.KeepStricterRules(text, declaredOnMember);
+            }
+
+            return Task.CompletedTask;
+        }
+
         // A route, query or header parameter is bound from text, and reaches the transformer as a string: its
         // description still names the value object.
         if (info.Type == typeof(string) && ParameterValueObject(context.ParameterDescription) is { } parameter)
         {
-            var declaredOnParameter = new OpenApiSchema
-            {
-                Minimum = schema.Minimum,
-                Maximum = schema.Maximum,
-                MinLength = schema.MinLength,
-                MaxLength = schema.MaxLength,
-                Pattern = schema.Pattern,
-            };
+            var declaredOnParameter = ValueObjectOpenApiSchema.RulesOf(schema);
             ValueObjectOpenApiSchema.Describe(schema, parameter, info.Options, () => EnumName(schema, parameter, info.Options));
-            KeepParameterRules(schema, declaredOnParameter);
+            ValueObjectOpenApiSchema.KeepStricterRules(schema, declaredOnParameter);
             return Task.CompletedTask;
         }
 
@@ -109,64 +128,54 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
     }
 
     /// <summary>
-    /// Keeps a rule the parameter's declaration put on its schema, such as a route constraint, that is stricter than the
-    /// value object's or that the value object leaves out: the request must satisfy both.
+    /// Finds the value object whose rules a member or a parameter holds its text to, under <see cref="ParsesAsAttribute"/>:
+    /// on the property, on the constructor parameter System.Text.Json binds it from, which is where MVC requires it on a
+    /// record, or on the parameter of a minimal API or an MVC action.
     /// </summary>
-    /// <param name="schema">The parameter's schema, described as its value object.</param>
-    /// <param name="declared">What the parameter's declaration had put on it before.</param>
-    /// <remarks>
-    /// A bound or a length the value object declares too is replaced by the stricter of the two. A pattern is kept only
-    /// when the value object neither declares nor implies one, since a schema holds a single pattern.
-    /// </remarks>
-    private static void KeepParameterRules(OpenApiSchema schema, OpenApiSchema declared)
+    /// <param name="context">The context of the transformation.</param>
+    /// <returns>The descriptor of the value object, or <see langword="null"/> when nothing holds the text to one.</returns>
+    private static ValueObjectDescriptor? ParsedAs(OpenApiSchemaTransformerContext context)
     {
-        if (Stricter(declared.Minimum, schema.Minimum, sign: 1))
-        {
-            schema.Minimum = declared.Minimum;
-        }
+        var parameter = context.ParameterDescription;
+        var attribute = ParsesAs(context.JsonPropertyInfo?.AttributeProvider)
+                        ?? ParsesAs(context.JsonPropertyInfo?.AssociatedParameter?.AttributeProvider)
+                        ?? (parameter?.ModelMetadata is { MetadataKind: ModelMetadataKind.Property, ContainerType: { } container, PropertyName: { } name }
+                            ? ParsesAs(PropertyOf(container, name)) ?? ConstructorParameterOf(container, name)
+                            : ParsesAs((parameter?.ParameterDescriptor as IParameterInfoParameterDescriptor)?.ParameterInfo));
 
-        if (Stricter(declared.Maximum, schema.Maximum, sign: -1))
-        {
-            schema.Maximum = declared.Maximum;
-        }
-
-        if (declared.MinLength is { } minLength && !(schema.MinLength >= minLength))
-        {
-            schema.MinLength = minLength;
-        }
-
-        if (declared.MaxLength is { } maxLength && !(schema.MaxLength <= maxLength))
-        {
-            schema.MaxLength = maxLength;
-        }
-
-        schema.Pattern ??= declared.Pattern;
-
-        // Compared exactly where decimal holds both, as a double beyond its range; a bound that is no number, which no
-        // route constraint writes, stays the value object's.
-        static bool Stricter(string? parameter, string? valueObject, int sign)
-        {
-            if (parameter is null)
-            {
-                return false;
-            }
-
-            if (valueObject is null)
-            {
-                return true;
-            }
-
-            if (decimal.TryParse(parameter, NumberStyles.Float, CultureInfo.InvariantCulture, out var mine)
-                && decimal.TryParse(valueObject, NumberStyles.Float, CultureInfo.InvariantCulture, out var its))
-            {
-                return decimal.Compare(mine, its) == sign;
-            }
-
-            return double.TryParse(parameter, NumberStyles.Float, CultureInfo.InvariantCulture, out var mineReal)
-                   && double.TryParse(valueObject, NumberStyles.Float, CultureInfo.InvariantCulture, out var itsReal)
-                   && mineReal.CompareTo(itsReal) == sign;
-        }
+        return attribute is not null && ValueObjectRegistry.TryResolve(attribute.ValueObjectType, out var descriptor) ? descriptor : null;
     }
+
+    /// <summary>
+    /// Gets the property of a model MVC binds a member from: the most derived one of its name, which is the one MVC keeps.
+    /// </summary>
+    /// <param name="type">The model's type, then each of its base types in turn.</param>
+    /// <param name="name">The property's name.</param>
+    /// <returns>The property, or <see langword="null"/> when no type of the hierarchy declares it.</returns>
+    /// <remarks>
+    /// A property hiding an inherited one with <c>new</c>, of another type, leaves both visible to
+    /// <see cref="Type.GetProperty(string)"/>, which throws <see cref="AmbiguousMatchException"/> for them, so each type
+    /// of the hierarchy is asked for the properties it declares, the most derived first.
+    /// </remarks>
+    private static PropertyInfo? PropertyOf(Type? type, string name)
+        => type is null
+            ? null
+            : type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly) ?? PropertyOf(type.BaseType, name);
+
+    /// <summary>
+    /// Gets the <see cref="ParsesAsAttribute"/> a constructor parameter named after a property carries, as a record's does,
+    /// for a property MVC binds from the query string as a member of a model.
+    /// </summary>
+    private static ParsesAsAttribute? ConstructorParameterOf(Type container, string property)
+        => container.GetConstructors()
+            .SelectMany(static constructor => constructor.GetParameters())
+            .Where(parameter => string.Equals(parameter.Name, property, StringComparison.OrdinalIgnoreCase))
+            .Select(static parameter => ParsesAs(parameter))
+            .FirstOrDefault(static attribute => attribute is not null);
+
+    /// <summary>Gets the <see cref="ParsesAsAttribute"/>, of either form, a member or a parameter carries.</summary>
+    private static ParsesAsAttribute? ParsesAs(ICustomAttributeProvider? provider)
+        => provider?.GetCustomAttributes(typeof(ParsesAsAttribute), inherit: true).OfType<ParsesAsAttribute>().FirstOrDefault();
 
     /// <summary>
     /// Describes the elements of a collection, and the values and keys of a dictionary, that are value objects.
@@ -217,7 +226,7 @@ public sealed class ValueObjectSchemaTransformer : IOpenApiSchemaTransformer
             && ValueObjectRegistry.TryResolve(keyType, out var key))
         {
             var names = new OpenApiSchema();
-            ValueObjectOpenApiSchema.Describe(names, key, info.Options, () => EnumName(names, key, info.Options), asKey: true);
+            ValueObjectOpenApiSchema.Describe(names, key, info.Options, () => EnumName(names, key, info.Options), asText: true);
             schema.PropertyNames = names;
         }
     }
