@@ -608,6 +608,15 @@ These are all load-bearing, and each cost real debugging time:
   qualified `Swashbuckle.…` in a body. `AdCodicem.ValueObjects.Serilog` hides the root `Serilog` namespace the same
   way, the island's `AdCodicem.ValueObjects.CompatTests` included, and a file importing `Serilog` beside
   `Microsoft.Extensions.Logging` aliases one `ILogger` (CS0104).
+- **Swashbuckle creates its schema filters while it configures `SchemaGeneratorOptions`.**
+  `ConfigureSchemaGeneratorOptions` builds each with `ActivatorUtilities`, so a filter whose constructor takes
+  `SchemaGeneratorOptions` or `ISchemaGenerator`, which `AddSwaggerGen` builds from those options on any 10.x, or, from
+  10.3.0, the `ISerializerDataContractResolver` singleton, which its factory now builds from them too, has the options
+  configured again from inside their own configuration, and the document request hangs, with no error, once the
+  container's `StackGuard` moves the recursion to a thread that waits on the lock the first one holds.
+  `IOptions<SchemaGeneratorOptions>` alone is safe, its value read lazily. `ValueObjectSchemaFilter` takes the
+  container and resolves the resolver and the options as it describes a schema. `SwashbuckleDocuments.BuildAsync` and
+  the island await each document with a timeout, so that a hang fails the test rather than the job's time limit.
 - **MongoDB.Driver's serializer registry is process-wide, and caches for good.** A value object the driver serializes
   before `ValueObjectBson.Register` keeps the class map it was given, which writes `{}`, for the rest of the process,
   and `Register` then fails, naming it (it reads `BsonClassMap.GetRegisteredClassMaps()`, which caches nothing, and asks

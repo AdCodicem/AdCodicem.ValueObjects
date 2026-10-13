@@ -20,7 +20,7 @@ application actually has.
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, native AOT included. See [ASP.NET Core](./how-to/aspnet-core.md#problem-details-for-minimal-apis). |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | The same problem details for a body MVC reads with Newtonsoft.Json. See [ASP.NET Core](./how-to/aspnet-core.md#a-body-read-by-newtonsoftjson). |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
-| `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10 and later. See [OpenAPI](./how-to/openapi.md#swashbuckle). |
+| `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10.3 and later. See [OpenAPI](./how-to/openapi.md#swashbuckle). |
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, and a `$jsonSchema` validator built from the rules. See [MongoDB](./how-to/mongodb.md). |

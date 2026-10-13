@@ -16,7 +16,7 @@ builder.Services.AddOpenApi(options => options.AddValueObjects());
 ```
 
 That registers a schema transformer on the built-in .NET OpenAPI stack (`Microsoft.AspNetCore.OpenApi`); an
-application on Swashbuckle 10 or later takes [its own package](#swashbuckle) instead. A value object is then documented
+application on Swashbuckle 10.3 or later takes [its own package](#swashbuckle) instead. A value object is then documented
 as what it is on the wire — its underlying type — carrying every rule declared on it:
 
 | Declared on the type | In the schema |
@@ -88,8 +88,8 @@ written by the type's converter; one the type refuses, or one its converter cann
 named literals, is published as it was declared rather than failing the document. A known value is written by the
 type's converter, as the type holds it once normalized.
 
-The transformer targets the built-in OpenAPI stack. Swashbuckle 10 and later has a package of its own, which describes
-a value object alike: see [Swashbuckle](#swashbuckle).
+The transformer targets the built-in OpenAPI stack. Swashbuckle 10.3 and later has a package of its own, which
+describes a value object alike: see [Swashbuckle](#swashbuckle).
 
 ## Names of known values
 
@@ -219,7 +219,7 @@ builder.Services.AddSwaggerGen(options =>
 });
 ```
 
-That adds a schema filter and a parameter filter to Swashbuckle 10 and later. Without them, Swashbuckle describes a
+That adds a schema filter and a parameter filter to Swashbuckle 10.3 and later. Without them, Swashbuckle describes a
 value object by its public properties, as an object whose `value` a client would send, and a minimal API's parameter as
 a bare `string`, whatever its rules. With them, every rule of the table above, the [names of known
 values](#names-of-known-values), what [collections and dictionaries](#parameters-collections-and-dictionaries) say of
@@ -276,6 +276,11 @@ the document is built, never per request. Not covered: a value object bound from
 gives it; the own properties of a type
 documented under `UseAllOfForInheritance`, which sit in an `allOf`, are not looked through for nullable value objects;
 and Swashbuckle's Newtonsoft.Json support, `AddSwaggerGenNewtonsoftSupport`, is not tested.
+
+The package depends on `Swashbuckle.AspNetCore.SwaggerGen` 10.3.0 or later, the version it is built against: an
+application on an earlier 10.x moves to 10.3.0, and to the `Swashbuckle.AspNetCore.Swagger` it depends on, and one that
+references `Swashbuckle.AspNetCore.SwaggerGen` or `Swashbuckle.AspNetCore.Swagger` itself at an earlier version gets
+NuGet's downgrade error (NU1605) until it raises that reference to 10.3.0.
 
 Swashbuckle 10 is built on `Microsoft.OpenApi` 2. On .NET 11, an application that also references
 `Microsoft.AspNetCore.OpenApi` 11, which brings `Microsoft.OpenApi` 3, sees Swashbuckle fail as it builds a document

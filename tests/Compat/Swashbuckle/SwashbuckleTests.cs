@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace AdCodicem.ValueObjects.CompatTests;
 
@@ -17,6 +18,8 @@ namespace AdCodicem.ValueObjects.CompatTests;
 /// </summary>
 public sealed class SwashbuckleTests : IAsyncLifetime
 {
+    private static readonly TimeSpan DocumentTimeout = TimeSpan.FromSeconds(30);
+
     private JsonElement _v30;
     private JsonElement _v31;
 
@@ -24,8 +27,6 @@ public sealed class SwashbuckleTests : IAsyncLifetime
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
-        // The route Swashbuckle serves its documents on takes a regex constraint, which the slim builder leaves out.
-        builder.Services.AddRouting();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(static options =>
         {
@@ -45,8 +46,12 @@ public sealed class SwashbuckleTests : IAsyncLifetime
         await application.StartAsync(TestContext.Current.CancellationToken);
 
         using var client = application.GetTestClient();
-        _v30 = await client.GetFromJsonAsync<JsonElement>("/swagger/v1/swagger.json", TestContext.Current.CancellationToken);
-        _v31 = await client.GetFromJsonAsync<JsonElement>("/swagger31/v1/swagger.json", TestContext.Current.CancellationToken);
+        // Swashbuckle answers in well under a second; a filter whose dependencies Swashbuckle builds from the options it
+        // creates the filter in leaves the request unanswered, with no error.
+        _v30 = await client.GetFromJsonAsync<JsonElement>("/swagger/v1/swagger.json", TestContext.Current.CancellationToken)
+            .WaitAsync(DocumentTimeout, TestContext.Current.CancellationToken);
+        _v31 = await client.GetFromJsonAsync<JsonElement>("/swagger31/v1/swagger.json", TestContext.Current.CancellationToken)
+            .WaitAsync(DocumentTimeout, TestContext.Current.CancellationToken);
 
         await application.StopAsync(TestContext.Current.CancellationToken);
     }
@@ -65,6 +70,14 @@ public sealed class SwashbuckleTests : IAsyncLifetime
         version.Major.Should().Be(2, "Swashbuckle 10 is built on Microsoft.OpenApi 2");
         version.Should().BeGreaterThanOrEqualTo(new Version(2, 12, 2));
     }
+
+    /// <summary>
+    /// Nothing here pins Swashbuckle, so it resolves to the version the package is built against, the first one whose
+    /// data contract resolver is built from the schema options the filters are created in.
+    /// </summary>
+    [Fact]
+    public void The_document_is_built_by_the_Swashbuckle_the_package_is_built_against()
+        => typeof(SwaggerGenOptions).Assembly.GetName().Version.Should().BeGreaterThanOrEqualTo(new Version(10, 3, 0));
 
     [Fact]
     public void A_value_object_is_documented_as_its_underlying_type_with_its_rules_in_OpenAPI_3_0()

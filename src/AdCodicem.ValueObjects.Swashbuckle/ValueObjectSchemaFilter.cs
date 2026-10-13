@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.Shared;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -17,8 +18,8 @@ namespace AdCodicem.ValueObjects.Swashbuckle;
 /// </summary>
 /// <param name="httpJson">The minimal API options, which the examples and known values are written with unless the
 /// application named others.</param>
-/// <param name="generator">Swashbuckle's schema options, whose identifiers name the enumeration of a closed set.</param>
-/// <param name="contracts">The data contracts Swashbuckle builds its schemas from.</param>
+/// <param name="services">The container Swashbuckle creates the filter from, which Swashbuckle's data contracts and schema
+/// options are resolved from once a schema needs them.</param>
 /// <param name="settings">What the application asked for.</param>
 /// <remarks>
 /// <para>
@@ -41,14 +42,22 @@ namespace AdCodicem.ValueObjects.Swashbuckle;
 /// allowed, and the wrapper keeps what Swashbuckle put beside the reference. A dictionary keyed by a value object states
 /// the key's rules in <c>propertyNames</c>, as the key is written.
 /// </para>
+/// <para>
+/// Swashbuckle creates its schema filters while it configures its schema options, and, from 10.3.0, builds its data
+/// contract resolver from those same options. A filter taking the resolver in its constructor would have the options
+/// configured again from inside their own configuration, which deadlocks with no error and leaves the document request
+/// unanswered. The filter takes the container instead, and resolves the resolver and the options as a document is
+/// generated, once both are built.
+/// </para>
 /// </remarks>
 internal sealed class ValueObjectSchemaFilter(
     IOptions<HttpJsonOptions> httpJson,
-    IOptions<SchemaGeneratorOptions> generator,
-    ISerializerDataContractResolver contracts,
+    IServiceProvider services,
     ValueObjectSwaggerSettings settings) : ISchemaFilter
 {
     private JsonSerializerOptions? _options;
+
+    private ISerializerDataContractResolver? _contracts;
 
     /// <summary>
     /// Gets the options the value objects are described with: the application's, with numbers read and written as
@@ -61,6 +70,12 @@ internal sealed class ValueObjectSchemaFilter(
     /// without which no example could be written as the type writes it.
     /// </remarks>
     internal JsonSerializerOptions Options => _options ??= Strict(settings.Options ?? httpJson.Value.SerializerOptions);
+
+    /// <summary>
+    /// Gets the data contracts Swashbuckle builds its schemas from, resolved the first time a schema needs them and kept,
+    /// as Swashbuckle's schema generator keeps the one it was created with.
+    /// </summary>
+    private ISerializerDataContractResolver Contracts => _contracts ??= services.GetRequiredService<ISerializerDataContractResolver>();
 
     /// <inheritdoc />
     public void Apply(IOpenApiSchema schema, SchemaFilterContext context)
@@ -82,7 +97,7 @@ internal sealed class ValueObjectSchemaFilter(
             return;
         }
 
-        var contract = contracts.GetDataContractForType(context.Type);
+        var contract = Contracts.GetDataContractForType(context.Type);
         switch (contract.DataType)
         {
             case DataType.Array when NullableValueObject(target.Items, contract.ArrayItemType) is { } element:
@@ -246,7 +261,7 @@ internal sealed class ValueObjectSchemaFilter(
     private string EnumName(SchemaRepository repository, Type type)
         => repository.TryLookupByType(type, out var reference)
             ? reference.Reference.Id!
-            : generator.Value.SchemaIdSelector(type);
+            : services.GetRequiredService<IOptions<SchemaGeneratorOptions>>().Value.SchemaIdSelector(type);
 
     /// <summary>
     /// Gets the type of the keys of a dictionary, as Swashbuckle finds it.

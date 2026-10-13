@@ -154,7 +154,7 @@ declared in the project that maps the endpoints lists its contract on its declar
 
 ### Does it work with Swashbuckle?
 
-Yes, Swashbuckle 10 and later, through `AdCodicem.ValueObjects.Swashbuckle`: `AddSwaggerGen(o => o.AddValueObjects())`
+Yes, Swashbuckle 10.3 and later, through `AdCodicem.ValueObjects.Swashbuckle`: `AddSwaggerGen(o => o.AddValueObjects())`
 documents a value object as its underlying type, with the rules declared on it, as `AdCodicem.ValueObjects.OpenApi`
 does on the built-in stack, a number as Swashbuckle documents a number, and a route, query or header parameter as a
 reference to its component. [Swashbuckle](./how-to/openapi.md#swashbuckle) says what differs from the built-in stack.

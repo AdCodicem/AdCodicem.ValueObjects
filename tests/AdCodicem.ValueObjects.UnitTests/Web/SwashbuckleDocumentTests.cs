@@ -6,6 +6,7 @@ using System.Xml.XPath;
 using AdCodicem.ValueObjects.Swashbuckle;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -510,8 +511,10 @@ public sealed class SwashbuckleDocumentTests(SwashbuckleDocument fixture) : ICla
     /// <summary>
     /// Swashbuckle runs its schema filters in the order they were added. Added after the value objects', its XML
     /// comments filter replaces a value object's description with the type's summary, losing the sentence stating the
-    /// bounds of a value written as text; added before, it does not. A member's summary is kept on a nullable value object
-    /// described in place, as on a reference.
+    /// bounds of a value written as text; added before, it does not, and a property referring to a value object carries
+    /// the component's description beside its reference in OpenAPI 3.1, the sentence included, Swashbuckle no longer
+    /// writing the type's summary over it there. A member's summary is kept on a nullable value object described in
+    /// place, as on a reference.
     /// </summary>
     [Fact]
     public async Task The_value_objects_are_added_after_the_XML_comments_whose_filter_would_replace_their_description()
@@ -528,6 +531,8 @@ public sealed class SwashbuckleDocumentTests(SwashbuckleDocument fixture) : ICla
         });
 
         after.Schema("3.1", nameof(LedgerBalance)).GetProperty("description").GetString()
+            .Should().EndWith("\n\nBetween -1000000000000000000000 and 1000000000000000000000, inclusive.");
+        after.Property("3.1", nameof(EveryValueObject), "balance").GetProperty("description").GetString()
             .Should().EndWith("\n\nBetween -1000000000000000000000 and 1000000000000000000000, inclusive.");
         after.Property("3.1", Members, "alternate").GetProperty("description").GetString().Should().Be("The account to fall back on.");
         AllowsNull("3.1", after.Property("3.1", Members, "alternate")).Should().BeTrue();
@@ -725,6 +730,22 @@ public sealed class SwashbuckleWiringTests
 
         options.SchemaFilterDescriptors.Single().Arguments.Should().ContainSingle()
             .Which.Should().BeOfType<ValueObjectSwaggerSettings>().Which.Options.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Swashbuckle creates the schema filters while it configures its schema options, from which, since 10.3.0, it builds
+    /// its data contract resolver: the value objects' filter takes neither in its constructor, so the options are built,
+    /// the filter among them, rather than configured again from inside their own configuration, which deadlocks.
+    /// </summary>
+    [Fact]
+    public async Task Swashbuckle_builds_its_schema_options_with_the_value_object_filter_among_their_filters()
+    {
+        using var services = new ServiceCollection().AddSwaggerGen(static options => options.AddValueObjects()).BuildServiceProvider();
+
+        var options = await Task.Run(() => services.GetRequiredService<IOptions<SchemaGeneratorOptions>>().Value, TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+
+        options.SchemaFilters.Should().ContainSingle(static filter => filter is ValueObjectSchemaFilter);
     }
 
     [Fact]
