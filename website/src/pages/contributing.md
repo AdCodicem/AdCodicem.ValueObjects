@@ -29,7 +29,8 @@ dotnet test                                                          # everythin
 dotnet pack -c Release
 ```
 
-Integration tests start PostgreSQL, SQL Server and MongoDB through Testcontainers, so they need a Docker daemon.
+Integration tests start PostgreSQL, SQL Server and MongoDB, and the Azure Functions host beside Azurite, through
+Testcontainers, so they need a Docker daemon; the Functions host's image exists for amd64 alone.
 
 `tests/Compat`, the compatibility island, is not part of the solution and is run from its own folder, with the
 .NET 11 SDK its `global.json` names, against packages you have just packed. The commands are on

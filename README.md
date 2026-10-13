@@ -107,6 +107,8 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI tool and structured-output schemas that carry the rules, and a refused tool argument answered with its rule code. |
 | `AdCodicem.ValueObjects.ModelContextProtocol` | Model Context Protocol tool schemas that carry the rules, and a refused tool argument answered with its rule code. |
+| `AdCodicem.ValueObjects.AzureFunctions` | Azure Functions isolated worker: route values, query values and binding data bound through the rules, a refusal carrying its code. |
+| `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` | The minimal API problem details for the HTTP triggers of the Functions ASP.NET Core integration. |
 | `AdCodicem.ValueObjects.Identifiers` | Stripe-style public entity identifiers: `acc_2K7X9…`. |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | Fixed-width, non-Unicode columns for those identifiers. |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | Those identifiers minted by MongoDB.Driver for a document inserted without one. |
@@ -118,7 +120,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twenty-five are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twenty-seven are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -143,6 +145,8 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
 | `AdCodicem.ValueObjects.AI` | `net10.0` | Microsoft.Extensions.AI 10, with its OpenAI adapter in strict mode, and native AOT | Microsoft.Extensions.AI 10 on .NET 11 |
 | `AdCodicem.ValueObjects.ModelContextProtocol` | `net10.0` | ModelContextProtocol 2.2, in process over streams, and native AOT | ModelContextProtocol 2.2 on .NET 11 |
+| `AdCodicem.ValueObjects.AzureFunctions` | `net10.0` | Microsoft.Azure.Functions.Worker 2.52, in the Functions host's `dotnet-isolated` 10.0 image | Worker 2.52 on .NET 11 |
+| `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` | `net10.0` | the Functions ASP.NET Core integration 2.1, in the Functions host's `dotnet-isolated` 10.0 image | the integration 2.1 beside ASP.NET Core 11 |
 | `AdCodicem.ValueObjects.Identifiers` | `net10.0` | .NET 10 | .NET 11 |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
@@ -210,14 +214,16 @@ is valid. The integrations that take outside input go through `TryCreate` or `Tr
 their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a
 MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationException`, an `XmlException` from
 `XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool
-result a language model reads, an MCP tool execution error. Each
+result a language model reads, an MCP tool execution error, the `FormatException` that fails an Azure Functions
+parameter, whose text alone the worker keeps, and which therefore ends with the code. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
-query value, and those of a minimal API for a route, query or header value. Under `UseValueObjectCheckErrors()`, the
+query value, those of a minimal API for a route, query or header value, and those of an Azure Functions HTTP trigger
+for a route or query value. Under `UseValueObjectCheckErrors()`, the
 database provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the
 constraint's name.
-The message is English; the code keys the one an application shows in its users' language, which the MVC, minimal API
-and FluentValidation integrations look up with the arguments the declared rules supply
+The message is English; the code keys the one an application shows in its users' language, which the MVC, minimal API,
+Azure Functions and FluentValidation integrations look up with the arguments the declared rules supply
 ([a message in the application's language](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/reference/errors#a-message-in-the-applications-language)).
 `Create` throws `ValueObjectException`, and is for the call sites that want it; a strict EF Core read goes through
 it, and fails the query. Validation is fail-fast: the first violated rule wins.
@@ -391,6 +397,19 @@ carrying its code
 ```csharp skip
 builder.Services.AddSignalR().AddMessagePackProtocol(options => options.UseValueObjects()); // and on the .NET client
 var options = MessagePackSerializerOptions.Standard.WithValueObjects(); // or WithValueObjects(trusted: true) for a cache
+```
+
+The Azure Functions isolated worker reads no `[TypeConverter]`: a route value, a query value or other binding data, such
+as a queue message's `Id`, falls through to its JSON conversion, which binds a value object only where its text happens
+to be JSON, `7` and never `007`, and fails a valid `Guid`, text or a date with a 500, a refused value's code lost in the
+host's log. `AdCodicem.ValueObjects.AzureFunctions` binds each through its rules, and
+`AdCodicem.ValueObjects.AzureFunctions.AspNetCore` answers a refusal in an HTTP trigger with the validation problem a
+minimal API writes, carrying its code
+([the Azure guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/azure#azure-functions-isolated-worker)):
+
+```csharp skip
+builder.UseValueObjects();                // any application of the worker
+builder.UseValueObjectProblemDetails();   // HTTP triggers, after ConfigureFunctionsWebApplication()
 ```
 
 ### Testing your own value objects
@@ -711,7 +730,8 @@ benchmarks/   the measurements behind the design decisions above
 skills/       the agent skill, and the plugin manifest that distributes it
 ```
 
-Integration tests start PostgreSQL, SQL Server and MongoDB through Testcontainers, so they need a Docker daemon.
+Integration tests start PostgreSQL, SQL Server, MongoDB and the Azure Functions host through Testcontainers, so they
+need a Docker daemon.
 
 ## Building
 

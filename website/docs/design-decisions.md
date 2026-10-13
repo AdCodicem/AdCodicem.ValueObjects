@@ -38,7 +38,8 @@ valid. The integrations that take outside input go through `TryCreate` or `TryPa
 terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver
 `FormatException`, a MessagePack `MessagePackSerializationException`, an `XmlException` from `XmlSerializer` or
 `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool result a language model
-reads, a Model Context Protocol tool execution error ([what each one throws](./reference/errors.md)).
+reads, a Model Context Protocol tool execution error, the text of the Azure Functions worker's binding failure, which
+ends with the code, and a validation problem for one of its HTTP triggers ([what each one throws](./reference/errors.md)).
 Each carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions ([the code in
 an exception](./reference/errors.md#the-code-in-an-exception)). Under `UseValueObjectCheckErrors()`, the database
 provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the constraint's

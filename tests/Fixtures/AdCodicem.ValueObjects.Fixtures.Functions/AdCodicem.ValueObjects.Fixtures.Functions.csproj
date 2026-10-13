@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A Functions application of the isolated worker, on the ASP.NET Core integration, which the integration suite runs in
+    the Functions host's container (FunctionsHostFixture): the HTTP triggers bind value objects from route values and
+    query values, and answer a refusal through the problem details middleware; the queue triggers bind them from a
+    message's binding data, or leave the message to its binding. The build's output, functions.metadata and the worker's
+    extensions included, is what the container's host loads.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AzureFunctionsVersion>v4</AzureFunctionsVersion>
+    <RootNamespace>AdCodicem.ValueObjects.Fixtures.Functions</RootNamespace>
+
+    <!-- The isolated worker is not built for trimming or native AOT, nor is this application. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+
+    <!-- CA1515: the worker's generated function metadata names the functions' types, which are public as the templates
+         write them. CA2007: a function has no synchronization context to leave. -->
+    <NoWarn>$(NoWarn);CA1515;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.AzureFunctions.AspNetCore\AdCodicem.ValueObjects.AzureFunctions.AspNetCore.csproj" />
+    <!-- The MVC package, whose AddValueObjects() reads a [FromBody] value object and records its code. -->
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.AspNetCore\AdCodicem.ValueObjects.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Azure.Functions.Worker" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A value object written by hand, which nothing registers: the converter describes it by reflection, under the JIT
+         the worker runs on. In the host's process, not the unit suite's, where its registration would reach other tests. -->
+    <Compile Include="..\..\AdCodicem.ValueObjects.UnitTests\Domain\HandWritten\HandWrittenCode.cs" Link="HandWrittenCode.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="host.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

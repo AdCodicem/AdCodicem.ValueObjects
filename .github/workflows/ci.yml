@@ -68,7 +68,9 @@ jobs:
       # The runner ships a Docker daemon, which is what Testcontainers needs to start
       # PostgreSQL, SQL Server and MongoDB for the persistence and API tests. It pulls
       # SQL Server 2025 beside 2022, for the CHECK constraints of patterns alone:
-      # REGEXP_LIKE exists from SQL Server 2025 on.
+      # REGEXP_LIKE exists from SQL Server 2025 on. It also pulls the Azure Functions
+      # host's dotnet-isolated image, amd64 only, and Azurite, which run the Functions
+      # application the build wrote for the worker's bindings.
       - name: Integration tests
         run: >-
           dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests
@@ -160,7 +162,8 @@ jobs:
   # SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core
   # model binding, on System.Text.Json and on Newtonsoft.Json, minimal API problem
   # details, MongoDB.Driver on MongoDB 8, MessagePack, with SignalR's MessagePack hub protocol over TestHost, Serilog,
-  # Microsoft.Extensions.AI tools and structured output, Model Context Protocol tools over in-process streams, the
+  # Microsoft.Extensions.AI tools and structured output, Model Context Protocol tools over in-process streams, the Azure
+  # Functions worker's converter and problem details middleware, the
   # contract kit and the test-data packages over AutoFixture, Bogus and FsCheck,
   # and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3, and Swashbuckle 10
   # over Microsoft.OpenApi 2 in a project of its own. The island has its own global.json, so the SDK it needs

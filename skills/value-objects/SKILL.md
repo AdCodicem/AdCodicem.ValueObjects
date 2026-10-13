@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (with a $jsonSchema validator and entity identifiers minted on insert), MessagePack and SignalR, FluentValidation, OpenAPI (built-in stack and Swashbuckle), Serilog, Microsoft.Extensions.AI (tools, structured output) and Model Context Protocol servers (tool schemas, refused tool arguments) integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (with a $jsonSchema validator and entity identifiers minted on insert), MessagePack and SignalR, FluentValidation, OpenAPI (built-in stack and Swashbuckle), Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers (tool schemas, refused tool arguments) and Azure Functions (isolated worker) integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0038 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -231,6 +231,8 @@ builder.Services.AddSignalR().AddMessagePackProtocol(o => o.UseValueObjects()); 
 new LoggerConfiguration().Enrich.FromLogContext()                                      // Serilog, after FromLogContext
     .Destructure.ValueObjects(o => { o.CaptureAsUnderlyingValue = true; o.Assemblies.Add(typeof(Iban).Assembly); });
 // [assembly: ValueObjectXmlSerialization]  in the domain assembly: XmlSerializer, DataContractSerializer, MVC XML formatters
+functions.UseValueObjects();                                                           // AzureFunctions, the isolated worker's binding data
+functions.UseValueObjectProblemDetails();                                              // AzureFunctions.AspNetCore, after ConfigureFunctionsWebApplication()
 
 protected override void ConfigureConventions(ModelConfigurationBuilder builder)        // EntityFrameworkCore
     => builder.ConfigureValueObjects(typeof(Iban).Assembly);
@@ -252,7 +254,11 @@ Microsoft.Extensions.AI tool takes `AdCodicem.ValueObjects.AI`: `new AIJsonSchem
 its `AIFunctionFactoryOptions`, and `.WithValueObjectValidation()` on the function, which answers a refused argument
 with its rule code instead of "Error: Function failed.". A Model Context Protocol server takes
 `AdCodicem.ValueObjects.ModelContextProtocol`: `.WithValueObjectTools<OrderTools>()` in place of the SDK's
-`.WithTools<OrderTools>()`. Per-package details, EF `strict` mode and problem-details payloads:
+`.WithTools<OrderTools>()`. Without `UseValueObjects()` (`AdCodicem.ValueObjects.AzureFunctions`), an Azure Functions
+isolated worker binds a value object from a route, a query or binding data only where its text happens to be JSON
+(`7`, never `007`), and fails a `Guid`, text or a date with a 500; it answers a refusal over HTTP with a 500 unless
+`UseValueObjectProblemDetails()` (`AdCodicem.ValueObjects.AzureFunctions.AspNetCore`) follows
+`ConfigureFunctionsWebApplication()`. Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.
 
 ## Test with the contract kit

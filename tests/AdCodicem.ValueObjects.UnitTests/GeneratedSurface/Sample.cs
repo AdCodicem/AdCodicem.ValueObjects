@@ -9,6 +9,7 @@ using AdCodicem.ValueObjects.ModelContextProtocol;
 using AdCodicem.ValueObjects.NewtonsoftJson;
 using AdCodicem.ValueObjects.Testing.Data;
 using AdCodicem.ValueObjects.UnitTests.BinarySerialization;
+using AdCodicem.ValueObjects.UnitTests.Functions;
 using AdCodicem.ValueObjects.UnitTests.LanguageModels;
 using AdCodicem.ValueObjects.UnitTests.Logging;
 using AdCodicem.ValueObjects.UnitTests.Persistence;
@@ -144,6 +145,16 @@ public abstract class Sample
     /// </summary>
     /// <returns>The check.</returns>
     public abstract Task AnswersARefusedMcpToolArgumentWithItsRuleAsync();
+
+    /// <summary>
+    /// Converts the value object's text through the Azure Functions converter, as the isolated worker hands it a route
+    /// value, a query value or other binding data, and checks that it binds the value <c>TryParse</c> reads, nullable or
+    /// not, and from the JSON string literal the host sends binding data of another type as, and that the refused text
+    /// fails with the code and the message <c>TryParse</c> gives; then that the problem details middleware answers the
+    /// refused text with the message and the code a minimal API answers it with.
+    /// </summary>
+    /// <returns>The check.</returns>
+    public abstract Task BindsThroughTheFunctionsWorkerAsync();
 
     /// <summary>
     /// Draws values of the value object from its schema with <c>ValueObjectSampler</c>, and checks that each is a value its
@@ -662,6 +673,8 @@ public class Sample<TSelf, TValue> : Sample
         accepted.IsError.Should().NotBe(true);
         McpHarness.TextOf(accepted).Should().Be($"{Small}|{Large}|2");
     }
+
+    public override Task BindsThroughTheFunctionsWorkerAsync() => FunctionsParity.CheckAsync<TSelf, TValue>(Small, Text, Refused);
 
     public override void DrawsValuesItsRulesAccept()
     {

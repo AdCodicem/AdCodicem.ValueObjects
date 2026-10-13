@@ -22,7 +22,7 @@
     <Error Text="The compatibility island targets the next .NET major, which SDK $(NETCoreSdkVersion) cannot. Run it from tests/Compat, whose global.json selects the SDK it needs." />
   </Target>
 
-  <!-- All twenty-five but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
+  <!-- All twenty-seven but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
        AdCodicem.ValueObjects and runs in this SDK's compiler, the integrations resolve their dependency floors against
        the next major. Swashbuckle 10 fails on the Microsoft.OpenApi 3 that Microsoft.AspNetCore.OpenApi 11 brings here,
        so the Swashbuckle package is installed by the project of Swashbuckle/. -->
@@ -34,6 +34,8 @@
     <PackageReference Include="AdCodicem.ValueObjects.AspNetCore.Http" />
     <PackageReference Include="AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson" />
     <PackageReference Include="AdCodicem.ValueObjects.AutoFixture" />
+    <PackageReference Include="AdCodicem.ValueObjects.AzureFunctions" />
+    <PackageReference Include="AdCodicem.ValueObjects.AzureFunctions.AspNetCore" />
     <PackageReference Include="AdCodicem.ValueObjects.Bogus" />
     <PackageReference Include="AdCodicem.ValueObjects.Dapper" />
     <PackageReference Include="AdCodicem.ValueObjects.EntityFrameworkCore" />
@@ -83,6 +85,10 @@
          Model Context Protocol SDK comes with AdCodicem.ValueObjects.ModelContextProtocol, at the package's floor too, and
          its client with it. -->
     <PackageReference Include="Microsoft.Extensions.AI" />
+    <!-- A substitute of the Functions worker's internal feature that holds an invocation's result, which the problem
+         details middleware sets; Worker.Core grants its internals to NSubstitute's proxies. The worker itself comes with
+         AdCodicem.ValueObjects.AzureFunctions.AspNetCore, at the package's floor. -->
+    <PackageReference Include="NSubstitute" />
   </ItemGroup>
 
   <ItemGroup>

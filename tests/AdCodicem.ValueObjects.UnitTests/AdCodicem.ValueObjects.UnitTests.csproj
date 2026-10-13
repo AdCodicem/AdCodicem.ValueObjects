@@ -31,6 +31,8 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore\AdCodicem.ValueObjects.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore.Http\AdCodicem.ValueObjects.AspNetCore.Http.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson\AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AzureFunctions\AdCodicem.ValueObjects.AzureFunctions.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AzureFunctions.AspNetCore\AdCodicem.ValueObjects.AzureFunctions.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Dapper\AdCodicem.ValueObjects.Dapper.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />

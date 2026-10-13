@@ -111,6 +111,19 @@ public sealed partial class DocumentationSnippetTests
     }
 
     /// <summary>
+    /// Keeps the description within the 1024 characters the skill format allows: a validator refuses a longer one, and a
+    /// host cuts it, which loses its end, the clause that says when to load the skill.
+    /// </summary>
+    [Fact]
+    public void The_description_stays_within_the_formats_limit()
+    {
+        var description = File.ReadLines(Path.Combine(SkillDirectory(), "SKILL.md"))
+            .First(static line => line.StartsWith("description: ", StringComparison.Ordinal))["description: ".Length..];
+
+        description.Length.Should().BeLessThanOrEqualTo(1024, "the skill format allows a description of 1024 characters at most");
+    }
+
+    /// <summary>
     /// Keeps the entry point short enough to be worth loading, as the skill format expects.
     /// </summary>
     [Fact]

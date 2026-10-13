@@ -46,6 +46,7 @@ be corrected.
 | Structured logging | Serilog: `{@X}`, and `{X}` on request, as the underlying value | no | no | Serilog destructuring policy, `{@X}` only |
 | Language-model tools and structured output | Microsoft.Extensions.AI: the rules in the schemas, a refused tool argument answered with its code | no | no | no |
 | Model Context Protocol tools | the C# SDK: the rules in `inputSchema` and `outputSchema`, a refused tool argument answered with its code | no | no | no |
+| Azure Functions isolated worker | route values, query values and binding data bound through the rules; a refused one in an HTTP trigger answered 400 with its code | no (8.0.7 ships no Functions code) | not checked | not checked |
 | Contract test kit for your own types | yes, with the values its schema rules out, on request | no | no | no |
 | Valid test data from the declared rules | AutoFixture, Bogus and FsCheck packages over a dependency-free sampler | no (Vogen#153, AutoFixture specimen builders, closed as not planned) | no | no |
 | Prefixed public identifiers (`acc_…`) | yes | no | no | no |

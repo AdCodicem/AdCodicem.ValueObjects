@@ -22,6 +22,8 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI: the rules in tool and structured-output schemas; a refused tool argument answered with its code. AOT-compatible. |
 | `AdCodicem.ValueObjects.ModelContextProtocol` | MCP C# SDK: the rules in tool input and output schemas; a refused tool argument answered with its code, as a tool execution error. AOT-compatible. |
+| `AdCodicem.ValueObjects.AzureFunctions` | Azure Functions isolated worker: route values, query values and binding data bound through `TryParse`; a refusal carrying its code. |
+| `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` | The minimal API problem details, with codes, for HTTP triggers on the Functions ASP.NET Core integration. |
 | `AdCodicem.ValueObjects.Identifiers[.EntityFrameworkCore\|.MongoDB]` | Stripe-style public identifiers, their columns, their minting on insert. See `identifiers.md`. |
 | `AdCodicem.ValueObjects.Testing` | The xUnit contract kit. |
 | `AdCodicem.ValueObjects.Testing.Data` | Values each type accepts, drawn from its rules; the values at its edges and the values its schema rules out. |
@@ -906,6 +908,49 @@ Prop.ForAll(arbitraries.ArbFor<Order>(), order => /* ... */).Check(Config.QuickT
   a static class of yours whose static members return `ValueObjectArbitrary.For<TSelf, TValue>()`; FsCheck.Xunit is
   for xUnit 2.
 - A `ValueObjectSamplingException` names the registration to add, in the library's terms.
+
+## Azure Functions (isolated worker)
+
+```csharp skip
+using AdCodicem.ValueObjects.AspNetCore;                  // AddValueObjects() on MVC, for [FromBody]
+using AdCodicem.ValueObjects.AzureFunctions;
+using AdCodicem.ValueObjects.AzureFunctions.AspNetCore;
+
+var builder = FunctionsApplication.CreateBuilder(args);
+builder.ConfigureFunctionsWebApplication();
+builder.UseValueObjects();                                 // AzureFunctions: route, query and binding data
+builder.UseValueObjectProblemDetails();                    // AzureFunctions.AspNetCore: AFTER ConfigureFunctionsWebApplication()
+builder.Services.AddMvc().AddValueObjects();               // a [FromBody] value object answered with its code too
+builder.Build().Run();
+
+// HostBuilder style: inside the integration's call.
+new HostBuilder().ConfigureFunctionsWebApplication(worker => worker.UseValueObjects().UseValueObjectProblemDetails());
+```
+
+- Without `UseValueObjects()` the worker reads no `[TypeConverter]`: a value object bound from a route, a query or other
+  binding data goes through its JSON conversion, which binds it only where its text happens to be JSON (`7`, never
+  `007`), and fails a `Guid`, text or a date with a 500, a valid one included. Never annotate the type with
+  `[InputConverter]`: the worker reads it off `Nullable<T>` for a `T?` and misses it.
+- The converter reads text through `TryParse` (invariant culture), then a JSON string literal decoded (binding data such
+  as `InsertionTime` arrives as JSON), and, over `decimal`, a JSON number (the host writes `0.0000001` as `1E-07`, an
+  exponent a decimal's `TryParse` refuses). Empty text is refused by the type's rule, nullable or not; an absent value
+  is the worker's: `null` for `T?`, the default of an optional parameter, the worker's own failure otherwise.
+- A refusal fails the parameter with a `FormatException` carrying the code in `Data` and at the end of its message:
+  `… (value_object.out_of_range)`. The worker keeps that text alone, in `FunctionInputConverterException`, on which
+  `TryGetCode` finds nothing: read the code from the text, or from `errorCodes` over HTTP.
+- `UseValueObjectProblemDetails()` answers an HTTP trigger of the ASP.NET Core integration with the minimal API's
+  validation problem and `errorCodes`, each refused route or query value under its parameter name, a required absent
+  one as `value_object.required`, a `[FromBody]` one under its JSON path when MVC's `AddValueObjects()` reads the body.
+  A failure no value object explains (a plain `int`) keeps the 500. Registered before
+  `ConfigureFunctionsWebApplication()` it keeps the 500, a refused body's too, and logs a warning once: move the call.
+  The built-in HTTP model (`HttpRequestData`) is not answered.
+- Messages in the request's language: `UseValueObjectProblemDetails(m => m.UseResource<T>())` with `AddLocalization()`,
+  and `AddRequestLocalization(...)` options, or `UseRequestLocalization()` added to the integration's pipeline through an
+  `IStartupFilter`; the worker's culture is never the request's.
+- Payloads stay with their binding and the worker's serializer, which reads the generated JSON converter: a
+  `[QueueTrigger]` message holding value objects binds, and a bare value object message must be JSON (`"ABC-123"`). For
+  a raw-text payload, `[QueueTrigger("codes")][InputConverter(typeof(ValueObjectInputConverter))] CustomerCode code`.
+- Not AOT-compatible (the worker is not). A query parameter named `code` never reaches a function (function keys).
 
 ## Run-time lookup, when only a `Type` is known
 

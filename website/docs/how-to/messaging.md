@@ -95,7 +95,9 @@ documents, so declare an optional parameter `T?`.
 ## Azure Service Bus, Event Hubs, Event Grid and Storage Queues
 
 A body built with `BinaryData.FromObjectAsJson` goes through System.Text.Json: it carries bare values, and is
-validated when read. A value object put in `ApplicationProperties` or `EventData.Properties` throws at send,
+validated when read. Received by an Azure Functions trigger, a message's binding data, its identifier or its insertion
+time, binds to a value object through [the Functions converter](./azure.md#azure-functions-isolated-worker). A value
+object put in `ApplicationProperties` or `EventData.Properties` throws at send,
 `SerializationException: Serialization failed due to an unsupported type, Domain.OrderId.`. Put the underlying value
 there, which AMQP carries natively, and read it back with `TryCreate`. Not `ToString()`: it writes what a formatting
 hook writes, which does not always read back.

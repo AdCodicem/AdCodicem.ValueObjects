@@ -41,7 +41,10 @@ Four suites, each with a distinct job:
   whose schema and whose answer to a refused argument are checked, and a scripted model stands for a real one: no test
   calls a model, and the request the OpenAI adapter sends in strict mode is captured before it leaves. A Model Context
   Protocol server lists a tool over every sample value object to the SDK's own client, over a pair of pipes in process,
-  and answers each refused argument with a tool execution error carrying its rule. Keys typed as value objects are
+  and answers each refused argument with a tool execution error carrying its rule. The Azure Functions converter is
+  called as the isolated worker calls it, over every sample value object, and the problem details middleware runs over
+  invocations written by the test, through the worker's own abstractions, answering each refusal as a minimal API
+  answers it, in the request's language too. Keys typed as value objects are
   generated over a `Guid` and each integer type, a round trip through SQLite in memory included, a `Guid` one left unset
   is refused in every shape the convention concerns, and an integer key to generate is refused on Entity Framework
   Core's in-memory provider, which is not relational.
@@ -66,8 +69,13 @@ Four suites, each with a distinct job:
   its primitive writes, refuses one over `Int128` or `UInt128`, and answers each LINQ and `Builders` shape over them,
   `.Value` included; which, given the `$jsonSchema` validator built from the rules, refuses another writer's document
   and stores every value each type accepts, reads each pattern the validator publishes as .NET does, and mints an
-  entity identifier for a document inserted without one. These need a Docker daemon: Testcontainers
-  starts the three engines for the run.
+  entity identifier for a document inserted without one. And the Azure Functions host, in Microsoft's `dotnet-isolated`
+  image, running an application of the isolated worker with Azurite for its queues: route values and query values bound
+  through the rules, each refusal answered with the minimal API's validation problem and its code, a `[FromBody]` one
+  included, in the request's language, a failure no value object explains keeping the host's 500, the middleware
+  registered before the integration keeping it too, with its warning, and a queue message's binding data bound beside
+  the message its binding reads. These need a Docker daemon: Testcontainers starts the engines and the host for the
+  run.
 - **RdgTests** — minimal API endpoints whose binding the Request Delegate Generator writes, as it does in every
   build under `PublishAot` or `PublishTrimmed`, over value objects declared in the endpoints' own project: the case
   [the Request Delegate Generator](./how-to/aspnet-core.md#the-request-delegate-generator) cannot see the
@@ -116,7 +124,7 @@ constraints, a row SQL writes breaking a rule refused with the rule's code; the 
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the twenty-five packages exactly as they were packed — from the folder the build packs into, at that one
+installs the twenty-seven packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -126,7 +134,8 @@ and a minimal API with its problem details, their messages and FluentValidation'
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
 MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
 SignalR's MessagePack hub protocol 11 over TestHost, FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI
-tools and structured output, Model Context Protocol tools over the SDK's own client, `XmlSerializer` and
+tools and structured output, Model Context Protocol tools over the SDK's own client, the Azure Functions converter and
+the problem details middleware beside ASP.NET Core 11, `XmlSerializer` and
 `DataContractSerializer` over a domain that opts into XML serialization, the contract kit, and the test-data sampler
 drawing each value object of that domain from the schema the generator of that SDK wrote, through AutoFixture, Bogus and
 FsCheck too. On Entity Framework Core 11, keys typed as value objects are generated over a `Guid` and an `int`, and a

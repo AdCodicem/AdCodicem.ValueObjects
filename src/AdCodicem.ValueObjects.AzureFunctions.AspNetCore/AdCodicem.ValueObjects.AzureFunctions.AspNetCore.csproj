@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.AzureFunctions.AspNetCore</RootNamespace>
+    <Description>Problem details for the HTTP triggers of the Azure Functions ASP.NET Core integration: a route or query value object the worker could not bind, or a [FromBody] one MVC refused where AdCodicem.ValueObjects.AspNetCore's AddValueObjects() reads the body, answered 400 with RFC 9457 problem details carrying the violated rule's code, as minimal APIs answer it.</Description>
+    <PackageTags>$(PackageTags);azure-functions;azure;aspnetcore;problemdetails;isolated-worker</PackageTags>
+
+    <!-- The ASP.NET Core integration calls AddMvc(), and the worker's container creates its middleware by reflection: a
+         trimmed binary finds no constructor for the integration's own middleware (probed), so this package claims no AOT
+         compatibility. Each parameter's check is closed through the descriptor's visitor, never with MakeGenericType. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.AzureFunctions\AdCodicem.ValueObjects.AzureFunctions.csproj" />
+    <!-- ValueObjectProblemDetails and ValueObjectMessageOptions, the member name and the messages both packages share. -->
+    <ProjectReference Include="..\AdCodicem.ValueObjects.AspNetCore.Http\AdCodicem.ValueObjects.AspNetCore.Http.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- GetHttpContext(), and the proxying middleware that executes the answer on the request. -->
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The converter's reading of the worker's text, the name of a type as C# writes it, and the lookup of a refusal's
+         message in the application's resource, compiled here too rather than reached through InternalsVisibleTo: the
+         packages are installed apart, and an internal of one is no contract of the other. -->
+    <Compile Include="..\Shared\ValueObjectBindingText.cs" Link="Shared\ValueObjectBindingText.cs" />
+    <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
+    <Compile Include="..\Shared\ValueObjectLocalizedMessages.cs" Link="Shared\ValueObjectLocalizedMessages.cs" />
+  </ItemGroup>
+
+</Project>

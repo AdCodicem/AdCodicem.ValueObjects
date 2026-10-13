@@ -40,7 +40,9 @@ The message of a rule is English, and stays so for the developers who read excep
 answers its users in another language translates it by code, and the integrations look the translation up when they
 refuse a value: `AddValueObjects(messages => messages.UseResource<T>())` on MVC and
 `WithValueObjectProblemDetails(messages => messages.UseResource<T>())` on a minimal API
-([ASP.NET Core](../how-to/aspnet-core.md#messages-in-the-applications-language)), and FluentValidation's
+([ASP.NET Core](../how-to/aspnet-core.md#messages-in-the-applications-language)),
+`UseValueObjectProblemDetails(messages => messages.UseResource<T>())` on an Azure Functions HTTP trigger
+([Azure](../how-to/azure.md#messages-in-the-requests-language)), and FluentValidation's
 `LanguageManager` under `MustParseAs`, `MustSatisfy` and `NotDefault`
 ([FluentValidation](../how-to/fluentvalidation.md#messages-in-another-language)). No translation ships with the
 packages: each application writes the messages it wants, and a key it leaves out keeps the English message.
@@ -57,7 +59,7 @@ A message quotes arguments the rules the type declares supply, through `ValueObj
 name, which FluentValidation quotes as a placeholder, and a position, which an `IStringLocalizer` formats with
 `string.Format`.
 
-| Code | Named (FluentValidation) | Positional (MVC, minimal APIs) |
+| Code | Named (FluentValidation) | Positional (MVC, minimal APIs, Azure Functions) |
 | --- | --- | --- |
 | Every code | `{PropertyName}`, `{ValueObject}` | `{0}`, the member |
 | `value_object.too_short` | `{MinLength}` | `{1}` |
@@ -67,8 +69,9 @@ name, which FluentValidation quotes as a placeholder, and a position, which an `
 
 - `{ValueObject}` is the name of the value object type, without the arity of a generic one: `Reference` for
   `Reference<PurchaseOrder>`. `{0}` is the member the refusal is listed under: the display name MVC gives it, the
-  name a minimal API value binds from, or, in a request body, the name of the value object, never the JSON path, which
-  holds the key a dictionary keyed by a value object refused.
+  name a minimal API value binds from, the name of the parameter of an Azure Functions HTTP trigger, or, in a request
+  body, the name of the value object, never the JSON path, which holds the key a dictionary keyed by a value object
+  refused.
 - Each argument is text, formatted in the current culture: a bound is read back from the invariant text the schema
   holds and written for the culture, `0,01` in French, a date in the culture's order, and the known values are joined
   with the culture's list separator followed by a space, `, ` in English and `; ` in French, where the comma separates
@@ -81,10 +84,14 @@ name, which FluentValidation quotes as a placeholder, and a position, which an `
   arguments, an empty text for a rule the type does not declare.
 
 The current UI culture chooses the message and the current culture formats the arguments, as .NET does elsewhere: with
-`UseRequestLocalization()`, both follow the request. A template quoting an argument its code does not supply is the
-application's error: an `IStringLocalizer` throws its `FormatException`, which the integrations let through, while
-FluentValidation leaves a placeholder it has no value for as it is. On MVC and minimal APIs, a resource read without
-`builder.Services.AddLocalization()` throws an `InvalidOperationException` naming the call.
+`UseRequestLocalization()`, both follow the request. An Azure Functions invocation runs on the host's call, not on the
+request's, so the Functions middleware applies the request's cultures itself, those `UseRequestLocalization()` chose or
+those the application's `RequestLocalizationOptions` choose from the request
+([Azure](../how-to/azure.md#messages-in-the-requests-language)). A template quoting an argument its code does not
+supply is the application's error: an `IStringLocalizer` throws its `FormatException`, which the integrations let
+through, while FluentValidation leaves a placeholder it has no value for as it is. On MVC, minimal APIs and Azure
+Functions HTTP triggers, a resource read without `builder.Services.AddLocalization()` throws an
+`InvalidOperationException` naming the call.
 
 A French resource for the codes of the framework, as an example:
 
@@ -203,6 +210,7 @@ that treats a rejected value as a bug, for a strict EF Core read, and for an EF 
 | A tool argument, through [`AdCodicem.ValueObjects.AI`](../how-to/language-models.md#a-refused-argument)'s `WithValueObjectValidation()` | Nothing is thrown: the function returns `{"error":"invalid_argument","argument":…,"code":…,"message":…}`, which `FunctionInvokingChatClient` hands the model as it is, with the converter's message, or `A value is required.` and `value_object.required` for an absent argument or a `null` sent to a value object that cannot be `null`. Where the converter writes no message, for a number the underlying type cannot hold, and where a converter of the application's own, or the underlying contract of a value object written by hand, refuses with an exception of its own, the message is "The value is not a valid Quantity.", and the code the one that exception carries in its `Data`, or `value_object.not_parsable`. Without the wrapper, the converter's `ValueObjectJsonException` reaches `FunctionInvokingChatClient`, which answers the model "Error: Function failed.", followed by the message alone under `IncludeDetailedErrors`. |
 | A structured answer, read through `ChatResponse<T>.Result` | The converters' `ValueObjectJsonException`, whose code the application can ask again with ([structured output](../how-to/language-models.md#structured-output)). |
 | A Model Context Protocol tool argument, through [`AdCodicem.ValueObjects.ModelContextProtocol`](../how-to/language-models.md#a-refused-argument-as-a-tool-execution-error)'s `WithValueObjectTools` | Nothing is thrown: the server answers a tool execution error, `isError: true`, whose text is `Argument 'quantity' rejected (value_object.out_of_range): …`, and whose structured content is the object above when the tool declares no output schema, its code and message read the same way. Without the package, the SDK answers `An error occurred invoking 'place_order'.`, and the rule and its code are lost. |
+| An Azure Functions isolated worker binding, through [`AdCodicem.ValueObjects.AzureFunctions`](../how-to/azure.md#route-values-query-values-and-binding-data)'s `UseValueObjects()` | The converter fails the parameter with a `FormatException`, "The value is not a valid Quantity: The value must be less than or equal to 100. (value_object.out_of_range)", carrying the code in its `Data` and at the end of its message; the worker keeps that text alone, in a `FunctionInputConverterException` with no inner exception, which fails the invocation. Over HTTP, with [`UseValueObjectProblemDetails()`](../how-to/azure.md#problem-details-for-http-triggers) after `ConfigureFunctionsWebApplication()`, a validation problem carrying the code of each refused route or query value, and of a `[FromBody]` value object where the MVC package's `AddValueObjects()` reads the body; the middleware throws nothing of its own. Without the package, the worker's JSON conversion refuses the text, a valid `Guid` or date included, and the host logs the reader's message, which can quote part of the value: `'not-a-guid' is an invalid JSON literal`. |
 
 The other reads do not validate. EF Core by default, Dapper for a value the provider returns as the underlying type or
 as its date and time counterpart, a trusted MongoDB serializer and a trusted MessagePack formatter build the value
@@ -351,6 +359,7 @@ reading English:
 | MongoDB.Driver, a read or a refused write | `FormatException` on read, `BsonSerializationException` on write, inside the driver's exception of the same type, naming the member, when it reads or writes a document | In `Data` |
 | MessagePack, a read or a refused write | `MessagePackSerializationException`, inside MessagePack's own of the same type when the serializer reads or writes a value | In `Data` |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly that opts into XML serialization | `XmlException`, inside the serializer's `InvalidOperationException` or `SerializationException` | In `Data` |
+| The Azure Functions converter | `FormatException`, whose text alone the worker keeps, in its `FunctionInputConverterException` | In `Data`, and at the end of the message |
 
 The code is the one the rule reports. A value that is not of the underlying type at all carries
 `value_object.not_parsable`: a JSON token of the wrong kind, a number the underlying type cannot hold, text not of its
@@ -380,6 +389,13 @@ catch (Exception exception) when (ValueObjectErrors.TryGetCode(exception, out va
     logger.LogWarning(exception, "A value was refused: {Code}", code);
 }
 ```
+
+The Azure Functions converter's `FormatException` is the one whose message carries the code too: the worker turns the
+failure of a parameter into the text of the `FunctionInputConverterException` it throws, with no inner exception, so
+neither the converter's exception nor its `Data` reaches a middleware, a log or an alert, and `TryGetCode` reads
+nothing on the worker's exception. The code at the end of the text, `(value_object.out_of_range)`, is what survives; an
+HTTP trigger answered through `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` carries it under `errorCodes`
+([Azure Functions](../how-to/azure.md#azure-functions-isolated-worker)).
 
 A tool argument refused through `AdCodicem.ValueObjects.AI` throws nothing: the code is the `code` of the result the
 model reads ([language models](../how-to/language-models.md#a-refused-argument)). Where reflection-based serialization

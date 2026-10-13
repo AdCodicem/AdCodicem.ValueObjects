@@ -72,6 +72,18 @@
          it at exactly that version, and Microsoft.Extensions.Hosting.Abstractions and Caching.Abstractions at their
          floors; none is pinned here: a pin would make it a dependency of the package. -->
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
+    <!-- The Azure Functions packages' floors, the versions they are built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Microsoft's own worker extensions
+         (Application Insights, OpenTelemetry, Durable Functions) take Worker.Core at 2.51 and 2.52 too. Azure.Core and
+         Microsoft.Extensions.Hosting come with Worker.Core, and the Http extension and its analyzer with
+         Extensions.Http.AspNetCore; none is pinned here: a pin would make it a dependency of the packages. -->
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker.Core" Version="2.52.0" />
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.1.1" />
+    <!-- No package under src/ references it: the Functions application the integration suite runs does, and the unit
+         suite takes it through this pin. A transitive pin: Extensions.Http.AspNetCore asks for 2.1.0, whose Worker.Grpc would run beside Worker.Core
+         2.52.0, and pinning lists it as a dependency of AdCodicem.ValueObjects.AzureFunctions.AspNetCore, so that an HTTP
+         application takes the worker at the version of its core: removing it changes what that package packs. -->
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker" Version="2.52.0" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
@@ -88,6 +100,10 @@
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.15.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.15.0" />
     <PackageVersion Include="Testcontainers.MongoDb" Version="4.15.0" />
+    <!-- Azurite, the storage emulator the Functions host's queue triggers run on in the integration suite, and the client
+         that enqueues their messages; no package under src/ references them. -->
+    <PackageVersion Include="Testcontainers.Azurite" Version="4.15.0" />
+    <PackageVersion Include="Azure.Storage.Queues" Version="12.28.1" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
     <!-- An engine in memory, which needs no server and through which the unit suite runs what only an engine shows:
@@ -126,6 +142,10 @@
     <!-- Agent Framework's ChatClientAgent, which the unit suite runs the AI package's tools and response format through,
          as an application does; no package under src/ references it. -->
     <PackageVersion Include="Microsoft.Agents.AI" Version="1.24.0" />
+    <!-- The Functions application the integration suite runs in the host's container: the worker's build, and the queue
+         trigger whose binding data it reads; no package under src/ references them. -->
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.1.0" />
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues" Version="5.5.5" />
   </ItemGroup>
 
 </Project>
