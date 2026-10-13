@@ -40,7 +40,9 @@ terms: a JSON exception, a model state error, a FluentValidation failure, a Dapp
 `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool result a language model
 reads, a Model Context Protocol tool execution error ([what each one throws](./reference/errors.md)).
 Each carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions ([the code in
-an exception](./reference/errors.md#the-code-in-an-exception)). The message is English; the code keys the one an
+an exception](./reference/errors.md#the-code-in-an-exception)). Under `UseValueObjectCheckErrors()`, the database
+provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the constraint's
+name. The message is English; the code keys the one an
 application shows in its users' language, which the MVC, minimal API and FluentValidation integrations look up with the
 arguments the declared rules supply ([a message in the application's
 language](./reference/errors.md#a-message-in-the-applications-language)). `Create` throws `ValueObjectException`, and is
@@ -64,7 +66,8 @@ membership lookup and the `enum` keyword of the schema, whose values generated c
 constraints](./how-to/ef-core.md#check-constraints-from-the-rules) of the EF Core columns, wherever the database reads
 them as .NET does, and, once the options name the dialect of SQL Server 2025 or PostgreSQL, the patterns, refusing to
 build the model on one the database would read apart from .NET unless `ExcludePattern<TSelf>()` leaves it to the
-application.
+application. Each constraint is named after its rule, so that a row it refuses comes back with the rule's code under
+`UseValueObjectCheckErrors()` ([when a constraint fires](./how-to/ef-core.md#when-a-constraint-fires)).
 
 ## Constraints that shape the generated code
 

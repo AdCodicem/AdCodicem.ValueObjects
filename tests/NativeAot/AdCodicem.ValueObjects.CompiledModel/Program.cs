@@ -6,7 +6,9 @@
 // The relaxed context also generates keys typed as value objects, a Guid one as SQL Server generates a Guid and an int
 // one by the identity, refuses an entity added without a Guid key nothing generates, and reads the keys back.
 // Both contexts add the CHECK constraints of the rules, which no compiled model holds: EnsureCreated builds the
-// design-time model and creates them, and every value written passes them.
+// design-time model and creates them, and every value written passes them. A row SQL writes breaking a rule is refused,
+// and the provider's error carries the code of the rule, which UseValueObjectCheckErrors() reads off the constraint's
+// name, not off the model.
 //
 // The queries are also the ones the native AOT variant precompiles, which is why they sit here, each on a context held
 // in a local and filtering on locals: query precompilation takes a context passed as a parameter for a dynamic query,
@@ -41,6 +43,13 @@ await using (var connection = new SqlConnection(connectionString))
     await connection.OpenAsync();
     await using var command = new SqlCommand("SELECT COUNT(*) FROM information_schema.check_constraints", connection);
     Report("relaxed: CHECK constraints created from the rules", (int)(await command.ExecuteScalarAsync())! > 0);
+}
+
+await using (var context = new ShopContext(connectionString))
+{
+    Report(
+        "relaxed: a row breaking a rule refused by its CHECK constraint, the provider's error carrying the rule's code",
+        await RefusedWithCodeAsync(() => context.Database.ExecuteSqlRawAsync("UPDATE [Shipments] SET [Quantity] = 1001"), ValueObjectErrorCodes.OutOfRange));
 }
 
 Parcel[] parcels = [new(), new()];
@@ -161,6 +170,19 @@ static bool Refused(Action add)
     catch (InvalidOperationException exception) when (exception.Message.StartsWith("'Consignment' was added without its key", StringComparison.Ordinal))
     {
         return true;
+    }
+}
+
+static async Task<bool> RefusedWithCodeAsync(Func<Task<int>> write, string code)
+{
+    try
+    {
+        await write();
+        return false;
+    }
+    catch (SqlException exception) when (exception.Number == 547)
+    {
+        return ValueObjectErrors.TryGetCode(exception, out var carried) && carried == code;
     }
 }
 

@@ -93,7 +93,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | **`AdCodicem.ValueObjects`** | The one to install: contracts, source generator and analyzers. |
 | `AdCodicem.ValueObjects.Abstractions` | The contracts alone, with no dependency at all. |
 | `AdCodicem.ValueObjects.Json` | Covers source-generated serializer contexts and hand-written value objects, and fills in the JSON Schema System.Text.Json exports. |
-| `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, a convention that maps a whole assembly, keys generated the provider's way, `.Value` translated in queries, and opt-in CHECK constraints from the rules. |
+| `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, a convention that maps a whole assembly, keys generated the provider's way, `.Value` translated in queries, and opt-in CHECK constraints from the rules, whose violations carry the rule code under `UseValueObjectCheckErrors()`. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, native AOT included. |
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | The same problem details for a body MVC reads with Newtonsoft.Json. |
@@ -213,7 +213,9 @@ MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationExcepti
 result a language model reads, an MCP tool execution error. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
-query value, and those of a minimal API for a route, query or header value.
+query value, and those of a minimal API for a route, query or header value. Under `UseValueObjectCheckErrors()`, the
+database provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the
+constraint's name.
 The message is English; the code keys the one an application shows in its users' language, which the MVC, minimal API
 and FluentValidation integrations look up with the arguments the declared rules supply
 ([a message in the application's language](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/reference/errors#a-message-in-the-applications-language)).

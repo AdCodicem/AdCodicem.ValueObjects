@@ -28,7 +28,11 @@ Four suites, each with a distinct job:
   the rules: each rule written or left out per provider, SQLite taking every value at the boundaries of the rules it
   writes and refusing another writer's row, the names, scripts and shapes of table the constraints come in, and the
   patterns, written in each dialect or failing the model on a construct or an option the database would read apart,
-  the writer checked construct by construct against what .NET makes of the same pattern.
+  the writer checked construct by construct against what .NET makes of the same pattern, and the code of the rule a
+  refused row broke, on SQLite's error and on errors shaped as PostgreSQL's and SQL Server's, every name the convention
+  writes read back to its rule, SQL Server's message in each language it is translated into, a name read past each
+  separator a message may put around it, and a refusal reported while the results of a batch are read, which only a
+  save interceptor sees.
   Property-based tests run the laws `IValueObject<TSelf, TValue>` states over generated input, the values each type
   accepts drawn by the [test-data sampler](./how-to/test-value-objects.md#generate-valid-values) from the rules it
   declares, through the arbitraries of the FsCheck package, and the test-data sampler itself draws a value of every
@@ -53,8 +57,11 @@ Four suites, each with a distinct job:
   provider generates a `Guid`, in the order the engine sorts them, and integer ones by the engine's identity column,
   a prefix search on `.Value` reading the column itself, with a parameter declared as the column, `.Value` of a
   value object over a type the provider converts, and the CHECK constraints written from the rules, on PostgreSQL and
-  SQL Server 2022, taking every value each type accepts and refusing another writer's row, their patterns matched value
-  by value as .NET matches them on PostgreSQL and on SQL Server 2025, plus the API surface end to end; and a
+  SQL Server 2022, taking every value each type accepts and refusing another writer's row, and a row the context
+  writes with the code of the rule it broke, from `SaveChanges`, a refusal in a later statement of a batch included,
+  `ExecuteUpdate`, raw SQL and a migration, in every language SQL Server writes its messages in, and with none on SQL
+  Server for a raw query reading back the rows it writes, their patterns matched value by value as .NET
+  matches them on PostgreSQL and on SQL Server 2025, plus the API surface end to end; and a
   real MongoDB server, which stores a value object of every underlying type MongoDB.Bson can represent as the document
   its primitive writes, refuses one over `Int128` or `UInt128`, and answers each LINQ and `Builders` shape over them,
   `.Value` included; which, given the `$jsonSchema` validator built from the rules, refuses another writer's document
@@ -103,7 +110,7 @@ optional, a generic one, an identifier as the key and collections of them, `Guid
 `Guid` key it refuses to add unset, beside a strict context, both filtering on `.Value` and adding the CHECK
 constraints from the rules. `dotnet ef dbcontext optimize` writes its compiled model on every pull request, which the
 project then builds on and takes on a round trip through SQL Server, whose tables `EnsureCreated` creates with the
-constraints; the native AOT job also writes the model for native AOT, with its queries precompiled, and publishes it.
+constraints, a row SQL writes breaking a rule refused with the rule's code; the native AOT job also writes the model for native AOT, with its queries precompiled, and publishes it.
 [Compiled models](./how-to/ef-core.md#compiled-models) says what holds there.
 
 ## The compatibility island
@@ -114,7 +121,7 @@ version, never from nuget.org — into `net11.0` applications on the .NET 11 rel
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
 PostgreSQL, collections of value objects, queries on `.Value`, CHECK constraints from the rules on SQLite and a pattern
-constraint on PostgreSQL included, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json and on Newtonsoft.Json,
+constraint on PostgreSQL included, a refused row carrying the code of its rule, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json and on Newtonsoft.Json,
 and a minimal API with its problem details, their messages and FluentValidation's in the language of the request,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
 MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and

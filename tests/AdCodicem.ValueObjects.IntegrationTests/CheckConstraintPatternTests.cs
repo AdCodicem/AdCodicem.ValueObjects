@@ -137,7 +137,11 @@ public abstract class CheckConstraintPatternTests<TFixture>(TFixture fixture) : 
             "CK_pattern_values_Payment_MinLength");
     }
 
-    /// <summary>A row another writer stores with a value a pattern refuses is refused by the engine, the constraint named.</summary>
+    /// <summary>
+    /// A row another writer stores with a value a pattern refuses is refused by the engine, the constraint named, and the
+    /// provider's error carries the code of the rule, <c>value_object.invalid_format</c>, which
+    /// <c>UseValueObjectCheckErrors()</c> adds.
+    /// </summary>
     /// <param name="column">The column written.</param>
     /// <param name="literal">The value, as SQL.</param>
     [Theory]
@@ -154,7 +158,11 @@ public abstract class CheckConstraintPatternTests<TFixture>(TFixture fixture) : 
 
         var write = () => context.Database.ExecuteSqlRawAsync(insert, TestContext.Current.CancellationToken);
 
-        Refused((await write.Should().ThrowAsync<DbException>()).Which, $"CK_pattern_values_{column}_Pattern");
+        var refusal = (await write.Should().ThrowAsync<DbException>()).Which;
+        Refused(refusal, $"CK_pattern_values_{column}_Pattern");
+        refusal.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(ValueObjectErrorCodes.InvalidFormat);
+        ValueObjectErrors.TryGetCode(refusal, out var code).Should().BeTrue();
+        code.Should().Be(ValueObjectErrorCodes.InvalidFormat);
     }
 
     /// <summary>Gets the query matching the parameter <c>@value</c> against a pattern, as 1 or 0.</summary>
@@ -197,6 +205,7 @@ public abstract class CheckConstraintPatternTests<TFixture>(TFixture fixture) : 
     {
         var builder = new DbContextOptionsBuilder<TContext>();
         database.Configure(builder, database.ConnectionString);
+        builder.UseValueObjectCheckErrors();
 
         return (TContext)Activator.CreateInstance(typeof(TContext), builder.Options)!;
     }

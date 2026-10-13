@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Sqlite.Infrastructure.Internal;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql;
 
 namespace AdCodicem.ValueObjects.UnitTests.Persistence;
 
@@ -572,6 +573,57 @@ public sealed partial class EntityFrameworkCoreCheckConstraintTests : IDisposabl
         declared.Should().HaveCount(2).And.Contain("CK_clash_declared_Score_Maximum", "\"Score\" <> 13");
         declared.Keys.Should().ContainSingle(static name => name.StartsWith("CK_clash_declared_Score_Maximum_", StringComparison.Ordinal))
             .Which.Should().MatchRegex("_Maximum_[0-9A-F]{8}$");
+    }
+
+    /// <summary>
+    /// Every name the convention writes reads back to the code <c>Validate</c> reports for its rule, on SQLite and on
+    /// PostgreSQL: each underlying type with a rule, a construction of a generic value object, an entity identifier, a
+    /// value object written by hand, an optional column, owned and complex columns, a name shortened or kept apart with
+    /// its hash, a pattern. The code expected is read off the constraint's SQL, never off its name, so that a rule the
+    /// writer spells one way and the reader another fails here. The name the application gave a constraint of its own,
+    /// <c>CK_clash_declared_Score_Maximum</c>, reads as the convention's would.
+    /// </summary>
+    [Fact]
+    public void Every_name_the_convention_writes_reads_back_to_the_code_of_its_rule()
+    {
+        const string DeclaredByHand = "CK_clash_declared_Score_Maximum";
+        var checks = new List<(string Name, string Sql)>();
+        foreach (var context in (DbContext[])
+            [
+                Sqlite<SpecimenContext>(), Npgsql<SpecimenContext>(), Sqlite<BoundaryContext>(), Npgsql<BoundaryContext>(),
+                Npgsql<ShapesContext>(), Sqlite<LongNameContext>(), Npgsql<LongNameContext>(), Npgsql<ClashContext>(),
+                Npgsql<PostgreSqlPatternContext>(),
+            ])
+        {
+            using (context)
+            {
+                checks.AddRange(RelationalModel(context).Tables.SelectMany(static table => table.CheckConstraints).Select(static check => (check.Name!, check.Sql)));
+            }
+        }
+
+        var read = checks.Where(static check => check.Name != DeclaredByHand)
+            .Select(static check => (check.Name, Code: Read(check.Name), Expected: RuleOf(check.Sql)))
+            .ToList();
+
+        read.Should().HaveCountGreaterThan(150).And.AllSatisfy(static check => check.Code.Should().Be(check.Expected, check.Name));
+        read.Select(static check => check.Expected).Distinct().Should().BeEquivalentTo(
+            ValueObjectErrorCodes.TooShort, ValueObjectErrorCodes.OutOfRange, ValueObjectErrorCodes.NotAKnownValue, ValueObjectErrorCodes.InvalidFormat);
+        read.Should().Contain(static check => Regex.IsMatch(check.Name, "_[0-9A-F]{8}$"), "names shortened or kept apart end with a hash");
+        Read(DeclaredByHand).Should().Be(ValueObjectErrorCodes.OutOfRange);
+
+        static string? Read(string name)
+            => ValueObjectCheckConstraints.TryGetCode(
+                new PostgresException("violated", "ERROR", "ERROR", PostgresErrorCodes.CheckViolation, constraintName: name),
+                out var code)
+                ? code
+                : null;
+
+        static string RuleOf(string sql)
+            => sql.Contains(" ~ ", StringComparison.Ordinal) || sql.Contains("REGEXP_LIKE(", StringComparison.Ordinal) ? ValueObjectErrorCodes.InvalidFormat
+                : sql.Contains("length(", StringComparison.OrdinalIgnoreCase) ? ValueObjectErrorCodes.TooShort
+                : sql.Contains(" IN (", StringComparison.Ordinal) ? ValueObjectErrorCodes.NotAKnownValue
+                : sql.Contains(">=", StringComparison.Ordinal) || sql.Contains("<=", StringComparison.Ordinal) ? ValueObjectErrorCodes.OutOfRange
+                : throw new InvalidOperationException($"No rule reads '{sql}'.");
     }
 
     /// <summary>

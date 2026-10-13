@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.EntityFrameworkCore</RootNamespace>
-    <Description>Entity Framework Core support for AdCodicem value objects: value converters and comparers that store the bare underlying value, plus a convention that maps every value object of an assembly in one call, keys generated the provider's way, .Value translated in LINQ queries to the column itself, and opt-in CHECK constraints from the rules each value object declares.</Description>
+    <Description>Entity Framework Core support for AdCodicem value objects: value converters and comparers that store the bare underlying value, plus a convention that maps every value object of an assembly in one call, keys generated the provider's way, .Value translated in LINQ queries to the column itself, and opt-in CHECK constraints from the rules each value object declares, a violated one reported with its rule code under UseValueObjectCheckErrors().</Description>
     <PackageTags>$(PackageTags);efcore;entity-framework;persistence</PackageTags>
 
     <!-- Entity Framework Core builds its model by reflection, so this package cannot claim AOT compatibility. -->

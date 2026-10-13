@@ -1,3 +1,6 @@
+using System.Collections;
+using System.Data.Common;
+using System.Text.RegularExpressions;
 using AdCodicem.ValueObjects.EntityFrameworkCore;
 using AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
 using AdCodicem.ValueObjects.IntegrationTests.Fixtures;
@@ -101,6 +104,46 @@ public sealed class SqlServerCheckConstraintScriptTests
 
         static string Name(IRelationalModel model, string table, string? schema = null)
             => model.FindTable(table, schema)!.CheckConstraints.Should().ContainSingle().Subject.Name!;
+    }
+
+    /// <summary>
+    /// Every name the convention writes for SQL Server, plain, shortened or kept apart within its schema with a hash, and
+    /// a pattern's, reads back off SQL Server's message to the code of its rule, which an oracle reads off the constraint's
+    /// SQL. An error stands for SqlClient's, which has no public constructor: the number SqlClient states in its data and
+    /// SQL Server's English message; <see cref="SqlServerCheckConstraintTests"/> reads the real one in every language.
+    /// </summary>
+    [Fact]
+    public void Every_name_written_for_SQL_Server_reads_back_to_the_code_of_its_rule()
+    {
+        var checks = new List<(string Name, string Sql)>();
+        foreach (var context in (DbContext[])[new ScriptedContext(), new SqlServer2025DialectContext(), new ClashContext()])
+        {
+            using (context)
+            {
+                checks.AddRange(context.GetService<IDesignTimeModel>().Model.GetRelationalModel().Tables
+                    .SelectMany(static table => table.CheckConstraints)
+                    .Where(static check => check.Name != "CK_clash_declared_Score_Maximum")
+                    .Select(static check => (check.Name!, check.Sql)));
+            }
+        }
+
+        checks.Should().HaveCountGreaterThan(60).And.AllSatisfy(static check => Read(check.Name).Should().Be(RuleOf(check.Sql), check.Name));
+        checks.Should().Contain(static check => check.Sql.StartsWith("REGEXP_LIKE(", StringComparison.Ordinal));
+        checks.Should().Contain(static check => Regex.IsMatch(check.Name, "_[0-9A-F]{8}$"), "names kept apart within the schema end with a hash");
+
+        static string? Read(string name)
+            => ValueObjectCheckConstraints.TryGetCode(
+                new SqlServerError($"The INSERT statement conflicted with the CHECK constraint \"{name}\". The conflict occurred in database \"shop\", table \"dbo.t\", column 'c'."),
+                out var code)
+                ? code
+                : null;
+
+        static string RuleOf(string sql)
+            => sql.StartsWith("REGEXP_LIKE(", StringComparison.Ordinal) ? ValueObjectErrorCodes.InvalidFormat
+                : sql.StartsWith("DATALENGTH(", StringComparison.Ordinal) ? ValueObjectErrorCodes.TooShort
+                : sql.Contains(" IN (", StringComparison.Ordinal) ? ValueObjectErrorCodes.NotAKnownValue
+                : sql.Contains(">=", StringComparison.Ordinal) || sql.Contains("<=", StringComparison.Ordinal) ? ValueObjectErrorCodes.OutOfRange
+                : throw new InvalidOperationException($"No rule reads '{sql}'.");
     }
 
     /// <summary>
@@ -211,6 +254,19 @@ public sealed class SqlServerCheckConstraintScriptTests
     private sealed class PostgreSqlDialectContext : ScriptedContext
     {
         protected override ValueObjectPatternDialect Patterns => ValueObjectPatternDialect.PostgreSql;
+    }
+
+    /// <summary>The same values, with SQL Server 2025's dialect of patterns named.</summary>
+    private sealed class SqlServer2025DialectContext : ScriptedContext
+    {
+        protected override ValueObjectPatternDialect Patterns => ValueObjectPatternDialect.SqlServer2025;
+    }
+
+    /// <summary>An error of SQL Server's shape: SqlClient states the number of the first error in the data, in every language.</summary>
+    /// <param name="message">The message.</param>
+    private sealed class SqlServerError(string message) : DbException(message)
+    {
+        public override IDictionary Data { get; } = new Hashtable { ["HelpLink.EvtID"] = "547" };
     }
 
     /// <summary>A score in column <c>C</c> of table <c>clash_a_b</c>.</summary>

@@ -276,9 +276,18 @@ on SQLite. Each names the constraint, `CK_{table}_{column}_{rule}`, and so the r
 followed by eight hexadecimal digits when the name was shortened to the provider's limit, or kept apart from a name
 already taken: by a check constraint of the model, one the application declared, in the same table or, on SQL Server,
 in the schema, or by another
-table's, and the column, unless the name was shortened. None carries a rule code: the server checks the SQL, not the
-value object. A migration adding a constraint to a table that already holds a row it refuses fails with the same error,
-"The ALTER TABLE statement conflicted with the CHECK constraint" on SQL Server. With
+table's, and the column, unless the name was shortened. With
+[`UseValueObjectCheckErrors()`](../how-to/ef-core.md#when-a-constraint-fires) on the options of the context, the
+provider's error carries the code of that rule in its `Data`, as [below](#the-code-in-an-exception): the code
+`Validate` reports for it, `value_object.too_short` for `MinLength`, `value_object.out_of_range` for `Minimum` and
+`Maximum`, `value_object.not_a_known_value` for `KnownValues`, `value_object.invalid_format` for `Pattern`. The error
+is neither replaced nor wrapped, and its message is the provider's. Without the call, it carries none, and
+`ValueObjectCheckConstraints.TryGetCode` reads the code off it, as it does off an error the call cannot reach: on SQL
+Server, that of a raw query reading back the rows it writes, which SqlClient reports while the rows are read. Only an
+error reporting a violated CHECK constraint is read: one naming a constraint for another reason, a migration's "There
+is already an object named …", carries no code. A migration adding a constraint to a table that already holds a row
+it refuses fails with the same error, "The ALTER TABLE statement conflicted with the CHECK constraint" on SQL Server,
+and the same code. With
 [patterns](../how-to/ef-core.md#patterns) named, building the model throws an `InvalidOperationException`, which
 carries no code, for a pattern the dialect would read apart from .NET, naming the value object, the construct, the
 dialect and the remedies: "AddValueObjectCheckConstraints cannot write the pattern of EmailAddress for PostgreSql: it
@@ -338,6 +347,7 @@ reading English:
 | Dapper | `DataException` | In `Data` |
 | EF Core, a refused write or a strict read | `ValueObjectException`, inside the `DbUpdateException` or the exception the query fails with | `ErrorCode` |
 | EF Core, an entity added without its `Guid` key, under `ConfigureValueObjects` | `InvalidOperationException`, `value_object.required` | In `Data` |
+| EF Core, a row a CHECK constraint from the rules refused, under `UseValueObjectCheckErrors()` | The provider's `SqlException`, `PostgresException` or `SqliteException`, inside the `DbUpdateException` of `SaveChanges`, as it is from `ExecuteUpdate`, raw SQL or a migration; on SQL Server, a raw query reading back the rows it writes, over `OUTPUT`, fails with an error that carries none, which `ValueObjectCheckConstraints.TryGetCode` reads | In `Data` |
 | MongoDB.Driver, a read or a refused write | `FormatException` on read, `BsonSerializationException` on write, inside the driver's exception of the same type, naming the member, when it reads or writes a document | In `Data` |
 | MessagePack, a read or a refused write | `MessagePackSerializationException`, inside MessagePack's own of the same type when the serializer reads or writes a value | In `Data` |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly that opts into XML serialization | `XmlException`, inside the serializer's `InvalidOperationException` or `SerializationException` | In `Data` |
@@ -353,13 +363,16 @@ marked `xsi:nil` that `XmlSerializer` hands a member that cannot be `null` (`Dat
 itself, without a code). So does an entity [added without its key](#an-entity-added-without-its-key). The messages
 are the ones the exceptions carried before; where the System.Text.Json reader itself cannot read a token, as for a
 number beyond the range of an `int`, the message is still the serializer's own, "The JSON value could not be converted
-to …", followed by the path. No exception carries the refused value.
+to …", followed by the path. No exception carries the refused value; the error of a database provider keeps the
+message its provider wrote, which on PostgreSQL holds the refused row when the connection string sets
+`Include Error Detail`.
 
 `ValueObjectErrors.TryGetCode` reads the code from any of these, and from an exception that wraps one: ASP.NET Core
 wraps a body it cannot read in a `BadHttpRequestException`, and Entity Framework Core a refused write in a
 `DbUpdateException`. It reads `ValueObjectException.ErrorCode`, then `ValueObjectJsonException.ErrorCode`, then
 `Data` under `ValueObjectErrors.ErrorCodeKey`, on each exception of the chain in turn, and the first code found wins.
-An exception no value object raised carries none.
+An exception that reports no broken rule carries none; the provider's error for a row a CHECK constraint from the rules
+refused, which no value object raised, carries one under `UseValueObjectCheckErrors()`.
 
 ```csharp skip
 catch (Exception exception) when (ValueObjectErrors.TryGetCode(exception, out var code))

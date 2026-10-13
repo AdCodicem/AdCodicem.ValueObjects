@@ -2,7 +2,7 @@
 title: Use with Entity Framework Core
 sidebar_label: Entity Framework Core
 slug: /how-to/ef-core
-description: Map every value object of an assembly to its underlying column type in one call, collections of them as primitive collections, size columns from declared rules, translate `.Value` in queries to the column, choose when reads are validated, never store a value a type rejects, write the rules as CHECK constraints, generate keys the provider's way and refuse a Guid key left unset, compile the model, and work with JSON columns, raw SQL, other providers, bulk extensions, Always Encrypted and data masking.
+description: Map every value object of an assembly to its underlying column type in one call, collections of them as primitive collections, size columns from declared rules, translate `.Value` in queries to the column, choose when reads are validated, never store a value a type rejects, write the rules as CHECK constraints and read the rule a refused row broke, generate keys the provider's way and refuse a Guid key left unset, compile the model, and work with JSON columns, raw SQL, other providers, bulk extensions, Always Encrypted and data masking.
 ---
 
 # Use with Entity Framework Core
@@ -340,12 +340,75 @@ type.
 
 ### When a constraint fires
 
-The application's own writes pass: the value objects it writes went through their rules. A constraint fires for
-another writer, and for an invalid instance a lax read let in and the application writes back. Through Entity
-Framework Core, `SaveChanges` then throws a `DbUpdateException` around the provider's error, SQL Server's 547,
-PostgreSQL's 23514 or SQLite's 19, which names the constraint, and so its rule, and its column unless the name was
-shortened, but carries no rule code. It complements `strict: true` rather than replace it: a constraint stops a bad row when it is written, a strict
-read catches one stored before the constraint existed.
+The application's own writes pass: the value objects it writes went through their rules. A constraint fires for another
+writer, for an invalid instance a lax read let in and the application writes back, and for a statement that skips the
+converters, an `ExecuteUpdate` setting a column from SQL, or raw SQL. Through Entity Framework Core, `SaveChanges` then
+throws a `DbUpdateException` around the provider's error, SQL Server's 547, PostgreSQL's 23514 or SQLite's 19, which
+names the constraint, and so its rule, and its column unless the name was shortened. It complements `strict: true`
+rather than replace it: a constraint stops a bad row when it is written, a strict read catches one stored before the
+constraint existed.
+
+`UseValueObjectCheckErrors()`, on the options of the context, adds the code of the rule to the provider's error, under
+`ValueObjectErrors.ErrorCodeKey`, where every other integration of the library carries the code of a refusal:
+
+```csharp skip
+services.AddDbContext<ShopContext>(options => options
+    .UseSqlServer(connectionString)
+    .UseValueObjectQueries()
+    .UseValueObjectCheckErrors());
+```
+
+A context configuring itself calls it in `OnConfiguring`, after the provider. The code is the one `Validate` reports
+for the rule the constraint's name ends with:
+
+| Rule the name ends with | Code |
+| --- | --- |
+| `MinLength` | `value_object.too_short` |
+| `Minimum`, `Maximum` | `value_object.out_of_range` |
+| `KnownValues` | `value_object.not_a_known_value` |
+| `Pattern` | `value_object.invalid_format` |
+
+`ValueObjectErrors.TryGetCode` reads it through the `DbUpdateException` of `SaveChanges`, and off the error an
+`ExecuteUpdate`, raw SQL or a migration throws as it is, but for a raw query on SQL Server reading back the rows it
+writes (below):
+
+```csharp skip
+try
+{
+    await db.SaveChangesAsync();
+}
+catch (DbUpdateException exception) when (ValueObjectErrors.TryGetCode(exception, out var code))
+{
+    logger.LogError(exception, "A row broke the rule {Code}", code);
+    throw;
+}
+```
+
+The error is neither replaced nor wrapped, so the `catch` blocks that handle it keep working, and its message stays as
+the provider wrote it. Only the code is added: the column is in the constraint's name unless it was shortened, in SQL
+Server's message, and, for `SaveChanges`, the entity is in `DbUpdateException.Entries`; neither the value object's type
+nor the value is carried. The code is read off the name of the constraint, never off the model, so it comes with a
+[compiled model](#compiled-models) too, which holds no constraint. Only an error reporting a violated CHECK constraint
+is read: a migration's "There is already an object named …" carries no code, while a migration adding a constraint to a
+table that holds a row it refuses fails with the code, as a write does. A constraint you declared with
+`HasCheckConstraint` under a name of the same shape, `CK_Orders_Qty_Minimum`, is read as the convention's, since its
+name says the same rule. SQL Server's message is read in every language SQL Server writes it in; a name holding a space
+or a quotation mark is read on PostgreSQL only, whose error names the constraint apart from its message.
+
+The code says which rule the row broke, not who broke it: a lax read or a statement in SQL is not the client, so answer
+it as the client's error only where the value came from the request.
+
+The interceptor this registers is also a save interceptor: Entity Framework Core hands a command interceptor no error a
+provider reports while it reads the results of a batch, a refused row after the first that reads back the key the
+database generates, or SQL Server's `MERGE`, which `SaveChanges` wraps in its `DbUpdateException` all the same. No
+interceptor sees an error a provider reports while the rows of a query are read: on SQL Server, a raw SQL query that
+writes rows and reads them back, `SqlQuery` or `FromSql` over an `INSERT` or an `UPDATE` with `OUTPUT`, fails with an
+error that carries no code, which `ValueObjectCheckConstraints.TryGetCode` reads in a `catch`. PostgreSQL and SQLite
+report the refusal of such a query, over `RETURNING`, as the command runs, and their error carries the code. The
+interceptor runs only when a command or `SaveChanges` fails. Once any command interceptor is registered, though, Entity
+Framework Core builds the event data of every command it sends, about 0.8 KB per query on SQLite. Without the call,
+`ValueObjectCheckConstraints.TryGetCode(exception, out var code)` reads the same code in a `catch`, at no cost
+elsewhere, and from an error whoever sent the command: Dapper, a bulk library or ADO.NET.
 
 The constraints are part of the model a migration, `EnsureCreated` or `GenerateCreateScript` is made from, never of a
 [compiled model](#compiled-models), which holds none: `EnsureCreated` on a context using one builds the model that does.
@@ -635,7 +698,8 @@ an optional element compared by `NullableValueObjectComparer<T>` as an optional 
 
 Regenerate the compiled model when a rule that shapes a column changes, `MaxLength` say, as after any other change to
 the model. [CHECK constraints](#check-constraints-from-the-rules) are not in it: a compiled model holds none, and
-`EnsureCreated` on a context using one builds the model that holds them.
+`EnsureCreated` on a context using one builds the model that holds them. [`UseValueObjectCheckErrors()`](#when-a-constraint-fires)
+reads the rule a refused row broke off the name of the constraint, so it needs none of them.
 
 One difference remains, on a value object over `string` whose property has a database default, through
 `HasDefaultValue` or `HasDefaultValueSql`. Left unset, the property holds `default(T)`, which a model built at run
@@ -654,7 +718,8 @@ model built at run time. Keep a strict context on the model built at run time, o
 CI compiles both models, for the JIT and for native AOT, of a context mapping every value object the conventions map,
 required and optional, collections of them, and keys it generates or refuses unset, with CHECK constraints, beside a
 strict one, filters on `.Value` through [`UseValueObjectQueries()`](#the-value-in-a-query), and takes the first on a
-round trip through SQL Server, whose tables `EnsureCreated` creates with the constraints.
+round trip through SQL Server, whose tables `EnsureCreated` creates with the constraints, and where a row SQL writes
+breaking a rule is refused with the code of the rule.
 
 ### Native AOT
 

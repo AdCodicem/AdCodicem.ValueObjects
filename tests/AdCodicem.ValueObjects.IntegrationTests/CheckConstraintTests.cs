@@ -6,6 +6,7 @@ using AdCodicem.ValueObjects.IntegrationTests.Fixtures;
 using AdCodicem.ValueObjects.UnitTests.Domain;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -21,7 +22,8 @@ namespace AdCodicem.ValueObjects.IntegrationTests;
 /// </summary>
 /// <remarks>
 /// The constraints live on tables of their own, which the sample's model does not hold: its tests store refused rows on
-/// purpose, to read them strictly.
+/// purpose, to read them strictly. Every context here calls <c>UseValueObjectCheckErrors()</c>, so that each refusal is
+/// also checked to carry the code of its rule, but where a test says otherwise.
 /// </remarks>
 /// <typeparam name="TFixture">Database under test.</typeparam>
 public abstract class CheckConstraintTests<TFixture>(TFixture fixture) : IClassFixture<TFixture>
@@ -43,6 +45,15 @@ public abstract class CheckConstraintTests<TFixture>(TFixture fixture) : IClassF
 
     /// <summary>Gets a value indicating whether a text column of the database tells case by default.</summary>
     protected abstract bool ComparesCase { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether the provider reports the refusal of a statement returning rows only while they are
+    /// read, as SqlClient does for SQL Server's <c>OUTPUT</c>.
+    /// </summary>
+    protected abstract bool RefusesWhileReading { get; }
+
+    /// <summary>Gets the database under test.</summary>
+    protected TFixture Fixture => fixture;
 
     /// <summary>
     /// Every value each value object accepts is written: the boundaries of its rules, a tick past them, text at its minimum
@@ -82,24 +93,25 @@ public abstract class CheckConstraintTests<TFixture>(TFixture fixture) : IClassF
     /// <param name="column">The column written.</param>
     /// <param name="literal">The value, as SQL.</param>
     /// <param name="rule">The rule it breaks.</param>
+    /// <param name="code">The code of the rule, which the provider's error carries.</param>
     [Theory]
-    [InlineData("Iban", "'FR7630006000'", "MinLength")]
-    [InlineData("Code", "'abcd'", "MinLength")]
-    [InlineData("Adjustment", "-11", "Minimum")]
-    [InlineData("Score", "101", "Maximum")]
-    [InlineData("Counter", "0", "Minimum")]
-    [InlineData("Fee", "0.0005", "Minimum")]
-    [InlineData("Fraction", "0.75", "Maximum")]
-    [InlineData("Latitude", "90.5", "Maximum")]
-    [InlineData("Initial", "'|'", "Maximum")]
-    [InlineData("Opening", "'05:59:59'", "Minimum")]
-    [InlineData("Effective", "'1999-12-31'", "Minimum")]
-    [InlineData("Recorded", "'1999-12-31 23:59:59'", "Minimum")]
-    [InlineData("Deadline", "'1999-12-31T21:59:59+00:00'", "Minimum")]
-    [InlineData("Country", "'GB'", "KnownValues")]
-    [InlineData("Rate", "0.25", "KnownValues")]
-    [InlineData("Factor", "0.2", "KnownValues")]
-    public async Task Another_writers_row_breaking_a_rule_is_refused_by_the_engine(string column, string literal, string rule)
+    [InlineData("Iban", "'FR7630006000'", "MinLength", ValueObjectErrorCodes.TooShort)]
+    [InlineData("Code", "'abcd'", "MinLength", ValueObjectErrorCodes.TooShort)]
+    [InlineData("Adjustment", "-11", "Minimum", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData("Score", "101", "Maximum", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData("Counter", "0", "Minimum", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData("Fee", "0.0005", "Minimum", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData("Fraction", "0.75", "Maximum", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData("Latitude", "90.5", "Maximum", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData("Initial", "'|'", "Maximum", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData("Opening", "'05:59:59'", "Minimum", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData("Effective", "'1999-12-31'", "Minimum", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData("Recorded", "'1999-12-31 23:59:59'", "Minimum", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData("Deadline", "'1999-12-31T21:59:59+00:00'", "Minimum", ValueObjectErrorCodes.OutOfRange)]
+    [InlineData("Country", "'GB'", "KnownValues", ValueObjectErrorCodes.NotAKnownValue)]
+    [InlineData("Rate", "0.25", "KnownValues", ValueObjectErrorCodes.NotAKnownValue)]
+    [InlineData("Factor", "0.2", "KnownValues", ValueObjectErrorCodes.NotAKnownValue)]
+    public async Task Another_writers_row_breaking_a_rule_is_refused_by_the_engine(string column, string literal, string rule, string code)
     {
         await EnsureTablesAsync();
         await using var context = CreateContext<CheckedContext>();
@@ -108,7 +120,7 @@ public abstract class CheckConstraintTests<TFixture>(TFixture fixture) : IClassF
         var write = () => context.Database.ExecuteSqlRawAsync(insert, TestContext.Current.CancellationToken);
 
         var refusal = (await write.Should().ThrowAsync<DbException>()).Which;
-        Refused(refusal, $"CK_checked_values_{column}_{rule}");
+        Refused(refusal, $"CK_checked_values_{column}_{rule}", code);
     }
 
     /// <summary>
@@ -127,7 +139,7 @@ public abstract class CheckConstraintTests<TFixture>(TFixture fixture) : IClassF
 
         if (ComparesCase)
         {
-            Refused((await write.Should().ThrowAsync<DbException>()).Which, "CK_checked_values_Unit_KnownValues");
+            Refused((await write.Should().ThrowAsync<DbException>()).Which, "CK_checked_values_Unit_KnownValues", ValueObjectErrorCodes.NotAKnownValue);
         }
         else
         {
@@ -185,7 +197,7 @@ public abstract class CheckConstraintTests<TFixture>(TFixture fixture) : IClassF
         var migrate = () => checkedLegacy.Database.ExecuteSqlRawAsync(alter.CommandText, ct);
 
         var refusal = (await migrate.Should().ThrowAsync<DbException>()).Which;
-        Refused(refusal, "CK_legacy_values_Adjustment_Minimum");
+        Refused(refusal, "CK_legacy_values_Adjustment_Minimum", ValueObjectErrorCodes.OutOfRange);
         (await AuditAsync(checkedLegacy)).Should().BeEquivalentTo(
             "CK_legacy_values_Adjustment_Minimum: 1",
             "CK_legacy_values_Adjustment_Maximum: 0",
@@ -223,14 +235,212 @@ public abstract class CheckConstraintTests<TFixture>(TFixture fixture) : IClassF
 
             var insert = () => context.Database.ExecuteSqlRawAsync(row, ct);
 
-            Refused((await insert.Should().ThrowAsync<DbException>()).Which, tables[table]);
+            Refused((await insert.Should().ThrowAsync<DbException>()).Which, tables[table], ValueObjectErrorCodes.OutOfRange);
         }
+    }
+
+    /// <summary>
+    /// <c>SaveChanges</c> of an instance a lax read let in, which breaks a rule, fails with a <c>DbUpdateException</c>
+    /// around the provider's error, which carries the code of the rule, read through the <c>DbUpdateException</c>.
+    /// </summary>
+    /// <param name="async">Whether <c>SaveChangesAsync</c> is called.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_lax_instance_written_back_fails_SaveChanges_with_the_code_on_the_providers_error(bool async)
+    {
+        await EnsureTablesAsync();
+        await using var context = CreateContext<CheckedContext>();
+        context.Rows.Add(new CheckedValues { Id = NextId(), Score = Score.CreateUnchecked(101) });
+
+        var update = (await Save(context, async).Should().ThrowAsync<DbUpdateException>()).Which;
+
+        Refused(update.InnerException.Should().BeAssignableTo<DbException>().Which, "CK_checked_values_Score_Maximum", ValueObjectErrorCodes.OutOfRange);
+        ValueObjectErrors.TryGetCode(update, out var code).Should().BeTrue();
+        code.Should().Be(ValueObjectErrorCodes.OutOfRange);
+    }
+
+    /// <summary>
+    /// A refusal in a statement after the first of a batch, one that returns rows, reaches no command interceptor: the
+    /// provider reports it while Entity Framework Core reads the results, a key the database generates for each row here,
+    /// in SQL Server's <c>MERGE</c> of two rows of a table or in its second <c>INSERT … OUTPUT</c>, and in PostgreSQL's
+    /// second <c>INSERT … RETURNING</c>. The provider's error carries the code all the same, which the save interceptor
+    /// adds.
+    /// </summary>
+    /// <param name="twoTables">Whether the rows lie in two tables rather than one.</param>
+    /// <param name="async">Whether <c>SaveChangesAsync</c> is called.</param>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task A_refusal_in_a_later_statement_of_a_batch_carries_the_code_through_the_save_interceptor(bool twoTables, bool async)
+    {
+        await EnsureTablesAsync();
+        var recorder = new FailureRecorder();
+        await using var context = Create<BatchContext>(fixture, interceptors: recorder);
+        context.Add(new BatchFirst { Score = Score.Create(1) });
+        if (twoTables)
+        {
+            context.Add(new BatchSecond { Adjustment = Adjustment.CreateUnchecked(11) });
+        }
+        else
+        {
+            context.Add(new BatchFirst { Score = Score.CreateUnchecked(101) });
+        }
+
+        var update = (await Save(context, async).Should().ThrowAsync<DbUpdateException>()).Which;
+
+        recorder.Failures.Should().Be(0, "the provider reports the refusal while the results are read");
+        var constraint = twoTables ? "CK_batch_seconds_Adjustment_Maximum" : "CK_batch_firsts_Score_Maximum";
+        Refused(update.InnerException.Should().BeAssignableTo<DbException>().Which, constraint, ValueObjectErrorCodes.OutOfRange);
+    }
+
+    /// <summary>An <c>ExecuteUpdate</c> setting a column to a value a rule refuses fails with the provider's error as it is, which carries the code.</summary>
+    [Fact]
+    public async Task An_ExecuteUpdate_breaking_a_rule_fails_with_the_providers_error_carrying_the_code()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await EnsureTablesAsync();
+        await using var context = CreateContext<CheckedContext>();
+        var id = NextId();
+        context.Rows.Add(new CheckedValues { Id = id, Score = Score.Create(50) });
+        await context.SaveChangesAsync(ct);
+
+        var update = () => context.Rows.Where(row => row.Id == id).ExecuteUpdateAsync(set => set.SetProperty(static row => row.Score, Score.CreateUnchecked(101)), ct);
+
+        Refused((await update.Should().ThrowAsync<DbException>()).Which, "CK_checked_values_Score_Maximum", ValueObjectErrorCodes.OutOfRange);
+    }
+
+    /// <summary>
+    /// A raw SQL query that writes a row and reads it back, <c>SqlQueryRaw</c> of its key or <c>FromSqlRaw</c> of the
+    /// whole row, fails with the provider's error as it is. PostgreSQL refuses the row as the command runs, where Entity
+    /// Framework Core hands the interceptor the error, which carries the code. SqlClient reports the refusal while the
+    /// rows of SQL Server's <c>OUTPUT</c> are read, where Entity Framework Core hands no interceptor the error, which
+    /// carries none, as the guide says: <c>ValueObjectCheckConstraints.TryGetCode</c> reads the code off it. An Entity
+    /// Framework Core that comes to report it would fail here.
+    /// </summary>
+    /// <param name="wholeRow">Whether the query reads back the whole row, as entities, rather than its key.</param>
+    /// <param name="async">Whether the asynchronous methods are called.</param>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task A_raw_query_reading_back_the_rows_it_writes_carries_the_code_unless_they_are_refused_while_read(bool wholeRow, bool async)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await EnsureTablesAsync();
+        var recorder = new FailureRecorder();
+        await using var context = Create<CheckedContext>(fixture, interceptors: recorder);
+        var sql = InsertReturning(NextId(), "Score", "101", wholeRow);
+
+        Func<Task> query = wholeRow
+            ? async ? () => context.Rows.FromSqlRaw(sql).ToListAsync(ct) : () => Task.FromResult(context.Rows.FromSqlRaw(sql).ToList())
+            : async ? () => context.Database.SqlQueryRaw<int>(sql).ToListAsync(ct) : () => Task.FromResult(context.Database.SqlQueryRaw<int>(sql).ToList());
+
+        var refusal = (await query.Should().ThrowAsync<DbException>()).Which;
+
+        if (RefusesWhileReading)
+        {
+            Refused(refusal, "CK_checked_values_Score_Maximum");
+            recorder.Failures.Should().Be(0, "SqlClient reports the refusal while the rows are read");
+            refusal.Data.Contains(ValueObjectErrors.ErrorCodeKey).Should().BeFalse();
+            ValueObjectErrors.TryGetCode(refusal, out _).Should().BeFalse();
+            ValueObjectCheckConstraints.TryGetCode(refusal, out var code).Should().BeTrue();
+            code.Should().Be(ValueObjectErrorCodes.OutOfRange);
+        }
+        else
+        {
+            Refused(refusal, "CK_checked_values_Score_Maximum", ValueObjectErrorCodes.OutOfRange);
+            recorder.Failures.Should().Be(1, "the provider refuses the row as the command runs");
+        }
+    }
+
+    /// <summary>
+    /// Without <c>UseValueObjectCheckErrors()</c>, the provider's error is left as it is, and
+    /// <c>ValueObjectCheckConstraints.TryGetCode</c> reads the code off it in a <c>catch</c>.
+    /// </summary>
+    [Fact]
+    public async Task Without_the_registration_the_helper_reads_the_code_off_the_providers_error()
+    {
+        await EnsureTablesAsync();
+        await using var context = Create<CheckedContext>(fixture, checkErrors: false);
+        var insert = $"INSERT INTO {Q("checked_values")} ({Q("Id")}, {Q("Iban")}) VALUES ({NextId()}, 'FR7630006000')";
+
+        var write = () => context.Database.ExecuteSqlRawAsync(insert, TestContext.Current.CancellationToken);
+
+        var refusal = (await write.Should().ThrowAsync<DbException>()).Which;
+        Refused(refusal, "CK_checked_values_Iban_MinLength");
+        refusal.Data.Contains(ValueObjectErrors.ErrorCodeKey).Should().BeFalse();
+        ValueObjectErrors.TryGetCode(refusal, out _).Should().BeFalse();
+        ValueObjectCheckConstraints.TryGetCode(refusal, out var code).Should().BeTrue();
+        code.Should().Be(ValueObjectErrorCodes.TooShort);
+    }
+
+    /// <summary>
+    /// An error naming a constraint for another reason carries no code: adding a constraint of the convention a second
+    /// time, as a migration run twice would, fails with SQL Server's 2714 or PostgreSQL's 42710, which name it.
+    /// </summary>
+    [Fact]
+    public async Task An_error_naming_a_constraint_for_another_reason_carries_no_code()
+    {
+        await EnsureTablesAsync();
+        await using var context = CreateContext<CheckedContext>();
+        var add = $"ALTER TABLE {Q("checked_values")} ADD CONSTRAINT {Q("CK_checked_values_Score_Maximum")} CHECK ({Q("Score")} <= 100)";
+
+        var migrate = () => context.Database.ExecuteSqlRawAsync(add, TestContext.Current.CancellationToken);
+
+        var refusal = (await migrate.Should().ThrowAsync<DbException>()).Which;
+        Duplicated(refusal);
+        refusal.Message.Should().Contain("CK_checked_values_Score_Maximum");
+        refusal.Data.Contains(ValueObjectErrors.ErrorCodeKey).Should().BeFalse();
+        ValueObjectCheckConstraints.TryGetCode(refusal, out _).Should().BeFalse();
     }
 
     /// <summary>Asserts that the engine refused a row on the constraint named, as the provider reports it.</summary>
     /// <param name="refusal">What the provider threw.</param>
     /// <param name="constraint">The constraint.</param>
     protected abstract void Refused(DbException refusal, string constraint);
+
+    /// <summary>Asserts that the engine refused to create an object it already holds, as the provider reports it.</summary>
+    /// <param name="refusal">What the provider threw.</param>
+    protected abstract void Duplicated(DbException refusal);
+
+    /// <summary>Writes an <c>INSERT</c> of one row of <c>checked_values</c> that returns the row, as the engine writes one.</summary>
+    /// <param name="id">The key of the row.</param>
+    /// <param name="column">The column set.</param>
+    /// <param name="literal">Its value, as SQL.</param>
+    /// <param name="wholeRow">Whether every column of the row is returned, rather than its key as <c>Value</c>.</param>
+    /// <returns>The statement.</returns>
+    protected abstract string InsertReturning(int id, string column, string literal, bool wholeRow);
+
+    /// <summary>Creates the tables once per fixture.</summary>
+    /// <returns>A task that completes once the tables exist.</returns>
+    protected Task EnsureTablesAsync() => Tables.GetValue(fixture, static database => CreateTablesAsync(database));
+
+    /// <summary>Gets a key no row of the tables holds yet.</summary>
+    /// <returns>The key.</returns>
+    protected static int NextId() => Interlocked.Increment(ref _lastId);
+
+    /// <summary>
+    /// Asserts that the engine refused a row on the constraint named, and that the provider's error carries the code of
+    /// its rule, which <c>UseValueObjectCheckErrors()</c> adds and both readers read.
+    /// </summary>
+    private void Refused(DbException refusal, string constraint, string code)
+    {
+        Refused(refusal, constraint);
+        refusal.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(code);
+        ValueObjectErrors.TryGetCode(refusal, out var read).Should().BeTrue();
+        read.Should().Be(code);
+        ValueObjectCheckConstraints.TryGetCode(refusal, out var named).Should().BeTrue();
+        named.Should().Be(code);
+    }
+
+    private static Func<Task> Save(DbContext context, bool async)
+        => async
+            ? () => context.SaveChangesAsync(TestContext.Current.CancellationToken)
+            : () => Task.FromResult(context.SaveChanges());
 
     /// <summary>
     /// The audit query of the guide: how many rows of each table each constraint refuses, read from the relational model
@@ -338,21 +548,26 @@ public abstract class CheckConstraintTests<TFixture>(TFixture fixture) : IClassF
         }
     }
 
-    private async Task EnsureTablesAsync() => await Tables.GetValue(fixture, static database => CreateTablesAsync(database));
-
     private static async Task CreateTablesAsync(DatabaseFixture database)
     {
         await using var values = Create<CheckedContext>(database);
         await values.GetService<IRelationalDatabaseCreator>().CreateTablesAsync();
         await using var legacy = Create<LegacyContext>(database);
         await legacy.GetService<IRelationalDatabaseCreator>().CreateTablesAsync();
+        await using var batch = Create<BatchContext>(database);
+        await batch.GetService<IRelationalDatabaseCreator>().CreateTablesAsync();
     }
 
-    private static TContext Create<TContext>(DatabaseFixture database)
+    private static TContext Create<TContext>(DatabaseFixture database, bool checkErrors = true, params IInterceptor[] interceptors)
         where TContext : DbContext
     {
         var builder = new DbContextOptionsBuilder<TContext>();
         database.Configure(builder, database.ConnectionString);
+        builder.AddInterceptors(interceptors);
+        if (checkErrors)
+        {
+            builder.UseValueObjectCheckErrors();
+        }
 
         return (TContext)Activator.CreateInstance(typeof(TContext), builder.Options)!;
     }
@@ -364,7 +579,7 @@ public abstract class CheckConstraintTests<TFixture>(TFixture fixture) : IClassF
     private string Q(string identifier) => fixture.Quote(identifier);
 
     /// <summary>A value object of each kind the rules concern, each optional, so that a row sets one at a time.</summary>
-    private sealed class CheckedValues
+    protected sealed class CheckedValues
     {
         public int Id { get; set; }
 
@@ -510,7 +725,7 @@ public abstract class CheckConstraintTests<TFixture>(TFixture fixture) : IClassF
 
     /// <summary>The values, mapped by the conventions, with the check constraints.</summary>
     /// <param name="options">Options bound to the running container.</param>
-    private sealed class CheckedContext(DbContextOptions<CheckedContext> options) : DbContext(options)
+    protected sealed class CheckedContext(DbContextOptions<CheckedContext> options) : DbContext(options)
     {
         public DbSet<CheckedValues> Rows => Set<CheckedValues>();
 
@@ -562,6 +777,51 @@ public abstract class CheckConstraintTests<TFixture>(TFixture fixture) : IClassF
                 line.ToTable("clash_orders_Line");
                 line.Property(static entity => entity.Id).ValueGeneratedNever();
             });
+        }
+    }
+
+    /// <summary>A score, its key generated by the database.</summary>
+    private sealed class BatchFirst
+    {
+        public int Id { get; set; }
+
+        public Score Score { get; set; }
+    }
+
+    /// <summary>An adjustment, its key generated by the database, in a table that sorts after <see cref="BatchFirst"/>'s.</summary>
+    private sealed class BatchSecond
+    {
+        public int Id { get; set; }
+
+        public Adjustment Adjustment { get; set; }
+    }
+
+    /// <summary>Tables whose keys the database generates, so that each statement of a batch returns rows.</summary>
+    /// <param name="options">Options bound to the running container.</param>
+    private sealed class BatchContext(DbContextOptions<BatchContext> options) : DbContext(options)
+    {
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+            => configurationBuilder.ConfigureValueObjects(typeof(Grade).Assembly).AddValueObjectCheckConstraints();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<BatchFirst>().ToTable("batch_firsts");
+            modelBuilder.Entity<BatchSecond>().ToTable("batch_seconds");
+        }
+    }
+
+    /// <summary>Counts the errors Entity Framework Core hands a command interceptor.</summary>
+    private sealed class FailureRecorder : DbCommandInterceptor
+    {
+        public int Failures { get; private set; }
+
+        public override void CommandFailed(DbCommand command, CommandErrorEventData eventData) => Failures++;
+
+        public override Task CommandFailedAsync(DbCommand command, CommandErrorEventData eventData, CancellationToken cancellationToken = default)
+        {
+            Failures++;
+
+            return Task.CompletedTask;
         }
     }
 
@@ -627,12 +887,23 @@ public sealed class PostgreSqlCheckConstraintTests(PostgreSqlFixture fixture) : 
     protected override bool ComparesCase => true;
 
     /// <inheritdoc />
+    protected override bool RefusesWhileReading => false;
+
+    /// <inheritdoc />
     protected override void Refused(DbException refusal, string constraint)
     {
         var postgres = refusal.Should().BeOfType<PostgresException>().Which;
         postgres.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
         postgres.ConstraintName.Should().Be(constraint);
     }
+
+    /// <inheritdoc />
+    protected override void Duplicated(DbException refusal)
+        => refusal.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PostgresErrorCodes.DuplicateObject);
+
+    /// <inheritdoc />
+    protected override string InsertReturning(int id, string column, string literal, bool wholeRow)
+        => $"INSERT INTO \"checked_values\" (\"Id\", \"{column}\") VALUES ({id}, {literal}) RETURNING {(wholeRow ? "*" : "\"Id\" AS \"Value\"")}";
 }
 
 /// <summary>Runs the CHECK constraints against SQL Server.</summary>
@@ -652,10 +923,67 @@ public sealed class SqlServerCheckConstraintTests(SqlServerFixture fixture) : Ch
     protected override bool ComparesCase => false;
 
     /// <inheritdoc />
+    protected override bool RefusesWhileReading => true;
+
+    /// <inheritdoc />
     protected override void Refused(DbException refusal, string constraint)
     {
         var sqlServer = refusal.Should().BeOfType<SqlException>().Which;
         sqlServer.Number.Should().Be(547);
         sqlServer.Message.Should().Contain($"CHECK constraint \"{constraint}\"");
+    }
+
+    /// <inheritdoc />
+    protected override void Duplicated(DbException refusal) => refusal.Should().BeOfType<SqlException>().Which.Number.Should().Be(2714);
+
+    /// <inheritdoc />
+    protected override string InsertReturning(int id, string column, string literal, bool wholeRow)
+        => $"INSERT INTO [checked_values] ([Id], [{column}]) OUTPUT {(wholeRow ? "INSERTED.*" : "INSERTED.[Id] AS [Value]")} VALUES ({id}, {literal})";
+
+    /// <summary>
+    /// SQL Server writes its messages in the language of the login, which the connection names: the name of the
+    /// constraint is read off error 547 in each language SQL Server translates it into, quoted with ASCII or typographic
+    /// quotation marks, or not quoted and followed by a full stop, and the provider's error carries the code of its rule.
+    /// </summary>
+    [Fact]
+    public async Task The_code_is_read_in_every_language_SQL_Server_writes_its_messages_in()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await EnsureTablesAsync();
+        var languages = new List<string>();
+        await using (var connection = new SqlConnection(Fixture.ConnectionString))
+        {
+            await connection.OpenAsync(ct);
+            await using var list = new SqlCommand(
+                "SELECT l.name FROM sys.syslanguages AS l WHERE EXISTS (SELECT 1 FROM sys.messages AS m WHERE m.message_id = 547 AND m.language_id = l.msglangid)",
+                connection);
+            await using var reader = await list.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                languages.Add(reader.GetString(0));
+            }
+        }
+
+        var messages = new List<string>();
+        var unread = new List<string>();
+        foreach (var language in languages)
+        {
+            var connectionString = new SqlConnectionStringBuilder(Fixture.ConnectionString) { CurrentLanguage = language }.ConnectionString;
+            await using var context = new CheckedContext(new DbContextOptionsBuilder<CheckedContext>().UseSqlServer(connectionString).UseValueObjectCheckErrors().Options);
+            var insert = $"INSERT INTO [checked_values] ([Id], [Score]) VALUES ({NextId()}, 101)";
+
+            var write = () => context.Database.ExecuteSqlRawAsync(insert, ct);
+
+            var refusal = (await write.Should().ThrowAsync<SqlException>()).Which;
+            messages.Add(refusal.Message);
+            if (refusal.Number != 547 || !ValueObjectErrors.TryGetCode(refusal, out var code) || code != ValueObjectErrorCodes.OutOfRange)
+            {
+                unread.Add($"{language}: {refusal.Message}");
+            }
+        }
+
+        languages.Should().HaveCountGreaterThanOrEqualTo(20);
+        messages.Distinct().Should().HaveCountGreaterThanOrEqualTo(20, "each language writes its own message, but British English and US English");
+        unread.Should().BeEmpty();
     }
 }
