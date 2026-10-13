@@ -46,6 +46,8 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.AspNetCore.Http", [] },
         { "AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson", [] },
         { "AdCodicem.ValueObjects.AutoFixture", [] },
+        { "AdCodicem.ValueObjects.AzureFunctions", [] },
+        { "AdCodicem.ValueObjects.AzureFunctions.AspNetCore", [] },
         { "AdCodicem.ValueObjects.Bogus", [] },
         { "AdCodicem.ValueObjects.Dapper", [] },
 

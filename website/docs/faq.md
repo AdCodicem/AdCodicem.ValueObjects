@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The twenty-five packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The twenty-seven packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -96,10 +96,12 @@ Yes, by the code of the rule. The messages of the rules stay English, for the de
 and an application translates them under the key `ValueObject.` followed by the code, with arguments the declared rules
 supply: the length, the bounds, the known values, formatted in the request's culture. MVC and minimal APIs read the
 translations from a resource the application names, `AddValueObjects(messages => messages.UseResource<T>())` and
-`WithValueObjectProblemDetails(messages => messages.UseResource<T>())`, and FluentValidation from its
+`WithValueObjectProblemDetails(messages => messages.UseResource<T>())`, so do the HTTP triggers of Azure Functions,
+`UseValueObjectProblemDetails(messages => messages.UseResource<T>())`, and FluentValidation reads them from its
 `LanguageManager`. No translation ships with the packages. The
 [errors reference](./reference/errors.md#a-message-in-the-applications-language) lists the keys and the arguments, with a
-French example, and the guides for [ASP.NET Core](./how-to/aspnet-core.md#messages-in-the-applications-language) and
+French example, and the guides for [ASP.NET Core](./how-to/aspnet-core.md#messages-in-the-applications-language),
+[Azure Functions](./how-to/azure.md#messages-in-the-requests-language) and
 [FluentValidation](./how-to/fluentvalidation.md#messages-in-another-language) the wiring.
 
 ### Can a value object be a dictionary key, or an EF Core key?
@@ -235,6 +237,19 @@ the message, never the value sent. The tools stay the SDK's own, so a client on 
 the output schema the SDK writes for it. [Model Context Protocol
 servers](./how-to/language-models.md#model-context-protocol-servers) has the wiring, the result, and the limits.
 
+### Does it work with Azure Functions?
+
+With the isolated worker, through `AdCodicem.ValueObjects.AzureFunctions`. Left to itself, the worker reads no
+`[TypeConverter]`: the text of a route value, a query value or other binding data falls through to its JSON conversion,
+which refuses a valid `Guid`, text or a date, and fails the invocation with a 500. `UseValueObjects()` binds them
+through the value object's rules, and a refusal fails the parameter with the code at the end of the text the worker
+keeps. On the ASP.NET Core integration, `AdCodicem.ValueObjects.AzureFunctions.AspNetCore`'s
+`UseValueObjectProblemDetails()`, called after `ConfigureFunctionsWebApplication()`, answers an HTTP trigger's refused
+value objects with the validation problem a minimal API writes, and their codes. A trigger's payload stays its
+binding's, read through the generated JSON converter. The in-process model is not covered, nor native AOT, which the
+worker does not support. [Azure Functions](./how-to/azure.md#azure-functions-isolated-worker) has the wiring, the
+answers, and the limits.
+
 ## Performance
 
 ### Does a value object cost more than the primitive it wraps?
@@ -257,7 +272,8 @@ AOT cannot run for a struct, as [Run-time lookup](./how-to/runtime-lookup.md#bac
 integration registers its handlers that way, the MongoDB provider builds its serializers, the MessagePack resolver the
 formatter MessagePack asks it for, the MongoDB identifiers package its id generators, through the visitor of an entity
 identifier's descriptor, the MVC model binder provider creates its binders, the minimal API filter closes the check of
-each parameter it explains, the JSON converter factory closes the general-purpose converter it gives a value object
+each parameter it explains, the Azure Functions converter the conversion of each value object a parameter binds and its
+middleware the check of each it explains, the JSON converter factory closes the general-purpose converter it gives a value object
 written by hand, the test-data sampler, the AutoFixture customization, the Bogus extensions and FsCheck's
 `MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
 value object, each element of a collection of them, and each entity identifier, all but the converter of an optional
@@ -270,8 +286,8 @@ Serilog, Microsoft.Extensions.AI and Model Context Protocol integrations are mar
 trimming and AOT analyzers on, and CI publishes an
 application using them all with native AOT on every pull request, which merges only once that passes: it fails on any
 trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The EF Core,
-ASP.NET Core MVC, OpenAPI, Swashbuckle, Dapper, MongoDB, MongoDB identifiers, MessagePack and Newtonsoft.Json
-integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
+ASP.NET Core MVC, OpenAPI, Swashbuckle, Dapper, MongoDB, MongoDB identifiers, MessagePack, Azure Functions and
+Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
 in a cache it closes over the type at run time, so under native AOT a handler this package built without dynamic code
 still fails inside Dapper: native AOT goes through [Dapper.AOT](./how-to/dapper.md#dapperaot).
 

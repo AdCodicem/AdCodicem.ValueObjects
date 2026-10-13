@@ -19,10 +19,21 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The Functions application the host's container runs (Fixtures/FunctionsHostFixture.cs): built with this project,
+         never loaded by it, and found by the fixture where the build writes it. -->
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Functions\AdCodicem.ValueObjects.Fixtures.Functions.csproj"
+                      ReferenceOutputAssembly="false" />
+    <AssemblyMetadata Include="FunctionsApplication" Value="$(ArtifactsPath)/bin/AdCodicem.ValueObjects.Fixtures.Functions/$(Configuration.ToLowerInvariant())" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Testcontainers.MsSql" />
     <PackageReference Include="Testcontainers.MongoDb" />
+    <!-- Azurite, which the Functions host's queue triggers run on, and the client that enqueues their messages. -->
+    <PackageReference Include="Testcontainers.Azurite" />
+    <PackageReference Include="Azure.Storage.Queues" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Dapper" />

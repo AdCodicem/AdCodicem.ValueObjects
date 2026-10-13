@@ -9,7 +9,7 @@ is on, so this list is worth checking if something looks wired up but never happ
 `preview.yml` publishes a preview of every package to nuget.org every Monday at 07:15, Paris time, and whenever it is
 dispatched (**Actions → preview → Run workflow**, from `main`: a dispatch from another branch stops at its first
 job). It publishes only when a package input changed since the version nuget.org has from the nearest commit, and
-then all twenty-five packages at one version, or none.
+then all twenty-seven packages at one version, or none.
 [ADR-0009](adr/0009-publish-previews-weekly-when-a-package-input-changed.md) has the reasoning.
 
 Each run says what it decided. The **compute the version** job prints the version semantic-release would give the
@@ -73,7 +73,7 @@ offering the higher one as the latest prerelease until a higher version ships.
 The first time `preview.yml` publishes, and after any change to its publish job, dispatch it rather than wait for
 Monday, and check:
 
-1. the twenty-five packages are on nuget.org at the version the run printed, and the publish job finished its wait for
+1. the twenty-seven packages are on nuget.org at the version the run printed, and the publish job finished its wait for
    the listing;
 2. an assembly restored from nuget.org verifies, and the certificate comes from Sigstore's public-good instance:
 
@@ -234,6 +234,10 @@ Some versions are bumped by hand, because Dependabot never sees them:
   which `Directory.Packages.props` pins for the packages that pull them transitively;
 - actionlint, which `lint.yml` downloads as a binary: change `ACTIONLINT_VERSION` and `ACTIONLINT_SHA256` together,
   taking the digest of `actionlint_<version>_linux_amd64.tar.gz` from the release's checksums file.
+- the Azurite image the integration suite's Functions fixture names at an exact version
+  (`tests/AdCodicem.ValueObjects.IntegrationTests/Fixtures/FunctionsHostFixture.cs`). The Functions host's image,
+  `mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated10.0`, is a moving tag, as `mongo:8.0` is, and
+  moves to the next .NET's tag with the target framework.
 
 ## Supply chain and the OpenSSF scorecard
 

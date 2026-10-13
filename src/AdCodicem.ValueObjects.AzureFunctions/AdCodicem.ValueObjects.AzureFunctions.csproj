@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.AzureFunctions</RootNamespace>
+    <Description>Azure Functions isolated worker support for AdCodicem value objects: a route value, a query value or other binding data bound to a value object through its rules, where the worker's own conversion reads the text as JSON and fails the invocation, and a refused one reported with its rule code.</Description>
+    <PackageTags>$(PackageTags);azure-functions;azure;serverless;isolated-worker</PackageTags>
+
+    <!-- The isolated worker is not built for trimming or native AOT (azure-functions-dotnet-worker#2899): Worker.Core and
+         Worker.Grpc report IL2104 and IL3053, and the worker creates its converters and middleware by reflection, so this
+         package claims no AOT compatibility. Its converter is closed over each value object through the descriptor's
+         visitor, never with MakeGenericType. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- IInputConverter, WorkerOptions and IFunctionsWorkerApplicationBuilder. No FrameworkReference: a queue- or
+         timer-triggered application takes no ASP.NET Core for the converter. -->
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- How the worker's text is read, compiled into the middleware package too, which sees none of this one's internals,
+         and the name of a type as C# writes it. -->
+    <Compile Include="..\Shared\ValueObjectBindingText.cs" Link="Shared\ValueObjectBindingText.cs" />
+    <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
+  </ItemGroup>
+
+</Project>

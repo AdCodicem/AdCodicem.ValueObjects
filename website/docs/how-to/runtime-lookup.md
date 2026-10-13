@@ -63,7 +63,9 @@ object, since a struct type argument shares no code, and only for the visitors t
 Every integration that closes an adapter over a value object it knows only by its `Type` does so this way: the Dapper
 integration registers its handlers, the MongoDB provider builds the serializer the driver asks it for, the MessagePack
 resolver the formatter MessagePack asks it for, the MVC model binder provider creates its binders, the minimal API
-filter of `AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains, the JSON converter
+filter of `AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains, the Azure Functions
+converter closes the conversion of each value object a parameter binds and its middleware the check of each it
+explains, the JSON converter
 factory closes the general-purpose converter it gives a value object written by hand, the test-data sampler's
 `Next(descriptor)` draws a value, the AutoFixture customization answers a request, the Bogus extensions give a member a
 rule, FsCheck's `MergeValueObjects` merges an arbitrary, and the Entity Framework Core conventions map each value object

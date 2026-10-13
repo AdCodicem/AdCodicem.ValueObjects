@@ -21,10 +21,10 @@ namespace AdCodicem.ValueObjects.Shared;
 /// <see cref="FormatException"/>, which is the application's error to see, not to hide behind the English text.
 /// </para>
 /// <para>
-/// This file is linked into the two packages that answer a refusal on ASP.NET Core, the minimal API one and the MVC one,
-/// which references the first but sees none of its internals: each compiles its own copy, as the AI and the Model Context
-/// Protocol packages each compile <c>ValueObjectArguments.cs</c>. It reads no annotation and closes no generic type at run
-/// time, so it runs in a native binary.
+/// This file is linked into the three packages that answer a refusal on ASP.NET Core, the minimal API one, the MVC one
+/// and the Azure Functions ASP.NET Core one, which reference the first but see none of its internals: each compiles its
+/// own copy, as the AI and the Model Context Protocol packages each compile <c>ValueObjectArguments.cs</c>. It reads no
+/// annotation and closes no generic type at run time, so it runs in a native binary.
 /// </para>
 /// </remarks>
 internal static class ValueObjectLocalizedMessages

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Twenty-five NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Twenty-seven NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -82,7 +82,8 @@ npm run build       # production build; fails on a broken internal link
 `npm run docs:api` has to run before `npm start` or `npm run build` on a fresh checkout: `sidebars.ts`
 builds its API reference category from `website/docs/api/`, which is generated and gitignored.
 
-Integration tests start PostgreSQL, SQL Server and MongoDB through Testcontainers.
+Integration tests start PostgreSQL, SQL Server and MongoDB through Testcontainers, and the Azure Functions host, whose
+image exists for amd64 alone, beside Azurite.
 
 `TreatWarningsAsErrors` is on repository-wide, so a warning fails the build.
 
@@ -93,7 +94,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All twenty-five packages go out at one version, or none. That version is the one semantic-release would
+lookup fails. All twenty-seven packages go out at one version, or none. That version is the one semantic-release would
 give the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -141,7 +142,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The twenty-five packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The twenty-seven packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -210,7 +211,9 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   `descriptor.Accept` hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its
   adapter at compile time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's
   `AddValueObjectHandlers`, the MVC binder provider, the JSON factory's general-purpose converter, for a value object
-  written by hand, the minimal API filter of `AspNetCore.Http`, which closes a text check per parameter, the MongoDB
+  written by hand, the minimal API filter of `AspNetCore.Http`, which closes a text check per parameter, the Azure
+  Functions converter, which closes the conversion of each value-object parameter the worker hands it as text, and its
+  middleware, which closes the check of each it explains, both through `ValueObjectBindingText.TryDescribe`, the MongoDB
   provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, the
   MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, the test-data sampler's
   `Next(descriptor)`, the AutoFixture specimen builder, Bogus's `RuleForValueObjects` and `ValueObject<TSelf>`, FsCheck's
@@ -278,7 +281,10 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   `Data`; the AI package's wrapper throws nothing, and returns the result of a Microsoft.Extensions.AI tool,
   `{"error":"invalid_argument","argument","code","message"}`, which `FunctionInvokingChatClient` hands the model as it
   is, and the Model Context Protocol package answers a tool execution error (`isError: true`) whose text carries the
-  code, and whose structured content is that object when the tool declares no output schema. Under
+  code, and whose structured content is that object when the tool declares no output schema. The Azure Functions
+  converter fails a parameter with a `FormatException` carrying the code in its `Data` and at the end of its message,
+  since the worker keeps that text alone, and the middleware of `AzureFunctions.AspNetCore` answers an HTTP trigger of
+  the ASP.NET Core integration with the minimal API's validation problem. Under
   `UseValueObjectCheckErrors()`, the EF Core package adds the code to the `Data` of the database provider's error for a
   row a CHECK constraint from the rules refused, read off the constraint's name (`ValueObjectCheckConstraints`), never
   off the model, and neither replaces nor wraps that error; `ValueObjectCheckConstraints.TryGetCode` reads it without
@@ -290,7 +296,9 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   (`ValueObjectMessages` in the contracts), and keeps the English message for a key it lacks: MVC through
   `AddValueObjects(messages => messages.UseResource<T>())` on `MvcOptions` or the builder (the binder and the JSON input
   formatter), a minimal API through `WithValueObjectProblemDetails(messages => …)` (the filter and the exception
-  handler), each reading the resource through the request's `IStringLocalizerFactory`, and FluentValidation from
+  handler), an Azure Functions HTTP trigger through `UseValueObjectProblemDetails(messages => …)`, which applies the
+  culture of `IRequestCultureFeature` or else runs the framework's `RequestLocalizationMiddleware` around the lookup, each
+  reading the resource through the request's `IStringLocalizerFactory`, and FluentValidation from
   `ValidatorOptions.Global.LanguageManager` when no message is chained. No translation ships.
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI `maxLength`, and
   the `maxLength` of the MongoDB `$jsonSchema` validator (`ValueObjectBsonSchema`, which writes each rule of
@@ -695,6 +703,38 @@ These are all load-bearing, and each cost real debugging time:
   namespace, `AdCodicem.ValueObjects.ModelContextProtocol`, hides the root `ModelContextProtocol` namespace in every
   `AdCodicem.ValueObjects.*` namespace, as Swashbuckle's, Serilog's, MongoDB's and MessagePack's do: name the SDK's types
   through usings at the top of the file, and name no test folder, class or namespace `ModelContextProtocol`.
+- **The Azure Functions worker keeps no exception of a failed conversion, and runs an invocation on the host's call.**
+  `DefaultFunctionInputBindingFeature` turns each failed parameter into a line of the text of the
+  `FunctionInputConverterException` it throws, with no inner exception, so the converter's `FormatException` and its
+  `Data` reach nothing: its message ends with the code. The worker drops a `Failed` result whose source is `null` and
+  binds the struct's default, so the converter answers `Unhandled` for one, leaving the worker to bind `null` or fail a
+  required parameter itself. The host sends binding data of another type than `string` as JSON, `InsertionTime` as
+  `"2026-10-13T10:13:54+00:00"`, which is why `ValueObjectBindingText.TryParse` decodes a JSON string literal the type
+  refuses as it stands. The host writes a message's number through a double, `0.0000001` as `1E-07`, an exponent a
+  decimal's `TryParse` refuses, which is why that method also reads a JSON number into a value object over `decimal` as
+  the generated JSON converter does, `TryGetDecimal` then `TryCreate`; every other underlying type's `TryParse` reads
+  every JSON number the type holds already. The worker reads `[InputConverter]` off the parameter, then off its type,
+  `Nullable<T>` for a `T?`, which is why the generator emits none and `UseValueObjects()` registers the converter
+  instead, at index 0 of `WorkerOptions.InputConverters` from a `Configure`: the ASP.NET Core integration registers its
+  `HttpContextConverter` at index 0 from a `Configure` of its own, so the converter is first only when
+  `UseValueObjects()` runs after `ConfigureFunctionsWebApplication()`, and right behind that converter, which binds an
+  `HttpRequest` and an `HttpRequestData` alone, otherwise. The middleware's answer reaches the client only from inside
+  the ASP.NET Core integration's `FunctionsHttpProxyingMiddleware`, which sets the request on the invocation
+  (`GetHttpContext()`) before it calls the middleware inside it: the middleware reads it when it starts, and without it
+  rethrows and warns once rather than swallow the failure into an empty 200, a refused body included, whose codes MVC
+  records on the request the integration sets inside it. The worker's culture is never the request's, the invocation
+  running on the host's gRPC call: the middleware applies the request's. `GetInvocationResult()` reads the worker's
+  internal `IFunctionBindingsFeature`, which the unit suite substitutes, found by name, NSubstitute implementing it
+  because Worker.Core grants `DynamicProxyGenAssembly2`. The worker's protocol with the host is internal, so no host
+  runs in process: the integration suite copies the build of `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Functions`
+  into Microsoft's `dotnet-isolated` image, amd64 only, beside Azurite, and disables the queue triggers of all but one
+  of its three hosts (`AzureWebJobs.<name>.Disabled`), so that each message is read once. The integration's analyzer
+  `RegistrationExpectedInASPNetIntegration` (Http.AspNetCore.Analyzers 1.0.4) throws AD0001, which fails a build under
+  `TreatWarningsAsErrors`, on a file declaring `Main` that calls `ConfigureFunctionsWorkerDefaults(...)`: keep that call
+  out of the fixture's `Program.cs`. Worker.Core is the converter package's floor, 2.52.0 as Microsoft's own worker
+  extensions take it, and `Microsoft.Azure.Functions.Worker` is pinned beside it, which makes it a dependency of the
+  ASP.NET Core package: Extensions.Http.AspNetCore asks for Worker 2.1.0, whose Worker.Grpc would run beside Worker.Core
+  2.52.0. Name no test namespace `Azure`, which would hide `Azure.Core` and `Azure.Storage` in the suite's.
 - **`XmlSerializer` reads a value object's schema before it serializes anything.** It calls the provider when the
   serializer is built, insists on finding it public and static, and compiles its `xs:simpleType`, refusing the whole
   type, and every serializer over a type holding it, for one facet System.Xml cannot read. System.Xml holds an
@@ -711,16 +751,19 @@ These are all load-bearing, and each cost real debugging time:
   tested through `PcrePattern`, the EF Core copy through `SqlPattern`, and the copy of
   `AdCodicem.ValueObjects.Testing.Data` through `PatternSampler`, whose tests name no node type. A further package
   linking it is tested the same way. `TypeNames.cs`, which writes a type as C# names it in a message, is linked by
-  `Testing.Data`, by its AutoFixture, Bogus and FsCheck adapters, and by the EF Core package, for the key and the
-  pattern it refuses: the unit suite references `Testing.Data` under `Aliases="global,testingdata"`, and `SamplerTests`
+  `Testing.Data`, by its AutoFixture, Bogus and FsCheck adapters, by the EF Core package, for the key and the
+  pattern it refuses, and by both Azure Functions packages, for the type a refusal names: the unit suite references `Testing.Data` under `Aliases="global,testingdata"`, and `SamplerTests`
   names its copy through the alias.
   `ValueObjectArguments.cs` and `ValueObjectArgumentRejection.cs`, the check of a tool's arguments and the result it
   answers a refusal with, name no type of Microsoft.Extensions.AI, and are linked by the AI and the Model Context
   Protocol packages, each overload of `FirstRejection` called by one of them: no test names them, `LanguageModels/`
   reaching them through `WithValueObjectValidation()` and `WithValueObjectTools` alone, so that neither copy needs an
   alias, and coverage counts a line of the file covered by either copy. `ValueObjectLocalizedMessages.cs`, the lookup
-  of a refusal's message in the application's resource, is linked by the minimal API and the MVC packages the same
-  way, which no test names: the localized tests of `Web/` reach each copy through its package's public API.
+  of a refusal's message in the application's resource, is linked by the minimal API, the MVC and the Azure Functions
+  ASP.NET Core packages the same way, which no test names: the localized tests of `Web/` and `Functions/` reach each copy
+  through its package's API. `ValueObjectBindingText.cs`, how the converter reads the worker's text, is linked by both
+  Azure Functions packages, so that the middleware parses a parameter again exactly as the converter parsed it, and no
+  test names it: `Functions/` reaches both copies through the converter and the middleware.
   `KnownValueSpellings.cs`, which tells whether a closed set of text stores another spelling of a known value, is
   linked by the MongoDB and the EF Core packages the same way: no test names it, the MongoDB copy is tested through the
   validator's `enum` (`MongoDbSchemaTests`), the EF Core copy through the CHECK constraint's `IN`
@@ -794,7 +837,15 @@ Four suites, each with a distinct job:
   through Agent Framework's `ChatClientAgent`, over a scripted model. The folder's `Mcp*` files run a Model Context
   Protocol server in process, over a pair of pipes, against the SDK's own client (`McpHarness`), the tools of
   `McpTools.cs` and one over every sample; `McpRegistrationTests.cs` silences `MCPEXP002` around the one statement
-  setting `CallToolWithAlternateHandler`. The Entity Framework Core tests of `Persistence/` build models on Npgsql,
+  setting `CallToolWithAlternateHandler`. `Functions/` calls the Azure Functions converter over `ConverterContext`s it
+  writes, every sample of `GeneratedSurface/` among them, and runs the problem details middleware over invocations it
+  writes (`FunctionsDoubles.cs`: `FunctionContext`, `FunctionDefinition` and `BindingContext` are public abstract
+  classes), the worker's internal `IFunctionBindingsFeature` a substitute, executing the answer on a `DefaultHttpContext`
+  as the integration does; a value object written by hand there is a `Declared<,>` over a declaration those tests own, or
+  `HandWrittenId<SilentFunctionsProfile>`, and a generic one is closed over a test class, since the converter's
+  `TryResolve` registers each for the process. The suite runs in the invariant culture, so the tests that pin the
+  invariant parse and the cultures the middleware applies set the current cultures to others, and give them back.
+  The Entity Framework Core tests of `Persistence/` build models on Npgsql,
   which opens no connection to build one, and run collections of value objects through SQLite in memory, each test on a
   database of its own (`PrimitiveCollectionTests`): the JSON stored, the queries over the elements, change tracking,
   strict reads, refused elements, owned and complex types, and every sample in a list, an array and a list of its
@@ -898,7 +949,18 @@ Four suites, each with a distinct job:
   answers each LINQ and `Builders` shape over value objects with the documents the same query over the primitives
   would; under the `$jsonSchema` validator built from the rules, it refuses another writer's document, stores every
   value each type accepts, reads each pattern the validator publishes as .NET does (`MongoDbValidatorTests`, which pins
-  the PCRE2 facts the writer works around), and mints an entity identifier for a document inserted without one.
+  the PCRE2 facts the writer works around), and mints an entity identifier for a document inserted without one; and
+  the Azure Functions host, `mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated10.0`, three of them
+  beside Azurite (`FunctionsHostFixture`, shared by `FunctionsTests` and `FunctionsQueueTests` through a collection),
+  running the build of `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Functions`, which the suite's project builds
+  without referencing its assembly and finds through an `AssemblyMetadata`: route and query values bound through the
+  rules on the current template's builder and on `HostBuilder`, each refusal answered with the minimal API's body and
+  its code, a `[FromBody]` one through the MVC package, in the request's language through a startup filter's
+  `UseRequestLocalization()` or the options alone, a failure no value object explains keeping the 500, the middleware
+  registered before the integration keeping it too, with its warning logged once, and a queue message's binding data
+  bound beside the message, a number the host writes in exponent form bound to a value object over `decimal`, a
+  raw-text one through `[InputConverter]`, a refused one moved to the poison queue. The tests read the host's statuses,
+  bodies and the package's own log lines, never the host's wording, which a new image may change.
 - **RdgTests** — minimal API endpoints whose binding the Request Delegate Generator writes, over value objects
   declared in the endpoints' own project, which list their contract (VO0033). The project imports the package's
   `build/AdCodicem.ValueObjects.props`, so VO0033 fails its build for a value object that drops its contract, and a
@@ -976,7 +1038,7 @@ on where they apply.
   precompiled query fails to map under native AOT. A strict context cannot track on a compiled model, so the `jit` round
   trip reads untracked (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-five packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-seven packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
@@ -990,7 +1052,8 @@ validator and entity identifiers minted on insert, MessagePack, with SignalR's M
 and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, FluentValidation, Newtonsoft.Json,
 Serilog, Microsoft.Extensions.AI tools and structured output, through `FunctionInvokingChatClient` and `ChatResponse<T>`
 of Microsoft.Extensions.AI 10, Model Context Protocol tools on ModelContextProtocol 2.2, a server in process and the SDK's
-own client over a pair of pipes, `XmlSerializer` and
+own client over a pair of pipes, the Azure Functions converter and problem details middleware beside ASP.NET Core 11,
+over the worker's own abstractions, `XmlSerializer` and
 `DataContractSerializer` over its domain, which opts into XML serialization, the contract kit and the test-data sampler,
 through AutoFixture, Bogus and FsCheck too, with no transitive
 pinning, so the dependency floors of the packages meet the next
