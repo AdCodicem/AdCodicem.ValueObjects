@@ -10,6 +10,7 @@ using AdCodicem.ValueObjects.NewtonsoftJson;
 using AdCodicem.ValueObjects.Testing.Data;
 using AdCodicem.ValueObjects.UnitTests.BinarySerialization;
 using AdCodicem.ValueObjects.UnitTests.Functions;
+using AdCodicem.ValueObjects.UnitTests.GraphQL;
 using AdCodicem.ValueObjects.UnitTests.LanguageModels;
 using AdCodicem.ValueObjects.UnitTests.Logging;
 using AdCodicem.ValueObjects.UnitTests.Persistence;
@@ -155,6 +156,16 @@ public abstract class Sample
     /// </summary>
     /// <returns>The check.</returns>
     public abstract Task BindsThroughTheFunctionsWorkerAsync();
+
+    /// <summary>
+    /// Builds a HotChocolate schema echoing the value object, alone, optional and in a list, with <c>AddValueObjects()</c>,
+    /// and checks that it is a scalar named by the conventions, described by its schema, serialized by its underlying type
+    /// and carrying its pattern; that the two instances and every value at an edge of its rules are read as literals and
+    /// variables and written back as the underlying value; and that every value its schema rules out, and the refused text
+    /// of a String scalar, are answered with the code its rules give.
+    /// </summary>
+    /// <returns>The check.</returns>
+    public abstract Task AnswersARefusedGraphQLValueWithItsRuleAsync();
 
     /// <summary>
     /// Draws values of the value object from its schema with <c>ValueObjectSampler</c>, and checks that each is a value its
@@ -675,6 +686,8 @@ public class Sample<TSelf, TValue> : Sample
     }
 
     public override Task BindsThroughTheFunctionsWorkerAsync() => FunctionsParity.CheckAsync<TSelf, TValue>(Small, Text, Refused);
+
+    public override Task AnswersARefusedGraphQLValueWithItsRuleAsync() => GraphQLParity.CheckAsync<TSelf, TValue>(Small, Large, Refused);
 
     public override void DrawsValuesItsRulesAccept()
     {

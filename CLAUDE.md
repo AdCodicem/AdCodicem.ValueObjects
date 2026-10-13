@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Twenty-seven NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Twenty-eight NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -94,7 +94,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All twenty-seven packages go out at one version, or none. That version is the one semantic-release would
+lookup fails. All twenty-eight packages go out at one version, or none. That version is the one semantic-release would
 give the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -142,7 +142,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The twenty-seven packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The twenty-eight packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -215,7 +215,9 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   Functions converter, which closes the conversion of each value-object parameter the worker hands it as text, and its
   middleware, which closes the check of each it explains, both through `ValueObjectBindingText.TryDescribe`, the MongoDB
   provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, the
-  MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, the test-data sampler's
+  MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, the HotChocolate type
+  discovery handler, which closes, once per schema build, the scalar of each value object the schema meets (a typed
+  `AddValueObjectScalar<TSelf, TValue>()` asks no registry), the test-data sampler's
   `Next(descriptor)`, the AutoFixture specimen builder, Bogus's `RuleForValueObjects` and `ValueObject<TSelf>`, FsCheck's
   `MergeValueObjects`, EF Core's `ConfigureValueObjects` and `ConfigureEntityIds`, and the CHECK constraint convention
   `AddValueObjectCheckConstraints` adds, which resolves the value object a converter of the package maps
@@ -284,7 +286,10 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   code, and whose structured content is that object when the tool declares no output schema. The Azure Functions
   converter fails a parameter with a `FormatException` carrying the code in its `Data` and at the end of its message,
   since the worker keeps that text alone, and the middleware of `AzureFunctions.AspNetCore` answers an HTTP trigger of
-  the ASP.NET Core integration with the minimal API's validation problem. Under
+  the ASP.NET Core integration with the minimal API's validation problem. A HotChocolate scalar throws a
+  `LeafCoercionException` carrying the code in its `Data`, whose GraphQL error carries it as `extensions.code`, and an
+  internal `ValueObjectException` subclass (`ValueObjectScalarRefusal`) with the type and the code on `IError.Exception`;
+  HotChocolate replaces the code of a refused output with its own `EXEC_INVALID_LEAF_VALUE`. Under
   `UseValueObjectCheckErrors()`, the EF Core package adds the code to the `Data` of the database provider's error for a
   row a CHECK constraint from the rules refused, read off the constraint's name (`ValueObjectCheckConstraints`), never
   off the model, and neither replaces nor wraps that error; `ValueObjectCheckConstraints.TryGetCode` reads it without
@@ -298,8 +303,11 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   formatter), a minimal API through `WithValueObjectProblemDetails(messages => …)` (the filter and the exception
   handler), an Azure Functions HTTP trigger through `UseValueObjectProblemDetails(messages => …)`, which applies the
   culture of `IRequestCultureFeature` or else runs the framework's `RequestLocalizationMiddleware` around the lookup, each
-  reading the resource through the request's `IStringLocalizerFactory`, and FluentValidation from
-  `ValidatorOptions.Global.LanguageManager` when no message is chained. No translation ships.
+  reading the resource through the request's `IStringLocalizerFactory`, a HotChocolate schema through
+  `AddValueObjects(options => options.UseResource<T>())`, an error filter reading the application's
+  `IStringLocalizerFactory` through `GetRootServiceProvider()` in the culture of the execution, the executor failing to
+  start without `AddLocalization()`, and FluentValidation from `ValidatorOptions.Global.LanguageManager` when no
+  message is chained. No translation ships.
 - **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI `maxLength`, and
   the `maxLength` of the MongoDB `$jsonSchema` validator (`ValueObjectBsonSchema`, which writes each rule of
   `TSelf.Schema` only where the server refuses no value the type accepts, the pattern in PCRE2 through `PcrePattern`
@@ -320,10 +328,12 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   schema would take it. Anything added to `[ValueObject<T>]` should feed all of them, the validator wherever
   the server reads the rule as .NET does, the CHECK constraints wherever the database does. A hook can
   feed the schema too: the `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off
-  the attribute at compile time, becomes the OpenAPI `pattern`. The OpenAPI transformer, the Swashbuckle filters and the
+  the attribute at compile time, becomes the OpenAPI `pattern`, and the `Pattern` of a HotChocolate scalar serialized as
+  a String, which HotChocolate publishes as `@serializeAs` under `ApplySerializeAsToScalars`, beside the wire pattern of
+  a `TimeSpan`, a `TimeOnly` or a `DateTime`. The OpenAPI transformer, the Swashbuckle filters and the
   JSON Schema transform (`ValueObjectJsonSchema`, in the Json package) take what a rule becomes in a schema from
   `src/Shared/ValueObjectSchemaKeywords.cs`, an internal file each package links and compiles, not a project: a keyword
-  changes there, for all three. The JSON Schema transform's language-model profile reaches the tools and the
+  changes there, for all three, and the HotChocolate package links it too, for its wire patterns. The JSON Schema transform's language-model profile reaches the tools and the
   structured output of Microsoft.Extensions.AI through the AI package's `WithValueObjects()` and
   `ValueObjectResponseFormat.ForJsonSchema<T>()`, and the input and output schemas of a Model Context Protocol tool
   through `WithValueObjectTools<T>()`. That profile describes what a model should send, and, as the OpenAPI one, keeps
@@ -735,6 +745,38 @@ These are all load-bearing, and each cost real debugging time:
   extensions take it, and `Microsoft.Azure.Functions.Worker` is pinned beside it, which makes it a dependency of the
   ASP.NET Core package: Extensions.Http.AspNetCore asks for Worker 2.1.0, whose Worker.Grpc would run beside Worker.Core
   2.52.0. Name no test namespace `Azure`, which would hide `Azure.Core` and `Azure.Storage` in the suite's.
+- **HotChocolate infers a type from every CLR type it meets, and builds its schema per executor.** Without the package
+  it infers an input object type from a value object it meets as an argument, finds no constructor a field fills (the
+  generated one takes an `UncheckedTag`, and HotChocolate's `InputObjectConstructorResolver` considers private ones), and
+  fails the schema at start: a schema test that forgets `AddValueObjects()` fails at `GetRequestExecutorAsync`, never at
+  a request. A type discovery handler is created per schema build, and a type system object belongs to the schema that
+  completes it, so `AddValueObjectScalar` adds a factory, never an instance, and the handler keeps its scalars per
+  build. `TypeDiscoveryHandler` lives in `HotChocolate.Internal`: a 16.x minor may change it, which Dependabot's grouped
+  minor and patch updates run the suite against first; its majors are ignored, HotChocolate 17 being a decision. The
+  options of every `AddValueObjects` call on a schema are one `ValueObjectScalarOptions`, found through an internal
+  `ValueObjectScalarRegistration` singleton of the application's services keyed by the schema's name, and handed to
+  the scalars through the schema builder's features, which each scalar reads in `CreateConfiguration`. Error filters live
+  in the schema services, built when the executor is created, so the localizing filter resolves the application's
+  `IStringLocalizerFactory` through `GetRootServiceProvider()` and refuses `UseResource()` without `AddLocalization()`
+  there; filters run in registration order. HotChocolate reads a variable's default value under a path of its own,
+  `["root"]`, which the filter quotes as the scalar's name, telling it from a variable named `$root`, read from its JSON
+  value, by the refusal's `Literal`. HotChocolate's validation refuses a literal of another kind before a scalar
+  reads it, by `SerializationType` (which is why the scalar derives the non-generic `ScalarType`: a Float takes an Int
+  literal), but hands a variable of another JSON kind to `CoerceInputValue`; a field error filter that throws becomes
+  HotChocolate's "Unexpected Execution Error", a variable's leaves the execution. HotChocolate overwrites the code of an
+  output error with `EXEC_INVALID_LEAF_VALUE`, and builds the `List<TSelf>` of a list argument with `MakeGenericType`,
+  which `ValueObjectScalarType.Instantiations` names for native AOT; its own publish warns (`IL2104`, `IL3053`, `IL3000`,
+  `IL3002`) and its binary starts only with HotChocolate.Types and the application rooted, so the package, AOT-compatible
+  itself, stays out of `tests/NativeAot`. HotChocolate.AspNetCore and HotChocolate.Data add global usings of
+  `HotChocolate`, `HotChocolate.Types`, `HotChocolate.Types.Relay`, `GreenDonut` and `HotChocolate.Data` under
+  `ImplicitUsings`, whose `DefaultValueAttribute` collides with `System.ComponentModel`'s across the unit suite: its
+  project sets `HotChocolateImplicitUsings` to `disable`. The package's namespace, `AdCodicem.ValueObjects.HotChocolate`,
+  hides the root `HotChocolate` namespace in every `AdCodicem.ValueObjects.*` namespace, the island's included, as
+  Swashbuckle's, Serilog's, MongoDB's, MessagePack's and the Model Context Protocol's do: name HotChocolate's types
+  through usings at the top of the file, and name no test folder or namespace `HotChocolate` (the unit suite's is
+  `GraphQL/`). With `using HotChocolate;`, `Path` is ambiguous with `System.IO.Path` (alias it), and
+  `HotChocolate.Types` holds a `Tag`. HotChocolate's source generator (`[QueryType]`) runs in a fixture of its own,
+  `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.GraphQL`, so that the unit test assembly gets no generated module.
 - **`XmlSerializer` reads a value object's schema before it serializes anything.** It calls the provider when the
   serializer is built, insists on finding it public and static, and compiles its `xs:simpleType`, refusing the whole
   type, and every serializer over a type holding it, for one facet System.Xml cannot read. System.Xml holds an
@@ -759,9 +801,12 @@ These are all load-bearing, and each cost real debugging time:
   Protocol packages, each overload of `FirstRejection` called by one of them: no test names them, `LanguageModels/`
   reaching them through `WithValueObjectValidation()` and `WithValueObjectTools` alone, so that neither copy needs an
   alias, and coverage counts a line of the file covered by either copy. `ValueObjectLocalizedMessages.cs`, the lookup
-  of a refusal's message in the application's resource, is linked by the minimal API, the MVC and the Azure Functions
-  ASP.NET Core packages the same way, which no test names: the localized tests of `Web/` and `Functions/` reach each copy
-  through its package's API. `ValueObjectBindingText.cs`, how the converter reads the worker's text, is linked by both
+  of a refusal's message in the application's resource, a partial class, is linked by the minimal API, the MVC, the
+  Azure Functions ASP.NET Core and the HotChocolate packages the same way, the three ASP.NET Core ones with
+  `ValueObjectLocalizedMessages.AspNetCore.cs` beside it, the part that reads `ValueObjectMessageOptions`, which the
+  HotChocolate package does not reference; no test names either: the localized tests of `Web/`, `Functions/` and
+  `GraphQL/` reach each copy through its package's API. `ValueObjectSchemaKeywords.cs` is linked by the OpenAPI, the
+  Swashbuckle, the Json and the HotChocolate packages, and no test names it either. `ValueObjectBindingText.cs`, how the converter reads the worker's text, is linked by both
   Azure Functions packages, so that the middleware parses a parameter again exactly as the converter parsed it, and no
   test names it: `Functions/` reaches both copies through the converter and the middleware.
   `KnownValueSpellings.cs`, which tells whether a closed set of text stores another spelling of a known value, is
@@ -820,12 +865,14 @@ Four suites, each with a distinct job:
   is on, so generated sources land under `artifacts/obj/.../generated/` and can be read when diagnosing.
   `Domain/HandWritten/` holds value objects written by hand, the supported input that reaches what the generator
   always replaces: the interface defaults and the registry's reflection fallback. The test assembly cannot hold
-  the rest, since the generator runs on it and its module initializer has run before any test does, so four
+  the rest, since the generator runs on it and its module initializer has run before any test does, so five
   fixture assemblies under `tests/Fixtures/` do: a generated value object in a module nothing has used yet,
   annotated hand-written ones where no generator runs, generated ones in an assembly that does not reference
   `AdCodicem.ValueObjects.Json`, as a domain project serializing through an API's context does not, and generated ones
   of every underlying type in an assembly marked `[assembly: ValueObjectXmlSerialization]`, beside value objects
-  written by hand on `ValueObjectXml` whose schemas the generator never writes (`XmlSerialization/` tests them).
+  written by hand on `ValueObjectXml` whose schemas the generator never writes (`XmlSerialization/` tests them), and
+  generated ones beside a `[QueryType]` HotChocolate's source generator binds, whose module the unit test assembly would
+  otherwise get (`SourceGeneratedQueryTests`).
   `BinarySerialization/` drives the MessagePack package directly and through a SignalR hub and the .NET client over
   TestHost; a test of the reflection fallback there closes `Reference<TOwner>` over the test class, never
   `UnregisteredCode`, which nothing may resolve. `LanguageModels/` (not `AI/`, whose namespace would hide
@@ -845,6 +892,15 @@ Four suites, each with a distinct job:
   `HandWrittenId<SilentFunctionsProfile>`, and a generic one is closed over a test class, since the converter's
   `TryResolve` registers each for the process. The suite runs in the invariant culture, so the tests that pin the
   invariant parse and the cultures the middleware applies set the current cultures to others, and give them back.
+  `GraphQL/` (not `HotChocolate/`, whose namespace would hide the package's) builds HotChocolate executors in process
+  (`GraphQLHarness`) over query types of its own (`GraphQLQueries.cs`), `EchoQuery<TSelf>` among them, and over every
+  sample through `GeneratedSurface/` (`GraphQLParity`), from the edges the sampler derives to the values it rules out;
+  `GraphQLHttpTests` answers over TestHost through HotChocolate.AspNetCore, its statuses and the language of the
+  request, `LocalizedGraphQLTests` sets the cultures of its executions, and `GraphQLFilteringRecipeTests` runs the
+  guide's HotChocolate.Data recipe over Entity Framework Core on SQLite, HotChocolate.Data a test-only reference. A value
+  object written by hand there is a `Declared<,>` over a declaration those tests own, through the registry, or
+  `HandWrittenRating` through `AddValueObjectScalar`, which asks no registry, and a generic one is closed over a test
+  class.
   The Entity Framework Core tests of `Persistence/` build models on Npgsql,
   which opens no connection to build one, and run collections of value objects through SQLite in memory, each test on a
   database of its own (`PrimitiveCollectionTests`): the JSON stored, the queries over the elements, change tracking,
@@ -975,8 +1031,9 @@ Beside them, in the solution but no suite, `tests/NativeAot` holds applications 
 CI publishes rather than tests. None imports `tests/Directory.Build.props`, so the trimming and AOT analyzers stay
 on where they apply.
 
-- `AdCodicem.ValueObjects.NativeAot` is a minimal API referencing every package that claims to be AOT-compatible, with
-  its value objects in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
+- `AdCodicem.ValueObjects.NativeAot` is a minimal API referencing every package that claims to be AOT-compatible but
+  the HotChocolate one, whose framework warns on its own publish and starts natively only rooted (the constraint above),
+  with its value objects in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
   `Domain/UnderlyingTypes.cs`. The application links two value objects written by hand from `Domain/HandWritten/`, one
   over `Uri`, and registers them without a converter, so the JSON factory's general-purpose converter runs natively,
   and links `UnregisteredCode`, registered by nothing, which the factory refuses with a `NotSupportedException`. Two
@@ -1038,7 +1095,7 @@ on where they apply.
   precompiled query fails to map under native AOT. A strict context cannot track on a compiled model, so the `jit` round
   trip reads untracked (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-seven packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-eight packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
@@ -1053,7 +1110,8 @@ and the .NET client over TestHost and MessagePack's analyzer in that SDK's compi
 Serilog, Microsoft.Extensions.AI tools and structured output, through `FunctionInvokingChatClient` and `ChatResponse<T>`
 of Microsoft.Extensions.AI 10, Model Context Protocol tools on ModelContextProtocol 2.2, a server in process and the SDK's
 own client over a pair of pipes, the Azure Functions converter and problem details middleware beside ASP.NET Core 11,
-over the worker's own abstractions, `XmlSerializer` and
+over the worker's own abstractions, HotChocolate 16 scalars in a schema built in process, on HotChocolate.Types'
+`net11.0` assembly, their messages in the language of the execution, `XmlSerializer` and
 `DataContractSerializer` over its domain, which opts into XML serialization, the contract kit and the test-data sampler,
 through AutoFixture, Bogus and FsCheck too, with no transitive
 pinning, so the dependency floors of the packages meet the next

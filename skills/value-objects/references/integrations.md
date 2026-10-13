@@ -18,6 +18,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, a `$jsonSchema` validator from the rules. |
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
+| `AdCodicem.ValueObjects.HotChocolate` | HotChocolate 16: one GraphQL scalar per value object, read through its rules; a refused value answered with its code under `extensions.code`. AOT-compatible. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI: the rules in tool and structured-output schemas; a refused tool argument answered with its code. AOT-compatible. |
@@ -586,6 +587,55 @@ options. The last `WithValueObjects` call answers first.
   `AnyEntityId`, Nerdbank.MessagePack.
 - A generic construction or a value object written by hand is described by reflection on first use. Not
   AOT-compatible: MessagePack and SignalR's MessagePack hub protocol are not.
+
+## GraphQL (HotChocolate)
+
+```csharp skip
+builder.Services.AddGraphQLServer()                    // or services.AddGraphQL(), outside ASP.NET Core
+    .AddQueryType<Query>()
+    .AddValueObjects(o => o
+        .Name<Shipping.Code>("ShippingCode")            // two value objects of one name fail the schema otherwise
+        .SpecifiedBy<Iban>("https://www.iso.org/standard/81090.html")   // @specifiedBy; none by default
+        .UseResource<ValidationMessages>())             // messages by code; needs services.AddLocalization()
+    .AddValueObjectScalar<Reference<PurchaseOrder>, string>();  // typed: a generic construction, a hand-written one, AOT
+```
+
+Without it, a schema taking a value object as an argument or an input field does not start (``No compatible constructor
+found for input type type `Shop.Iban`.``), and an output value object is an object type a client selects `{ value }` from.
+`AddValueObjects()` adds a type discovery handler, asked before HotChocolate's, answering every value object with a
+`ValueObjectScalarType<TSelf, TValue>`; every call on one schema configures one set of options.
+
+- Serialized as Boolean (`bool`), Int (every integer up to 64 bits, read exactly: `18446744073709551615` for a
+  `ulong`), Float (`decimal`, `double`, `float`, from an Int literal too; not finite refused) or String (everything else,
+  `Int128`/`UInt128` included, read through `TSelf.TryParse` in the invariant culture, the normalizer included). Written
+  as the underlying value, never through a formatting hook: `TimeSpan` in `c`, dates and times in `O`.
+- Named by the schema's naming conventions (`Iban`, `ReferenceOfPurchaseOrder`, `[GraphQLName]`, the application's
+  `INamingConventions`); `Name<TSelf>` wins, the `name` of `AddValueObjectScalar` over both. Described by the type's
+  summary; the declared pattern, or the wire pattern of `TimeSpan`, `TimeOnly`, `DateTime`, is `ScalarType.Pattern`,
+  published as `@serializeAs` only under `ModifyOptions(o => o.ApplySerializeAsToScalars = true)`. No length, bound or
+  known value in the schema; a closed set stays a scalar.
+- Always validates, no trusted mode. A refusal is a `LeafCoercionException` (code in `Data`), whose GraphQL error has the
+  rule's message and `extensions.code`, and a `ValueObjectException` on `IError.Exception`
+  (`ValueObjectErrors.TryGetCode(error.Exception, …)` in an error filter). An argument or input field: field error at
+  its `inputPath`, HTTP 200. A variable: request error at its `path`, 400 under `application/graphql-response+json`. A
+  variable of another JSON kind: `value_object.not_parsable`. A literal of another kind or a `null`: HotChocolate's own
+  validation, no rule code (`HC0018` for a `null` variable). A default instance the type refuses, or a non-finite real, is not written: the field's error
+  keeps the rule's message, code `EXEC_INVALID_LEAF_VALUE`.
+- `UseResource<T>()`: an error filter looks the message up under `ValueObject.{code}` in the current UI culture
+  (`UseRequestLocalization()`'s), `{0}` the argument, input field or variable (the scalar's name for a variable's
+  default value, which HotChocolate's error names `root`); the executor fails to start without
+  `AddLocalization()`. An application filter registered after `AddValueObjects` sees the localized message.
+- A generic construction or a value object written by hand is described by the registry where dynamic code runs, else
+  refused with `NotSupportedException`: `AddValueObjectScalar<TSelf, TValue>()` or `ValueObjectRegistry.Register`.
+- HotChocolate.Data filtering: bind each value object,
+  `AddFiltering(c => c.AddDefaults().BindRuntimeType<Iban, ComparableOperationFilterInputType<Iban>>())`, so that its
+  operands are the scalar (normalized, coded refusals, translated by EF Core); unbound, a filter names `value` and
+  compares raw text, and EF Core translates it only under `UseValueObjectQueries()`. Sorting needs no binding.
+- Native AOT: the package's code is clean, but HotChocolate 16.6.8's binary needs
+  `<TrimmerRootAssembly Include="HotChocolate.Types" />` and the application's assembly rooted; take list arguments as
+  `List<T>`, `IReadOnlyList<T>` or arrays.
+- Not covered: HotChocolate 15 and earlier, `AnyEntityId`, Relay `[ID]`, mutation conventions, subscriptions, Fusion,
+  projections.
 
 ## FluentValidation
 

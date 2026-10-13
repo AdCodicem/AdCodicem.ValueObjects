@@ -163,7 +163,7 @@ jobs:
   # model binding, on System.Text.Json and on Newtonsoft.Json, minimal API problem
   # details, MongoDB.Driver on MongoDB 8, MessagePack, with SignalR's MessagePack hub protocol over TestHost, Serilog,
   # Microsoft.Extensions.AI tools and structured output, Model Context Protocol tools over in-process streams, the Azure
-  # Functions worker's converter and problem details middleware, the
+  # Functions worker's converter and problem details middleware, HotChocolate 16 scalars in process, the
   # contract kit and the test-data packages over AutoFixture, Bogus and FsCheck,
   # and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3, and Swashbuckle 10
   # over Microsoft.OpenApi 2 in a project of its own. The island has its own global.json, so the SDK it needs

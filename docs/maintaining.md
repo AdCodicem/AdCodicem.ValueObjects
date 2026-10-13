@@ -9,7 +9,7 @@ is on, so this list is worth checking if something looks wired up but never happ
 `preview.yml` publishes a preview of every package to nuget.org every Monday at 07:15, Paris time, and whenever it is
 dispatched (**Actions → preview → Run workflow**, from `main`: a dispatch from another branch stops at its first
 job). It publishes only when a package input changed since the version nuget.org has from the nearest commit, and
-then all twenty-seven packages at one version, or none.
+then all twenty-eight packages at one version, or none.
 [ADR-0009](adr/0009-publish-previews-weekly-when-a-package-input-changed.md) has the reasoning.
 
 Each run says what it decided. The **compute the version** job prints the version semantic-release would give the
@@ -73,7 +73,7 @@ offering the higher one as the latest prerelease until a higher version ships.
 The first time `preview.yml` publishes, and after any change to its publish job, dispatch it rather than wait for
 Monday, and check:
 
-1. the twenty-seven packages are on nuget.org at the version the run printed, and the publish job finished its wait for
+1. the twenty-eight packages are on nuget.org at the version the run printed, and the publish job finished its wait for
    the listing;
 2. an assembly restored from nuget.org verifies, and the certificate comes from Sigstore's public-good instance:
 
@@ -196,7 +196,8 @@ Without them the release job stops at its first step, before anything is publish
   both `npm` and the `github-actions` entries, so that a broken or compromised release has time to be pulled first.
   Security updates ignore the cooldown and open at once.
 - **No framework major.** Semver-major updates of `Microsoft.EntityFrameworkCore*`, `Microsoft.AspNetCore.*`,
-  `Microsoft.Extensions.*`, `Microsoft.OpenApi` and `Npgsql.EntityFrameworkCore.PostgreSQL` are ignored, and so are
+  `Microsoft.Extensions.*`, `Microsoft.OpenApi`, `Npgsql.EntityFrameworkCore.PostgreSQL` and `HotChocolate*`, whose
+  packages share one version and move together in the `dotnet` group, are ignored, and so are
   those of three packages whose majors follow one of them: `dotnet-ef`, the local tool pinned to EF Core's version;
   `Swashbuckle.AspNetCore*`, whose next major moves to `Microsoft.OpenApi` 3; and `Serilog.Extensions.Logging`, which
   only the tests use and whose majors follow .NET's, each built on the `Microsoft.Extensions.Logging` of its major. A

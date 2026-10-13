@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.HotChocolate</RootNamespace>
+    <Description>HotChocolate support for AdCodicem value objects: one GraphQL scalar per value object, serialized as its underlying value and named after its type, which reads an argument, an input field or a variable through the value object's rules and answers a refused value with the rule's code in extensions.code. AOT-compatible.</Description>
+    <PackageTags>$(PackageTags);graphql;hotchocolate;scalar</PackageTags>
+
+    <!--
+      AOT-compatible, by the repository's default: each scalar is closed over its value object through the descriptor's
+      visitor, never with MakeGenericType, and names the collections HotChocolate builds by reflection for a list
+      argument, so that the AOT compiler generates them. HotChocolate 16.6.8's own publish warns, and its binary needs
+      HotChocolate.Types and the application's assembly rooted to start (the integration guide): tests/NativeAot leaves
+      it out until it starts natively.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- IRequestExecutorBuilder, ScalarType and the type discovery handlers; not HotChocolate.AspNetCore, so that a schema
+         built outside ASP.NET Core takes the package too. -->
+    <PackageReference Include="HotChocolate.Types" />
+    <!-- IStringLocalizerFactory, for the messages UseResource<T>() names, without the ASP.NET Core shared framework. -->
+    <PackageReference Include="Microsoft.Extensions.Localization.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The wire pattern of a duration, a time of day and a DateTime, as the OpenAPI packages publish it. -->
+    <Compile Include="..\Shared\ValueObjectSchemaKeywords.cs" Link="Shared\ValueObjectSchemaKeywords.cs" />
+    <!-- The lookup of a refusal's message in the application's resource, compiled into the three ASP.NET Core packages
+         too, which link the part they share through ValueObjectMessageOptions beside it. -->
+    <Compile Include="..\Shared\ValueObjectLocalizedMessages.cs" Link="Shared\ValueObjectLocalizedMessages.cs" />
+  </ItemGroup>
+
+</Project>

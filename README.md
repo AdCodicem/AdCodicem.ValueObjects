@@ -103,6 +103,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, and a `$jsonSchema` validator built from the rules. |
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters, and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
+| `AdCodicem.ValueObjects.HotChocolate` | One GraphQL scalar per value object under HotChocolate 16, read through its rules, a refused value answered with its rule code. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI tool and structured-output schemas that carry the rules, and a refused tool argument answered with its rule code. |
@@ -120,7 +121,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twenty-seven are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twenty-eight are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -141,6 +142,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
 | `AdCodicem.ValueObjects.MessagePack` | `net10.0` | MessagePack 3.1, with SignalR's MessagePack hub protocol 10 | MessagePack 3.1 on .NET 11, with the hub protocol 11 |
+| `AdCodicem.ValueObjects.HotChocolate` | `net10.0` | HotChocolate 16.6, in process and over ASP.NET Core | HotChocolate 16.6 on .NET 11 |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
 | `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
 | `AdCodicem.ValueObjects.AI` | `net10.0` | Microsoft.Extensions.AI 10, with its OpenAI adapter in strict mode, and native AOT | Microsoft.Extensions.AI 10 on .NET 11 |
@@ -203,7 +205,7 @@ which is what makes the struct representation — zero allocation, no null — s
 its own output: `VO0032` reports it in the code of Riok.Mapperly and of the configuration binding generator, and
 of any generator a `.globalconfig` adds. What reaches a boundary the analyzer cannot see — an entity property never
 set, a default array element — is not written as it stands: the JSON converters, the Dapper handler, the MongoDB
-serializers, the MessagePack formatters, the XML serialization of an assembly marked
+serializers, the MessagePack formatters, the HotChocolate scalars, the XML serialization of an assembly marked
 `[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized instance whose value its
 type rejects, and an optional EF Core column stores a `NULL` instead, as does an element of a `List<Iban?>`. Under
 `ConfigureValueObjects`, an EF Core primary key of one property over a `Guid` value object, which nothing generates,
@@ -215,7 +217,8 @@ their own terms: a JSON exception, a model state error, a FluentValidation failu
 MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationException`, an `XmlException` from
 `XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool
 result a language model reads, an MCP tool execution error, the `FormatException` that fails an Azure Functions
-parameter, whose text alone the worker keeps, and which therefore ends with the code. Each
+parameter, whose text alone the worker keeps, and which therefore ends with the code, and a GraphQL error whose
+`extensions.code` is the rule's. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
 query value, those of a minimal API for a route, query or header value, and those of an Azure Functions HTTP trigger
@@ -223,7 +226,7 @@ for a route or query value. Under `UseValueObjectCheckErrors()`, the
 database provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the
 constraint's name.
 The message is English; the code keys the one an application shows in its users' language, which the MVC, minimal API,
-Azure Functions and FluentValidation integrations look up with the arguments the declared rules supply
+Azure Functions, HotChocolate and FluentValidation integrations look up with the arguments the declared rules supply
 ([a message in the application's language](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/reference/errors#a-message-in-the-applications-language)).
 `Create` throws `ValueObjectException`, and is for the call sites that want it; a strict EF Core read goes through
 it, and fails the query. Validation is fail-fast: the first violated rule wins.
@@ -239,7 +242,8 @@ program, unless the application trusts them: `ValueObjectBson.Register(trusted: 
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
 collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema. The `[GeneratedRegex]` behind
-`IValueObjectPatternValidator` validates the value, and its text becomes the `pattern` keyword. The members marked
+`IValueObjectPatternValidator` validates the value, and its text becomes the `pattern` keyword, and the pattern of a
+GraphQL scalar, which HotChocolate publishes as `@serializeAs` under `ApplySerializeAsToScalars`. The members marked
 `[KnownValue]` become a frozen membership lookup and the `enum` keyword of the schema, with their names beside it for
 generated clients. On request, `AddValueObjectCheckConstraints()` writes the minimum length, the bounds and the closed
 sets as CHECK constraints of the EF Core columns, wherever the database reads them as .NET does, and, once the options
@@ -397,6 +401,19 @@ carrying its code
 ```csharp skip
 builder.Services.AddSignalR().AddMessagePackProtocol(options => options.UseValueObjects()); // and on the .NET client
 var options = MessagePackSerializerOptions.Standard.WithValueObjects(); // or WithValueObjects(trusted: true) for a cache
+```
+
+HotChocolate infers an input object type from a value object it meets as an argument, finds no constructor it can fill,
+and the schema does not start; as a field it infers an object type a client has to select `{ value }` from.
+`AdCodicem.ValueObjects.HotChocolate` gives every value object a GraphQL scalar of its own, `scalar Iban`, serialized as
+its underlying value, described and named by its type, which reads an argument, an input field or a variable through
+its rules and answers a refused value with the rule's code under `extensions.code`
+([the GraphQL guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/graphql)):
+
+```csharp skip
+builder.Services.AddGraphQLServer()
+    .AddQueryType<Query>()
+    .AddValueObjects();   // or AddValueObjects(options => options.UseResource<Messages>()) for messages in the users' language
 ```
 
 The Azure Functions isolated worker reads no `[TypeConverter]`: a route value, a query value or other binding data, such

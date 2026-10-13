@@ -31,9 +31,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The lookup of a refusal's message in the application's resource, compiled into the minimal API package too, whose
-         internals this one does not see. -->
+    <!-- The lookup of a refusal's message in the application's resource, compiled into the minimal API and the Azure
+         Functions ASP.NET Core packages too, whose internals this one does not see, and, without its ASP.NET Core part,
+         into the HotChocolate package. -->
     <Compile Include="..\Shared\ValueObjectLocalizedMessages.cs" Link="Shared\ValueObjectLocalizedMessages.cs" />
+    <Compile Include="..\Shared\ValueObjectLocalizedMessages.AspNetCore.cs" Link="Shared\ValueObjectLocalizedMessages.AspNetCore.cs" />
   </ItemGroup>
 
 </Project>
