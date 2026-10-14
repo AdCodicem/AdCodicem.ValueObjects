@@ -107,6 +107,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers, and protobuf-net.Grpc code-first services: the underlying value on the wire, strict reads, a refused request answered `INVALID_ARGUMENT` with its rule code. |
 | `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC services: every refused field answered at once as `INVALID_ARGUMENT` with a `google.rpc.BadRequest`, and a refusal escaping a handler with a `google.rpc.ErrorInfo` carrying its rule code. |
 | `AdCodicem.ValueObjects.HotChocolate` | One GraphQL scalar per value object under HotChocolate 16, read through its rules, a refused value answered with its rule code. |
+| `AdCodicem.ValueObjects.Blazor` | A Blazor input per value object, read through its rules, the refused rule's message under the field and its code on the `EditContext`. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI tool and structured-output schemas that carry the rules, and a refused tool argument answered with its rule code. |
@@ -124,7 +125,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-one are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-two are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -149,6 +150,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.ProtobufNet` | `net10.0` | protobuf-net 3.4 and protobuf-net.Grpc 1.3 over Grpc.AspNetCore 2.84, and protobuf-net's compile-time model under native AOT | protobuf-net 3.4 on .NET 11, a code-first call over TestHost |
 | `AdCodicem.ValueObjects.Grpc` | `net10.0` | Grpc.StatusProto 2.84, over Grpc.AspNetCore 2.84 and native AOT | a contract-first service over TestHost on .NET 11 |
 | `AdCodicem.ValueObjects.HotChocolate` | `net10.0` | HotChocolate 16.6, in process and over ASP.NET Core | HotChocolate 16.6 on .NET 11 |
+| `AdCodicem.ValueObjects.Blazor` | `net10.0` | Blazor 10 (`Microsoft.AspNetCore.Components.Web` 10), through bUnit, static rendering over TestHost and `HtmlRenderer` under native AOT | Components 11, through `HtmlRenderer` |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
 | `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
 | `AdCodicem.ValueObjects.AI` | `net10.0` | Microsoft.Extensions.AI 10, with its OpenAI adapter in strict mode, and native AOT | Microsoft.Extensions.AI 10 on .NET 11 |
@@ -226,8 +228,9 @@ the `INVALID_ARGUMENT` status a gRPC service answers, code-first or contract-fir
 `XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool
 result a language model reads, an MCP tool execution error, the `FormatException` that fails an Azure Functions
 parameter, whose text alone the worker keeps, and which therefore ends with the code, a GraphQL error whose
-`extensions.code` is the rule's, and a DataAnnotations `ValueObjectValidationResult`, from `[ParsesAs]` and
-`[NotDefault]`, which `Validator`'s throwing methods wrap in a `ValidationException`. Each
+`extensions.code` is the rule's, a DataAnnotations `ValueObjectValidationResult`, from `[ParsesAs]` and
+`[NotDefault]`, which `Validator`'s throwing methods wrap in a `ValidationException`, and a validation message under a
+Blazor form's field, its code on the form's `EditContext`. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
 query value, those of a minimal API for a route, query or header value, and those of an Azure Functions HTTP trigger
@@ -235,8 +238,8 @@ for a route or query value. Under `UseValueObjectCheckErrors()`, the
 database provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the
 constraint's name.
 The message is English; the code keys the one an application shows in its users' language, which the MVC, minimal API,
-Azure Functions, HotChocolate, FluentValidation and DataAnnotations integrations look up with the arguments the declared
-rules supply
+Azure Functions, HotChocolate, Blazor, FluentValidation and DataAnnotations integrations look up with the arguments the
+declared rules supply
 ([a message in the application's language](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/reference/errors#a-message-in-the-applications-language)).
 `Create` throws `ValueObjectException`, and is for the call sites that want it; a strict EF Core read goes through
 it, and fails the query. Validation is fail-fast: the first violated rule wins.
@@ -265,7 +268,9 @@ describe their parameters with, through `ValueObjectJsonSchema`; `AdCodicem.Valu
 and the structured output of Microsoft.Extensions.AI in one call, and `AdCodicem.ValueObjects.ModelContextProtocol` to
 the tools of a Model Context Protocol server. A DTO or an options class that keeps the text holds it to the same rules
 with DataAnnotations' `[ParsesAs(typeof(Iban))]`, which the OpenAPI packages, NSwag's included, describe as the value
-object's text, rather than restating them in `[StringLength]` and `[RegularExpression]`.
+object's text, rather than restating them in `[StringLength]` and `[RegularExpression]`. A Blazor input reads its text
+through them, and, on request, writes the maximum and minimum lengths and a pattern a browser reads as .NET does as the
+`maxlength`, `minlength` and `pattern` of the field.
 
 ## Compared with other libraries
 
@@ -459,6 +464,25 @@ its rules and answers a refused value with the rule's code under `extensions.cod
 builder.Services.AddGraphQLServer()
     .AddQueryType<Query>()
     .AddValueObjects();   // or AddValueObjects(options => options.UseResource<Messages>()) for messages in the users' language
+```
+
+A Blazor form has no input for a value object: `@bind` swallows the converter's refusal and binds empty text as the
+default instance, and `InputSelect` lets the refusal out of the change event. `AdCodicem.ValueObjects.Blazor`'s
+`InputValueObject` reads the text a person types through the value object's rules, binds the normalized instance, and
+answers refused text with the rule's message under the field and its code on the form's `EditContext`
+([the Blazor guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/blazor)):
+
+```razor
+@using AdCodicem.ValueObjects.Blazor   @* in _Imports.razor *@
+
+<EditForm Model="Order" OnValidSubmit="Save">
+    <InputValueObject @bind-Value="Order.Iban" DisplayName="IBAN" />
+    <ValidationMessage For="() => Order.Iban" />
+</EditForm>
+```
+
+```csharp skip
+builder.Services.AddValueObjectInputs(options => options.UseResource<Messages>());   // optional: messages in the users' language
 ```
 
 The Azure Functions isolated worker reads no `[TypeConverter]`: a route value, a query value or other binding data, such

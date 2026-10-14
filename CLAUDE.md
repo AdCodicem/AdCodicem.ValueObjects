@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Thirty-one NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Thirty-two NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -67,6 +67,10 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
 # Workflows, as lint.yml checks them (actionlint 1.7.12, with shellcheck on PATH; reads .github/actionlint.yaml)
 actionlint
 
+# The pattern attributes the Blazor package writes, in Node's v-flag engine, as ci.yml's documentation site job checks
+# the table EcmaScriptPatternTests pins
+node .github/scripts/ecmascript-patterns.mjs
+
 # One test (xunit.v3 runs on Microsoft Testing Platform; wildcards, not substrings, so wrap the name in *)
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests --filter-method "*The_name_of_the_test*"
 
@@ -97,7 +101,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All thirty-one packages go out at one version, or none. That version is the one semantic-release would
+lookup fails. All thirty-two packages go out at one version, or none. That version is the one semantic-release would
 give the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -145,7 +149,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The thirty-one packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The thirty-two packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -229,7 +233,9 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   bounds and known values under Newtonsoft.Json settings through a System.Text.Json converter the visitor closes over it
   (`NewtonsoftJsonWrittenConverterFactory`), DataAnnotations' `[NotDefault]`, which closes a check of
   `IsDefault` once per type in a static cache (a failed resolution is not cached, so a registration made later is
-  found), the test-data sampler's
+  found), the Blazor input, which finds the descriptor of its `TValue`, nullable unwrapped, as `[ParsesAs(typeof(T))]`
+  does, and closes both its text adapters, plain and nullable, once per value object through a visitor that is not
+  generic (`ValueObjectInputTexts.Closer`), caching them per `TValue` once found, the test-data sampler's
   `Next(descriptor)`, the AutoFixture specimen builder, Bogus's `RuleForValueObjects` and `ValueObject<TSelf>`, FsCheck's
   `MergeValueObjects`, EF Core's `ConfigureValueObjects` and `ConfigureEntityIds`, and the CHECK constraint convention
   `AddValueObjectCheckConstraints` adds, which resolves the value object a converter of the package maps
@@ -262,8 +268,8 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   conversion of the underlying type. No EF Core convention runs under native AOT, where EF
   Core reads the compiled model and builds none, and the MVC binder provider runs in no native binary, MVC not being
   AOT-compatible, so the `native AOT` job guards the JSON factory's visitor, the minimal API filter's and
-  `[NotDefault]`'s, the lookup of `[ParsesAs(typeof(T))]`, and `EntityIdDescriptor.Accept`, which the application calls
-  on every identifier registered; the visitors of the Azure Functions, HotChocolate and NJsonSchema packages run in no
+  `[NotDefault]`'s, the lookup of `[ParsesAs(typeof(T))]`, the Blazor input's, and `EntityIdDescriptor.Accept`, which
+  the application calls on every identifier registered; the visitors of the Azure Functions, HotChocolate and NJsonSchema packages run in no
   native binary, nor protobuf-net's `AddValueObjects`, which is `[RequiresDynamicCode]`. `RuntimeClosingTests` guards
   every package: it reads their IL and fails on a `MakeGenericType`, a `MakeGenericMethod` or an
   `Activator.CreateInstance` outside the list it holds, the registry's reflection fallback and the EF Core converter of
@@ -317,7 +323,12 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   code and the type beside the message), which `Validator.TryValidate*` and `ObservableValidator` keep and MVC,
   `AddValidation()` and options validation reduce to its message; `Validator`'s throwing methods wrap it in a
   `ValidationException` DataAnnotations raises itself, so `ValueObjectErrors.TryGetCode` reads the code off its result,
-  its `Data` being DataAnnotations'. A misuse, a member of the wrong type or a type no value object or unregistered under
+  its `Data` being DataAnnotations'. A Blazor input throws nothing for refused text: `InputBase` adds the rule's message
+  to its own `ValidationMessageStore`, and the input keeps the code in a dictionary under a private key of
+  `EditContext.Properties`, which `TryGetValueObjectErrorCode` reads, set on a refusal and cleared on the next text it
+  reads, when it formats the model again and when it is disposed; empty text a type that cannot be `null` refuses is
+  `value_object.required` with `[Required]`'s message, a parser refusing without a reason `not_parsable` with "The text
+  could not be parsed as X." and an empty message "The field {0} is invalid.", as `[ParsesAs]` gives them. A misuse, a member of the wrong type or a type no value object or unregistered under
   native AOT, throws `InvalidOperationException`, with no code. Under
   `UseValueObjectCheckErrors()`, the EF Core package adds the code to the `Data` of the database provider's error for a
   row a CHECK constraint from the rules refused, read off the constraint's name (`ValueObjectCheckConstraints`), never
@@ -335,7 +346,10 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   reading the resource through the request's `IStringLocalizerFactory`, a HotChocolate schema through
   `AddValueObjects(options => options.UseResource<T>())`, an error filter reading the application's
   `IStringLocalizerFactory` through `GetRootServiceProvider()` in the culture of the execution, the executor failing to
-  start without `AddLocalization()`, FluentValidation from `ValidatorOptions.Global.LanguageManager` when no
+  start without `AddLocalization()`, a Blazor input through `AddValueObjectInputs(options => options.UseResource<T>())`,
+  which registers `AddLocalization()` itself, `{0}` the input's `DisplayName` or else its field's name, the lookup
+  reading the component's injected services in the current UI culture, FluentValidation from
+  `ValidatorOptions.Global.LanguageManager` when no
   message is chained, and the DataAnnotations attributes from the resource their `ErrorMessageResourceType` names alone
   (`ErrorMessage`, or a resource with its name, give DataAnnotations' single message), read through a
   `ResourceManager(typeof(T))` cached per type, a `MissingManifestResourceException` taken for a missing key, the next
@@ -362,7 +376,12 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   feed the schema too: the `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off
   the attribute at compile time, becomes the OpenAPI `pattern`, and the `Pattern` of a HotChocolate scalar serialized as
   a String, which HotChocolate publishes as `@serializeAs` under `ApplySerializeAsToScalars`, beside the wire pattern of
-  a `TimeSpan`, a `TimeOnly` or a `DateTime`. The OpenAPI transformer, the Swashbuckle filters and the
+  a `TimeSpan`, a `TimeOnly` or a `DateTime`. Under `SchemaAttributes="true"`, a Blazor input writes `MaxLength`,
+  `MinLength` and the pattern as `maxlength`, `minlength` and `pattern`, the pattern through `EcmaScriptPattern` over the
+  shared reader below, for the `v` flag a browser compiles it with as `^(?:…)$`, only for a pattern each of whose
+  top-level alternatives is anchored at both ends, with `\d`, `\w`, `\s` and `\p{…}` listed from .NET's tables and
+  nothing that can match half of a surrogate pair; off by default, since a browser checks text before the normalizer
+  runs. The OpenAPI transformer, the Swashbuckle filters and the
   JSON Schema transform (`ValueObjectJsonSchema`, in the Json package) take what a rule becomes in a schema from
   `src/Shared/ValueObjectSchemaKeywords.cs`, an internal file each package links and compiles, not a project: a keyword
   changes there, for all three, and the HotChocolate package links it too, for its wire patterns, and the NJsonSchema
@@ -869,6 +888,36 @@ These are all load-bearing, and each cost real debugging time:
   `GraphQL/`). With `using HotChocolate;`, `Path` is ambiguous with `System.IO.Path` (alias it), and
   `HotChocolate.Types` holds a `Tag`. HotChocolate's source generator (`[QueryType]`) runs in a fixture of its own,
   `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.GraphQL`, so that the unit test assembly gets no generated module.
+- **Blazor binds a value object through the framework's own paths before any input runs, and reads `RendererInfo`.**
+  `@bind` reads text through `BindConverter`, which swallows the converter's `ValueObjectException` and calls the setter
+  with `default` for empty text; `InputSelect` and `InputRadioGroup` catch only `InvalidOperationException`, so a refused
+  option throws out of the change event, fatal to a Blazor Server circuit. A statically rendered form is mapped by the
+  framework, through `IParsable<T>` in the invariant culture, before any component runs, its converters and options
+  internal (`FormDataMapperOptions`, `ParsableConverter<T>`): a refusal is "The value 'XX' is not valid for 'Account'.",
+  which quotes the text and carries no code, the member it refused left at its default, and `NullableConverter` takes
+  empty text as `null` for primitive types, `DateOnly`, `TimeOnly` and `DateTimeOffset` alone (dotnet/aspnetcore#52499
+  and #60498), so an empty `TSelf?` is refused; `StaticFormTests` pins both messages. The input therefore writes the
+  invariant text under static rendering, and the current culture's where `RendererInfo.IsInteractive` or
+  `AssignedRenderMode` is set, which is how a prerendered interactive page reports itself (`Static`, not interactive,
+  the mode assigned). The round-trip text of a date is Gregorian whatever the culture, while `DateOnly`, `DateTime` and
+  `DateTimeOffset` parse in the culture's calendar, which reads `2000-01-01` 543 years earlier in `th-TH`, 621 years
+  later in `fa-IR` and not at all in `ar-SA`, the fifteen cultures .NET lists whose calendar is another: the input reads
+  a date with a copy of the culture set to `new GregorianCalendar()`, which every culture lists. bUnit throws
+  `MissingRendererInfoException` when a component reads `RendererInfo` before `SetRendererInfo`, and refuses a service
+  added once the renderer is asked for: `FormsHarness` adds the services first.
+  `InputBase` binds `null` to a nullable value object for empty text without calling `TryParseValueFromString`, and
+  formats the model only while no refused text shows, which is why the input clears a code in `FormatValueAsString`
+  too. Microsoft.AspNetCore.Components warns for itself in a native publish (`IL2104`, `IL3053`), which the main native
+  AOT application lists in an `aot-warnings.allowed` of its own and keeps out of `WarningsAsErrors` under `NativeAot`.
+  The package references `Microsoft.AspNetCore.Components.Web` rather than the shared framework, whose copy loads in a
+  server application. On .NET 11, `InputBase` moved into Components.Web, forwarded, `ValidationMessage` writes
+  `data-valmsg-*` and `InputText` an `id` this input does not, and `EditContext.Validate()` is obsolete (CS0618), for
+  `ValidateAsync()`: the island reads messages off the `EditContext`, never the markup, and validates asynchronously.
+  The ASP.NET Core analyzers refuse a computed sequence number (ASP0006): a helper rendering one component per call
+  takes literals, inside a region per call. The package's namespace hides no root namespace, no referenced assembly having a root `Blazor` one; the unit
+  suite's folder is `Forms/` all the same, as a `Blazor` namespace inside the suite's would hide
+  `AdCodicem.ValueObjects.Blazor`. Its Razor forms live in `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Blazor`
+  (Razor SDK), whose generated `Router` code warns under the trimming analyzer, which that fixture turns off.
 - **DataAnnotations hosts disagree on what they read and keep.** MVC refuses a validation attribute on a record's
   property (`InvalidOperationException` at the first request validating the record) and wants it on the primary
   constructor's parameter, which neither OpenAPI generator reads a `[StringLength]` from, while
@@ -944,8 +993,9 @@ These are all load-bearing, and each cost real debugging time:
   `ValueObjectPatternSyntax.cs`: the unit suite references the contracts under `Aliases="global,abstractions"`, and
   `ValueObjectPatternSyntaxTests` names the contracts' copy through `extern alias abstractions`; the MongoDB copy is
   tested through `PcrePattern`, the EF Core copy through `SqlPattern`, and the copy of
-  `AdCodicem.ValueObjects.Testing.Data` through `PatternSampler`, whose tests name no node type. A further package
-  linking it is tested the same way. `TypeNames.cs`, which writes a type as C# names it in a message, is linked by
+  `AdCodicem.ValueObjects.Testing.Data` through `PatternSampler`, whose tests name no node type, and the Blazor copy
+  through `EcmaScriptPattern`, its table in `Forms/EcmaScriptPatterns.json`. A further package linking it is tested the
+  same way. `TypeNames.cs`, which writes a type as C# names it in a message, is linked by
   `Testing.Data`, by its AutoFixture, Bogus and FsCheck adapters, by the EF Core package, for the key and the
   pattern it refuses, by both Azure Functions packages, for the type a refusal names, and by the protobuf-net and gRPC
   packages, for the value object a refusal and an `ErrorInfo` name: the unit suite references `Testing.Data` under
@@ -956,10 +1006,10 @@ These are all load-bearing, and each cost real debugging time:
   reaching them through `WithValueObjectValidation()` and `WithValueObjectTools` alone, so that neither copy needs an
   alias, and coverage counts a line of the file covered by either copy. `ValueObjectLocalizedMessages.cs`, the lookup
   of a refusal's message in the application's resource, a partial class, is linked by the minimal API, the MVC, the
-  Azure Functions ASP.NET Core and the HotChocolate packages the same way, the three ASP.NET Core ones with
+  Azure Functions ASP.NET Core, the HotChocolate and the Blazor packages the same way, the three ASP.NET Core ones with
   `ValueObjectLocalizedMessages.AspNetCore.cs` beside it, the part that reads `ValueObjectMessageOptions`, which the
-  HotChocolate package does not reference; no test names either: the localized tests of `Web/`, `Functions/` and
-  `GraphQL/` reach each copy through its package's API. `ValueObjectSchemaKeywords.cs` is linked by the OpenAPI, the
+  HotChocolate and the Blazor packages do not reference; no test names either: the localized tests of `Web/`,
+  `Functions/`, `GraphQL/` and `Forms/` reach each copy through its package's API. `ValueObjectSchemaKeywords.cs` is linked by the OpenAPI, the
   Swashbuckle, the Json, the HotChocolate and the NJsonSchema packages, and no test names it either. `ValueObjectBindingText.cs`, how the converter reads the worker's text, is linked by both
   Azure Functions packages, so that the middleware parses a parameter again exactly as the converter parsed it, and no
   test names it: `Functions/` reaches both copies through the converter and the middleware.
@@ -1023,14 +1073,32 @@ Four suites, each with a distinct job:
   is on, so generated sources land under `artifacts/obj/.../generated/` and can be read when diagnosing.
   `Domain/HandWritten/` holds value objects written by hand, the supported input that reaches what the generator
   always replaces: the interface defaults and the registry's reflection fallback. The test assembly cannot hold
-  the rest, since the generator runs on it and its module initializer has run before any test does, so five
+  the rest, since the generator runs on it and its module initializer has run before any test does, so six
   fixture assemblies under `tests/Fixtures/` do: a generated value object in a module nothing has used yet,
   annotated hand-written ones where no generator runs, generated ones in an assembly that does not reference
   `AdCodicem.ValueObjects.Json`, as a domain project serializing through an API's context does not, and generated ones
   of every underlying type in an assembly marked `[assembly: ValueObjectXmlSerialization]`, beside value objects
   written by hand on `ValueObjectXml` whose schemas the generator never writes (`XmlSerialization/` tests them), and
   generated ones beside a `[QueryType]` HotChocolate's source generator binds, whose module the unit test assembly would
-  otherwise get (`SourceGeneratedQueryTests`).
+  otherwise get (`SourceGeneratedQueryTests`), and Blazor forms written in Razor markup, with pages and value objects
+  of their own, which the Razor SDK builds while the suite stays on `Microsoft.NET.Sdk`.
+  `Forms/` (not `Blazor/`, whose namespace would hide `AdCodicem.ValueObjects.Blazor` inside the suite's) renders the
+  fixture's forms through bUnit (`FormsHarness`, which adds the services before `SetRendererInfo`): text accepted,
+  normalized and refused, each with its code, the code cleared by the next text, an emptied nullable field and the
+  input's disposal, empty text on a value object and its nullable type, `AllowEmpty`, the culture under an interactive,
+  a static and a prerendered renderer and `Culture`, a date in `th-TH`, `fa-IR` and `ar-SA`, the text each underlying
+  type and a formatting hook is written as, a string formatter alone and hooked dates, times and a duration among them
+  (the fixture's `HookedValueObjects.cs`), what a handler of `OnFieldChanged` reads, the attributes written lazily
+  (`CountedTicket`), a submit blocked and then accepted, a parser refusing without a reason (`UnexplainedCode`, the
+  folder's own), a generic construction closed over `FormsOwner`, a `Declared<FormsTicket, string>` resolved through
+  the registry, the schema attributes, `[NotDefault]` under `DataAnnotationsValidator` (`AnnotatedFormTests`), the
+  messages of `Web/ValidationMessages.fr.resx` and `Web/SparseMessages.fr.resx` (`LocalizedInputTests`), and an
+  `HtmlRenderer` over services holding no options; a subclass setting `CurrentValueAsString` (`TypedInput`) stands for one that
+  types text from code. `StaticFormTests` serves the fixture's static and prerendered pages over TestHost in French,
+  pinning the framework's own refusals, and `EcmaScriptPatternTests` holds each pattern of
+  `Forms/EcmaScriptPatterns.json` to .NET, the table `.github/scripts/ecmascript-patterns.mjs` holds to Node in the
+  documentation site's job. `GeneratedSurface/` binds every sample through an input (`FormsParity`), alone and
+  nullable, under a static renderer, and reads back the text it writes in every culture .NET lists.
   `BinarySerialization/` drives the MessagePack package directly and through a SignalR hub and the .NET client over
   TestHost; a test of the reflection fallback there closes `Reference<TOwner>` over the test class, never
   `UnregisteredCode`, which nothing may resolve. Its `Proto*` files drive the protobuf-net package on models of their
@@ -1250,11 +1318,18 @@ on where they apply.
   Protocol server in process over a pair of pipes, registered with `WithValueObjectTools<T>()` over a copy of
   `McpJsonUtilities.DefaultOptions` whose resolver chain starts with `AppJsonContext`, lists its tools on the latest and
   on an older protocol version, and calls them with refused and accepted arguments; the SDK's default options, which
-  know no value object, fail its start. The domain opts into XML serialization,
+  know no value object, fail its start. `Forms.cs` renders a Blazor form of every registered value object, alone and
+  nullable, through `HtmlRenderer`, its Razor components (`BlazorForm.razor`, `BlazorForms.razor`) compiled by the Web
+  SDK, types each text of `Underlying.cs` into each input through a subclass setting `CurrentValueAsString`
+  (`TypedInput`), a second time with the messages of `ProblemMessages.resx` for two of them, and fails the run when a
+  field marked invalid keeps no code, or one that is not keeps one, or an emptied nullable field binds anything;
+  `UnregisteredCode` fails the first render, naming the registration. Microsoft.AspNetCore.Components warns for itself
+  once a component renders, `IL2104` and `IL3053`, which the project's `aot-warnings.allowed` lists and its
+  `WarningsNotAsErrors` keeps from stopping the AOT compiler under `NativeAot`. The domain opts into XML serialization,
   which nothing calls: a guard that the emission adds no trimming or AOT warning and changes no output.
   `ci.yml`'s `native AOT` job (`.github/scripts/native-aot.sh`), a required check, runs its fixed script once under the
-  JIT and once as the native binary, and fails on a trimming or AOT warning or on any difference between the two
-  outputs. The JIT run turns on the RDG and turns off reflection-based serialization and dynamic code, as `PublishAot`
+  JIT and once as the native binary, and fails on a trimming or AOT warning its `aot-warnings.allowed` does not list or
+  on any difference between the two outputs. The JIT run turns on the RDG and turns off reflection-based serialization and dynamic code, as `PublishAot`
   does, so that the outputs differ only where native AOT changes something: a branch guarded by
   `RuntimeFeature.IsDynamicCodeSupported` takes the same side in both runs, while a `MakeGenericType` left unguarded
   still runs under the JIT and fails the native binary. A value object added to `UnderlyingTypes.cs`, or registered by
@@ -1303,7 +1378,7 @@ on where they apply.
   precompiled query fails to map under native AOT. A strict context cannot track on a compiled model, so the `jit` round
   trip reads untracked (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the thirty-one packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the thirty-two packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
@@ -1325,7 +1400,9 @@ Serilog, Microsoft.Extensions.AI tools and structured output, through `FunctionI
 of Microsoft.Extensions.AI 10, Model Context Protocol tools on ModelContextProtocol 2.2, a server in process and the SDK's
 own client over a pair of pipes, the Azure Functions converter and problem details middleware beside ASP.NET Core 11,
 over the worker's own abstractions, HotChocolate 16 scalars in a schema built in process, on HotChocolate.Types'
-`net11.0` assembly, their messages in the language of the execution, an NSwag 14.7 document over TestHost beside
+`net11.0` assembly, their messages in the language of the execution, a Blazor input rendered by `HtmlRenderer` on the
+shared framework's Components 11, whose `InputBase` moved into Components.Web, its messages from `Messages.fr.resx`
+(`BlazorTests`, no bUnit and no Razor SDK there), an NSwag 14.7 document over TestHost beside
 `Microsoft.AspNetCore.OpenApi` 11 and Confluent's JSON serdes 2.16 over NJsonSchema 11.6, `XmlSerializer` and
 `DataContractSerializer` over its domain, which opts into XML serialization, the contract kit and the test-data sampler,
 through AutoFixture, Bogus and FsCheck too, with no transitive

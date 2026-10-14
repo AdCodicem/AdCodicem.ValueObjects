@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (a $jsonSchema validator, entity identifiers minted on insert), MessagePack and SignalR, protobuf-net and gRPC, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker) and HotChocolate (GraphQL) integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0042 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (a $jsonSchema validator, entity identifiers minted on insert), MessagePack and SignalR, protobuf-net and gRPC, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker), HotChocolate (GraphQL) and Blazor forms integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, money, strongly-typed identifier), and whenever a VO0001–VO0042 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -239,6 +239,8 @@ RuntimeTypeModel.Default.AddValueObjects(typeof(Iban).Assembly);                
 builder.Services.AddSingleton(ValueObjectBinderConfiguration.ForServer(RuntimeTypeModel.Default)); // ProtobufNet: code-first gRPC
 builder.Services.AddGrpc(o => o.Interceptors.Add<ValueObjectExceptionInterceptor>());  // Grpc: contract-first, ValueObjectBadRequest too
 builder.Services.AddGraphQLServer().AddQueryType<Query>().AddValueObjects();           // HotChocolate, a scalar per value object
+builder.Services.AddValueObjectInputs(o => o.UseResource<Messages>());                // Blazor, optional: messages by code
+// <InputValueObject @bind-Value="Model.Iban" /> in an EditForm                       // Blazor, an input per value object
 new LoggerConfiguration().Enrich.FromLogContext()                                      // Serilog, after FromLogContext
     .Destructure.ValueObjects(o => { o.CaptureAsUnderlyingValue = true; o.Assemblies.Add(typeof(Iban).Assembly); });
 // [assembly: ValueObjectXmlSerialization]  in the domain assembly: XmlSerializer, DataContractSerializer, MVC XML formatters
@@ -270,7 +272,9 @@ isolated worker binds a value object from a route, a query or binding data only 
 (`7`, never `007`), and fails a `Guid`, text or a date with a 500; it answers a refusal over HTTP with a 500 unless
 `UseValueObjectProblemDetails()` (`AdCodicem.ValueObjects.AzureFunctions.AspNetCore`) follows
 `ConfigureFunctionsWebApplication()`. Without `AddValueObjects()` (`AdCodicem.ValueObjects.HotChocolate`), a HotChocolate
-schema taking a value object as an argument does not start. Per-package details, EF `strict` mode and problem-details payloads:
+schema taking a value object as an argument does not start. A Blazor form binds a value object through
+`InputValueObject` (`AdCodicem.ValueObjects.Blazor`); `@bind` drops refused text without a message and binds empty
+text as the default instance. Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.
 
 ## Test with the contract kit
@@ -319,7 +323,7 @@ library. AutoFixture, Bogus and FsCheck get the same values through `AdCodicem.V
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, protobuf-net and gRPC (code-first and contract-first), GraphQL (HotChocolate), FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, XML, test data for AutoFixture, Bogus and FsCheck, Azure Functions (isolated worker), the run-time lookup when only a `Type` is known. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, protobuf-net and gRPC (code-first and contract-first), GraphQL (HotChocolate), FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, XML, test data for AutoFixture, Bogus and FsCheck, Azure Functions (isolated worker), Blazor forms, the run-time lookup when only a `Type` is known. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, their EF Core columns and MongoDB id generation, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0042`, with the fix for each. |
 

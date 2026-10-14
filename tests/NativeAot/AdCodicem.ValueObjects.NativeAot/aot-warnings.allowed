@@ -1,0 +1,5 @@
+# Microsoft.AspNetCore.Components warns for itself once a component renders in a native binary: IL3050 in
+# BindConverter.ParserDelegateCache.Get<T>, and IL2072 in ComponentProperties.SetProperties,
+# ComponentFactory.PerformPropertyInjection and CascadingParameterState.FindCascadingParameters, reported once for the
+# assembly. This library's assemblies are AOT-compatible, so their warnings would be reported one by one, and fail the run.
+Microsoft\.AspNetCore\.Components\.dll : warning IL(2104|3053): Assembly 'Microsoft\.AspNetCore\.Components'

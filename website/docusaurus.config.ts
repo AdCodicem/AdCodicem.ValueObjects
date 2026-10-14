@@ -415,7 +415,8 @@ const config: Config = {
     prism: {
       theme: adcodicem,
       darkTheme: adcodicem,
-      additionalLanguages: ['csharp', 'bash'],
+      // cshtml holds Razor, which the Blazor guide writes as ```razor, its alias.
+      additionalLanguages: ['csharp', 'bash', 'cshtml'],
     },
   } satisfies Preset.ThemeConfig,
 };

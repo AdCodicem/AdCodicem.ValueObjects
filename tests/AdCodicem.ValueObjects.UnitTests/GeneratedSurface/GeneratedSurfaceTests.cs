@@ -139,6 +139,11 @@ public class GeneratedSurfaceTests
         => Samples.All[type].RefusesItsDefaultThroughNotDefault();
 
     [Theory]
+    [MemberData(nameof(Every))]
+    public void Every_value_object_binds_through_a_Blazor_input(string type)
+        => Samples.All[type].BindsThroughABlazorInput();
+
+    [Theory]
     [MemberData(nameof(EveryArithmetic))]
     public void Every_arithmetic_member_validates_its_result(string type)
         => Samples.All[type].ComputesThroughEveryArithmeticMember();

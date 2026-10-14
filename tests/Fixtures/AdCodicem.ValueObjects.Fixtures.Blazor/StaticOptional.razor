@@ -1,0 +1,23 @@
+@page "/forms/optional"
+@* A static page with an optional value object, which the framework's form mapping refuses empty, and a text held to its
+   rules by [ParsesAs], the recipe of a static form. *@
+<EditForm Model="Model" FormName="optional" method="post" OnValidSubmit="() => Accepted = true">
+    <DataAnnotationsValidator />
+    <InputValueObject id="optional" @bind-Value="Model!.Optional" />
+    <ValidationMessage For="() => Model!.Optional" />
+    <InputText id="text" @bind-Value="Model!.Text" />
+    <ValidationMessage For="() => Model!.Text" />
+    <button type="submit">Send</button>
+</EditForm>
+<p id="result">accepted=@Accepted optional=@Model!.Optional</p>
+
+@code {
+    private bool Accepted { get; set; }
+
+    /// <summary>Gets or sets the form, which the framework maps from the post.</summary>
+    [SupplyParameterFromForm]
+    public OptionalForm? Model { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnInitialized() => Model ??= new OptionalForm();
+}

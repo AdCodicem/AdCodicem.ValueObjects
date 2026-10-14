@@ -75,7 +75,8 @@ at most 100 commits: past that it refuses, and its web UI blames conflicts that 
 Three checks must pass before a pull request merges: **build and test**; **native AOT**, which publishes an
 application using every AOT-compatible package but HotChocolate's and protobuf-net's with native AOT, and protobuf-net's
 compile-time model in an application of its own, and fails on a trimming or AOT warning, the known ones of
-protobuf-net's generated code aside, or on any difference between the native binary and the JIT; and **workflows**, which runs
+protobuf-net's generated code and of Microsoft.AspNetCore.Components aside, or on any difference between the native
+binary and the JIT; and **workflows**, which runs
 [actionlint](https://github.com/rhysd/actionlint) over every workflow, including those that never run on a pull
 request. CI also builds this site and runs the packages in .NET 11 applications, in jobs that do not block the
 merge.

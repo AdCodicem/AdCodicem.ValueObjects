@@ -11,6 +11,7 @@
       "src/AdCodicem.ValueObjects.AutoFixture/AdCodicem.ValueObjects.AutoFixture.csproj",
       "src/AdCodicem.ValueObjects.AzureFunctions/AdCodicem.ValueObjects.AzureFunctions.csproj",
       "src/AdCodicem.ValueObjects.AzureFunctions.AspNetCore/AdCodicem.ValueObjects.AzureFunctions.AspNetCore.csproj",
+      "src/AdCodicem.ValueObjects.Blazor/AdCodicem.ValueObjects.Blazor.csproj",
       "src/AdCodicem.ValueObjects.Bogus/AdCodicem.ValueObjects.Bogus.csproj",
       "src/AdCodicem.ValueObjects.CodeFixes/AdCodicem.ValueObjects.CodeFixes.csproj",
       "src/AdCodicem.ValueObjects.Dapper/AdCodicem.ValueObjects.Dapper.csproj",

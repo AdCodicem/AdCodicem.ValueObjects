@@ -30,10 +30,11 @@
          and pinning lists them as dependencies of both Entity Framework Core packages, of the MessagePack
          package, which reaches them through the hub protocol's Microsoft.AspNetCore.SignalR.Common, of the Model
          Context Protocol package, which reaches them through Microsoft.Extensions.Hosting.Abstractions, of the Azure
-         Functions package, which reaches them through Worker.Core, and of the HotChocolate package, which reaches them
-         through HotChocolate.Types: removing them changes what those six pack. Dependabot never moves them, so an
-         update of a package that asks for a later version of either fails the restore with NU1109, and opens no pull
-         request, until they are raised by hand with it. -->
+         Functions package, which reaches them through Worker.Core, of the HotChocolate package, which reaches them
+         through HotChocolate.Types, and of the Blazor package, which reaches them through
+         Microsoft.AspNetCore.Components.Web and Microsoft.Extensions.Localization: removing them changes what those seven
+         pack. Dependabot never moves them, so an update of a package that asks for a later version of either fails the
+         restore with NU1109, and opens no pull request, until they are raised by hand with it. -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.13" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
@@ -92,8 +93,18 @@
          bump. Its other HotChocolate and GreenDonut packages come with it, at exactly its version, and are pinned by
          nothing here: a pin would make them dependencies of the package. -->
     <PackageVersion Include="HotChocolate.Types" Version="16.6.8" />
-    <!-- IStringLocalizerFactory, for the HotChocolate package's localized messages; its net10.0 asset depends on nothing. -->
+    <!-- IStringLocalizerFactory, for the HotChocolate package's localized messages; its net10.0 asset depends on nothing.
+         The Blazor package takes it through Microsoft.Extensions.Localization, and pinning lists it as a dependency of
+         that package too. -->
     <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.13" />
+    <!-- The Blazor package's floors, the versions it is built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md): the package rather than the
+         ASP.NET Core shared framework, which a Blazor WebAssembly application lacks, and the localization services
+         AddValueObjectInputs registers. Microsoft.AspNetCore.Components, its Forms and JSInterop come with
+         Components.Web, at exactly its version, and are pinned by nothing here: a pin would make them dependencies of the
+         package. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Localization" Version="10.0.13" />
     <!-- The NJsonSchema package's floor, the version it is built against, which NSwag 14.7 asks for
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); Confluent's JSON serdes take
          NJsonSchema.NewtonsoftJson 11.0.2 or later. Namotion.Reflection and NJsonSchema.Annotations come with it and are
@@ -152,6 +163,10 @@
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.13" />
     <!-- The .NET client the unit suite connects to a hub through, over TestHost; no package under src/ references it. -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
+    <!-- bUnit's renderer, which the unit suite's Forms/ drives the Blazor package's input through, as a test of an
+         application's form does; no package under src/ references it. It asks for Components 10.0.10, which the pin of
+         Microsoft.AspNetCore.Components.Web lifts, and the suite loads the shared framework's Components assemblies. -->
+    <PackageVersion Include="bunit" Version="2.11.3" />
     <!-- ObservableValidator, the view model base that validates DataAnnotations attributes as a property is set, which
          the unit suite runs [ParsesAs] and [NotDefault] through; no package under src/ references it. -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />

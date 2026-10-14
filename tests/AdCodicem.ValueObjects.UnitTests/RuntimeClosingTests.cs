@@ -48,6 +48,7 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.AutoFixture", [] },
         { "AdCodicem.ValueObjects.AzureFunctions", [] },
         { "AdCodicem.ValueObjects.AzureFunctions.AspNetCore", [] },
+        { "AdCodicem.ValueObjects.Blazor", [] },
         { "AdCodicem.ValueObjects.Bogus", [] },
         { "AdCodicem.ValueObjects.Dapper", [] },
 

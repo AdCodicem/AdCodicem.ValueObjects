@@ -1,0 +1,19 @@
+@* The fields of an order, which a static page and an interactive one render alike. *@
+<InputValueObject id="account" @bind-Value="Model.Account" />
+<ValidationMessage For="() => Model.Account" />
+<InputValueObject id="quantity" @bind-Value="Model.Quantity" />
+<ValidationMessage For="() => Model.Quantity" />
+<InputValueObject id="amount" @bind-Value="Model.Amount" />
+<ValidationMessage For="() => Model.Amount" />
+<InputValueObject id="count" @bind-Value="Model.Count" />
+<InputValueObject id="due" @bind-Value="Model.Due" />
+<InputValueObject id="pickup" @bind-Value="Model.Pickup" />
+<InputValueObject id="placed" @bind-Value="Model.Placed" />
+<InputValueObject id="confirmed" @bind-Value="Model.Confirmed" />
+<InputValueObject id="hold" @bind-Value="Model.Hold" />
+
+@code {
+    /// <summary>Gets or sets the order.</summary>
+    [Parameter, EditorRequired]
+    public OrderForm Model { get; set; } = default!;
+}

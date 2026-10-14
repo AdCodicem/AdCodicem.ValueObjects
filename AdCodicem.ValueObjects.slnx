@@ -28,6 +28,7 @@
     <Project Path="src/AdCodicem.ValueObjects.AzureFunctions/AdCodicem.ValueObjects.AzureFunctions.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AzureFunctions.AspNetCore/AdCodicem.ValueObjects.AzureFunctions.AspNetCore.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.HotChocolate/AdCodicem.ValueObjects.HotChocolate.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Blazor/AdCodicem.ValueObjects.Blazor.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing.Data/AdCodicem.ValueObjects.Testing.Data.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AutoFixture/AdCodicem.ValueObjects.AutoFixture.csproj" />
@@ -41,6 +42,7 @@
     <Project Path="tests/AdCodicem.ValueObjects.RdgTests/AdCodicem.ValueObjects.RdgTests.csproj" />
   </Folder>
   <Folder Name="/tests/Fixtures/">
+    <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Blazor/AdCodicem.ValueObjects.Fixtures.Blazor.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Functions/AdCodicem.ValueObjects.Fixtures.Functions.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.GraphQL/AdCodicem.ValueObjects.Fixtures.GraphQL.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Untouched/AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />

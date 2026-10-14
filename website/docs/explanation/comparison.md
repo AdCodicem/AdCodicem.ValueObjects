@@ -49,6 +49,7 @@ be corrected.
 | Language-model tools and structured output | Microsoft.Extensions.AI: the rules in the schemas, a refused tool argument answered with its code | no | no | no |
 | Model Context Protocol tools | the C# SDK: the rules in `inputSchema` and `outputSchema`, a refused tool argument answered with its code | no | no | no |
 | GraphQL (HotChocolate) | a scalar per value object, read through its rules, a refused value answered with its code in `extensions.code` | no | no | no |
+| Blazor forms | an input per value object, read through its rules, its rule's message under the field and its code on the `EditContext` | no (8.0.7 and 9.0.0-beta.1 hold no `InputBase`) | no (1.0.0-beta08 holds none) | no (10.5.1 holds none) |
 | Azure Functions isolated worker | route values, query values and binding data bound through the rules; a refused one in an HTTP trigger answered 400 with its code | no (8.0.7 ships no Functions code) | not checked | not checked |
 | Contract test kit for your own types | yes, with the values its schema rules out, on request | no | no | no |
 | Valid test data from the declared rules | AutoFixture, Bogus and FsCheck packages over a dependency-free sampler | no (Vogen#153, AutoFixture specimen builders, closed as not planned) | no | no |
@@ -74,9 +75,10 @@ MVC controllers, for a JSON body, read by System.Text.Json or Newtonsoft.Json, a
 APIs, native AOT included, for a route, query or header value, and for a body where `ThrowOnBadRequest` is on, to
 FluentValidation failures and to every exception an integration throws, so an API client branches on
 `value_object.too_long` rather than on English. The same code keys the message an application shows in its users'
-language, which MVC (for a route, query, header or form value, and a body System.Text.Json reads), minimal APIs and
-FluentValidation look up in its translations with the length, the bounds or the known values the type declares
-([a message in the application's language](../reference/errors.md#a-message-in-the-applications-language)).
+language, which MVC (for a route, query, header or form value, and a body System.Text.Json reads), minimal APIs, Azure
+Functions, HotChocolate, Blazor, FluentValidation and the DataAnnotations attributes look up in its translations with
+the length, the bounds or the known values the type declares ([a message in the application's
+language](../reference/errors.md#a-message-in-the-applications-language)).
 
 **Rules are found by interface, not by name.** `IValueObjectValidator<T>` and `IValueObjectNormalizer<T>` let the
 compiler check each signature, and `VO0011` reports the one mistake left: a rule written without its interface,

@@ -1,0 +1,61 @@
+@typeparam TValue
+
+@* A form of one field bound to a value object, or to its nullable type, which the unit suite renders with each option. *@
+@if (WithoutForm)
+{
+    <InputValueObject @bind-Value="Model.Value" DisplayName="@DisplayName" Culture="Culture" SchemaAttributes="SchemaAttributes" @attributes="InputAttributes" />
+}
+else
+{
+    <EditForm EditContext="Context" OnValidSubmit="() => Valid++" OnInvalidSubmit="() => Invalid++">
+        @if (ShowInput)
+        {
+            <InputValueObject @bind-Value="Model.Value" DisplayName="@DisplayName" Culture="Culture" SchemaAttributes="SchemaAttributes" @attributes="InputAttributes" />
+        }
+        <ValidationMessage For="() => Model.Value" />
+        <ValidationSummary />
+        <button type="submit">Send</button>
+    </EditForm>
+}
+
+@code {
+    /// <summary>Gets or sets the model.</summary>
+    [Parameter, EditorRequired]
+    public Holder<TValue> Model { get; set; } = default!;
+
+    /// <summary>Gets or sets the display name of the input.</summary>
+    [Parameter]
+    public string? DisplayName { get; set; }
+
+    /// <summary>Gets or sets the culture of the input.</summary>
+    [Parameter]
+    public CultureInfo? Culture { get; set; }
+
+    /// <summary>Gets or sets whether the input carries the attributes of the rules.</summary>
+    [Parameter]
+    public bool SchemaAttributes { get; set; }
+
+    /// <summary>Gets or sets the attributes the input is given.</summary>
+    [Parameter]
+    public IReadOnlyDictionary<string, object>? InputAttributes { get; set; }
+
+    /// <summary>Gets or sets whether the input is rendered, so that removing it disposes it.</summary>
+    [Parameter]
+    public bool ShowInput { get; set; } = true;
+
+    /// <summary>Gets or sets whether the input is rendered alone, outside any form.</summary>
+    [Parameter]
+    public bool WithoutForm { get; set; }
+
+    /// <summary>Gets the form's edit context.</summary>
+    public EditContext Context { get; private set; } = default!;
+
+    /// <summary>Gets how many submits were valid.</summary>
+    public int Valid { get; private set; }
+
+    /// <summary>Gets how many submits were refused.</summary>
+    public int Invalid { get; private set; }
+
+    /// <inheritdoc />
+    protected override void OnInitialized() => Context = new EditContext(Model);
+}

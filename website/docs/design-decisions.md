@@ -41,14 +41,15 @@ terms: a JSON exception, a model state error, a FluentValidation failure, a Dapp
 `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool result a language model
 reads, a Model Context Protocol tool execution error, the text of the Azure Functions worker's binding failure, which
 ends with the code, a validation problem for one of its HTTP triggers, a GraphQL error whose `extensions.code` is the
-rule's, and the `ValueObjectValidationResult` DataAnnotations' `[ParsesAs]` and `[NotDefault]` refuse with
+rule's, the `ValueObjectValidationResult` DataAnnotations' `[ParsesAs]` and `[NotDefault]` refuse with, and a
+validation message under a Blazor form's field, its code on the form's `EditContext`
 ([what each one throws](./reference/errors.md)).
 Each carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions ([the code in
 an exception](./reference/errors.md#the-code-in-an-exception)). Under `UseValueObjectCheckErrors()`, the database
 provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the constraint's
 name. The message is English; the code keys the one an
-application shows in its users' language, which the MVC, minimal API, Azure Functions, HotChocolate, FluentValidation
-and DataAnnotations integrations look up with the
+application shows in its users' language, which the MVC, minimal API, Azure Functions, HotChocolate, Blazor,
+FluentValidation and DataAnnotations integrations look up with the
 arguments the declared rules supply ([a message in the application's
 language](./reference/errors.md#a-message-in-the-applications-language)). `Create` throws `ValueObjectException`, and is
 for the call sites that want it; a strict EF Core read goes through it, and fails the query. Validation is fail-fast: the
@@ -67,7 +68,9 @@ another program, unless the application trusts them: `ValueObjectBson.Register(t
 collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema, NSwag's included, of the JSON Schema a
 [Kafka topic registers](./how-to/messaging.md#kafka-with-confluents-schema-registry), and of the [MongoDB collection
 validator](./how-to/mongodb.md#a-collection-validator-from-the-rules). A declared pattern becomes the pattern of the
-[GraphQL scalar](./how-to/graphql.md#what-the-schema-publishes) too. The members marked `[KnownValue]` become a frozen
+[GraphQL scalar](./how-to/graphql.md#what-the-schema-publishes) too, and, on request, the lengths and a pattern a browser
+reads as .NET does the `maxlength`, `minlength` and `pattern` of a [Blazor input](./how-to/blazor.md#the-attributes-of-the-rules).
+The members marked `[KnownValue]` become a frozen
 membership lookup and the `enum` keyword of the schema, whose values generated clients name after them. On request,
 `AddValueObjectCheckConstraints()` writes the minimum length, the bounds and the closed sets as [CHECK
 constraints](./how-to/ef-core.md#check-constraints-from-the-rules) of the EF Core columns, wherever the database reads

@@ -271,5 +271,6 @@ package's build props make visible to the compiler.
   names this one through an alias of another name,
   `using ValueObjectNotDefault = AdCodicem.ValueObjects.Annotations.NotDefaultAttribute;`, then
   `[ValueObjectNotDefault]`.
-- Blazor's `DataAnnotationsValidator` was not checked: it goes through `Validator`, and its `EditContext` keeps messages
-  alone.
+- In a Blazor form under `DataAnnotationsValidator`, a `[ParsesAs]` string shows the rule's message under the field, "The
+  value must be at least 15 characters long.", and `[NotDefault]` refuses an untouched value object on submit; the
+  `EditContext` keeps the message alone, without the code. For the value object itself, see [Blazor](./blazor.md).

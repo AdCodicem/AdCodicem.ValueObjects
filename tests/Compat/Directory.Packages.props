@@ -22,6 +22,7 @@
     <PackageVersion Include="AdCodicem.ValueObjects.AutoFixture" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.AzureFunctions" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.AzureFunctions.AspNetCore" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.Blazor" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Bogus" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Dapper" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.EntityFrameworkCore" Version="[$(AdCodicemVersion)]" />

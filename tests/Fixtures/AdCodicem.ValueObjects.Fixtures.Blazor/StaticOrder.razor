@@ -1,0 +1,18 @@
+@page "/forms/order"
+@* A page with no render mode, rendered statically: its form is posted back, and the framework maps the post first. *@
+<EditForm Model="Model" FormName="order" method="post" OnValidSubmit="() => Accepted = true">
+    <OrderFields Model="Model" />
+    <button type="submit">Send</button>
+</EditForm>
+<p id="result">accepted=@Accepted account=@Model!.Account quantity=@Model.Quantity amount=@Model.Amount.Value.ToString(CultureInfo.InvariantCulture) count=@Model.Count due=@Model.Due pickup=@Model.Pickup placed=@Model.Placed confirmed=@Model.Confirmed hold=@Model.Hold</p>
+
+@code {
+    private bool Accepted { get; set; }
+
+    /// <summary>Gets or sets the order, which the framework maps from the post.</summary>
+    [SupplyParameterFromForm]
+    public OrderForm? Model { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnInitialized() => Model ??= new OrderForm();
+}

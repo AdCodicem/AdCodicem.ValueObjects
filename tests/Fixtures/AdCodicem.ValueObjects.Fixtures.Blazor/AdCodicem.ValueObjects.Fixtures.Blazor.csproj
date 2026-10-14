@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    Forms written in Razor markup, which the unit suite renders through bUnit, through HtmlRenderer and, for the static
+    and prerendered pages, over TestHost: the Razor compiler infers an InputValueObject's type from @bind-Value here as in
+    an application, while the unit suite stays on Microsoft.NET.Sdk. The pages bind value objects declared beside them,
+    which the framework's static form mapping reads before any component runs.
+  -->
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Fixtures.Blazor</RootNamespace>
+
+    <!-- A fixture, published by nothing: the code the Razor compiler writes for a Router warns under the trimming
+         analyzer, which an application publishing trimmed sees too. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Blazor\AdCodicem.ValueObjects.Blazor.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

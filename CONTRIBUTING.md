@@ -99,10 +99,10 @@ pip install pre-commit && pre-commit install
 
 Three checks must pass before a pull request merges: **build and test** (`ci.yml`); **native AOT** (`ci.yml`), which
 publishes the applications of `tests/NativeAot` with native AOT and fails on a trimming or AOT warning, the known ones
-of protobuf-net's generated code aside (`aot-warnings.allowed`), or on any difference between the native binary and the
-JIT; and **workflows** (`lint.yml`), which runs
-[actionlint](https://github.com/rhysd/actionlint) over every workflow, the ones that never run on a pull request
-included. `CLAUDE.md` has the commands to run the last two locally; the native AOT scripts need clang and zlib.
+of protobuf-net's generated code and of Microsoft.AspNetCore.Components aside (each application's
+`aot-warnings.allowed`), or on any difference between the native binary and the JIT; and **workflows** (`lint.yml`),
+which runs [actionlint](https://github.com/rhysd/actionlint) over every workflow, the ones that never run on a pull
+request included. `CLAUDE.md` has the commands to run the last two locally; the native AOT scripts need clang and zlib.
 `ci.yml` also builds the documentation site and runs the packages in a .NET 11 application, in jobs that are worth a
 look when red but do not block the merge.
 

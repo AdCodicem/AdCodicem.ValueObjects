@@ -1,0 +1,24 @@
+@* An account no one may leave untouched, checked by DataAnnotations beside the input's own refusals. *@
+<EditForm EditContext="Context" OnValidSubmit="() => Valid++" OnInvalidSubmit="() => Invalid++">
+    <DataAnnotationsValidator />
+    <InputValueObject @bind-Value="Model.Account" DisplayName="IBAN" />
+    <ValidationMessage For="() => Model.Account" />
+    <button type="submit">Send</button>
+</EditForm>
+
+@code {
+    /// <summary>Gets the model.</summary>
+    public AnnotatedOrder Model { get; } = new();
+
+    /// <summary>Gets the form's edit context.</summary>
+    public EditContext Context { get; private set; } = default!;
+
+    /// <summary>Gets how many submits were valid.</summary>
+    public int Valid { get; private set; }
+
+    /// <summary>Gets how many submits were refused.</summary>
+    public int Invalid { get; private set; }
+
+    /// <inheritdoc />
+    protected override void OnInitialized() => Context = new EditContext(Model);
+}
