@@ -39,7 +39,7 @@ body:
       label: Reproduction
       description: >-
         The smallest code that shows it. If the problem only appears through an integration,
-        say which call path reaches it — model binding, EF Core read, Dapper, a MongoDB read, query or validator, a MessagePack or SignalR message, a protobuf-net message or a code-first gRPC call, a GraphQL argument, variable or field, JSON, an OpenAPI document or a JSON Schema, a Serilog log event, a tool call, an MCP tool call, a structured answer or an Azure Functions binding.
+        say which call path reaches it — model binding, a DataAnnotations validation, EF Core read, Dapper, a MongoDB read, query or validator, a MessagePack or SignalR message, a protobuf-net message or a gRPC call, a GraphQL argument, variable or field, JSON, an OpenAPI document or a JSON Schema, a Serilog log event, a tool call, an MCP tool call, a structured answer or an Azure Functions binding.
       render: csharp
     validations:
       required: true
@@ -56,11 +56,12 @@ body:
         - Dapper
         - MongoDB (AdCodicem.ValueObjects.MongoDB, AdCodicem.ValueObjects.Identifiers.MongoDB)
         - MessagePack or SignalR (AdCodicem.ValueObjects.MessagePack)
-        - protobuf-net or code-first gRPC (AdCodicem.ValueObjects.ProtobufNet)
+        - protobuf-net or gRPC (AdCodicem.ValueObjects.ProtobufNet, AdCodicem.ValueObjects.Grpc)
         - GraphQL (AdCodicem.ValueObjects.HotChocolate)
         - ASP.NET Core model binding or ProblemDetails
         - OpenAPI or JSON Schema (OpenApi, Swashbuckle, NJsonSchema: NSwag, Confluent Schema Registry)
         - FluentValidation
+        - DataAnnotations validation ([ParsesAs], [NotDefault])
         - Entity identifiers (AdCodicem.ValueObjects.Identifiers)
         - Logging (AdCodicem.ValueObjects.Serilog)
         - Language models (AdCodicem.ValueObjects.AI — Microsoft.Extensions.AI tools, structured output)

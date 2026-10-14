@@ -23,7 +23,7 @@ Four suites, each with a distinct job:
   every underlying type in an assembly that opts into XML serialization, and generated value objects beside a query
   type HotChocolate's source generator binds. What needs a server and no container runs
   here too, over TestHost: ASP.NET Core's pipelines, a SignalR hub talking MessagePack with the .NET client, and a
-  protobuf-net.Grpc code-first service with the .NET gRPC client; and
+  protobuf-net.Grpc code-first service and a contract-first gRPC service with the .NET gRPC client; and
   over SQLite in memory: collections of value objects through Entity Framework Core, every sample value object among
   them stored and read back, queries over their elements translated, queries on `.Value` translated to the column,
   for every sample value object as the same query over its underlying type is, and the CHECK constraints written from
@@ -115,7 +115,8 @@ Three applications, built as an application builds them, are published rather th
 
 The first references every package that claims to be AOT-compatible: the contracts, the generated code, the JSON package
 with a source-generated context and the JSON Schema it exports, the minimal API problem details, the identifiers,
-FluentValidation, the Serilog integration, the Microsoft.Extensions.AI one and the Model Context Protocol one, all but
+FluentValidation, the Serilog integration, the Microsoft.Extensions.AI one, the Model Context Protocol one and the gRPC
+one, all but
 the HotChocolate one, whose framework warns on its own publish and starts natively only rooted
 ([GraphQL](./how-to/graphql.md#native-aot)), and the protobuf-net one, which the third publishes. Its value
 objects cover each of the 22 underlying types, a pattern hook, a
@@ -155,7 +156,7 @@ the warnings the project lists, `aot-warnings.allowed`, and fails on any other, 
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the thirty packages exactly as they were packed — from the folder the build packs into, at that one
+installs the thirty-one packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -168,7 +169,8 @@ attribute's exception included,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
 MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
 SignalR's MessagePack hub protocol 11 over TestHost, protobuf-net on a runtime model and on its compile-time model and
-a protobuf-net.Grpc code-first service over TestHost, FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI
+a protobuf-net.Grpc code-first service over TestHost, a contract-first gRPC service answering through the gRPC package,
+FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI
 tools and structured output, Model Context Protocol tools over the SDK's own client, the Azure Functions converter and
 the problem details middleware beside ASP.NET Core 11, HotChocolate 16 scalars in a schema built in process, their
 messages in the language of the execution, an NSwag 14.7 document and Confluent's JSON serdes 2.16 over NJsonSchema,

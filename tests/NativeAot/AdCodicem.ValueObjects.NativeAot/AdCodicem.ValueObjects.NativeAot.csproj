@@ -8,7 +8,9 @@
     publishes apart, and its value objects come from a domain project, where the Request Delegate Generator sees their
     interfaces; the RDG suite covers those declared in the endpoints' project. Microsoft.Extensions.AI builds the tools
     of LanguageModels.cs from their methods at run time, over the source-generated context, and so does the Model Context
-    Protocol SDK for the server of Mcp.cs, in process over a pair of pipes. Two value objects written by
+    Protocol SDK for the server of Mcp.cs, in process over a pair of pipes. ContractFirstGrpc.cs serves a contract-first
+    gRPC service, whose messages Grpc.Tools compiles from ContractFirst.proto, over Kestrel's cleartext HTTP/2, with the
+    gRPC package's interceptor and collector. Two value objects written by
     hand, linked from the unit suite, have no generated converter: Program.cs registers them without one, so the JSON
     factory serves them its general-purpose converter. A third, UnregisteredCode, is registered by nothing, and the
     factory refuses it.
@@ -47,6 +49,7 @@
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Grpc\AdCodicem.ValueObjects.Grpc.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.ModelContextProtocol\AdCodicem.ValueObjects.ModelContextProtocol.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Serilog\AdCodicem.ValueObjects.Serilog.csproj" />
     <ProjectReference Include="..\AdCodicem.ValueObjects.NativeAot.Domain\AdCodicem.ValueObjects.NativeAot.Domain.csproj" />
@@ -54,6 +57,13 @@
 
   <ItemGroup>
     <PackageReference Include="FluentValidation" />
+    <!-- Grpc.AspNetCore's server, Grpc.Tools, which compiles ContractFirst.proto, and, through its client factory,
+         Grpc.Net.Client. -->
+    <PackageReference Include="Grpc.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="ContractFirst.proto" GrpcServices="Both" />
   </ItemGroup>
 
   <ItemGroup>

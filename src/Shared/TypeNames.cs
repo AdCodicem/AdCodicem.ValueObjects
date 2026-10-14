@@ -4,8 +4,8 @@ namespace AdCodicem.ValueObjects.Shared;
 /// Writes a type the way C# names it in code, for a message: the test-data sampler and each library adapter over it link
 /// this file, so that each writes the registration to add with the same names, and so do the Entity Framework Core
 /// package, which names the type of a key it refuses, and the value object whose pattern it refuses, the two Azure
-/// Functions packages, which name the type a refusal is for, and the protobuf-net package, which names the value object
-/// a refusal and an <c>ErrorInfo</c> are for.
+/// Functions packages, which name the type a refusal is for, and the protobuf-net and gRPC packages, which name the value
+/// object a refusal and an <c>ErrorInfo</c> are for.
 /// </summary>
 internal static class TypeNames
 {

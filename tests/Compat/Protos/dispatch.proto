@@ -1,0 +1,21 @@
+// A contract-first service, whose handlers map the strings and numbers of its messages to value objects.
+syntax = "proto3";
+
+package compat.v1;
+
+option csharp_namespace = "AdCodicem.ValueObjects.CompatTests.ContractFirst";
+
+service Dispatch {
+  rpc Send (Consignee) returns (Receipt);
+  rpc SendMapped (Consignee) returns (Receipt);
+}
+
+message Consignee {
+  string account = 1;
+  int32 quantity = 2;
+}
+
+message Receipt {
+  string account = 1;
+  int32 quantity = 2;
+}

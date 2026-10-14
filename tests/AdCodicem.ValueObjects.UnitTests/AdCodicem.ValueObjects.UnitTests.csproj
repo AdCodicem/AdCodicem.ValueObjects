@@ -41,6 +41,7 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Dapper\AdCodicem.ValueObjects.Dapper.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Grpc\AdCodicem.ValueObjects.Grpc.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.HotChocolate\AdCodicem.ValueObjects.HotChocolate.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.MongoDB\AdCodicem.ValueObjects.Identifiers.MongoDB.csproj" />
@@ -131,11 +132,16 @@
     <PackageReference Include="Confluent.SchemaRegistry.Serdes.Json" />
     <PackageReference Include="librdkafka.redist" ExcludeAssets="native;build" />
     <!-- A protobuf-net.Grpc server and Grpc.AspNetCore's, over TestHost, and the .NET client their client factory brings,
-         which the protobuf-net package's code-first binder is tested through, end to end, and Grpc.StatusProto, which reads
-         the google.rpc.Status a refused request is answered with, as a client does. -->
+         which the protobuf-net package's code-first binder and the gRPC package are tested through, end to end, the
+         contract-first service's messages compiled by Grpc.Tools from BinarySerialization/ContractFirstGrpc.proto; the
+         gRPC package brings Grpc.StatusProto, which reads the google.rpc.Status a refusal is answered with, as a client
+         does. -->
     <PackageReference Include="protobuf-net.Grpc.AspNetCore" />
     <PackageReference Include="Grpc.AspNetCore" />
-    <PackageReference Include="Grpc.StatusProto" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="BinarySerialization\ContractFirstGrpc.proto" GrpcServices="Both" />
   </ItemGroup>
 
   <ItemGroup>

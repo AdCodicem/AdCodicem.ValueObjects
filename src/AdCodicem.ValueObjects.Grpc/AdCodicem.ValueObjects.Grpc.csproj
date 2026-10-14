@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Grpc</RootNamespace>
+    <Description>Contract-first gRPC services that map their messages to AdCodicem value objects: every refused field answered at once as INVALID_ARGUMENT carrying a google.rpc.BadRequest, and a refusal that escapes a service method answered INVALID_ARGUMENT with a google.rpc.ErrorInfo carrying its rule code, rather than UNKNOWN. AOT-compatible.</Description>
+    <PackageTags>$(PackageTags);grpc;protobuf;google-rpc;error-details</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- No FrameworkReference: the interceptor is Grpc.Core.Api's, which Grpc.AspNetCore and protobuf-net.Grpc both
+         host. Grpc.Core.Api, Google.Api.CommonProtos and Google.Protobuf come with Grpc.StatusProto and are pinned by
+         nothing in Directory.Packages.props: a pin would make them dependencies of the package. -->
+    <PackageReference Include="Grpc.StatusProto" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The value object's name in an ErrorInfo's metadata, as C# writes it. -->
+    <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
+  </ItemGroup>
+
+</Project>
