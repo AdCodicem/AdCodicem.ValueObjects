@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Twenty-nine NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Thirty NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -55,8 +55,11 @@ cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.cspr
 dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj -p:AdCodicemVersion=$v   # no Docker
 
 # Native AOT, as ci.yml's native AOT job runs it; needs clang and zlib. The application of tests/NativeAot under
-# the JIT and as a native binary, compared; then the compiled model written for native AOT, published (Docker-free).
+# the JIT and as a native binary, compared; then protobuf-net's compile-time model, the same way in an application of
+# its own, whose aot-warnings.allowed lists the warnings protobuf-net's generated code raises; then the compiled model
+# written for native AOT, published (Docker-free).
 .github/scripts/native-aot.sh
+.github/scripts/native-aot.sh artifacts/native-aot-protobuf tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet
 .github/scripts/compiled-model.sh aot
 # The compiled model as the build job checks it: dotnet ef dbcontext optimize, a build on it, a round trip (Docker)
 .github/scripts/compiled-model.sh jit
@@ -94,7 +97,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All twenty-nine packages go out at one version, or none. That version is the one semantic-release would
+lookup fails. All thirty packages go out at one version, or none. That version is the one semantic-release would
 give the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -142,7 +145,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The twenty-nine packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The thirty packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -217,7 +220,9 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   Functions converter, which closes the conversion of each value-object parameter the worker hands it as text, and its
   middleware, which closes the check of each it explains, both through `ValueObjectBindingText.TryDescribe`, the MongoDB
   provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, the
-  MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, the HotChocolate type
+  MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, protobuf-net's
+  `AddValueObjects`, which names the closed serializer type of each value object it registers on a `RuntimeTypeModel`
+  with `typeof` over the visitor's type arguments, the profile following the trust and the model's level, the HotChocolate type
   discovery handler, which closes, once per schema build, the scalar of each value object the schema meets (a typed
   `AddValueObjectScalar<TSelf, TValue>()` asks no registry), the NJsonSchema package's reflection service and schema
   processor, which describe each value object NJsonSchema meets, found through `TryResolve`, and write its examples,
@@ -256,8 +261,10 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   the SQL expression EF Core hands it, one of `ConverterTypes.Definitions` or EF Core's composition of one with its own
   conversion of the underlying type. No EF Core convention runs under native AOT, where EF
   Core reads the compiled model and builds none, and the MVC binder provider runs in no native binary, MVC not being
-  AOT-compatible, so the `native AOT` job guards the JSON factory's visitor and the minimal API filter's, and
-  `EntityIdDescriptor.Accept`, which the application calls on every identifier registered. `RuntimeClosingTests` guards
+  AOT-compatible, so the `native AOT` job guards the JSON factory's visitor, the minimal API filter's and
+  `[NotDefault]`'s, the lookup of `[ParsesAs(typeof(T))]`, and `EntityIdDescriptor.Accept`, which the application calls
+  on every identifier registered; the visitors of the Azure Functions, HotChocolate and NJsonSchema packages run in no
+  native binary, nor protobuf-net's `AddValueObjects`, which is `[RequiresDynamicCode]`. `RuntimeClosingTests` guards
   every package: it reads their IL and fails on a `MakeGenericType`, a `MakeGenericMethod` or an
   `Activator.CreateInstance` outside the list it holds, the registry's reflection fallback and the EF Core converter of
   a `TSelf?` property, or of such an element of a collection over text. A hand-written value object declares `Schema`
@@ -279,15 +286,20 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   over `string`. MongoDB reads the other way round: strict, through `TryCreate`, unless the serializer is trusted
   (`ValueObjectBson.Register(trusted: true, …)`), since a collection has no schema and is often written by more than one
   program; so does MessagePack, unless the resolver is trusted (`WithValueObjects(trusted: true)`,
-  `UseValueObjects(trusted: true)`), since the bytes may come from another service. A `nil`, a BSON `null`, and a value
-  the underlying type's own formatter or serializer cannot read are refused whatever the trust.
+  `UseValueObjects(trusted: true)`), since the bytes may come from another service, and so does protobuf-net, unless the
+  serializers are trusted (`AddValueObjects(trusted: true, …)`, a `Trusted…` profile of `ValueObjectProtoProfiles`). A
+  `nil`, a BSON `null`, and a value the underlying type's own formatter or serializer cannot read are refused whatever
+  the trust.
 - **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on success. The
   integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a `JsonException` or
   `JsonSerializationException`, a model state error, the validation problem of a minimal API, a FluentValidation
   failure, a Dapper `DataException`, a MongoDB.Driver `FormatException` on read or `BsonSerializationException` on
-  write, a MessagePack `MessagePackSerializationException`, an `XmlException` from `XmlSerializer` or
-  `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, carrying the code in its
-  `Data`; the AI package's wrapper throws nothing, and returns the result of a Microsoft.Extensions.AI tool,
+  write, a MessagePack `MessagePackSerializationException`, a protobuf-net `ProtoException`, an `XmlException` from
+  `XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, carrying
+  the code in its `Data`; a protobuf-net.Grpc code-first service configured with `ValueObjectBinderConfiguration.ForServer`
+  answers a refused request `INVALID_ARGUMENT`, whose `grpc-status-details-bin` trailer holds a `google.rpc.ErrorInfo`
+  (reason `ToUpperSnakeCase(code)`, metadata `code` and `valueObject`, none for a code that maps to no reason), written by
+  hand in `RpcStatusDetails`, the `RpcException` carrying the code in its `Data` on the server; the AI package's wrapper throws nothing, and returns the result of a Microsoft.Extensions.AI tool,
   `{"error":"invalid_argument","argument","code","message"}`, which `FunctionInvokingChatClient` hands the model as it
   is, and the Model Context Protocol package answers a tool execution error (`isError: true`) whose text carries the
   code, and whose structured content is that object when the tool declares no output schema. The Azure Functions
@@ -692,6 +704,47 @@ These are all load-bearing, and each cost real debugging time:
   `AdCodicem.ValueObjects.MessagePack`, hides the root `MessagePack` namespace in every `AdCodicem.ValueObjects.*`
   namespace, as Swashbuckle's, Serilog's and MongoDB's do: name MessagePack's types through usings at the top of the
   file, and name no test folder or namespace `MessagePack` (the unit suite's is `BinarySerialization/`).
+- **protobuf-net creates a custom serializer from its type, keeps one per type for the process, and adds a member's type
+  to a model only when it carries a contract attribute.** Trust and level are therefore type arguments, the profiles of
+  `ValueObjectProtoProfiles`, and nothing registers a value object lazily: `AddValueObjects` walks the registry once, and
+  a construction of a generic value object or one written by hand needs `AddValueObject<TSelf, TValue>()`. A model's
+  `DefaultCompatibilityLevel` cannot change once a type is added, and `RuntimeTypeModel.Default`'s is `Level200` for
+  good. A `MetaType` freezes once protobuf-net builds its serializer ("The type cannot be changed once a serializer has
+  been generated"), so registration comes before the first use, and the unit suite registers on the process-wide
+  `RuntimeTypeModel.Default` once, strict (`BinarySerialization/ProtoDefaultModel.cs`), every other test on a model of
+  its own; `[ProtoContract]` goes on no `Domain/` type, since protobuf-net honours it on every model: the attribute-route
+  value objects of the tests are their own (`ProtoSku`, `ProtoTicket`, `ProtoBareCode`, …). protobuf-net calls
+  `ISerializer<TSelf?>` only for the elements of a `[NullWrappedValue]` list, a nullable member going through
+  `ISerializer<TSelf>`. It calls a custom serializer whatever `DataFormat` a member declares, so a `ZigZag`, `FixedSize`
+  or `WellKnown` member of a value object is written and read as `DataFormat.Default`, which nothing reports and the
+  guide states, and it writes a root primitive at `Level200` whatever the model's level, where a root value object
+  follows its serializer's profile. Its inbuilt serializers throw `InvalidOperationException` for a negative length and
+  for a `decimal` as text that none parses, quoting the text: the serializers' read refuses it as
+  `value_object.not_parsable` with the other exceptions of a value it cannot read, all but an `ObjectDisposedException`.
+  The `.proto` export names a value object by its `MetaType`: the package sets `Name` and `Origin`, the scalar and its
+  import (`ProtoScalars`). protobuf-net.Core's generator and analyzers reach every project referencing
+  the package, by project reference too, the unit suite and the island included: `[ProtoModel]` is `PBN9001`, an error
+  unless suppressed; once a project declares one, every `Serializer.*` call is `PBN3010`, which the unit suite's
+  default-model test suppresses; protobuf-net's generated code fails to compile a `TSelf?` member or a dictionary of value
+  objects (CS1503 in its own file); and its `[DynamicallyAccessedMembers]` on `SerializerCache.Get` reach the nested
+  converters of every value object, so the generated model warns at each call (IL2026, IL2111, IL3050, and IL2104 and
+  IL3053 for protobuf-net.Core): its native application, `tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet`,
+  is apart, with the Roslyn trim and AOT analyzers off and those codes out of `WarningsAsErrors` under `NativeAot`, and
+  `native-aot.sh` lets through the warnings its `aot-warnings.allowed` lists. Its own helpers into a `TypeModel` carry
+  protobuf-net's `[DynamicallyAccessedMembers]`, or ILC refuses them (IL2091). protobuf-net's analyzers also warn
+  `PBN2008` on a Google.Protobuf type in a code-first contract and `PBN0022` on a `[ProtoMember]` with an initializer:
+  test contracts carry no initializer, and the one Google.Protobuf message a code-first contract carries on purpose
+  (`CodeFirstGrpcContracts.cs`, `ForServer` keeping its marshaller) suppresses `PBN2008` around it.
+  `AdCodicem.ValueObjects.Metadata`, the contracts' namespace, hides `Grpc.Core.Metadata` in every
+  `AdCodicem.ValueObjects.*` namespace (CS0118): alias it (`RpcStatusDetails`). Grpc.AspNetCore reads a request
+  before any interceptor runs and answers its deserializer's exception `UNKNOWN`, so `ForServer`'s marshaller answers a
+  refused request; a reply the server cannot write stays `UNKNOWN`. protobuf-net.Grpc builds the proxy of a client over
+  a configuration created over a model eagerly, throwing a `TargetInvocationException` around "No marshaller available"
+  for a message the model cannot serialize, while its default client is built and fails its first call,
+  `NotSupportedException`, "Specified method is not supported.". The runtime model and protobuf-net.Grpc emit code,
+  unannotated upstream: `AddValueObjects`, `AddValueObject` and `ForServer` serve the JIT alone, and carry
+  `[RequiresDynamicCode]` for it, while the serializers run natively. Name no test folder, class or namespace
+  `ProtoBuf`, `ProtobufNet` or `Grpc` (the unit suite's are `BinarySerialization/` and `CodeFirstGrpc*`).
 - **Serilog destructures no object under trimming.** Its `buildTransitive/Serilog.targets` sets
   `Serilog.Capturing.IsStructureValueSupported` to false under `PublishTrimmed`, which `PublishAot` implies, so a native
   binary logs an object with `@` as its `ToString()`, and a bare `Int128` as its text. The native AOT application sets
@@ -878,8 +931,9 @@ These are all load-bearing, and each cost real debugging time:
   `AdCodicem.ValueObjects.Testing.Data` through `PatternSampler`, whose tests name no node type. A further package
   linking it is tested the same way. `TypeNames.cs`, which writes a type as C# names it in a message, is linked by
   `Testing.Data`, by its AutoFixture, Bogus and FsCheck adapters, by the EF Core package, for the key and the
-  pattern it refuses, and by both Azure Functions packages, for the type a refusal names: the unit suite references `Testing.Data` under `Aliases="global,testingdata"`, and `SamplerTests`
-  names its copy through the alias.
+  pattern it refuses, by both Azure Functions packages, for the type a refusal names, and by the protobuf-net package,
+  for the value object a refusal and an `ErrorInfo` name: the unit suite references `Testing.Data` under
+  `Aliases="global,testingdata"`, and `SamplerTests` names its copy through the alias.
   `ValueObjectArguments.cs` and `ValueObjectArgumentRejection.cs`, the check of a tool's arguments and the result it
   answers a refusal with, name no type of Microsoft.Extensions.AI, and are linked by the AI and the Model Context
   Protocol packages, each overload of `FirstRejection` called by one of them: no test names them, `LanguageModels/`
@@ -959,7 +1013,15 @@ Four suites, each with a distinct job:
   otherwise get (`SourceGeneratedQueryTests`).
   `BinarySerialization/` drives the MessagePack package directly and through a SignalR hub and the .NET client over
   TestHost; a test of the reflection fallback there closes `Reference<TOwner>` over the test class, never
-  `UnregisteredCode`, which nothing may resolve. `LanguageModels/` (not `AI/`, whose namespace would hide
+  `UnregisteredCode`, which nothing may resolve. Its `Proto*` files drive the protobuf-net package on models of their
+  own (`ProtoWire.Model`), every sample through `GeneratedSurface/` (`ProtoParity`: alone, nullable, in a list, an array
+  and a set, and as the root, at the three levels, strict and trusted, the export's fields and imports against the
+  primitive's), the attribute route over value objects of their own, protobuf-net's `[ProtoModel]` under the JIT
+  (`ProtoGeneratedModel`), and the export's differences pinned, a member's `DataFormat` among them; a construction of
+  `Reference<TOwner>` in `ProtoModelTests` closes over `ProtoOwner`, which nothing else names. `CodeFirstGrpc*` runs a
+  protobuf-net.Grpc code-first service over TestHost with the .NET client, Grpc.StatusProto reading the `ErrorInfo`, and
+  its default client over `Reference<ProtoStranger>`, which nothing registers on `RuntimeTypeModel.Default`.
+  `LanguageModels/` (not `AI/`, whose namespace would hide
   `AdCodicem.ValueObjects.AI` inside the suite's) builds Microsoft.Extensions.AI tools over `Domain/`, and over every
   sample through `GeneratedSurface/`: a scripted `IChatClient` stands for the model behind `FunctionInvokingChatClient`,
   and the request the OpenAI adapter sends in strict mode is captured by an `HttpMessageHandler` behind
@@ -1141,6 +1203,7 @@ on where they apply.
 
 - `AdCodicem.ValueObjects.NativeAot` is a minimal API referencing every package that claims to be AOT-compatible but
   the HotChocolate one, whose framework warns on its own publish and starts natively only rooted (the constraint above),
+  and the protobuf-net one, which `AdCodicem.ValueObjects.NativeAot.ProtobufNet` publishes apart,
   with its value objects in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
   `Domain/UnderlyingTypes.cs`. The application links two value objects written by hand from `Domain/HandWritten/`, one
   over `Uri`, and registers them without a converter, so the JSON factory's general-purpose converter runs natively,
@@ -1177,6 +1240,14 @@ on where they apply.
   the `netstandard2.0` generator. A `#pragma` silences only the analyzers that run with the compiler: the AOT compiler
   reads the compiled code, so a warning the library suppresses takes `[UnconditionalSuppressMessage]` and a guard, as
   `MustParseAs` found out.
+- `AdCodicem.ValueObjects.NativeAot.ProtobufNet` publishes protobuf-net's compile-time model (`AppModel`) over the
+  nineteen value objects of the linked `Domain/UnderlyingTypes.cs` whose underlying type protobuf-net writes, each naming
+  its serializer on a partial declaration (`ProtoContracts.cs`), and two of its own over a `Guid` and a `decimal` at
+  `Level300`: the message written as its twin over the primitives and read back, a value each rule refuses with its code,
+  a trusted profile, a field left out, a default refused on write, `GetSchema` refused. `native-aot.sh` runs it with the
+  project as its second argument, under the JIT and natively, as the main application, and lets through the warnings of
+  its `aot-warnings.allowed` alone (the protobuf-net constraint above); `ci.yml`'s `native AOT` job runs it between the
+  application and the compiled model.
 - `AdCodicem.ValueObjects.CompiledModel` holds a context mapping every value object the EF Core convention maps,
   required and optional, a generic one, an `[EntityId]` key and collections of them, nullable elements included, keys
   typed as value objects it generates, over a `Guid` and an `int`, and one over a `Guid` it refuses to add unset, and a
@@ -1207,7 +1278,7 @@ on where they apply.
   precompiled query fails to map under native AOT. A strict context cannot track on a compiled model, so the `jit` round
   trip reads untracked (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-nine packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the thirty packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
@@ -1221,7 +1292,9 @@ validation of Microsoft.Extensions.Validation 11, its `ParsesAsAttribute_Error` 
 attribute's exception included, `[ParsesAs]` text in both OpenAPI documents,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection
 validator and entity identifiers minted on insert, MessagePack, with SignalR's MessagePack hub protocol 11 between a hub
-and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, FluentValidation, Newtonsoft.Json,
+and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, protobuf-net on a runtime model and
+on its compile-time model, whose generator comes with the packed package, a protobuf-net.Grpc code-first service over
+TestHost 11, refused with its `ErrorInfo`, FluentValidation, Newtonsoft.Json,
 Serilog, Microsoft.Extensions.AI tools and structured output, through `FunctionInvokingChatClient` and `ChatResponse<T>`
 of Microsoft.Extensions.AI 10, Model Context Protocol tools on ModelContextProtocol 2.2, a server in process and the SDK's
 own client over a pair of pipes, the Azure Functions converter and problem details middleware beside ASP.NET Core 11,

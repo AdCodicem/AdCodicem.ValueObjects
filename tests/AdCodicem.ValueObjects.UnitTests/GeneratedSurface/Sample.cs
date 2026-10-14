@@ -131,6 +131,14 @@ public abstract class Sample
     public abstract void RoundTripsThroughMessagePackAsItsUnderlyingValue();
 
     /// <summary>
+    /// Writes the value object through protobuf-net, on a model it is registered on with <c>AddValueObject</c>, and checks
+    /// that it writes, reads back and is named in the <c>.proto</c> export as the bare value it carries is, alone,
+    /// nullable and in a list, at each compatibility level, strict and trusted; or, over an underlying type protobuf-net
+    /// cannot write, that it is refused by name.
+    /// </summary>
+    public abstract void RoundTripsThroughProtobufAsItsUnderlyingValue();
+
+    /// <summary>
     /// Builds a tool taking the value object alone, nullable and in a list, with the schema options of
     /// <c>WithValueObjects()</c> and wrapped by <c>WithValueObjectValidation()</c>, and checks that each is described as the
     /// JSON Schema core describes it for a language model, that the refused text is answered with the code and the message
@@ -622,6 +630,12 @@ public class Sample<TSelf, TValue> : Sample
     {
         MessagePackParity.Check<TSelf, TValue>(Small);
         MessagePackParity.Check<TSelf, TValue>(Large);
+    }
+
+    public override void RoundTripsThroughProtobufAsItsUnderlyingValue()
+    {
+        ProtoParity.Check<TSelf, TValue>(Small);
+        ProtoParity.Check<TSelf, TValue>(Large);
     }
 
     public override async Task AnswersARefusedToolArgumentWithItsRuleAsync()

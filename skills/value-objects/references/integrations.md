@@ -19,6 +19,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, a `$jsonSchema` validator from the rules. |
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
+| `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers and protobuf-net.Grpc code-first services: the underlying type's wire, strict reads, the scalar in the `.proto` export, a refused request answered `INVALID_ARGUMENT` with its code. AOT-compatible through protobuf-net's `[ProtoModel]`. |
 | `AdCodicem.ValueObjects.HotChocolate` | HotChocolate 16: one GraphQL scalar per value object, read through its rules; a refused value answered with its code under `extensions.code`. AOT-compatible. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
@@ -66,7 +67,7 @@ with `Minimum` 0, an unconstrained `Guid`) writes it.
 **Every exception an integration throws for a refused value carries the rule's code.** System.Text.Json:
 `ValueObjectJsonException.ErrorCode`, beside `ValueObjectType`. Newtonsoft.Json's `JsonSerializationException`, Dapper's
 `DataException`, MongoDB.Driver's `FormatException` (read) and `BsonSerializationException` (write), MessagePack's
-`MessagePackSerializationException`, and the `XmlException` of `XmlSerializer` and `DataContractSerializer` in an
+`MessagePackSerializationException`, protobuf-net's `ProtoException`, and the `XmlException` of `XmlSerializer` and `DataContractSerializer` in an
 assembly marked `[assembly: ValueObjectXmlSerialization]`, inside the serializer's own exception:
 `exception.Data[ValueObjectErrors.ErrorCodeKey]`. EF Core: the `ValueObjectException` inside `DbUpdateException`; a
 row a CHECK constraint from the rules refused, under `options.UseValueObjectCheckErrors()`: the provider's error, inside
@@ -75,7 +76,8 @@ any of them, wrapped or not, with `ValueObjectErrors.TryGetCode(exception, out v
 underlying type carries `value_object.not_parsable`, a `null` for a value object that cannot be `null`
 `value_object.required`. An integration of your own sets `exception.Data[ValueObjectErrors.ErrorCodeKey] = code`. For a
 gRPC `ErrorInfo.reason`, map the code with `ValueObjectErrorCodes.ToUpperSnakeCase(code)` (`value_object.too_long` →
-`VALUE_OBJECT_TOO_LONG`); it throws `ArgumentException` for a code that maps to no valid reason.
+`VALUE_OBJECT_TOO_LONG`); it throws `ArgumentException` for a code that maps to no valid reason. A protobuf-net.Grpc
+code-first service configured with `ValueObjectBinderConfiguration.ForServer` writes it for you (below).
 
 **JSON Schema** (`JsonSchemaExporter`, and every host built on it: Microsoft.Extensions.AI tools and structured
 output, the MCP SDK, Agent Framework) describes a value object as `true` and a `List<Iban>` without `items`. For
@@ -588,6 +590,55 @@ options. The last `WithValueObjects` call answers first.
   `AnyEntityId`, Nerdbank.MessagePack.
 - A generic construction or a value object written by hand is described by reflection on first use. Not
   AOT-compatible: MessagePack and SignalR's MessagePack hub protocol are not.
+
+## protobuf-net and code-first gRPC
+
+```csharp skip
+RuntimeTypeModel.Default.AddValueObjects(typeof(Iban).Assembly);        // before the model serializes anything
+RuntimeTypeModel.Default.AddValueObject<Reference<PurchaseOrder>, string>(); // a construction, a hand-written one
+model.AddValueObjects(trusted: true, typeof(Iban).Assembly);            // a cache or a store only the app writes
+
+builder.Services.AddSingleton(ValueObjectBinderConfiguration.ForServer(RuntimeTypeModel.Default, "orders.example.com"));
+builder.Services.AddCodeFirstGrpc();                                    // reads the configuration above
+```
+
+Without it, the first message holding a value object throws "No serializer defined", a code-first service maps none of
+its methods, the export declares `message Iban {}`, and a bare `[ProtoContract]` on the value object writes an empty
+message, losing the value. Register at start-up: protobuf-net freezes a type once it serialized one.
+
+- Each value object is written as protobuf-net writes its underlying type at the model's `DefaultCompatibilityLevel`
+  (fixed once a type is added; `RuntimeTypeModel.Default`'s is `Level200` for good): `Guid` and `decimal` as `bcl`
+  messages up to `Level240`, strings at `Level300`; `DateTime`/`TimeSpan` as `bcl` at `Level200`, `Timestamp`/`Duration`
+  from `Level240`. A `[CompatibilityLevel]` on a member never reaches a value object, nor does a member's `DataFormat`
+  (`ZigZag`, `FixedSize`, `WellKnown`): such a member keeps its primitive type, or its `.proto` changes. A root value
+  object follows its serializer's level, where protobuf-net writes a root primitive at `Level200`. Register on a model
+  of your own, level set first, for `Level300`.
+- Reads are strict: a refusal is a `ProtoException` carrying the rule's code in `Data`, never the value; a value of
+  another wire type, out of range or truncated is `value_object.not_parsable`, whatever the trust.
+- A write of an uninitialized value object its type rejects throws `ProtoException`; a valid zero is written
+  (`08 00`) where protobuf-net omits the primitive's.
+- A field the sender leaves out (every proto3 zero) is never read: the default instance, unchecked. Declare it
+  `TSelf?`; a `List<TSelf?>` keeps nulls under `[NullWrappedValue]` only.
+- `Int128`, `UInt128`, `DateTimeOffset`: no protobuf-net serializer; `AddValueObjects` leaves them out,
+  `AddValueObject` throws `NotSupportedException`.
+- The export names each value object as its scalar, imports included, but not one whose
+  `[ProtoContract(Serializer = …)]` names a profile of your own or serves a model nothing registered on: give that
+  attribute a `Name`; a dictionary stays `repeated KeyValuePair_…`, a numeric list lacks `[packed = false]` and cannot
+  be read packed, and the `package` line needs `SchemaGenerationOptions.Package` when value objects live in another
+  namespace.
+- `ForServer`: a refused request is `INVALID_ARGUMENT`, the message naming type and rule, `grpc-status-details-bin`
+  holding a `google.rpc.ErrorInfo` (`reason` `VALUE_OBJECT_OUT_OF_RANGE`, `domain`, `metadata` `code` and
+  `valueObject`); the status without the `ErrorInfo` for a code that maps to no reason. Clients read it with
+  Grpc.StatusProto's
+  `GetRpcStatus().GetDetail<ErrorInfo>()`. A reply the client refuses: `INTERNAL`, code in the inner exception.
+- Native AOT: name the serializer on a partial declaration and use protobuf-net's `[ProtoModel]` (`#pragma warning
+  disable PBN9001`; then `Serializer.*` calls are `PBN3010`):
+  `[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<Iban, string>))] public readonly partial struct Iban;`
+  (`ValueObjectProtoSerializer<TSelf, TValue, ValueObjectProtoProfiles.StrictLevel300>` for another level or trust).
+  Omit `IsScalar`; no `TSelf?` member, no dictionary of value objects, no generic value object, no `GetSchema`. The
+  publish warns at the generated model's calls (protobuf-net's annotations). `AddValueObjects`, `AddValueObject` and
+  `ForServer` are JIT-only (`[RequiresDynamicCode]`, protobuf-net's runtime model); natively, name the serializer on the
+  value object.
 
 ## GraphQL (HotChocolate)
 

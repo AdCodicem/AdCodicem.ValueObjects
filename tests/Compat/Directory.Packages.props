@@ -38,6 +38,7 @@
     <PackageVersion Include="AdCodicem.ValueObjects.NewtonsoftJson" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.NJsonSchema" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.OpenApi" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.ProtobufNet" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Serilog" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Swashbuckle" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Testing" Version="[$(AdCodicemVersion)]" />
@@ -80,6 +81,11 @@
     <PackageVersion Include="NSwag.AspNetCore" Version="14.7.1" />
     <PackageVersion Include="Confluent.SchemaRegistry.Serdes.Json" Version="2.16.0" />
     <PackageVersion Include="librdkafka.redist" Version="2.16.0" />
+    <!-- A code-first gRPC server and client, which the protobuf-net package plugs into, at their current stables: one
+         line for every runtime, the next major's included. -->
+    <PackageVersion Include="protobuf-net.Grpc.AspNetCore" Version="1.3.14" />
+    <PackageVersion Include="Grpc.Net.Client" Version="2.84.0" />
+    <PackageVersion Include="Grpc.StatusProto" Version="2.84.0" />
   </ItemGroup>
 
 </Project>

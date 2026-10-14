@@ -1,16 +1,24 @@
 #!/usr/bin/env bash
-# Publishes the native AOT application of tests/NativeAot and fails on a trimming or AOT warning, or on any difference
-# between what it does under the JIT and what it does as a native binary.
+# Publishes a native AOT application of tests/NativeAot, AdCodicem.ValueObjects.NativeAot unless another is named, and
+# fails on a trimming or AOT warning, or on any difference between what it does under the JIT and what it does as a
+# native binary.
 #
-# Usage: native-aot.sh [output directory, artifacts/native-aot by default]
+# Usage: native-aot.sh [output directory, artifacts/native-aot by default] [project, the main application by default]
 #
-# The application references every package that claims to be AOT-compatible and runs a fixed script over every value
+# The main application references every package that claims to be AOT-compatible but two: the HotChocolate one, whose
+# framework warns on its own publish and starts natively only rooted (CLAUDE.md), and the protobuf-net one, which
+# AdCodicem.ValueObjects.NativeAot.ProtobufNet publishes apart. Each application runs a fixed script over every value
 # object of its domain, one line per scenario, into the file it is given: once under the JIT, through dotnet run, and
 # once as the binary the native AOT compiler wrote. The two files must be identical; behaviour.diff holds the
 # difference when they are not. The analyzers see what each library calls, but they do not run it, and a warning
 # suppressed with a justification stays unproven until a native binary runs past it. The application also fails on its
 # own when a scenario throws where neither run should. Needs clang and zlib, as any native AOT publish on Linux does.
 # Run it from anywhere in the repository.
+#
+# A project may hold aot-warnings.allowed: one extended regular expression per line, # for a comment. A warning of the
+# publish that matches one is expected and does not fail the run; any other does. Only the protobuf-net application
+# has one: protobuf-net's annotations reach the nested converters of every value object at each call into the model
+# its generator writes, and protobuf-net.Core warns for itself.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
@@ -18,8 +26,10 @@ cd "$(dirname "$0")/../.."
 out="${1:-artifacts/native-aot}"
 mkdir -p "$out"
 out="$(cd "$out" && pwd)" # dotnet run starts the application from the project's folder
-project=tests/NativeAot/AdCodicem.ValueObjects.NativeAot
-binary="$out/bin/AdCodicem.ValueObjects.NativeAot"
+project="${2:-tests/NativeAot/AdCodicem.ValueObjects.NativeAot}"
+name="$(basename "$project")"
+binary="$out/bin/$name"
+allowed="$project/aot-warnings.allowed"
 
 echo "::group::Run under the JIT"
 dotnet run --project "$project" -c Release -- "$out/jit.txt"
@@ -32,7 +42,12 @@ dotnet publish "$project" -c Release -p:NativeAot=true -o "$out/bin" 2>&1 | tee 
 echo "::endgroup::"
 
 # TreatWarningsAsErrors reaches the AOT compiler, which then fails the publish itself. This does not rely on it.
-if grep -E 'IL[23][0-9]{3}' "$out/publish.log"; then
+warnings="$(grep -E 'IL[23][0-9]{3}' "$out/publish.log" || true)"
+if [[ -f "$allowed" ]]; then
+  warnings="$(grep -vEf <(sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$allowed") <<<"$warnings" || true)"
+fi
+if [[ -n "$warnings" ]]; then
+  echo "$warnings"
   echo "::error::The native AOT publish reported a trimming or AOT warning." >&2
   exit 1
 fi
@@ -55,6 +70,6 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     echo
     echo "| Binary | Size | Scenarios |"
     echo "| --- | ---: | ---: |"
-    echo "| AdCodicem.ValueObjects.NativeAot | $size bytes ($(numfmt --to=iec-i --suffix=B --format=%.1f "$size")) | $(wc -l < "$out/jit.txt") |"
+    echo "| $name | $size bytes ($(numfmt --to=iec-i --suffix=B --format=%.1f "$size")) | $(wc -l < "$out/jit.txt") |"
   } >> "$GITHUB_STEP_SUMMARY"
 fi

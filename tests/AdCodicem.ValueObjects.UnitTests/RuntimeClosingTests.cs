@@ -74,6 +74,7 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.NewtonsoftJson", [] },
         { "AdCodicem.ValueObjects.NJsonSchema", [] },
         { "AdCodicem.ValueObjects.OpenApi", [] },
+        { "AdCodicem.ValueObjects.ProtobufNet", [] },
         { "AdCodicem.ValueObjects.Serilog", [] },
         { "AdCodicem.ValueObjects.Swashbuckle", [] },
         { "AdCodicem.ValueObjects.Testing", [] },

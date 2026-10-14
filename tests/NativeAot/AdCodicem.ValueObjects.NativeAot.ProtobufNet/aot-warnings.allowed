@@ -1,0 +1,8 @@
+# protobuf-net's [ProtoModel] calls SerializerCache.Get<TProvider, TSelf> for each value object, whose
+# [DynamicallyAccessedMembers] demands every member of TSelf, its nested types included: the System.Text.Json and
+# TypeDescriptor converters the generator nests in every value object, whose members reflect. Reported where the model
+# protobuf-net generates calls it, by the analyzer and by the AOT compiler.
+\.ProtoModel\.g\.cs\([0-9,]+\): (Trim analysis |AOT analysis )?warning IL(2026|2111|3050): .*'System\.ComponentModel\.
+\.ProtoModel\.g\.cs\([0-9,]+\): (Trim analysis |AOT analysis )?warning IL(2026|2111|3050): .*'System\.Text\.Json\.Serialization\.JsonConverter\.ConfigureJsonTypeInfoUsingReflection\(
+# protobuf-net.Core warns for itself.
+protobuf-net\.Core\.dll : warning IL(2104|3053): Assembly 'protobuf-net\.Core'

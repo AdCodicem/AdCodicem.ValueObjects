@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.ProtobufNet</RootNamespace>
+    <Description>protobuf-net serializers for AdCodicem value objects, and protobuf-net.Grpc code-first services: each written as protobuf-net writes its underlying type, read back through the value object's rules by default, a value the type refuses never written, a refused request answered INVALID_ARGUMENT with its rule code, and the .proto export naming the scalar.</Description>
+    <PackageTags>$(PackageTags);protobuf;protobuf-net;grpc;binary-serialization</PackageTags>
+
+    <!-- AOT-compatible: the serializers carry no reflection, and run in a native binary inside protobuf-net's
+         compile-time model ([ProtoModel]), named by [ProtoContract(Serializer = ...)] on the value object. The
+         registration on a RuntimeTypeModel and the code-first binder serve protobuf-net's runtime model and
+         protobuf-net.Grpc, which emit code at run time and run under the JIT only; the registration of whole
+         assemblies carries the [RequiresUnreferencedCode] of locating their generated registration. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- protobuf-net.Grpc asks for protobuf-net 2.4.8: the direct reference lifts that floor to the version the
+         serializers are built against. protobuf-net.Core and Grpc.Core.Api come with them and are pinned by nothing
+         in Directory.Packages.props: a pin would make them dependencies of the package. -->
+    <PackageReference Include="protobuf-net" />
+    <PackageReference Include="protobuf-net.Grpc" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The value object's name in a refusal and in an ErrorInfo's metadata, as C# writes it. -->
+    <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
+  </ItemGroup>
+
+</Project>

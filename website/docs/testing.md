@@ -22,7 +22,8 @@ Four suites, each with a distinct job:
   generated value objects in an assembly that does not reference the JSON package, generated value objects of
   every underlying type in an assembly that opts into XML serialization, and generated value objects beside a query
   type HotChocolate's source generator binds. What needs a server and no container runs
-  here too, over TestHost: ASP.NET Core's pipelines, and a SignalR hub talking MessagePack with the .NET client; and
+  here too, over TestHost: ASP.NET Core's pipelines, a SignalR hub talking MessagePack with the .NET client, and a
+  protobuf-net.Grpc code-first service with the .NET gRPC client; and
   over SQLite in memory: collections of value objects through Entity Framework Core, every sample value object among
   them stored and read back, queries over their elements translated, queries on `.Value` translated to the column,
   for every sample value object as the same query over its underlying type is, and the CHECK constraints written from
@@ -110,13 +111,13 @@ schema rules out (`DerivesRejectedValues`), and checks that the type refuses eac
 
 ## Native AOT and compiled models
 
-Two applications, built as an application builds them, are published rather than tested.
+Three applications, built as an application builds them, are published rather than tested.
 
 The first references every package that claims to be AOT-compatible: the contracts, the generated code, the JSON package
 with a source-generated context and the JSON Schema it exports, the minimal API problem details, the identifiers,
 FluentValidation, the Serilog integration, the Microsoft.Extensions.AI one and the Model Context Protocol one, all but
 the HotChocolate one, whose framework warns on its own publish and starts natively only rooted
-([GraphQL](./how-to/graphql.md#native-aot)). Its value
+([GraphQL](./how-to/graphql.md#native-aot)), and the protobuf-net one, which the third publishes. Its value
 objects cover each of the 22 underlying types, a pattern hook, a
 closed set, an identifier, a generic value object registered by hand, and two value objects written by hand, registered
 without a converter, which the JSON factory serves its general-purpose one, beside a third that nothing registers, which
@@ -141,10 +142,20 @@ project then builds on and takes on a round trip through SQL Server, whose table
 constraints, a row SQL writes breaking a rule refused with the rule's code; the native AOT job also writes the model for native AOT, with its queries precompiled, and publishes it.
 [Compiled models](./how-to/ef-core.md#compiled-models) says what holds there.
 
+The third publishes protobuf-net's compile-time model over the value objects of the first one's domain whose underlying
+type protobuf-net writes, nineteen of the twenty-two, each naming its serializer on a partial declaration, and two more
+over a `Guid` and a `decimal` written as text:
+a message of all of them written as the same message over the primitives and read back, each value its rules refuse
+refused with its code, a trusted profile reading one anyway, a field left out read as the default instance, and a
+default refused on write, once under the JIT and once as a native binary. The model protobuf-net generates warns at
+each call into a serializer, its annotations reaching the converters every value object nests: the job lets through
+the warnings the project lists, `aot-warnings.allowed`, and fails on any other, this library's included
+([protobuf-net](./how-to/protobuf-net.md#native-aot)).
+
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the twenty-nine packages exactly as they were packed — from the folder the build packs into, at that one
+installs the thirty packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -156,7 +167,8 @@ the minimal API validation of Microsoft.Extensions.Validation 11, its own messag
 attribute's exception included,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
 MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
-SignalR's MessagePack hub protocol 11 over TestHost, FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI
+SignalR's MessagePack hub protocol 11 over TestHost, protobuf-net on a runtime model and on its compile-time model and
+a protobuf-net.Grpc code-first service over TestHost, FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI
 tools and structured output, Model Context Protocol tools over the SDK's own client, the Azure Functions converter and
 the problem details middleware beside ASP.NET Core 11, HotChocolate 16 scalars in a schema built in process, their
 messages in the language of the execution, an NSwag 14.7 document and Confluent's JSON serdes 2.16 over NJsonSchema,
@@ -220,6 +232,7 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
 
 # Native AOT (needs clang and zlib), and the compiled model, for the JIT (a round trip, needs Docker) and native AOT
 .github/scripts/native-aot.sh
+.github/scripts/native-aot.sh artifacts/native-aot-protobuf tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet
 .github/scripts/compiled-model.sh jit
 .github/scripts/compiled-model.sh aot
 
