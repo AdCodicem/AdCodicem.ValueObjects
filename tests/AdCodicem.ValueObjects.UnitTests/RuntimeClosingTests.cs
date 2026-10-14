@@ -72,6 +72,7 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.ModelContextProtocol", [] },
         { "AdCodicem.ValueObjects.MongoDB", [] },
         { "AdCodicem.ValueObjects.NewtonsoftJson", [] },
+        { "AdCodicem.ValueObjects.NJsonSchema", [] },
         { "AdCodicem.ValueObjects.OpenApi", [] },
         { "AdCodicem.ValueObjects.Serilog", [] },
         { "AdCodicem.ValueObjects.Swashbuckle", [] },

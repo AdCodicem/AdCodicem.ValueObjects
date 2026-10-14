@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Twenty-eight NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Twenty-nine NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -94,7 +94,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All twenty-eight packages go out at one version, or none. That version is the one semantic-release would
+lookup fails. All twenty-nine packages go out at one version, or none. That version is the one semantic-release would
 give the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -142,7 +142,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The twenty-eight packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The twenty-nine packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -219,7 +219,10 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, the
   MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, the HotChocolate type
   discovery handler, which closes, once per schema build, the scalar of each value object the schema meets (a typed
-  `AddValueObjectScalar<TSelf, TValue>()` asks no registry), DataAnnotations' `[NotDefault]`, which closes a check of
+  `AddValueObjectScalar<TSelf, TValue>()` asks no registry), the NJsonSchema package's reflection service and schema
+  processor, which describe each value object NJsonSchema meets, found through `TryResolve`, and write its examples,
+  bounds and known values under Newtonsoft.Json settings through a System.Text.Json converter the visitor closes over it
+  (`NewtonsoftJsonWrittenConverterFactory`), DataAnnotations' `[NotDefault]`, which closes a check of
   `IsDefault` once per type in a static cache (a failed resolution is not cached, so a registration made later is
   found), the test-data sampler's
   `Next(descriptor)`, the AutoFixture specimen builder, Bogus's `RuleForValueObjects` and `ValueObject<TSelf>`, FsCheck's
@@ -346,7 +349,9 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   a `TimeSpan`, a `TimeOnly` or a `DateTime`. The OpenAPI transformer, the Swashbuckle filters and the
   JSON Schema transform (`ValueObjectJsonSchema`, in the Json package) take what a rule becomes in a schema from
   `src/Shared/ValueObjectSchemaKeywords.cs`, an internal file each package links and compiles, not a project: a keyword
-  changes there, for all three, and the HotChocolate package links it too, for its wire patterns. The JSON Schema transform's language-model profile reaches the tools and the
+  changes there, for all three, and the HotChocolate package links it too, for its wire patterns, and the NJsonSchema
+  package for the definitions it writes on NJsonSchema's object model (`ValueObjectJsonSchemaDescription`, a host file
+  of its own built as the shared OpenAPI one), NSwag's components and the JSON Schema Confluent's serdes register. The JSON Schema transform's language-model profile reaches the tools and the
   structured output of Microsoft.Extensions.AI through the AI package's `WithValueObjects()` and
   `ValueObjectResponseFormat.ForJsonSchema<T>()`, and the input and output schemas of a Model Context Protocol tool
   through `WithValueObjectTools<T>()`. That profile describes what a model should send, and, as the OpenAPI one, keeps
@@ -814,6 +819,48 @@ These are all load-bearing, and each cost real debugging time:
   `HandWrittenTag<T>` over a marker of their own instead. The analyzer runs in the unit suite, which does not import
   the package's build props, so `VO0042` never fires there; a member misusing an attribute on purpose takes `#pragma
   warning disable VO0039` (or `VO0040`), which, unlike the generator's diagnostics, an analyzer's honours.
+- **NJsonSchema asks its reflection service before it describes a type, and hands a schema processor every schema.**
+  `AddValueObjects()` on any `JsonSchemaGeneratorSettings` wraps `settings.ReflectionService` in
+  `ValueObjectReflectionService`, which answers a value object, nullable unwrapped, as an object without members, so
+  that NJsonSchema files one definition and refers to it, as for an enumeration, and adds `ValueObjectSchemaProcessor`,
+  which fills the definition in; both once. `IReflectionService` has the same seven members in NJsonSchema 11.0.2 and
+  11.6.1, and a member a minor adds fails the build. NJsonSchema's own services describe a member with their own
+  `GetDescription`, and apply its validation attributes after the processors: `[Required]` on a value-object member
+  under Newtonsoft.Json settings adds `minLength: 1` beside the reference, a `[ParsesAs]` member is described again once
+  its object is complete, keeping the stricter rules, the member declared deepest in the hierarchy read per name, a
+  derived type's own members included, which NJsonSchema's inheritance puts in an inline part of `allOf` no processor is
+  handed, and NSwag applies a parameter's attributes last, so a parameter's `[StringLength]` wins (a limit the guide
+  states). A definition never says `null`, nor does an `enum` under Swagger 2.0, which takes no reference from a
+  parameter either (NSwag writes `type: object` and `x-schema`), so under `SchemaType.Swagger2` every value object is
+  described in place. The wire is read off the settings, never changed (`ValueObjectWire`): a copy of System.Text.Json's
+  options, made afresh while they are not read-only, numbers strict in a document; under Newtonsoft.Json,
+  `ValueObjectConverter` when the type's or the settings' converter is it, the type converter's text for a
+  `JsonStringContract`, left alone otherwise, its values written by those settings themselves. NJsonSchema looks a type
+  mapper up by the type the reflection service describes, then by its generic definition, before anything else: the
+  package answers a nullable value object unwrapped, so a mapper of the value object maps both forms, and leaves alone
+  only the form a mapper takes (`Mapped`), a mapper of the nullable type taking it only where Newtonsoft.Json's service
+  keeps that type, for a `JsonStringContract`; `[JsonSchemaType]` and `[JsonSchema]` win too. NJsonSchema holds
+  `minimum` and `maximum` in a `decimal`, which refuses `2E+32` and rounds `9.1E-31` to 0: such a bound goes to
+  `x-minimum` and `x-maximum`, and only a decimal is read as one (`ToToken`). Its validator, which Confluent runs with
+  no format validator, compares an `enum` by the `ToString()` of a token it reads with `FloatParseHandling.Double`, so
+  the `enum` of a closed set of reals holds doubles in a JSON Schema (`ToEnumerationToken`), or a payload's `20.0`, read
+  as the double 20, would be compared by its text with a decimal's `20.0`, and refused, a decimal no double holds listed
+  rounded; a document lists decimals as decimals; and it throws `InvalidCastException` on a JSON integer beyond Int64,
+  which the per-sample check leaves out and a test pins. NSwag describes Newtonsoft.Json's default settings for an
+  application without MVC's System.Text.Json output formatter whenever `Microsoft.AspNetCore.Mvc.NewtonsoftJson` can be
+  loaded, as in the unit suite and the island: their NSwag applications call `AddControllers()`. NSwag throws
+  `AmbiguousMatchException` for an MVC query model hiding a property with one of another type, and its C# client
+  generator writes two converters on a member whose closed set is of `format: date` (CS0579), which a test pins.
+  Confluent's `JsonSerializer<T>` takes a class only, and 2.16's default subject name strategy calls
+  `GetAssociationsByResourceNameAsync`, which a substitute registry answers with an empty list. The serdes never load
+  the Kafka client's native library: the unit suite and the island reference `librdkafka.redist` with
+  `ExcludeAssets="native;build"`, about 125 MB less output. The package's namespace,
+  `AdCodicem.ValueObjects.NJsonSchema`, hides the root `NJsonSchema` namespace in every `AdCodicem.ValueObjects.*`
+  namespace, the island's included, as Swashbuckle's, Serilog's, MongoDB's, MessagePack's, the Model Context Protocol's
+  and HotChocolate's do: name NJsonSchema's types through usings at the top of the file, and name no test folder, class
+  or namespace `NJsonSchema`, `NSwag` or `Confluent` (the unit suite's are `SchemaGeneration/` and `Web/NSwag*`). A file
+  importing `NJsonSchema` and `Confluent.SchemaRegistry` aliases `SchemaType` (CS0104), and `NSwag.OpenApiDocument`
+  meets the suite's `Web.OpenApiDocument`.
 - **`XmlSerializer` reads a value object's schema before it serializes anything.** It calls the provider when the
   serializer is built, insists on finding it public and static, and compiles its `xs:simpleType`, refusing the whole
   type, and every serializer over a type holding it, for one facet System.Xml cannot read. System.Xml holds an
@@ -843,7 +890,7 @@ These are all load-bearing, and each cost real debugging time:
   `ValueObjectLocalizedMessages.AspNetCore.cs` beside it, the part that reads `ValueObjectMessageOptions`, which the
   HotChocolate package does not reference; no test names either: the localized tests of `Web/`, `Functions/` and
   `GraphQL/` reach each copy through its package's API. `ValueObjectSchemaKeywords.cs` is linked by the OpenAPI, the
-  Swashbuckle, the Json and the HotChocolate packages, and no test names it either. `ValueObjectBindingText.cs`, how the converter reads the worker's text, is linked by both
+  Swashbuckle, the Json, the HotChocolate and the NJsonSchema packages, and no test names it either. `ValueObjectBindingText.cs`, how the converter reads the worker's text, is linked by both
   Azure Functions packages, so that the middleware parses a parameter again exactly as the converter parsed it, and no
   test names it: `Functions/` reaches both copies through the converter and the middleware.
   `KnownValueSpellings.cs`, which tells whether a closed set of text stores another spelling of a known value, is
@@ -1006,6 +1053,19 @@ Four suites, each with a distinct job:
   generator then walks every minimal API endpoint of the suite, and `Web/OpenApiTextTests.cs` and
   `SwashbuckleTextTests.cs` read both documents' description of every value object's text, `EveryValueObjectAsText`,
   against each other; `GeneratedSurface/` holds every sample to both forms and to `[NotDefault]`.
+  `SchemaGeneration/` (not `NJsonSchema/`, whose namespace would hide NJsonSchema's in the suite's) drives NJsonSchema's
+  two generators over `SchemaOrder` and the holders of `SchemaHolders.cs`: each wire, System.Text.Json under the default
+  options, the web defaults, named literals and options changed before their first use, Newtonsoft.Json with
+  `ValueObjectConverter` and without it, its payload validated as Confluent validates (`SchemaJson.Errors`, no format
+  validator), `[ParsesAs]` members, a derived form's own included, the application's own mappings, each form of a value
+  object apart, Swagger 2.0, and every sample through `GeneratedSurface/` (`NJsonSchemaWires`); a value object written by
+  hand there is a `Declared<,>` over a declaration of the tests' own, or `HandWrittenTag<T>` closed over a test class.
+  `ConfluentSerdesTests` runs Confluent's serdes over an NSubstitute `ISchemaRegistryClient` keeping what is registered,
+  no registry server. `Web/NSwagDocument.cs` builds NSwag's documents over TestHost for the endpoints and the controller
+  the built-in stack's document describes, on System.Text.Json, on Newtonsoft.Json, in Swagger 2.0 and beside the
+  built-in stack's (`NSwagParityTests`, every member of `EveryValueObject` and `EveryValueObjectAsText` alike after
+  normalization, but `mass`, whose bounds no decimal holds), each request awaited with a timeout; `NSwagDocumentTests`
+  compiles the C# client NSwag generates with Roslyn.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
   `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Snippets compile **without** implicit usings, which
@@ -1147,7 +1207,7 @@ on where they apply.
   precompiled query fails to map under native AOT. A strict context cannot track on a compiled model, so the `jit` round
   trip reads untracked (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-eight packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the twenty-nine packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
@@ -1166,7 +1226,8 @@ Serilog, Microsoft.Extensions.AI tools and structured output, through `FunctionI
 of Microsoft.Extensions.AI 10, Model Context Protocol tools on ModelContextProtocol 2.2, a server in process and the SDK's
 own client over a pair of pipes, the Azure Functions converter and problem details middleware beside ASP.NET Core 11,
 over the worker's own abstractions, HotChocolate 16 scalars in a schema built in process, on HotChocolate.Types'
-`net11.0` assembly, their messages in the language of the execution, `XmlSerializer` and
+`net11.0` assembly, their messages in the language of the execution, an NSwag 14.7 document over TestHost beside
+`Microsoft.AspNetCore.OpenApi` 11 and Confluent's JSON serdes 2.16 over NJsonSchema 11.6, `XmlSerializer` and
 `DataContractSerializer` over its domain, which opts into XML serialization, the contract kit and the test-data sampler,
 through AutoFixture, Bogus and FsCheck too, with no transitive
 pinning, so the dependency floors of the packages meet the next

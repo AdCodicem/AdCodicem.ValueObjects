@@ -15,6 +15,7 @@ using AdCodicem.ValueObjects.UnitTests.GraphQL;
 using AdCodicem.ValueObjects.UnitTests.LanguageModels;
 using AdCodicem.ValueObjects.UnitTests.Logging;
 using AdCodicem.ValueObjects.UnitTests.Persistence;
+using AdCodicem.ValueObjects.UnitTests.SchemaGeneration;
 using AdCodicem.ValueObjects.UnitTests.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -187,6 +188,15 @@ public abstract class Sample
     /// its edges are accepted and the values its schema rules out refused.
     /// </summary>
     public abstract void DrawsValuesItsRulesAccept();
+
+    /// <summary>
+    /// Describes the value object with NJsonSchema's System.Text.Json settings, under the default options, the web
+    /// defaults and the named literals of a real, and its Newtonsoft.Json settings, with <c>ValueObjectConverter</c> and without it where its type
+    /// converter's text reads back, once <c>AddValueObjects()</c> is called on them; and checks that its definition is its
+    /// underlying type on each, and that the payload each serializer writes of its instances, of the values at the edges
+    /// of its rules and of values drawn from them, validates as Confluent's serializer validates a message.
+    /// </summary>
+    public abstract void DescribesItselfInEveryNJsonSchemaWire();
 
     /// <summary>Gets a value indicating whether the value object declares <c>Arithmetic = true</c>.</summary>
     public virtual bool IsNumeric => false;
@@ -702,6 +712,8 @@ public class Sample<TSelf, TValue> : Sample
     public override Task BindsThroughTheFunctionsWorkerAsync() => FunctionsParity.CheckAsync<TSelf, TValue>(Small, Text, Refused);
 
     public override Task AnswersARefusedGraphQLValueWithItsRuleAsync() => GraphQLParity.CheckAsync<TSelf, TValue>(Small, Large, Refused);
+
+    public override void DescribesItselfInEveryNJsonSchemaWire() => NJsonSchemaWires.Check<TSelf, TValue>(Small, Large);
 
     public override void HoldsTextToItsRulesThroughDataAnnotations()
     {

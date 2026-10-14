@@ -52,7 +52,13 @@ Four suites, each with a distinct job:
   both forms, and refuse each default instance, through `Validator`, options validated as a host starts and by the
   validator `[OptionsValidator]` writes, CommunityToolkit.Mvvm's `ObservableValidator`, MVC and a minimal API under
   `AddValidation()` over TestHost, with their messages in French from a resource, and both OpenAPI documents describe
-  each value object's text as the other does. Keys typed as value objects are
+  each value object's text as the other does. NJsonSchema's two generators describe every sample value object as its
+  underlying type on each wire their settings describe, and what each serializer writes of it, from the edges its rules
+  declare to values drawn from them, validates as Confluent's serializer validates a message; NSwag's documents over
+  TestHost, on System.Text.Json, on Newtonsoft.Json and in Swagger 2.0, describe each value object and each text, the
+  System.Text.Json one as the built-in stack's document does but for a bound no decimal holds, and a C# client
+  generated from one compiles; Confluent's serdes, over a substitute registry client, register the rules and refuse a
+  tampered message with its code. Keys typed as value objects are
   generated over a `Guid` and each integer type, a round trip through SQLite in memory included, a `Guid` one left unset
   is refused in every shape the convention concerns, and an integer key to generate is refused on Entity Framework
   Core's in-memory provider, which is not relational.
@@ -138,7 +144,7 @@ constraints, a row SQL writes breaking a rule refused with the rule's code; the 
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the twenty-eight packages exactly as they were packed — from the folder the build packs into, at that one
+installs the twenty-nine packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -153,7 +159,8 @@ MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers m
 SignalR's MessagePack hub protocol 11 over TestHost, FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI
 tools and structured output, Model Context Protocol tools over the SDK's own client, the Azure Functions converter and
 the problem details middleware beside ASP.NET Core 11, HotChocolate 16 scalars in a schema built in process, their
-messages in the language of the execution, `XmlSerializer` and
+messages in the language of the execution, an NSwag 14.7 document and Confluent's JSON serdes 2.16 over NJsonSchema,
+`XmlSerializer` and
 `DataContractSerializer` over a domain that opts into XML serialization, the contract kit, and the test-data sampler
 drawing each value object of that domain from the schema the generator of that SDK wrote, through AutoFixture, Bogus and
 FsCheck too. On Entity Framework Core 11, keys typed as value objects are generated over a `Guid` and an `int`, and a

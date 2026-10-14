@@ -36,6 +36,7 @@
     <PackageVersion Include="AdCodicem.ValueObjects.ModelContextProtocol" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.MongoDB" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.NewtonsoftJson" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.NJsonSchema" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.OpenApi" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Serilog" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Swashbuckle" Version="[$(AdCodicemVersion)]" />
@@ -73,6 +74,12 @@
          references 10.x, whose abstractions resolve at the AI package's floor. -->
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
     <PackageVersion Include="NSubstitute" Version="6.2.0" />
+    <!-- NSwag's document generation and Confluent's JSON serdes for the Schema Registry, which the NJsonSchema package
+         plugs into, at their current stables; the Kafka client's native library comes with the serdes, which never
+         load it, and is referenced only to leave it out of the output. -->
+    <PackageVersion Include="NSwag.AspNetCore" Version="14.7.1" />
+    <PackageVersion Include="Confluent.SchemaRegistry.Serdes.Json" Version="2.16.0" />
+    <PackageVersion Include="librdkafka.redist" Version="2.16.0" />
   </ItemGroup>
 
 </Project>
