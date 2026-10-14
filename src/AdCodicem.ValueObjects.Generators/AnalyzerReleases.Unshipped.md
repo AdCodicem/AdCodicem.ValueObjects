@@ -38,3 +38,5 @@ VO0041 | AdCodicem.ValueObjects | Error | [NotDefault] on a member that is no va
 VO0042 | AdCodicem.ValueObjects | Warning | [ParsesAs(typeof(T))] naming a value object native AOT finds only once registered
 VO0043 | AdCodicem.ValueObjects | Error | Serializer contract attribute that loses the value
 VO0044 | AdCodicem.ValueObjects | Warning | Serializer contract attribute that skips the rules
+VO0045 | AdCodicem.ValueObjects | Warning | Classified value object logged without its classification
+VO0046 | AdCodicem.ValueObjects | Warning | Classification dropped by a transitive expansion

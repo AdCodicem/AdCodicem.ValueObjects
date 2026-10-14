@@ -2,7 +2,7 @@
 title: Log Value Objects
 sidebar_label: Logging
 slug: /how-to/logging
-description: What Serilog, with and without AdCodicem.ValueObjects.Serilog, Microsoft.Extensions.Logging, its source generators, OpenTelemetry, NLog and Application Insights record for a value object, and how to keep a number a number.
+description: What Serilog, with and without AdCodicem.ValueObjects.Serilog, Microsoft.Extensions.Logging, its source generators, OpenTelemetry, NLog and Application Insights record for a value object, how to keep a number a number, and what Microsoft.Extensions.Telemetry redacts of one classified as personal data.
 ---
 
 # Log value objects
@@ -112,8 +112,10 @@ it formats that type.
   back into a value object.
 - **`AnyEntityId`** is no value object, and Serilog destructures it with `@` as a struct of its public properties.
   Log it without `@`.
-- **Personal data is logged in clear.** A value object classified with a `DataClassificationAttribute` is logged as
-  any value until a later version reads the classification to redact it. In the study behind this package,
+- **Personal data is logged in clear** through Serilog's own API: a value object classified with a
+  `DataClassificationAttribute` is logged as any value until a later version reads the classification to redact it.
+  Behind Microsoft.Extensions.Logging with `EnableRedaction()`, Serilog receives what Microsoft.Extensions.Telemetry's
+  logging generator redacted ([Data classification](#data-classification)). In the study behind this package,
   Destructurama.Attributed's `[LogMasked]` on a property holding a value object masked it (not run with this package).
 - **Seq** receives what Serilog writes, so a numeric value object reaches it as a number, which a numeric query compares
   (inferred: Seq was not run).
@@ -135,10 +137,118 @@ logger.LogInformation("Reserved {Qty} of {Sku}", quantity.Value, sku);
 ```
 
 Never put `[LogProperties]` on a value object parameter. Across assemblies, the logging generator logs the public
-properties of the type, so the value comes out as a `qty.Value` tag rather than `qty` (the probe also logged
-`qty.IsDefault`, a public property then, and no longer is: inferred, not re-run); in the value object's own project,
-it cannot see the generated members, reports `LOGGEN020` and falls back to `ToString()`. A `[TagProvider]` of
-your own for the type works. The metrics generator refuses a value object as a tag, `METGEN012`: pass `.Value`.
+properties of the type, so the value comes out as a `qty.Value` tag rather than `qty`, alone; in the value object's own
+project, it cannot see the generated members, reports `LOGGEN020` and falls back to `ToString()`. On a value object
+classified as personal data, of another assembly, the `Value` tag is redacted, which
+[Data classification](#data-classification) explains. A `[TagProvider]` of your own for the type works. The metrics
+generator refuses a value object as a tag, `METGEN012`: pass `.Value`.
+
+### Data classification
+
+Microsoft.Extensions.Telemetry.Abstractions brings Microsoft.Gen.Logging, a `[LoggerMessage]` generator that replaces
+Microsoft.Extensions.Logging's own in every project the package reaches, Microsoft.Extensions.Telemetry alone included.
+With `EnableRedaction()` on the logging builder and a redactor registered through `AddRedaction`, it hands a parameter,
+or a property it expands, carrying an attribute derived from `DataClassificationAttribute` to the redactor of that
+classification. It never reads one on the type of a value it logs: a value object
+[classified as personal data](../reference/errors.md#personal-data-in-an-exception) on its type, which empties the
+`AttemptedValue` of a rejection, is written to the log in clear, whatever redactor the application configures.
+
+So classify the type, for `AttemptedValue`, and each logging site, for the logging generator. `VO0045` warns where a
+`[LoggerMessage]` method Microsoft.Gen.Logging writes logs a classified value object without a classification of its
+own, and its code fix copies the type's:
+
+```csharp
+using Microsoft.Extensions.Compliance.Classification;
+using Microsoft.Extensions.Logging;
+
+public static class Taxonomy
+{
+    public static DataClassification Personal => new("Shop", nameof(Personal));
+}
+
+public sealed class PersonalDataAttribute : DataClassificationAttribute
+{
+    public PersonalDataAttribute() : base(Taxonomy.Personal) { }
+}
+
+[PersonalData]
+[ValueObject<string>(MaxLength = 254)]
+public readonly partial struct EmailAddress;
+
+internal static partial class Log
+{
+    // EmailAddress email alone is VO0045: the address would be logged in clear.
+    [LoggerMessage(Level = LogLevel.Information, Message = "Signed up {Email}")]
+    public static partial void SignedUp(ILogger logger, [PersonalData] EmailAddress email);
+}
+```
+
+- **`[NoDataClassification]`** on the parameter logs the value object in clear on purpose, and silences `VO0045`, as a
+  `#pragma` does. Any other classification of the parameter's own wins over the type's, and is left alone:
+  `[FinancialData]` on a parameter of a `[PersonalData]` type is masked by the redactor of `FinancialData`. Never write
+  the type's attribute beside it: the parameter is then classified by the set of both, which no redactor registered for
+  one of them matches, and the redactor provider falls back to its erasing redactor, even where `PersonalData` is hashed.
+- **What is reported:** a parameter of the value object's type or its nullable type; a collection of them, a nullable
+  one included, which a classified parameter erases whole; a property `[LogProperties]` expands, or a collection of them
+  a property holds, which the logging generator writes element by element, reported on the logging parameter with its
+  path, `signup.Email`; and a field or a property of a record logged whole. The logging generator reads a classification
+  on a record's constructor parameter as the classification of the property of its name, and one on the type it expands,
+  or a base type, as the classification of each of its properties: neither is reported.
+- **What the code fix writes:** every attribute that classifies the type, in its declared order, on the parameter, on
+  the property, or on a record's positional parameter, which the logging generator reads as it reads the property; the
+  fix-all of a document classifies each declaration once. It offers nothing for an attribute written with arguments:
+  the logging generator builds a classification as `new PersonalDataAttribute().Classification`, whatever the attribute
+  carries, so a copy of `[Classified("Health")]` fails to compile in the generated file (`CS7036`). Nor for an attribute
+  whose `[AttributeUsage]` keeps it off a parameter or a property, nor for a member declared in another assembly, which
+  is classified where it is declared. Declare classification attributes parameterless, with the usage
+  `DataClassificationAttribute` declares, as above.
+- **A record logged whole** is written through its `ToString()`, which prints its public fields and properties in
+  clear, whatever their logging attributes, and classifying one makes the logging generator refuse the method
+  (`LOGGEN035`, then `CS8795`): log the record with `[LogProperties]` and classify the property, as the warning says. A
+  record that writes its own `ToString()` or `PrintMembers` prints what it likes, and is not read.
+- **`[LogProperties]` on a classified value object of another assembly** expands it into its `Value`, which the logging
+  generator classifies as the type: the one place it reads a type's classification.
+- **`[LogProperties(Transitive = true)]`**, which Microsoft.Extensions.Telemetry 10.11 marks experimental
+  (`EXTEXP0003`), expands a value object of another assembly, or one written by hand, into its `Value`, all the public
+  properties of one written by hand, and drops the classification written on the property holding it. `VO0046` warns of
+  it, and of `[LogProperties]` written on such a property itself, which does the same. It has no code fix, the value
+  object being usually another project's: classify its type, which the expansion then applies to `Value`, or drop
+  `Transitive` (for `[LogProperties]` on the property, drop that attribute from the property). The expansion goes into
+  every other type too, a collection class or struct into its own properties, `Count` among them, and drops the
+  classification of a property of any type it expands: `VO0046` reports a value object only. A collection interface,
+  `IEnumerable<T>` or `IReadOnlyList<T>`, an array, and a collection with no property of its own are written element by
+  element instead. The logging generator reads `Transitive` on the parameter alone: written on a property,
+  `[LogProperties(Transitive = true)]` expands it one level, as `[LogProperties]` does.
+- **`[TagProvider]` on a property** is never called by the logging generator, which logs the property whole, in clear;
+  under `Transitive`, **`[LogPropertyIgnore]`** stops the expansion of a property, not its logging
+  (Microsoft.Gen.Logging 10.11.0). Both are reported as any other property: classify the property, or leave it out of
+  the type you log.
+
+```csharp skip
+public sealed record Transfer([property: PersonalData] Iban From, Iban To);
+
+[LoggerMessage(Level = LogLevel.Information, Message = "Transferred")]
+public static partial void Transferred(ILogger logger, [LogProperties] Transfer transfer);
+// transfer.From is redacted. With [LogProperties(Transitive = true)], transfer.From.Value is in clear: VO0046.
+```
+
+- **What a redactor reads** of a value object is its text: the HMAC redactor hashes it as it hashes its underlying value
+  logged under the same name, so a hash still correlates across the logs; a value object with a formatting hook is
+  hashed as the hook's text, `21 °C`.
+- **Serilog behind Microsoft.Extensions.Logging**, `AddSerilog()` on the logging builder, receives what the redaction
+  wrote, `"Email":""` under the erasing redactor. `UseSerilog()` and Serilog.Extensions.Hosting's `AddSerilog()`, which
+  replace the logger factory, were not checked. Serilog's own API logs a classified value object in clear.
+- **Not reported:** `LogInformation(...)` and the other extension methods, which never redact; `LoggerMessage.Define`
+  and scopes, which were not checked; a dictionary of value objects, which the logging generator writes in clear, and a
+  classification of the parameter or the property covers; a record held by another record logged whole, by a collection
+  logged whole, or by a property `[LogProperties]` expands without `Transitive`, which the logging generator writes
+  through that record's `ToString()` inside the text of what holds it: the analysis reads the members of the record a
+  parameter logs whole, not of a record nested in it, and a classification of the parameter covers each of them; and
+  `[LogProperties]` on a value object of the same project or on a collection, which the logging generator reports itself
+  (`LOGGEN020`, `LOGGEN018`), and logs whole.
+- **Without Microsoft.Extensions.Telemetry.Abstractions**, Microsoft.Extensions.Logging's generator writes the methods
+  and redacts nothing, a classified parameter included, and the analyzer is silent. It is silent on any method another
+  generator writes.
 
 ## OpenTelemetry
 

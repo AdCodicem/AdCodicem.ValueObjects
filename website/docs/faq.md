@@ -202,6 +202,13 @@ compares a numeric one as a number. [Serilog](./how-to/logging.md#serilog) says 
 write a value object as its text, through `ToString()`: [Logging](./how-to/logging.md) says, for each, how to keep a
 number a number.
 
+### Is a value object classified as personal data redacted in the logs?
+
+By Microsoft.Extensions.Telemetry's logging generator, once the parameter or the property logging it carries the
+classification too: the generator reads none on the type of a value. `VO0045` warns where a `[LoggerMessage]` method
+would write one in clear, and its code fix copies the type's classification. `LogInformation` and Serilog's own API log
+it in clear. [Data classification](./how-to/logging.md#data-classification) has the details.
+
 ### Does it work with MongoDB?
 
 Through MongoDB.Driver, with `AdCodicem.ValueObjects.MongoDB`: `ValueObjectBson.Register(assembly)`, once at start-up,

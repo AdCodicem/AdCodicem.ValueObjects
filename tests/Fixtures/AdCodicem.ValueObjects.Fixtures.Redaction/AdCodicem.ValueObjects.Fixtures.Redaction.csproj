@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    [LoggerMessage] methods Microsoft.Gen.Logging writes, in an assembly of its own, so that the unit test assembly keeps
+    Microsoft.Extensions.Logging's generator: Microsoft.Extensions.Telemetry.Abstractions hands [LoggerMessage] to
+    Microsoft.Gen.Logging in every project it reaches. The analyzers of the generator run on it, so its build holds the
+    correct methods to VO0045 and VO0046, and the two that pin the logging generator's defects silence them.
+  -->
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Fixtures.Redaction</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <!-- Sku, a value object of another assembly, whose members the logging generator sees and expands. -->
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Fixtures.WithoutJson\AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Telemetry.Abstractions" />
+  </ItemGroup>
+
+</Project>

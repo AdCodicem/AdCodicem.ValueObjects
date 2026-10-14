@@ -15,6 +15,12 @@
          whose DefaultValueAttribute, Path and Tag would collide with the suite's own names in every file: GraphQL/ names
          HotChocolate's types through usings of its own. -->
     <HotChocolateImplicitUsings>disable</HotChocolateImplicitUsings>
+
+    <!-- Microsoft.Extensions.Telemetry, which Logging/ redacts through, and the Redaction fixture bring
+         Microsoft.Gen.Logging, whose build targets set this to true and drop Microsoft.Extensions.Logging's own
+         [LoggerMessage] generator, which SerilogMicrosoftExtensionsLoggingTests runs a method through: kept, with the
+         KeepTheDefaultLoggingGenerator target below. -->
+    <DisableMicrosoftExtensionsLoggingSourceGenerator>false</DisableMicrosoftExtensionsLoggingSourceGenerator>
   </PropertyGroup>
 
   <ItemGroup>
@@ -65,14 +71,17 @@
          annotated where the generator does not run, generated ones in an assembly that does not reference the JSON
          package, generated ones in an assembly that opts into XML serialization, and generated ones beside a query type
          HotChocolate's source generator binds, whose generated module this assembly would otherwise get
-         (tests/Fixtures/Directory.Build.props); and the Blazor forms written in Razor markup, which the Razor compiler
-         builds in a project of its own, so that this one stays on Microsoft.NET.Sdk. -->
+         (tests/Fixtures/Directory.Build.props); the Blazor forms written in Razor markup, which the Razor compiler
+         builds in a project of its own, so that this one stays on Microsoft.NET.Sdk; and [LoggerMessage] methods
+         Microsoft.Gen.Logging writes, beside value objects classified as personal data, which this assembly's generator
+         would otherwise write. -->
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Untouched\AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutGenerator\AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutJson\AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.XmlSerialization\AdCodicem.ValueObjects.Fixtures.XmlSerialization.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.GraphQL\AdCodicem.ValueObjects.Fixtures.GraphQL.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Blazor\AdCodicem.ValueObjects.Fixtures.Blazor.csproj" />
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Redaction\AdCodicem.ValueObjects.Fixtures.Redaction.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -102,6 +111,10 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
     <!-- DataClassificationAttribute, which a value object of Domain/ derives to be classified as personal data. -->
     <PackageReference Include="Microsoft.Extensions.Compliance.Abstractions" />
+    <!-- EnableRedaction() and the redactors an application registers, which Logging/ runs the Redaction fixture's
+         [LoggerMessage] methods through, as an application does. -->
+    <PackageReference Include="Microsoft.Extensions.Telemetry" />
+    <PackageReference Include="Microsoft.Extensions.Compliance.Redaction" />
     <!-- What an application writes Serilog events with: the compact JSON formatter, Serilog.Expressions' filters and
          templates, and the Microsoft.Extensions.Logging provider, which LogInformation and [LoggerMessage] calls go
          through. -->
@@ -160,5 +173,19 @@
     <Using Include="AdCodicem.ValueObjects.Annotations" />
     <Using Include="AdCodicem.ValueObjects.UnitTests.Domain" />
   </ItemGroup>
+
+  <!--
+    Microsoft.Gen.Logging, which Microsoft.Extensions.Telemetry.Abstractions brings whatever ExcludeAssets says, would
+    write this assembly's [LoggerMessage] methods beside Microsoft.Extensions.Logging's generator (CS0757), and pass a
+    value object of this assembly as its text, where SerilogMicrosoftExtensionsLoggingTests expects the value object:
+    its analyzers are removed once the references are resolved, and the property above keeps the default generator,
+    which the package's own target would remove too, leaving none (CS8795). The methods it writes are the Redaction
+    fixture's.
+  -->
+  <Target Name="KeepTheDefaultLoggingGenerator" AfterTargets="ResolveReferences">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="'%(Analyzer.NuGetPackageId)' == 'Microsoft.Extensions.Telemetry.Abstractions'" />
+    </ItemGroup>
+  </Target>
 
 </Project>

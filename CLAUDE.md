@@ -790,6 +790,35 @@ These are all load-bearing, and each cost real debugging time:
   registry when it runs, before most module initializers have: the unit tests assert only on types registered for
   certain, the domain's, or absent for certain, a fresh `AssemblyLoadContext` copy of the untouched fixture or a
   construction over a marker type private to the test, and never `Register` a shared hand-written type.
+- **Microsoft.Extensions.Telemetry.Abstractions replaces the `[LoggerMessage]` generator wherever it reaches.** Its
+  `buildTransitive` props set `DisableMicrosoftExtensionsLoggingSourceGenerator`, whose target removes
+  Microsoft.Extensions.Logging's generator, and its analyzer folder, Microsoft.Gen.Logging, reaches every project the
+  package does, Microsoft.Extensions.Telemetry or a project reference included, whatever `ExcludeAssets` says. That
+  generator reads a data classification on a parameter or a property only, never on the type of a value it logs whole,
+  passes a value object of the same project as its `ToString()`, expands one of another assembly, or written by hand,
+  into its public properties under `[LogProperties]`, which then carry the type's classification alone, builds a
+  classification as `new TAttribute().Classification` (a copy of an attribute written with arguments is `CS7036` in its
+  file), and refuses a record logged whole whose property is classified (`LOGGEN035`, then `CS8795`); `Transitive` is
+  `[Experimental("EXTEXP0003")]`. Its parser, read from the 10.11.0 assembly, reads `Transitive` on the parameter alone
+  (a property's `[LogProperties(Transitive = true)]` expands one level), never calls a property's `[TagProvider]` and,
+  under `Transitive`, logs a property `[LogPropertyIgnore]` leaves out, both whole and in clear, reads a record
+  constructor parameter's classification as that of the property of its name, whatever its type, and a classification of
+  the type it expands, or of a base type, as that of each of its properties, and writes a collection it does not expand,
+  a collection interface, an array or one with no property to log, element by element: `DataClassificationAnalyzer`'s
+  `LoggedProperties` and `Expandable` follow it, and `LoggingGeneratorAssumptionsTests` pins each. It implements each
+  method with `[GeneratedCode("Microsoft.Gen.Logging", …)]`, which C# merges onto the author's definition, so
+  `DataClassificationAnalyzer` analyzes generated code
+  (`GeneratedCodeAnalysisFlags.Analyze`, without `ReportDiagnostics`: it reports on the author's parameter) and reads
+  only a method whose implementation carries it. An implementation written in the author's own file with that
+  attribute makes the location generated code, where nothing is reported; a test of the gate puts the implementation in
+  a `.g.cs` tree of its own. The unit suite, which references Microsoft.Extensions.Telemetry and the Redaction fixture,
+  sets `DisableMicrosoftExtensionsLoggingSourceGenerator` back to `false` and removes the package's analyzers after
+  `ResolveReferences` (`KeepTheDefaultLoggingGenerator`): Microsoft.Gen.Logging would pass its `PageNumber` as text to
+  `SerilogMicrosoftExtensionsLoggingTests`, which fails without both. The fixture names its classification
+  `RedactionTaxonomy` and `ContactDataAttribute`, the suite's global `Domain` using holding a `Taxonomy` and a
+  `PersonalDataAttribute`. Through logging, the HMAC redactor's hash of a value differs from its own `Redact` of it, and
+  from that of the same value logged under another tag name (observed on 10.11.0): the test compares a value object's
+  hash with its underlying value's logged under the same name.
 - **Microsoft.Extensions.AI binds an argument without asking the value object.** `AIFunctionFactory` hands a C# `null`,
   which is what the OpenAI adapter makes of a JSON `null`, to a struct parameter as its uninitialized instance, without
   calling the converter, fails an absent argument with an `ArgumentException`, and takes an object of another type
@@ -1074,7 +1103,7 @@ Four suites, each with a distinct job:
   is on, so generated sources land under `artifacts/obj/.../generated/` and can be read when diagnosing.
   `Domain/HandWritten/` holds value objects written by hand, the supported input that reaches what the generator
   always replaces: the interface defaults and the registry's reflection fallback. The test assembly cannot hold
-  the rest, since the generator runs on it and its module initializer has run before any test does, so six
+  the rest, since the generator runs on it and its module initializer has run before any test does, so seven
   fixture assemblies under `tests/Fixtures/` do: a generated value object in a module nothing has used yet,
   annotated hand-written ones where no generator runs, generated ones in an assembly that does not reference
   `AdCodicem.ValueObjects.Json`, as a domain project serializing through an API's context does not, and generated ones
@@ -1082,7 +1111,14 @@ Four suites, each with a distinct job:
   written by hand on `ValueObjectXml` whose schemas the generator never writes (`XmlSerialization/` tests them), and
   generated ones beside a `[QueryType]` HotChocolate's source generator binds, whose module the unit test assembly would
   otherwise get (`SourceGeneratedQueryTests`), and Blazor forms written in Razor markup, with pages and value objects
-  of their own, which the Razor SDK builds while the suite stays on `Microsoft.NET.Sdk`.
+  of their own, which the Razor SDK builds while the suite stays on `Microsoft.NET.Sdk`, and `[LoggerMessage]` methods
+  Microsoft.Gen.Logging writes, beside value objects classified as personal data, which the suite's own
+  `[LoggerMessage]` generator would otherwise write (`Logging/MicrosoftExtensionsLoggingRedactionTests`, under
+  Microsoft.Extensions.Telemetry's `EnableRedaction()`: a classified parameter erased, a classification on the type
+  alone not read, `[NoDataClassification]`, `[LogProperties]` keeping a property's classification and `Transitive`
+  dropping it, the HMAC of a value object as its underlying value's, Serilog behind Microsoft.Extensions.Logging; a
+  Dependabot bump that fixes one of the logging generator's defects fails there first, and says `VO0045` or `VO0046`
+  can step back). Its build holds its correct methods to `VO0045` and `VO0046` under `TreatWarningsAsErrors`.
   `Forms/` (not `Blazor/`, whose namespace would hide `AdCodicem.ValueObjects.Blazor` inside the suite's) renders the
   fixture's forms through bUnit (`FormsHarness`, which adds the services before `SetRendererInfo`): text accepted,
   normalized and refused, each with its code, the code cleared by the next text, an emptied nullable field and the
@@ -1231,10 +1267,12 @@ Four suites, each with a distinct job:
   and in CI alike. The incrementality tests assert on
   `IncrementalStepRunReason`, the only way to notice caching regressions — losing them breaks nothing visible
   while making every IDE keystroke re-run the pipeline. `DocumentationSnippetTests` also runs the generator and
-  four analyzers over every ```` ```csharp ```` block the repository publishes — `skills/value-objects/`,
-  `README.md` and `website/docs/` — so a snippet that stops generating, or that trips `VO0010`, `VO0011`, a
-  DataAnnotations attribute's `VO0039` to `VO0041`, or a serializer's contract attribute, `VO0043` and `VO0044`, fails
-  the build (`VO0042` needs `PublishAot`, which the snippet run does not set; the snippets reference no third-party
+  five analyzers over every ```` ```csharp ```` block the repository publishes — `skills/value-objects/`,
+  `README.md` and `website/docs/` — each compiled against Microsoft.Extensions.Logging.Abstractions and
+  Microsoft.Extensions.Telemetry.Abstractions with Microsoft.Gen.Logging running, so a snippet that stops generating, or
+  that trips `VO0010`, `VO0011`, a DataAnnotations attribute's `VO0039` to `VO0041`, a serializer's contract attribute,
+  `VO0043` and `VO0044`, or a `[LoggerMessage]` method writing a classified value object in clear, `VO0045` and
+  `VO0046`, fails the build (`VO0042` needs `PublishAot`, which the snippet run does not set; the snippets reference no third-party
   serializer, so a block showing Orleans', protobuf-net's, MessagePack's, MemoryPack's or Newtonsoft.Json's attribute is
   tagged `skip` already, while `[DataContract]`, `[XmlType]` and `[Serializable]` come with the framework). The project
   references `AdCodicem.ValueObjects.ProtobufNet`, which `SerializerContractAnalyzerTests` and
@@ -1242,7 +1280,13 @@ Four suites, each with a distinct job:
   serializer, and a test holds the underlying types the analyzer leaves to removal to those protobuf-net has no inbuilt
   serializer for. `SerializerContractAnalyzerTests` declares the other serializers' attributes under their
   real names in a stand-in assembly, and the harness ignores `CS1701` and `CS1702`, which the SDK passes as `/nowarn`,
-  for protobuf-net's assemblies built against .NET 8.
+  for protobuf-net's assemblies built against .NET 8. The harness runs Microsoft.Gen.Logging on request
+  (`withLoggingGenerator`), copied by the `CopyLoggingGenerator` target from the Microsoft.Extensions.Telemetry.Abstractions
+  package `Directory.Packages.props` pins, and `GeneratorRun.LoggingSource` holds what it wrote, whose tags
+  `LoggingSnippets.LoggedTags` reads: `DataClassificationAnalyzerTests` and `CopyClassificationCodeFixTests` assert that
+  a warned tag goes to the logging generator's plain tag array and a fixed one to its classified array, over a domain
+  assembly of `LoggingSnippets` classified on its types, and `LoggingGeneratorAssumptionsTests` pins the logging
+  generator's behaviour the two diagnostics rest on, its defects first.
   A skill snippet must compile outright; a README or site snippet is prose and may elide a body, so only the
   declaration the generator sees is held to account. Tag a block ```` ```csharp skip ```` when it is a wiring or
   usage fragment rather than a declaration. The homepage example is covered too, because it lives in the partial

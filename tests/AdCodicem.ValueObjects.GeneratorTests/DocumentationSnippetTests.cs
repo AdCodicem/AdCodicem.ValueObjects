@@ -34,6 +34,11 @@ namespace AdCodicem.ValueObjects.GeneratorTests;
 /// packages this test project does not reference (ASP.NET Core, EF Core, Dapper, FluentValidation, the contract
 /// kit), and usage fragments are statements rather than declarations.
 /// </para>
+/// <para>
+/// Every snippet compiles against Microsoft.Extensions.Logging.Abstractions and Microsoft.Extensions.Telemetry.Abstractions,
+/// with Microsoft.Gen.Logging running, so that a <c>[LoggerMessage]</c> method the documentation shows compiles as it
+/// does in a project logging through Microsoft.Extensions.Telemetry, and is held to <c>VO0045</c> and <c>VO0046</c>.
+/// </para>
 /// </remarks>
 public sealed partial class DocumentationSnippetTests
 {
@@ -56,7 +61,7 @@ public sealed partial class DocumentationSnippetTests
     {
         var snippet = Snippets(file)[index];
 
-        var run = GeneratorHarness.Run(snippet);
+        var run = GeneratorHarness.Run(snippet, references: GeneratorHarness.LoggingReferences, withLoggingGenerator: true);
 
         run.Diagnostics.Should().BeEmpty(
             "the skill must not teach a declaration the generator rejects ({0}, snippet {1})", file, index);
@@ -72,7 +77,7 @@ public sealed partial class DocumentationSnippetTests
     {
         var snippet = Snippets(file)[index];
 
-        var run = GeneratorHarness.Run(snippet);
+        var run = GeneratorHarness.Run(snippet, references: GeneratorHarness.LoggingReferences, withLoggingGenerator: true);
 
         run.Diagnostics.Should().BeEmpty(
             "the documentation must not show a declaration the generator rejects ({0}, snippet {1})", file, index);
@@ -147,21 +152,35 @@ public sealed partial class DocumentationSnippetTests
 
     private static async Task AnalyzersShouldBeSilent(string snippet, string file, int index)
     {
-        var hooks = await GeneratorHarness.RunAnalyzerAsync<ValueObjectHookAnalyzer>(snippet);
-        var uninitialized = await GeneratorHarness.RunAnalyzerAsync<UninitializedValueObjectAnalyzer>(snippet);
-        var attributes = await GeneratorHarness.RunAnalyzerAsync<ValidationAttributeAnalyzer>(snippet);
-        var serializers = await GeneratorHarness.RunAnalyzerAsync<SerializerContractAnalyzer>(snippet);
+        var hooks = await RunAnalyzerAsync<ValueObjectHookAnalyzer>(snippet);
+        var uninitialized = await RunAnalyzerAsync<UninitializedValueObjectAnalyzer>(snippet);
+        var attributes = await RunAnalyzerAsync<ValidationAttributeAnalyzer>(snippet);
+        var serializers = await RunAnalyzerAsync<SerializerContractAnalyzer>(snippet);
+        var classifications = await RunAnalyzerAsync<DataClassificationAnalyzer>(snippet);
 
         // VO0011 is the one that matters here: a rule written without its interface compiles, never runs, and is
         // only a warning in a consumer's project. Published prose is exactly where that gets copied from, and so is a
         // [ParsesAs] or a [NotDefault] on a member it would throw for, and a serializer's contract attribute on a value
         // object. The snippets reference no third-party serializer, so a block showing one is tagged skip already;
-        // [DataContract], [XmlType] and [Serializable] come with the framework.
+        // [DataContract], [XmlType] and [Serializable] come with the framework. A [LoggerMessage] method that writes a
+        // value object classified as personal data in clear is as easily copied.
         hooks.Select(diagnostic => diagnostic.Id).Should().BeEmpty("{0}, snippet {1}", file, index);
         uninitialized.Select(diagnostic => diagnostic.Id).Should().BeEmpty("{0}, snippet {1}", file, index);
         attributes.Select(diagnostic => diagnostic.Id).Should().BeEmpty("{0}, snippet {1}", file, index);
         serializers.Select(diagnostic => diagnostic.Id).Should().BeEmpty("{0}, snippet {1}", file, index);
+        classifications.Select(diagnostic => diagnostic.Id).Should().BeEmpty("{0}, snippet {1}", file, index);
     }
+
+    /// <summary>
+    /// Runs an analyzer over a snippet compiled as <see cref="GeneratorHarness.Run"/> compiles it here: against the
+    /// logging references, with Microsoft.Gen.Logging writing the other half of a <c>[LoggerMessage]</c> method.
+    /// </summary>
+    private static Task<System.Collections.Immutable.ImmutableArray<Diagnostic>> RunAnalyzerAsync<TAnalyzer>(string snippet)
+        where TAnalyzer : Microsoft.CodeAnalysis.Diagnostics.DiagnosticAnalyzer, new()
+        => GeneratorHarness.RunAnalyzerAsync<TAnalyzer>(
+            snippet,
+            GeneratorHarness.LoggingReferences,
+            withLoggingGenerator: true);
 
     private static TheoryData<string, int> Enumerate(IEnumerable<string> files)
     {
