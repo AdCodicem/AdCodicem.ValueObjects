@@ -406,7 +406,9 @@ public sealed class ProtoTallyProfile : IValueObjectProtoProfile
 
 /// <summary>The trap: a bare <c>[ProtoContract]</c> on the value object.</summary>
 [ValueObject<string>(MaxLength = 5)]
+#pragma warning disable VO0043 // The trap this file exercises on purpose: protobuf-net writes it as an empty message.
 [ProtoContract]
+#pragma warning restore VO0043
 public readonly partial struct ProtoBareCode;
 
 /// <summary>A message over value objects that carry their serializer.</summary>

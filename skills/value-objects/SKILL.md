@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (a $jsonSchema validator, entity identifiers minted on insert), MessagePack and SignalR, protobuf-net and gRPC, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker), HotChocolate (GraphQL) and Blazor forms integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, money, strongly-typed identifier), and whenever a VO0001–VO0042 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (a $jsonSchema validator, entity identifiers minted on insert), MessagePack and SignalR, protobuf-net and gRPC, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker), HotChocolate (GraphQL) and Blazor forms integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, money, strongly-typed identifier), and whenever a VO0001–VO0044 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -202,6 +202,13 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   object it has no method for — build error `VO0032`: another generator cannot see the generated members, so it
   writes `new Iban()`. Give Mapperly `public static Iban ToIban(string value) => Iban.Create(value);` and its
   reverse through `[UseStaticMapper]`; keep the underlying type in an options class.
+- A serializer's contract attribute on a value object (`[ProtoContract]` naming no serializer, `[DataContract]`,
+  `[XmlType]`, `[MessagePackObject]`, Orleans' `[GenerateSerializer]`, Newtonsoft.Json's `[JsonObject]`) — build error
+  `VO0043` (`VO0044` for `[MemoryPackable]`, and `[Serializable]` outside the XML opt-in): the serializer would describe
+  the generator's members and lose the value. Remove it, or for protobuf-net name the serializer,
+  `[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<Sku, string>))]`, which the code fix writes strict at
+  `Level200` (name the profile `AddValueObjects` used on another level or trust). For `[Serializable]` where a
+  `DataContractSerializer` writes the type, opt the assembly in instead: removed, it writes an empty element.
 - An AutoMapper conversion to a value object with no map. The private constructor takes a tag only the generated
   code supplies, so AutoMapper finds no constructor and throws `AutoMapperMappingException`. Map through the
   factory: `CreateMap<string, Iban>().ConvertUsing(s => Iban.Create(s))`. On `ExplicitConversionFromValue = true`,
@@ -325,6 +332,6 @@ library. AutoFixture, Bogus and FsCheck get the same values through `AdCodicem.V
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
 | `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, protobuf-net and gRPC (code-first and contract-first), GraphQL (HotChocolate), FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, XML, test data for AutoFixture, Bogus and FsCheck, Azure Functions (isolated worker), Blazor forms, the run-time lookup when only a `Type` is known. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, their EF Core columns and MongoDB id generation, `AnyEntityId`, deterministic tests. |
-| `references/diagnostics.md` | `VO0001`–`VO0042`, with the fix for each. |
+| `references/diagnostics.md` | `VO0001`–`VO0044`, with the fix for each. |
 
 Published documentation: <https://adcodicem.github.io/AdCodicem.ValueObjects/>

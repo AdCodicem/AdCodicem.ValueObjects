@@ -55,7 +55,10 @@ Alongside the generator, analyzers enforce what the generator cannot: `VO0010` m
 does not load with an analyzer. `VO0039` to `VO0042` check the DataAnnotations attributes of the contracts where they
 sit: `[ParsesAs]` on a member that holds no text or naming no value object, `[NotDefault]` on a member that is no value
 object, and, under `PublishAot`, which the package's props make visible to the analyzer, a `[ParsesAs(typeof(T))]`
-naming a value object native AOT finds only once registered.
+naming a value object native AOT finds only once registered. `VO0043` and `VO0044` report a serializer's contract
+attribute on a value object the generator writes, which makes that serializer describe it by the generator's members: it
+loses the value, or reads it without the rules. Their code fix, beside `VO0033`'s, names protobuf-net's serializer or
+removes the attribute.
 
 ## Two ways to reach a value object
 

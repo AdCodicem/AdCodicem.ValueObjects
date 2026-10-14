@@ -36,3 +36,5 @@ VO0039 | AdCodicem.ValueObjects | Error | [ParsesAs] on a member that holds no t
 VO0040 | AdCodicem.ValueObjects | Error | [ParsesAs] naming no value object
 VO0041 | AdCodicem.ValueObjects | Error | [NotDefault] on a member that is no value object
 VO0042 | AdCodicem.ValueObjects | Warning | [ParsesAs(typeof(T))] naming a value object native AOT finds only once registered
+VO0043 | AdCodicem.ValueObjects | Error | Serializer contract attribute that loses the value
+VO0044 | AdCodicem.ValueObjects | Warning | Serializer contract attribute that skips the rules

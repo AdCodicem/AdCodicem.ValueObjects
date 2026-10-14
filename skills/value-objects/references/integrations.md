@@ -36,6 +36,13 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.Bogus` | `RuleForValueObjects()` on a `Faker<T>`, and `faker.ValueObject<T>()`, deterministic under `UseSeed`. |
 | `AdCodicem.ValueObjects.FsCheck` | Arbitraries merged into an `ArbMap`, biased towards the edges, shrinking to accepted values. |
 
+Never put a serializer's contract attribute on a value object: `[GenerateSerializer]`, `[ProtoContract]`, `[DataContract]`,
+`[XmlType]`, `[MessagePackObject]`, `[JsonObject]`, `[MemoryPackable]`, or `[Serializable]` outside the XML opt-in
+(`VO0043`, `VO0044`). The one exception is protobuf-net's attribute route,
+`[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<TSelf, TValue>))]`. Where `DataContractSerializer` writes
+a `[Serializable]` value object, opt the assembly into XML serialization rather than remove the attribute, which would
+leave it writing an empty element.
+
 ## JSON
 
 A generated value object carries its own `[JsonConverter]`, so **reflection-based `System.Text.Json` needs no
@@ -605,8 +612,10 @@ builder.Services.AddCodeFirstGrpc();                                    // reads
 ```
 
 Without it, the first message holding a value object throws "No serializer defined", a code-first service maps none of
-its methods, the export declares `message Iban {}`, and a bare `[ProtoContract]` on the value object writes an empty
-message, losing the value. Register at start-up: protobuf-net freezes a type once it serialized one.
+its methods, and the export declares `message Iban {}`. A bare `[ProtoContract]` on the value object, which would write an
+empty message and lose the value, fails the build (`VO0043`); its code fix names the serializer, strict at `Level200`
+(on a model at another level, or registered trusted, name the profile the registration used). Register at start-up:
+protobuf-net freezes a type once it serialized one.
 
 - Each value object is written as protobuf-net writes its underlying type at the model's `DefaultCompatibilityLevel`
   (fixed once a type is added; `RuntimeTypeModel.Default`'s is `Level200` for good): `Guid` and `decimal` as `bcl`

@@ -50,6 +50,16 @@ provider `XmlSerializer` insists on finding public. A value object that implemen
 `[XmlSchemaProvider]`, itself keeps its own implementation. An assembly that does not opt in gets none of it. A domain
 either crosses an XML boundary or it does not, so the choice is made once for the assembly.
 
+A value object of an assembly that opts in carries no serializer's contract attribute. `DataContractSerializer` refuses one
+marked `[DataContract]`, "Type '…' cannot be IXmlSerializable and have DataContractAttribute attribute.", which
+`XmlSerializer` ignores, and `XmlSerializer` refuses one marked `[XmlType]`, "Only XmlRoot attribute may be specified for
+the type …": `VO0043` fails the build on both, and the schema provider names the type. `[XmlRoot]` is accepted, and names
+the element of a value object serialized as the root. `[Serializable]` changes nothing here; outside the opt-in,
+`DataContractSerializer` writes the private field of a `[Serializable]` value object and reads it back without the rules,
+which `VO0044` warns of. Opt in rather than remove the attribute there: without it, `DataContractSerializer` writes an
+empty element and reads back a default instance
+([A serializer's contract attribute](../reference/diagnostics.md#serializable)).
+
 ## What is written
 
 A value object is written as the content of its element, in the form `XmlSerializer` writes its underlying type in:

@@ -24,6 +24,10 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
     <!-- Handed to a snippet only on request: the generator publishes its JSON converters when the package is there. -->
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
+    <!-- Handed to a snippet only on request: the code fix of VO0043 names its serializer, and the tests hold the analyzer
+         to the underlying types protobuf-net writes. protobuf-net.Core's analyzers and generator come with it, and find no
+         contract in this project's own code. -->
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.ProtobufNet\AdCodicem.ValueObjects.ProtobufNet.csproj" />
   </ItemGroup>
 
   <ItemGroup>

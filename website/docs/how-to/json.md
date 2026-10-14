@@ -316,6 +316,11 @@ Quantity`, with no `ValueObjectException` in the chain. And a JSON integer beyon
 Newtonsoft.Json reads as a `BigInteger`, is converted by no type converter, so a `ulong` value object above
 `long.MaxValue` written as a number is not read without the converter.
 
+`[JsonObject]` on a value object overrides the type converter: Newtonsoft.Json then writes the value object as an object
+holding `Value`, `{"Value":"ab"}`, and reads that object back as a default instance. Only `ValueObjectConverter` in the
+settings takes precedence over it. The attribute has no use on a value object, and `VO0043` fails the build on it
+([A serializer's contract attribute](../reference/diagnostics.md#a-serializers-contract-attribute)).
+
 ### Dates
 
 Under the default `DateParseHandling`, Newtonsoft.Json turns a string that looks like a date into a `DateTime`, and

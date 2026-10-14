@@ -1,7 +1,7 @@
 # Diagnostics
 
 Every rule the generator, the analyzers and the compiler enforce, and what to do about each. `VO0008`, `VO0011`,
-`VO0025`, `VO0026`, `VO0033` and `VO0042` are warnings; everything else is an error. There is no `VO0012`, and `VO0004`,
+`VO0025`, `VO0026`, `VO0033`, `VO0042` and `VO0044` are warnings; everything else is an error. There is no `VO0012`, and `VO0004`,
 `VO0006`, `VO0013`, `VO0014`, `VO0022` and `VO0029` are retired: they reported options written as text, which no
 longer compile.
 
@@ -42,6 +42,8 @@ longer compile.
 | `VO0040` | `[ParsesAs(typeof(T))]` naming no value object: `string`, a class, a struct not implementing `IValueObject<TSelf, TValue>` over itself, a generic definition (`typeof(Reference<>)`), `null`. | Name the value object, constructed when generic: `typeof(Reference<PurchaseOrder>)`; `typeof(Iban?)` is accepted. |
 | `VO0041` | `[NotDefault]` on a member neither a value object nor its nullable type: a number, `string`, an interface, a collection of value objects. | It would throw when validated. Declare the member as the value object or `TSelf?`, or drop the attribute; check elements with FluentValidation's `RuleForEach`. |
 | `VO0042` | Warning, under `PublishAot`: `[ParsesAs(typeof(T))]` naming a construction of a generic value object, one nested in a generic type, or one written by hand. | A native binary finds them only once registered: write `[ParsesAs<T, TValue>]`, or register the type before a value is validated. |
+| `VO0043` | A serializer's contract attribute on a value object or identifier: Orleans' `[GenerateSerializer]`, protobuf-net's `[ProtoContract]` naming no serializer (or another value object's), `[DataContract]`, `[XmlType]`, `[MessagePackObject]`, Newtonsoft.Json's `[JsonObject]`. | Remove the attribute. For protobuf-net, name the serializer instead, `[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<Sku, string>))]`, which the code fix writes, strict at `Level200`; where `AddValueObjects` registered the type on a model at `Level240` or `Level300`, or with `trusted: true`, name that profile, `ValueObjectProtoSerializer<Sku, string, ValueObjectProtoProfiles.StrictLevel300>`, or the wire changes. One over `Int128`, `UInt128` or `DateTimeOffset` drops the attribute, generic or not; any other generic value object registers each construction with `AddValueObject<TSelf, TValue>()`. |
+| `VO0044` | Warning: MemoryPack's `[MemoryPackable]`, or `[Serializable]` on a value object that does not implement `IXmlSerializable`. | Remove `[MemoryPackable]`: no integration reads MemoryPack through the rules. For `[Serializable]`, opt the assembly in with `[assembly: ValueObjectXmlSerialization]`; remove it only where no `DataContractSerializer` writes the type, which without it writes an empty element and reads back a default instance. The code fix removes either. |
 
 ## Diagnosing generated code
 

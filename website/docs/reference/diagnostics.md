@@ -7,8 +7,8 @@ description: Every VO diagnostic the generator and the analyzers report, what it
 
 # Diagnostics
 
-Every rule the generator, the analyzers and the compiler enforce. `VO0008`, `VO0011`, `VO0025`, `VO0026`, `VO0033` and
-`VO0042` are warnings; every other one is an error. There is no `VO0012`, and `VO0004`, `VO0006`, `VO0013`, `VO0014`, `VO0022`
+Every rule the generator, the analyzers and the compiler enforce. `VO0008`, `VO0011`, `VO0025`, `VO0026`, `VO0033`,
+`VO0042` and `VO0044` are warnings; every other one is an error. There is no `VO0012`, and `VO0004`, `VO0006`, `VO0013`, `VO0014`, `VO0022`
 and `VO0029` are [retired](#retired-diagnostics).
 
 | Id | Meaning | Fix |
@@ -48,6 +48,8 @@ and `VO0029` are [retired](#retired-diagnostics).
 | `VO0040` | `[ParsesAs(typeof(T))]` naming a type that is no value object: text, a class, a struct that does not implement `IValueObject<TSelf, TValue>` over itself, a generic definition such as `typeof(Reference<>)`, or `null`. | The attribute would throw `InvalidOperationException` when a value is validated. Name the value object, constructed when it is generic, `typeof(Reference<PurchaseOrder>)`; its nullable type is accepted. |
 | `VO0041` | `[NotDefault]` on a member, a field or a parameter that is neither a value object nor its nullable type: a number, text, an interface, or a collection of value objects, whose elements it does not check. | The attribute would throw `InvalidOperationException` when a value is validated. Declare the member as the value object or its nullable type, or drop the attribute; check the elements of a collection with FluentValidation's `RuleForEach`. A type parameter is left alone. |
 | `VO0042` | Under `PublishAot`, `[ParsesAs(typeof(T))]` naming a construction of a generic value object, a value object nested in a generic type, or a value object written by hand (warning). | A native binary finds them in the registry only once the application registers them, and the attribute throws `InvalidOperationException` until then: write `[ParsesAs<T, TValue>]`, which reads the type's static members and needs no registry, or register the type before a value is validated. A generated value object and an entity identifier are registered by their assembly. The package's build props make `PublishAot` visible to the analyzer. |
+| `VO0043` | A serializer's contract attribute on a value object or an entity identifier the generator writes: Orleans' `[GenerateSerializer]`, protobuf-net's `[ProtoContract]` naming no serializer of its own, or another value object's, `[DataContract]`, `[XmlType]`, `[MessagePackObject]`, Newtonsoft.Json's `[JsonObject]`. | The serializer describes the type by the generator's members: it writes the value object with no member and reads it back as a default instance, or refuses it. The code fix names protobuf-net's serializer, strict at `Level200`, `[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<Sku, string>))]`, or removes the attribute. [A serializer's contract attribute](#a-serializers-contract-attribute) gives each remedy, and the profile to name on a model at another level or for a trusted registration. |
+| `VO0044` | MemoryPack's `[MemoryPackable]`, or `[Serializable]` on a value object that does not implement `IXmlSerializable` (warning). | The serializer reads the value object back without its rules. Remove `[MemoryPackable]`, which the code fix does. For `[Serializable]`, opt the assembly into XML serialization: removing it, which the code fix also offers, is right only where no `DataContractSerializer` writes the type, which would then write an empty element and read back a default instance. |
 
 `VO0011` deserves its warning more than most. The code it reports compiles and looks right, and in a project
 without `TreatWarningsAsErrors` it ships with the rule silently absent. It also recognizes the names hooks had
@@ -264,6 +266,149 @@ The System.Text.Json generator is not in the list, and should not be added to it
 `ObjectCreator = () => new global::Sku()` into the metadata of a context for every type it is given, and a context
 wired as [the JSON guide](../how-to/json.md#systemtextjson-source-generated) shows reads a value object through its
 converter, never through that line.
+
+## A serializer's contract attribute
+
+People put the serializer's contract attribute on every type they send. On a value object, it makes the serializer
+describe the type by its members, and those are the generator's: `Value`, the private field holding it and the
+explicit `IsDefault`, which the author has nothing to put `[Id]`, `[ProtoMember]`, `[Key]` or `[DataMember]` on. The
+serializers' own analyzers report none of it, so `VO0043` and `VO0044` do, on the attribute, on whichever partial
+declaration carries it:
+
+| Attribute | Id | What the serializer does | Remedy |
+| --- | --- | --- | --- |
+| Orleans' `[GenerateSerializer]` | `VO0043` | Writes the value object with no field and reads it back as a default instance: a holder of two value objects is written `2020E021E0E0`. `DeepCopier` keeps the value, so a call Orleans copies rather than serializes does not show the loss. | Remove it, and give the value object a surrogate ([Orleans](#orleans)). |
+| protobuf-net's `[ProtoContract]`, naming no serializer | `VO0043` | Writes an empty message, `0A00`, read back as a default instance; under protobuf-net's compile-time model, whatever the registration. | Name the serializer, which the code fix does ([protobuf-net](#protobuf-net)). |
+| `[DataContract]` | `VO0043` | protobuf-net writes `0A00` and MessagePack's standard resolver `[]`, each read back as a default instance; in an assembly opted into XML serialization, `DataContractSerializer` refuses the type: "Type '…' cannot be IXmlSerializable and have DataContractAttribute attribute." | Remove it: [`[assembly: ValueObjectXmlSerialization]`](../how-to/xml.md) writes the value object as its value. |
+| `[XmlType]` | `VO0043` | protobuf-net writes `0A00`, read back as a default instance; in an assembly opted into XML serialization, `XmlSerializer` refuses the type: "Only XmlRoot attribute may be specified for the type …". | Remove it: the schema provider names the type, and `[XmlRoot]` names the element of a root value object. |
+| MessagePack's `[MessagePackObject]` | `VO0043` | MessagePack's analyzer refuses the generated members, `MsgPack004` in the generated file; keyed by name, it compiles and writes `{}`, read back as a default instance. | Remove it, and serialize with [`WithValueObjects()`](../how-to/messagepack.md). |
+| Newtonsoft.Json's `[JsonObject]` | `VO0043` | Writes `{"Value":"ab"}`, read back as a default instance, unless `ValueObjectConverter` is in the settings. | Remove it: Newtonsoft.Json then writes the value, as text through the generated type converter, or as its underlying type with [`ValueObjectConverter`](../how-to/json.md#newtonsoftjson). |
+| MemoryPack's `[MemoryPackable]` | `VO0044` | Over text, MemoryPack's generated formatter does not compile (`CS8377`); over any other type, MemoryPack copies the memory of the struct, attribute or not, and reads it back without the rules. | Remove it ([MemoryPack](#memorypack)). |
+| `[Serializable]`, on a value object that does not implement `IXmlSerializable` | `VO0044` | `DataContractSerializer` writes the private field, an element named `_value`, and reads it back without the rules: `abcdef` comes back into a value object whose maximum length is 3. | Opt the assembly into [XML serialization](../how-to/xml.md). Remove it only where no `DataContractSerializer` writes the type ([`[Serializable]`](#serializable)). |
+
+The figures were measured on Orleans 10.4.0, protobuf-net 3.4.30, MessagePack 3.1.12, MemoryPack 1.21.4 and
+Newtonsoft.Json 13.0.4. Each attribute is matched by its full name, so one of the same name in another namespace, or
+nested in another type, is left alone, and so are a type holding value objects, a value object written by hand, which owns its members, and one of a
+referenced assembly, which is reported in its own project. `[XmlRoot]`, Orleans' `[Immutable]` and `[Alias]`, MessagePack's
+`[MessagePackFormatter]` and Newtonsoft.Json's `[JsonConverter]` describe nothing by the members, and are left alone too.
+System.Text.Json needs nothing: `[JsonSerializable]` on a struct is `CS0592` already, and it ignores `[DataContract]` and
+`[JsonObject]`.
+
+Removing a `VO0043` attribute never makes things worse. Where nothing registers the value object, protobuf-net,
+MessagePack and Orleans then fail loudly, "No serializer defined for type", `FormatterNotRegisteredException`, "Could not
+find a codec for type", where they lost the value silently. `VO0043` is an error even where a build works today: a bare
+`[ProtoContract]` that `AddValueObjects` takes over on a runtime model before its first use, or a `[DataContract]` value
+object only ever written through `WithValueObjects()`. Such a build loses the value as soon as another route meets the
+type, protobuf-net's `[ProtoModel]` or MessagePack's standard resolver. The code fix repairs it, by removing the
+attribute or by naming protobuf-net's serializer strict at `Level200`. That serializer writes what `AddValueObjects`
+wrote only where the model is at `Level200` and the registration strict: elsewhere, name the profile the registration
+used ([protobuf-net](#protobuf-net)). Removing `[Serializable]`, which `VO0044` reports, can lose the value
+([`[Serializable]`](#serializable)).
+
+### protobuf-net
+
+The code fix "Name the value object's protobuf-net serializer, strict at Level200" writes the attribute route of
+`AdCodicem.ValueObjects.ProtobufNet`, which protobuf-net's compile-time model, and so
+[native AOT](../how-to/protobuf-net.md#native-aot), takes:
+
+```csharp skip
+[ValueObject<string>(MaxLength = 8)]
+[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<Sku, string>))]
+public readonly partial struct Sku;
+```
+
+It keeps the attribute's other arguments, `Name` included, and imports `AdCodicem.ValueObjects.ProtobufNet`. The serializer
+it names is the strict profile at protobuf-net's default level, `Level200`, as its title says. For `Level240` or
+`Level300`, or for bytes only the application writes, name a profile of `ValueObjectProtoProfiles` instead:
+
+```csharp skip
+[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<CustomerId, Guid, ValueObjectProtoProfiles.StrictLevel300>))]
+public readonly partial struct CustomerId;
+```
+
+That is the case of a bare `[ProtoContract]` that `AddValueObjects` took over on a model of the application's own at
+`Level240` or `Level300`, or with `trusted: true`: the registration wrote the value object through the profile of the
+model's level and of that trust, and the attribute must name the same one. The two-argument serializer the code fix
+writes would move a value object over `DateTime` or `TimeSpan`, and at `Level300` over `Guid` or `decimal` too, to the
+`bcl` messages, which neither the bytes already stored nor the peers' `.proto` match, and would make a trusted read
+strict. Name the profile the registration used, `StrictLevel240`, `StrictLevel300` or the `Trusted…` one of the level, or
+remove the attribute and keep the registration. Once the attribute names the two-argument serializer, an
+`AddValueObject<TSelf, TValue>()` of the same value object throws at start, naming both serializers: drop that call.
+
+The message gives the remedy the compilation allows, and the code fix offers the removal alone where it cannot name the
+serializer:
+
+- **Without the package**, it says to reference `AdCodicem.ValueObjects.ProtobufNet` and name the serializer.
+- **Over `Int128`, `UInt128` or `DateTimeOffset`**, which protobuf-net has no serializer for, generic or not: remove the
+  attribute. `AddValueObject<TSelf, TValue>()` refuses such a value object too.
+- **A generic value object** over any other type, or one nested in a generic type: an attribute cannot name a serializer
+  through a type parameter. Remove it, and register each construction with `AddValueObject<TSelf, TValue>()`.
+- **A serializer copied from another value object**, `ValueObjectProtoSerializer<Other, string>` or the unbound
+  `ValueObjectProtoSerializer<,>`, which protobuf-net refuses at run time, "No serializer for type … is available for
+  model", is reported too: the code fix closes it over the value object, and keeps a profile it names.
+
+A `Surrogate`, a serializer of the application's own, and the package's serializer closed over the value object itself are
+the author's, and left alone, the last over `Int128` too, where protobuf-net's refusal is loud. So is `IsScalar`, which
+[Native AOT](../how-to/protobuf-net.md#native-aot) says to leave out.
+
+### Orleans
+
+No Orleans integration exists yet. Without `[GenerateSerializer]`, Orleans fails loudly, "Could not find a codec for type
+…". A surrogate and a converter under `[RegisterConverter]` keep the value, and refuse one the type rejects with the
+`ValueObjectException` of `Create`, its code under `ValueObjectErrors.ErrorCodeKey`. This recipe ran on Orleans 10.4.0,
+through its serializer and its copier, not in a call between silos, and stands until an integration replaces it:
+
+```csharp skip
+[GenerateSerializer]
+public struct SkuSurrogate
+{
+    [Id(0)]
+    public string? Value;
+}
+
+[RegisterConverter]
+public sealed class SkuSurrogateConverter : IConverter<Sku, SkuSurrogate>
+{
+    public Sku ConvertFromSurrogate(in SkuSurrogate surrogate) => Sku.Create(surrogate.Value!);
+
+    public SkuSurrogate ConvertToSurrogate(in Sku value) => new() { Value = value.Value };
+}
+```
+
+### MemoryPack
+
+No integration of this library serializes with MemoryPack. Over every underlying type but text, MemoryPack copies the
+memory of a value object, `[MemoryPackable]` or not, and assigns it back without the rules: forged bytes read back as
+`1000` into a value object whose maximum is 100. Over text, its generated formatter does not compile (`CS8377`).
+Serialize value objects with a serializer that reads them through their rules, or hand MemoryPack only bytes the
+application itself wrote. `VO0044` can only report the attribute, the sign that a value object is meant for MemoryPack.
+
+### `[Serializable]`
+
+Outside the XML opt-in, `DataContractSerializer` writes the private field of a `[Serializable]` value object and reads it
+back without the rules. Under `[assembly: ValueObjectXmlSerialization]`, the `IXmlSerializable` the generator implements
+wins and the attribute changes nothing, so it is left alone there, as on a value object implementing `IXmlSerializable`
+itself.
+
+Where a `DataContractSerializer` writes the value object, through WCF, CoreWCF or Dapr actor remoting, opt the assembly
+in: that is the remedy. Removing the attribute, which the code fix offers under the title "Remove [Serializable]:
+DataContractSerializer then writes an empty element", loses the value instead, since `DataContractSerializer` then writes
+an empty element and reads back a default instance ([Default instances](default-instances.md)). Remove it only where no
+`DataContractSerializer` writes the type. A codebase that puts `[Serializable]` on every type by habit, under
+`TreatWarningsAsErrors`, and runs no `DataContractSerializer`, may instead silence the warning with
+`dotnet_diagnostic.VO0044.severity = none` in a `.globalconfig`.
+
+### Silencing one on purpose
+
+Both come from an analyzer, so `#pragma` silences them, around the attribute:
+
+```csharp skip
+[ValueObject<string>(MaxLength = 5)]
+#pragma warning disable VO0043 // The trap this test exercises on purpose: protobuf-net writes an empty message.
+[ProtoContract]
+#pragma warning restore VO0043
+public readonly partial struct BareCode;
+```
 
 ## Suppressing `VO0010` in a test
 
