@@ -69,7 +69,9 @@ Four suites, each with a distinct job:
   is refused in every shape the convention concerns, and an integer key to generate is refused on Entity Framework
   Core's in-memory provider, which is not relational.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
-  incremental caching, the analyzer of the DataAnnotations attributes and its `PublishAot` gate included. It drives
+  incremental caching, the analyzer of the DataAnnotations attributes and its `PublishAot` gate included, and the
+  analyzer of serializers' contract attributes and its code fix, over protobuf-net itself and the other serializers'
+  attributes declared under their real names. It drives
   Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that
   slipped into emitted code. The incrementality tests assert on the Roslyn incremental step run reason — the

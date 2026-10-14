@@ -424,7 +424,9 @@ var options = MessagePackSerializerOptions.Standard.WithValueObjects(); // or Wi
 
 protobuf-net has no serializer for a value object: the first message holding one throws "No serializer defined", a
 code-first gRPC service maps none of its methods, its `.proto` export declares `message Iban {}`, and a bare
-`[ProtoContract]` on the value object writes an empty message, which loses the value.
+`[ProtoContract]` on the value object writes an empty message, which loses the value: `VO0043` fails the build on it,
+and its code fix names the serializer
+([diagnostics](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/reference/diagnostics#a-serializers-contract-attribute)).
 `AdCodicem.ValueObjects.ProtobufNet` writes each as protobuf-net writes its underlying type, byte for byte but for three
 cases the guide states (a valid zero is written where the primitive's is left out, a member's `DataFormat` never
 reaches a value object, and a root value object follows its serializer's level), reads it back through its rules,
@@ -791,6 +793,8 @@ compile, and are retired. There is no `VO0012`.
 | `VO0040` | Error | `[ParsesAs(typeof(T))]` naming a type that is no value object: text, a class, a generic definition, `null`. |
 | `VO0041` | Error | `[NotDefault]` on a member that is neither a value object nor its nullable type, a collection of value objects included. |
 | `VO0042` | Warning | Under `PublishAot`, `[ParsesAs(typeof(T))]` naming a construction of a generic value object, one nested in a generic type, or one written by hand, which a native binary finds only once registered: write `[ParsesAs<T, TValue>]`. |
+| `VO0043` | Error | A serializer's contract attribute on a value object: Orleans' `[GenerateSerializer]`, protobuf-net's `[ProtoContract]` naming no serializer of its own, `[DataContract]`, `[XmlType]`, `[MessagePackObject]`, Newtonsoft.Json's `[JsonObject]`, which write it with no member and read it back as a default instance, or refuse it. A code fix names protobuf-net's serializer, strict at `Level200`, or removes the attribute. |
+| `VO0044` | Warning | MemoryPack's `[MemoryPackable]`, or `[Serializable]` on a value object that does not implement `IXmlSerializable`, which make a serializer read it back without its rules. A code fix removes the attribute; where `DataContractSerializer` writes a `[Serializable]` value object, opt the assembly into XML serialization instead, since without the attribute it writes an empty element. |
 
 ## Using it with an AI coding agent
 

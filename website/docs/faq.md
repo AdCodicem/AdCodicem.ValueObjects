@@ -232,7 +232,8 @@ gives every value object a serializer that writes it as protobuf-net writes its 
 compatibility level (but a valid zero is written where the primitive's is left out, and a member's `DataFormat` never
 reaches a value object), reads it back through its rules unless asked to trust the bytes, a refusal carrying its code,
 and names it in the `.proto` export as that type's scalar. Without it, the first message holding a value object throws,
-and a bare `[ProtoContract]` on the value object writes an empty message and loses the value. A protobuf-net.Grpc
+and a bare `[ProtoContract]` on the value object, which would write an empty message and lose the value, fails the build
+(`VO0043`), its code fix naming the serializer. A protobuf-net.Grpc
 code-first service whose configuration is `ValueObjectBinderConfiguration.ForServer` answers a refused request with
 `INVALID_ARGUMENT` and a `google.rpc.ErrorInfo` carrying the code, where Grpc.AspNetCore would answer `UNKNOWN`. A field
 a proto3 sender leaves out is never read and leaves a default instance: declare it `TSelf?`. Under native AOT, the

@@ -140,11 +140,17 @@ public static class GeneratorHarness
     /// <param name="source">Source to compile. A namespace and usings are added if absent.</param>
     /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
     /// <param name="options">The analyzer configuration the compilation is given.</param>
+    /// <param name="title">
+    /// The title of the code action to apply, for a code fix offering several: each round applies it to the first
+    /// diagnostic, in source order, it is offered for, and the fixing stops once it is offered for none. Without it,
+    /// exactly one action must be offered for each diagnostic, and every diagnostic is fixed.
+    /// </param>
     /// <returns>The fixed source, after the clean-up a code action runs: imports added, names shortened.</returns>
     public static async Task<string> FixAsync<TAnalyzer, TCodeFix>(
         string source,
         ImmutableArray<MetadataReference>? references = null,
-        AnalyzerConfiguration? options = null)
+        AnalyzerConfiguration? options = null,
+        string? title = null)
         where TAnalyzer : DiagnosticAnalyzer, new()
         where TCodeFix : CodeFixProvider, new()
     {
@@ -156,20 +162,34 @@ public static class GeneratorHarness
         {
             using var workspace = new AdhocWorkspace();
             var document = Document(workspace, text, references);
-            var diagnostic = (await AnalyzeAsync<TAnalyzer>(document, options))
+            var diagnostics = (await AnalyzeAsync<TAnalyzer>(document, options))
                 .Where(candidate => fix.FixableDiagnosticIds.Contains(candidate.Id))
-                .OrderBy(candidate => candidate.Location.SourceSpan.Start)
-                .FirstOrDefault();
+                .OrderBy(candidate => candidate.Location.SourceSpan.Start);
 
-            if (diagnostic is null)
+            CodeAction? action = null;
+            foreach (var diagnostic in diagnostics)
+            {
+                var actions = await OfferedFixesAsync(fix, document, diagnostic);
+                if (title is null)
+                {
+                    actions.Should().ContainSingle("one fix is offered for {0}", diagnostic);
+                    action = actions[0];
+                    break;
+                }
+
+                action = actions.FirstOrDefault(candidate => candidate.Title == title);
+                if (action is not null)
+                {
+                    break;
+                }
+            }
+
+            if (action is null)
             {
                 return text;
             }
 
-            var actions = await OfferedFixesAsync(fix, document, diagnostic);
-
-            actions.Should().ContainSingle("one fix is offered for {0}", diagnostic);
-            text = await ApplyAsync(actions[0], document);
+            text = await ApplyAsync(action, document);
         }
 
         throw new InvalidOperationException("The code fix did not silence the diagnostics it fixes.");
@@ -184,11 +204,16 @@ public static class GeneratorHarness
     /// <param name="source">Source to compile. A namespace and usings are added if absent.</param>
     /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
     /// <param name="options">The analyzer configuration the compilation is given.</param>
+    /// <param name="title">
+    /// The title of the code action whose fix-all to apply, for a code fix offering several; the first action offered for
+    /// the first diagnostic when omitted.
+    /// </param>
     /// <returns>The fixed source.</returns>
     public static async Task<string> FixAllAsync<TAnalyzer, TCodeFix>(
         string source,
         ImmutableArray<MetadataReference>? references = null,
-        AnalyzerConfiguration? options = null)
+        AnalyzerConfiguration? options = null,
+        string? title = null)
         where TAnalyzer : DiagnosticAnalyzer, new()
         where TCodeFix : CodeFixProvider, new()
     {
@@ -200,12 +225,23 @@ public static class GeneratorHarness
             .Where(candidate => fix.FixableDiagnosticIds.Contains(candidate.Id))
             .ToImmutableArray();
 
-        var first = (await OfferedFixesAsync(fix, document, diagnostics[0]))[0];
+        CodeAction? first = null;
+        foreach (var diagnostic in diagnostics)
+        {
+            first = (await OfferedFixesAsync(fix, document, diagnostic))
+                .FirstOrDefault(candidate => title is null || candidate.Title == title);
+            if (first is not null)
+            {
+                break;
+            }
+        }
+
+        first.Should().NotBeNull("the action to fix all is offered for one diagnostic at least");
         var context = new FixAllContext(
             document,
             fix,
             FixAllScope.Document,
-            first.EquivalenceKey,
+            first!.EquivalenceKey,
             fix.FixableDiagnosticIds,
             new ReportedDiagnostics(diagnostics),
             TestContext.Current.CancellationToken);
@@ -300,21 +336,53 @@ public static class GeneratorHarness
     /// <param name="source">Source of the document. A namespace and usings are added if absent.</param>
     /// <param name="descriptor">The descriptor of the diagnostic.</param>
     /// <param name="locate">Picks the span the diagnostic covers in the source as wrapped.</param>
+    /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
     /// <returns>The titles of the code actions offered.</returns>
     public static async Task<IReadOnlyList<string>> OfferedFixTitlesAsync(
         CodeFixProvider fix,
         string source,
         DiagnosticDescriptor descriptor,
-        Func<string, TextSpan> locate)
+        Func<string, TextSpan> locate,
+        ImmutableArray<MetadataReference>? references = null)
     {
         var text = Wrap(source);
 
         using var workspace = new AdhocWorkspace();
-        var document = Document(workspace, text, references: null);
+        var document = Document(workspace, text, references);
         var tree = await document.GetSyntaxTreeAsync(TestContext.Current.CancellationToken);
         var diagnostic = Diagnostic.Create(descriptor, Location.Create(tree!, locate(text)));
 
         return [.. (await OfferedFixesAsync(fix, document, diagnostic)).Select(action => action.Title)];
+    }
+
+    /// <summary>
+    /// Runs an analyzer over source as <see cref="RunAnalyzerAsync{TAnalyzer}"/> does, and asks a code fix what it offers
+    /// for each diagnostic it fixes, in source order.
+    /// </summary>
+    /// <typeparam name="TAnalyzer">Analyzer reporting the diagnostics.</typeparam>
+    /// <param name="fix">The code fix.</param>
+    /// <param name="source">Source of the document. A namespace and usings are added if absent.</param>
+    /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
+    /// <param name="options">The analyzer configuration the compilation is given.</param>
+    /// <returns>The titles of the code actions offered, one list per diagnostic.</returns>
+    public static async Task<IReadOnlyList<IReadOnlyList<string>>> OfferedFixTitlesAsync<TAnalyzer>(
+        CodeFixProvider fix,
+        string source,
+        ImmutableArray<MetadataReference>? references = null,
+        AnalyzerConfiguration? options = null)
+        where TAnalyzer : DiagnosticAnalyzer, new()
+    {
+        using var workspace = new AdhocWorkspace();
+        var document = Document(workspace, Wrap(source), references);
+        var offered = new List<IReadOnlyList<string>>();
+        foreach (var diagnostic in (await AnalyzeAsync<TAnalyzer>(document, options))
+                     .Where(candidate => fix.FixableDiagnosticIds.Contains(candidate.Id))
+                     .OrderBy(candidate => candidate.Location.SourceSpan.Start))
+        {
+            offered.Add([.. (await OfferedFixesAsync(fix, document, diagnostic)).Select(action => action.Title)]);
+        }
+
+        return offered;
     }
 
     private static Document Document(AdhocWorkspace workspace, string text, ImmutableArray<MetadataReference>? references)
@@ -516,11 +584,13 @@ public static class GeneratorHarness
     ];
 
     /// <summary>
-    /// Filters out the noise a bare snippet produces, keeping real compilation failures.
+    /// Filters out the noise a bare snippet produces, keeping real compilation failures. <c>CS1701</c> and <c>CS1702</c>,
+    /// a reference built against an earlier framework, protobuf-net's among them, are what the SDK passes to the compiler
+    /// as <c>/nowarn</c> in every project.
     /// </summary>
     private static bool IsRelevant(Diagnostic diagnostic)
         => diagnostic.Severity >= DiagnosticSeverity.Warning
-           && diagnostic.Id is not ("CS1591" or "CS8019");
+           && diagnostic.Id is not ("CS1591" or "CS8019" or "CS1701" or "CS1702");
 }
 
 /// <summary>

@@ -246,3 +246,9 @@ object round trips in a native binary through them; what fails is MessagePack's 
 - **`AnyEntityId`**, which is not a value object: the resolver leaves it to the options' own, and `StandardResolver`
   has no formatter for it. Send the identifier's text.
 - **Nerdbank.MessagePack**, a different library, built on a source generator, which would need converters of its own.
+- **`[MessagePackObject]` or `[DataContract]` on a value object.** Either makes MessagePack describe the value object by
+  the members the generator writes: `[MessagePackObject]` is `MsgPack004` in the generated file, keyed by name it
+  writes `{}`, and under the standard resolver a `[DataContract]` value object is written `[]`, each read back as a
+  default instance. `WithValueObjects()` writes the value whatever the attribute, but another route meets the type
+  sooner or later: `VO0043` fails the build on either, so remove it
+  ([A serializer's contract attribute](../reference/diagnostics.md#a-serializers-contract-attribute)).

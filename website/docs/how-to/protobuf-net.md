@@ -18,8 +18,8 @@ builder.Services.AddSingleton(ValueObjectBinderConfiguration.ForServer(RuntimeTy
 builder.Services.AddCodeFirstGrpc();
 ```
 
-protobuf-net has no way to treat a value object as its underlying value, and nothing reports it at build time or at
-start-up:
+protobuf-net has no way to treat a value object as its underlying value, and protobuf-net reports none of it at build
+time or at start-up:
 
 - **Serializing a message fails.** `Serializer.Serialize` on a `[ProtoContract]` holding an `Iban` throws
   `InvalidOperationException: No serializer defined for type: Shop.Iban`.
@@ -31,7 +31,8 @@ start-up:
 - **The `.proto` export is wrong.** `Serializer.GetProto<Order>()` declares `message Iban {}`, and a client generated from
   it sends an object where the service expects a bare value.
 - **`[ProtoContract]` on the value object loses data.** protobuf-net then writes it as an empty message, `0A00`, and reads
-  it back as a default instance, with nothing thrown.
+  it back as a default instance, with nothing thrown. `VO0043` fails the build on it, and its code fix names the
+  serializer ([The `[ProtoContract]` trap](#the-protocontract-trap)).
 
 Contract-first services, whose messages Grpc.Tools generates, never carry a value object in a message: their handlers
 map fields to value objects, which [Answer refused values in gRPC services](grpc.md) covers.
@@ -280,7 +281,8 @@ alone, and carry `[RequiresDynamicCode]`, so that a native publish calling one w
 library's own annotations would. The serializers themselves carry no reflection, and run in a native binary inside
 protobuf-net's compile-time model, which its generator, coming with protobuf-net.Core, writes for a `[ProtoModel]`
 partial type and which never consults a runtime model. protobuf-net's generator cannot see what this library's generator
-writes, so the author names the serializer on a partial declaration of the value object, in its own assembly:
+writes, so the author names the serializer on a partial declaration of the value object, in its own assembly, which the
+code fix of `VO0043` writes on a bare `[ProtoContract]`:
 
 ```csharp skip
 [ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<Iban, string>))]
@@ -324,8 +326,24 @@ writes, and compares the native binary with the JIT. What to know:
 A bare `[ProtoContract]` on a value object, the attribute people put on every type they send, makes protobuf-net write it
 as a message with no member: `0A00`, read back as a default instance, the value lost with nothing thrown. `AddValueObjects`
 run before the model meets the type takes it over, and the value object is written as its value; run after the model has
-written one, protobuf-net refuses the change, "The type cannot be changed once a serializer has been generated". Remove the
-attribute, or name the serializer in it, as [Native AOT](#native-aot) does.
+written one, protobuf-net refuses the change, "The type cannot be changed once a serializer has been generated". Under
+protobuf-net's compile-time model, no registration reaches it at all: the serializer generated for the value object
+writes nothing.
+
+So the attribute fails the build, `VO0043`, and so does a `Serializer` naming this package's serializer closed over
+another value object, which protobuf-net refuses at run time. Its code fix names the serializer, as
+[Native AOT](#native-aot) does, `[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<Iban, string>))]`, keeping
+the attribute's other arguments and a profile already named, or removes the attribute. The serializer it names on a bare
+`[ProtoContract]` is the strict profile at `Level200`, as its title says: where `AddValueObjects` took the type over on a
+model at `Level240` or `Level300`, or with `trusted: true`, name the profile it used instead,
+`ValueObjectProtoSerializer<Iban, string, ValueObjectProtoProfiles.StrictLevel300>` or the like, or remove the attribute,
+or a value object over `DateTime` or `TimeSpan`, and at `Level300` over `Guid` or `decimal`, leaves the wire it had
+([What a value object writes](#what-a-value-object-writes)). An `AddValueObject<TSelf, TValue>()` of a value object whose
+attribute names the two-argument serializer throws at start, naming both: drop the call. One over `Int128`, `UInt128` or
+`DateTimeOffset`, which protobuf-net has no serializer for, drops the attribute, generic or not. Any other generic value
+object, or one nested in a generic type, cannot name its serializer through a type parameter: remove the attribute, and
+register each construction with `AddValueObject<TSelf, TValue>()`. A `Surrogate` and a serializer of the application's
+own are left alone ([A serializer's contract attribute](../reference/diagnostics.md#a-serializers-contract-attribute)).
 
 ## Not covered
 

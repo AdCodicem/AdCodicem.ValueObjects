@@ -742,7 +742,8 @@ These are all load-bearing, and each cost real debugging time:
   been generated"), so registration comes before the first use, and the unit suite registers on the process-wide
   `RuntimeTypeModel.Default` once, strict (`BinarySerialization/ProtoDefaultModel.cs`), every other test on a model of
   its own; `[ProtoContract]` goes on no `Domain/` type, since protobuf-net honours it on every model: the attribute-route
-  value objects of the tests are their own (`ProtoSku`, `ProtoTicket`, `ProtoBareCode`, …). protobuf-net calls
+  value objects of the tests are their own (`ProtoSku`, `ProtoTicket`, `ProtoBareCode`, …), and `ProtoBareCode`, the
+  bare `[ProtoContract]` trap, takes a `#pragma warning disable VO0043` around its attribute. protobuf-net calls
   `ISerializer<TSelf?>` only for the elements of a `[NullWrappedValue]` list, a nullable member going through
   `ISerializer<TSelf>`. It calls a custom serializer whatever `DataFormat` a member declares, so a `ZigZag`, `FixedSize`
   or `WellKnown` member of a value object is written and read as `DataFormat.Default`, which nothing reports and the
@@ -751,9 +752,9 @@ These are all load-bearing, and each cost real debugging time:
   for a `decimal` as text that none parses, quoting the text: the serializers' read refuses it as
   `value_object.not_parsable` with the other exceptions of a value it cannot read, all but an `ObjectDisposedException`.
   The `.proto` export names a value object by its `MetaType`: the package sets `Name` and `Origin`, the scalar and its
-  import (`ProtoScalars`). protobuf-net.Core's generator and analyzers reach every project referencing
-  the package, by project reference too, the unit suite and the island included: `[ProtoModel]` is `PBN9001`, an error
-  unless suppressed; once a project declares one, every `Serializer.*` call is `PBN3010`, which the unit suite's
+  import (`ProtoScalars`). protobuf-net.Core's generator and analyzers reach every project referencing the package, by
+  project reference too, the unit suite, the GeneratorTests and the island included: `[ProtoModel]` is `PBN9001`, an
+  error unless suppressed; once a project declares one, every `Serializer.*` call is `PBN3010`, which the unit suite's
   default-model test suppresses; protobuf-net's generated code fails to compile a `TSelf?` member or a dictionary of value
   objects (CS1503 in its own file); and its `[DynamicallyAccessedMembers]` on `SerializerCache.Get` reach the nested
   converters of every value object, so the generated model warns at each call (IL2026, IL2111, IL3050, and IL2104 and
@@ -1230,10 +1231,18 @@ Four suites, each with a distinct job:
   and in CI alike. The incrementality tests assert on
   `IncrementalStepRunReason`, the only way to notice caching regressions — losing them breaks nothing visible
   while making every IDE keystroke re-run the pipeline. `DocumentationSnippetTests` also runs the generator and
-  three analyzers over every ```` ```csharp ```` block the repository publishes — `skills/value-objects/`,
-  `README.md` and `website/docs/` — so a snippet that stops generating, or that trips `VO0010`, `VO0011` or a
-  DataAnnotations attribute's `VO0039` to `VO0041`, fails the build (`VO0042` needs `PublishAot`, which the snippet run
-  does not set).
+  four analyzers over every ```` ```csharp ```` block the repository publishes — `skills/value-objects/`,
+  `README.md` and `website/docs/` — so a snippet that stops generating, or that trips `VO0010`, `VO0011`, a
+  DataAnnotations attribute's `VO0039` to `VO0041`, or a serializer's contract attribute, `VO0043` and `VO0044`, fails
+  the build (`VO0042` needs `PublishAot`, which the snippet run does not set; the snippets reference no third-party
+  serializer, so a block showing Orleans', protobuf-net's, MessagePack's, MemoryPack's or Newtonsoft.Json's attribute is
+  tagged `skip` already, while `[DataContract]`, `[XmlType]` and `[Serializable]` come with the framework). The project
+  references `AdCodicem.ValueObjects.ProtobufNet`, which `SerializerContractAnalyzerTests` and
+  `SerializerContractCodeFixTests` alone hand their snippets, never a published one: `VO0043`'s code fix names its
+  serializer, and a test holds the underlying types the analyzer leaves to removal to those protobuf-net has no inbuilt
+  serializer for. `SerializerContractAnalyzerTests` declares the other serializers' attributes under their
+  real names in a stand-in assembly, and the harness ignores `CS1701` and `CS1702`, which the SDK passes as `/nowarn`,
+  for protobuf-net's assemblies built against .NET 8.
   A skill snippet must compile outright; a README or site snippet is prose and may elide a body, so only the
   declaration the generator sees is held to account. Tag a block ```` ```csharp skip ```` when it is a wiring or
   usage fragment rather than a declaration. The homepage example is covered too, because it lives in the partial

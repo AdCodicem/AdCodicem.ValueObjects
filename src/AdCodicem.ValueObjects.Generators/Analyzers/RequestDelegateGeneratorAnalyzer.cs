@@ -168,7 +168,7 @@ public sealed class RequestDelegateGeneratorAnalyzer : DiagnosticAnalyzer
     /// The type, or <see langword="null"/> when the compilation reaches none, or more than one, which the compiler
     /// refuses as ambiguous (CS0433).
     /// </returns>
-    private static INamedTypeSymbol? Reachable(Compilation compilation, string metadataName)
+    internal static INamedTypeSymbol? Reachable(Compilation compilation, string metadataName)
     {
         INamedTypeSymbol? reachable = null;
         foreach (var candidate in compilation.GetTypesByMetadataName(metadataName))
