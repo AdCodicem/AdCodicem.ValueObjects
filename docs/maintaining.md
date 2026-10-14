@@ -62,6 +62,19 @@ offering the higher one as the latest prerelease until a higher version ships.
   Monday, and consider a release: previews receive no fixes of their own (`SECURITY.md`). A release is possible only
   if the update landed as `fix(deps)` ([Dependabot](#dependabot)): a `chore(deps)` commit gives semantic-release
   nothing to release.
+- **When an advisory is published on a package of the NuGet graph**, every restore turns red once nuget.org's audit data
+  carries it, on `main`, on every pull request and in `preview.yml`, and in the island for a stable package it takes,
+  but not for a release candidate's build ([below](#the-net-compatibility-island)): NuGetAudit reads every package of
+  the graph, transitive ones included, from level `low`, and its warnings (`NU1901` to `NU1904`) are errors here, as
+  every warning is (`TreatWarningsAsErrors`). nuget.org updates those files a few times a day at most, after GitHub's
+  advisory database, so the Dependabot alerts and the push message show the advisory first: fix it then, before restores
+  fail ([Dependabot](#dependabot)).
+- **On Microsoft's patch day**, the second Tuesday of the month, move the framework's patch by hand, in one commit:
+  every Microsoft `PackageVersion` on the current patch, 10.0.13 today, `dotnet-ef` with them, the
+  `Microsoft.Extensions.Options` and `Microsoft.Extensions.DependencyInjection.Abstractions` pins among them. The
+  `dotnet` group cannot: Entity Framework Core's and SignalR's packages pull in the `Microsoft.Extensions.Options` of
+  their own patch, which the pin holds back, so their update fails its restore with NU1109 ([Dependabot](#dependabot)).
+  Type it `fix(deps)` when a shipped package's floor moves.
 - **After 60 days without activity in the repository**, GitHub disables the schedule of a public repository's
   workflow. Turn it back on with `gh workflow enable preview.yml`.
 - **Failures of a scheduled run are notified to whoever last changed its cron line**, not to whoever dispatches it.
@@ -197,18 +210,23 @@ Without them the release job stops at its first step, before anything is publish
   Security updates ignore the cooldown and open at once.
 - **No framework major.** Semver-major updates of `Microsoft.EntityFrameworkCore*`, `Microsoft.AspNetCore.*`,
   `Microsoft.Extensions.*`, `Microsoft.OpenApi`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `HotChocolate*` and
-  `NJsonSchema*`, whose packages share one version and move together in the `dotnet` group, are ignored, and so are
-  those of four packages whose majors follow one of them: `dotnet-ef`, the local tool pinned to EF Core's version;
+  `NJsonSchema*`, whose packages share one version and move together, in the `dotnet` group or, for Microsoft's
+  patch, by hand ([Routines](#routines)), are ignored, and so are those of five packages whose majors follow one of
+  them: `dotnet-ef`, the local tool pinned to EF Core's version;
   `NSwag.*`, which the tests take and whose majors move with NJsonSchema's;
-  `Swashbuckle.AspNetCore*`, whose next major moves to `Microsoft.OpenApi` 3; and `Serilog.Extensions.Logging`, which
-  only the tests use and whose majors follow .NET's, each built on the `Microsoft.Extensions.Logging` of its major. A
+  `Swashbuckle.AspNetCore*`, whose next major moves to `Microsoft.OpenApi` 3; `Serilog.Extensions.Logging`, which
+  only the tests use and whose majors follow .NET's, each built on the `Microsoft.Extensions.Logging` of its major;
+  and `System.Security.Cryptography.Pkcs`, a test-only pin on .NET's version line whose next major targets `net10.0`
+  too, removed once `Microsoft.Data.SqlClient` asks for a patched version. A
   new major is supported by a decision, a dependency floor or a target framework
   ([ADR-0010](adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)), never by a bump. Dependabot's
   NuGet updater applies these rules to security updates too: a security fix that exists only on a new major of one
   of them opens no pull request, and its alert stays open. Treat it as a deliberate migration under ADR-0010. A fix
   on the current major opens at once.
 - **`fix(deps)` for what ships.** Dependabot takes one `nuget` entry per directory, so every NuGet pull request opens
-  as `chore(deps)`. `dependabot-auto-merge.yml` retitles it `fix(deps): …` when it updates a dependency listed in
+  as `chore(deps)`, unless Dependabot groups it, as #166, which then carries no prefix and has to be retitled by hand
+  (the grouped security update below). `dependabot-auto-merge.yml` retitles it `fix(deps): …` when it updates a
+  dependency listed in
   `.github/shipped-dependencies`, and `fix(deps)!: …` when that update is a new major, so that merging it releases a
   patch, or a breaking change. The list holds the dependencies the nuspecs name, plus `Microsoft.CodeAnalysis.CSharp`
   and `PolySharp`, compiled into the generator; a step of `ci.yml` fails when it no longer matches the packed
@@ -217,13 +235,44 @@ Without them the release job stops at its first step, before anything is publish
 - **A security update that pins a new transitive dependency.** Dependabot can fix a vulnerable transitive dependency
   of a shipped package by adding a `<PackageVersion>` to `Directory.Packages.props`, which transitive pinning makes a
   dependency of the package. If `.github/shipped-dependencies` does not name it yet, the pull request opens as
-  `chore(deps)` with auto-merge queued, and **build and test** fails on the list. `dependabot-auto-merge.yml` reads
+  `chore(deps)` with auto-merge queued, unless Dependabot groups it, as #166, which then carries no prefix, and
+  **build and test** fails on the list. `dependabot-auto-merge.yml` reads
   the list from the base branch and ignores events you cause, so it cannot retitle the pull request. In this order:
   retitle it yourself, `fix(deps): …`, or `fix(deps)!: …` when it crosses a major; then push the list line to its
   branch. The title you set holds, and the auto-merge still queued squashes the pull request under it once CI is
   green. Do not merge the list line in a pull request of its own: nothing on `main` ships that ID yet, so the check
   fails there too. Closing the Dependabot pull request and landing the pin and the line together in a
   `fix(deps): pin <id> to <version>` of your own works as well.
+- **An update that needs a transitive pin moved.** `Microsoft.Extensions.Options` and
+  `Microsoft.Extensions.DependencyInjection.Abstractions` are pinned in `Directory.Packages.props` and bumped by hand,
+  as the list below says. When the new version of a package asks for a later version of either, the update, a security
+  update or the `dotnet` group's patch alike, fails its restore with NU1109 ("Detected package downgrade … to centrally
+  defined …"), Dependabot logs it and opens no pull request for it, and a security alert stays open. That is how the
+  .NET advisories of 2026-10-13 went: SignalR's MessagePack hub protocol 10.0.13 brings
+  `Microsoft.AspNetCore.SignalR.Common` 10.0.13, which asks for `Microsoft.Extensions.Options` 10.0.13; Entity Framework
+  Core 10.0.13 reaches it through `Microsoft.Extensions.Logging` and `Microsoft.Extensions.Caching.Memory` 10.0.13. Move
+  the pins with it by hand, with the rest of the framework's patch so that the Microsoft packages stay on one version
+  ([Routines](#routines)), in a `fix(deps)` commit of your own when a shipped package's floor moves.
+- **A grouped security update can open with no prefix.** Dependabot's NuGet security run of 2026-10-14 opened its fix as
+  one pull request titled after a group, "Bump the nuget group with 1 update", without the `chore(deps)` prefix (#166,
+  the `System.Security.Cryptography.Pkcs` pin), while the site's npm security updates have opened one per package, with
+  their prefix (#145, `chore(deps): Bump http-cache-semantics from 4.2.0 to 4.3.0 in /website`). Such a pull request
+  fails its **conventional commits** check, and a squash would put its title on `main`. `dependabot-auto-merge.yml`
+  replaces only a title that starts with `chore(deps): `, so it neither retitles one that updates a shipped dependency
+  `fix(deps)`, which would then land under the group's title and release nothing, nor gives one that does not a prefix
+  at all; it still queues auto-merge, and the **conventional commits** check is not one the `Default` ruleset requires.
+  Retitle it by hand, `fix(deps): …` or `chore(deps): …` as `.github/shipped-dependencies` decides, before it merges, or
+  **Disable auto-merge** on it.
+- **Audit warnings stay errors.** An advisory published anywhere in the graph breaks this build overnight
+  ([Routines](#routines)), and that red build is the earliest signal, so `NU1901` to `NU1904` are deliberately not in
+  `WarningsNotAsErrors`, which would leave the alerts as the only one. An advisory that has no fix, or that cannot
+  reach this repository's use of the package, is silenced one at a time, with
+  `<NuGetAuditSuppress Include="https://github.com/advisories/GHSA-…" />` in `Directory.Build.props`, or the island's
+  own, and a comment saying why and when to remove it: the documented, reviewable way.
+- **Alerts GitHub dismisses on its own.** Every package of the root `package-lock.json`, the release tooling, is
+  development-scoped, and GitHub's preset rule "Dismiss low impact issues for development-scoped dependencies", on by
+  default for a public repository, dismisses the alerts on them whose weaknesses all lie in its list. The push
+  message's count leaves those out; the alerts page lists them as dismissed.
 - **Squash, always.** Auto-merge squashes minor and patch updates. Merge a major by hand, after reading it, and
   squash it too: a rebase merge keeps Dependabot's `chore(deps)` commit and releases nothing. A `fix(deps)!` releases
   a minor while the version is 0.x. Auto-merge is queued once, when Dependabot opens the pull request: **Disable
@@ -308,7 +357,16 @@ so it has no version to move at a release candidate. Dependabot never sees the i
   `Microsoft.AspNetCore.Mvc.NewtonsoftJson`, `Microsoft.AspNetCore.OpenApi`, `Microsoft.AspNetCore.TestHost`,
   `Microsoft.AspNetCore.SignalR.Protocols.MessagePack`, `Microsoft.AspNetCore.SignalR.Client`) and
   `Npgsql.EntityFrameworkCore.PostgreSQL`. Npgsql's provider pins EF Core to the exact build it was compiled against,
-  so moving one without the other fails the restore with NU1107.
+  so moving one without the other fails the restore with NU1107. When Npgsql has not published its build for the new
+  release candidate yet, the SDK and the five ASP.NET Core packages move alone, and EF Core's two packages and Npgsql's
+  provider follow together once it has: the island is on the RC2 SDK and ASP.NET Core packages, EF Core and Npgsql on
+  RC1, since 2026-10-14.
+- **When an advisory names a release candidate's package**, nothing flags it. Dependabot raises no alert, the island
+  being out of its graph, and the island's restore does not fail either: nuget.org's audit data closes the release
+  candidate's range at its bare label, `[11.0.0-preview.5, 11.0.0-rc.1]` for GHSA-86xp-94pg-8r6r, and NuGet sorts that
+  label below every build published under it, `11.0.0-rc.1.26425.128` among them. So the island's RC1 build of
+  `Microsoft.AspNetCore.SignalR.Protocols.MessagePack` restored clean, though GitHub's advisory covers it until RC2,
+  which fixes it. Check the advisories of Microsoft's patch day against `tests/Compat/Directory.Packages.props` by hand.
 - **When .NET 11 ships** (expected around 2026-11-10, not confirmed):
   - `global.json` becomes `"version": "11.0.100"`, `"rollForward": "latestFeature"`, `"allowPrerelease": false`,
     after which `setup-dotnet` installs the latest 11.0 SDK by itself;

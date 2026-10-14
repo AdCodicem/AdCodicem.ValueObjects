@@ -9,7 +9,9 @@ updates:
   #
   # One entry only: Dependabot refuses two entries of one ecosystem on one
   # directory, and a group cannot set a commit prefix of its own. Every NuGet
-  # update is therefore opened as chore(deps), and dependabot-auto-merge.yml
+  # update is therefore opened as chore(deps), unless Dependabot groups a
+  # security update, as #166, which then carries no prefix and has to be
+  # retitled by hand (docs/maintaining.md), and dependabot-auto-merge.yml
   # retitles fix(deps) -- fix(deps)! across a major -- the ones that update a
   # dependency listed in .github/shipped-dependencies. Squash-merge them: the
   # squash commit takes the pull request title, which is what semantic-release
@@ -69,6 +71,11 @@ updates:
       # Test-only: its majors follow .NET's, each built on the
       # Microsoft.Extensions.Logging of the same major.
       - dependency-name: "Serilog.Extensions.Logging"
+        update-types: ["version-update:semver-major"]
+      # Test-only, pinned above Microsoft.Data.SqlClient's vulnerable 9.0.11 on
+      # .NET's version line, whose next major targets net10.0 too: removed once
+      # SqlClient asks for a patched version (Directory.Packages.props).
+      - dependency-name: "System.Security.Cryptography.Pkcs"
         update-types: ["version-update:semver-major"]
 
   # Release tooling (semantic-release and its plugins) in the root package.json.

@@ -21,19 +21,21 @@
   <ItemGroup Label="Integrations">
     <!-- Pinned explicitly: 2.0.0, which older ASP.NET Core patches resolve to, carries a known advisory. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
     <!-- No project references these two: they are transitive pins. They raise the 6.0.0 that BenchmarkDotNet's
          Microsoft.Extensions.Logging asks for in the benchmarks to the version Entity Framework Core asks for,
          and pinning lists them as dependencies of both Entity Framework Core packages, of the MessagePack
          package, which reaches them through the hub protocol's Microsoft.AspNetCore.SignalR.Common, of the Model
          Context Protocol package, which reaches them through Microsoft.Extensions.Hosting.Abstractions, of the Azure
          Functions package, which reaches them through Worker.Core, and of the HotChocolate package, which reaches them
-         through HotChocolate.Types: removing them changes what those six pack. -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.12" />
+         through HotChocolate.Types: removing them changes what those six pack. Dependabot never moves them, so an
+         update of a package that asks for a later version of either fails the restore with NU1109, and opens no pull
+         request, until they are raised by hand with it. -->
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.13" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="Dapper" Version="2.1.89" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
@@ -55,7 +57,7 @@
          hub protocol asks for. MessagePack.Annotations and MessagePackAnalyzer come with MessagePack and are pinned by
          nothing here: a pin would make them dependencies of the package. -->
     <PackageVersion Include="MessagePack" Version="3.1.11" />
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.13" />
     <!-- The test-data packages' floors, the versions they are built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). AutoFixture stays on 4.18.1 while
          5.0 is a release candidate: a stable package depending on a prerelease is NU5104, which fails the pack. Fare,
@@ -91,7 +93,7 @@
          nothing here: a pin would make them dependencies of the package. -->
     <PackageVersion Include="HotChocolate.Types" Version="16.6.8" />
     <!-- IStringLocalizerFactory, for the HotChocolate package's localized messages; its net10.0 asset depends on nothing. -->
-    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.13" />
     <!-- The NJsonSchema package's floor, the version it is built against, which NSwag 14.7 asks for
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); Confluent's JSON serdes take
          NJsonSchema.NewtonsoftJson 11.0.2 or later. Namotion.Reflection and NJsonSchema.Annotations come with it and are
@@ -130,21 +132,26 @@
     <PackageVersion Include="Testcontainers.Azurite" Version="4.15.0" />
     <PackageVersion Include="Azure.Storage.Queues" Version="12.28.1" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />
+    <!-- Pinned explicitly: Microsoft.Data.SqlClient, which the SQL Server provider brings, asks for 9.0.11, which carries
+         GHSA-846f-f764-76mx and GHSA-2fmv-rv2c-59x7. Only the SQL Server tests, the sample and the compiled model reach
+         it, the last through a reference of its own, since it turns transitive pinning off; no package under src/ does,
+         so it ships nowhere. Remove it, and that reference, once SqlClient asks for a patched version. -->
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <!-- An engine in memory, which needs no server and through which the unit suite runs what only an engine shows:
          primitive collections of value objects, their JSON included, the keys it generates, `.Value` translated in
          queries, and the CHECK constraints accepting and refusing rows; no package under src/ references it. -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.13" />
     <!-- A provider that is not relational, on which the unit suite checks that an integer key is not generated; no
          package under src/ references it. -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.13" />
     <!-- What `dotnet ef dbcontext optimize` loads into the project it compiles a model for: the version of the dotnet-ef
          tool in .config/dotnet-tools.json, which is Entity Framework Core's. -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.13" />
     <!-- The .NET client the unit suite connects to a hub through, over TestHost; no package under src/ references it. -->
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
     <!-- ObservableValidator, the view model base that validates DataAnnotations attributes as a property is set, which
          the unit suite runs [ParsesAs] and [NotDefault] through; no package under src/ references it. -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
