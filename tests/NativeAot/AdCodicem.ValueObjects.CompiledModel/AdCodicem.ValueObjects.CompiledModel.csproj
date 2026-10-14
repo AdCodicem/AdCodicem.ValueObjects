@@ -57,6 +57,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <PackageReference Include="Testcontainers.MsSql" />
     <!-- Does what transitive pinning, off here, does for the other projects reaching SqlClient: raises the 9.0.11
          SqlClient asks for, which carries two advisories, to the version Directory.Packages.props pins. It goes when
