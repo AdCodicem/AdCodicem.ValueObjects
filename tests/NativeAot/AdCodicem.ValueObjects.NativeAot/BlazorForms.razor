@@ -1,0 +1,11 @@
+@* The forms of every value object the registry describes, rendered in one document. *@
+@foreach (var form in Forms)
+{
+    @form
+}
+
+@code {
+    /// <summary>Gets or sets the forms.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<RenderFragment> Forms { get; set; } = [];
+}

@@ -43,7 +43,9 @@ refuse a value: `AddValueObjects(messages => messages.UseResource<T>())` on MVC 
 ([ASP.NET Core](../how-to/aspnet-core.md#messages-in-the-applications-language)),
 `UseValueObjectProblemDetails(messages => messages.UseResource<T>())` on an Azure Functions HTTP trigger
 ([Azure](../how-to/azure.md#messages-in-the-requests-language)), `AddValueObjects(options => options.UseResource<T>())`
-on a HotChocolate schema ([GraphQL](../how-to/graphql.md#messages-in-the-applications-language)), FluentValidation's
+on a HotChocolate schema ([GraphQL](../how-to/graphql.md#messages-in-the-applications-language)),
+`AddValueObjectInputs(options => options.UseResource<T>())` for the inputs of a Blazor form
+([Blazor](../how-to/blazor.md#messages-in-the-applications-language)), FluentValidation's
 `LanguageManager` under `MustParseAs`, `MustSatisfy` and `NotDefault`
 ([FluentValidation](../how-to/fluentvalidation.md#messages-in-another-language)), and `ErrorMessageResourceType` named
 alone on DataAnnotations' `[ParsesAs]` and `[NotDefault]`
@@ -62,7 +64,7 @@ A message quotes arguments the rules the type declares supply, through `ValueObj
 name, which FluentValidation quotes as a placeholder, and a position, which an `IStringLocalizer` formats with
 `string.Format`.
 
-| Code | Named (FluentValidation) | Positional (MVC, minimal APIs, Azure Functions, HotChocolate, DataAnnotations) |
+| Code | Named (FluentValidation) | Positional (MVC, minimal APIs, Azure Functions, HotChocolate, Blazor inputs, DataAnnotations) |
 | --- | --- | --- |
 | Every code | `{PropertyName}`, `{ValueObject}` | `{0}`, the member |
 | `value_object.too_short` | `{MinLength}` | `{1}` |
@@ -74,7 +76,8 @@ name, which FluentValidation quotes as a placeholder, and a position, which an `
   `Reference<PurchaseOrder>`. `{0}` is the member the refusal is listed under: the display name MVC gives it, the
   name a minimal API value binds from, the name of the parameter of an Azure Functions HTTP trigger, the argument, the
   input field or the variable of a GraphQL refusal (the scalar's name for a variable's default value, which HotChocolate
-  names no variable for), the field of a refused output, the display name of a member DataAnnotations validates, or, in
+  names no variable for), the field of a refused output, the `DisplayName` of a Blazor input, or else its field's
+  name, the display name of a member DataAnnotations validates, or, in
   a request body, the name of
   the value object, never the JSON path, which holds the key a dictionary keyed by a value object
   refused.
@@ -98,7 +101,8 @@ supply is the application's error: an `IStringLocalizer` throws its `FormatExcep
 through, HotChocolate answering a field it fails with its own unexpected error, while FluentValidation leaves a
 placeholder it has no value for as it is. On MVC, minimal APIs and Azure Functions HTTP triggers, a resource read without
 `builder.Services.AddLocalization()` throws an `InvalidOperationException` naming the call; on HotChocolate, the request
-executor fails to start with that exception.
+executor fails to start with that exception. `AddValueObjectInputs` registers the localization services itself, and a
+Blazor input whose options were configured by hand without them throws that exception from its change event.
 
 A French resource for the codes of the framework, as an example:
 
@@ -235,6 +239,7 @@ that treats a rejected value as a bug, for a strict EF Core read, and for an EF 
 | An Azure Functions isolated worker binding, through [`AdCodicem.ValueObjects.AzureFunctions`](../how-to/azure.md#route-values-query-values-and-binding-data)'s `UseValueObjects()` | The converter fails the parameter with a `FormatException`, "The value is not a valid Quantity: The value must be less than or equal to 100. (value_object.out_of_range)", carrying the code in its `Data` and at the end of its message; the worker keeps that text alone, in a `FunctionInputConverterException` with no inner exception, which fails the invocation. Over HTTP, with [`UseValueObjectProblemDetails()`](../how-to/azure.md#problem-details-for-http-triggers) after `ConfigureFunctionsWebApplication()`, a validation problem carrying the code of each refused route or query value, and of a `[FromBody]` value object where the MVC package's `AddValueObjects()` reads the body; the middleware throws nothing of its own. Without the package, the worker's JSON conversion refuses the text, a valid `Guid` or date included, and the host logs the reader's message, which can quote part of the value: `'not-a-guid' is an invalid JSON literal`. |
 | A Kafka message, through Confluent's JSON serdes with the schema of [`AdCodicem.ValueObjects.NJsonSchema`](../how-to/messaging.md#kafka-with-confluents-schema-registry) | The package refuses nothing: `JsonDeserializer<T>` reads through the settings' `ValueObjectConverter`, whose `JsonSerializationException` carries the code in its `Data`, and `JsonSerializer<T>` refuses to write a value its type refuses the same way. Confluent's own `InvalidDataException`, "Schema validation failed for properties: […]", from the validation of a message against the registered schema, carries none. |
 | A GraphQL argument, input field or variable, through [`AdCodicem.ValueObjects.HotChocolate`](../how-to/graphql.md#a-refused-value)'s `AddValueObjects()` | `LeafCoercionException`, carrying the code in its `Data`, whose GraphQL error has the message of the rule, the code as `extensions.code`, and a `ValueObjectException` with the type and the code on `IError.Exception`: a field error at the argument's `inputPath`, a request error at the variable's `path`. A variable of another JSON kind is `value_object.not_parsable`; a literal of another kind and a `null` literal are its own validation errors, with no code, and a `null` variable its `HC0018`. Without the package, a schema taking a value object as an argument does not start: ``No compatible constructor found for input type type `Shop.Iban`.``. |
+| A Blazor form's text, through [`AdCodicem.ValueObjects.Blazor`](../how-to/blazor.md#the-code)'s `InputValueObject` | Nothing is thrown: the refused text stays in the field, the rule's message goes under it through the form's `EditContext`, and `TryGetValueObjectErrorCode` reads the code; empty text a value object that cannot be `null` refuses is `value_object.required`. A type the registry does not describe, one that is no value object, or, where the runtime supports no dynamic code, a value object written by hand or a construction of a generic one that nothing registered, throws `InvalidOperationException` at the input's first render, naming the registration native AOT needs, which carries no code: it reports a misuse, never a broken rule. A statically rendered form is mapped by the framework first, which answers a refused value with its own message, quoting the text, and no code ([static rendering](../how-to/blazor.md#static-rendering)). |
 
 The other reads do not validate. EF Core by default, Dapper for a value the provider returns as the underlying type or
 as its date and time counterpart, a trusted MongoDB serializer, a trusted MessagePack formatter and a trusted protobuf-net
@@ -403,6 +408,10 @@ reading English:
 | The Azure Functions converter | `FormatException`, whose text alone the worker keeps, in its `FunctionInputConverterException` | In `Data`, and at the end of the message |
 | The HotChocolate scalars | `LeafCoercionException`, whose GraphQL error carries a `ValueObjectException` on `IError.Exception` | In `Data`; the error's `Exception` in `ErrorCode`, and its `extensions.code` but for a refused output |
 | DataAnnotations' throwing `Validator` methods, for a refusal of `[ParsesAs]` or `[NotDefault]` | `ValidationException`, which DataAnnotations raises around the result | `ErrorCode` of its `ValueObjectValidationResult` |
+
+A Blazor input throws nothing for refused text, and so has no row here: the rule's message goes under the field, through
+the form's `EditContext`, and `TryGetValueObjectErrorCode` reads the code from it, as the table of rejected values under
+[`ValueObjectException`](#valueobjectexception) says.
 
 The code is the one the rule reports. A value that is not of the underlying type at all carries
 `value_object.not_parsable`: a JSON token of the wrong kind, a number the underlying type cannot hold, text not of its

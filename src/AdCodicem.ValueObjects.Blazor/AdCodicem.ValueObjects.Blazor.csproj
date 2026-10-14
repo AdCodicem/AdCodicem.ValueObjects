@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Blazor</RootNamespace>
+    <Description>Blazor support for AdCodicem value objects: InputValueObject, an input component that reads the text a person types into a form through the value object's rules, binds the normalized instance, shows the message of the rule that refuses it under the field and keeps the rule's code on the form's EditContext, with the messages in the application's language on request. AOT-compatible, and installable in a Blazor WebAssembly application.</Description>
+    <PackageTags>$(PackageTags);blazor;forms;components;aspnetcore</PackageTags>
+
+    <!--
+      AOT-compatible, by the repository's default: each input closes its text adapters over the value object through the
+      descriptor's visitor, never with MakeGenericType. Microsoft.AspNetCore.Components warns for itself once a
+      component renders in a native binary (IL2104 and IL3053), which tests/NativeAot/AdCodicem.ValueObjects.NativeAot
+      lists as expected in its aot-warnings.allowed.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- So that the browser compatibility analyzer reads this assembly as Blazor WebAssembly will run it. -->
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- InputBase, EditContext and the render tree: the package, not the ASP.NET Core shared framework, which a Blazor
+         WebAssembly application lacks; in a server application the shared framework's copy is the one loaded. -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+    <!-- AddLocalization(), which AddValueObjectInputs registers, and IStringLocalizerFactory, through which the messages
+         UseResource<T>() names are read. -->
+    <PackageReference Include="Microsoft.Extensions.Localization" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The lookup of a refusal's message in the application's resource, compiled into the three ASP.NET Core packages
+         and the HotChocolate one too; this package links it alone, as the HotChocolate one does. -->
+    <Compile Include="..\Shared\ValueObjectLocalizedMessages.cs" Link="Shared\ValueObjectLocalizedMessages.cs" />
+    <!-- The reader of a .NET pattern, which the pattern attribute of an input is written from, in the dialect a browser
+         compiles it in. -->
+    <Compile Include="..\Shared\ValueObjectPatternSyntax.cs" Link="Shared\ValueObjectPatternSyntax.cs" />
+  </ItemGroup>
+
+</Project>

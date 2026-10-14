@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The thirty-one packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The thirty-two packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -114,14 +114,16 @@ and an application translates them under the key `ValueObject.` followed by the 
 supply: the length, the bounds, the known values, formatted in the request's culture. MVC and minimal APIs read the
 translations from a resource the application names, `AddValueObjects(messages => messages.UseResource<T>())` and
 `WithValueObjectProblemDetails(messages => messages.UseResource<T>())`, so do the HTTP triggers of Azure Functions,
-`UseValueObjectProblemDetails(messages => messages.UseResource<T>())`, and a HotChocolate schema,
-`AddValueObjects(options => options.UseResource<T>())`, FluentValidation reads them from its `LanguageManager`, and
+`UseValueObjectProblemDetails(messages => messages.UseResource<T>())`, a HotChocolate schema,
+`AddValueObjects(options => options.UseResource<T>())`, and the inputs of a Blazor form,
+`AddValueObjectInputs(options => options.UseResource<T>())`, FluentValidation reads them from its `LanguageManager`, and
 DataAnnotations' `[ParsesAs]` and `[NotDefault]` from the resource their `ErrorMessageResourceType` names alone. No
 translation ships with the packages. The
 [errors reference](./reference/errors.md#a-message-in-the-applications-language) lists the keys and the arguments, with a
 French example, and the guides for [ASP.NET Core](./how-to/aspnet-core.md#messages-in-the-applications-language),
 [Azure Functions](./how-to/azure.md#messages-in-the-requests-language),
-[GraphQL](./how-to/graphql.md#messages-in-the-applications-language), [FluentValidation](./how-to/fluentvalidation.md#messages-in-another-language)
+[GraphQL](./how-to/graphql.md#messages-in-the-applications-language),
+[Blazor](./how-to/blazor.md#messages-in-the-applications-language), [FluentValidation](./how-to/fluentvalidation.md#messages-in-another-language)
 and [DataAnnotations](./how-to/data-annotations.md#messages-in-another-language) the wiring.
 
 ### Can a value object be a dictionary key, or an EF Core key?
@@ -260,6 +262,16 @@ object type from a value object it meets as an argument and the schema does not 
 HotChocolate.Data takes one binding per value object, and the native binary of a HotChocolate application needs
 HotChocolate.Types and the application's assembly rooted: [GraphQL](./how-to/graphql.md).
 
+### Does it work with Blazor?
+
+Through `AdCodicem.ValueObjects.Blazor`, whose `InputValueObject` binds a value object, or its nullable type, in an
+`EditForm`: it reads the text a person types through the rules, binds the normalized instance, and answers refused text
+with the rule's message under the field and its code on the form's `EditContext`, which
+`TryGetValueObjectErrorCode` reads. Without it, `@bind` drops refused text without a message and binds empty text as the
+default instance, and none of the built-in inputs takes a value object. A statically rendered form is mapped by the
+framework first, which answers a refused value with its own message, quoting the text, and refuses an empty optional
+value object: [Blazor forms](./how-to/blazor.md).
+
 ### Does it work with `XmlSerializer`, `DataContractSerializer` or WCF?
 
 Once the assembly asks for it: `[assembly: ValueObjectXmlSerialization]` makes the generator implement
@@ -342,7 +354,8 @@ identifier's descriptor, the MVC model binder provider creates its binders, the 
 each parameter it explains, the Azure Functions converter the conversion of each value object a parameter binds and its
 middleware the check of each it explains, the HotChocolate type discovery handler the scalar of each value object a schema
 meets, the NJsonSchema package the converter it writes a value object's examples through under Newtonsoft.Json
-settings, the JSON converter factory closes the general-purpose converter it gives a value object
+settings, the Blazor input the text adapters of the value object it binds, the JSON converter factory closes the
+general-purpose converter it gives a value object
 written by hand, the test-data sampler, the AutoFixture customization, the Bogus extensions and FsCheck's
 `MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
 value object, each element of a collection of them, and each entity identifier, all but the converter of an optional
@@ -360,7 +373,9 @@ trimming or AOT warning, and unless the native binary does exactly what the appl
 HotChocolate package is marked AOT-compatible too, and its own code publishes with no warning, but CI publishes no
 HotChocolate application: HotChocolate's own publish warns, and its binary starts only with HotChocolate.Types and the
 application's assembly rooted ([GraphQL](./how-to/graphql.md#native-aot)). The gRPC package is
-AOT-compatible, and CI's application serves a contract-first service with it. The protobuf-net package is marked
+AOT-compatible, and CI's application serves a contract-first service with it. The Blazor package is AOT-compatible,
+and CI's application renders a form of every registered value object through `HtmlRenderer`; Microsoft.AspNetCore.Components
+warns for itself there ([Blazor](./how-to/blazor.md#native-aot-and-trimming)). The protobuf-net package is marked
 AOT-compatible: its serializers run in protobuf-net's compile-time model, which CI publishes in an application of its
 own, whose generated code protobuf-net's annotations make warn, while its registration and its code-first binder serve
 protobuf-net's runtime model, which needs the JIT ([protobuf-net](./how-to/protobuf-net.md#native-aot)). The EF Core,

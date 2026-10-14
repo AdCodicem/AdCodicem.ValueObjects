@@ -11,7 +11,8 @@ namespace AdCodicem.ValueObjects.Shared;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The localizer comes from <c>IStringLocalizerFactory</c>, in the request's services or the application's, which
+/// The localizer comes from <c>IStringLocalizerFactory</c>, in the request's services, the application's or a Blazor
+/// component's, which
 /// looks the template up in the current UI culture and formats it with
 /// <see cref="string.Format(IFormatProvider, string, object[])"/> in the current culture: <c>{0}</c> is the member the
 /// refusal is listed under, and the arguments <see cref="ValueObjectMessages"/> reads from the schema follow from
@@ -21,10 +22,10 @@ namespace AdCodicem.ValueObjects.Shared;
 /// <see cref="FormatException"/>, which is the application's error to see, not to hide behind the English text.
 /// </para>
 /// <para>
-/// This file is linked into the four packages that localize a refusal: the three that answer one on ASP.NET Core, the
+/// This file is linked into the five packages that localize a refusal: the three that answer one on ASP.NET Core, the
 /// minimal API one, the MVC one and the Azure Functions ASP.NET Core one, which link
-/// <c>ValueObjectLocalizedMessages.AspNetCore.cs</c> beside it for the options they share, and the HotChocolate one, which
-/// links this file alone. Each compiles its own copy, as the AI and the Model Context Protocol packages each compile
+/// <c>ValueObjectLocalizedMessages.AspNetCore.cs</c> beside it for the options they share, and the HotChocolate one and
+/// the Blazor one, which link this file alone. Each compiles its own copy, as the AI and the Model Context Protocol packages each compile
 /// <c>ValueObjectArguments.cs</c>. It reads no annotation and closes no generic type at run time, so it runs in a native
 /// binary.
 /// </para>
@@ -32,8 +33,8 @@ namespace AdCodicem.ValueObjects.Shared;
 internal static partial class ValueObjectLocalizedMessages
 {
     private const string NoLocalization =
-        "The messages of refused value objects are read from a resource, through the IStringLocalizerFactory of the "
-        + "request's services, which this application does not register. Call builder.Services.AddLocalization().";
+        "The messages of refused value objects are read from a resource, through an IStringLocalizerFactory, which this "
+        + "application's services do not hold. Call builder.Services.AddLocalization().";
 
     /// <summary>
     /// Looks up the message of a value object a typed integration refused, described by its own schema, in a resource the

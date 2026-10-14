@@ -22,6 +22,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers and protobuf-net.Grpc code-first services: the underlying type's wire, strict reads, the scalar in the `.proto` export, a refused request answered `INVALID_ARGUMENT` with its code. AOT-compatible through protobuf-net's `[ProtoModel]`. |
 | `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC: every refused field at once in a `google.rpc.BadRequest`, a refusal escaping a handler as `INVALID_ARGUMENT` with a `google.rpc.ErrorInfo`. AOT-compatible. |
 | `AdCodicem.ValueObjects.HotChocolate` | HotChocolate 16: one GraphQL scalar per value object, read through its rules; a refused value answered with its code under `extensions.code`. AOT-compatible. |
+| `AdCodicem.ValueObjects.Blazor` | Blazor forms: `InputValueObject`, an input per value object read through its rules; the refused rule's message under the field, its code on the `EditContext`. AOT-compatible, installable in Blazor WebAssembly. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI: the rules in tool and structured-output schemas; a refused tool argument answered with its code. AOT-compatible. |
@@ -810,6 +811,57 @@ public readonly partial struct Iban;
   .NET 10 validates public types only.
 - The OpenAPI packages (built-in, Swashbuckle, NSwag through `AdCodicem.ValueObjects.NJsonSchema`) describe a
   `[ParsesAs]` member or parameter as the value object's text (below).
+
+## Blazor forms
+
+`AdCodicem.ValueObjects.Blazor`. Never `@bind` a value object on an `<input>`: it drops refused text without a message
+and binds empty text as the default instance. None of `InputText`, `InputNumber` or `InputDate` takes one.
+
+```razor
+@using AdCodicem.ValueObjects.Blazor   @* in _Imports.razor; a C# global using is not enough (RZ10012, RZ9991) *@
+
+<EditForm Model="Order" OnValidSubmit="Save">
+    <DataAnnotationsValidator />
+    <InputValueObject @bind-Value="Order.Iban" DisplayName="IBAN" />   @* TValue inferred: Iban, Iban?, Reference<PurchaseOrder> *@
+    <ValidationMessage For="() => Order.Iban" />
+</EditForm>
+```
+
+```csharp skip
+builder.Services.AddValueObjectInputs(o => o.UseResource<Messages>());   // optional; registers AddLocalization()
+editContext.TryGetValueObjectErrorCode(FieldIdentifier.Create(() => Order.Iban), out var code);
+```
+
+- Accepted text binds the normalized instance, which the field then shows. Refused text keeps the model, stays in the
+  field (`modified invalid`, `aria-invalid`), and adds the rule's message to the `EditContext`: `ValidationMessage`,
+  `ValidationSummary`, `Validate()` false, `OnValidSubmit` not called. The code is kept on the `EditContext` until the
+  next text, and read with `TryGetValueObjectErrorCode`. No exception, no `trusted` option.
+- Empty text: `TSelf?` binds `null`; `TSelf` is parsed (`AllowEmpty = true` binds the empty instance); refused, it is
+  `value_object.required`, "The {0} field is required.", `{0}` = `DisplayName`, else the field name.
+- Text written: the type's round-trip text (`2026-10-14`, `10:30:15.2500000`, `c` for a `TimeSpan`, numbers in the
+  culture); a formatting-hook type shows its bare underlying value; a default its rules refuse shows empty, an accepted
+  zero shows `0`. `type="date"` suits a `DateOnly`; `type="number"` needs `Culture="CultureInfo.InvariantCulture"`.
+- Culture: `Culture`, else the current culture where interactive or prerendering for interactivity, the invariant one
+  under static rendering. A date (`DateOnly`, `DateTime`, `DateTimeOffset`) is read in the Gregorian calendar whatever
+  the culture's own (`th-TH`, `fa-IR`, `ar-SA`): the culture's patterns, Gregorian years.
+- Messages: `UseResource<T>()`, keys `ValueObject.{code}` (as MVC), current UI culture, English for a missing key.
+- `[NotDefault]` under `DataAnnotationsValidator` guards a field nobody touched; with refused text both messages show.
+- Static rendering (no render mode): the framework maps the post first, through `IParsable<T>`, invariant culture:
+  "The value 'XX' is not valid for 'Iban'." (quotes the text, no code), and an empty `TSelf?` is refused. Need the
+  rule's message there: bind a `string` with `[ParsesAs(typeof(Iban))]` under `InputText`, and create the value object
+  once the form is valid.
+- `InputSelect`/`InputRadioGroup` over a value object throw out of the change event for a refused option (fatal to a
+  Blazor Server circuit): render the options from `TSelf.Schema.KnownValues`.
+- `SchemaAttributes="true"` writes `maxlength`, `minlength` and a `pattern` a browser reads as .NET does (anchored at
+  both ends; no `.`, negation, `\b`, subtraction, surrogate, named block, `\p{C}`/`\p{Cs}` or lookaround). Off by
+  default: the browser checks text before the normalizer runs; keep it off for a type whose normalizer changes typed
+  text (IBAN groups, case).
+- Under no dynamic code, register a hand-written value object and a generic construction by hand
+  (`ValueObjectRegistry.Register<TSelf, TValue>(…)`) before the input renders, or it throws `InvalidOperationException`.
+- bUnit: add services, then `SetRendererInfo(...)`, or `MissingRendererInfoException`. Interactive:
+  `RendererInfo("Server", true)`; prerendering: `RendererInfo("Static", false)` plus
+  `SetAssignedRenderMode(RenderMode.InteractiveServer)` on the parameters; static: `RendererInfo("Static", false)`
+  alone.
 
 ## OpenAPI
 

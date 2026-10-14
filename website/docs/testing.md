@@ -17,11 +17,11 @@ Four suites, each with a distinct job:
   generator emits for every one of them runs rather than only compiles. Generated sources are emitted to disk
   during the build, so they can be read when diagnosing a failure instead of decompiled from memory. Value
   objects written by hand reach what the generator always replaces, such as the default members of the
-  contracts, and five small fixture assemblies hold what the test assembly cannot: a generated value object whose
+  contracts, and six small fixture assemblies hold what the test assembly cannot: a generated value object whose
   module has not been used yet, annotated value objects in an assembly the generator does not run on,
   generated value objects in an assembly that does not reference the JSON package, generated value objects of
-  every underlying type in an assembly that opts into XML serialization, and generated value objects beside a query
-  type HotChocolate's source generator binds. What needs a server and no container runs
+  every underlying type in an assembly that opts into XML serialization, generated value objects beside a query
+  type HotChocolate's source generator binds, and Blazor forms written in Razor markup. What needs a server and no container runs
   here too, over TestHost: ASP.NET Core's pipelines, a SignalR hub talking MessagePack with the .NET client, and a
   protobuf-net.Grpc code-first service and a contract-first gRPC service with the .NET gRPC client; and
   over SQLite in memory: collections of value objects through Entity Framework Core, every sample value object among
@@ -49,7 +49,12 @@ Four suites, each with a distinct job:
   answers it, in the request's language too. HotChocolate schemas built in process take every sample value object as a
   scalar of its own, from the edges its rules declare to the values they rule out, as literals and variables, and answer
   each refusal with its code, in the language of the execution and, over TestHost, of the request; the guide's filtering
-  recipe runs over SQLite. The DataAnnotations attributes hold the text of every sample value object to its rules, in
+  recipe runs over SQLite. Blazor forms rendered through bUnit read every sample value object's text through its
+  rules, alone and nullable, the text an input writes reading back to its instance and each value its rules rule out
+  refused with its code, in each culture the renderer calls for and in French from a resource, and the text it writes
+  reads back in every culture .NET lists, those whose calendar is not the Gregorian one included; the static and the
+  prerendered pages of the Razor fixture are served over TestHost, the framework's own messages pinned, and the patterns
+  an input writes for browsers are checked against .NET here and against Node in the documentation site's job. The DataAnnotations attributes hold the text of every sample value object to its rules, in
   both forms, and refuse each default instance, through `Validator`, options validated as a host starts and by the
   validator `[OptionsValidator]` writes, CommunityToolkit.Mvvm's `ObservableValidator`, MVC and a minimal API under
   `AddValidation()` over TestHost, with their messages in French from a resource, and both OpenAPI documents describe
@@ -115,8 +120,8 @@ Three applications, built as an application builds them, are published rather th
 
 The first references every package that claims to be AOT-compatible: the contracts, the generated code, the JSON package
 with a source-generated context and the JSON Schema it exports, the minimal API problem details, the identifiers,
-FluentValidation, the Serilog integration, the Microsoft.Extensions.AI one, the Model Context Protocol one and the gRPC
-one, all but
+FluentValidation, the Serilog integration, the Microsoft.Extensions.AI one, the Model Context Protocol one, the gRPC
+one and the Blazor one, all but
 the HotChocolate one, whose framework warns on its own publish and starts natively only rooted
 ([GraphQL](./how-to/graphql.md#native-aot)), and the protobuf-net one, which the third publishes. Its value
 objects cover each of the 22 underlying types, a pattern hook, a
@@ -130,10 +135,12 @@ endpoints the Request Delegate Generator binds, refused values answered with pro
 `ThrowOnBadRequest`, in English and with the messages of a resource read through the localizer, each answer checked
 against the status, the codes and, translated, the messages the script expects, and the DataAnnotations attributes, both
 forms and `[NotDefault]`, through `Validator`, the validator `[OptionsValidator]` writes and a minimal API under
-`AddValidation()`, each refusal checked against its code — once under the JIT and
-once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT warning in the publish, and on any
-difference between the two outputs, and a pull request merges only once it passes, so the claim of AOT compatibility is
-run, not only analysed.
+`AddValidation()`, each refusal checked against its code, and a Blazor form of every one of them through
+`HtmlRenderer`, each text of its underlying type typed into its input, alone and nullable — once under the JIT and
+once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT warning in the publish, but the two
+Microsoft.AspNetCore.Components reports for itself once a component renders, which the project lists in its
+`aot-warnings.allowed`, and on any difference between the two outputs, and a pull request merges only once it passes,
+so the claim of AOT compatibility is run, not only analysed.
 
 The second holds an Entity Framework Core context mapping every value object the conventions map, required and
 optional, a generic one, an identifier as the key and collections of them, `Guid` and `int` keys it generates and a
@@ -156,7 +163,7 @@ the warnings the project lists, `aot-warnings.allowed`, and fails on any other, 
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the thirty-one packages exactly as they were packed — from the folder the build packs into, at that one
+installs the thirty-two packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -173,7 +180,8 @@ a protobuf-net.Grpc code-first service over TestHost, a contract-first gRPC serv
 FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI
 tools and structured output, Model Context Protocol tools over the SDK's own client, the Azure Functions converter and
 the problem details middleware beside ASP.NET Core 11, HotChocolate 16 scalars in a schema built in process, their
-messages in the language of the execution, an NSwag 14.7 document and Confluent's JSON serdes 2.16 over NJsonSchema,
+messages in the language of the execution, a Blazor input rendered by `HtmlRenderer` on the Components of .NET 11, its
+messages from a resource, an NSwag 14.7 document and Confluent's JSON serdes 2.16 over NJsonSchema,
 `XmlSerializer` and
 `DataContractSerializer` over a domain that opts into XML serialization, the contract kit, and the test-data sampler
 drawing each value object of that domain from the schema the generator of that SDK wrote, through AutoFixture, Bogus and

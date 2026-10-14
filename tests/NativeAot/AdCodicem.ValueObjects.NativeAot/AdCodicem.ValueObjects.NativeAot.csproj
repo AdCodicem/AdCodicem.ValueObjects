@@ -10,7 +10,9 @@
     of LanguageModels.cs from their methods at run time, over the source-generated context, and so does the Model Context
     Protocol SDK for the server of Mcp.cs, in process over a pair of pipes. ContractFirstGrpc.cs serves a contract-first
     gRPC service, whose messages Grpc.Tools compiles from ContractFirst.proto, over Kestrel's cleartext HTTP/2, with the
-    gRPC package's interceptor and collector. Two value objects written by
+    gRPC package's interceptor and collector. Forms.cs renders a Blazor form of every registered value object through
+    HtmlRenderer, its Razor components compiled by the Web SDK, and types text into each input; Microsoft.AspNetCore.Components
+    warns for itself once a component renders, which aot-warnings.allowed lists. Two value objects written by
     hand, linked from the unit suite, have no generated converter: Program.cs registers them without one, so the JSON
     factory serves them its general-purpose converter. A third, UnregisteredCode, is registered by nothing, and the
     factory refuses it.
@@ -35,6 +37,12 @@
     <DynamicCodeSupport>false</DynamicCodeSupport>
   </PropertyGroup>
 
+  <!-- So that the AOT compiler finishes the publish, and the script, rather than TreatWarningsAsErrors, judges the two
+       assembly-level warnings Microsoft.AspNetCore.Components reports for itself against aot-warnings.allowed. -->
+  <PropertyGroup Condition="'$(NativeAot)' == 'true'">
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2104;IL3053</WarningsNotAsErrors>
+  </PropertyGroup>
+
   <!-- Serilog's build targets turn object destructuring off under PublishTrimmed, which PublishAot implies, so the JIT run
        does the same: an object logged with @ is the text its ToString() writes in both runs. Conditioned so that the
        native publish keeps Serilog's own item alone. -->
@@ -46,6 +54,7 @@
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.AI\AdCodicem.ValueObjects.AI.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.AspNetCore.Http\AdCodicem.ValueObjects.AspNetCore.Http.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Blazor\AdCodicem.ValueObjects.Blazor.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />

@@ -16,9 +16,10 @@
 # Run it from anywhere in the repository.
 #
 # A project may hold aot-warnings.allowed: one extended regular expression per line, # for a comment. A warning of the
-# publish that matches one is expected and does not fail the run; any other does. Only the protobuf-net application
-# has one: protobuf-net's annotations reach the nested converters of every value object at each call into the model
-# its generator writes, and protobuf-net.Core warns for itself.
+# publish that matches one is expected and does not fail the run; any other does. Both applications have one: the main
+# application's lists the two assembly-level warnings Microsoft.AspNetCore.Components reports for itself once the Blazor
+# form of Forms.cs renders, and the protobuf-net application's those of protobuf-net's annotations, which reach the
+# nested converters of every value object at each call into the model its generator writes, and protobuf-net.Core's own.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."

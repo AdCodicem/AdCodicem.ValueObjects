@@ -1,0 +1,10 @@
+@page "/forms/interactive"
+@rendermode InteractiveServer
+@* A page rendered for interactivity, which the server prerenders first, in the current culture. *@
+<EditForm Model="Model">
+    <OrderFields Model="Model" />
+</EditForm>
+
+@code {
+    private OrderForm Model { get; } = new();
+}

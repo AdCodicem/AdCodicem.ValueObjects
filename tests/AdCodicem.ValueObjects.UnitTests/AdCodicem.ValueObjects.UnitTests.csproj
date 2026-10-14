@@ -38,6 +38,7 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson\AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AzureFunctions\AdCodicem.ValueObjects.AzureFunctions.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AzureFunctions.AspNetCore\AdCodicem.ValueObjects.AzureFunctions.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Blazor\AdCodicem.ValueObjects.Blazor.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Dapper\AdCodicem.ValueObjects.Dapper.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
@@ -64,12 +65,14 @@
          annotated where the generator does not run, generated ones in an assembly that does not reference the JSON
          package, generated ones in an assembly that opts into XML serialization, and generated ones beside a query type
          HotChocolate's source generator binds, whose generated module this assembly would otherwise get
-         (tests/Fixtures/Directory.Build.props). -->
+         (tests/Fixtures/Directory.Build.props); and the Blazor forms written in Razor markup, which the Razor compiler
+         builds in a project of its own, so that this one stays on Microsoft.NET.Sdk. -->
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Untouched\AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutGenerator\AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutJson\AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.XmlSerialization\AdCodicem.ValueObjects.Fixtures.XmlSerialization.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.GraphQL\AdCodicem.ValueObjects.Fixtures.GraphQL.csproj" />
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Blazor\AdCodicem.ValueObjects.Fixtures.Blazor.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -138,6 +141,14 @@
          does. -->
     <PackageReference Include="protobuf-net.Grpc.AspNetCore" />
     <PackageReference Include="Grpc.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- bUnit's renderer, which Forms/ drives the Blazor package's input through, as an application's test of a form does;
+         the static and prerendered pages of the Razor fixture are served over TestHost instead. -->
+    <PackageReference Include="bunit" />
+    <!-- The patterns the Blazor package writes for browsers, which ci.yml's documentation site job checks under Node too. -->
+    <None Update="Forms\EcmaScriptPatterns.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -10,6 +10,7 @@ using AdCodicem.ValueObjects.NewtonsoftJson;
 using AdCodicem.ValueObjects.Testing.Data;
 using AdCodicem.ValueObjects.UnitTests.BinarySerialization;
 using AdCodicem.ValueObjects.UnitTests.DataAnnotations;
+using AdCodicem.ValueObjects.UnitTests.Forms;
 using AdCodicem.ValueObjects.UnitTests.Functions;
 using AdCodicem.ValueObjects.UnitTests.GraphQL;
 using AdCodicem.ValueObjects.UnitTests.LanguageModels;
@@ -183,6 +184,14 @@ public abstract class Sample
     /// refuse the refused text with the code and the message <c>TryParse</c> gives it.
     /// </summary>
     public abstract void HoldsTextToItsRulesThroughDataAnnotations();
+
+    /// <summary>
+    /// Renders the value object, alone and as its nullable type, in a statically rendered Blazor form, and checks that the
+    /// text the input writes for the two instances and for every value at an edge of its rules reads back to the instance
+    /// and binds it, and that the refused text and the text of every value its schema rules out leave the code and the
+    /// message <c>TryParse</c> gives.
+    /// </summary>
+    public abstract void BindsThroughABlazorInput();
 
     /// <summary>
     /// Checks that <c>[NotDefault]</c> refuses the value object's default instance with
@@ -728,6 +737,8 @@ public class Sample<TSelf, TValue> : Sample
     public override Task AnswersARefusedGraphQLValueWithItsRuleAsync() => GraphQLParity.CheckAsync<TSelf, TValue>(Small, Large, Refused);
 
     public override void DescribesItselfInEveryNJsonSchemaWire() => NJsonSchemaWires.Check<TSelf, TValue>(Small, Large);
+
+    public override void BindsThroughABlazorInput() => FormsParity.Check<TSelf, TValue>(Small, Large, Refused);
 
     public override void HoldsTextToItsRulesThroughDataAnnotations()
     {

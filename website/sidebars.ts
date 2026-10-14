@@ -37,6 +37,7 @@ const sidebars: SidebarsConfig = {
         'how-to/grpc',
         'how-to/fluentvalidation',
         'how-to/data-annotations',
+        'how-to/blazor',
         'how-to/messaging',
         'how-to/logging',
         'how-to/language-models',
