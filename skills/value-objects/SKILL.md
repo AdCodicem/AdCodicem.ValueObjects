@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (a $jsonSchema validator, entity identifiers minted on insert), MessagePack and SignalR, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker) and HotChocolate (GraphQL) integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0042 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (a $jsonSchema validator, entity identifiers minted on insert), MessagePack and SignalR, protobuf-net and gRPC, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker) and HotChocolate (GraphQL) integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, reference code, money, strongly-typed identifier), and whenever a VO0001–VO0042 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -178,11 +178,12 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   validation. Construct through `Create`/`TryCreate`; express absence as `Iban?`, never as an empty or default
   instance. A test that needs one disables `VO0010` on that line with a comment saying why. One that slips past the
   analyzer (an entity property never set) is refused by every writer when its type rejects the default (JSON,
-  Dapper, MongoDB, MessagePack, XML in an assembly marked `[assembly: ValueObjectXmlSerialization]`, EF Core
-  `SaveChanges`); an EF Core `Iban?` column stores `NULL` instead, and so does an element of a `List<Iban?>` (over
-  text only: an element of a `List<Quantity?>` is refused). Under `ConfigureValueObjects`, an EF Core primary key of one
-  property over a `Guid` value object that nothing generates refuses an entity added without it (`value_object.required`
-  in the exception's `Data`): assign it, or call `HasValueObjectKeyGeneration()`.
+  Dapper, MongoDB, MessagePack, protobuf-net, a HotChocolate output field, XML in an assembly marked
+  `[assembly: ValueObjectXmlSerialization]`, EF Core `SaveChanges`); an EF Core `Iban?` column stores `NULL` instead,
+  and so does an element of a `List<Iban?>` (over text only: an element of a `List<Quantity?>` is refused). Under
+  `ConfigureValueObjects`, an EF Core primary key of one property over a `Guid` value object that nothing generates
+  refuses an entity added without it (`value_object.required` in the exception's `Data`): assign it, or call
+  `HasValueObjectKeyGeneration()`.
 - `NormalizeCore` / `ValidateCore` / `TryFormatCore` — the pre-interface names. They compile, they never run.
 - `Pattern = "..."` on `[ValueObject<T>]` — a compile error (`VO0021`). Move the text to the hook, with
   `RegexOptions.CultureInvariant` and `matchTimeoutMilliseconds: 1000`; behaviour is unchanged.
@@ -234,6 +235,8 @@ ValueObjectBson.Register(typeof(Iban).Assembly);                                
 EntityIdBson.Register(typeof(AccountId).Assembly);                                     // Identifiers.MongoDB, on insert
 var msgpack = MessagePackSerializerOptions.Standard.WithValueObjects();                // MessagePack
 builder.Services.AddSignalR().AddMessagePackProtocol(o => o.UseValueObjects());        // MessagePack, client too
+RuntimeTypeModel.Default.AddValueObjects(typeof(Iban).Assembly);                       // ProtobufNet, before the first message
+builder.Services.AddSingleton(ValueObjectBinderConfiguration.ForServer(RuntimeTypeModel.Default)); // ProtobufNet: code-first gRPC
 builder.Services.AddGraphQLServer().AddQueryType<Query>().AddValueObjects();           // HotChocolate, a scalar per value object
 new LoggerConfiguration().Enrich.FromLogContext()                                      // Serilog, after FromLogContext
     .Destructure.ValueObjects(o => { o.CaptureAsUnderlyingValue = true; o.Assemblies.Add(typeof(Iban).Assembly); });
@@ -315,7 +318,7 @@ library. AutoFixture, Bogus and FsCheck get the same values through `AdCodicem.V
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, test data for AutoFixture, Bogus and FsCheck. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, protobuf-net and code-first gRPC, FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, test data for AutoFixture, Bogus and FsCheck. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, their EF Core columns and MongoDB id generation, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0042`, with the fix for each. |
 

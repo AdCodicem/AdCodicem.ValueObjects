@@ -22,7 +22,7 @@
     <Error Text="The compatibility island targets the next .NET major, which SDK $(NETCoreSdkVersion) cannot. Run it from tests/Compat, whose global.json selects the SDK it needs." />
   </Target>
 
-  <!-- All twenty-nine but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
+  <!-- All thirty but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
        AdCodicem.ValueObjects and runs in this SDK's compiler, the integrations resolve their dependency floors against
        the next major, HotChocolate.Types' net11.0 assembly among them. Swashbuckle 10 fails on the Microsoft.OpenApi 3 that Microsoft.AspNetCore.OpenApi 11 brings here,
        so the Swashbuckle package is installed by the project of Swashbuckle/. -->
@@ -52,6 +52,7 @@
     <PackageReference Include="AdCodicem.ValueObjects.NewtonsoftJson" />
     <PackageReference Include="AdCodicem.ValueObjects.NJsonSchema" />
     <PackageReference Include="AdCodicem.ValueObjects.OpenApi" />
+    <PackageReference Include="AdCodicem.ValueObjects.ProtobufNet" />
     <PackageReference Include="AdCodicem.ValueObjects.Serilog" />
     <PackageReference Include="AdCodicem.ValueObjects.Testing" />
     <PackageReference Include="AdCodicem.ValueObjects.Testing.Data" />
@@ -96,6 +97,12 @@
     <PackageReference Include="NSwag.AspNetCore" />
     <PackageReference Include="Confluent.SchemaRegistry.Serdes.Json" />
     <PackageReference Include="librdkafka.redist" ExcludeAssets="native;build" />
+    <!-- A protobuf-net.Grpc server over TestHost, the .NET client a code-first service is reached through, and
+         Grpc.StatusProto, which reads the google.rpc.Status a refused request is answered with; protobuf-net and
+         protobuf-net.Grpc come with AdCodicem.ValueObjects.ProtobufNet, at the package's floors. -->
+    <PackageReference Include="protobuf-net.Grpc.AspNetCore" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Grpc.StatusProto" />
   </ItemGroup>
 
   <ItemGroup>

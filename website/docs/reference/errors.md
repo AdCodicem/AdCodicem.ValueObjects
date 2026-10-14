@@ -224,6 +224,7 @@ that treats a rejected value as a bug, for a strict EF Core read, and for an EF 
 | EF Core with `strict: true` | `ValueObjectException`, from `Create`, for a column or an element of a [collection](../how-to/ef-core.md#collections-of-value-objects): the query fails. |
 | MongoDB.Driver, through [`AdCodicem.ValueObjects.MongoDB`](../how-to/mongodb.md#reading) | `FormatException`, "The value read is not a valid Iban: …", carrying the code in its `Data`, for a value the type refuses unless the serializer is trusted, and, whatever the trust, for a BSON `null` or a value the serializer of the underlying type cannot read; inside the driver's own `FormatException`, naming the member and its class, when it reads a document. |
 | MessagePack, through [`AdCodicem.ValueObjects.MessagePack`](../how-to/messagepack.md#reading) | `MessagePackSerializationException`, "The value read is not a valid Iban: …", carrying the code in its `Data`, for a value the type refuses unless the formatter is trusted, and, whatever the trust, for a `nil` or a value the formatter of the underlying type cannot read; inside MessagePack's own `MessagePackSerializationException`, "Failed to deserialize … value.". A dictionary whose keys normalize to one value object fails with MessagePack's own `ArgumentException`, which carries no code and quotes the key ([value-object keys](../how-to/messagepack.md#security-and-value-object-keys)). Through [SignalR](../how-to/messagepack.md#signalr), the hub method is not invoked: the client gets a `HubException` that names neither the rule nor its code, and the server logs the binding failure at `Debug`, with the code in the exception's chain. |
+| protobuf-net, through [`AdCodicem.ValueObjects.ProtobufNet`](../how-to/protobuf-net.md#reading) | `ProtoException`, "The value read is not a valid Iban: …", carrying the code in its `Data`, for a value the type refuses unless the serializer is trusted, and, whatever the trust, for a value protobuf-net's serializer of the underlying type cannot read, "The protobuf value read cannot be read as Iban, a value object over String.", with `value_object.not_parsable`; protobuf-net lets it through as it is. A field the message leaves out is never read: the member holds the default instance, which no rule checked ([members a sender leaves out](../how-to/protobuf-net.md#members-a-sender-leaves-out)). Through a protobuf-net.Grpc [code-first service](../how-to/protobuf-net.md#code-first-grpc) whose configuration is `ValueObjectBinderConfiguration.ForServer`, a refused request is answered `INVALID_ARGUMENT`, with the message of the refusal and a `google.rpc.ErrorInfo` carrying the code; without it, `UNKNOWN`, "Exception was thrown by handler.". A reply the client's value objects refuse surfaces on the client as an `RpcException`, `INTERNAL`, whose inner `ProtoException` carries the code. |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly marked `[assembly: ValueObjectXmlSerialization]` | `XmlException`, with the message of the rule and the line of the element, carrying the code in its `Data`, inside `XmlSerializer`'s `InvalidOperationException` ("There is an error in XML document …") or `DataContractSerializer`'s `SerializationException`: [XML](../how-to/xml.md#reading). |
 | A Model Context Protocol tool whose result holds a value its type refuses | The converter's `ValueObjectJsonException` reaches the SDK, which answers the call with `An error occurred invoking 'get_iban'.`, with or without `AdCodicem.ValueObjects.ModelContextProtocol`, which checks arguments, not results. |
 | A Model Context Protocol tool result that a client validates against the tool's `outputSchema` | The client's own refusal, for a value its type accepts and the schema, written for what a model sends, does not: another spelling of a known value of a closed set looked up ignoring case, or text whose characters outside the Basic Multilingual Plane bring it under `minLength` ([what it does not cover](../how-to/language-models.md#what-it-does-not-cover)). |
@@ -235,10 +236,11 @@ that treats a rejected value as a bug, for a strict EF Core read, and for an EF 
 | A GraphQL argument, input field or variable, through [`AdCodicem.ValueObjects.HotChocolate`](../how-to/graphql.md#a-refused-value)'s `AddValueObjects()` | `LeafCoercionException`, carrying the code in its `Data`, whose GraphQL error has the message of the rule, the code as `extensions.code`, and a `ValueObjectException` with the type and the code on `IError.Exception`: a field error at the argument's `inputPath`, a request error at the variable's `path`. A variable of another JSON kind is `value_object.not_parsable`; a literal of another kind and a `null` literal are its own validation errors, with no code, and a `null` variable its `HC0018`. Without the package, a schema taking a value object as an argument does not start: ``No compatible constructor found for input type type `Shop.Iban`.``. |
 
 The other reads do not validate. EF Core by default, Dapper for a value the provider returns as the underlying type or
-as its date and time counterpart, a trusted MongoDB serializer and a trusted MessagePack formatter build the value
-object with `CreateUnchecked`: they read what this application validated when it wrote it. A trusted MongoDB serializer
-still refuses a BSON `null` and a value the serializer of the underlying type cannot read, which no instance can hold,
-and a trusted MessagePack formatter a `nil` and a value the formatter of the underlying type cannot read.
+as its date and time counterpart, a trusted MongoDB serializer, a trusted MessagePack formatter and a trusted protobuf-net
+serializer build the value object with `CreateUnchecked`: they read what this application validated when it wrote it.
+A trusted MongoDB serializer still refuses a BSON `null` and a value the serializer of the underlying type cannot read,
+which no instance can hold, a trusted MessagePack formatter a `nil` and a value the formatter of the underlying type
+cannot read, and a trusted protobuf-net serializer a value protobuf-net's serializer of the underlying type cannot read.
 [EF Core](../how-to/ef-core.md#validation-on-read) says when to read strictly. A `.Value` an EF Core query projects
 under [`UseValueObjectQueries()`](../how-to/ef-core.md#the-value-in-a-query) is read from the column as it stands, in a
 strict context too: it builds no value object, so nothing validates it. A context whose options call it, started on a
@@ -270,6 +272,7 @@ without being validated again.
 | EF Core, an element of a collection of an optional value object over a value type (`List<Quantity?>`) | As in a `List<Quantity>`: the `DbUpdateException` around the `ValueObjectException`. Entity Framework Core cannot write the `null` a converter would hand its JSON writer there. |
 | MongoDB.Driver, through [`AdCodicem.ValueObjects.MongoDB`](../how-to/mongodb.md#writing) | `BsonSerializationException`, with the same message: from `InsertOne`, `InsertMany` or `ReplaceOne`, inside the driver's own, which names the member; from an update or a query constant, as it is. An `Iban?` holding a default `Iban` is refused too; an `Iban?` holding nothing is written as `null`. Nothing is written. An update through `.Value`, `Update.Set(x => x.Page.Value, 0)`, writes the raw value unchecked: set the value object instead. |
 | MessagePack, through [`AdCodicem.ValueObjects.MessagePack`](../how-to/messagepack.md#writing) | `MessagePackSerializationException`, with the same message, inside MessagePack's own, "Failed to serialize … value.", from a value, a dictionary key, and an `Iban?` holding a default `Iban`; an `Iban?` holding nothing is written as `nil`. Through [SignalR](../how-to/messagepack.md#signalr), a .NET client's invocation throws it, and nothing is sent; a hub method's result fails to be written, the server logs it, and closes the connection. |
+| protobuf-net, through [`AdCodicem.ValueObjects.ProtobufNet`](../how-to/protobuf-net.md#writing) | `ProtoException`, with the same message, as it is: from a value, a nullable one holding a default instance, an element of a list and a dictionary key; a `TSelf?` holding nothing is written as nothing. Through a code-first gRPC service, a reply the server cannot write is answered `UNKNOWN`, "Exception was thrown by handler.". |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly marked `[assembly: ValueObjectXmlSerialization]` | `XmlException`, "The value to write is not a valid Quantity: …", inside `XmlSerializer`'s `InvalidOperationException` ("There was an error generating the XML document.") or `DataContractSerializer`'s `SerializationException`. |
 | HotChocolate, through [`AdCodicem.ValueObjects.HotChocolate`](../how-to/graphql.md#a-refused-value) | The field's error, with the message of the rule and HotChocolate's own code, `EXEC_INVALID_LEAF_VALUE`; the `ValueObjectException` on `IError.Exception` keeps the rule's code. A real that is not finite is refused the same way, as no GraphQL Float holds it. |
 
@@ -341,6 +344,16 @@ dictionary whose keys normalize to one value object fails with MessagePack's `Ar
 elements than bytes remain is refused by MessagePack's reader with an `EndOfStreamException`, before any value object
 is read. Each comes inside MessagePack's own `MessagePackSerializationException` when the serializer reads or writes.
 
+`AdCodicem.ValueObjects.ProtobufNet` lets through protobuf-net's own exceptions, which carry no code. A value object
+nobody registered fails the first message holding one with protobuf-net's `InvalidOperationException`, "No serializer
+defined for type: Shop.Iban"; a registration after the model has written one fails with another, "The type cannot be
+changed once a serializer has been generated for Shop.Iban". `AddValueObject` throws an `InvalidOperationException`
+for a value object the model already serializes through another serializer, naming both, and a `NotSupportedException`
+for a value object over `Int128`, `UInt128` or `DateTimeOffset`, which protobuf-net has no serializer for, as the
+serializer does when an attribute names it on such a type. A `null` in a `List<Iban?>` without `[NullWrappedValue]` is
+protobuf-net's `NullReferenceException`, as in a `List<int?>`, and a stream disposed while a value is read is the
+stream's `ObjectDisposedException`.
+
 A log is no such write: nothing reads one back into a value object. The
 [Serilog integration](../how-to/logging.md#serilog) logs a default instance as the default of its underlying type,
 `0`, `""` or `false`, and throws nothing, whatever it logs.
@@ -381,6 +394,8 @@ reading English:
 | EF Core, a row a CHECK constraint from the rules refused, under `UseValueObjectCheckErrors()` | The provider's `SqlException`, `PostgresException` or `SqliteException`, inside the `DbUpdateException` of `SaveChanges`, as it is from `ExecuteUpdate`, raw SQL or a migration; on SQL Server, a raw query reading back the rows it writes, over `OUTPUT`, fails with an error that carries none, which `ValueObjectCheckConstraints.TryGetCode` reads | In `Data` |
 | MongoDB.Driver, a read or a refused write | `FormatException` on read, `BsonSerializationException` on write, inside the driver's exception of the same type, naming the member, when it reads or writes a document | In `Data` |
 | MessagePack, a read or a refused write | `MessagePackSerializationException`, inside MessagePack's own of the same type when the serializer reads or writes a value | In `Data` |
+| protobuf-net, a read or a refused write | `ProtoException`, as it is | In `Data` |
+| A protobuf-net.Grpc code-first service, a refused request, through `ValueObjectBinderConfiguration.ForServer` | `RpcException`, `INVALID_ARGUMENT`, whose trailers carry a `google.rpc.ErrorInfo` | The `ErrorInfo`'s `reason` and `metadata["code"]` on the client; `Data` on the server |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly that opts into XML serialization | `XmlException`, inside the serializer's `InvalidOperationException` or `SerializationException` | In `Data` |
 | The Azure Functions converter | `FormatException`, whose text alone the worker keeps, in its `FunctionInputConverterException` | In `Data`, and at the end of the message |
 | The HotChocolate scalars | `LeafCoercionException`, whose GraphQL error carries a `ValueObjectException` on `IError.Exception` | In `Data`; the error's `Exception` in `ErrorCode`, and its `extensions.code` but for a refused output |
@@ -390,8 +405,9 @@ The code is the one the rule reports. A value that is not of the underlying type
 `value_object.not_parsable`: a JSON token of the wrong kind, a number the underlying type cannot hold, text not of its
 shape, a column the Dapper handler cannot convert, an XML element holding elements or no text of the underlying type, a
 BSON value of a type, or beyond a range, the serializer of the underlying type cannot read, a MessagePack value of
-another type, beyond a range, not of the underlying type's shape, or truncated. A `null` where a value object that
-cannot be `null` is expected carries `value_object.required`: a JSON `null`, a SQL `NULL`, a BSON `null` or a
+another type, beyond a range, not of the underlying type's shape, or truncated, a protobuf field of another wire type,
+beyond a range, not of the underlying type's shape, of a negative length, or truncated. A `null` where a value object
+that cannot be `null` is expected carries `value_object.required`: a JSON `null`, a SQL `NULL`, a BSON `null` or a
 MessagePack `nil` read into an `Iban` rather than an `Iban?`, an element
 marked `xsi:nil` that `XmlSerializer` hands a member that cannot be `null` (`DataContractSerializer` refuses that one
 itself, without a code). So does an entity [added without its key](#an-entity-added-without-its-key). The messages
@@ -462,6 +478,11 @@ ASCII letters are upper-cased and digits kept, any run of other characters becom
 left at either end is dropped. A code that maps to no valid reason, one that starts with a digit or that comes out
 longer than 63 characters, throws an `ArgumentException` rather than being truncated or given a prefix, which could
 make two codes one.
+
+A protobuf-net.Grpc code-first service configured with `ValueObjectBinderConfiguration.ForServer` answers a refused
+request with this reason in a `google.rpc.ErrorInfo`, its `metadata` holding the code and the value object, inside the
+`google.rpc.Status` of its `grpc-status-details-bin` trailer, which holds no `ErrorInfo` for a code that maps to none
+([code-first gRPC](../how-to/protobuf-net.md#code-first-grpc)).
 
 ## A value the test-data sampler cannot draw
 

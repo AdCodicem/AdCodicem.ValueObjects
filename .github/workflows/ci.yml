@@ -161,7 +161,8 @@ jobs:
   # major (tests/Compat): the generator in its compiler, Entity Framework Core 11 on
   # SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core
   # model binding, on System.Text.Json and on Newtonsoft.Json, minimal API problem
-  # details, MongoDB.Driver on MongoDB 8, MessagePack, with SignalR's MessagePack hub protocol over TestHost, Serilog,
+  # details, MongoDB.Driver on MongoDB 8, MessagePack, with SignalR's MessagePack hub protocol over TestHost,
+  # protobuf-net and a protobuf-net.Grpc code-first service over TestHost, Serilog,
   # Microsoft.Extensions.AI tools and structured output, Model Context Protocol tools over in-process streams, the Azure
   # Functions worker's converter and problem details middleware, HotChocolate 16 scalars in process, NSwag documents
   # and Confluent's JSON serdes over NJsonSchema, the contract kit and the test-data packages over AutoFixture, Bogus
@@ -236,7 +237,10 @@ jobs:
   # analyzers
   # see what each library calls; this runs it, once under the JIT and once as
   # the native binary, and a trimming or AOT warning, or any difference between
-  # the two outputs, fails the job. Then the compiled model of the build job,
+  # the two outputs, fails the job. Then protobuf-net's compile-time model, the
+  # same way in an application of its own, whose generated code protobuf-net's
+  # annotations make warn: those warnings, listed, are expected, any other fails
+  # the job. Then the compiled model of the build job,
   # written for native AOT with its queries precompiled, and published: never
   # run, since two bugs of Entity Framework Core stop its queries. Beside build
   # rather than after it, as a native publish takes minutes. A required check of
@@ -271,6 +275,13 @@ jobs:
       - name: Application
         run: .github/scripts/native-aot.sh
 
+      # protobuf-net's compile-time model, in an application of its own: protobuf-net's
+      # annotations reach the nested converters every value object carries, and
+      # its publish warns at each call into the model it generates. The script
+      # fails on any other warning (the project's aot-warnings.allowed).
+      - name: protobuf-net application
+        run: .github/scripts/native-aot.sh artifacts/native-aot-protobuf tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet
+
       - name: Compiled model
         run: .github/scripts/compiled-model.sh aot
 
@@ -282,6 +293,9 @@ jobs:
             artifacts/native-aot/*.txt
             artifacts/native-aot/*.diff
             artifacts/native-aot/*.log
+            artifacts/native-aot-protobuf/*.txt
+            artifacts/native-aot-protobuf/*.diff
+            artifacts/native-aot-protobuf/*.log
             artifacts/compiled-model/*.log
 
   # The documentation site, built as deploy-docs.yml builds it and deployed by

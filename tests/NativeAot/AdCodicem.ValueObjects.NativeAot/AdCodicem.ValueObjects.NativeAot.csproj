@@ -3,7 +3,9 @@
   <!--
     An application published with native AOT by ci.yml's native AOT job, which runs it once under the JIT and once as
     the native binary and fails when the two outputs differ (Program.cs). It references every package that claims to
-    be AOT-compatible, and its value objects come from a domain project, where the Request Delegate Generator sees their
+    be AOT-compatible but two, AdCodicem.ValueObjects.HotChocolate, whose framework warns on its own publish and starts
+    natively only rooted, and AdCodicem.ValueObjects.ProtobufNet, which AdCodicem.ValueObjects.NativeAot.ProtobufNet
+    publishes apart, and its value objects come from a domain project, where the Request Delegate Generator sees their
     interfaces; the RDG suite covers those declared in the endpoints' project. Microsoft.Extensions.AI builds the tools
     of LanguageModels.cs from their methods at run time, over the source-generated context, and so does the Model Context
     Protocol SDK for the server of Mcp.cs, in process over a pair of pipes. Two value objects written by

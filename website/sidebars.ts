@@ -33,6 +33,7 @@ const sidebars: SidebarsConfig = {
         'how-to/dapper',
         'how-to/mongodb',
         'how-to/messagepack',
+        'how-to/protobuf-net',
         'how-to/fluentvalidation',
         'how-to/data-annotations',
         'how-to/messaging',

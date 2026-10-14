@@ -149,6 +149,9 @@ templates.
 - **MessagePack.** `ThinktectureMessageFormatterResolver` becomes `WithValueObjects()` on the serializer options, from
   `AdCodicem.ValueObjects.MessagePack`, which reads through the rules unless asked to trust the bytes, and
   `UseValueObjects()` on SignalR's MessagePack hub protocol: [MessagePack and SignalR](./messagepack.md).
+- **ProtoBuf.** Thinktecture's ProtoBuf package, which stopped at a beta, becomes `AddValueObjects` on the protobuf-net
+  model, from `AdCodicem.ValueObjects.ProtobufNet`, which writes each value object as its underlying type and reads it
+  through the rules: [protobuf-net and code-first gRPC](./protobuf-net.md).
 - **Smart enums and unions stay where they are.** Only single-value value objects have an equivalent here; a
   closed set of codes can become a value object with [known values](../tutorials/known-values.md).
 

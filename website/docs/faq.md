@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The twenty-nine packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The thirty packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -160,7 +160,8 @@ constraint refuses carries the rule's code; Dapper validates only a column the v
 value object over a number, say. MongoDB reads are the other way round: validated, since a collection has no schema and
 is often written by more than one program, unless the serializer is registered with
 `ValueObjectBson.Register(trusted: true, …)`. So are MessagePack reads, since the bytes may come from another service,
-unless the resolver is trusted, `WithValueObjects(trusted: true)` or `UseValueObjects(trusted: true)`.
+unless the resolver is trusted, `WithValueObjects(trusted: true)` or `UseValueObjects(trusted: true)`, and protobuf-net
+reads, unless the serializers are registered with `AddValueObjects(trusted: true, …)` or name a trusted profile.
 
 ### Does it work with minimal APIs?
 
@@ -221,6 +222,20 @@ back a default instance, silently. SignalR's MessagePack hub protocol uses such 
 `AddMessagePackProtocol`, on the server and on the .NET client, makes a hub method receive the value sent, or refuse
 the invocation. MassTransit.MessagePack is not covered, and the package is not AOT-compatible:
 [MessagePack and SignalR](./how-to/messagepack.md).
+
+### Does it work with protobuf-net and gRPC?
+
+Through protobuf-net 3.4, with `AdCodicem.ValueObjects.ProtobufNet`: `RuntimeTypeModel.Default.AddValueObjects(…)`
+gives every value object a serializer that writes it as protobuf-net writes its underlying type, at the model's
+compatibility level (but a valid zero is written where the primitive's is left out, and a member's `DataFormat` never
+reaches a value object), reads it back through its rules unless asked to trust the bytes, a refusal carrying its code,
+and names it in the `.proto` export as that type's scalar. Without it, the first message holding a value object throws,
+and a bare `[ProtoContract]` on the value object writes an empty message and loses the value. A protobuf-net.Grpc
+code-first service whose configuration is `ValueObjectBinderConfiguration.ForServer` answers a refused request with
+`INVALID_ARGUMENT` and a `google.rpc.ErrorInfo` carrying the code, where Grpc.AspNetCore would answer `UNKNOWN`. A field
+a proto3 sender leaves out is never read and leaves a default instance: declare it `TSelf?`. Under native AOT, the
+serializers run in protobuf-net's compile-time model, named on the value object with `[ProtoContract(Serializer = …)]`:
+[protobuf-net and code-first gRPC](./how-to/protobuf-net.md).
 
 ### Does it work with Kafka and the Schema Registry?
 
@@ -319,7 +334,7 @@ lookup](./how-to/runtime-lookup.md#value-objects-written-by-hand) show. Code tha
 closes a generic adapter over it does so through the descriptor's visitor rather than `MakeGenericType`, which native
 AOT cannot run for a struct, as [Run-time lookup](./how-to/runtime-lookup.md#back-to-the-typed-path) shows; the Dapper
 integration registers its handlers that way, the MongoDB provider builds its serializers, the MessagePack resolver the
-formatter MessagePack asks it for, the MongoDB identifiers package its id generators, through the visitor of an entity
+formatter MessagePack asks it for, protobuf-net's `AddValueObjects` names the closed serializer type of each value object, the MongoDB identifiers package its id generators, through the visitor of an entity
 identifier's descriptor, the MVC model binder provider creates its binders, the minimal API filter closes the check of
 each parameter it explains, the Azure Functions converter the conversion of each value object a parameter binds and its
 middleware the check of each it explains, the HotChocolate type discovery handler the scalar of each value object a schema
@@ -341,7 +356,10 @@ application using them all with native AOT on every pull request, which merges o
 trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The
 HotChocolate package is marked AOT-compatible too, and its own code publishes with no warning, but CI publishes no
 HotChocolate application: HotChocolate's own publish warns, and its binary starts only with HotChocolate.Types and the
-application's assembly rooted ([GraphQL](./how-to/graphql.md#native-aot)). The EF Core,
+application's assembly rooted ([GraphQL](./how-to/graphql.md#native-aot)). The protobuf-net package is marked
+AOT-compatible: its serializers run in protobuf-net's compile-time model, which CI publishes in an application of its
+own, whose generated code protobuf-net's annotations make warn, while its registration and its code-first binder serve
+protobuf-net's runtime model, which needs the JIT ([protobuf-net](./how-to/protobuf-net.md#native-aot)). The EF Core,
 ASP.NET Core MVC, OpenAPI, Swashbuckle, NJsonSchema, Dapper, MongoDB, MongoDB identifiers, MessagePack, Azure Functions
 and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
 in a cache it closes over the type at run time, so under native AOT a handler this package built without dynamic code

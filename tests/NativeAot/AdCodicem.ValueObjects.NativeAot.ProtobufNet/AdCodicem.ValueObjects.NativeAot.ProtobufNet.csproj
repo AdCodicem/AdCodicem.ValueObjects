@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    An application published with native AOT by ci.yml's native AOT job, apart from AdCodicem.ValueObjects.NativeAot:
+    protobuf-net's compile-time model ([ProtoModel]), which its generator, coming with protobuf-net.Core, writes at build
+    time, over every value object of the unit suite's UnderlyingTypes.cs protobuf-net writes, each naming its serializer
+    with [ProtoContract(Serializer = ...)] on a partial declaration of its own (ProtoContracts.cs). The script runs it
+    once under the JIT and once as the native binary, and fails when the two outputs differ, as for the main application.
+
+    It is an application of its own because the model protobuf-net generates warns: SerializerCache.Get's
+    [DynamicallyAccessedMembers] demands every member of each value object, its nested types included, which reaches the
+    System.Text.Json and TypeDescriptor converters the generator nests in every value object, and protobuf-net.Core warns
+    for itself. The script lets through the warnings aot-warnings.allowed lists and fails on any other, this library's
+    included, which the main application would not let it tell apart.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AdCodicem.ValueObjects.NativeAot.Protobuf</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- Set as a property of this project, not as -p:PublishAot, which would reach the netstandard2.0 generator too. -->
+    <PublishAot Condition="'$(NativeAot)' == 'true'">true</PublishAot>
+
+    <!-- PublishAot turns dynamic code off, so the JIT run does the same. -->
+    <DynamicCodeSupport>false</DynamicCodeSupport>
+
+    <!-- The analyzers report the warnings of the model protobuf-net generates at build time, which fail the solution's
+         build under TreatWarningsAsErrors; the native publish reports them again, the AOT compiler's own, and the
+         script judges them against aot-warnings.allowed. -->
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <!-- So that the AOT compiler finishes the publish, and the script, rather than TreatWarningsAsErrors, decides. -->
+  <PropertyGroup Condition="'$(NativeAot)' == 'true'">
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2026;IL2104;IL2111;IL3050;IL3053</WarningsNotAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.ProtobufNet\AdCodicem.ValueObjects.ProtobufNet.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\AdCodicem.ValueObjects.UnitTests\Domain\UnderlyingTypes.cs" Link="UnitTests\UnderlyingTypes.cs" />
+    <Compile Include="..\AdCodicem.ValueObjects.NativeAot\Report.cs" Link="Report.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="AdCodicem.ValueObjects" />
+    <Using Include="AdCodicem.ValueObjects.Annotations" />
+    <Using Include="AdCodicem.ValueObjects.UnitTests.Domain" />
+  </ItemGroup>
+
+</Project>

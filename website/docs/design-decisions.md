@@ -25,8 +25,8 @@ Another source generator cannot see the generated members, and may write `new Ib
 reports it in the code of Riok.Mapperly and of the configuration binding generator, and of any generator a
 `.globalconfig` adds ([the fix](./reference/diagnostics.md#a-value-object-another-generator-creates)). What reaches a
 boundary the analyzer cannot see — an entity property never set, a default array element — is not written as it stands:
-the JSON converters, the Dapper handler, the MongoDB serializers, the MessagePack formatters, the HotChocolate scalars,
-the XML serialization of an assembly marked `[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized instance
+the JSON converters, the Dapper handler, the MongoDB serializers, the MessagePack formatters, the protobuf-net
+serializers, the HotChocolate scalars, the XML serialization of an assembly marked `[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized instance
 whose value its type rejects, and an optional EF Core column stores a `NULL` instead, as does an element of a
 `List<Iban?>` ([what each one throws](./reference/errors.md#a-value-refused-on-write)). Under
 `ConfigureValueObjects`, an EF Core primary key of one property over a `Guid` value object, which nothing generates,
@@ -36,7 +36,8 @@ refuses an entity added without it, whatever the type's rules
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value is
 valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in their own
 terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver
-`FormatException`, a MessagePack `MessagePackSerializationException`, an `XmlException` from `XmlSerializer` or
+`FormatException`, a MessagePack `MessagePackSerializationException`, a protobuf-net `ProtoException`, the
+`INVALID_ARGUMENT` status of a protobuf-net.Grpc code-first service, an `XmlException` from `XmlSerializer` or
 `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool result a language model
 reads, a Model Context Protocol tool execution error, the text of the Azure Functions worker's binding failure, which
 ends with the code, a validation problem for one of its HTTP triggers, a GraphQL error whose `extensions.code` is the
@@ -58,9 +59,9 @@ valid. It happens on construction, on parsing, on deserialization and on model b
 materializing a row through EF Core or Dapper, which is the hottest path in most applications and reads values this
 same application wrote, nor for the temporary value EF Core holds for an integer key it generates, which the database
 replaces before anything is written. `ConfigureValueObjects(strict: true)` turns that back on for a table another system
-also writes to. MongoDB and MessagePack reads validate, since a collection or a message may come from another
-program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
-`WithValueObjects(trusted: true)`.
+also writes to. MongoDB, MessagePack and protobuf-net reads validate, since a collection or a message may come from
+another program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
+`WithValueObjects(trusted: true)`, `AddValueObjects(trusted: true, …)`.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
 collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema, NSwag's included, of the JSON Schema a

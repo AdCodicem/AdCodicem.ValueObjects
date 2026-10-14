@@ -34,6 +34,8 @@ MongoDB.Driver
 Newtonsoft.Json
 NJsonSchema
 NJsonSchema.NewtonsoftJson
+protobuf-net
+protobuf-net.Grpc
 Serilog
 Swashbuckle.AspNetCore.SwaggerGen
 xunit.v3.assert

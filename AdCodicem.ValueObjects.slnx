@@ -21,6 +21,7 @@
     <Project Path="src/AdCodicem.ValueObjects.Serilog/AdCodicem.ValueObjects.Serilog.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.MongoDB/AdCodicem.ValueObjects.MongoDB.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.MessagePack/AdCodicem.ValueObjects.MessagePack.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.ProtobufNet/AdCodicem.ValueObjects.ProtobufNet.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AI/AdCodicem.ValueObjects.AI.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.ModelContextProtocol/AdCodicem.ValueObjects.ModelContextProtocol.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AzureFunctions/AdCodicem.ValueObjects.AzureFunctions.csproj" />
@@ -50,6 +51,7 @@
     <Project Path="tests/NativeAot/AdCodicem.ValueObjects.CompiledModel/AdCodicem.ValueObjects.CompiledModel.csproj" />
     <Project Path="tests/NativeAot/AdCodicem.ValueObjects.NativeAot/AdCodicem.ValueObjects.NativeAot.csproj" />
     <Project Path="tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Domain/AdCodicem.ValueObjects.NativeAot.Domain.csproj" />
+    <Project Path="tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet/AdCodicem.ValueObjects.NativeAot.ProtobufNet.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/AdCodicem.ValueObjects.Benchmarks/AdCodicem.ValueObjects.Benchmarks.csproj" />
