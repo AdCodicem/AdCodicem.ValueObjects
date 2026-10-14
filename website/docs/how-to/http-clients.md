@@ -75,3 +75,11 @@ the public call that does it. Prefer the 3.1 document: from 3.0, NSwag turns `an
 wrapper classes. The type resolver maps components, and the document describes most parameters in place rather than
 as a reference to a component, so such a parameter is generated as its underlying type, with its rules (read from the
 document, not re-run).
+
+A document NSwag's own server side builds with [AdCodicem.ValueObjects.NJsonSchema](./openapi.md#nswag) names a
+component after each value object too, and refers to it from every parameter as well as from every member, so the
+resolver maps its parameters too (not run against such a document). It keys the components by the name of each
+value object's type, which a construction of a generic one does not carry: `ReferenceOfPurchaseOrder`, as NSwag names
+the component of `Reference<PurchaseOrder>`, is generated as its underlying type. Whoever wrote the document, NSwag
+14.7.1 writes two JSON converters on a member whose closed set is of dates, a `string` enumeration of `format: date`,
+which C# refuses (CS0579): remove the `DateFormatConverter` beside the `StringEnumConverter` there.

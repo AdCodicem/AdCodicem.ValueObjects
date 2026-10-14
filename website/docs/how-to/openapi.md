@@ -2,7 +2,7 @@
 title: Document in OpenAPI
 sidebar_label: OpenAPI
 slug: /how-to/openapi
-description: Document value objects in the built-in .NET OpenAPI document, or in Swashbuckle's, as their underlying type, with the length, pattern, bounds and known values declared on them.
+description: Document value objects in the built-in .NET OpenAPI document, or in Swashbuckle's or NSwag's, as their underlying type, with the length, pattern, bounds and known values declared on them.
 ---
 
 # Document in OpenAPI
@@ -16,7 +16,8 @@ builder.Services.AddOpenApi(options => options.AddValueObjects());
 ```
 
 That registers a schema transformer on the built-in .NET OpenAPI stack (`Microsoft.AspNetCore.OpenApi`); an
-application on Swashbuckle 10.3 or later takes [its own package](#swashbuckle) instead. A value object is then documented
+application on Swashbuckle 10.3 or later takes [its own package](#swashbuckle) instead, and one on NSwag
+[its own](#nswag). A value object is then documented
 as what it is on the wire — its underlying type — carrying every rule declared on it:
 
 | Declared on the type | In the schema |
@@ -215,7 +216,8 @@ app.MapGet("/accounts", ([ParsesAs(typeof(Iban))] string? iban, [ParsesAs(typeof
   `[AsParameters]` record with a validation attribute on a constructor parameter, `[Required]` alone included
   (dotnet/aspnetcore#65348): put the attributes on its properties, `[property: ParsesAs(typeof(Iban))]`, or use a class.
 
-The JSON Schema transform of AdCodicem.ValueObjects.Json describes a `[ParsesAs]` member as plain text.
+The JSON Schema transform of AdCodicem.ValueObjects.Json describes a `[ParsesAs]` member as plain text. NSwag's
+document describes it as the text, [with one limit](#nswag) on a parameter's own validation attributes.
 
 ## Numbers written as text
 
@@ -315,7 +317,9 @@ each one alike when numbers are read as numbers only. What differs is Swashbuckl
   replacing what the mapping says.
 
 The package is not AOT-compatible: Swashbuckle walks the application model by reflection, and its filters run while
-the document is built, never per request. Not covered: a value object bound from a form keeps the `string` Swashbuckle
+the document is built, never per request. Swashbuckle 10.3.0 itself throws `AmbiguousMatchException`, inside a
+`SwaggerGeneratorException`, for an MVC `[FromQuery]` model that hides an inherited property with one of another type,
+whatever this package does. Not covered: a value object bound from a form keeps the `string` Swashbuckle
 gives it; the own properties of a type
 documented under `UseAllOfForInheritance`, which sit in an `allOf`, are not looked through for nullable value objects;
 and Swashbuckle's Newtonsoft.Json support, `AddSwaggerGenNewtonsoftSupport`, is not tested.
@@ -331,3 +335,87 @@ Swashbuckle 10 is built on `Microsoft.OpenApi` 2. On .NET 11, an application tha
 and works. A major of Swashbuckle that moves to `Microsoft.OpenApi` 3 is supported by a release of the packages that
 raises this one's floor, as for any framework's major
 ([ADR-0010](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)).
+
+## NSwag
+
+```bash
+dotnet add package AdCodicem.ValueObjects.NJsonSchema
+```
+
+```csharp skip
+builder.Services.AddOpenApiDocument(settings => settings.SchemaSettings.AddValueObjects());
+// or, for a Swagger 2.0 document:
+builder.Services.AddSwaggerDocument(settings => settings.SchemaSettings.AddValueObjects());
+```
+
+NSwag builds its schemas with NJsonSchema, which knows no value object: under System.Text.Json it describes one by its
+public properties, an `Iban` as an object holding `countryCode` and `value`, and under Newtonsoft.Json as the bare
+`string` of its type converter, whatever its rules. `AddValueObjects()` on the schema settings NSwag chose describes each
+value object as one component of its underlying type instead, with every rule of the table above, the [names of known
+values](#names-of-known-values), and [text held to a value object's rules](#text-held-to-a-value-objects-rules). The
+package shares the code that turns a rule into a keyword with the built-in stack's, and the two documents describe each
+value object and each text alike, but where NJsonSchema cannot hold a rule. What differs is NSwag's:
+
+- **One component per value object.** A route, query or header parameter, a member, the items of a collection and the
+  values of a dictionary refer to it, `ReferenceOfPurchaseOrder` for a construction of a generic one, as NSwag names it.
+  A nullable value object is the reference with `nullable: true` beside it, as NSwag writes a nullable enumeration: the
+  component, a closed set's `enum` included, never says `null`. A text held to a value object's rules is described in
+  place.
+- **OpenAPI 3.0.** NSwag writes OpenAPI 3.0: an example as `example`, and no `propertyNames`, so the key of a dictionary
+  is not described. A number is a number, whatever the options let be read from text, as NSwag documents a bare `int`:
+  [Numbers written as text](#numbers-written-as-text) does not apply. NJsonSchema holds `minimum` and `maximum` in a
+  `decimal`: a bound beyond its range or below its precision, a `double` of `2E+32` or `9.1E-31`, goes to `x-minimum`,
+  `x-maximum` and the sentence instead, as a bound on text does.
+- **Swagger 2.0.** `AddSwaggerDocument` writes a route, query or header parameter whose schema is a component as
+  `type: object` with an `x-schema`, which Swagger 2.0 does not allow: there, every value object is described in place,
+  as its underlying type with its rules, and no component is written for it. Swagger 2.0 has no `null`: a nullable
+  value object or text says it with `x-nullable` where the settings ask for it (`GenerateCustomNullableProperties`),
+  never in an `enum`.
+- **The settings NSwag chose.** Under an MVC application on System.Text.Json, NSwag describes MVC's options; under
+  `AddNewtonsoftJson()`, the very `SerializerSettings` of MVC, which the package never changes: call
+  `AddValueObjectsNewtonsoftJson()` ([ASP.NET Core](./aspnet-core.md#a-body-read-by-newtonsoftjson)), and each value
+  object is described as `ValueObjectConverter` writes it, numbers and booleans as such; without it, as the text of its
+  type converter, which those settings then write, `"7"` and `"True"`. An application with minimal APIs alone has a
+  trap of NSwag's: whenever `Microsoft.AspNetCore.Mvc.NewtonsoftJson` can be loaded, NSwag describes that package's
+  default Newtonsoft.Json settings, and so the type converter's text, while the minimal APIs write System.Text.Json.
+  Call `AddControllers()`, or hand NSwag the minimal API options, as below.
+- **Validation attributes beside a reference.** NJsonSchema applies a member's validation attributes after the
+  package has described its schema. Beside a reference, `[Range]` is applied by neither of NJsonSchema's generators, and
+  `[Required]` adds, under Newtonsoft.Json settings, the `minLength: 1` NJsonSchema gives any string, which a number
+  ignores. A member holding text keeps the stricter of its own rules and the value object's, as on the built-in stack;
+  a parameter cannot: NSwag applies its validation attributes last, so a `[StringLength(20)]` beside `[ParsesAs]` gives
+  its `maxLength: 20` and its `minLength: 0` in place of the value object's. NSwag writes no route constraint.
+- **The application's own mapping.** A type mapper of the settings keeps the application's description of each form
+  NJsonSchema hands it. A mapper of the value object's type or of its generic definition maps the value object and its
+  nullable type alike. A mapper of the nullable type maps that form alone, and only under Newtonsoft.Json settings:
+  System.Text.Json's settings unwrap a nullable type before they look a mapper up, and so never use a mapper of it.
+  Every form no mapper takes is described by the package. A member NJsonSchema's `[JsonSchemaType]` or `[JsonSchema]` describes
+  keeps the application's description too.
+- **Names.** The enumeration of a closed set is named in `x-ms-enum` after the component, as NJsonSchema names it.
+- **Value objects written by hand.** One that the serializer writes as a value, through
+  `ValueObjectJsonConverterFactory` or a converter its type names, or through `ValueObjectConverter`, is described from
+  its `Schema`; one written as an object with members stays as NJsonSchema describes that object.
+
+```csharp skip
+builder.Services.AddOpenApiDocument((settings, services) =>
+{
+    settings.SchemaSettings = new SystemTextJsonSchemaGeneratorSettings
+    {
+        SchemaType = SchemaType.OpenApi3,
+        SerializerOptions = services.GetRequiredService<IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>>().Value.SerializerOptions,
+    };
+    settings.SchemaSettings.AddValueObjects();
+});
+```
+
+A C# client NSwag generates from the document holds the underlying types, `string Iban`, `int Quantity`, and one
+enumeration per closed set, named after its known values, wherever the set is used; the [type
+resolver](./http-clients.md#nswag) maps the components back to the value objects. NSwag 14.7.1's generator writes two
+JSON converters on a member whose closed set is of dates, a `string` enumeration of `format: date`, which C# refuses
+(CS0579), whoever wrote the document: remove the `DateFormatConverter` it adds there.
+
+The package is not AOT-compatible: NJsonSchema and NSwag walk the types they describe by reflection, and the package
+describes each value object as the document is built, never per request. The package depends on `NJsonSchema` and
+`NJsonSchema.NewtonsoftJson` 11.6.1 or later, the version NSwag 14.7 asks for. NSwag itself throws
+`AmbiguousMatchException` for an MVC `[FromQuery]` model that hides an inherited property with one of another type,
+whatever this package does.

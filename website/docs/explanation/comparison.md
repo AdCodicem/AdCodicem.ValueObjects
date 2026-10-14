@@ -39,7 +39,8 @@ be corrected.
 | EF Core `.Value` in LINQ | translated to the column, on request (`UseValueObjectQueries()`) | no: compare the value objects | no: compare the value objects | no |
 | ASP.NET Core model binding | yes | through the `TypeConverter` | through the `TypeConverter` | yes |
 | Problem details carry the violated rule's code | MVC controllers and minimal APIs | no | no | no |
-| OpenAPI | built-in stack and Swashbuckle 10, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
+| OpenAPI | built-in stack, Swashbuckle 10 and NSwag 14, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
+| JSON Schema registry (Confluent's JSON serdes for Kafka) | the rules in the registered schema, numbers as numbers, a refused message with its code | no (8.0.7 and 9.0.0-beta.1 hold nothing for NJsonSchema) | not checked | not checked |
 | FluentValidation | yes | third-party package | no | no |
 | DataAnnotations | raw text held to the type's rules (`[ParsesAs]`), a default instance refused (`[NotDefault]`), the rule's code on the result | no | no | no |
 | Dapper | yes | yes | through a template | no |

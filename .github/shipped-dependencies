@@ -32,6 +32,8 @@ Microsoft.OpenApi
 ModelContextProtocol
 MongoDB.Driver
 Newtonsoft.Json
+NJsonSchema
+NJsonSchema.NewtonsoftJson
 Serilog
 Swashbuckle.AspNetCore.SwaggerGen
 xunit.v3.assert

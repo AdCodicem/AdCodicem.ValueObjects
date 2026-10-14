@@ -14,6 +14,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | MVC on Newtonsoft.Json: the converter in MVC's settings, and the codes of a refused body. |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
 | `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10.3 and later. |
+| `AdCodicem.ValueObjects.NJsonSchema` | NSwag documents and the JSON Schemas Confluent's serdes register for Kafka: one definition per value object, its underlying type with its rules. |
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, a `$jsonSchema` validator from the rules. |
@@ -729,7 +730,8 @@ public readonly partial struct Iban;
 - Records: MVC wants the attributes on the primary constructor's parameters (no `property:`, which it refuses at the
   first request); an `[AsParameters]` record takes `[property: ParsesAs(...)]`, or use a class. `AddValidation()` on
   .NET 10 validates public types only.
-- Both OpenAPI generators describe a `[ParsesAs]` member or parameter as the value object's text (below).
+- The OpenAPI packages (built-in, Swashbuckle, NSwag through `AdCodicem.ValueObjects.NJsonSchema`) describe a
+  `[ParsesAs]` member or parameter as the value object's text (below).
 
 ## OpenAPI
 
@@ -797,6 +799,60 @@ does, with these differences, all Swashbuckle's own:
   until raised to 10.3.0.
 - Swashbuckle 10 needs `Microsoft.OpenApi` 2: never reference `Microsoft.AspNetCore.OpenApi` 11 beside it, which brings
   3 and makes Swashbuckle throw `MissingMethodException` when it builds a document.
+
+### NSwag
+
+```csharp skip
+builder.Services.AddOpenApiDocument(s => s.SchemaSettings.AddValueObjects());   // AdCodicem.ValueObjects.NJsonSchema
+// Swagger 2.0: AddSwaggerDocument(s => s.SchemaSettings.AddValueObjects())
+```
+
+`AdCodicem.ValueObjects.NJsonSchema` describes a value object as the built-in package does, with these differences,
+NSwag's and NJsonSchema's own:
+
+- One component per value object, a construction named `ReferenceOfPurchaseOrder`; parameters, members, `items` and
+  `additionalProperties` refer to it, a nullable one with `nullable: true` beside the reference, never in the component.
+- OpenAPI 3.0: `example`, no `propertyNames` (a dictionary's key is not described), a number always a number. A bound a
+  `decimal` cannot hold (`2E+32`, `9.1E-31`) goes to `x-minimum`/`x-maximum`.
+- `AddSwaggerDocument` (Swagger 2.0) describes every value object in place, with no component, and never lists `null` in
+  an `enum`.
+- The settings NSwag chose decide the wire, never changed: under `AddNewtonsoftJson()`, call
+  `AddValueObjectsNewtonsoftJson()` for numbers as numbers (without it, the type converter's text, `"7"`). A minimal API
+  application without `AddControllers()` gets NSwag's Newtonsoft.Json settings whenever
+  `Microsoft.AspNetCore.Mvc.NewtonsoftJson` is loadable: call `AddControllers()`, or set `SchemaSettings` to
+  `new SystemTextJsonSchemaGeneratorSettings { SchemaType = SchemaType.OpenApi3, SerializerOptions = … }` before
+  `AddValueObjects()`.
+- `[ParsesAs]` text is described in place; a parameter's own `[StringLength]` replaces the value object's lengths (NSwag
+  applies a parameter's attributes last), a member keeps the stricter. `[Range]` beside a reference is not applied.
+- An application's type mapper keeps its own description of the forms NJsonSchema hands it: a mapper of `T` (or of its
+  generic definition) maps `T` and `T?`; a mapper of `T?` maps `T?` alone, under Newtonsoft.Json settings only
+  (System.Text.Json's never consult it). `[JsonSchemaType]` or `[JsonSchema]` on a member keeps its own description.
+- A C# client NSwag generates holds the underlying types and one enumeration per closed set; NSwag 14.7.1 writes two
+  converters on a closed set of dates (CS0579): remove its `DateFormatConverter` there.
+- Not AOT-compatible.
+
+## Kafka (Confluent Schema Registry)
+
+```csharp skip
+var schemaSettings = new NewtonsoftJsonSchemaGeneratorSettings();
+schemaSettings.SerializerSettings.AddValueObjects();   // AdCodicem.ValueObjects.NewtonsoftJson, first
+schemaSettings.AddValueObjects();                      // AdCodicem.ValueObjects.NJsonSchema
+var serializer = new JsonSerializer<Order>(registry, new JsonSerializerConfig(), schemaSettings);
+var deserializer = new JsonDeserializer<Order>(registry, new JsonDeserializerConfig(), schemaSettings);
+```
+
+- The registered schema holds each value object as its underlying type with its rules, numbers as numbers, so the
+  producer's validation passes; without the converter it describes, and the payload carries, the type converter's
+  text, and a `DateTimeOffset` value object is not read back by the default consumer.
+- A message a value object refuses is refused by the converter: `JsonSerializationException` carrying the code,
+  `ValueObjectErrors.TryGetCode`; on write too, a default `CustomerId` with `value_object.required`. Confluent's own
+  `InvalidDataException` carries none.
+- A value object is a member of the message, never `T` itself (`T : class`).
+- NJsonSchema's validator throws `InvalidCastException` on an integer beyond Int64 (a `ulong` above `long.MaxValue`).
+- The JSON Schema lists a closed set of decimals as doubles, which that validator compares: a decimal no double holds
+  is listed rounded. An OpenAPI document lists each as written.
+- A subject holding the schema written without the package refuses the new one under `BACKWARD` (`PATTERN_ADDED`,
+  `TYPE_CHANGED`, …): register a new subject, or change the compatibility level for the switch.
 
 ## Serilog
 

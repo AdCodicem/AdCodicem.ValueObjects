@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.NJsonSchema</RootNamespace>
+    <Description>NJsonSchema support for AdCodicem value objects: one call on the schema settings of NSwag's OpenAPI generation or of Confluent's JSON serdes for the Schema Registry describes every value object as its underlying type, carrying over the pattern, bounds, length, example and accepted values declared on the type, and text a member or a parameter holds to those rules with [ParsesAs] as that text.</Description>
+    <PackageTags>$(PackageTags);json-schema;njsonschema;nswag;openapi;kafka;schema-registry</PackageTags>
+
+    <!-- NJsonSchema walks the types it describes by reflection, and carries no trimming annotation. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+    <!-- ValueObjectConverter, which the schema of Newtonsoft.Json settings holding it describes the wire of. -->
+    <ProjectReference Include="..\AdCodicem.ValueObjects.NewtonsoftJson\AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The floor, the version the package is built against, which NSwag 14.7 asks for; Confluent's JSON serdes ask for
+         NJsonSchema.NewtonsoftJson 11.0.2 or later. Namotion.Reflection and NJsonSchema.Annotations come with NJsonSchema
+         and are pinned by nothing: a pin would make them dependencies of the package. -->
+    <PackageReference Include="NJsonSchema" />
+    <PackageReference Include="NJsonSchema.NewtonsoftJson" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- What a value object's rules become in a JSON Schema, compiled into every package that describes one. -->
+    <Compile Include="..\Shared\ValueObjectSchemaKeywords.cs" Link="Shared\ValueObjectSchemaKeywords.cs" />
+  </ItemGroup>
+
+</Project>

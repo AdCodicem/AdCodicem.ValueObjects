@@ -63,7 +63,8 @@ program, unless the application trusts them: `ValueObjectBson.Register(trusted: 
 `WithValueObjects(trusted: true)`.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
-collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema, and of the [MongoDB collection
+collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema, NSwag's included, of the JSON Schema a
+[Kafka topic registers](./how-to/messaging.md#kafka-with-confluents-schema-registry), and of the [MongoDB collection
 validator](./how-to/mongodb.md#a-collection-validator-from-the-rules). A declared pattern becomes the pattern of the
 [GraphQL scalar](./how-to/graphql.md#what-the-schema-publishes) too. The members marked `[KnownValue]` become a frozen
 membership lookup and the `enum` keyword of the schema, whose values generated clients name after them. On request,
@@ -74,7 +75,8 @@ build the model on one the database would read apart from .NET unless `ExcludePa
 application. Each constraint is named after its rule, so that a row it refuses comes back with the rule's code under
 `UseValueObjectCheckErrors()` ([when a constraint fires](./how-to/ef-core.md#when-a-constraint-fires)). A DTO or an
 options class that keeps the text holds it to the same rules with [`[ParsesAs]`](./how-to/data-annotations.md), which
-both OpenAPI generators describe as the value object's text, rather than restating them in `[StringLength]`.
+the OpenAPI packages, NSwag's included, describe as the value object's text, rather than restating them in
+`[StringLength]`.
 
 ## Constraints that shape the generated code
 

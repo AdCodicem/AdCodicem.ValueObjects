@@ -99,6 +99,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | The same problem details for a body MVC reads with Newtonsoft.Json. |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
 | `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10.3 and later. |
+| `AdCodicem.ValueObjects.NJsonSchema` | NSwag documents and the JSON Schemas Confluent's serdes register: each value object one definition of its underlying type, with its rules. |
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, and a `$jsonSchema` validator built from the rules. |
@@ -121,7 +122,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twenty-eight are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The twenty-nine are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -138,6 +139,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | `net10.0` | ASP.NET Core 10, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 10 | ASP.NET Core 11, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11 |
 | `AdCodicem.ValueObjects.OpenApi` | `net10.0` | ASP.NET Core 10, with `Microsoft.OpenApi` 2 | ASP.NET Core 11, with `Microsoft.OpenApi` 3 |
 | `AdCodicem.ValueObjects.Swashbuckle` | `net10.0` | Swashbuckle 10 on ASP.NET Core 10, with `Microsoft.OpenApi` 2 | Swashbuckle 10 on ASP.NET Core 11, with `Microsoft.OpenApi` 2 |
+| `AdCodicem.ValueObjects.NJsonSchema` | `net10.0` | NJsonSchema 11.6: NSwag 14.7 on ASP.NET Core 10, Confluent's JSON serdes 2.16 | NSwag 14.7 and Confluent's JSON serdes 2.16 on .NET 11 |
 | `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
 | `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
@@ -243,7 +245,8 @@ program, unless the application trusts them: `ValueObjectBson.Register(trusted: 
 `WithValueObjects(trusted: true)`.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
-collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema. The `[GeneratedRegex]` behind
+collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema, NSwag's included, and of the
+JSON Schema a Kafka topic registers through Confluent's serdes. The `[GeneratedRegex]` behind
 `IValueObjectPatternValidator` validates the value, and its text becomes the `pattern` keyword, and the pattern of a
 GraphQL scalar, which HotChocolate publishes as `@serializeAs` under `ApplySerializeAsToScalars`. The members marked
 `[KnownValue]` become a frozen membership lookup and the `enum` keyword of the schema, with their names beside it for
@@ -255,8 +258,8 @@ The same rules fill in the JSON Schema System.Text.Json exports, which AI tools,
 describe their parameters with, through `ValueObjectJsonSchema`; `AdCodicem.ValueObjects.AI` carries them to the tools
 and the structured output of Microsoft.Extensions.AI in one call, and `AdCodicem.ValueObjects.ModelContextProtocol` to
 the tools of a Model Context Protocol server. A DTO or an options class that keeps the text holds it to the same rules
-with DataAnnotations' `[ParsesAs(typeof(Iban))]`, which both OpenAPI generators describe as the value object's text,
-rather than restating them in `[StringLength]` and `[RegularExpression]`.
+with DataAnnotations' `[ParsesAs(typeof(Iban))]`, which the OpenAPI packages, NSwag's included, describe as the value
+object's text, rather than restating them in `[StringLength]` and `[RegularExpression]`.
 
 ## Compared with other libraries
 
@@ -282,7 +285,8 @@ Then wire up whichever boundaries you have:
 builder.Services.AddControllers().AddValueObjects();
 builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetails());
 builder.Services.AddOpenApi(o => o.AddValueObjects());       // or, with Swashbuckle 10:
-builder.Services.AddSwaggerGen(o => o.AddValueObjects());
+builder.Services.AddSwaggerGen(o => o.AddValueObjects());    // or, with NSwag:
+builder.Services.AddOpenApiDocument(s => s.SchemaSettings.AddValueObjects());
 
 protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     => builder.ConfigureValueObjects(typeof(Iban).Assembly);

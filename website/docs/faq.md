@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The twenty-eight packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The twenty-nine packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -182,6 +182,15 @@ does on the built-in stack, a number as Swashbuckle documents a number, and a ro
 reference to its component. [Swashbuckle](./how-to/openapi.md#swashbuckle) says what differs from the built-in stack.
 Swashbuckle 10 needs `Microsoft.OpenApi` 2, so it fails beside `Microsoft.AspNetCore.OpenApi` 11, which brings 3.
 
+### Does it work with NSwag?
+
+Yes, NSwag 14.7 and later, through `AdCodicem.ValueObjects.NJsonSchema`:
+`AddOpenApiDocument(s => s.SchemaSettings.AddValueObjects())` describes each value object as one component of its
+underlying type, with every rule the built-in stack's document carries, and a parameter, a member or an element as a
+reference to it, `nullable: true` beside the reference for a nullable one. A C# client NSwag generates from it holds
+the underlying types and one enumeration per closed set. [NSwag](./how-to/openapi.md#nswag) says what differs from the
+built-in stack: OpenAPI 3.0, Swagger 2.0 in place, and the settings NSwag chooses for minimal APIs alone.
+
 ### Is a value object logged as a number?
 
 With Serilog and `AdCodicem.ValueObjects.Serilog`, yes: `Destructure.ValueObjects()` logs a value object with `@` as
@@ -212,6 +221,16 @@ back a default instance, silently. SignalR's MessagePack hub protocol uses such 
 `AddMessagePackProtocol`, on the server and on the .NET client, makes a hub method receive the value sent, or refuse
 the invocation. MassTransit.MessagePack is not covered, and the package is not AOT-compatible:
 [MessagePack and SignalR](./how-to/messagepack.md).
+
+### Does it work with Kafka and the Schema Registry?
+
+Yes, with Confluent's JSON serdes: `AddValueObjects()` from `AdCodicem.ValueObjects.NJsonSchema` on the
+`NewtonsoftJsonSchemaGeneratorSettings` handed to `JsonSerializer<T>` and `JsonDeserializer<T>`, after
+`ValueObjectConverter`, registers each value object as its underlying type with its rules, numbers as numbers, so the
+producer's validation passes, and a message whose value its type refuses is refused with the code of the rule. A subject
+already holding the schema written without it refuses the new one under `BACKWARD`:
+[Kafka with Confluent's Schema Registry](./how-to/messaging.md#kafka-with-confluents-schema-registry) says how to move
+it.
 
 ### Does it work with GraphQL?
 
@@ -304,7 +323,8 @@ formatter MessagePack asks it for, the MongoDB identifiers package its id genera
 identifier's descriptor, the MVC model binder provider creates its binders, the minimal API filter closes the check of
 each parameter it explains, the Azure Functions converter the conversion of each value object a parameter binds and its
 middleware the check of each it explains, the HotChocolate type discovery handler the scalar of each value object a schema
-meets, the JSON converter factory closes the general-purpose converter it gives a value object
+meets, the NJsonSchema package the converter it writes a value object's examples through under Newtonsoft.Json
+settings, the JSON converter factory closes the general-purpose converter it gives a value object
 written by hand, the test-data sampler, the AutoFixture customization, the Bogus extensions and FsCheck's
 `MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
 value object, each element of a collection of them, and each entity identifier, all but the converter of an optional
@@ -322,8 +342,8 @@ trimming or AOT warning, and unless the native binary does exactly what the appl
 HotChocolate package is marked AOT-compatible too, and its own code publishes with no warning, but CI publishes no
 HotChocolate application: HotChocolate's own publish warns, and its binary starts only with HotChocolate.Types and the
 application's assembly rooted ([GraphQL](./how-to/graphql.md#native-aot)). The EF Core,
-ASP.NET Core MVC, OpenAPI, Swashbuckle, Dapper, MongoDB, MongoDB identifiers, MessagePack, Azure Functions and
-Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
+ASP.NET Core MVC, OpenAPI, Swashbuckle, NJsonSchema, Dapper, MongoDB, MongoDB identifiers, MessagePack, Azure Functions
+and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
 in a cache it closes over the type at run time, so under native AOT a handler this package built without dynamic code
 still fails inside Dapper: native AOT goes through [Dapper.AOT](./how-to/dapper.md#dapperaot).
 

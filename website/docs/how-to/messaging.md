@@ -2,12 +2,13 @@
 title: Use With Messaging and Job Libraries
 sidebar_label: Messaging and jobs
 slug: /how-to/messaging
-description: Send value objects through MassTransit, NServiceBus, Rebus, Wolverine, the Azure messaging SDKs, Durable Functions, Dapr, Hangfire and Quartz as bare values, validated when they are received.
+description: Send value objects through MassTransit, NServiceBus, Rebus, Wolverine, Kafka with Confluent's Schema Registry, the Azure messaging SDKs, Durable Functions, Dapr, Hangfire and Quartz as bare values, validated when they are received.
 ---
 
 # Use with messaging and job libraries
 
-None of these libraries needs a package written for it. One that serializes with System.Text.Json writes a value object
+None of these libraries needs a package written for it, but for the schema Confluent's serdes register with the
+[Schema Registry](#kafka-with-confluents-schema-registry). One that serializes with System.Text.Json writes a value object
 as its underlying value, through the converter the generator puts on it, and reads it back through `TryCreate`, so a
 value the type rejects fails on receipt rather than reaching a handler. One that serializes with Newtonsoft.Json needs
 the converter of `AdCodicem.ValueObjects.NewtonsoftJson`, added by `settings.AddValueObjects()`, as
@@ -91,6 +92,60 @@ app.MapWolverineEndpoints(options => options.RejectUnparseableQueryValues = true
 
 A rejected value is then a 400, without the rule's code. A missing value still binds the default, as Wolverine
 documents, so declare an optional parameter `T?`.
+
+## Kafka with Confluent's Schema Registry
+
+Confluent's JSON serdes, `JsonSerializer<T>` and `JsonDeserializer<T>` of Confluent.SchemaRegistry.Serdes.Json,
+serialize with Newtonsoft.Json, register the JSON Schema NJsonSchema generates for the message with the Schema Registry,
+and validate every message against it before producing it. NJsonSchema describes a value object as the bare `string`
+of its type converter, whatever its rules, so that with `ValueObjectConverter` in the settings the producer refuses its
+own message, `Schema validation failed for properties: [#/Quantity, #/Consent, ...]`, one path per number and boolean
+the converter writes as such. `AdCodicem.ValueObjects.NJsonSchema` describes each one as its underlying type instead,
+with its rules: the converter first, then the package, and the same settings to both serdes.
+
+```bash
+dotnet add package AdCodicem.ValueObjects.NJsonSchema
+```
+
+```csharp skip
+var schemaSettings = new NewtonsoftJsonSchemaGeneratorSettings();
+schemaSettings.SerializerSettings.AddValueObjects();   // AdCodicem.ValueObjects.NewtonsoftJson
+schemaSettings.AddValueObjects();                      // AdCodicem.ValueObjects.NJsonSchema
+
+var serializer = new JsonSerializer<Order>(registry, new JsonSerializerConfig(), schemaSettings);
+var deserializer = new JsonDeserializer<Order>(registry, new JsonDeserializerConfig(), schemaSettings);
+```
+
+Run on Confluent.SchemaRegistry.Serdes.Json 2.16.0 over a substitute registry client, no registry server:
+
+- **The schema registered** holds one definition per value object, referred to wherever it is used, its underlying
+  type with the pattern, lengths, bounds, `enum`, example (`x-example` in draft-04, which has no `examples`) and names
+  of known values declared on it. A nullable member is the reference beside `null`, `oneOf`.
+- **The message** carries numbers and booleans as such, `"Quantity":7`, `"Consent":true`, and passes the producer's
+  validation. One holding a value its type refuses, a default `CustomerId`, is never produced: the converter refuses
+  to write it, `JsonSerializationException` carrying `value_object.required`. A message whose value its type refuses,
+  tampered with or written by another program, is refused by the consumer's converter with the code of the rule,
+  `value_object.too_short` for an IBAN of two characters, which `ValueObjectErrors.TryGetCode` reads off the
+  `JsonSerializationException`. Confluent's own `InvalidDataException`, from its validation, carries no code.
+- **Without the converter**, the schema describes what the settings write, the type converter's text: numbers and
+  booleans travel as strings, `"7"` and `"True"`, a refusal carries no code, and the default consumer cannot read a
+  `DateTimeOffset` value object back, as [Dates](./json.md#dates) explains. Add the converter.
+- **A value object is a member.** `JsonSerializer<T>` and `JsonDeserializer<T>` take a class, so a value object cannot be
+  the key or the value type of a topic itself: it travels inside a message.
+- **What Confluent validates.** It runs NJsonSchema's validator with no format validator, so `format: email` checks
+  nothing. That validator throws `InvalidCastException` on a JSON integer beyond the range of a `long`, whatever the
+  schema says, a `ulong` value object above `long.MaxValue` among them, with or without this package. It compares a
+  closed set's values by their text, a real read as a `double`, so the `enum` of a closed set of decimals lists each as
+  a double, `20.0` for `20.00`, and one no double holds rounded, `0.3333333333333333` for a third written to 28
+  places, which the type refuses: give such a set values a double holds. An OpenAPI document, which no such validator
+  reads, lists each as written.
+
+**Moving a subject to the new schema.** A topic whose subject already holds the schema NJsonSchema wrote without the
+package holds a bare `string` for each value object. Under the registry's `BACKWARD` compatibility, read from the
+source of Confluent's JSON Schema checker and not run against a registry, every rule the new schema adds is a change it
+refuses, `PATTERN_ADDED`, `MIN_LENGTH_ADDED`, `MAX_LENGTH_ADDED`, `MINIMUM_ADDED`, `MAXIMUM_ADDED`, and `TYPE_CHANGED`
+for a number or a boolean, a `string` until then. Register it under a new subject, or change the subject's compatibility level for the
+switch alone. A consumer with the converter reads the old numbers, `"7"` as 7, but not the old booleans, `"True"`.
 
 ## Azure Service Bus, Event Hubs, Event Grid and Storage Queues
 

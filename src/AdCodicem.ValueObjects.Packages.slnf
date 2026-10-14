@@ -26,6 +26,7 @@
       "src/AdCodicem.ValueObjects.MessagePack/AdCodicem.ValueObjects.MessagePack.csproj",
       "src/AdCodicem.ValueObjects.ModelContextProtocol/AdCodicem.ValueObjects.ModelContextProtocol.csproj",
       "src/AdCodicem.ValueObjects.MongoDB/AdCodicem.ValueObjects.MongoDB.csproj",
+      "src/AdCodicem.ValueObjects.NJsonSchema/AdCodicem.ValueObjects.NJsonSchema.csproj",
       "src/AdCodicem.ValueObjects.NewtonsoftJson/AdCodicem.ValueObjects.NewtonsoftJson.csproj",
       "src/AdCodicem.ValueObjects.OpenApi/AdCodicem.ValueObjects.OpenApi.csproj",
       "src/AdCodicem.ValueObjects.Serilog/AdCodicem.ValueObjects.Serilog.csproj",

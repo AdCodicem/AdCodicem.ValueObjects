@@ -92,6 +92,12 @@
     <PackageVersion Include="HotChocolate.Types" Version="16.6.8" />
     <!-- IStringLocalizerFactory, for the HotChocolate package's localized messages; its net10.0 asset depends on nothing. -->
     <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.12" />
+    <!-- The NJsonSchema package's floor, the version it is built against, which NSwag 14.7 asks for
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); Confluent's JSON serdes take
+         NJsonSchema.NewtonsoftJson 11.0.2 or later. Namotion.Reflection and NJsonSchema.Annotations come with it and are
+         pinned by nothing here: a pin would make them dependencies of the package. -->
+    <PackageVersion Include="NJsonSchema" Version="11.6.1" />
+    <PackageVersion Include="NJsonSchema.NewtonsoftJson" Version="11.6.1" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
@@ -163,6 +169,14 @@
     <PackageVersion Include="HotChocolate.AspNetCore" Version="16.6.8" />
     <PackageVersion Include="HotChocolate.Data" Version="16.6.8" />
     <PackageVersion Include="HotChocolate.Types.Analyzers" Version="16.6.8" />
+    <!-- NSwag's document generation over TestHost and its C# client generator, and Confluent's JSON serdes for the Schema
+         Registry over a substitute registry client, which the unit suite drives the NJsonSchema package through, as an
+         application does; no package under src/ references them. The Kafka client's native library comes with the serdes
+         and is pinned only so that the suite can leave its 105 MB out of its output: the serdes never load it. -->
+    <PackageVersion Include="NSwag.AspNetCore" Version="14.7.1" />
+    <PackageVersion Include="NSwag.CodeGeneration.CSharp" Version="14.7.1" />
+    <PackageVersion Include="Confluent.SchemaRegistry.Serdes.Json" Version="2.16.0" />
+    <PackageVersion Include="librdkafka.redist" Version="2.16.0" />
   </ItemGroup>
 
 </Project>

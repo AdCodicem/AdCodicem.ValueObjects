@@ -242,7 +242,9 @@ and the validator `[OptionsValidator]` writes do not, and the native AOT applica
 
 The [OpenAPI transformer and the Swashbuckle filters](./openapi.md#text-held-to-a-value-objects-rules) describe a member
 or a parameter carrying `[ParsesAs]` as the text of its value object: a string with its pattern, lengths, format, bounds,
-example and known values.
+example and known values. So does [NSwag](./openapi.md#nswag), through `AdCodicem.ValueObjects.NJsonSchema`, but a
+parameter's own validation attributes replace the value object's lengths and pattern there; the JSON Schema Confluent's
+serdes register describes such a member alike.
 
 ## Found at build time
 

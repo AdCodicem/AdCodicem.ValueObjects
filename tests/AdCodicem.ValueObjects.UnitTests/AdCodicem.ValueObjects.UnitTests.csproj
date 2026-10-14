@@ -48,6 +48,7 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.ModelContextProtocol\AdCodicem.ValueObjects.ModelContextProtocol.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.MongoDB\AdCodicem.ValueObjects.MongoDB.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.NewtonsoftJson\AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.NJsonSchema\AdCodicem.ValueObjects.NJsonSchema.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.OpenApi\AdCodicem.ValueObjects.OpenApi.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Serilog\AdCodicem.ValueObjects.Serilog.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Swashbuckle\AdCodicem.ValueObjects.Swashbuckle.csproj" />
@@ -119,6 +120,15 @@
          a property as it is set and keeps the results it reports; DataAnnotations/ runs [ParsesAs] and [NotDefault]
          through it. -->
     <PackageReference Include="CommunityToolkit.Mvvm" />
+    <!-- NSwag's document generation over TestHost and its C# client generator, whose client Roslyn compiles, and
+         Confluent's JSON serdes over a substitute registry client, which SchemaGeneration/ and Web/ drive the NJsonSchema
+         package through; the Kafka client's native library, which the serdes never load, is left out of the output, its
+         Windows copies included. -->
+    <PackageReference Include="NSwag.AspNetCore" />
+    <PackageReference Include="NSwag.CodeGeneration.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Confluent.SchemaRegistry.Serdes.Json" />
+    <PackageReference Include="librdkafka.redist" ExcludeAssets="native;build" />
   </ItemGroup>
 
   <ItemGroup>
