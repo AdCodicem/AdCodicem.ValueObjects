@@ -410,6 +410,10 @@ Every derived attribute classifies the type, `UnknownDataClassificationAttribute
 `NoDataClassificationAttribute` does not. Never quote the value in the message of a validator hook either: the
 message is what every log records.
 
+The classification on the type does not reach `[LoggerMessage]`: under Microsoft.Extensions.Telemetry, classify the
+parameter or the property that logs the value object too (`VO0045`, whose code fix copies the type's), with a
+parameterless attribute valid on parameters and properties, or `[NoDataClassification]` to log it in clear on purpose.
+
 ## Consuming a value object
 
 ```csharp

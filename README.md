@@ -355,6 +355,11 @@ Log.Logger = new LoggerConfiguration()
 The option costs a pass over the properties of each event, and sees what the enrichers added before it
 ([the logging guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/logging#serilog)).
 
+A value object classified as personal data on its type, which empties the `AttemptedValue` of a rejection, is written
+in clear by the `[LoggerMessage]` generator of Microsoft.Extensions.Telemetry, which reads a classification on the
+parameter or the property only: `VO0045` warns of it, and its code fix copies the type's classification there
+([data classification](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/logging#data-classification)).
+
 Microsoft.Extensions.AI describes a value object a tool takes as `true`, the schema that accepts anything, and answers
 a value its converter refuses with "Error: Function failed.", which tells the model nothing it can correct.
 `AdCodicem.ValueObjects.AI` puts the rules in the tool's schema, and answers a refused argument with its rule, as a
@@ -795,6 +800,8 @@ compile, and are retired. There is no `VO0012`.
 | `VO0042` | Warning | Under `PublishAot`, `[ParsesAs(typeof(T))]` naming a construction of a generic value object, one nested in a generic type, or one written by hand, which a native binary finds only once registered: write `[ParsesAs<T, TValue>]`. |
 | `VO0043` | Error | A serializer's contract attribute on a value object: Orleans' `[GenerateSerializer]`, protobuf-net's `[ProtoContract]` naming no serializer of its own, `[DataContract]`, `[XmlType]`, `[MessagePackObject]`, Newtonsoft.Json's `[JsonObject]`, which write it with no member and read it back as a default instance, or refuse it. A code fix names protobuf-net's serializer, strict at `Level200`, or removes the attribute. |
 | `VO0044` | Warning | MemoryPack's `[MemoryPackable]`, or `[Serializable]` on a value object that does not implement `IXmlSerializable`, which make a serializer read it back without its rules. A code fix removes the attribute; where `DataContractSerializer` writes a `[Serializable]` value object, opt the assembly into XML serialization instead, since without the attribute it writes an empty element. |
+| `VO0045` | Warning | A value object classified on its type that a `[LoggerMessage]` method of Microsoft.Gen.Logging, Microsoft.Extensions.Telemetry's logging generator, writes in clear: that generator reads a classification on a parameter or a property only. A code fix copies the type's classification there. |
+| `VO0046` | Warning | A classified property whose value object a transitive `[LogProperties]`, or `[LogProperties]` on the property, expands into its `Value`, which drops the property's classification. |
 
 ## Using it with an AI coding agent
 

@@ -53,22 +53,32 @@ public static class GeneratorHarness
     /// What to compile against, in place of <see cref="LibraryReferences"/> or, with
     /// <paramref name="referenceJsonPackage"/>, of them and the JSON package.
     /// </param>
+    /// <param name="withLoggingGenerator">
+    /// Whether Microsoft.Gen.Logging runs too, as it does in any project referencing
+    /// Microsoft.Extensions.Telemetry.Abstractions, in place of Microsoft.Extensions.Logging's own generator: it writes
+    /// the other half of a <c>[LoggerMessage]</c> method, which <see cref="GeneratorRun.LoggingSource"/> holds. The
+    /// snippet compiles against <see cref="LoggingReferences"/> then.
+    /// </param>
     /// <returns>The generated sources and every diagnostic produced.</returns>
     public static GeneratorRun Run(
         string source,
         DocumentationMode documentationMode = DocumentationMode.Parse,
         bool referenceJsonPackage = false,
         bool withJsonGenerator = false,
-        ImmutableArray<MetadataReference>? references = null)
+        ImmutableArray<MetadataReference>? references = null,
+        bool withLoggingGenerator = false)
     {
         var parseOptions = ParseOptions.WithDocumentationMode(documentationMode);
         var compilation = Compile(source, parseOptions, references ?? (referenceJsonPackage ? WithJsonPackage : References));
         var driver = CSharpGeneratorDriver
-            .Create(GeneratorsFor(withJsonGenerator), parseOptions: parseOptions, driverOptions: DriverOptions)
+            .Create(GeneratorsFor(withJsonGenerator, withLoggingGenerator), parseOptions: parseOptions, driverOptions: DriverOptions)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
 
         var results = driver.GetRunResult().Results;
         var result = results.Single(run => run.Generator.GetGeneratorType() == typeof(ValueObjectGenerator));
+        var logging = results.Where(run => run.Generator.GetGeneratorType().FullName == LoggingGeneratorType)
+            .Select(run => string.Concat(run.GeneratedSources.Select(generated => generated.SourceText.ToString())))
+            .SingleOrDefault();
 
         // What the regex generator reports, an invalid pattern first among it, fails a snippet as a compiler error
         // would: the generated files and diagnostics this run exposes stay those of the generator under test.
@@ -82,7 +92,8 @@ public static class GeneratorHarness
             [.. result.Diagnostics],
             [.. output.GetDiagnostics().Concat(others).Where(IsRelevant)],
             driver,
-            compilation.SyntaxTrees.Single().GetText(TestContext.Current.CancellationToken));
+            compilation.SyntaxTrees.Single().GetText(TestContext.Current.CancellationToken),
+            logging);
     }
 
     /// <summary>
@@ -98,6 +109,28 @@ public static class GeneratorHarness
     public static ImmutableArray<MetadataReference> LibraryReferences => References;
 
     /// <summary>
+    /// Gets what a project logging through Microsoft.Extensions.Telemetry.Abstractions compiles against:
+    /// <see cref="LibraryReferences"/>, Microsoft.Extensions.Logging.Abstractions, whose <c>LoggerMessageAttribute</c> a
+    /// <c>[LoggerMessage]</c> method carries, Microsoft.Extensions.Telemetry.Abstractions, whose
+    /// <c>LogPropertiesAttribute</c> expands a parameter and whose helpers the code Microsoft.Gen.Logging writes calls,
+    /// and what that code reaches through them.
+    /// </summary>
+    public static ImmutableArray<MetadataReference> LoggingReferences { get; } =
+    [
+        .. References,
+        MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.Logging.ILogger).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.Logging.LogPropertiesAttribute).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.ObjectPool.ObjectPool).Assembly.Location),
+    ];
+
+    /// <summary>
+    /// Gets what a project logging through Microsoft.Extensions.Logging alone compiles against: <see cref="LibraryReferences"/>
+    /// and Microsoft.Extensions.Logging.Abstractions, without Microsoft.Extensions.Telemetry.Abstractions.
+    /// </summary>
+    public static ImmutableArray<MetadataReference> PlainLoggingReferences { get; } =
+        References.Add(MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.Logging.ILogger).Assembly.Location));
+
+    /// <summary>
     /// Compiles source, runs the generator, then runs an analyzer over the result.
     /// </summary>
     /// <typeparam name="TAnalyzer">Analyzer to run.</typeparam>
@@ -108,17 +141,19 @@ public static class GeneratorHarness
     /// it; none when omitted.
     /// </param>
     /// <param name="withJsonGenerator">Whether the System.Text.Json source generator runs too.</param>
+    /// <param name="withLoggingGenerator">Whether Microsoft.Gen.Logging runs too.</param>
     /// <returns>The analyzer's diagnostics.</returns>
     public static async Task<ImmutableArray<Diagnostic>> RunAnalyzerAsync<TAnalyzer>(
         string source,
         ImmutableArray<MetadataReference>? references = null,
         AnalyzerConfiguration? options = null,
-        bool withJsonGenerator = false)
+        bool withJsonGenerator = false,
+        bool withLoggingGenerator = false)
         where TAnalyzer : DiagnosticAnalyzer, new()
     {
         var compilation = Compile(source, references: references);
         var updated = CSharpGeneratorDriver
-            .Create(GeneratorsFor(withJsonGenerator), parseOptions: ParseOptions)
+            .Create(GeneratorsFor(withJsonGenerator, withLoggingGenerator), parseOptions: ParseOptions)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
 
         _ = updated;
@@ -145,12 +180,14 @@ public static class GeneratorHarness
     /// diagnostic, in source order, it is offered for, and the fixing stops once it is offered for none. Without it,
     /// exactly one action must be offered for each diagnostic, and every diagnostic is fixed.
     /// </param>
+    /// <param name="withLoggingGenerator">Whether Microsoft.Gen.Logging runs before the analyzer, each round.</param>
     /// <returns>The fixed source, after the clean-up a code action runs: imports added, names shortened.</returns>
     public static async Task<string> FixAsync<TAnalyzer, TCodeFix>(
         string source,
         ImmutableArray<MetadataReference>? references = null,
         AnalyzerConfiguration? options = null,
-        string? title = null)
+        string? title = null,
+        bool withLoggingGenerator = false)
         where TAnalyzer : DiagnosticAnalyzer, new()
         where TCodeFix : CodeFixProvider, new()
     {
@@ -162,7 +199,7 @@ public static class GeneratorHarness
         {
             using var workspace = new AdhocWorkspace();
             var document = Document(workspace, text, references);
-            var diagnostics = (await AnalyzeAsync<TAnalyzer>(document, options))
+            var diagnostics = (await AnalyzeAsync<TAnalyzer>(document, options, withLoggingGenerator))
                 .Where(candidate => fix.FixableDiagnosticIds.Contains(candidate.Id))
                 .OrderBy(candidate => candidate.Location.SourceSpan.Start);
 
@@ -208,12 +245,14 @@ public static class GeneratorHarness
     /// The title of the code action whose fix-all to apply, for a code fix offering several; the first action offered for
     /// the first diagnostic when omitted.
     /// </param>
+    /// <param name="withLoggingGenerator">Whether Microsoft.Gen.Logging runs before the analyzer.</param>
     /// <returns>The fixed source.</returns>
     public static async Task<string> FixAllAsync<TAnalyzer, TCodeFix>(
         string source,
         ImmutableArray<MetadataReference>? references = null,
         AnalyzerConfiguration? options = null,
-        string? title = null)
+        string? title = null,
+        bool withLoggingGenerator = false)
         where TAnalyzer : DiagnosticAnalyzer, new()
         where TCodeFix : CodeFixProvider, new()
     {
@@ -221,7 +260,7 @@ public static class GeneratorHarness
 
         using var workspace = new AdhocWorkspace();
         var document = Document(workspace, Wrap(source), references);
-        var diagnostics = (await AnalyzeAsync<TAnalyzer>(document, options))
+        var diagnostics = (await AnalyzeAsync<TAnalyzer>(document, options, withLoggingGenerator))
             .Where(candidate => fix.FixableDiagnosticIds.Contains(candidate.Id))
             .ToImmutableArray();
 
@@ -338,11 +377,31 @@ public static class GeneratorHarness
     /// <param name="locate">Picks the span the diagnostic covers in the source as wrapped.</param>
     /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
     /// <returns>The titles of the code actions offered.</returns>
-    public static async Task<IReadOnlyList<string>> OfferedFixTitlesAsync(
+    public static Task<IReadOnlyList<string>> OfferedFixTitlesAsync(
         CodeFixProvider fix,
         string source,
         DiagnosticDescriptor descriptor,
         Func<string, TextSpan> locate,
+        ImmutableArray<MetadataReference>? references = null)
+        => OfferedFixTitlesAsync(
+            fix,
+            source,
+            (tree, text) => Diagnostic.Create(descriptor, Location.Create(tree, locate(text))),
+            references);
+
+    /// <summary>
+    /// Asks a code fix what it offers for a diagnostic a test builds over a document holding source: its location, its
+    /// additional locations and its properties, whether its analyzer could report it so or not.
+    /// </summary>
+    /// <param name="fix">The code fix.</param>
+    /// <param name="source">Source of the document. A namespace and usings are added if absent.</param>
+    /// <param name="diagnose">Builds the diagnostic from the document's tree and its text, as wrapped.</param>
+    /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
+    /// <returns>The titles of the code actions offered.</returns>
+    public static async Task<IReadOnlyList<string>> OfferedFixTitlesAsync(
+        CodeFixProvider fix,
+        string source,
+        Func<SyntaxTree, string, Diagnostic> diagnose,
         ImmutableArray<MetadataReference>? references = null)
     {
         var text = Wrap(source);
@@ -350,7 +409,7 @@ public static class GeneratorHarness
         using var workspace = new AdhocWorkspace();
         var document = Document(workspace, text, references);
         var tree = await document.GetSyntaxTreeAsync(TestContext.Current.CancellationToken);
-        var diagnostic = Diagnostic.Create(descriptor, Location.Create(tree!, locate(text)));
+        var diagnostic = diagnose(tree!, text);
 
         return [.. (await OfferedFixesAsync(fix, document, diagnostic)).Select(action => action.Title)];
     }
@@ -364,18 +423,20 @@ public static class GeneratorHarness
     /// <param name="source">Source of the document. A namespace and usings are added if absent.</param>
     /// <param name="references">What to compile against; <see cref="LibraryReferences"/> when omitted.</param>
     /// <param name="options">The analyzer configuration the compilation is given.</param>
+    /// <param name="withLoggingGenerator">Whether Microsoft.Gen.Logging runs before the analyzer.</param>
     /// <returns>The titles of the code actions offered, one list per diagnostic.</returns>
     public static async Task<IReadOnlyList<IReadOnlyList<string>>> OfferedFixTitlesAsync<TAnalyzer>(
         CodeFixProvider fix,
         string source,
         ImmutableArray<MetadataReference>? references = null,
-        AnalyzerConfiguration? options = null)
+        AnalyzerConfiguration? options = null,
+        bool withLoggingGenerator = false)
         where TAnalyzer : DiagnosticAnalyzer, new()
     {
         using var workspace = new AdhocWorkspace();
         var document = Document(workspace, Wrap(source), references);
         var offered = new List<IReadOnlyList<string>>();
-        foreach (var diagnostic in (await AnalyzeAsync<TAnalyzer>(document, options))
+        foreach (var diagnostic in (await AnalyzeAsync<TAnalyzer>(document, options, withLoggingGenerator))
                      .Where(candidate => fix.FixableDiagnosticIds.Contains(candidate.Id))
                      .OrderBy(candidate => candidate.Location.SourceSpan.Start))
         {
@@ -400,12 +461,15 @@ public static class GeneratorHarness
     /// their trees beside the document's, so each diagnostic is located in the document's own tree, as a code fix
     /// expects.
     /// </summary>
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync<TAnalyzer>(Document document, AnalyzerConfiguration? options)
+    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync<TAnalyzer>(
+        Document document,
+        AnalyzerConfiguration? options,
+        bool withLoggingGenerator = false)
         where TAnalyzer : DiagnosticAnalyzer, new()
     {
         var compilation = await document.Project.GetCompilationAsync(TestContext.Current.CancellationToken);
         CSharpGeneratorDriver
-            .Create(Generators, parseOptions: ParseOptions)
+            .Create(GeneratorsFor(withJsonGenerator: false, withLoggingGenerator), parseOptions: ParseOptions)
             .RunGeneratorsAndUpdateCompilation(compilation!, out var output, out _);
 
         return await output
@@ -534,8 +598,29 @@ public static class GeneratorHarness
         return ((IIncrementalGenerator)Activator.CreateInstance(type, nonPublic: true)!).AsSourceGenerator();
     });
 
-    private static ImmutableArray<ISourceGenerator> GeneratorsFor(bool withJsonGenerator)
-        => withJsonGenerator ? Generators.Add(JsonGenerator.Value) : Generators;
+    /// <summary>
+    /// Microsoft.Gen.Logging, the <c>[LoggerMessage]</c> generator of Microsoft.Extensions.Telemetry.Abstractions, run only
+    /// on request, as the System.Text.Json one is: it writes the other half of a logging method, and the
+    /// <c>[GeneratedCode]</c> on it is what <c>VO0045</c> and <c>VO0046</c> read a method by.
+    /// </summary>
+    private static readonly Lazy<ISourceGenerator> LoggingGenerator = new(() =>
+    {
+        // Copied next to the tests by the CopyLoggingGenerator target, from the package Directory.Packages.props pins.
+        var path = Path.Combine(AppContext.BaseDirectory, "logging-generator", "Microsoft.Gen.Logging.dll");
+        var type = Assembly.LoadFrom(path).GetType(LoggingGeneratorType, throwOnError: true)!;
+
+        return ((IIncrementalGenerator)Activator.CreateInstance(type, nonPublic: true)!).AsSourceGenerator();
+    });
+
+    /// <summary>The full name of Microsoft.Gen.Logging's generator.</summary>
+    private const string LoggingGeneratorType = "Microsoft.Gen.Logging.LoggingGenerator";
+
+    private static ImmutableArray<ISourceGenerator> GeneratorsFor(bool withJsonGenerator, bool withLoggingGenerator = false)
+    {
+        var generators = withJsonGenerator ? Generators.Add(JsonGenerator.Value) : Generators;
+
+        return withLoggingGenerator ? generators.Add(LoggingGenerator.Value) : generators;
+    }
 
     private static readonly GeneratorDriverOptions DriverOptions =
         new(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true);
@@ -635,12 +720,17 @@ public sealed record GeneratedFile(string HintName, string Text);
 /// <param name="CompilationDiagnostics">Diagnostics from compiling the result.</param>
 /// <param name="Driver">The driver, for incremental inspection.</param>
 /// <param name="Source">The source compiled, as wrapped by the harness.</param>
+/// <param name="LoggingSource">
+/// What Microsoft.Gen.Logging wrote, when it ran: the other half of each <c>[LoggerMessage]</c> method, and the tags
+/// it hands the logger.
+/// </param>
 public sealed record GeneratorRun(
     ImmutableArray<GeneratedFile> Files,
     ImmutableArray<Diagnostic> Diagnostics,
     ImmutableArray<Diagnostic> CompilationDiagnostics,
     GeneratorDriver Driver,
-    SourceText Source)
+    SourceText Source,
+    string? LoggingSource)
 {
     /// <summary>Gets the single generated value object file, failing when there is not exactly one.</summary>
     public string SingleValueObject

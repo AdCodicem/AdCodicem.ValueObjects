@@ -1,7 +1,7 @@
 # Diagnostics
 
 Every rule the generator, the analyzers and the compiler enforce, and what to do about each. `VO0008`, `VO0011`,
-`VO0025`, `VO0026`, `VO0033`, `VO0042` and `VO0044` are warnings; everything else is an error. There is no `VO0012`, and `VO0004`,
+`VO0025`, `VO0026`, `VO0033`, `VO0042`, `VO0044`, `VO0045` and `VO0046` are warnings; everything else is an error. There is no `VO0012`, and `VO0004`,
 `VO0006`, `VO0013`, `VO0014`, `VO0022` and `VO0029` are retired: they reported options written as text, which no
 longer compile.
 
@@ -44,6 +44,8 @@ longer compile.
 | `VO0042` | Warning, under `PublishAot`: `[ParsesAs(typeof(T))]` naming a construction of a generic value object, one nested in a generic type, or one written by hand. | A native binary finds them only once registered: write `[ParsesAs<T, TValue>]`, or register the type before a value is validated. |
 | `VO0043` | A serializer's contract attribute on a value object or identifier: Orleans' `[GenerateSerializer]`, protobuf-net's `[ProtoContract]` naming no serializer (or another value object's), `[DataContract]`, `[XmlType]`, `[MessagePackObject]`, Newtonsoft.Json's `[JsonObject]`. | Remove the attribute. For protobuf-net, name the serializer instead, `[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<Sku, string>))]`, which the code fix writes, strict at `Level200`; where `AddValueObjects` registered the type on a model at `Level240` or `Level300`, or with `trusted: true`, name that profile, `ValueObjectProtoSerializer<Sku, string, ValueObjectProtoProfiles.StrictLevel300>`, or the wire changes. One over `Int128`, `UInt128` or `DateTimeOffset` drops the attribute, generic or not; any other generic value object registers each construction with `AddValueObject<TSelf, TValue>()`. |
 | `VO0044` | Warning: MemoryPack's `[MemoryPackable]`, or `[Serializable]` on a value object that does not implement `IXmlSerializable`. | Remove `[MemoryPackable]`: no integration reads MemoryPack through the rules. For `[Serializable]`, opt the assembly in with `[assembly: ValueObjectXmlSerialization]`; remove it only where no `DataContractSerializer` writes the type, which without it writes an empty element and reads back a default instance. The code fix removes either. |
+| `VO0045` | Warning: a `[LoggerMessage]` method Microsoft.Gen.Logging (Microsoft.Extensions.Telemetry) writes logs a value object classified on its type, as a parameter, a property `[LogProperties]` expands, a member of a record logged whole, or the element of a collection, with no classification of its own. | Copy the type's classification onto the parameter or the property, as the code fix does: `[PersonalData] EmailAddress email`. Or write `[NoDataClassification]` to log it in clear on purpose. The attribute must be parameterless and valid on parameters and properties. For a member of another assembly, classify it there. For a record logged whole, log it with `[LogProperties]` and classify the property. |
+| `VO0046` | Warning: a classified property whose value object `[LogProperties(Transitive = true)]`, or `[LogProperties]` on the property, expands into its unclassified `Value`. | Classify the value object's type, or drop `Transitive` (for `[LogProperties]` on the property, drop that attribute from the property). |
 
 ## Diagnosing generated code
 

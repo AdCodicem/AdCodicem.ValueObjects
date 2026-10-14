@@ -123,15 +123,6 @@ public sealed class SerializerContractAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// Gets an attribute as the message and the code fix's title show it: its class name without <c>Attribute</c>, in
-    /// brackets.
-    /// </summary>
-    /// <param name="attributeClass">One of the contract attributes <see cref="IsContractAttribute"/> recognizes.</param>
-    /// <returns>The attribute as written, <c>[ProtoContract]</c>.</returns>
-    internal static string Shown(INamedTypeSymbol attributeClass)
-        => $"[{attributeClass.Name.Substring(0, attributeClass.Name.Length - "Attribute".Length)}]";
-
-    /// <summary>
     /// Determines whether an attribute class is one of the contract attributes the analyzer reads, whatever its arguments.
     /// </summary>
     /// <param name="attributeClass">The class of an attribute.</param>
@@ -199,7 +190,7 @@ public sealed class SerializerContractAnalyzer : DiagnosticAnalyzer
                     descriptor,
                     attribute.ApplicationSyntaxReference!.GetSyntax(context.CancellationToken).GetLocation(),
                     type.ToDisplayString(TypeFormat),
-                    Shown(attributeClass),
+                    ValueObjectAnnotations.Shown(attributeClass),
                     effect,
                     remedy));
             }

@@ -14,6 +14,10 @@
     <PackageReference Include="Basic.Reference.Assemblies.Net100" />
     <!-- Handed to every snippet, so that one classifies a value object as personal data as a consumer does. -->
     <PackageReference Include="Microsoft.Extensions.Compliance.Abstractions" />
+    <!-- LogPropertiesAttribute, handed to the snippets that log, and Microsoft.Gen.Logging, which the harness runs on
+         request; the package's build targets drop Microsoft.Extensions.Logging's generator from this project, which
+         declares no [LoggerMessage]. -->
+    <PackageReference Include="Microsoft.Extensions.Telemetry.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>
@@ -63,6 +67,21 @@
     </ItemGroup>
     <Error Condition="'@(_JsonGenerator)' == ''"
            Text="The targeting pack's System.Text.Json.SourceGeneration.dll was not found among this project's analyzers." />
+  </Target>
+
+  <!--
+    Microsoft.Gen.Logging, the [LoggerMessage] generator of Microsoft.Extensions.Telemetry.Abstractions, runs only for the
+    snippets that ask for it, so that a test reads which tags it classifies: VO0045 and VO0046 exist for what it does not
+    read. Taken from the analyzers the package hands this project, at the version Directory.Packages.props pins.
+  -->
+  <Target Name="CopyLoggingGenerator" AfterTargets="ResolveLockFileAnalyzers" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <_LoggingGenerator Include="@(Analyzer)"
+                         Condition="'%(Analyzer.Filename)' == 'Microsoft.Gen.Logging' and '%(Analyzer.NuGetPackageId)' == 'Microsoft.Extensions.Telemetry.Abstractions'" />
+      <None Include="@(_LoggingGenerator)" Link="logging-generator\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+    <Error Condition="'@(_LoggingGenerator)' == ''"
+           Text="Microsoft.Extensions.Telemetry.Abstractions' Microsoft.Gen.Logging.dll was not found among this project's analyzers." />
   </Target>
 
 </Project>

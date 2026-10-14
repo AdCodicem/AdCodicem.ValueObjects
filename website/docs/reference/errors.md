@@ -211,6 +211,10 @@ included; `NoDataClassificationAttribute`, which says the data is not sensitive,
 generic value object reads the same attribute on the generic definition. On a type left unclassified,
 `AttemptedValue` carries the raw value, by design: it is what a caller debugging a rejection needs.
 
+The classification on the type does not reach a `[LoggerMessage]` method by itself: Microsoft.Extensions.Telemetry's
+logging generator reads one on the parameter or the property only, which `VO0045` asks for, and its code fix writes
+([Data classification](../how-to/logging.md#data-classification)).
+
 The integrations on a boundary report a rejected value in their own terms, so the exception is reserved for code
 that treats a rejected value as a bug, for a strict EF Core read, and for an EF Core write
 [refusing a value](#a-value-refused-on-write):

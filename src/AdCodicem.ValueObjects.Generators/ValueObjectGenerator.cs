@@ -1051,34 +1051,60 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// Determines whether the author classifies a type as sensitive data, with an attribute derived from
     /// <c>DataClassificationAttribute</c>.
     /// </summary>
+    /// <param name="symbol">Type to inspect.</param>
+    /// <returns><see langword="true"/> when one of the attributes of the type classifies it.</returns>
+    private static bool IsClassified(INamedTypeSymbol symbol) => !Classifications(symbol).IsEmpty;
+
+    /// <summary>
+    /// Gets the attributes that classify a type as sensitive data, in their declared order: those derived from
+    /// <c>DataClassificationAttribute</c>, <c>NoDataClassificationAttribute</c> left out.
+    /// </summary>
     /// <remarks>
     /// The attribute is the author's own, so it is recognized by the metadata name of the base it derives from, and the
     /// library references Microsoft.Extensions.Compliance.Abstractions nowhere. <c>NoDataClassificationAttribute</c>
     /// derives from it to say the opposite, and does not count. Every other derived attribute does,
-    /// <c>UnknownDataClassificationAttribute</c> included: data nobody has classified yet is read as sensitive.
+    /// <c>UnknownDataClassificationAttribute</c> included: data nobody has classified yet is read as sensitive. What
+    /// empties <c>AttemptedValue</c> is what <c>VO0045</c> asks a logging method to restate.
     /// </remarks>
-    /// <param name="symbol">Type to inspect.</param>
-    /// <returns><see langword="true"/> when one of the attributes of the type classifies it.</returns>
-    private static bool IsClassified(INamedTypeSymbol symbol)
+    /// <param name="symbol">Type to inspect: a definition, whose attributes a construction of it carries.</param>
+    /// <returns>The attributes, empty when the type is not classified.</returns>
+    internal static ImmutableArray<AttributeData> Classifications(INamedTypeSymbol symbol)
     {
+        var classifications = ImmutableArray.CreateBuilder<AttributeData>();
         foreach (var attribute in symbol.GetAttributes())
         {
-            for (var type = attribute.AttributeClass; type is not null; type = type.BaseType)
+            if (IsSensitiveClassification(attribute.AttributeClass))
             {
-                if (!string.Equals(type.ContainingNamespace.ToDisplayString(), ClassificationNamespace, StringComparison.Ordinal))
-                {
-                    continue;
-                }
+                classifications.Add(attribute);
+            }
+        }
 
-                if (string.Equals(type.MetadataName, "NoDataClassificationAttribute", StringComparison.Ordinal))
-                {
-                    break;
-                }
+        return classifications.ToImmutable();
+    }
 
-                if (string.Equals(type.MetadataName, "DataClassificationAttribute", StringComparison.Ordinal))
-                {
-                    return true;
-                }
+    /// <summary>
+    /// Determines whether an attribute class classifies data as sensitive: derived from
+    /// <c>DataClassificationAttribute</c>, and not from <c>NoDataClassificationAttribute</c>.
+    /// </summary>
+    /// <param name="attributeClass">The class of an attribute, <see langword="null"/> when it does not resolve.</param>
+    /// <returns><see langword="true"/> for a classification of sensitive data.</returns>
+    internal static bool IsSensitiveClassification(INamedTypeSymbol? attributeClass)
+    {
+        for (var type = attributeClass; type is not null; type = type.BaseType)
+        {
+            if (!string.Equals(type.ContainingNamespace.ToDisplayString(), ClassificationNamespace, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (string.Equals(type.MetadataName, "NoDataClassificationAttribute", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (string.Equals(type.MetadataName, "DataClassificationAttribute", StringComparison.Ordinal))
+            {
+                return true;
             }
         }
 

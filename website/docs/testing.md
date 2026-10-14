@@ -17,11 +17,12 @@ Four suites, each with a distinct job:
   generator emits for every one of them runs rather than only compiles. Generated sources are emitted to disk
   during the build, so they can be read when diagnosing a failure instead of decompiled from memory. Value
   objects written by hand reach what the generator always replaces, such as the default members of the
-  contracts, and six small fixture assemblies hold what the test assembly cannot: a generated value object whose
+  contracts, and seven small fixture assemblies hold what the test assembly cannot: a generated value object whose
   module has not been used yet, annotated value objects in an assembly the generator does not run on,
   generated value objects in an assembly that does not reference the JSON package, generated value objects of
   every underlying type in an assembly that opts into XML serialization, generated value objects beside a query
-  type HotChocolate's source generator binds, and Blazor forms written in Razor markup. What needs a server and no container runs
+  type HotChocolate's source generator binds, Blazor forms written in Razor markup, and `[LoggerMessage]` methods
+  Microsoft.Gen.Logging writes, beside value objects classified as personal data. What needs a server and no container runs
   here too, over TestHost: ASP.NET Core's pipelines, a SignalR hub talking MessagePack with the .NET client, and a
   protobuf-net.Grpc code-first service and a contract-first gRPC service with the .NET gRPC client; and
   over SQLite in memory: collections of value objects through Entity Framework Core, every sample value object among
@@ -69,9 +70,10 @@ Four suites, each with a distinct job:
   is refused in every shape the convention concerns, and an integer key to generate is refused on Entity Framework
   Core's in-memory provider, which is not relational.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
-  incremental caching, the analyzer of the DataAnnotations attributes and its `PublishAot` gate included, and the
-  analyzer of serializers' contract attributes and its code fix, over protobuf-net itself and the other serializers'
-  attributes declared under their real names. It drives
+  incremental caching, the analyzer of the DataAnnotations attributes and its `PublishAot` gate included, the analyzer
+  of serializers' contract attributes and its code fix, over protobuf-net itself and the other serializers' attributes
+  declared under their real names, and the analyzer of data classifications held to the tags Microsoft.Gen.Logging, run
+  beside the generator, writes. It drives
   Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that
   slipped into emitted code. The incrementality tests assert on the Roslyn incremental step run reason — the

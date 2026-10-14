@@ -177,8 +177,17 @@
          Microsoft's, under MIT; JsonSchema.Net, which it replaces, moved to the Open Source Maintenance Fee EULA at 9.0. -->
     <PackageVersion Include="LateApexEarlySpeed.Json.Schema" Version="4.2.0" />
     <!-- The attribute a consumer derives to classify a value object as personal data, which the generator recognizes
-         by name: the tests classify value objects as a consumer does, and no package under src/ references it. -->
-    <PackageVersion Include="Microsoft.Extensions.Compliance.Abstractions" Version="10.10.0" />
+         by name: the tests classify value objects as a consumer does, and no package under src/ references it. At the
+         version Microsoft.Extensions.Telemetry.Abstractions asks for, which a lower pin would fail the restore of
+         (NU1109). -->
+    <PackageVersion Include="Microsoft.Extensions.Compliance.Abstractions" Version="10.11.0" />
+    <!-- The logging generator, Microsoft.Gen.Logging, which the generator tests run over snippets and the Redaction
+         fixture compiles with, and LogPropertiesAttribute; it replaces Microsoft.Extensions.Logging's [LoggerMessage]
+         generator in every project it reaches. EnableRedaction(), which the unit suite logs through, and the redactors it
+         registers. No package under src/ references them. -->
+    <PackageVersion Include="Microsoft.Extensions.Telemetry.Abstractions" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.Telemetry" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.Compliance.Redaction" Version="10.11.0" />
     <!-- The formatter, the filter language and the Microsoft.Extensions.Logging provider the unit suite drives the Serilog
          package through, as an application does; no package under src/ references them. -->
     <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />

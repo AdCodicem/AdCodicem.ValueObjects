@@ -45,6 +45,7 @@
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Blazor/AdCodicem.ValueObjects.Fixtures.Blazor.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Functions/AdCodicem.ValueObjects.Fixtures.Functions.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.GraphQL/AdCodicem.ValueObjects.Fixtures.GraphQL.csproj" />
+    <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Redaction/AdCodicem.ValueObjects.Fixtures.Redaction.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Untouched/AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WithoutGenerator/AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WithoutJson/AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />

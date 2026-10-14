@@ -1029,7 +1029,11 @@ Log.Logger = new LoggerConfiguration()
   logged without `@`.
 - Under native AOT, Serilog destructures no object: an object logged with `@` is its `ToString()`. A value object alone
   or in a collection is logged as under the JIT.
-- A value object classified as personal data is logged in clear: redaction is not done by this package yet.
+- A value object classified as personal data is logged in clear by Serilog's API and by `LogInformation`. On a
+  `[LoggerMessage]` method under Microsoft.Extensions.Telemetry, classify the parameter or the property with the type's
+  attribute (`VO0045`, code fix), or with `[NoDataClassification]` to log it in clear on purpose; Serilog behind
+  Microsoft.Extensions.Logging with `EnableRedaction()` then receives the redacted value. Never count on
+  `[LogProperties(Transitive = true)]` to keep a property's classification (`VO0046`): classify the value object's type.
 
 ## Language models (Microsoft.Extensions.AI)
 

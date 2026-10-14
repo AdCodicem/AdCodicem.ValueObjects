@@ -315,7 +315,7 @@ generated converter inherits.
 
 ## Diagnostics
 
-The generator, the analyzers and the compiler report `VO0001` to `VO0044`. [Diagnostics](./reference/diagnostics.md)
+The generator, the analyzers and the compiler report `VO0001` to `VO0046`. [Diagnostics](./reference/diagnostics.md)
 lists each one with its fix.
 
 Next: [Generated members](./reference/generated-members.md), for what the generator writes from all of this.

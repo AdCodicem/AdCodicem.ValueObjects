@@ -84,7 +84,7 @@ public sealed class SerializerContractCodeFixProvider : CodeFixProvider
 
             // Outside the XML opt-in, DataContractSerializer writes a value object without [Serializable] as an empty
             // element: its removal says so.
-            var shown = SerializerContractAnalyzer.Shown(attributeClass);
+            var shown = ValueObjectAnnotations.Shown(attributeClass);
             context.RegisterCodeFix(
                 CodeAction.Create(
                     shown == SerializableShown
