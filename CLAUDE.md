@@ -564,17 +564,23 @@ These are all load-bearing, and each cost real debugging time:
   nothing. A dependency added to a shipped package goes into the list in the same pull request. Dependabot pull
   requests are squash-merged, so that the title becomes the commit semantic-release reads; a rebase merge keeps
   Dependabot's `chore(deps)` commit and releases nothing. One case needs a hand: a Dependabot security update that
-  pins a transitive dependency the list does not name yet. It opens as `chore(deps)` with auto-merge queued, and
+  pins a transitive dependency the list does not name yet. It opens as `chore(deps)` with auto-merge queued, unless
+  Dependabot groups it, as #166, which then carries no prefix and has to be retitled by hand all the same, and
   `build and test` fails on the list; the workflow reads the list from the base branch and ignores your events, so it
   cannot retitle it. Retitle the pull request `fix(deps): …` (`fix(deps)!: …` across a major) first, then push the
   list line to its branch; the auto-merge still queued squashes it under your title. Never merge the line in a pull
-  request of its own: nothing on `main` ships that ID yet, so the check fails there too.
+  request of its own: nothing on `main` ships that ID yet, so the check fails there too. An update, a security update
+  or the `dotnet` group's patch alike, whose new version asks for a later `Microsoft.Extensions.Options` or
+  `Microsoft.Extensions.DependencyInjection.Abstractions`, the transitive pins Dependabot never moves, fails its
+  restore with NU1109 and opens no pull request for it, as SignalR's 10.0.13 did: move those pins with it by hand,
+  with the rest of Microsoft's patch, in a `fix(deps)` commit of your own (`docs/maintaining.md`, Routines).
 - **The compatibility island is invisible to the root tooling.** `tests/Compat` has its own `global.json`, naming
   the .NET 11 release candidate's SDK, which CI installs exactly and a later 11.0 SDK may run locally
   (`rollForward: latestFeature`), and its own `Directory.Build.props`, `Directory.Packages.props` and
   `nuget.config`. It is in no solution, so the root build, `dotnet format`, coverage and Dependabot never see it, and
   it must be run from its folder: from the root, the root `global.json` selects SDK 10 and the build stops. Its SDK
-  and its .NET 11 packages are bumped by hand, Npgsql's provider in the same change as EF Core, which it pins exactly.
+  and its .NET 11 packages are bumped by hand, Npgsql's provider in the same change as EF Core, which it pins exactly:
+  EF Core stays on RC1 under the RC2 SDK until Npgsql publishes its RC2.
 - **The EF Core package is built against EF Core 10 and runs under 11, which removed members a convention could
   reach.** EF Core 11 has no `IConventionPropertyBuilder.SetElementType` and no `IPropertyElementTypeChangedConvention`:
   a package built against 10 calling the first throws `MissingMethodException` when the calling method is compiled, and
@@ -996,11 +1002,15 @@ These are all load-bearing, and each cost real debugging time:
   with `git rev-list --count origin/main..HEAD` before opening a pull request, and split work past 100 commits into
   pull requests stacked on one another. CI runs only on pull requests that target `main`, so a stacked one gets
   its checks once the one beneath it has merged and it has been rebased onto `main`.
-- **`website/package.json` carries `overrides`** for `qs`, `serialize-javascript` and `uuid`. All three are
-  transitive under Docusaurus, which pins ranges too tight to pick up the patched versions on its own, so
-  Dependabot alerts on them and `npm audit fix --force` "fixes" it by *downgrading* `@docusaurus/core` to
-  3.5.2. Drop an override once Docusaurus widens the range that holds it back, not before, and re-run
-  `npm audit` after touching them.
+- **`website/package.json` carries `overrides`** for `postcss-selector-parser`, `qs`, `serialize-javascript`,
+  `tinypool` and `uuid`. All five are transitive under Docusaurus, which pins ranges too tight to pick up the patched
+  versions on its own, so Dependabot alerts on them and `npm audit fix --force` "fixes" four by *downgrading*
+  `@docusaurus/core`, to 3.5.2 for `qs`, `serialize-javascript` and `uuid`, to 3.7.0 for `tinypool`. Drop an override
+  once Docusaurus widens the range that holds it back, not before: `tinypool` once `@docusaurus/core` asks for
+  `^2.1.2` (3.10.2 asks for `^1.0.2`, and no 1.x is patched; the pool builds the static pages, `future.v4` turning on
+  its worker threads), `postcss-selector-parser` once `@docusaurus/cssnano-preset` leaves cssnano 6 (3.10.2 asks for
+  `cssnano-preset-advanced` `^6.1.2`, whose plugins ask for `^6`, and only 7.1.6 is patched). Re-run `npm audit`
+  after touching them: it reports `braces` alone, which has no patched release.
 
 ## Testing
 
@@ -1281,7 +1291,8 @@ on where they apply.
   `.config/dotnet-tools.json` to the version of `Microsoft.EntityFrameworkCore.Design`, EF Core's own: Dependabot's
   `dotnet` group bumps them together, and holds back the tool's next major as it does EF Core's. The project
   turns transitive pinning off: Design depends on a later Roslyn than the one `Directory.Packages.props` pins for the
-  generator. EF Core 10 constrains what its query precompilation accepts, and Program.cs is written around it: each
+  generator. It therefore references `System.Security.Cryptography.Pkcs` itself, which the pin raises above the
+  vulnerable 9.0.11 SqlClient asks for in every other SQL Server graph. EF Core 10 constrains what its query precompilation accepts, and Program.cs is written around it: each
   query on a context held in a local and over locals (a context passed as a parameter is a "dynamic" query, a method
   parameter inside the query throws), tracked (it writes an untracked query that does not compile), on an entity type
   that is not sealed, in a model with no type named as one of EF Core's internal ones, `Reference<T>` among them

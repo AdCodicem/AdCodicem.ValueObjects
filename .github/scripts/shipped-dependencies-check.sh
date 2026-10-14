@@ -47,8 +47,9 @@ report() { # <message> <ids>
 }
 
 # A Dependabot security update can pin a transitive dependency of a package that the list does not
-# name yet. Its pull request opens as chore(deps), with auto-merge queued, and dependabot-auto-merge.yml,
-# which reads the list from the base branch, never retitles it: the title has to change by hand first.
+# name yet. Its pull request opens as chore(deps), or with no prefix when Dependabot groups it, with auto-merge
+# queued, and dependabot-auto-merge.yml, which reads the list from the base branch, never retitles it: the title
+# has to change by hand first.
 hint=""
 if [[ "${GITHUB_HEAD_REF:-}" == dependabot/* ]]; then
   hint=" On this Dependabot pull request, retitle it fix(deps): (fix(deps)!: across a major) before adding the line, or it merges as chore(deps)."
