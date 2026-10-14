@@ -1,0 +1,25 @@
+// The contract-first service of ContractFirstGrpc.cs, whose messages hold the strings and numbers its handlers map to
+// value objects.
+syntax = "proto3";
+
+package native.v1;
+
+option csharp_namespace = "AdCodicem.ValueObjects.NativeAot.ContractFirst";
+
+service PhoneBook {
+  rpc Add (Entry) returns (EntryAnswer);
+  rpc AddMapped (Entry) returns (EntryAnswer);
+  rpc Watch (Entry) returns (stream EntryAnswer);
+  rpc Upload (stream Entry) returns (EntryAnswer);
+}
+
+message Entry {
+  string phone = 1;
+  int32 page = 2;
+  repeated string labels = 3;
+}
+
+message EntryAnswer {
+  string phone = 1;
+  int32 total = 2;
+}

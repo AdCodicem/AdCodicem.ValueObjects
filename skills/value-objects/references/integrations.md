@@ -20,6 +20,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, a `$jsonSchema` validator from the rules. |
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers and protobuf-net.Grpc code-first services: the underlying type's wire, strict reads, the scalar in the `.proto` export, a refused request answered `INVALID_ARGUMENT` with its code. AOT-compatible through protobuf-net's `[ProtoModel]`. |
+| `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC: every refused field at once in a `google.rpc.BadRequest`, a refusal escaping a handler as `INVALID_ARGUMENT` with a `google.rpc.ErrorInfo`. AOT-compatible. |
 | `AdCodicem.ValueObjects.HotChocolate` | HotChocolate 16: one GraphQL scalar per value object, read through its rules; a refused value answered with its code under `extensions.code`. AOT-compatible. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
@@ -639,6 +640,32 @@ message, losing the value. Register at start-up: protobuf-net freezes a type onc
   publish warns at the generated model's calls (protobuf-net's annotations). `AddValueObjects`, `AddValueObject` and
   `ForServer` are JIT-only (`[RequiresDynamicCode]`, protobuf-net's runtime model); natively, name the serializer on the
   value object.
+
+## Contract-first gRPC
+
+```csharp skip
+builder.Services.AddGrpc(o => o.Interceptors.Add<ValueObjectExceptionInterceptor>());          // or Add<…>("orders.example.com")
+builder.Services.AddCodeFirstGrpc(o => o.Interceptors.Add<ValueObjectExceptionInterceptor>()); // protobuf-net.Grpc handlers too
+
+var fields = new ValueObjectBadRequest();                        // in a handler, one per request
+var sku = fields.Create<Sku, string>(request.Sku, "sku");
+var skus = fields.CreateAll<Sku, string>(request.Skus, "skus");  // skus[0], skus[1], …
+fields.ThrowIfAny();                                             // then use the values
+```
+
+Messages Grpc.Tools generates hold strings and numbers; a `Create` that throws in a handler is answered `UNKNOWN`
+without the package.
+
+- `ValueObjectBadRequest` records each refused field (`field` the path, `reason` `ToUpperSnakeCase(code)`, empty for a
+  code that maps to none, `description` the rule's message) and `ThrowIfAny()` throws one `INVALID_ARGUMENT` whose
+  `google.rpc.Status` holds the `google.rpc.BadRequest`. A refused field leaves the default instance: read every field,
+  then call `ThrowIfAny`.
+- `ValueObjectExceptionInterceptor` turns a `ValueObjectException` carrying a code into `INVALID_ARGUMENT` with a
+  `google.rpc.ErrorInfo` (`reason`, `domain`, `metadata` `code` and `valueObject`), the exception's message as the
+  status message; every other exception goes through. It serves unary and streaming calls, contract-first and
+  code-first; a request refused while the message is read is `ForServer`'s (above).
+- The namespace `AdCodicem.ValueObjects.Grpc` hides the root `Grpc` namespace inside `AdCodicem.ValueObjects.*` code:
+  put `using Grpc.Core;` at the top of the file, or write `global::Grpc`.
 
 ## GraphQL (HotChocolate)
 

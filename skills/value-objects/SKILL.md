@@ -237,6 +237,7 @@ var msgpack = MessagePackSerializerOptions.Standard.WithValueObjects();         
 builder.Services.AddSignalR().AddMessagePackProtocol(o => o.UseValueObjects());        // MessagePack, client too
 RuntimeTypeModel.Default.AddValueObjects(typeof(Iban).Assembly);                       // ProtobufNet, before the first message
 builder.Services.AddSingleton(ValueObjectBinderConfiguration.ForServer(RuntimeTypeModel.Default)); // ProtobufNet: code-first gRPC
+builder.Services.AddGrpc(o => o.Interceptors.Add<ValueObjectExceptionInterceptor>());  // Grpc: contract-first, ValueObjectBadRequest too
 builder.Services.AddGraphQLServer().AddQueryType<Query>().AddValueObjects();           // HotChocolate, a scalar per value object
 new LoggerConfiguration().Enrich.FromLogContext()                                      // Serilog, after FromLogContext
     .Destructure.ValueObjects(o => { o.CaptureAsUnderlyingValue = true; o.Assemblies.Add(typeof(Iban).Assembly); });
@@ -318,7 +319,7 @@ library. AutoFixture, Bogus and FsCheck get the same values through `AdCodicem.V
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, protobuf-net and code-first gRPC, FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, test data for AutoFixture, Bogus and FsCheck. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, protobuf-net and gRPC (code-first and contract-first), GraphQL (HotChocolate), FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, XML, test data for AutoFixture, Bogus and FsCheck, Azure Functions (isolated worker), the run-time lookup when only a `Type` is known. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, their EF Core columns and MongoDB id generation, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0042`, with the fix for each. |
 

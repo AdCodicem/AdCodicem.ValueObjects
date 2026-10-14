@@ -22,7 +22,7 @@
     <Error Text="The compatibility island targets the next .NET major, which SDK $(NETCoreSdkVersion) cannot. Run it from tests/Compat, whose global.json selects the SDK it needs." />
   </Target>
 
-  <!-- All thirty but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
+  <!-- All thirty-one but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
        AdCodicem.ValueObjects and runs in this SDK's compiler, the integrations resolve their dependency floors against
        the next major, HotChocolate.Types' net11.0 assembly among them. Swashbuckle 10 fails on the Microsoft.OpenApi 3 that Microsoft.AspNetCore.OpenApi 11 brings here,
        so the Swashbuckle package is installed by the project of Swashbuckle/. -->
@@ -41,6 +41,7 @@
     <PackageReference Include="AdCodicem.ValueObjects.EntityFrameworkCore" />
     <PackageReference Include="AdCodicem.ValueObjects.FluentValidation" />
     <PackageReference Include="AdCodicem.ValueObjects.FsCheck" />
+    <PackageReference Include="AdCodicem.ValueObjects.Grpc" />
     <PackageReference Include="AdCodicem.ValueObjects.HotChocolate" />
     <PackageReference Include="AdCodicem.ValueObjects.Identifiers" />
     <PackageReference Include="AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore" />
@@ -97,12 +98,13 @@
     <PackageReference Include="NSwag.AspNetCore" />
     <PackageReference Include="Confluent.SchemaRegistry.Serdes.Json" />
     <PackageReference Include="librdkafka.redist" ExcludeAssets="native;build" />
-    <!-- A protobuf-net.Grpc server over TestHost, the .NET client a code-first service is reached through, and
-         Grpc.StatusProto, which reads the google.rpc.Status a refused request is answered with; protobuf-net and
-         protobuf-net.Grpc come with AdCodicem.ValueObjects.ProtobufNet, at the package's floors. -->
+    <!-- A protobuf-net.Grpc server over TestHost, Grpc.AspNetCore's server, whose Grpc.Tools compiles the contract-first
+         service of Protos/, and the .NET client either is reached through; protobuf-net and protobuf-net.Grpc come with
+         AdCodicem.ValueObjects.ProtobufNet, and Grpc.StatusProto, which reads the google.rpc.Status a refusal is answered
+         with, with AdCodicem.ValueObjects.Grpc, at the packages' floors. -->
     <PackageReference Include="protobuf-net.Grpc.AspNetCore" />
-    <PackageReference Include="Grpc.Net.Client" />
-    <PackageReference Include="Grpc.StatusProto" />
+    <PackageReference Include="Grpc.AspNetCore" />
+    <Protobuf Include="Protos/dispatch.proto" GrpcServices="Both" />
   </ItemGroup>
 
   <ItemGroup>

@@ -105,6 +105,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, and a `$jsonSchema` validator built from the rules. |
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters, and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers, and protobuf-net.Grpc code-first services: the underlying value on the wire, strict reads, a refused request answered `INVALID_ARGUMENT` with its rule code. |
+| `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC services: every refused field answered at once as `INVALID_ARGUMENT` with a `google.rpc.BadRequest`, and a refusal escaping a handler with a `google.rpc.ErrorInfo` carrying its rule code. |
 | `AdCodicem.ValueObjects.HotChocolate` | One GraphQL scalar per value object under HotChocolate 16, read through its rules, a refused value answered with its rule code. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. |
@@ -123,7 +124,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-one are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -146,6 +147,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
 | `AdCodicem.ValueObjects.MessagePack` | `net10.0` | MessagePack 3.1, with SignalR's MessagePack hub protocol 10 | MessagePack 3.1 on .NET 11, with the hub protocol 11 |
 | `AdCodicem.ValueObjects.ProtobufNet` | `net10.0` | protobuf-net 3.4 and protobuf-net.Grpc 1.3 over Grpc.AspNetCore 2.84, and protobuf-net's compile-time model under native AOT | protobuf-net 3.4 on .NET 11, a code-first call over TestHost |
+| `AdCodicem.ValueObjects.Grpc` | `net10.0` | Grpc.StatusProto 2.84, over Grpc.AspNetCore 2.84 and native AOT | a contract-first service over TestHost on .NET 11 |
 | `AdCodicem.ValueObjects.HotChocolate` | `net10.0` | HotChocolate 16.6, in process and over ASP.NET Core | HotChocolate 16.6 on .NET 11 |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
 | `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
@@ -219,8 +221,8 @@ which nothing generates, refuses an entity added without it, whatever the type's
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
 their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a
 MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationException`, a protobuf-net `ProtoException`,
-the `INVALID_ARGUMENT` status a protobuf-net.Grpc code-first service answers, whose `google.rpc.ErrorInfo` carries the
-code, an `XmlException` from
+the `INVALID_ARGUMENT` status a gRPC service answers, code-first or contract-first, whose `google.rpc.ErrorInfo` or
+`google.rpc.BadRequest` carries the code, an `XmlException` from
 `XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool
 result a language model reads, an MCP tool execution error, the `FormatException` that fails an Azure Functions
 parameter, whose text alone the worker keeps, and which therefore ends with the code, a GraphQL error whose
@@ -430,6 +432,20 @@ code; its serializers also run in protobuf-net's compile-time model under native
 RuntimeTypeModel.Default.AddValueObjects(typeof(Iban).Assembly); // or AddValueObjects(trusted: true, …) for a cache
 builder.Services.AddSingleton(ValueObjectBinderConfiguration.ForServer(RuntimeTypeModel.Default));
 builder.Services.AddCodeFirstGrpc();
+```
+
+A contract-first gRPC service's handlers map the strings and numbers of their messages to value objects, and a
+`ValueObjectException` that escapes one is answered `UNKNOWN`, the rule lost. `AdCodicem.ValueObjects.Grpc` answers it
+`INVALID_ARGUMENT` with a `google.rpc.ErrorInfo` carrying the rule's code, and collects every field a request maps into
+one `google.rpc.BadRequest`
+([the gRPC guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/grpc)):
+
+```csharp skip
+builder.Services.AddGrpc(options => options.Interceptors.Add<ValueObjectExceptionInterceptor>());
+
+var fields = new ValueObjectBadRequest();
+var sku = fields.Create<Sku, string>(request.Sku, "sku");
+fields.ThrowIfAny();   // INVALID_ARGUMENT, one field violation per refused value
 ```
 
 HotChocolate infers an input object type from a value object it meets as an argument, finds no constructor it can fill,

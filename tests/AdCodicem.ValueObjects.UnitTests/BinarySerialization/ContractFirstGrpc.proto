@@ -1,0 +1,30 @@
+// A contract-first service, whose messages hold the strings and numbers its handlers map to value objects.
+syntax = "proto3";
+
+package orders.v1;
+
+option csharp_namespace = "AdCodicem.ValueObjects.UnitTests.BinarySerialization.ContractFirst";
+
+service OrderDesk {
+  // Maps the request with Create, which throws on a value a value object refuses.
+  rpc Add (OrderLine) returns (OrderLineAnswer);
+  // Maps the request with ValueObjectBadRequest, answering every refused field at once.
+  rpc AddMapped (OrderLine) returns (OrderLineAnswer);
+  // Sends a reply, then maps the request with Create.
+  rpc Watch (OrderLine) returns (stream OrderLineAnswer);
+  // Maps each message of the stream with Create.
+  rpc Upload (stream OrderLine) returns (OrderLineAnswer);
+  // Answers each message of the stream after mapping it with Create.
+  rpc Chat (stream OrderLine) returns (stream OrderLineAnswer);
+}
+
+message OrderLine {
+  string account = 1;
+  int32 page = 2;
+  repeated string accounts = 3;
+}
+
+message OrderLineAnswer {
+  string account = 1;
+  int32 total = 2;
+}

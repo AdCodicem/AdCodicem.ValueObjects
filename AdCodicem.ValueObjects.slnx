@@ -22,6 +22,7 @@
     <Project Path="src/AdCodicem.ValueObjects.MongoDB/AdCodicem.ValueObjects.MongoDB.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.MessagePack/AdCodicem.ValueObjects.MessagePack.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.ProtobufNet/AdCodicem.ValueObjects.ProtobufNet.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Grpc/AdCodicem.ValueObjects.Grpc.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AI/AdCodicem.ValueObjects.AI.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.ModelContextProtocol/AdCodicem.ValueObjects.ModelContextProtocol.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AzureFunctions/AdCodicem.ValueObjects.AzureFunctions.csproj" />

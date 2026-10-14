@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The thirty packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The thirty-one packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -235,7 +235,10 @@ code-first service whose configuration is `ValueObjectBinderConfiguration.ForSer
 `INVALID_ARGUMENT` and a `google.rpc.ErrorInfo` carrying the code, where Grpc.AspNetCore would answer `UNKNOWN`. A field
 a proto3 sender leaves out is never read and leaves a default instance: declare it `TSelf?`. Under native AOT, the
 serializers run in protobuf-net's compile-time model, named on the value object with `[ProtoContract(Serializer = …)]`:
-[protobuf-net and code-first gRPC](./how-to/protobuf-net.md).
+[protobuf-net and code-first gRPC](./how-to/protobuf-net.md). A contract-first service, whose messages Grpc.Tools
+generates, maps its fields to value objects in its handlers: `AdCodicem.ValueObjects.Grpc` answers the refusal of a
+`Create` there with `INVALID_ARGUMENT` and the same `ErrorInfo`, through an interceptor, and every refused field of a
+request at once in a `google.rpc.BadRequest`, through `ValueObjectBadRequest`: [gRPC services](./how-to/grpc.md).
 
 ### Does it work with Kafka and the Schema Registry?
 
@@ -356,7 +359,8 @@ application using them all with native AOT on every pull request, which merges o
 trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The
 HotChocolate package is marked AOT-compatible too, and its own code publishes with no warning, but CI publishes no
 HotChocolate application: HotChocolate's own publish warns, and its binary starts only with HotChocolate.Types and the
-application's assembly rooted ([GraphQL](./how-to/graphql.md#native-aot)). The protobuf-net package is marked
+application's assembly rooted ([GraphQL](./how-to/graphql.md#native-aot)). The gRPC package is
+AOT-compatible, and CI's application serves a contract-first service with it. The protobuf-net package is marked
 AOT-compatible: its serializers run in protobuf-net's compile-time model, which CI publishes in an application of its
 own, whose generated code protobuf-net's annotations make warn, while its registration and its code-first binder serve
 protobuf-net's runtime model, which needs the JIT ([protobuf-net](./how-to/protobuf-net.md#native-aot)). The EF Core,

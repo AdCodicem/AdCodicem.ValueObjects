@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Thirty NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Thirty-one NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -97,7 +97,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All thirty packages go out at one version, or none. That version is the one semantic-release would
+lookup fails. All thirty-one packages go out at one version, or none. That version is the one semantic-release would
 give the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -145,7 +145,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The thirty packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The thirty-one packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -299,7 +299,11 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   the code in its `Data`; a protobuf-net.Grpc code-first service configured with `ValueObjectBinderConfiguration.ForServer`
   answers a refused request `INVALID_ARGUMENT`, whose `grpc-status-details-bin` trailer holds a `google.rpc.ErrorInfo`
   (reason `ToUpperSnakeCase(code)`, metadata `code` and `valueObject`, none for a code that maps to no reason), written by
-  hand in `RpcStatusDetails`, the `RpcException` carrying the code in its `Data` on the server; the AI package's wrapper throws nothing, and returns the result of a Microsoft.Extensions.AI tool,
+  hand in `RpcStatusDetails`, the `RpcException` carrying the code in its `Data` on the server; the gRPC package's
+  `ValueObjectExceptionInterceptor` answers a `ValueObjectException` carrying a code that escapes a handler the same way,
+  through Grpc.StatusProto, and its `ValueObjectBadRequest` records every refused field of a request and throws one
+  `INVALID_ARGUMENT` holding a `google.rpc.BadRequest`, a field violation's `reason` left empty for a code that maps to
+  none; the AI package's wrapper throws nothing, and returns the result of a Microsoft.Extensions.AI tool,
   `{"error":"invalid_argument","argument","code","message"}`, which `FunctionInvokingChatClient` hands the model as it
   is, and the Model Context Protocol package answers a tool execution error (`isError: true`) whose text carries the
   code, and whose structured content is that object when the tool declares no output schema. The Azure Functions
@@ -743,8 +747,14 @@ These are all load-bearing, and each cost real debugging time:
   for a message the model cannot serialize, while its default client is built and fails its first call,
   `NotSupportedException`, "Specified method is not supported.". The runtime model and protobuf-net.Grpc emit code,
   unannotated upstream: `AddValueObjects`, `AddValueObject` and `ForServer` serve the JIT alone, and carry
-  `[RequiresDynamicCode]` for it, while the serializers run natively. Name no test folder, class or namespace
-  `ProtoBuf`, `ProtobufNet` or `Grpc` (the unit suite's are `BinarySerialization/` and `CodeFirstGrpc*`).
+  `[RequiresDynamicCode]` for it, while the serializers run natively. The gRPC package's namespace,
+  `AdCodicem.ValueObjects.Grpc`, hides the root `Grpc` namespace in every `AdCodicem.ValueObjects.*` namespace, the
+  island's included, as Swashbuckle's, Serilog's, MongoDB's, MessagePack's, the Model Context Protocol's, HotChocolate's
+  and NJsonSchema's do: name gRPC's types through usings at the top of the file, or `global::Grpc` in a body (the unit
+  suite's `ContractFirstGrpcTests` names `GrpcServiceOptions` so); the code Grpc.Tools generates qualifies them through
+  `grpc::` aliases already. A class or a file named `Grpc` in such a namespace would hide it too. Name no test folder,
+  class or namespace `ProtoBuf`, `ProtobufNet` or `Grpc` (the unit suite's are `BinarySerialization/`, `CodeFirstGrpc*`
+  and `ContractFirstGrpc*`).
 - **Serilog destructures no object under trimming.** Its `buildTransitive/Serilog.targets` sets
   `Serilog.Capturing.IsStructureValueSupported` to false under `PublishTrimmed`, which `PublishAot` implies, so a native
   binary logs an object with `@` as its `ToString()`, and a bare `Int128` as its text. The native AOT application sets
@@ -931,8 +941,8 @@ These are all load-bearing, and each cost real debugging time:
   `AdCodicem.ValueObjects.Testing.Data` through `PatternSampler`, whose tests name no node type. A further package
   linking it is tested the same way. `TypeNames.cs`, which writes a type as C# names it in a message, is linked by
   `Testing.Data`, by its AutoFixture, Bogus and FsCheck adapters, by the EF Core package, for the key and the
-  pattern it refuses, by both Azure Functions packages, for the type a refusal names, and by the protobuf-net package,
-  for the value object a refusal and an `ErrorInfo` name: the unit suite references `Testing.Data` under
+  pattern it refuses, by both Azure Functions packages, for the type a refusal names, and by the protobuf-net and gRPC
+  packages, for the value object a refusal and an `ErrorInfo` name: the unit suite references `Testing.Data` under
   `Aliases="global,testingdata"`, and `SamplerTests` names its copy through the alias.
   `ValueObjectArguments.cs` and `ValueObjectArgumentRejection.cs`, the check of a tool's arguments and the result it
   answers a refusal with, name no type of Microsoft.Extensions.AI, and are linked by the AI and the Model Context
@@ -1020,9 +1030,11 @@ Four suites, each with a distinct job:
   (`ProtoGeneratedModel`), and the export's differences pinned, a member's `DataFormat` among them; a construction of
   `Reference<TOwner>` in `ProtoModelTests` closes over `ProtoOwner`, which nothing else names. `CodeFirstGrpc*` runs a
   protobuf-net.Grpc code-first service over TestHost with the .NET client, Grpc.StatusProto reading the `ErrorInfo`, and
-  its default client over `Reference<ProtoStranger>`, which nothing registers on `RuntimeTypeModel.Default`.
-  `LanguageModels/` (not `AI/`, whose namespace would hide
-  `AdCodicem.ValueObjects.AI` inside the suite's) builds Microsoft.Extensions.AI tools over `Domain/`, and over every
+  its default client over `Reference<ProtoStranger>`, which nothing registers on `RuntimeTypeModel.Default`. `ContractFirstGrpc*` runs a contract-first service, whose messages Grpc.Tools compiles from
+  `ContractFirstGrpc.proto`, over TestHost, every kind of call with and without the gRPC package's interceptor, its
+  registrations and the collector, and a code-first handler through the same interceptor;
+  `ValueObjectExceptionInterceptorTests` and `ValueObjectBadRequestTests` call both directly. `LanguageModels/` (not
+  `AI/`, whose namespace would hide `AdCodicem.ValueObjects.AI` inside the suite's) builds Microsoft.Extensions.AI tools over `Domain/`, and over every
   sample through `GeneratedSurface/`: a scripted `IChatClient` stands for the model behind `FunctionInvokingChatClient`,
   and the request the OpenAI adapter sends in strict mode is captured by an `HttpMessageHandler` behind
   `HttpClientPipelineTransport`, with no network; a test that names `AIParameterNameAttribute`, experimental
@@ -1203,7 +1215,9 @@ on where they apply.
 
 - `AdCodicem.ValueObjects.NativeAot` is a minimal API referencing every package that claims to be AOT-compatible but
   the HotChocolate one, whose framework warns on its own publish and starts natively only rooted (the constraint above),
-  and the protobuf-net one, which `AdCodicem.ValueObjects.NativeAot.ProtobufNet` publishes apart,
+  and the protobuf-net one, which `AdCodicem.ValueObjects.NativeAot.ProtobufNet` publishes apart, and serving a
+  contract-first gRPC service over Kestrel's cleartext HTTP/2 with the gRPC package (`ContractFirstGrpc.cs`, its messages
+  compiled from `ContractFirst.proto`),
   with its value objects in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
   `Domain/UnderlyingTypes.cs`. The application links two value objects written by hand from `Domain/HandWritten/`, one
   over `Uri`, and registers them without a converter, so the JSON factory's general-purpose converter runs natively,
@@ -1278,7 +1292,7 @@ on where they apply.
   precompiled query fails to map under native AOT. A strict context cannot track on a compiled model, so the `jit` round
   trip reads untracked (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the thirty packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the thirty-one packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
@@ -1294,7 +1308,8 @@ attribute's exception included, `[ParsesAs]` text in both OpenAPI documents,
 validator and entity identifiers minted on insert, MessagePack, with SignalR's MessagePack hub protocol 11 between a hub
 and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, protobuf-net on a runtime model and
 on its compile-time model, whose generator comes with the packed package, a protobuf-net.Grpc code-first service over
-TestHost 11, refused with its `ErrorInfo`, FluentValidation, Newtonsoft.Json,
+TestHost 11, refused with its `ErrorInfo`, a contract-first service through the gRPC package's interceptor and
+collector, FluentValidation, Newtonsoft.Json,
 Serilog, Microsoft.Extensions.AI tools and structured output, through `FunctionInvokingChatClient` and `ChatResponse<T>`
 of Microsoft.Extensions.AI 10, Model Context Protocol tools on ModelContextProtocol 2.2, a server in process and the SDK's
 own client over a pair of pipes, the Azure Functions converter and problem details middleware beside ASP.NET Core 11,

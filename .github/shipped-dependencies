@@ -14,6 +14,7 @@ Bogus
 Dapper
 FluentValidation
 FsCheck
+Grpc.StatusProto
 HotChocolate.Types
 MessagePack
 Microsoft.AspNetCore.Mvc.NewtonsoftJson

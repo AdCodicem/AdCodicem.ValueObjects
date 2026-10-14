@@ -27,6 +27,7 @@
     <PackageVersion Include="AdCodicem.ValueObjects.EntityFrameworkCore" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.FluentValidation" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.FsCheck" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.Grpc" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.HotChocolate" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Identifiers" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore" Version="[$(AdCodicemVersion)]" />
@@ -81,11 +82,10 @@
     <PackageVersion Include="NSwag.AspNetCore" Version="14.7.1" />
     <PackageVersion Include="Confluent.SchemaRegistry.Serdes.Json" Version="2.16.0" />
     <PackageVersion Include="librdkafka.redist" Version="2.16.0" />
-    <!-- A code-first gRPC server and client, which the protobuf-net package plugs into, at their current stables: one
-         line for every runtime, the next major's included. -->
+    <!-- The gRPC servers and client the protobuf-net and gRPC packages plug into, at their current stables: one line for
+         every runtime, the next major's included. -->
     <PackageVersion Include="protobuf-net.Grpc.AspNetCore" Version="1.3.14" />
-    <PackageVersion Include="Grpc.Net.Client" Version="2.84.0" />
-    <PackageVersion Include="Grpc.StatusProto" Version="2.84.0" />
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.84.0" />
   </ItemGroup>
 
 </Project>

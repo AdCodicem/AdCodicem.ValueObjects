@@ -37,7 +37,7 @@ refuses an entity added without it, whatever the type's rules
 valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in their own
 terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver
 `FormatException`, a MessagePack `MessagePackSerializationException`, a protobuf-net `ProtoException`, the
-`INVALID_ARGUMENT` status of a protobuf-net.Grpc code-first service, an `XmlException` from `XmlSerializer` or
+`INVALID_ARGUMENT` status of a gRPC service, code-first or contract-first, an `XmlException` from `XmlSerializer` or
 `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool result a language model
 reads, a Model Context Protocol tool execution error, the text of the Azure Functions worker's binding failure, which
 ends with the code, a validation problem for one of its HTTP triggers, a GraphQL error whose `extensions.code` is the

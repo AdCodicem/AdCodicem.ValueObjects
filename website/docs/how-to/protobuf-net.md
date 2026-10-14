@@ -34,7 +34,7 @@ start-up:
   it back as a default instance, with nothing thrown.
 
 Contract-first services, whose messages Grpc.Tools generates, never carry a value object in a message: their handlers
-map fields to value objects, and this package has nothing to do there.
+map fields to value objects, which [Answer refused values in gRPC services](grpc.md) covers.
 
 ## Registering the value objects
 
@@ -268,7 +268,9 @@ cannot write, an uninitialized value object its type rejects, is a fault of the 
 `UNKNOWN`.
 
 A `ValueObjectException` a code-first handler lets escape, a `Create` on a value that broke a rule, is no request value
-the marshaller read: Grpc.AspNetCore answers it `UNKNOWN`, as any exception of a handler.
+the marshaller read: Grpc.AspNetCore answers it `UNKNOWN`, as any exception of a handler, unless
+`ValueObjectExceptionInterceptor` of `AdCodicem.ValueObjects.Grpc` answers it with the same `ErrorInfo`
+([Answer refused values in gRPC services](grpc.md#a-refusal-that-escapes-a-handler)).
 
 ## Native AOT
 
@@ -337,4 +339,4 @@ attribute, or name the serializer in it, as [Native AOT](#native-aot) does.
 - **A surrogate** for `Int128`, `UInt128` or `DateTimeOffset` the application registers: not proposed, not run.
 - **`AllowParseableTypes`**: protobuf-net does not consult it for a value object, and it would write the formatted text
   of the value, a string whatever the type, never the primitive's wire.
-- **Google.Protobuf messages**, which contract-first services map to value objects in their handlers.
+- **Google.Protobuf messages**, which [contract-first services](grpc.md) map to value objects in their handlers.
