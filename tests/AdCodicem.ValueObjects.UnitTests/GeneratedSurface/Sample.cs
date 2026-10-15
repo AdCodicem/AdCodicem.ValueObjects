@@ -186,6 +186,18 @@ public abstract class Sample
     public abstract Task AnswersARefusedGraphQLValueWithItsRuleAsync();
 
     /// <summary>
+    /// Filters rows holding the value object through HotChocolate.Data with <c>AddValueObjectFiltering()</c>, in memory
+    /// and on Entity Framework Core over SQLite, and checks that its input is named after its scalar and holds the
+    /// comparable operations, or <c>eq</c> and <c>neq</c> over <see cref="bool"/>; that <c>eq</c>, <c>in</c> and <c>gt</c>
+    /// of each instance, or its <c>eq</c> alone over <see cref="bool"/>, written as the scalar's literal, find the rows the
+    /// instances' own equality and order find; and that SQLite, which a value object over a 128-bit integer skips, runs
+    /// <c>eq</c> as it runs the same comparison of a column of the underlying type, or refuses a comparison where it
+    /// refuses that one.
+    /// </summary>
+    /// <returns>The check.</returns>
+    public abstract Task FiltersThroughItsScalarAsItsUnderlyingValueAsync();
+
+    /// <summary>
     /// Holds the value object's text to its rules through DataAnnotations, with <c>[ParsesAs(typeof(TSelf))]</c> and
     /// <c>[ParsesAs&lt;TSelf, TValue&gt;]</c>, and checks that both accept the text the smaller instance is parsed from, and
     /// refuse the refused text with the code and the message <c>TryParse</c> gives it.
@@ -751,6 +763,8 @@ public class Sample<TSelf, TValue> : Sample
     public override Task BindsThroughTheFunctionsWorkerAsync() => FunctionsParity.CheckAsync<TSelf, TValue>(Small, Text, Refused);
 
     public override Task AnswersARefusedGraphQLValueWithItsRuleAsync() => GraphQLParity.CheckAsync<TSelf, TValue>(Small, Large, Refused);
+
+    public override Task FiltersThroughItsScalarAsItsUnderlyingValueAsync() => GraphQLFilteringParity.CheckAsync<TSelf, TValue>(Small, Large);
 
     public override void DescribesItselfInEveryNJsonSchemaWire() => NJsonSchemaWires.Check<TSelf, TValue>(Small, Large);
 

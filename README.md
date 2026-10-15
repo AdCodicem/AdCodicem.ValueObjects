@@ -107,6 +107,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers, and protobuf-net.Grpc code-first services: the underlying value on the wire, strict reads, a refused request answered `INVALID_ARGUMENT` with its rule code. |
 | `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC services: every refused field answered at once as `INVALID_ARGUMENT` with a `google.rpc.BadRequest`, and a refusal escaping a handler with a `google.rpc.ErrorInfo` carrying its rule code. |
 | `AdCodicem.ValueObjects.HotChocolate` | One GraphQL scalar per value object under HotChocolate 16, read through its rules, a refused value answered with its rule code. |
+| `AdCodicem.ValueObjects.HotChocolate.Data` | Every value object filtered in HotChocolate.Data through its scalar: normalized, refused with its rule code, translated by Entity Framework Core, with no binding per type; text operations on request. |
 | `AdCodicem.ValueObjects.Blazor` | A Blazor input per value object, read through its rules, the refused rule's message under the field and its code on the `EditContext`. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. |
@@ -125,7 +126,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-two are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-three are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -150,6 +151,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.ProtobufNet` | `net10.0` | protobuf-net 3.4 and protobuf-net.Grpc 1.3 over Grpc.AspNetCore 2.84, and protobuf-net's compile-time model under native AOT | protobuf-net 3.4 on .NET 11, a code-first call over TestHost |
 | `AdCodicem.ValueObjects.Grpc` | `net10.0` | Grpc.StatusProto 2.84, over Grpc.AspNetCore 2.84 and native AOT | a contract-first service over TestHost on .NET 11 |
 | `AdCodicem.ValueObjects.HotChocolate` | `net10.0` | HotChocolate 16.6, in process and over ASP.NET Core | HotChocolate 16.6 on .NET 11 |
+| `AdCodicem.ValueObjects.HotChocolate.Data` | `net10.0` | HotChocolate.Data 16.6, over EF Core 10 on SQLite, PostgreSQL and SQL Server, and in memory | HotChocolate.Data 16.6 over EF Core 11 on SQLite |
 | `AdCodicem.ValueObjects.Blazor` | `net10.0` | Blazor 10 (`Microsoft.AspNetCore.Components.Web` 10), through bUnit, static rendering over TestHost and `HtmlRenderer` under native AOT | Components 11, through `HtmlRenderer` |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
 | `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
@@ -228,9 +230,10 @@ the `INVALID_ARGUMENT` status a gRPC service answers, code-first or contract-fir
 `XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool
 result a language model reads, an MCP tool execution error, the `FormatException` that fails an Azure Functions
 parameter, whose text alone the worker keeps, and which therefore ends with the code, a GraphQL error whose
-`extensions.code` is the rule's, a DataAnnotations `ValueObjectValidationResult`, from `[ParsesAs]` and
-`[NotDefault]`, which `Validator`'s throwing methods wrap in a `ValidationException`, and a validation message under a
-Blazor form's field, its code on the form's `EditContext`. Each
+`extensions.code` is the rule's, for an argument, a variable or the operand of a HotChocolate.Data filter, a
+DataAnnotations `ValueObjectValidationResult`, from `[ParsesAs]` and `[NotDefault]`, which `Validator`'s throwing
+methods wrap in a `ValidationException`, and a validation message under a Blazor form's field, its code on the form's
+`EditContext`. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
 query value, those of a minimal API for a route, query or header value, and those of an Azure Functions HTTP trigger
@@ -474,6 +477,19 @@ its rules and answers a refused value with the rule's code under `extensions.cod
 builder.Services.AddGraphQLServer()
     .AddQueryType<Query>()
     .AddValueObjects();   // or AddValueObjects(options => options.UseResource<Messages>()) for messages in the users' language
+```
+
+HotChocolate.Data infers a filter from the struct as well, `iban: { value: { eq: "…" } }`, comparing raw text the
+normalizer never saw. `AdCodicem.ValueObjects.HotChocolate.Data`'s `AddValueObjectFiltering()` filters every value
+object through the operations of its scalar instead, `iban: { eq: "fr76 3000 …" }`, normalized, refused with the rule's
+code and translated to its column by Entity Framework Core, with no binding per type:
+
+```csharp skip
+builder.Services.AddGraphQLServer()
+    .AddQueryType<Query>()
+    .AddValueObjects()
+    .AddFiltering()
+    .AddValueObjectFiltering();   // or (options => options.IncludeTextOperations()) for contains, startsWith, endsWith
 ```
 
 A Blazor form has no input for a value object: `@bind` swallows the converter's refusal and binds empty text as the

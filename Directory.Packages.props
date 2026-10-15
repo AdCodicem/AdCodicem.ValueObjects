@@ -30,9 +30,9 @@
          and pinning lists them as dependencies of both Entity Framework Core packages, of the MessagePack
          package, which reaches them through the hub protocol's Microsoft.AspNetCore.SignalR.Common, of the Model
          Context Protocol package, which reaches them through Microsoft.Extensions.Hosting.Abstractions, of the Azure
-         Functions package, which reaches them through Worker.Core, of the HotChocolate package, which reaches them
+         Functions package, which reaches them through Worker.Core, of both HotChocolate packages, which reach them
          through HotChocolate.Types, and of the Blazor package, which reaches them through
-         Microsoft.AspNetCore.Components.Web and Microsoft.Extensions.Localization: removing them changes what those seven
+         Microsoft.AspNetCore.Components.Web and Microsoft.Extensions.Localization: removing them changes what those eight
          pack. Dependabot never moves them, so an update of a package that asks for a later version of either fails the
          restore with NU1109, and opens no pull request, until they are raised by hand with it. -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13" />
@@ -93,9 +93,14 @@
          bump. Its other HotChocolate and GreenDonut packages come with it, at exactly its version, and are pinned by
          nothing here: a pin would make them dependencies of the package. -->
     <PackageVersion Include="HotChocolate.Types" Version="16.6.8" />
+    <!-- The HotChocolate.Data package's floor, the version it is built against, HotChocolate.Types'
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its GreenDonut.Data,
+         HotChocolate.Execution.Projections and other packages come with it, at exactly its version, and are pinned by
+         nothing here: a pin would make them dependencies of the package. -->
+    <PackageVersion Include="HotChocolate.Data" Version="16.6.8" />
     <!-- IStringLocalizerFactory, for the HotChocolate package's localized messages; its net10.0 asset depends on nothing.
-         The Blazor package takes it through Microsoft.Extensions.Localization, and pinning lists it as a dependency of
-         that package too. -->
+         The HotChocolate.Data package takes it through the HotChocolate package, and the Blazor package through
+         Microsoft.Extensions.Localization, and pinning lists it as a dependency of both too. -->
     <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.13" />
     <!-- The Blazor package's floors, the versions it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md): the package rather than the
@@ -205,11 +210,9 @@
          trigger whose binding data it reads; no package under src/ references them. -->
     <PackageVersion Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.1.0" />
     <PackageVersion Include="Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues" Version="5.5.5" />
-    <!-- What the unit suite drives the HotChocolate package through, as an application does: the HTTP endpoint, the
-         filtering recipe of the guide and, in a fixture, HotChocolate's source generator; no package under src/
-         references them. -->
+    <!-- What the unit suite drives the HotChocolate packages through, as an application does: the HTTP endpoint and, in a
+         fixture, HotChocolate's source generator; no package under src/ references them. -->
     <PackageVersion Include="HotChocolate.AspNetCore" Version="16.6.8" />
-    <PackageVersion Include="HotChocolate.Data" Version="16.6.8" />
     <PackageVersion Include="HotChocolate.Types.Analyzers" Version="16.6.8" />
     <!-- NSwag's document generation over TestHost and its C# client generator, and Confluent's JSON serdes for the Schema
          Registry over a substitute registry client, which the unit suite drives the NJsonSchema package through, as an

@@ -1,3 +1,4 @@
+using HotChocolate;
 using HotChocolate.Execution.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -28,6 +29,11 @@ public static class ValueObjectRequestExecutorBuilderExtensions
     /// <para>
     /// Every call on one schema configures the same <see cref="ValueObjectScalarOptions"/>, in the order of the calls, and
     /// the schema gets one handler. A scalar <see cref="AddValueObjectScalar{TSelf, TValue}"/> adds wins for its type.
+    /// </para>
+    /// <para>
+    /// The first call also adds an error filter, which localizes a refusal under
+    /// <see cref="ValueObjectScalarOptions.UseResource{TResource}"/>, quoting the scalar's name for a value refused in an
+    /// argument or an input field <see cref="ValueObjectScalarOptions.QuoteScalarNameIn"/> selects.
     /// </para>
     /// </remarks>
     public static IRequestExecutorBuilder AddValueObjects(
@@ -96,7 +102,10 @@ public static class ValueObjectRequestExecutorBuilderExtensions
         builder
             .ConfigureSchema(schema => schema.Features.Set(options))
             .AddTypeDiscoveryHandler(static _ => new ValueObjectTypeDiscoveryHandler())
-            .AddErrorFilter(services => new ValueObjectErrorFilter(options, services.GetRootServiceProvider()));
+            .AddErrorFilter(services => new ValueObjectErrorFilter(
+                options,
+                services.GetRequiredService<ISchemaDefinition>(),
+                services.GetRootServiceProvider()));
         return options;
     }
 }

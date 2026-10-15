@@ -200,7 +200,9 @@ arithmetic, `OrderBy`, `GroupBy`, string functions, `ExecuteUpdate`, `ExecuteDel
 as they take a property of the underlying type. It translates in an optional value object, `x.Previous!.Value.Value`,
 inside a [JSON column](#complex-types-and-json-columns), in an element of a
 [collection](#collections-of-value-objects), `x.Ibans.Any(i => i.Value.StartsWith(prefix))`, and in a construction of
-a [generic value object](#generic-value-objects).
+a [generic value object](#generic-value-objects). The text operations of a HotChocolate.Data filter compare `.Value`, and
+need it too ([GraphQL](graphql.md#the-text-operations-on-request)); its comparable operations compare the value object
+itself, and need nothing.
 
 Only a property this package maps is translated, through `ConfigureValueObjects`, `HasValueObjectConversion`,
 `ConfigureEntityIds` or `HasEntityIdConversion`, including where Entity Framework Core composes its converter with its

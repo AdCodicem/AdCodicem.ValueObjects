@@ -76,6 +76,7 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.FsCheck", [] },
         { "AdCodicem.ValueObjects.Grpc", [] },
         { "AdCodicem.ValueObjects.HotChocolate", [] },
+        { "AdCodicem.ValueObjects.HotChocolate.Data", [] },
         { "AdCodicem.ValueObjects.Identifiers", [] },
         { "AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore", [] },
         { "AdCodicem.ValueObjects.Identifiers.MongoDB", [] },

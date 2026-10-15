@@ -1,10 +1,13 @@
 using System.Globalization;
 using System.Text.Json;
 using AdCodicem.ValueObjects.HotChocolate;
+using AdCodicem.ValueObjects.HotChocolate.Data;
 using AdCodicem.ValueObjects.UnitTests.Web;
 using HotChocolate;
+using HotChocolate.Data;
 using HotChocolate.Execution;
 using HotChocolate.Language;
+using HotChocolate.Resolvers;
 using HotChocolate.Types;
 using Microsoft.Extensions.DependencyInjection;
 using Path = HotChocolate.Path;
@@ -213,7 +216,7 @@ public sealed class LocalizedGraphQLTests
     {
         var services = new ServiceCollection().AddLogging().AddLocalization().BuildServiceProvider();
         var executor = await GraphQLHarness.BuildAsync(static builder => builder.AddQueryType<ShopQuery>().AddValueObjects());
-        var filter = new ValueObjectErrorFilter(new ValueObjectScalarOptions().UseResource<ValidationMessages>(), services);
+        var filter = new ValueObjectErrorFilter(new ValueObjectScalarOptions().UseResource<ValidationMessages>(), executor.Schema, services);
         var refused = GraphQLScalarTests.Scalar(executor, "Iban")
             .Invoking(scalar => scalar.CoerceInputLiteral(new StringValueNode("XX")))
             .Should().Throw<LeafCoercionException>().Which.Errors[0];
@@ -235,12 +238,136 @@ public sealed class LocalizedGraphQLTests
             filter.OnError(refused.WithPath(Path.Root.Append("v"))).Message.Should().Be("« v » : au moins 15 caractères.");
             filter.OnError(json.WithPath(root)).Message.Should().Be("« root » : au moins 15 caractères.");
             filter.OnError(other).Should().BeSameAs(other);
-            new ValueObjectErrorFilter(new ValueObjectScalarOptions(), services).OnError(refused).Should().BeSameAs(refused);
+            new ValueObjectErrorFilter(new ValueObjectScalarOptions(), executor.Schema, services).OnError(refused).Should().BeSameAs(refused);
+        }
+    }
+
+    /// <summary>
+    /// A predicate of <c>QuoteScalarNameIn</c> selects the argument or the input field the error's coordinate names, read
+    /// from its text or from a coordinate HotChocolate keeps as such, any predicate selecting it being enough; a coordinate
+    /// no predicate selects, one the schema does not hold, one naming an output field, and one the filter cannot read
+    /// leave the usual rule.
+    /// </summary>
+    [Fact]
+    public async Task A_predicate_quotes_the_scalar_by_the_errors_coordinate_whatever_form_it_takes()
+    {
+        var services = new ServiceCollection().AddLogging().AddLocalization().BuildServiceProvider();
+        var executor = await GraphQLHarness.BuildAsync(static builder => builder.AddQueryType<ShopQuery>().AddValueObjects());
+        var options = new ValueObjectScalarOptions()
+            .UseResource<ValidationMessages>()
+            .QuoteScalarNameIn(static _ => false)
+            .QuoteScalarNameIn(static inputValue => inputValue.Name == "from");
+        var filter = new ValueObjectErrorFilter(options, executor.Schema, services);
+        var refused = GraphQLScalarTests.Scalar(executor, "Iban")
+            .Invoking(scalar => scalar.CoerceInputLiteral(new StringValueNode("XX")))
+            .Should().Throw<LeafCoercionException>().Which.Errors[0]
+            .WithPath(Path.Root.Append("v"));
+
+        using (Culture("fr-FR"))
+        {
+            filter.OnError(refused).Message.Should().Be("« v » : au moins 15 caractères.");
+            filter.OnError(refused.SetExtension("coordinate", "TransferInput.from")).Message.Should().Be("« Iban » : au moins 15 caractères.");
+            filter.OnError(refused.SetExtension("coordinate", new SchemaCoordinate("TransferInput", "from"))).Message
+                .Should().Be("« Iban » : au moins 15 caractères.");
+            foreach (var coordinate in (object[])["TransferInput.qty", "Nowhere.field", "ShopQuery.account", "not a coordinate!", 42])
+            {
+                filter.OnError(refused.SetExtension("coordinate", coordinate)).Message.Should().Be("« v » : au moins 15 caractères.", "{0}", coordinate);
+            }
+
+            var bare = ErrorBuilder.New().SetMessage(refused.Message).SetException(refused.Exception).SetPath(Path.Root.Append("v")).Build();
+            bare.Extensions.Should().BeNull();
+            filter.OnError(bare).Message.Should().Be("« v » : au moins 15 caractères.", "an error with no extension has no coordinate");
+        }
+
+        FluentActions.Invoking(static () => new ValueObjectScalarOptions().QuoteScalarNameIn(null!))
+            .Should().Throw<ArgumentNullException>().WithParameterName("inputValues");
+    }
+
+    /// <summary>
+    /// <c>AddValueObjectFiltering()</c> selects the operations of every filter: a refused operand is quoted by its
+    /// scalar's name, never by the operation, as a literal, an element of <c>in</c>, a variable holding the filter, under a
+    /// list or a part of the row, in a named convention, a filter of the application's own or a filter variable's default
+    /// value; only the message changes.
+    /// </summary>
+    [Fact]
+    public async Task A_refused_filter_operand_is_quoted_by_its_scalars_name()
+    {
+        var executor = await FilteringAsync<LocalizedFilterQuery>();
+
+        using (Culture("fr-FR"))
+        {
+            var literal = (await executor.ExecuteAsync("""{ rows(where: { iban: { eq: "XX" } }) { id } }""")).Error();
+            literal.Message().Should().Be("« Iban » : au moins 15 caractères.");
+            literal.Code().Should().Be(ValueObjectErrorCodes.TooShort, "only the message changes");
+            literal.Member("inputPath").Should().Be("""["eq"]""");
+            literal.Member("coordinate").Should().Be("\"IbanOperationFilterInput.eq\"");
+
+            var element = (await executor.ExecuteAsync("{ rows(where: { qty: { in: [3, 5000] } }) { id } }")).Error();
+            element.Message().Should().Be("« Quantity » doit être compris entre 0 et 1000.");
+            element.Member("inputPath").Should().Be("""["in",1]""");
+
+            var variable = (await executor.ExecuteAsync("query($w: FilterRowFilterInput) { rows(where: $w) { id } }", """{"w":{"iban":{"eq":"XX"}}}""")).Error();
+            variable.Message().Should().Be("« Iban » : au moins 15 caractères.");
+            variable.Member("inputPath").Should().Be("""["w","iban","eq"]""");
+
+            foreach (var document in (string[])
+                [
+                    """{ rows(where: { previous: { some: { eq: "XX" } } }) { id } }""",
+                    """{ rows(where: { inner: { iban: { eq: "XX" } } }) { id } }""",
+                    """{ rows(where: { or: [{ iban: { eq: "XX" } }, { qty: { eq: 3 } }] }) { id } }""",
+                    """{ scoped(where: { iban: { eq: "XX" } }) { id } }""",
+                    """query($w: FilterRowFilterInput = { iban: { eq: "XX" } }) { rows(where: $w) { id } }""",
+                ])
+            {
+                (await MessageAsync(executor, document)).Should().Be("« Iban » : au moins 15 caractères.", document);
+            }
+
+            (await MessageAsync(await FilteringAsync<ExplicitFilterQuery>(), """{ explicit(where: { iban: { eq: "XX" } }) { id } }"""))
+                .Should().Be("« Iban » : au moins 15 caractères.", "a filter of the application's own is HotChocolate.Data's too");
+        }
+    }
+
+    /// <summary>
+    /// Beside the filters, an argument, an input field of the application's own named <c>eq</c> and a variable, a filter's
+    /// operand included, are quoted as before, and a variable's default value by its scalar's name.
+    /// </summary>
+    [Fact]
+    public async Task Beside_filtering_arguments_input_fields_and_variables_are_quoted_as_before()
+    {
+        var executor = await FilteringAsync<LocalizedFilterQuery>();
+
+        using (Culture("fr-FR"))
+        {
+            (await MessageAsync(executor, """{ lookup(iban: "XX") }""")).Should().Be("« iban » : au moins 15 caractères.");
+            (await MessageAsync(executor, """{ compare(input: { eq: "XX" }) }""")).Should().Be("« eq » : au moins 15 caractères.");
+            (await MessageAsync(executor, "query($v: Iban!) { rows(where: { iban: { eq: $v } }) { id } }", """{"v":"XX"}"""))
+                .Should().Be("« v » : au moins 15 caractères.");
+            (await MessageAsync(executor, "query($root: Iban!) { rows(where: { iban: { eq: $root } }) { id } }", """{"root":"XX"}"""))
+                .Should().Be("« root » : au moins 15 caractères.");
+
+            var operand = (await executor.ExecuteAsync("""query($i: Iban = "XX") { rows(where: { iban: { eq: $i } }) { id } }""")).Error();
+            operand.Message().Should().Be("« Iban » : au moins 15 caractères.");
+            operand.Member("path").Should().Be("""["root"]""");
+            operand.Code().Should().Be(ValueObjectErrorCodes.TooShort);
+            (await MessageAsync(executor, """query($i: Iban = "XX") { lookup(iban: $i) }""")).Should().Be("« Iban » : au moins 15 caractères.");
         }
     }
 
     /// <summary>Sets the cultures of the current execution, and gives the previous ones back when disposed.</summary>
     internal static IDisposable Culture(string culture, string? uiCulture = null) => new CultureScope(culture, uiCulture ?? culture);
+
+    private static Task<IRequestExecutor> FilteringAsync<TQuery>()
+        where TQuery : class
+        => GraphQLHarness.BuildAsync(
+            static builder => builder
+                .AddQueryType<TQuery>()
+                .AddSorting()
+                .AddProjections()
+                .AddFiltering()
+                .AddFiltering("s")
+                .AddValueObjectFiltering()
+                .AddValueObjects(static options => options.UseResource<ValidationMessages>()),
+            static services => services.AddLogging().AddLocalization().AddFilterRows());
 
     private static Task<IRequestExecutor> LocalizedAsync<TResource>()
         => GraphQLHarness.BuildAsync(
@@ -267,4 +394,23 @@ public sealed class LocalizedGraphQLTests
             CultureInfo.CurrentUICulture = _uiCulture;
         }
     }
+}
+
+/// <summary>
+/// The rows, filtered through the default convention and a named one, beside an argument and an input field of the
+/// application's own named as a filter operation is.
+/// </summary>
+#pragma warning disable CA1822 // HotChocolate infers the fields of a query type from the instance members of its class.
+public class LocalizedFilterQuery : ScopedFilterQuery
+{
+    public string Lookup(Iban iban) => iban.Value;
+
+    public string Compare(CompareInput input) => input.Eq.Value;
+}
+#pragma warning restore CA1822
+
+/// <summary>An input object of the application's own whose field is named <c>eq</c>, which is no filter operation.</summary>
+public sealed class CompareInput
+{
+    public Iban Eq { get; set; }
 }

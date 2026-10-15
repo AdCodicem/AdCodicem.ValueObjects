@@ -28,6 +28,7 @@
     <Project Path="src/AdCodicem.ValueObjects.AzureFunctions/AdCodicem.ValueObjects.AzureFunctions.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AzureFunctions.AspNetCore/AdCodicem.ValueObjects.AzureFunctions.AspNetCore.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.HotChocolate/AdCodicem.ValueObjects.HotChocolate.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.HotChocolate.Data/AdCodicem.ValueObjects.HotChocolate.Data.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Blazor/AdCodicem.ValueObjects.Blazor.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing.Data/AdCodicem.ValueObjects.Testing.Data.csproj" />

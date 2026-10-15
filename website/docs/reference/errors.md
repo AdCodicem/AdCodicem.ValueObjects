@@ -76,7 +76,8 @@ name, which FluentValidation quotes as a placeholder, and a position, which an `
   `Reference<PurchaseOrder>`. `{0}` is the member the refusal is listed under: the display name MVC gives it, the
   name a minimal API value binds from, the name of the parameter of an Azure Functions HTTP trigger, the argument, the
   input field or the variable of a GraphQL refusal (the scalar's name for a variable's default value, which HotChocolate
-  names no variable for), the field of a refused output, the `DisplayName` of a Blazor input, or else its field's
+  names no variable for, and for an operand of a HotChocolate.Data filter under `AddValueObjectFiltering()`, or any
+  input value `QuoteScalarNameIn` selects), the field of a refused output, the `DisplayName` of a Blazor input, or else its field's
   name, the display name of a member DataAnnotations validates, or, in
   a request body, the name of
   the value object, never the JSON path, which holds the key a dictionary keyed by a value object
@@ -243,7 +244,7 @@ that treats a rejected value as a bug, for a strict EF Core read, and for an EF 
 | A Model Context Protocol tool argument, through [`AdCodicem.ValueObjects.ModelContextProtocol`](../how-to/language-models.md#a-refused-argument-as-a-tool-execution-error)'s `WithValueObjectTools` | Nothing is thrown: the server answers a tool execution error, `isError: true`, whose text is `Argument 'quantity' rejected (value_object.out_of_range): …`, and whose structured content is the object above when the tool declares no output schema, its code and message read the same way. Without the package, the SDK answers `An error occurred invoking 'place_order'.`, and the rule and its code are lost. |
 | An Azure Functions isolated worker binding, through [`AdCodicem.ValueObjects.AzureFunctions`](../how-to/azure.md#route-values-query-values-and-binding-data)'s `UseValueObjects()` | The converter fails the parameter with a `FormatException`, "The value is not a valid Quantity: The value must be less than or equal to 100. (value_object.out_of_range)", carrying the code in its `Data` and at the end of its message; the worker keeps that text alone, in a `FunctionInputConverterException` with no inner exception, which fails the invocation. Over HTTP, with [`UseValueObjectProblemDetails()`](../how-to/azure.md#problem-details-for-http-triggers) after `ConfigureFunctionsWebApplication()`, a validation problem carrying the code of each refused route or query value, and of a `[FromBody]` value object where the MVC package's `AddValueObjects()` reads the body; the middleware throws nothing of its own. Without the package, the worker's JSON conversion refuses the text, a valid `Guid` or date included, and the host logs the reader's message, which can quote part of the value: `'not-a-guid' is an invalid JSON literal`. |
 | A Kafka message, through Confluent's JSON serdes with the schema of [`AdCodicem.ValueObjects.NJsonSchema`](../how-to/messaging.md#kafka-with-confluents-schema-registry) | The package refuses nothing: `JsonDeserializer<T>` reads through the settings' `ValueObjectConverter`, whose `JsonSerializationException` carries the code in its `Data`, and `JsonSerializer<T>` refuses to write a value its type refuses the same way. Confluent's own `InvalidDataException`, "Schema validation failed for properties: […]", from the validation of a message against the registered schema, carries none. |
-| A GraphQL argument, input field or variable, through [`AdCodicem.ValueObjects.HotChocolate`](../how-to/graphql.md#a-refused-value)'s `AddValueObjects()` | `LeafCoercionException`, carrying the code in its `Data`, whose GraphQL error has the message of the rule, the code as `extensions.code`, and a `ValueObjectException` with the type and the code on `IError.Exception`: a field error at the argument's `inputPath`, a request error at the variable's `path`. A variable of another JSON kind is `value_object.not_parsable`; a literal of another kind and a `null` literal are its own validation errors, with no code, and a `null` variable its `HC0018`. Without the package, a schema taking a value object as an argument does not start: ``No compatible constructor found for input type type `Shop.Iban`.``. |
+| A GraphQL argument, input field or variable, through [`AdCodicem.ValueObjects.HotChocolate`](../how-to/graphql.md#a-refused-value)'s `AddValueObjects()`, or a filter operand, through [`AdCodicem.ValueObjects.HotChocolate.Data`](../how-to/graphql.md#filtering-and-sorting-with-hotchocolatedata)'s `AddValueObjectFiltering()` | `LeafCoercionException`, carrying the code in its `Data`, whose GraphQL error has the message of the rule, the code as `extensions.code`, and a `ValueObjectException` with the type and the code on `IError.Exception`: a field error at the argument's `inputPath`, a filter operand's at its operation, `["eq"]` or `["in", 1]`, a request error at the variable's `path`. A variable of another JSON kind is `value_object.not_parsable`; a literal of another kind and a `null` literal are its own validation errors, with no code, and a `null` variable its `HC0018`; a `null` text fragment of a filter is its `HC0026`, as for a `String` member, with no code. Without the package, a schema taking a value object as an argument does not start: ``No compatible constructor found for input type type `Shop.Iban`.``. |
 | A Blazor form's text, through [`AdCodicem.ValueObjects.Blazor`](../how-to/blazor.md#the-code)'s `InputValueObject` | Nothing is thrown: the refused text stays in the field, the rule's message goes under it through the form's `EditContext`, and `TryGetValueObjectErrorCode` reads the code; empty text a value object that cannot be `null` refuses is `value_object.required`. A type the registry does not describe, one that is no value object, or, where the runtime supports no dynamic code, a value object written by hand or a construction of a generic one that nothing registered, throws `InvalidOperationException` at the input's first render, naming the registration native AOT needs, which carries no code: it reports a misuse, never a broken rule. A statically rendered form is mapped by the framework first, which answers a refused value with its own message, quoting the text, and no code ([static rendering](../how-to/blazor.md#static-rendering)). |
 
 The other reads do not validate. EF Core by default, Dapper for a value the provider returns as the underlying type or
@@ -411,7 +412,7 @@ reading English:
 | A gRPC request's fields, through `ValueObjectBadRequest` | `RpcException`, `INVALID_ARGUMENT`, whose trailers carry a `google.rpc.BadRequest` | Each violation's `reason` on the client; the first code in `Data` on the server |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly that opts into XML serialization | `XmlException`, inside the serializer's `InvalidOperationException` or `SerializationException` | In `Data` |
 | The Azure Functions converter | `FormatException`, whose text alone the worker keeps, in its `FunctionInputConverterException` | In `Data`, and at the end of the message |
-| The HotChocolate scalars | `LeafCoercionException`, whose GraphQL error carries a `ValueObjectException` on `IError.Exception` | In `Data`; the error's `Exception` in `ErrorCode`, and its `extensions.code` but for a refused output |
+| The HotChocolate scalars, and the operands of a HotChocolate.Data filter | `LeafCoercionException`, whose GraphQL error carries a `ValueObjectException` on `IError.Exception` | In `Data`; the error's `Exception` in `ErrorCode`, and its `extensions.code` but for a refused output |
 | DataAnnotations' throwing `Validator` methods, for a refusal of `[ParsesAs]` or `[NotDefault]` | `ValidationException`, which DataAnnotations raises around the result | `ErrorCode` of its `ValueObjectValidationResult` |
 
 A Blazor input throws nothing for refused text, and so has no row here: the rule's message goes under the field, through
@@ -462,6 +463,21 @@ HotChocolate keeps the `LeafCoercionException` to itself and hands an error filt
 filter of the application's own reads the code with `ValueObjectErrors.TryGetCode(error.Exception, out var code)`, an
 output refusal's included, whose `extensions.code` HotChocolate replaces with its own
 ([GraphQL](../how-to/graphql.md#a-refused-value)).
+
+The two HotChocolate packages refuse a schema they cannot serve at start, inside HotChocolate's `SchemaException`, with
+exceptions that carry no code. Where the runtime supports no dynamic code, as under native AOT, the scalars refuse a
+value object written by hand, or a construction of a generic one, that nothing registered with a
+`NotSupportedException` naming `ValueObjectRegistry.Register<TSelf, TValue>(TSelf.Schema)` and
+`AddValueObjectScalar<TSelf, TValue>()`, and the HotChocolate.Data filters with one naming
+`BindValueObject<TSelf, TValue>()` beside them
+([GraphQL](../how-to/graphql.md#generic-value-objects-and-value-objects-written-by-hand-in-a-filter)).
+`ValueObjectTextOperationFilterInputType<TSelf>` bound to a value object that is not over `string` throws an
+`InvalidOperationException`, ``'Shop.Quantity' is not a value object over string``, and bound without
+`IncludeTextOperations()`, or in a named convention, meets HotChocolate's own ``For the field contains of type
+IbanOperationFilterInput was no handler found.`` ([binding by hand](../how-to/graphql.md#binding-by-hand)). A text
+operation run without `UseValueObjectQueries()` fails at its first query, never at start, with HotChocolate's
+"Unexpected Execution Error" around Entity Framework Core's "could not be translated"
+([the text operations](../how-to/graphql.md#the-text-operations-on-request)).
 
 A tool argument refused through `AdCodicem.ValueObjects.AI` throws nothing: the code is the `code` of the result the
 model reads ([language models](../how-to/language-models.md#a-refused-argument)). Where reflection-based serialization

@@ -11,8 +11,8 @@
          AddOpenApi; the package's build targets, which allow its interceptors, come only with a direct reference. -->
     <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
 
-    <!-- HotChocolate.AspNetCore and HotChocolate.Data add global usings of HotChocolate's namespaces under ImplicitUsings,
-         whose DefaultValueAttribute, Path and Tag would collide with the suite's own names in every file: GraphQL/ names
+    <!-- HotChocolate.AspNetCore adds global usings of HotChocolate's namespaces under ImplicitUsings, whose
+         DefaultValueAttribute, Path and Tag would collide with the suite's own names in every file: GraphQL/ names
          HotChocolate's types through usings of its own. -->
     <HotChocolateImplicitUsings>disable</HotChocolateImplicitUsings>
 
@@ -50,6 +50,7 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Grpc\AdCodicem.ValueObjects.Grpc.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.HotChocolate\AdCodicem.ValueObjects.HotChocolate.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.HotChocolate.Data\AdCodicem.ValueObjects.HotChocolate.Data.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.MongoDB\AdCodicem.ValueObjects.Identifiers.MongoDB.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.MessagePack\AdCodicem.ValueObjects.MessagePack.csproj" />
@@ -129,11 +130,9 @@
     <!-- Agent Framework, whose ChatClientAgent calls the same tools through FunctionInvokingChatClient, and whose
          RunAsync<T> builds a response format no schema option reaches. -->
     <PackageReference Include="Microsoft.Agents.AI" />
-    <!-- What an application serves a HotChocolate schema through, its HTTP endpoint, over TestHost, and HotChocolate.Data,
-         whose filtering and sorting the guide's recipe binds value objects into; GraphQL/ drives the HotChocolate package
-         through both. -->
+    <!-- What an application serves a HotChocolate schema through, its HTTP endpoint, over TestHost; HotChocolate.Data,
+         whose filtering and sorting GraphQL/ drives the HotChocolate.Data package through, comes with that package. -->
     <PackageReference Include="HotChocolate.AspNetCore" />
-    <PackageReference Include="HotChocolate.Data" />
     <!-- ObservableValidator, the view model base of CommunityToolkit.Mvvm, which validates the DataAnnotations attributes of
          a property as it is set and keeps the results it reports; DataAnnotations/ runs [ParsesAs] and [NotDefault]
          through it. -->

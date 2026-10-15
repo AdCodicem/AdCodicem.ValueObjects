@@ -16,6 +16,7 @@ Dapper
 FluentValidation
 FsCheck
 Grpc.StatusProto
+HotChocolate.Data
 HotChocolate.Types
 MessagePack
 Microsoft.AspNetCore.Components.Web

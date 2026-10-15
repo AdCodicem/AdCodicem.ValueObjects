@@ -299,7 +299,8 @@ MessagePack resolver](./how-to/messagepack.md#generic-value-objects-and-value-ob
 reflection the first time MessagePack asks for it, or takes one registered with
 `ValueObjectRegistry.Register<TSelf, TValue>()`, and so does [the HotChocolate
 handler](./how-to/graphql.md#generic-value-objects-and-value-objects-written-by-hand), beside a scalar
-`AddValueObjectScalar<TSelf, TValue>()` adds typed. [protobuf-net](./how-to/protobuf-net.md#generic-value-objects-and-value-objects-written-by-hand)
+`AddValueObjectScalar<TSelf, TValue>()` adds typed, and the HotChocolate.Data interceptor, beside a binding
+`BindValueObject<TSelf, TValue>()` makes typed over that scalar. [protobuf-net](./how-to/protobuf-net.md#generic-value-objects-and-value-objects-written-by-hand)
 never meets a construction by itself: `AddValueObject<TSelf, TValue>()` registers each on the model. Under native AOT, where describing a construction by reflection is out
 of reach, register each construction a type-driven integration needs; the registration reads its schema off the type:
 

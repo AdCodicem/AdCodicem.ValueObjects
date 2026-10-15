@@ -5,9 +5,10 @@
 #
 # Usage: native-aot.sh [output directory, artifacts/native-aot by default] [project, the main application by default]
 #
-# The main application references every package that claims to be AOT-compatible but two: the HotChocolate one, whose
-# framework warns on its own publish and starts natively only rooted (CLAUDE.md), and the protobuf-net one, which
-# AdCodicem.ValueObjects.NativeAot.ProtobufNet publishes apart. Each application runs a fixed script over every value
+# The main application references every package that claims to be AOT-compatible but three: the two HotChocolate ones,
+# whose framework warns on its own publish and starts natively only rooted, and whose HotChocolate.Data filtering of a
+# struct has no native code (CLAUDE.md), and the protobuf-net one, which AdCodicem.ValueObjects.NativeAot.ProtobufNet
+# publishes apart. Each application runs a fixed script over every value
 # object of its domain, one line per scenario, into the file it is given: once under the JIT, through dotnet run, and
 # once as the binary the native AOT compiler wrote. The two files must be identical; behaviour.diff holds the
 # difference when they are not. The analyzers see what each library calls, but they do not run it, and a warning
