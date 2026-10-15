@@ -555,6 +555,7 @@ strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`, `Dat
 | Option | Effect |
 | --- | --- |
 | `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI schema. |
+| `Unicode = false` | Non-Unicode text, `varchar` on SQL Server, through the EF Core conventions and the Dapper handler's parameters. For ASCII text: `VO0047` warns where the rules let other characters through. |
 | `Pattern` | Removed: a compile error (`VO0021`), read by nothing. Implement `IValueObjectPatternValidator` instead. Any minor version may remove the property before 1.0.0. |
 | `Minimum`, `Maximum` | Removed: a compile error (`VO0028`), read by nothing. Implement `IValueObjectMinimum<T>` and `IValueObjectMaximum<T>` instead. Any minor version may remove the properties before 1.0.0. |
 | `Comparison` | Equality, ordering and hashing for string value objects. Ordinal by default. |
@@ -768,7 +769,7 @@ compile, and are retired. There is no `VO0012`.
 | `VO0003` | Error | Unsupported underlying type. |
 | `VO0005` | Error | A closed value set declares no value. |
 | `VO0007` | Error | Arithmetic requested on a non-numeric type. |
-| `VO0008` | Warning | Length constraints on a non-string type. |
+| `VO0008` | Warning | Text options (`MinLength`, `MaxLength`, `Unicode = false`) on a non-string type. |
 | `VO0009` | Error | A containing type is not `partial`. |
 | `VO0010` | Error | An uninitialized value object. |
 | `VO0011` | Warning | A rule written without declaring its hook interface, so the generator will never call it. |
@@ -802,6 +803,7 @@ compile, and are retired. There is no `VO0012`.
 | `VO0044` | Warning | MemoryPack's `[MemoryPackable]`, or `[Serializable]` on a value object that does not implement `IXmlSerializable`, which make a serializer read it back without its rules. A code fix removes the attribute; where `DataContractSerializer` writes a `[Serializable]` value object, opt the assembly into XML serialization instead, since without the attribute it writes an empty element. |
 | `VO0045` | Warning | A value object classified on its type that a `[LoggerMessage]` method of Microsoft.Gen.Logging, Microsoft.Extensions.Telemetry's logging generator, writes in clear: that generator reads a classification on a parameter or a property only. A code fix copies the type's classification there. |
 | `VO0046` | Warning | A classified property whose value object a transitive `[LogProperties]`, or `[LogProperties]` on the property, expands into its `Value`, which drops the property's classification. |
+| `VO0047` | Warning | `Unicode = false` on a value object whose rules let a character outside ASCII through, which SQL Server replaces silently: no rule, a pattern not anchored at both ends or admitting `\d`, `.`, `IgnoreCase` and the like, a known value outside ASCII, or a closed set compared as a culture compares. |
 
 ## Using it with an AI coding agent
 

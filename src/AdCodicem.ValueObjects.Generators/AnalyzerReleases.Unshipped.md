@@ -10,7 +10,7 @@ VO0002 | AdCodicem.ValueObjects | Error | Value object must be a readonly struct
 VO0003 | AdCodicem.ValueObjects | Error | Unsupported underlying type
 VO0005 | AdCodicem.ValueObjects | Error | Closed value set declares no value
 VO0007 | AdCodicem.ValueObjects | Error | Arithmetic requires a numeric underlying type
-VO0008 | AdCodicem.ValueObjects | Warning | Length constraints only apply to strings
+VO0008 | AdCodicem.ValueObjects | Warning | Text options only apply to strings
 VO0009 | AdCodicem.ValueObjects | Error | Containing type must be partial
 VO0010 | AdCodicem.ValueObjects | Error | Uninitialized value object
 VO0011 | AdCodicem.ValueObjects | Warning | Value object hook is not declared
@@ -40,3 +40,4 @@ VO0043 | AdCodicem.ValueObjects | Error | Serializer contract attribute that los
 VO0044 | AdCodicem.ValueObjects | Warning | Serializer contract attribute that skips the rules
 VO0045 | AdCodicem.ValueObjects | Warning | Classified value object logged without its classification
 VO0046 | AdCodicem.ValueObjects | Warning | Classification dropped by a transitive expansion
+VO0047 | AdCodicem.ValueObjects | Warning | Non-Unicode text that its rules do not hold to ASCII

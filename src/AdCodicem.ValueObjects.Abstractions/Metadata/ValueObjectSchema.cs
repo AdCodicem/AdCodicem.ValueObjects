@@ -41,6 +41,19 @@ public sealed record ValueObjectSchema
     public int? MaxLength { get; init; }
 
     /// <summary>
+    /// Gets whether the text is stored as Unicode text, if the schema states it: <see langword="false"/> for a value
+    /// object declaring <c>Unicode = false</c>.
+    /// </summary>
+    /// <remarks>
+    /// The generator states <see langword="false"/> where the declaration does, and leaves it <see langword="null"/>
+    /// otherwise, an entity identifier's included. The Entity Framework Core conventions map such a value object to
+    /// non-Unicode text, and the Dapper handler declares its parameters <c>DbType.AnsiString</c>; <see langword="true"/>
+    /// and <see langword="null"/> leave both to the provider. It is no rule: nothing validates the text against it. A
+    /// schema built by hand states it as the option would.
+    /// </remarks>
+    public bool? IsUnicode { get; init; }
+
+    /// <summary>
     /// Gets the inclusive lower bound in invariant culture, if any.
     /// </summary>
     public string? Minimum { get; init; }

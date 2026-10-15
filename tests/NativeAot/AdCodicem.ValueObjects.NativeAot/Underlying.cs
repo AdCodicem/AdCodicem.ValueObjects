@@ -39,7 +39,7 @@ internal static class Underlying
         [typeof(TimeOnly)] = ["06:00", "12:00:00", "12:00:01", "05:59", "25:00"],
         [typeof(TimeSpan)] = ["01:30:00", "1.00:00:00", "1.00:00:01", "-00:00:01", "nope"],
         [typeof(Uri)] = ["https://example.com/a", "/relative", "mailto:ada@example.com"],
-        [typeof(string)] = ["", " ", "  Ada@Example.COM ", "not-an-email", "+33123456789", "+33 1 23", "draft", "FINAL", "archived", "po-1042", "PO-1042-0001-X", new string('x', 201)],
+        [typeof(string)] = ["", " ", "  Ada@Example.COM ", "not-an-email", "+33123456789", "+33 1 23", "draft", "FINAL", "archived", "po-1042", "PO-1042-0001-X", "DEUTDEFF500", "deutdeff", new string('x', 201)],
     };
 
     private static readonly Dictionary<Type, Func<string, object?>> Readers = new()

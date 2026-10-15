@@ -11,8 +11,10 @@ namespace AdCodicem.ValueObjects.Shared;
 /// <remarks>
 /// <para>
 /// This file is linked into each package that takes a pattern out of .NET, as <c>ValueObjectSchemaKeywords</c> is, so
-/// that each compiles its own internal copy: the contracts write an XSD pattern from it. What a dialect accepts of the
-/// tree is the writer's decision; the reader only refuses what it cannot read with certainty.
+/// that each compiles its own internal copy: the contracts write an XSD pattern from it. It is linked into the generator
+/// too, whose <c>VO0047</c> reads a pattern for the characters it admits, and which targets <c>netstandard2.0</c>: the
+/// few calls that framework lacks have substitutes here. What a dialect accepts of the tree is the writer's decision; the
+/// reader only refuses what it cannot read with certainty.
 /// </para>
 /// <para>
 /// It reads a pattern as .NET reads it with no <c>RegexOptions</c>, which a schema's pattern text never carries:
@@ -31,6 +33,14 @@ namespace AdCodicem.ValueObjects.Shared;
 /// </remarks>
 internal static class ValueObjectPatternSyntax
 {
+    /// <summary>
+    /// Tells an ASCII letter or digit, as <c>char.IsAsciiLetterOrDigit</c> does: the generator links this file too, and
+    /// <c>netstandard2.0</c>, which it targets, lacks that method.
+    /// </summary>
+    /// <param name="character">The character.</param>
+    /// <returns><see langword="true"/> for <c>a</c> to <c>z</c>, <c>A</c> to <c>Z</c> and <c>0</c> to <c>9</c>.</returns>
+    private static bool IsAsciiLetterOrDigit(char character) => character is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9';
+
     /// <summary>
     /// Reads a .NET pattern into its syntax tree.
     /// </summary>
@@ -249,7 +259,7 @@ internal static class ValueObjectPatternSyntax
                         name = pattern[(_position + 1)..end];
 
                         // A balancing group names two groups with a '-'.
-                        if (name.Length == 0 || !name.All(static character => char.IsAsciiLetterOrDigit(character) || character == '_'))
+                        if (name.Length == 0 || !name.All(static character => IsAsciiLetterOrDigit(character) || character == '_'))
                         {
                             return null;
                         }
@@ -347,7 +357,7 @@ internal static class ValueObjectPatternSyntax
                 default:
                     // A word character is a backreference, an octal or control escape, or one .NET does not know; any
                     // other character escapes itself. Outside ASCII, .NET refuses one that is a word character.
-                    return char.IsAscii(escaped) && !char.IsAsciiLetterOrDigit(escaped) && escaped != '_'
+                    return escaped <= '\x7F' && !IsAsciiLetterOrDigit(escaped) && escaped != '_'
                         ? new PatternLiteral(escaped)
                         : null;
             }
@@ -355,8 +365,18 @@ internal static class ValueObjectPatternSyntax
 
         private PatternLiteral? ReadHexadecimal(int digits)
         {
-            if (_position + digits > pattern.Length
-                || !int.TryParse(pattern.AsSpan(_position, digits), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var code))
+            if (_position + digits > pattern.Length)
+            {
+                return null;
+            }
+
+#if NETSTANDARD2_0
+            // netstandard2.0, which the generator targets, parses no span.
+            var hexadecimal = pattern.Substring(_position, digits);
+#else
+            var hexadecimal = pattern.AsSpan(_position, digits);
+#endif
+            if (!int.TryParse(hexadecimal, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var code))
             {
                 return null;
             }

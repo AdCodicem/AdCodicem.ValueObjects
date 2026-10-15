@@ -231,6 +231,16 @@ public sealed class LabelContract : ValueObjectContract<Label, string>
 }
 
 /// <inheritdoc cref="IbanContract" />
+public sealed class BicContract : ValueObjectContract<Bic, string>
+{
+    protected override bool DerivesRejectedValues => true;
+
+    protected override IEnumerable<string> AcceptedValues => ["DEUTDEFF", "DEUTDEFF500", "NEDSZAJJXXX"];
+
+    protected override IEnumerable<string> RejectedValues => ["DEUTDEF", "deutdeff", "DEUTDEFF5", "DEUTDÉFF"];
+}
+
+/// <inheritdoc cref="IbanContract" />
 public sealed class DocumentStatusContract : ValueObjectContract<DocumentStatus, string>
 {
     protected override bool DerivesRejectedValues => true;

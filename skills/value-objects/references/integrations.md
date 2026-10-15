@@ -323,7 +323,8 @@ protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     => builder.ConfigureValueObjects(typeof(Iban).Assembly);
 ```
 
-One call maps every value object of the assembly: an `Iban` declaring `MaxLength = 34` lands in `varchar(34)`,
+One call maps every value object of the assembly: an `Iban` declaring `MaxLength = 34` lands in `nvarchar(34)` on SQL
+Server (`varchar(34)` with `Unicode = false`, its parameters `varchar` too) and `character varying(34)` on PostgreSQL,
 a `Guid` value object in the provider's native `uuid`. It runs once while the model is built — nothing happens
 per row.
 
@@ -464,7 +465,8 @@ Dapper looks one up by the exact type, ahead of any query. Register each constru
   command runs, from an `Iban` and an `Iban?` alike: the handler cannot see the column. A `null` `Iban?` goes out as
   `NULL`.
 - A string parameter declares its column as the EF Core conventions map it: an `[EntityId]` as `char(n)`
-  non-Unicode, a value object with `MaxLength` as Unicode text of that length. SQL Server keeps its index seek.
+  non-Unicode, a value object with `Unicode = false` as `varchar` (`AnsiString`) of its `MaxLength`, or of the value's
+  own length, and one with `MaxLength` alone as Unicode text of that length. SQL Server keeps its index seek.
 - A value object over `Int128` or `UInt128` gets no handler: no provider carries either type. Register a
   `SqlMapper.TypeHandler<T>` of your own that converts to the column you chose.
 - Under native AOT, Dapper's own handler cache fails inside Dapper, however the handler was built. Use Dapper.AOT,

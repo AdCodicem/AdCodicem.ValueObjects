@@ -63,5 +63,8 @@ public readonly partial struct PhoneNumber;
 [ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<Label, string>))]
 public readonly partial struct Label;
 
+[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<Bic, string>))]
+public readonly partial struct Bic;
+
 [ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<DocumentStatus, string>))]
 public readonly partial struct DocumentStatus;

@@ -24,7 +24,9 @@ namespace AdCodicem.ValueObjects.Annotations;
 /// Declarative constraints set on this attribute (<see cref="MinLength"/>, <see cref="MaxLength"/>), like the pattern
 /// of <see cref="IValueObjectPatternValidator"/> and the bounds of <see cref="IValueObjectMinimum{TValue}"/> and
 /// <see cref="IValueObjectMaximum{TValue}"/>, are checked before <see cref="IValueObjectValidator{TValue}"/> runs, and
-/// also feed the generated OpenAPI schema, so a rule is stated once and enforced everywhere.
+/// also feed the generated OpenAPI schema, so a rule is stated once and enforced everywhere. <see cref="Unicode"/>,
+/// which states how the text is stored rather than what the type accepts, is read by the Entity Framework Core
+/// conventions and the Dapper handler alone.
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
@@ -119,6 +121,20 @@ public sealed class ValueObjectAttribute<TValue> : Attribute
     /// unbounded one.
     /// </remarks>
     public int MaxLength { get; set; } = -1;
+
+    /// <summary>
+    /// Gets or sets whether the text is stored as Unicode text; <see langword="false"/> stores and sends it as non-Unicode
+    /// text, <c>varchar</c> on SQL Server.
+    /// </summary>
+    /// <remarks>
+    /// Only meaningful for <see cref="string"/> (<c>VO0008</c> otherwise). Defaults to <see langword="true"/>. Read by the
+    /// Entity Framework Core conventions, which map the value object to non-Unicode text, and by the Dapper handler, which
+    /// declares its parameters non-Unicode; nothing else stores text that way. It states how the text is stored, not what
+    /// the type accepts: SQL Server replaces a character the column's code page lacks with a look-alike or <c>?</c>,
+    /// silently, so declare it for ASCII text and hold the rules to ASCII, as <c>VO0047</c> asks. Declared on a type
+    /// already mapped, it alters its columns at the next migration.
+    /// </remarks>
+    public bool Unicode { get; set; } = true;
 
     /// <summary>
     /// Was the inclusive lower bound, written as text. Removed: implement <see cref="IValueObjectMinimum{TValue}"/>

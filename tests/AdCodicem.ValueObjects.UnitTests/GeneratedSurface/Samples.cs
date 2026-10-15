@@ -70,6 +70,7 @@ public static class Samples
             Sample.Of<Tolerance, double>(Tolerance.Create(0.25), Tolerance.Create(0.5), "2"),
             Sample.Of<PhoneNumber, string>(PhoneNumber.Create("+33123456789"), PhoneNumber.Create("+4930123456"), "123"),
             Sample.Of<Label, string>(Label.Create("a"), Label.Create("b"), new string('x', 201)),
+            Sample.Of<Bic, string>(Bic.Create("DEUTDEFF"), Bic.Create("DEUTDEFF500"), "deutdeff"),
             Sample.Of<DocumentStatus, string>(DocumentStatus.Draft, DocumentStatus.Final, "archived"),
             Sample.Of<Floor, int>(Floor.Create(1), Floor.Create(2), "201", parsed: "1"),
             Sample.Of<Celsius, int>(Celsius.Create(1), Celsius.Create(2), "-274", parsed: "1"),

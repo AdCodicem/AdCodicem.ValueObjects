@@ -29,6 +29,11 @@
     <PackageReference Include="PolySharp" PrivateAssets="all" />
   </ItemGroup>
 
+  <!-- The reader of a .NET pattern, for VO0047, which tells the characters a pattern admits. -->
+  <ItemGroup>
+    <Compile Include="..\Shared\ValueObjectPatternSyntax.cs" Link="Shared\ValueObjectPatternSyntax.cs" />
+  </ItemGroup>
+
   <!-- The code fix reads the diagnostic's contract from here, as the analyzer computes it. -->
   <ItemGroup>
     <InternalsVisibleTo Include="AdCodicem.ValueObjects.CodeFixes" />

@@ -2,6 +2,7 @@
 // `dotnet ef dbcontext optimize` write, when it builds with CompiledModel=jit. The relaxed context writes a shipment
 // holding every value object and another leaving every optional one out, both contexts read them back and filter on
 // them, collections of value objects included, on .Value too, which UseValueObjectQueries() translates to the column, and
+// on a value object declaring Unicode = false, which lands in varchar and is compared through a varchar parameter, and
 // the relaxed one tracks a change, an element added in place included.
 // The relaxed context also generates keys typed as value objects, a Guid one as SQL Server generates a Guid and an int
 // one by the identity, refuses an entity added without a Guid key nothing generates, and reads the keys back.
@@ -43,6 +44,12 @@ await using (var connection = new SqlConnection(connectionString))
     await connection.OpenAsync();
     await using var command = new SqlCommand("SELECT COUNT(*) FROM information_schema.check_constraints", connection);
     Report("relaxed: CHECK constraints created from the rules", (int)(await command.ExecuteScalarAsync())! > 0);
+
+    await using var column = new SqlCommand(
+        "SELECT data_type + '(' + CAST(character_maximum_length AS varchar(8)) + ')' FROM information_schema.columns "
+        + "WHERE table_name = 'Shipments' AND column_name = 'Bic'",
+        connection);
+    Report("relaxed: a value object declaring Unicode = false lands in varchar", (string)(await column.ExecuteScalarAsync())! == "varchar(11)");
 }
 
 await using (var context = new ShopContext(connectionString))
@@ -82,6 +89,7 @@ var number = Shipments.Full.Number;
 var previous = Shipments.Full.Previous;
 var batch = Shipments.Full.Batches[1];
 var contact = Shipments.Full.Contacts[1];
+var bic = Shipments.Full.Bic;
 
 // Two shapes Entity Framework Core 10 fails to precompile, whatever the element type, are written around: Contains over an
 // array, which C# 14 binds to MemoryExtensions.Contains over a span, is called on the array as a sequence, and
@@ -111,6 +119,10 @@ foreach (var strict in (bool[])[false, true])
     Compare($"{name}: sparse shipment read back", Shipments.Sparse, readSparse);
 
     Report($"{name}: filtered on a quantity", await context.Shipments.CountAsync(shipment => shipment.Quantity == quantity) == 1);
+    Report($"{name}: filtered on a non-Unicode BIC", await context.Shipments.CountAsync(shipment => shipment.Bic == bic) == 2);
+    Report(
+        $"{name}: the model maps the BIC to non-Unicode text",
+        context.Model.FindEntityType(typeof(Shipment))!.FindProperty(nameof(Shipment.Bic))!.GetRelationalTypeMapping().StoreType == "varchar(11)");
     Report($"{name}: filtered on an absent optional quantity", await context.Shipments.CountAsync(shipment => shipment.OptionalQuantity == null) == 1);
     Report($"{name}: filtered on a construction of a generic value object", await context.Shipments.CountAsync(shipment => shipment.Number == number) == 2);
     Report($"{name}: filtered on an optional identifier", await context.Shipments.CountAsync(shipment => shipment.Previous == previous) == 1);

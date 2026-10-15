@@ -2,7 +2,7 @@
 title: Use with Entity Framework Core
 sidebar_label: Entity Framework Core
 slug: /how-to/ef-core
-description: Map every value object of an assembly to its underlying column type in one call, collections of them as primitive collections, size columns from declared rules, translate `.Value` in queries to the column, choose when reads are validated, never store a value a type rejects, write the rules as CHECK constraints and read the rule a refused row broke, generate keys the provider's way and refuse a Guid key left unset, compile the model, and work with JSON columns, raw SQL, other providers, bulk extensions, Always Encrypted and data masking.
+description: Map every value object of an assembly to its underlying column type in one call, collections of them as primitive collections, size columns from declared rules, store ASCII text as non-Unicode, translate `.Value` in queries to the column, choose when reads are validated, never store a value a type rejects, write the rules as CHECK constraints and read the rule a refused row broke, generate keys the provider's way and refuse a Guid key left unset, compile the model, and work with JSON columns, raw SQL, other providers, bulk extensions, Always Encrypted and data masking.
 ---
 
 # Use with Entity Framework Core
@@ -25,8 +25,9 @@ assemblies if the value objects live in more than one.
 ## Columns sized by the type
 
 A value object declaring `MaxLength` also sizes its column: an `Iban` with `MaxLength = 34` becomes
-`character varying(34)` on PostgreSQL and `nvarchar(34)` on SQL Server, instead of unbounded text. A `Guid` value
-object lands in the provider's native GUID column. Change the rule on the type, and the next migration follows.
+`character varying(34)` on PostgreSQL and `nvarchar(34)` on SQL Server, or `varchar(34)` once the type declares
+[`Unicode = false`](#non-unicode-text), instead of unbounded text. A `Guid` value object lands in the provider's native
+GUID column. Change the rule on the type, and the next migration follows.
 
 LINQ queries compare value objects as they would compare the underlying values:
 `Where(a => a.Iban == iban)` becomes an ordinary `WHERE` on the column, with `iban` sent as a parameter.
@@ -43,6 +44,132 @@ var accounts = await db.Accounts.Where(a => a.Iban == iban).ToListAsync();
 ```
 
 A static property, `Currency.Eur`, is sent as a parameter already.
+
+## Non-Unicode text
+
+Text is Unicode text unless the type says otherwise: `nvarchar` on SQL Server. A value object whose text is ASCII, an
+IBAN, a currency or a country code, says so once, with `Unicode = false`:
+
+```csharp
+[ValueObject<string>(MinLength = 15, MaxLength = 34, Unicode = false)]
+public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectPatternValidator
+{
+    public static string NormalizeValue(string value) => value.Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant();
+
+    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+}
+```
+
+Its schema then states `IsUnicode = false`, and `ConfigureValueObjects` maps it to non-Unicode text, `varchar(34)` on
+SQL Server: the property, its optional form, each construction of a [generic value object](#generic-value-objects) and
+each element of a [collection](#collections-of-value-objects), whose JSON column stays `nvarchar(max)` while
+`OPENJSON` reads the elements as `varchar(34)`. `HasValueObjectConversion` does the same for one property. A parameter
+compared with the column is declared as the column is, `DECLARE @iban varchar(34)`, for `x.Iban == iban`, for
+`ibans.Contains(x.Iban)`, and for `x.Iban.Value.StartsWith(prefix)` under
+[`UseValueObjectQueries()`](#the-value-in-a-query); a literal is written without its `N`. The
+[Dapper handler](dapper.md#parameters) declares its parameters `varchar` too.
+
+That matters wherever the column is `varchar`, as in a database designed before the application. Under the server's
+default collation, `SQL_Latin1_General_CP1_CI_AS`, which is a SQL collation, an `nvarchar` parameter makes SQL Server
+convert the column, `CONVERT_IMPLICIT(nvarchar(34),[Iban],0)`, with a "Seek Plan" warning, and scan the index: 903
+logical reads over 200,001 rows on SQL Server 2022, against 3 through a `varchar(34)` parameter. Under a Windows
+collation, `Latin1_General_CI_AS`, the plan still seeks. An [Always Encrypted](#always-encrypted) `varchar` column
+refuses an `nvarchar` parameter outright.
+
+[CHECK constraints](#check-constraints-from-the-rules) follow the column, `DATALENGTH([Iban]) >= 15` and a closed set
+`IN ('FR', 'DE')`. PostgreSQL and SQLite store text as they always do, `character varying(34)` and `TEXT`, and keep
+`'Łódź 中文'` as it is, so one declaration serves a model on several providers. A value object declaring no
+`MaxLength` becomes `varchar(max)` on SQL Server, compared through a `varchar(8000)` parameter.
+
+Keep Unicode text where you want it with `configurationBuilder.Properties<Iban>().AreUnicode(true)` after
+`ConfigureValueObjects`, for every property of the type, its optional form included, or with `.IsUnicode(true)` on one
+property in `OnModelCreating`. An [entity identifier](#public-identifiers) takes no such option: `ConfigureEntityIds`
+makes it `char(25)`.
+
+### What a code page does to other characters
+
+The option states how the text is stored, not what the type accepts, and nothing checks it at run time. A `varchar`
+column holds the characters of its collation's code page, ASCII and, under Latin-1, `Zoé Œuvre` as well. SQL Server
+writes any other character as a look-alike, or as `?`, with no error: `Łódź` becomes `Lódz`, `Ağrı` becomes `Agri`,
+`Ωmega` becomes `Omega`, `ẞ` and `中` each become `?`, and `😀` becomes `??`. It does so for an `nvarchar` parameter
+written into a `varchar` column, which happens without the option, for a `varchar` parameter, which SqlClient encodes in
+the code page of the database's default collation, and in an `ALTER COLUMN`. A default read then trusts the replaced
+value; a [strict](#validation-on-read) one refuses it only where the rules hold the text to ASCII.
+
+So hold them to ASCII. `VO0047` warns on `Unicode = false` where the rules the type declares let another character
+through:
+
+- nothing holds the text: no pattern, no closed set, no validator;
+- a pattern that does not hold the whole text: `IsMatch` finds `[0-9]{5}` inside `É12345`, so each alternative must be
+  anchored at both ends, `^…$` or `\A…\z`, `^` and `$` only without `RegexOptions.Multiline`;
+- a pattern admitting a character outside ASCII: a literal or a range beyond U+007F, `.`, a negated class, and `\d`,
+  `\w`, `\s` or `\p{…}`, which .NET reads over Unicode (`^\d{5}$` matches `١٢٣٤٥`), though `RegexOptions.ECMAScript`
+  holds `\d` and `\s` to ASCII (its `\w` still matches `İ`); `[A-Z]` under `RegexOptions.IgnoreCase` matches the
+  Kelvin sign for `K`, and, without `RegexOptions.CultureInvariant`, `I` and `i` warn too: `[GeneratedRegex]` folds case
+  under the invariant culture, where they match nothing beyond ASCII, unless it names a culture, where they match `İ`,
+  and `ı` too under a Turkish one, or builds the regex at run time in the current culture, as it does under
+  `RegexOptions.NonBacktracking`, and the analyzer does not tell these apart;
+- a known value of a closed set spelled outside ASCII;
+- a closed set compared as a culture compares, which takes other spellings of a known value, a soft hyphen inside it
+  among them, and stores the one it was given; `Ordinal` and `OrdinalIgnoreCase` take none.
+
+A pattern declared with `RegexOptions.IgnorePatternWhitespace` is read as .NET reads it, without its white space and its
+comments, so a `$` after a `#` belongs to the comment. A normalizer or a validator, an `IValueObjectValidator<string>`
+refusing what `Ascii.IsValid` refuses say, is code the analyzer does not read, and it stays quiet beside one, as it does beside a pattern it cannot read, a lookaround among
+them, or one written without `[GeneratedRegex]`. A column of names kept under Latin-1 on purpose is a reason to silence
+it, for that type alone:
+
+```csharp skip
+#pragma warning disable VO0047 // varchar(60) under Latin-1, which holds the accented letters of these names.
+[ValueObject<string>(MaxLength = 60, Unicode = false)]
+#pragma warning restore VO0047
+public readonly partial struct LegacyName;
+```
+
+### Existing columns
+
+Declaring the option on a value object already mapped alters its columns at the next migration. Entity Framework Core
+writes an `AlterColumn` per column, and on SQL Server the script drops the column's index, alters the column to
+`varchar(34)` and recreates the index. SQL Server converts the rows it holds as it converts a parameter, silently:
+`N'中文 Łódź'` becomes `'?? Lódz'`. Count the rows the conversion would change before migrating, under the column's
+current collation:
+
+```sql
+SELECT COUNT(*) FROM [Accounts]
+WHERE CAST(CAST([Iban] AS varchar(34)) AS nvarchar(34)) COLLATE Latin1_General_100_BIN2
+    <> [Iban] COLLATE Latin1_General_100_BIN2;
+```
+
+A key needs more. The migration Entity Framework Core writes for a primary key and the foreign keys referencing it
+fails, `The object 'PK_Products' is dependent on column 'Id'`: drop the constraints around the `AlterColumn` calls it
+wrote, and add them back.
+
+```csharp skip
+migrationBuilder.DropForeignKey(name: "FK_Lines_Products_ProductId", table: "Lines");
+migrationBuilder.DropPrimaryKey(name: "PK_Products", table: "Products");
+
+// The AlterColumn calls Entity Framework Core wrote, for Products.Id and Lines.ProductId.
+
+migrationBuilder.AddPrimaryKey(name: "PK_Products", table: "Products", column: "Id");
+migrationBuilder.AddForeignKey(
+    name: "FK_Lines_Products_ProductId",
+    table: "Lines",
+    column: "ProductId",
+    principalTable: "Products",
+    principalColumn: "Id",
+    onDelete: ReferentialAction.Cascade);
+```
+
+Regenerate a [compiled model](#compiled-models) afterwards, as after any other change to the model.
+
+### UTF-8 collations
+
+Under a `_UTF8` collation, from SQL Server 2019 on, `varchar` holds all of Unicode, and two things still bite.
+`varchar(n)` counts bytes, so `MaxLength` characters of text outside ASCII can overflow the column the option sizes:
+`'éééééééééé'` into `varchar(10)` fails, "String or binary data would be truncated". And SqlClient encodes a `varchar`
+parameter in the code page of the database's default collation, so a UTF-8 column in a Latin-1 database loses, through
+it, what an `nvarchar` parameter kept. The option is for ASCII text, and has no UTF-8 mode.
 
 ## The value in a query
 
@@ -66,7 +193,8 @@ A context configuring itself calls it in `OnConfiguring`, after the provider:
 `x.Iban.Value.StartsWith(prefix)` then becomes `WHERE [o].[Iban] LIKE @prefix_startswith`, which the index serves: on
 SQL Server 2022, over 100,000 rows, an index seek reading 5 pages where the cast scanned 888. The column keeps the type
 the rules of its value object gave it, so a parameter compared with it is declared as the column is,
-`DECLARE @text nvarchar(34)` for `x.Iban.Value == text`, and `char(25)` for the fixed-width column of an
+`DECLARE @text nvarchar(34)` for `x.Iban.Value == text`, `varchar(34)` for one [declaring](#non-unicode-text)
+`Unicode = false`, and `char(25)` for the fixed-width column of an
 [entity identifier](#public-identifiers), whose `StartsWith` pattern is a `varchar` of that length. Comparisons,
 arithmetic, `OrderBy`, `GroupBy`, string functions, `ExecuteUpdate`, `ExecuteDelete` and compiled queries take `.Value`
 as they take a property of the underlying type. It translates in an optional value object, `x.Previous!.Value.Value`,
@@ -455,7 +583,7 @@ public sealed class Account
 PostgreSQL stores such a collection as an array of the element's column type, `character varying(34)[]` for an IBAN,
 `integer[]` for a quantity over `int`. SQL Server and SQLite store a JSON array, in `nvarchar(max)` and in `TEXT`, and
 a query reads its elements as the value object's column type: `OPENJSON([a].[Ibans]) WITH ([value] nvarchar(34) '$')`
-on SQL Server, `json_each` on SQLite. At compatibility level 170, which SQL Server 2025 offers, Entity Framework Core 10
+on SQL Server, `varchar(34)` for a value object declaring [`Unicode = false`](#non-unicode-text), `json_each` on SQLite. At compatibility level 170, which SQL Server 2025 offers, Entity Framework Core 10
 makes the column `json` (from a script, not run).
 
 A query over the elements translates on all three, `Contains`, `Any`, `Count` or an index: on PostgreSQL through the
@@ -696,8 +824,9 @@ an optional element compared by `NullableValueObjectComparer<T>` as an optional 
 [keys](#value-objects-as-keys): `new ValueObjectKeyGeneratorFactory<ParcelId, Guid>().Create` for a generated key,
 `new UnassignedValueObjectKeyGeneratorFactory().Create` for a `Guid` key refused unset.
 
-Regenerate the compiled model when a rule that shapes a column changes, `MaxLength` say, as after any other change to
-the model. [CHECK constraints](#check-constraints-from-the-rules) are not in it: a compiled model holds none, and
+Regenerate the compiled model when a rule that shapes a column changes, `MaxLength` or `Unicode` say, as after any other
+change to the model: it writes `unicode: false` on each property of a value object declaring
+[`Unicode = false`](#non-unicode-text). [CHECK constraints](#check-constraints-from-the-rules) are not in it: a compiled model holds none, and
 `EnsureCreated` on a context using one builds the model that holds them. [`UseValueObjectCheckErrors()`](#when-a-constraint-fires)
 reads the rule a refused row broke off the name of the constraint, so it needs none of them.
 
@@ -755,8 +884,10 @@ under the JIT, and in `dotnet ef dbcontext optimize`, which writes the model the
 
 Complex types, `ToJson`, complex collections and owned types mapped to JSON work with the convention, and the rules
 still shape the query: a value object declaring `MaxLength = 34` is read as
-`JSON_VALUE([i].[Shipping], '$.Account' RETURNING nvarchar(34)) = @iban` on SQL Server. A collection of value objects
-inside them is a [primitive collection](#collections-of-value-objects), as anywhere in the model.
+`JSON_VALUE([i].[Shipping], '$.Account' RETURNING nvarchar(34)) = @iban` on SQL Server. One declaring
+[`Unicode = false`](#non-unicode-text) is compared through a `varchar(34)` parameter, the JSON column staying
+`nvarchar(max)`. A collection of value objects inside them is a [primitive collection](#collections-of-value-objects),
+as anywhere in the model.
 
 ## Raw SQL
 
@@ -805,8 +936,9 @@ The converter runs before SqlClient encrypts, so deterministic equality, `Contai
 an encrypted column. Three things trip it:
 
 - A parameter wider than the column is refused. Declare a `MaxLength` no greater than the column's size: a value object
-  without one is sent as `nvarchar(4000)`.
-- A `varchar` column needs the value object mapped as non-Unicode:
+  without one is sent as `nvarchar(4000)`, or `varchar(8000)` once it declares `Unicode = false`.
+- A `varchar` column needs the value object declared non-Unicode, [`Unicode = false`](#non-unicode-text), which the
+  Dapper handler's parameters follow too; a value object of another library is mapped so with
   `configurationBuilder.Properties<Iban>().AreUnicode(false)`.
 - A value object created inside a predicate, `Iban.Create("…")`, becomes a literal, which cannot be encrypted: hoist
   it into a variable, as [Columns sized by the type](#columns-sized-by-the-type) shows.

@@ -408,6 +408,24 @@ public sealed class DescriptorTests
     }
 
     /// <summary>
+    /// The Unicode facet a schema states reaches the descriptor the registry describes by reflection, of a construction of
+    /// a generic value object and of a value object written by hand alike: the Entity Framework Core conventions read it
+    /// there. Both are this test's own, as the registry keeps what it resolves for the process.
+    /// </summary>
+    [Fact]
+    public void TryResolve_describes_the_Unicode_facet_of_a_construction_and_of_a_value_object_written_by_hand()
+    {
+        ValueObjectRegistry.TryResolve(typeof(Persistence.AsciiReference<UnicodeOwner>), out var reference).Should().BeTrue();
+        ValueObjectRegistry.TryResolve(typeof(TestData.Declared<Persistence.RegisteredAsciiDeclaration, string>), out var declared)
+            .Should().BeTrue();
+
+        reference!.Schema.IsUnicode.Should().BeFalse();
+        reference.Schema.MaxLength.Should().Be(12);
+        declared!.Schema.IsUnicode.Should().BeFalse();
+        declared.Schema.MaxLength.Should().Be(20);
+    }
+
+    /// <summary>
     /// The registration native AOT asks of a construction takes its converter alone and reads the schema off the type;
     /// its descriptor, built in code, hands a visitor its type arguments like a generated one.
     /// </summary>
@@ -513,4 +531,7 @@ public sealed class DescriptorTests
 
     /// <summary>The owner of a construction nothing ever describes.</summary>
     private sealed class NeverDescribedOwner;
+
+    /// <summary>The owner of a non-Unicode construction only the Unicode facet's test resolves.</summary>
+    private sealed class UnicodeOwner;
 }

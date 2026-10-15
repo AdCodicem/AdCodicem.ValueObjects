@@ -109,7 +109,7 @@ public abstract class CheckConstraintPatternTests<TFixture>(TFixture fixture) : 
     /// <summary>
     /// The constraints are created from the patterns of the model, but on the fixed-length column of an entity identifier,
     /// and accept every value the value objects accept, a phone number ending with a line feed included, which .NET's
-    /// <c>$</c> accepts.
+    /// <c>$</c> accepts, and a BIC in the non-Unicode column its value object declares.
     /// </summary>
     [Fact]
     public async Task The_pattern_constraints_accept_every_value_the_value_objects_accept()
@@ -119,8 +119,8 @@ public abstract class CheckConstraintPatternTests<TFixture>(TFixture fixture) : 
         await using (var write = CreateContext<PatternContext>())
         {
             write.Rows.AddRange(
-                new PatternValues { Id = Next(), Iban = Iban.Create("FR7630006000011234567890189"), Phone = PhoneNumber.Create("+33612345678"), Slug = Slug.Create("my-slug-1"), Ticket = TicketCode.Create("ABC-1234"), Payment = PaymentId.New() },
-                new PatternValues { Id = Next(), Phone = PhoneNumber.Create("+33612345678\n"), Slug = Slug.Create("a") },
+                new PatternValues { Id = Next(), Iban = Iban.Create("FR7630006000011234567890189"), Phone = PhoneNumber.Create("+33612345678"), Slug = Slug.Create("my-slug-1"), Ticket = TicketCode.Create("ABC-1234"), Payment = PaymentId.New(), Bic = Bic.Create("DEUTDEFF500") },
+                new PatternValues { Id = Next(), Phone = PhoneNumber.Create("+33612345678\n"), Slug = Slug.Create("a"), Bic = Bic.Create("DEUTDEFF") },
                 new PatternValues { Id = Next() });
             await write.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
@@ -134,7 +134,9 @@ public abstract class CheckConstraintPatternTests<TFixture>(TFixture fixture) : 
             "CK_pattern_values_Phone_Pattern",
             "CK_pattern_values_Slug_Pattern",
             "CK_pattern_values_Ticket_Pattern",
-            "CK_pattern_values_Payment_MinLength");
+            "CK_pattern_values_Payment_MinLength",
+            "CK_pattern_values_Bic_MinLength",
+            "CK_pattern_values_Bic_Pattern");
     }
 
     /// <summary>
@@ -150,6 +152,7 @@ public abstract class CheckConstraintPatternTests<TFixture>(TFixture fixture) : 
     [InlineData("Slug", "'my--slug'")]
     [InlineData("Ticket", "'abc-1234'")]
     [InlineData("Ticket", "'ABC-123'")]
+    [InlineData("Bic", "'deutdeff'")]
     public async Task Another_writers_row_breaking_a_pattern_is_refused_by_the_engine(string column, string literal)
     {
         await EnsureTablesAsync();
@@ -231,6 +234,8 @@ public abstract class CheckConstraintPatternTests<TFixture>(TFixture fixture) : 
         public TicketCode? Ticket { get; set; }
 
         public PaymentId? Payment { get; set; }
+
+        public Bic? Bic { get; set; }
     }
 
     /// <summary>The values, mapped by the conventions, with the check constraints of their patterns.</summary>

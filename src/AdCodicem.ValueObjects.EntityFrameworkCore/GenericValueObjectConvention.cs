@@ -13,8 +13,9 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 /// <para>
 /// The convention configures a value object that is not generic up front, closing its converter over it. A generic
 /// value object has no such type: its definition is configured up front, which makes every construction of it a
-/// scalar property, and this convention closes the converter, the comparer and the length over the construction of
-/// each property, as the model meets it, through the type arguments its descriptor hands back to a visitor.
+/// scalar property, and this convention closes the converter, the comparer, the length and the Unicode facet over the
+/// construction of each property, as the model meets it, through the type arguments its descriptor hands back to a
+/// visitor.
 /// </para>
 /// <para>
 /// A property of a nullable construction gets the converter that stores a value the value object rejects as
@@ -44,26 +45,31 @@ internal sealed class GenericValueObjectConvention(IReadOnlySet<Type> definition
         }
 
         descriptor.Accept(
-            new PropertyConversion(propertyBuilder, optional is not null, strict, descriptor.Schema.MaxLength));
+            new PropertyConversion(
+                propertyBuilder, optional is not null, strict, descriptor.Schema.MaxLength, descriptor.Schema.IsUnicode));
     }
 
     /// <summary>
-    /// Sets the converter, the comparer and the length of a property holding a construction, closed over the type
-    /// arguments its descriptor hands back.
+    /// Sets the converter, the comparer, the length and the Unicode facet of a property holding a construction, closed
+    /// over the type arguments its descriptor hands back.
     /// </summary>
     /// <param name="propertyBuilder">Builder of the property.</param>
     /// <param name="optional">Whether the property holds the nullable construction.</param>
     /// <param name="strict">Whether what is read is validated again.</param>
     /// <param name="maxLength">The length the descriptor declares, which sizes the column.</param>
+    /// <param name="unicode">
+    /// Whether the descriptor declares its text Unicode: <see langword="false"/> maps it to non-Unicode text.
+    /// </param>
     private sealed class PropertyConversion(
         IConventionPropertyBuilder propertyBuilder,
         bool optional,
         bool strict,
-        int? maxLength) : IValueObjectVisitor<bool>
+        int? maxLength,
+        bool? unicode) : IValueObjectVisitor<bool>
     {
         /// <summary>
-        /// Sets the converter, the comparer and the length of the property, as instances, whose expressions a compiled
-        /// model writes out.
+        /// Sets the converter, the comparer, the length and the Unicode facet of the property, the first two as instances,
+        /// whose expressions a compiled model writes out.
         /// </summary>
         /// <typeparam name="TSelf">Value object type, the construction.</typeparam>
         /// <typeparam name="TValue">Underlying value type.</typeparam>
@@ -89,6 +95,11 @@ internal sealed class GenericValueObjectConvention(IReadOnlySet<Type> definition
             if (maxLength is { } length)
             {
                 propertyBuilder.HasMaxLength(length);
+            }
+
+            if (unicode is false)
+            {
+                propertyBuilder.IsUnicode(false);
             }
 
             return true;

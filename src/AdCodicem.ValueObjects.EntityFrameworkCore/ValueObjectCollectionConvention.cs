@@ -8,7 +8,7 @@ namespace AdCodicem.ValueObjects.EntityFrameworkCore;
 
 /// <summary>
 /// Maps each property holding a collection of value objects as a primitive collection, whose elements get the converter,
-/// the comparer and the length of their value object.
+/// the comparer, the length and the Unicode facet of their value object.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -142,13 +142,14 @@ internal sealed class ValueObjectCollectionConvention(
             var optional = Nullable.GetUnderlyingType(elementType.ClrType);
             if (TryDescribe(optional ?? elementType.ClrType, out var descriptor))
             {
-                // The length is the descriptor's, as for a property: a registration made by hand may give a value object
-                // another schema than the one its type declares.
+                // The length and the Unicode facet are the descriptor's, as for a property: a registration made by hand
+                // may give a value object another schema than the one its type declares.
                 descriptor.Accept(new ElementConversion(
                     elementType.Builder,
                     optional is not null,
                     strict,
-                    descriptor.Schema.MaxLength));
+                    descriptor.Schema.MaxLength,
+                    descriptor.Schema.IsUnicode));
             }
         }
 
@@ -196,22 +197,27 @@ internal sealed class ValueObjectCollectionConvention(
             ?.GetGenericArguments()[0];
 
     /// <summary>
-    /// Sets the converter, the comparer and the length of an element, closed over the type arguments its descriptor hands
-    /// back.
+    /// Sets the converter, the comparer, the length and the Unicode facet of an element, closed over the type arguments
+    /// its descriptor hands back.
     /// </summary>
     /// <param name="element">Builder of the element.</param>
     /// <param name="optional">Whether the element is the nullable value object.</param>
     /// <param name="strict">Whether what is read is validated again.</param>
     /// <param name="maxLength">The length the descriptor declares, which sizes the element.</param>
+    /// <param name="unicode">
+    /// Whether the descriptor declares its text Unicode: <see langword="false"/> maps the element to non-Unicode text,
+    /// which SQL Server reads it as in <c>OPENJSON</c>, the JSON column itself staying Unicode text.
+    /// </param>
     private sealed class ElementConversion(
         IConventionElementTypeBuilder element,
         bool optional,
         bool strict,
-        int? maxLength) : IValueObjectVisitor<bool>
+        int? maxLength,
+        bool? unicode) : IValueObjectVisitor<bool>
     {
         /// <summary>
-        /// Sets the converter, the comparer and the length of the element, by their types, which a compiled model
-        /// instantiates as they stand.
+        /// Sets the converter, the comparer, the length and the Unicode facet of the element, the first two by their
+        /// types, which a compiled model instantiates as they stand.
         /// </summary>
         /// <typeparam name="TSelf">Value object type.</typeparam>
         /// <typeparam name="TValue">Underlying value type.</typeparam>
@@ -236,6 +242,11 @@ internal sealed class ValueObjectCollectionConvention(
             if (maxLength is { } length)
             {
                 element.HasMaxLength(length);
+            }
+
+            if (unicode is false)
+            {
+                element.IsUnicode(false);
             }
 
             return true;

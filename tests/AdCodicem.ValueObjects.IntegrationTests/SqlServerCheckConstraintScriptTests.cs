@@ -19,7 +19,9 @@ public sealed class SqlServerCheckConstraintScriptTests
 {
     /// <summary>
     /// SQL Server: a minimum length counted in UTF-16 code units on a Unicode column, <c>DATALENGTH / 2</c>, which counts a
-    /// trailing space where <c>LEN</c> does not, and in bytes on another; characters compared under a binary collation;
+    /// trailing space where <c>LEN</c> does not, and in bytes on another, a column made so with <c>IsUnicode(false)</c> or
+    /// by a value object declaring <c>Unicode = false</c>, whose closed set is written without <c>N</c>; characters
+    /// compared under a binary collation;
     /// the bounds of every type as the provider writes its literals, an instant with its offset included. Left out: a
     /// duration outside a day, which <c>time</c> holds without its days; a decimal bound finer than the column's scale,
     /// <c>decimal(18,2)</c> by default; an instant's bound finer than the column's precision, and any on <c>datetime</c> and
@@ -38,6 +40,7 @@ public sealed class SqlServerCheckConstraintScriptTests
             ["CK_scripted_Adjustment_Maximum"] = "[Adjustment] <= CAST(10 AS smallint)",
             ["CK_scripted_Adjustment_Minimum"] = "[Adjustment] >= CAST(-10 AS smallint)",
             ["CK_scripted_AsciiCode_MinLength"] = "DATALENGTH([AsciiCode]) >= 5",
+            ["CK_scripted_Bic_MinLength"] = "DATALENGTH([Bic]) >= 8",
             ["CK_scripted_Code_MinLength"] = "DATALENGTH([Code]) / 2 >= 5",
             ["CK_scripted_Counter_Maximum"] = "[Counter] <= 18446744073709551614.0",
             ["CK_scripted_Counter_Minimum"] = "[Counter] >= 1.0",
@@ -66,6 +69,7 @@ public sealed class SqlServerCheckConstraintScriptTests
             ["CK_scripted_Recorded_Maximum"] = "[Recorded] <= '2099-12-31T00:00:00.0000000'",
             ["CK_scripted_Recorded_Minimum"] = "[Recorded] >= '2000-01-01T00:00:00.0000000'",
             ["CK_scripted_Score_Maximum"] = "[Score] <= CAST(100 AS tinyint)",
+            ["CK_scripted_Shelf_KnownValues"] = "[Shelf] IN ('TOP', 'BOTTOM')",
             ["CK_scripted_Stamp_Minimum"] = "[Stamp] >= '2000-01-01T00:00:00.0000001'",
             ["CK_scripted_Unit_KnownValues"] = "[Unit] IN (N'KG', N'L')",
         });
@@ -172,6 +176,10 @@ public sealed class SqlServerCheckConstraintScriptTests
         public TrackingCode Code { get; set; }
 
         public TrackingCode AsciiCode { get; set; }
+
+        public Bic Bic { get; set; }
+
+        public ShelfLevel Shelf { get; set; }
 
         public PaymentId Payment { get; set; }
 

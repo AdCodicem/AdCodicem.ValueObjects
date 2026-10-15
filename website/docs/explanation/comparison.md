@@ -33,7 +33,7 @@ be corrected.
 | System.Text.Json | yes | yes | yes | yes |
 | Source-generated `JsonSerializerContext` | declared on the context, at compile time | a factory passed in the options at run time | converters passed in the options | not documented |
 | EF Core mapping | every value object of an assembly in one call, collections of them included | per property, or a marker class listing the types | per type | every value object in one call |
-| Column size from the type's rules | yes | no | no | no, a max-length strategy can be configured |
+| Column size from the type's rules | yes, and non-Unicode text on request (`Unicode = false`) | no | no | no, a max-length strategy can be configured |
 | CHECK constraints from the type's rules | on request: the minimum length, bounds, closed sets, and patterns on SQL Server 2025 and PostgreSQL; a violated one reported with its rule code (`UseValueObjectCheckErrors()`) | no | no | no |
 | EF Core reads validate | on request (`strict: true`) | by default | — | no, reads use the constructor |
 | EF Core `.Value` in LINQ | translated to the column, on request (`UseValueObjectQueries()`) | no: compare the value objects | no: compare the value objects | no |

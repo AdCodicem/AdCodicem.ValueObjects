@@ -26,6 +26,18 @@ public abstract class DatabaseFixture : IAsyncLifetime
     /// <summary>Gets the name this provider gives a fixed width text column in its catalog.</summary>
     public abstract string FixedTextType { get; }
 
+    /// <summary>Gets the name this provider gives the column of a value object declaring <c>Unicode = false</c>.</summary>
+    public abstract string NonUnicodeTextType { get; }
+
+    /// <summary>Gets what the query text says of a parameter compared with such a column, named <c>sender</c>.</summary>
+    public abstract string NonUnicodeParameterSql { get; }
+
+    /// <summary>Gets the query reading back the type of the Dapper parameter <c>@sender</c>, in a column named Value.</summary>
+    public abstract string ParameterTypeSql { get; }
+
+    /// <summary>Gets the type Dapper's parameter of such a value object reaches the engine as.</summary>
+    public abstract string NonUnicodeParameterType { get; }
+
     /// <summary>Gets the name this provider gives a Guid column in its catalog.</summary>
     public abstract string GuidType { get; }
 
@@ -97,6 +109,14 @@ public sealed class PostgreSqlFixture : DatabaseFixture
 
     public override string FixedTextType => "character";
 
+    public override string NonUnicodeTextType => "character varying";
+
+    public override string NonUnicodeParameterSql => "p.\"Sender\" = @sender";
+
+    public override string ParameterTypeSql => "SELECT pg_typeof(@sender)::text AS \"Value\"";
+
+    public override string NonUnicodeParameterType => "text";
+
     public override string GuidType => "uuid";
 
     public override string BinaryCollation => "C";
@@ -135,6 +155,16 @@ public sealed class SqlServerFixture : DatabaseFixture
     public override string BoundedTextType => "nvarchar";
 
     public override string FixedTextType => "char";
+
+    public override string NonUnicodeTextType => "varchar";
+
+    public override string NonUnicodeParameterSql => "DECLARE @sender varchar(11)";
+
+    public override string ParameterTypeSql
+        => "SELECT CAST(SQL_VARIANT_PROPERTY(@sender, 'BaseType') AS varchar(16)) "
+           + "+ '(' + CAST(SQL_VARIANT_PROPERTY(@sender, 'MaxLength') AS varchar(8)) + ')' AS [Value]";
+
+    public override string NonUnicodeParameterType => "varchar(11)";
 
     public override string GuidType => "uniqueidentifier";
 
@@ -210,6 +240,34 @@ public abstract class DatabaseTests<TFixture>(TFixture fixture) : IClassFixture<
 
         definition.DataType.Should().Be(fixture.BoundedTextType);
         definition.MaximumLength.Should().Be(length);
+    }
+
+    /// <summary>
+    /// A value object declaring <c>Unicode = false</c> lands in non-Unicode text of its length, <c>varchar</c> on SQL
+    /// Server, where Entity Framework Core 11 and Dapper declare their parameters so too.
+    /// </summary>
+    [Fact]
+    public async Task A_value_object_declaring_its_text_non_Unicode_lands_in_non_Unicode_text()
+    {
+        var definition = await ColumnAsync("parcels", nameof(Parcel.Sender));
+        definition.DataType.Should().Be(fixture.NonUnicodeTextType);
+        definition.MaximumLength.Should().Be(11);
+
+        var sender = Bic.Create("DEUTDEFF500");
+        var parcel = new Parcel { Label = "sent", Sender = sender };
+        await using (var write = fixture.CreateContext())
+        {
+            write.Parcels.Add(parcel);
+            await write.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var read = fixture.CreateContext();
+        var query = read.Parcels.Where(entity => entity.Sender == sender);
+        query.ToQueryString().Should().Contain(fixture.NonUnicodeParameterSql);
+        (await query.SingleAsync(TestContext.Current.CancellationToken)).Id.Should().Be(parcel.Id);
+
+        await using var connection = fixture.CreateConnection();
+        (await connection.QuerySingleAsync<string>(fixture.ParameterTypeSql, new { sender })).Should().Be(fixture.NonUnicodeParameterType);
     }
 
     [Fact]

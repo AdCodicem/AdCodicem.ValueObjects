@@ -108,15 +108,44 @@ public sealed class DiagnosticTests
         run.Ids.Should().Contain("VO0007");
     }
 
-    [Fact]
-    public void Length_constraints_on_a_non_string_are_reported()
+    /// <summary>
+    /// The text options, the lengths and <c>Unicode = false</c>, on a value object over another type are reported, the
+    /// message naming exactly what is set; <c>Unicode = true</c>, the default, says nothing, and the generator ignores what
+    /// it reports.
+    /// </summary>
+    /// <param name="declaration">The attribute and the type.</param>
+    /// <param name="message">The message, or <see langword="null"/> when nothing is reported.</param>
+    [Theory]
+    [InlineData(
+        "[ValueObject<int>(MaxLength = 10)] public readonly partial struct Count;",
+        "'Count' sets MaxLength, which only text takes: its underlying type 'int' is not a string, so the generator ignores it")]
+    [InlineData(
+        "[ValueObject<int>(Unicode = false)] public readonly partial struct Quantity;",
+        "'Quantity' sets Unicode = false, which only text takes: its underlying type 'int' is not a string, so the generator ignores it")]
+    [InlineData(
+        "[ValueObject<int>(MinLength = 1, Unicode = false)] public readonly partial struct Quantity;",
+        "'Quantity' sets MinLength and Unicode = false, which only text takes: its underlying type 'int' is not a string, so the generator ignores them")]
+    [InlineData(
+        "[ValueObject<global::System.Guid>(MinLength = 1, MaxLength = 36, Unicode = false)] public readonly partial struct OrderId;",
+        "'OrderId' sets MinLength, MaxLength and Unicode = false, which only text takes: its underlying type 'System.Guid' is not a string, so the generator ignores them")]
+    [InlineData("[ValueObject<int>(Unicode = true)] public readonly partial struct Quantity;", null)]
+    [InlineData("[ValueObject<string>(Unicode = false)] public readonly partial struct Code;", null)]
+    public void Text_options_on_a_non_string_are_reported_by_name(string declaration, string? message)
     {
-        var run = GeneratorHarness.Run("""
-            [ValueObject<int>(MaxLength = 10)]
-            public readonly partial struct Count;
-            """);
+        var run = GeneratorHarness.Run(declaration);
 
-        run.Ids.Should().Contain("VO0008");
+        run.CompilationDiagnostics.Should().BeEmpty();
+        if (message is null)
+        {
+            run.Diagnostics.Should().BeEmpty();
+            return;
+        }
+
+        var diagnostic = run.Diagnostics.Should().ContainSingle().Subject;
+        diagnostic.Id.Should().Be("VO0008");
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Warning);
+        diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(message);
+        run.SingleValueObject.Should().NotContain("MinLength =").And.NotContain("MaxLength =").And.NotContain("IsUnicode");
     }
 
     [Fact]

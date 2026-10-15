@@ -150,6 +150,15 @@ itself, which its index serves, and a parameter compared with it is declared as 
 it, Entity Framework Core refuses `.Value` as untranslatable; a comparison between value objects translates either way.
 [The value in a query](./how-to/ef-core.md#the-value-in-a-query) says what it covers.
 
+### Can a value object's column be `varchar` on SQL Server?
+
+Yes: declare its text non-Unicode once, `[ValueObject<string>(MaxLength = 34, Unicode = false)]`, and
+`ConfigureValueObjects` maps it to `varchar(34)`, with `varchar` parameters from Entity Framework Core and Dapper alike,
+which keeps the index seek of a SQL collation and suits an Always Encrypted `varchar` column. SQL Server writes a
+character its code page lacks as a look-alike or `?`, silently, so the option is for ASCII text, which `VO0047` asks the
+rules to hold. PostgreSQL and SQLite store the text as before. [Non-Unicode text](./how-to/ef-core.md#non-unicode-text)
+covers existing columns and keys.
+
 ### Why are values read from the database not validated?
 
 Because the EF Core and Dapper read paths are the hottest in most applications, and they read values the same

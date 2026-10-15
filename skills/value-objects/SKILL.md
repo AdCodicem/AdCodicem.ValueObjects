@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (a $jsonSchema validator, entity identifiers minted on insert), MessagePack and SignalR, protobuf-net and gRPC, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker), HotChocolate (GraphQL) and Blazor forms integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, money, strongly-typed identifier), and whenever a VO0001–VO0046 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver (a $jsonSchema validator, entity identifiers minted on insert), MessagePack and SignalR, protobuf-net and gRPC, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker), HotChocolate (GraphQL) and Blazor forms integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, money, strongly-typed identifier), and whenever a VO0001–VO0047 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -65,6 +65,7 @@ The `Pattern`, `Minimum`, `Maximum` and `Example` options, written as text, no l
 | Option | Effect |
 | --- | --- |
 | `MinLength`, `MaxLength` | Validation, EF column size, OpenAPI `minLength`/`maxLength`. |
+| `Unicode = false` | Non-Unicode text, `varchar` on SQL Server (EF Core, Dapper). ASCII text only: hold the pattern to ASCII (`VO0047`). |
 | `Minimum`, `Maximum` | **Removed** (`VO0028`, a compile error): implement `IValueObjectMinimum<T>` / `IValueObjectMaximum<T>` instead. |
 | `Comparison` | Equality, ordering and hashing for `string` value objects. `Ordinal` by default. |
 | `ValueSet = ValueSetKind.Closed` + `[KnownValue]` members | Reference-data codes: frozen membership lookup, schema `enum` whose values generated clients name after the known values. |
@@ -336,6 +337,6 @@ library. AutoFixture, Bogus and FsCheck get the same values through `AdCodicem.V
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
 | `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, protobuf-net and gRPC (code-first and contract-first), GraphQL (HotChocolate), FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, XML, test data for AutoFixture, Bogus and FsCheck, Azure Functions (isolated worker), Blazor forms, the run-time lookup when only a `Type` is known. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, their EF Core columns and MongoDB id generation, `AnyEntityId`, deterministic tests. |
-| `references/diagnostics.md` | `VO0001`–`VO0046`, with the fix for each. |
+| `references/diagnostics.md` | `VO0001`–`VO0047`, with the fix for each. |
 
 Published documentation: <https://adcodicem.github.io/AdCodicem.ValueObjects/>

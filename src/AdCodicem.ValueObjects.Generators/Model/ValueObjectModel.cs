@@ -127,6 +127,12 @@ internal sealed record ValueObjectModel
     /// </summary>
     public string? PatternHookText { get; init; }
 
+    /// <summary>
+    /// Gets a value indicating whether the type declares <c>Unicode = false</c>, which the schema states for the
+    /// Entity Framework Core conventions and the Dapper handler.
+    /// </summary>
+    public bool NonUnicode { get; init; }
+
     public int MinLength { get; init; } = -1;
 
     public int MaxLength { get; init; } = -1;
