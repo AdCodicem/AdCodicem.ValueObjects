@@ -53,7 +53,9 @@ public static class ValueObjectNewtonsoftJsonMvcExtensions
     /// <see cref="MvcOptions.MaxModelValidationErrors"/> lets it. The model state, the logs and the exceptions that
     /// propagate are the framework's, whatever <see cref="MvcNewtonsoftJsonOptions.AllowInputFormatterExceptionMessages"/>
     /// says when the request is read. A Newtonsoft.Json formatter the application built over settings of its own, or
-    /// derived, the JSON Patch formatter among them, is left as it is, and records no code.
+    /// derived, the JSON Patch formatter among them, is left as it is, and records no code: a JSON Patch document records
+    /// the codes of its values when the action applies it through <c>TryApplyTo</c>, of
+    /// <see cref="ValueObjectJsonPatchExtensions"/>.
     /// </para>
     /// <para>
     /// The swap is a post-configuration of <see cref="MvcOptions"/>. In a post-configuration registered after this call,

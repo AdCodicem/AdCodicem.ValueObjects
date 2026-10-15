@@ -62,7 +62,11 @@ Four suites, each with a distinct job:
   each value object's text as the other does. Newtonsoft.Json given `ValueObjectContractResolver` alone writes and reads
   every underlying type as it does with the converter in its settings, a generic construction, value objects written by
   hand and one carrying `[JsonObject]` included, keeps the converter a type names, leaves the contracts of the resolver
-  it wraps as they were, and converts the values of a JSON Patch document applied outside MVC. NJsonSchema's two
+  it wraps as they were, and converts the values of a JSON Patch document applied outside MVC. JSON Patch documents
+  applied through `TryApplyTo`, over TestHost and through its handler, read each value through its rules in every
+  operation, on members, nullable members, lists, arrays and dictionaries keyed by value objects or holding them, every
+  sample value object among them read as a body reads it, and report each refusal with its code under the path of its
+  operation, beside what JSON Patch's own `ApplyTo` does. NJsonSchema's two
   generators describe every sample value object as its
   underlying type on each wire their settings describe, and what each serializer writes of it, from the edges its rules
   declare to values drawn from them, validates as Confluent's serializer validates a message; NSwag's documents over
@@ -180,7 +184,7 @@ versions and no transitive pinning, so the dependency floors of the packages mee
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
 PostgreSQL, collections of value objects, queries on `.Value`, CHECK constraints from the rules on SQLite and a pattern
 constraint on PostgreSQL included, a refused row carrying the code of its rule, System.Text.Json source generation, ASP.NET Core model binding on System.Text.Json and on Newtonsoft.Json,
-and a minimal API with its problem details, their messages and FluentValidation's in the language of the request, the
+a JSON Patch document through `TryApplyTo`, and a minimal API with its problem details, their messages and FluentValidation's in the language of the request, the
 DataAnnotations attributes through `Validator`, options validation, the validator `[OptionsValidator]` writes, MVC 11 and
 the minimal API validation of Microsoft.Extensions.Validation 11, its own message keys and its handling of an
 attribute's exception included,

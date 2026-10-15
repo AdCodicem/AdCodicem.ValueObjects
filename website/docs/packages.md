@@ -18,7 +18,7 @@ application actually has.
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, a convention that maps a whole assembly, keys generated the provider's way, `.Value` translated in queries, and opt-in CHECK constraints from the rules, whose violations carry the rule code under `UseValueObjectCheckErrors()`. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, native AOT included. See [ASP.NET Core](./how-to/aspnet-core.md#problem-details-for-minimal-apis). |
-| `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | The same problem details for a body MVC reads with Newtonsoft.Json. See [ASP.NET Core](./how-to/aspnet-core.md#a-body-read-by-newtonsoftjson). |
+| `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | The same problem details for a body MVC reads with Newtonsoft.Json, and for a JSON Patch document applied through the rules. See [ASP.NET Core](./how-to/aspnet-core.md#a-body-read-by-newtonsoftjson). |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
 | `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10.3 and later. See [OpenAPI](./how-to/openapi.md#swashbuckle). |
 | `AdCodicem.ValueObjects.NJsonSchema` | NSwag documents and the JSON Schemas Confluent's serdes register with the Schema Registry, built with NJsonSchema: each value object one definition of its underlying type, with its rules. See [OpenAPI](./how-to/openapi.md#nswag) and [Kafka](./how-to/messaging.md#kafka-with-confluents-schema-registry). |

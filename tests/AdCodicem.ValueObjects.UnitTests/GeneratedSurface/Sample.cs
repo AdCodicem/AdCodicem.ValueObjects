@@ -99,6 +99,13 @@ public abstract class Sample
     public abstract Task RecordsTheCodeOfARefusedNewtonsoftBodyAsync();
 
     /// <summary>
+    /// Patches a holder of the value object through <c>TryApplyTo</c> with the text the Newtonsoft.Json converter writes,
+    /// by every operation and in every shape a member takes, and checks that it is read as a body reads it, that the
+    /// refused text is refused with the code the converter gives it, and that removing the value object is refused.
+    /// </summary>
+    public abstract void PatchesThroughItsRules();
+
+    /// <summary>
     /// Logs the value object through Serilog, with and without <c>@</c>, under the policy and under the option of
     /// <c>Destructure.ValueObjects()</c>, and checks that it is logged as the value it carries.
     /// </summary>
@@ -617,6 +624,15 @@ public class Sample<TSelf, TValue> : Sample
 
         (await NewtonsoftJsonInputFormatterTests.ReadCodesAsync(typeof(NewtonsoftHolder<TSelf>), body))
             .Should().Equal(new Dictionary<string, string> { ["value"] = code! });
+    }
+
+    public override void PatchesThroughItsRules()
+    {
+        var written = JsonSerializer.Serialize(Small);
+        var isNumber = !written.StartsWith('"') && written is not ("true" or "false");
+        var token = isNumber && IsJsonNumber(Refused) ? Refused : JsonSerializer.Serialize(Refused);
+
+        JsonPatchParity.Check<TSelf, TValue>(Small, Large, token);
     }
 
     public override void LogsAsItsUnderlyingValueThroughSerilog()

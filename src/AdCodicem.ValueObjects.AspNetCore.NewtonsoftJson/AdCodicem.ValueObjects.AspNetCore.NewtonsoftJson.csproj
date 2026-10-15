@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson</RootNamespace>
-    <Description>MVC support for AdCodicem value objects on Newtonsoft.Json: the converter in MVC's serializer settings, and RFC 9457 problem details carrying the violated rule's code for a value a request body refuses.</Description>
-    <PackageTags>$(PackageTags);aspnetcore;newtonsoft;json.net;problemdetails</PackageTags>
+    <Description>MVC support for AdCodicem value objects on Newtonsoft.Json: the converter in MVC's serializer settings, RFC 9457 problem details carrying the violated rule's code for a value a request body refuses, and JSON Patch documents applied through the rules, with their codes.</Description>
+    <PackageTags>$(PackageTags);aspnetcore;newtonsoft;json.net;problemdetails;jsonpatch</PackageTags>
 
     <!--
       A package of its own, because neither of its parents can take the other's dependency: AdCodicem.ValueObjects.NewtonsoftJson
@@ -28,6 +28,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Microsoft.AspNetCore.JsonPatch, whose adapters Patching/ derives from, comes with it, at its version. -->
     <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" />
   </ItemGroup>
 

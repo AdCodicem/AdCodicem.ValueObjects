@@ -44,7 +44,17 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.AI", [] },
         { "AdCodicem.ValueObjects.AspNetCore", [] },
         { "AdCodicem.ValueObjects.AspNetCore.Http", [] },
-        { "AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson", [] },
+
+        // The JSON Patch adapter of a dictionary keyed by value objects, or holding them, closed over the dictionary's two
+        // types as JSON Patch's own AdapterFactory closes its adapter over the same types: a visitor would name the value
+        // object, never the dictionary's other type. MVC's JSON Patch runs in no native binary.
+        {
+            "AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson",
+            [
+                "ValueObjectAdapterFactory.Create calls Activator.CreateInstance",
+                "ValueObjectAdapterFactory.Create calls Type.MakeGenericType",
+            ]
+        },
         { "AdCodicem.ValueObjects.AutoFixture", [] },
         { "AdCodicem.ValueObjects.AzureFunctions", [] },
         { "AdCodicem.ValueObjects.AzureFunctions.AspNetCore", [] },
@@ -84,7 +94,7 @@ public sealed class RuntimeClosingTests
     };
 
     /// <summary>
-    /// A package closes a generic at run time only where it is known to, and the lines of the two packages that do show
+    /// A package closes a generic at run time only where it is known to, and the lines of the three packages that do show
     /// the reading finds such a call wherever it is, a lambda or a nested type included.
     /// </summary>
     /// <param name="package">Name of the package's assembly.</param>
