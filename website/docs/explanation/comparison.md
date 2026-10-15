@@ -48,7 +48,7 @@ be corrected.
 | Structured logging | Serilog: `{@X}`, and `{X}` on request, as the underlying value | no | no | Serilog destructuring policy, `{@X}` only |
 | Language-model tools and structured output | Microsoft.Extensions.AI: the rules in the schemas, a refused tool argument answered with its code | no | no | no |
 | Model Context Protocol tools | the C# SDK: the rules in `inputSchema` and `outputSchema`, a refused tool argument answered with its code | no | no | no |
-| GraphQL (HotChocolate) | a scalar per value object, read through its rules, a refused value answered with its code in `extensions.code` | no | no | no |
+| GraphQL (HotChocolate) | a scalar per value object, read through its rules, a refused value answered with its code in `extensions.code`; HotChocolate.Data filters every value object through its scalar's operations | no | no | no |
 | Blazor forms | an input per value object, read through its rules, its rule's message under the field and its code on the `EditContext` | no (8.0.7 and 9.0.0-beta.1 hold no `InputBase`) | no (1.0.0-beta08 holds none) | no (10.5.1 holds none) |
 | Azure Functions isolated worker | route values, query values and binding data bound through the rules; a refused one in an HTTP trigger answered 400 with its code | no (8.0.7 ships no Functions code) | not checked | not checked |
 | Contract test kit for your own types | yes, with the values its schema rules out, on request | no | no | no |

@@ -49,8 +49,11 @@ Four suites, each with a distinct job:
   invocations written by the test, through the worker's own abstractions, answering each refusal as a minimal API
   answers it, in the request's language too. HotChocolate schemas built in process take every sample value object as a
   scalar of its own, from the edges its rules declare to the values they rule out, as literals and variables, and answer
-  each refusal with its code, in the language of the execution and, over TestHost, of the request; the guide's filtering
-  recipe runs over SQLite. Blazor forms rendered through bUnit read every sample value object's text through its
+  each refusal with its code, in the language of the execution and, over TestHost, of the request. HotChocolate.Data's
+  filters over value objects run on SQLite and in memory, every sample value object's `eq`, `in` and `gt` (its `eq`
+  alone over `bool`) answering as the same comparisons of its instances do, and, but for the 128-bit integers, as SQLite
+  runs them on a column of the underlying type, with the text
+  operations, the refusals quoted by the scalar's name and what the package leaves to the application. Blazor forms rendered through bUnit read every sample value object's text through its
   rules, alone and nullable, the text an input writes reading back to its instance and each value its rules rule out
   refused with its code, in each culture the renderer calls for and in French from a resource, and the text it writes
   reads back in every culture .NET lists, those whose calendar is not the Gregorian one included; the static and the
@@ -100,7 +103,9 @@ Four suites, each with a distinct job:
   Server for a raw query reading back the rows it writes, their patterns matched value by value as .NET
   matches them on PostgreSQL and on SQL Server 2025, a value object declaring `Unicode = false` in `varchar` and
   compared through `varchar` parameters from EF Core and Dapper, an Always Encrypted column included, beside the audit
-  of the rows a migration to it converts and the migration of a key, plus the API surface end to end; and a
+  of the rows a migration to it converts and the migration of a key, HotChocolate.Data's filters over value objects
+  translated to the column, a list's element and the text operations under the column's collation included, plus the
+  API surface end to end; and a
   real MongoDB server, which stores a value object of every underlying type MongoDB.Bson can represent as the document
   its primitive writes, refuses one over `Int128` or `UInt128`, and answers each LINQ and `Builders` shape over them,
   `.Value` included; which, given the `$jsonSchema` validator built from the rules, refuses another writer's document
@@ -137,8 +142,10 @@ The first references every package that claims to be AOT-compatible: the contrac
 with a source-generated context and the JSON Schema it exports, the minimal API problem details, the identifiers,
 FluentValidation, the Serilog integration, the Microsoft.Extensions.AI one, the Model Context Protocol one, the gRPC
 one and the Blazor one, all but
-the HotChocolate one, whose framework warns on its own publish and starts natively only rooted
-([GraphQL](./how-to/graphql.md#native-aot)), and the protobuf-net one, which the third publishes. Its value
+the two HotChocolate ones, whose framework warns on its own publish and starts natively only rooted, and whose
+HotChocolate.Data filtering of a struct has no native code ([GraphQL](./how-to/graphql.md#native-aot)), and whose
+refusal of a value object nothing registered the unit suite runs instead under the JIT, in a child process whose
+runtime supports no dynamic code, and the protobuf-net one, which the third publishes. Its value
 objects cover each of the 22 underlying types, a pattern hook, a
 closed set, an identifier, a generic value object registered by hand, and two value objects written by hand, registered
 without a converter, which the JSON factory serves its general-purpose one, beside a third that nothing registers, which
@@ -178,7 +185,7 @@ the warnings the project lists, `aot-warnings.allowed`, and fails on any other, 
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the thirty-two packages exactly as they were packed — from the folder the build packs into, at that one
+installs the thirty-three packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -195,7 +202,7 @@ a protobuf-net.Grpc code-first service over TestHost, a contract-first gRPC serv
 FluentValidation, Newtonsoft.Json through its settings and its contract resolver, Serilog, Microsoft.Extensions.AI
 tools and structured output, Model Context Protocol tools over the SDK's own client, the Azure Functions converter and
 the problem details middleware beside ASP.NET Core 11, HotChocolate 16 scalars in a schema built in process, their
-messages in the language of the execution, a Blazor input rendered by `HtmlRenderer` on the Components of .NET 11, its
+messages in the language of the execution, HotChocolate.Data filters over Entity Framework Core 11 on SQLite, a Blazor input rendered by `HtmlRenderer` on the Components of .NET 11, its
 messages from a resource, an NSwag 14.7 document and Confluent's JSON serdes 2.16 over NJsonSchema,
 `XmlSerializer` and
 `DataContractSerializer` over a domain that opts into XML serialization, the contract kit, and the test-data sampler

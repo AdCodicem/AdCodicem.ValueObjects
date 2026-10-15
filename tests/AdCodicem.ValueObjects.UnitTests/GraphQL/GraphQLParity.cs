@@ -91,7 +91,7 @@ public static class GraphQLParity
     }
 
     /// <summary>Gets the kind a scalar over an underlying type is serialized to.</summary>
-    private static ScalarSerializationType KindOf(Type type)
+    internal static ScalarSerializationType KindOf(Type type)
         => type == typeof(bool) ? ScalarSerializationType.Boolean
             : type == typeof(sbyte) || type == typeof(byte) || type == typeof(short) || type == typeof(ushort)
               || type == typeof(int) || type == typeof(uint) || type == typeof(long) || type == typeof(ulong) ? ScalarSerializationType.Int
@@ -102,7 +102,7 @@ public static class GraphQLParity
     /// Gets the invariant text of an underlying value, in the form its parser reads and its default format writes: a date
     /// or a time in its round-trip form, a duration in its constant one.
     /// </summary>
-    private static string Text<TValue>(TValue value) => value switch
+    internal static string Text<TValue>(TValue value) => value switch
     {
         string text => text,
         bool boolean => boolean ? "true" : "false",
@@ -113,7 +113,7 @@ public static class GraphQLParity
     };
 
     /// <summary>Gets the GraphQL literal of a value's text, which is its JSON too: a string quoted, anything else as it is.</summary>
-    private static string Literal(ScalarSerializationType kind, string text)
+    internal static string Literal(ScalarSerializationType kind, string text)
         => kind == ScalarSerializationType.String ? JsonSerializer.Serialize(text) : text;
 
     /// <summary>Gets a field of a result's data, as compact JSON a string of which is quoted as a literal is.</summary>

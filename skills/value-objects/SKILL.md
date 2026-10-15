@@ -254,6 +254,7 @@ RuntimeTypeModel.Default.AddValueObjects(typeof(Iban).Assembly);                
 builder.Services.AddSingleton(ValueObjectBinderConfiguration.ForServer(RuntimeTypeModel.Default)); // ProtobufNet: code-first gRPC
 builder.Services.AddGrpc(o => o.Interceptors.Add<ValueObjectExceptionInterceptor>());  // Grpc: contract-first, ValueObjectBadRequest too
 builder.Services.AddGraphQLServer().AddQueryType<Query>().AddValueObjects();           // HotChocolate, a scalar per value object
+//   .AddFiltering().AddValueObjectFiltering();   // HotChocolate.Data, after AddFiltering(): every value object filtered through its scalar
 builder.Services.AddValueObjectInputs(o => o.UseResource<Messages>());                // Blazor, optional: messages by code
 // <InputValueObject @bind-Value="Model.Iban" /> in an EditForm                       // Blazor, an input per value object
 new LoggerConfiguration().Enrich.FromLogContext()                                      // Serilog, after FromLogContext
@@ -287,7 +288,9 @@ isolated worker binds a value object from a route, a query or binding data only 
 (`7`, never `007`), and fails a `Guid`, text or a date with a 500; it answers a refusal over HTTP with a 500 unless
 `UseValueObjectProblemDetails()` (`AdCodicem.ValueObjects.AzureFunctions.AspNetCore`) follows
 `ConfigureFunctionsWebApplication()`. Without `AddValueObjects()` (`AdCodicem.ValueObjects.HotChocolate`), a HotChocolate
-schema taking a value object as an argument does not start. A Blazor form binds a value object through
+schema taking a value object as an argument does not start; without `AddValueObjectFiltering()`
+(`AdCodicem.ValueObjects.HotChocolate.Data`), a HotChocolate.Data filter names a value object's `value` and compares raw
+text. A Blazor form binds a value object through
 `InputValueObject` (`AdCodicem.ValueObjects.Blazor`); `@bind` drops refused text without a message and binds empty
 text as the default instance. Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.

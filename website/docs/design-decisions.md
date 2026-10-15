@@ -41,8 +41,9 @@ terms: a JSON exception, a model state error, a FluentValidation failure, a Dapp
 `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool result a language model
 reads, a Model Context Protocol tool execution error, the text of the Azure Functions worker's binding failure, which
 ends with the code, a validation problem for one of its HTTP triggers, a GraphQL error whose `extensions.code` is the
-rule's, the `ValueObjectValidationResult` DataAnnotations' `[ParsesAs]` and `[NotDefault]` refuse with, and a
-validation message under a Blazor form's field, its code on the form's `EditContext`
+rule's, a HotChocolate.Data filter operand's included, the `ValueObjectValidationResult` DataAnnotations' `[ParsesAs]`
+and `[NotDefault]` refuse with, and a validation message under a Blazor form's field, its code on the form's
+`EditContext`
 ([what each one throws](./reference/errors.md)).
 Each carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions ([the code in
 an exception](./reference/errors.md#the-code-in-an-exception)). Under `UseValueObjectCheckErrors()`, the database

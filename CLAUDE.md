@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Thirty-two NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
+Thirty-three NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
 `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
 as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
 wrapper. Consumers define their own value objects; this repository ships the frame.
@@ -101,7 +101,7 @@ Two tracks, and nothing you merge publishes anything by itself.
 A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
 `main`, and only when a package input changed since the version nuget.org has from the nearest commit:
 `.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All thirty-two packages go out at one version, or none. That version is the one semantic-release would
+lookup fails. All thirty-three packages go out at one version, or none. That version is the one semantic-release would
 give the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
 semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
 tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
@@ -149,7 +149,7 @@ accordingly, or the change waits for the next `feat` or `fix`. While the major i
 not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
 deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
 "any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The thirty-two packages share one version, never aligned with .NET's or EF Core's,
+a breaking change wait for a major. The thirty-three packages share one version, never aligned with .NET's or EF Core's,
 and a framework's next major is supported in the same packages:
 `docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
 
@@ -228,7 +228,9 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   `AddValueObjects`, which names the closed serializer type of each value object it registers on a `RuntimeTypeModel`
   with `typeof` over the visitor's type arguments, the profile following the trust and the model's level, the HotChocolate type
   discovery handler, which closes, once per schema build, the scalar of each value object the schema meets (a typed
-  `AddValueObjectScalar<TSelf, TValue>()` asks no registry), the NJsonSchema package's reflection service and schema
+  `AddValueObjectScalar<TSelf, TValue>()` asks no registry), the HotChocolate.Data type interceptor, which closes, once
+  per schema build, the operation type of each value-object member a filter input meets, and the list over it (a typed
+  `BindValueObject<TSelf, TValue>()` asks no registry), the NJsonSchema package's reflection service and schema
   processor, which describe each value object NJsonSchema meets, found through `TryResolve`, and write its examples,
   bounds and known values under Newtonsoft.Json settings through a System.Text.Json converter the visitor closes over it
   (`NewtonsoftJsonWrittenConverterFactory`), DataAnnotations' `[NotDefault]`, which closes a check of
@@ -274,8 +276,8 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   Core reads the compiled model and builds none, and the MVC binder provider runs in no native binary, MVC not being
   AOT-compatible, so the `native AOT` job guards the JSON factory's visitor, the minimal API filter's and
   `[NotDefault]`'s, the lookup of `[ParsesAs(typeof(T))]`, the Blazor input's, and `EntityIdDescriptor.Accept`, which
-  the application calls on every identifier registered; the visitors of the Azure Functions, HotChocolate and NJsonSchema packages run in no
-  native binary, nor protobuf-net's `AddValueObjects`, which is `[RequiresDynamicCode]`. `RuntimeClosingTests` guards
+  the application calls on every identifier registered; the visitors of the Azure Functions, both HotChocolate and the NJsonSchema
+  packages run in no native binary, nor protobuf-net's `AddValueObjects`, which is `[RequiresDynamicCode]`. `RuntimeClosingTests` guards
   every package: it reads their IL and fails on a `MakeGenericType`, a `MakeGenericMethod` or an
   `Activator.CreateInstance` outside the list it holds, the registry's reflection fallback, the EF Core converter of
   a `TSelf?` property, or of such an element of a collection over text, and the JSON Patch adapter of such a
@@ -325,7 +327,9 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   the ASP.NET Core integration with the minimal API's validation problem. A HotChocolate scalar throws a
   `LeafCoercionException` carrying the code in its `Data`, whose GraphQL error carries it as `extensions.code`, and an
   internal `ValueObjectException` subclass (`ValueObjectScalarRefusal`) with the type and the code on `IError.Exception`;
-  HotChocolate replaces the code of a refused output with its own `EXEC_INVALID_LEAF_VALUE`. DataAnnotations'
+  HotChocolate replaces the code of a refused output with its own `EXEC_INVALID_LEAF_VALUE`. A refused HotChocolate.Data
+  filter operand is the scalar's own refusal, at the operation's `inputPath`, and a `null` text fragment HotChocolate's
+  `HC0026`, with no code. DataAnnotations'
   `[ParsesAs]` and `[NotDefault]` refuse with a `ValueObjectValidationResult` (DataAnnotations' `ValidationResult`, the
   code and the type beside the message), which `Validator.TryValidate*` and `ObservableValidator` keep and MVC,
   `AddValidation()` and options validation reduce to its message; `Validator`'s throwing methods wrap it in a
@@ -335,8 +339,11 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   `EditContext.Properties`, which `TryGetValueObjectErrorCode` reads, set on a refusal and cleared on the next text it
   reads, when it formats the model again and when it is disposed; empty text a type that cannot be `null` refuses is
   `value_object.required` with `[Required]`'s message, a parser refusing without a reason `not_parsable` with "The text
-  could not be parsed as X." and an empty message "The field {0} is invalid.", as `[ParsesAs]` gives them. A misuse, a member of the wrong type or a type no value object or unregistered under
-  native AOT, throws `InvalidOperationException`, with no code. Under
+  could not be parsed as X." and an empty message "The field {0} is invalid.", as `[ParsesAs]` gives them. A misuse of a DataAnnotations attribute or of the Blazor input, a member of the wrong type or a type no value object or unregistered under
+  native AOT, throws `InvalidOperationException`, with no code; where the runtime supports no dynamic code, the
+  HotChocolate scalars and filters refuse a value object nothing registered with a `NotSupportedException` naming the
+  typed registrations, and the text operations' type over a value object not over `string` throws
+  `InvalidOperationException`, each inside HotChocolate's `SchemaException` at start, with no code. Under
   `UseValueObjectCheckErrors()`, the EF Core package adds the code to the `Data` of the database provider's error for a
   row a CHECK constraint from the rules refused, read off the constraint's name (`ValueObjectCheckConstraints`), never
   off the model, and neither replaces nor wraps that error; `ValueObjectCheckConstraints.TryGetCode` reads it without
@@ -427,7 +434,8 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   `Maximum` (the invariant text read back as the underlying type and written in the current culture) and `KnownValues`
   (joined with the culture's list separator) off `TSelf.Schema`, or off a descriptor's, and `KeysFor` puts
   `ValueObject.value_object.out_of_range.minimum` or `.maximum` before the bare key for a type declaring one bound. The
-  refused value is never an argument; `{0}` is the member, the value object's type name in a JSON body.
+  refused value is never an argument; `{0}` is the member, the value object's type name in a JSON body, the scalar's
+  name for an operand of a HotChocolate.Data filter.
 - **`default(T)` is a build error** (`VO0010`). Tests that deliberately construct one need a targeted
   `#pragma warning disable VO0010` with a comment.
 - **A known value is the author's member, created before the lookup it belongs to.** `[KnownValue]` marks a
@@ -940,23 +948,71 @@ These are all load-bearing, and each cost real debugging time:
   `IStringLocalizerFactory` through `GetRootServiceProvider()` and refuses `UseResource()` without `AddLocalization()`
   there; filters run in registration order. HotChocolate reads a variable's default value under a path of its own,
   `["root"]`, which the filter quotes as the scalar's name, telling it from a variable named `$root`, read from its JSON
-  value, by the refusal's `Literal`. HotChocolate's validation refuses a literal of another kind before a scalar
+  value, by the refusal's `Literal`. A predicate of `ValueObjectScalarOptions.QuoteScalarNameIn` makes the filter quote
+  the scalar's name for a value refused in the argument or the input field it selects: the filter reads the error's
+  `coordinate`, which HotChocolate keeps as text (`IbanOperationFilterInput.eq`), sets to the innermost input value and
+  leaves out for a variable it coerces before any field, and looks it up in the schema, which the filter's factory
+  resolves from the schema services. That is how the HotChocolate.Data package (`field is IFilterOperationField`) reaches
+  every operation with no `InternalsVisibleTo` and no reference from the scalar package to HotChocolate.Data; without a
+  predicate nothing changes. HotChocolate's validation refuses a literal of another kind before a scalar
   reads it, by `SerializationType` (which is why the scalar derives the non-generic `ScalarType`: a Float takes an Int
   literal), but hands a variable of another JSON kind to `CoerceInputValue`; a field error filter that throws becomes
   HotChocolate's "Unexpected Execution Error", a variable's leaves the execution. HotChocolate overwrites the code of an
   output error with `EXEC_INVALID_LEAF_VALUE`, and builds the `List<TSelf>` of a list argument with `MakeGenericType`,
   which `ValueObjectScalarType.Instantiations` names for native AOT; its own publish warns (`IL2104`, `IL3053`, `IL3000`,
   `IL3002`) and its binary starts only with HotChocolate.Types and the application rooted, so the package, AOT-compatible
-  itself, stays out of `tests/NativeAot`. HotChocolate.AspNetCore and HotChocolate.Data add global usings of
-  `HotChocolate`, `HotChocolate.Types`, `HotChocolate.Types.Relay`, `GreenDonut` and `HotChocolate.Data` under
-  `ImplicitUsings`, whose `DefaultValueAttribute` collides with `System.ComponentModel`'s across the unit suite: its
-  project sets `HotChocolateImplicitUsings` to `disable`. The package's namespace, `AdCodicem.ValueObjects.HotChocolate`,
+  itself, stays out of `tests/NativeAot`. HotChocolate.AspNetCore adds global usings of `HotChocolate`,
+  `HotChocolate.Types`, `HotChocolate.Types.Relay` and `GreenDonut` under `ImplicitUsings`, whose `DefaultValueAttribute`
+  collides with `System.ComponentModel`'s across the unit suite: its project sets `HotChocolateImplicitUsings` to
+  `disable`. The package's namespace, `AdCodicem.ValueObjects.HotChocolate`,
   hides the root `HotChocolate` namespace in every `AdCodicem.ValueObjects.*` namespace, the island's included, as
   Swashbuckle's, Serilog's, MongoDB's, MessagePack's and the Model Context Protocol's do: name HotChocolate's types
   through usings at the top of the file, and name no test folder or namespace `HotChocolate` (the unit suite's is
   `GraphQL/`). With `using HotChocolate;`, `Path` is ambiguous with `System.IO.Path` (alias it), and
   `HotChocolate.Types` holds a `Tag`. HotChocolate's source generator (`[QueryType]`) runs in a fixture of its own,
   `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.GraphQL`, so that the unit test assembly gets no generated module.
+- **HotChocolate.Data infers a filter from a struct, looks a binding up by its exact type, and names a filter after the
+  CLR types.** Unbound, a value-object member gets `FilterInputType<TSelf>`, the struct's public properties (`value`,
+  `countryCode`, a hand-written type's `isDefault`), which Entity Framework Core translates only under
+  `UseValueObjectQueries()` and which compares raw text; a binding of `TSelf` misses a `TSelf?` member. Binding from the
+  registry on the filter convention cannot work: the convention runs before any module initializer of an untouched
+  domain assembly, with 0 descriptors. `ValueObjectFilterTypeInterceptor` replaces the inferred reference in
+  `OnBeforeRegisterDependencies` (in `OnAfterInitialize` the dependencies are already registered and the schema fails),
+  and only an inference, `FilterInputType<TSelf>` or `ListFilterInputType<FilterInputType<TSelf>>`, so an application's
+  binding, `[ID]` (HotChocolate's own interceptor replaces any type that is not its ID input) and a field typed
+  explicitly win. HotChocolate's `FilterTypeInterceptor.OnBeforeCompleteName` writes the `s_` prefix of a named
+  convention before a type's naming tasks run, and a name function would overwrite it, two scopes then colliding:
+  `ValueObjectFilterNames` writes its own `OnBeforeNaming` task, `DependsOn` the scalar or the element, which puts the
+  prefix back and leaves a name a subclass sets (`IsNamed` is internal, so it compares with the conventional name it
+  captured). A list over one of the package's operation types, whoever made it, is HotChocolate's own
+  `ListFilterInputType<T>`, renamed `List…` by the interceptor through `FilterInputTypeDescriptor.From`; no list type of
+  the package's own exists, since a list's element must be the text type under `IncludeTextOperations()`. The text
+  operations' handlers come from a `FilterConventionExtension` of the default scope, which pre-empts `AddFiltering()`'s
+  `TryAddConvention` when added first, so they are added only when the option is on, and a named convention keeps the
+  comparable operations; a handler set on the field itself would be skipped silently by another provider's visitor
+  (`SkipAndLeave`). HotChocolate's `HasValueAndAlso` wraps `HasValue` in `IsTrue`, which Entity Framework Core does not
+  translate: the guard is `!= null`, the text `IValueObject<string>.Value` read through the interface's `PropertyInfo`,
+  which an explicit implementation answers and the trimmer sees. A `null` fragment goes to the base handler
+  (`CanBeNull = false`), which answers HotChocolate's own `HC0026`. HotChocolate.Data compares through the value object's
+  operators (`Expression.Equal`, `GreaterThan`), which a hand-written value object may lack, and its `in` through
+  `Enumerable.Contains`. The interceptor is created by a factory: natively, `TryAddTypeInterceptor<T>()` finds no
+  constructor. Where the runtime supports no dynamic code, it refuses a value object nothing registered with a
+  `NotSupportedException`, and `BindValueObject` alone does not take its place: the operands are the scalar, which the
+  scalar handler refuses the same way, so the message names `AddValueObjectScalar` beside it. The text operations' type
+  bound by hand without `IncludeTextOperations()`, or in a named convention, fails the schema, HotChocolate finding no
+  handler for `contains`. HotChocolate.Data closes `FilterExpressionBuilder.CreateAndConvertParameter<T>` and
+  `Enumerable.Contains<T>` over the member's type at run time, which have no native code for a struct, so the package,
+  AOT-compatible itself, stays out of `tests/NativeAot`. `IExtendedType` (`ExtendedTypeReference.Type`) lives in
+  `HotChocolate.Internal`, which a 16.x minor may change, as the order of the naming tasks and `From` over a list's
+  configuration; the scope and list tests notice. HotChocolate gives every field filtering a type the one filter type
+  registered for it, so a `FilterInputType<T>` of the application's own filters every field of `T`, and it fails a
+  schema holding a `[UseProjection]` field beside a field filtered through a named convention over a row holding an
+  object, a type registered twice, with or without the package: `ScopedFilterQuery` has no projection.
+  HotChocolate.Data's `build/` targets add `global using HotChocolate.Data` under `ImplicitUsings`, and reach only a
+  project referencing it directly: the package sets `HotChocolateImplicitUsings` to `disable`, and the unit suite, which
+  takes HotChocolate.Data through the package, gets none of them. The package's namespace,
+  `AdCodicem.ValueObjects.HotChocolate.Data`, is what `HotChocolate.Data` names in any `AdCodicem.ValueObjects.*`
+  namespace, through the scalar package's `AdCodicem.ValueObjects.HotChocolate`.
 - **Blazor binds a value object through the framework's own paths before any input runs, and reads `RendererInfo`.**
   `@bind` reads text through `BindConverter`, which swallows the converter's `ValueObjectException` and calls the setter
   with `default` for empty text; `InputSelect` and `InputRadioGroup` catch only `InvalidOperationException`, so a refused
@@ -1215,11 +1271,29 @@ Four suites, each with a distinct job:
   (`GraphQLHarness`) over query types of its own (`GraphQLQueries.cs`), `EchoQuery<TSelf>` among them, and over every
   sample through `GeneratedSurface/` (`GraphQLParity`), from the edges the sampler derives to the values it rules out;
   `GraphQLHttpTests` answers over TestHost through HotChocolate.AspNetCore, its statuses and the language of the
-  request, `LocalizedGraphQLTests` sets the cultures of its executions, and `GraphQLFilteringRecipeTests` runs the
-  guide's HotChocolate.Data recipe over Entity Framework Core on SQLite, HotChocolate.Data a test-only reference. A value
-  object written by hand there is a `Declared<,>` over a declaration those tests own, through the registry, or
-  `HandWrittenRating` through `AddValueObjectScalar`, which asks no registry, and a generic one is closed over a test
-  class.
+  request, `LocalizedGraphQLTests` sets the cultures of its executions, a refused filter operand quoted by its scalar's
+  name, `« Iban »`, beside arguments, input fields and variables quoted as before, and `QuoteScalarNameIn`'s predicates
+  over each form of coordinate. `GraphQLFilteringTests` runs `AddValueObjectFiltering()` over the rows of
+  `GraphQLFilteringModel.cs` on Entity Framework Core over SQLite in memory and in memory, the SQL read off the context's
+  log: the SDL, the names after the scalar, every comparable operation, lists, refusals and their codes, sorting and
+  projections, what the interceptor leaves to the application (its binding, its filter type, a subclass naming itself,
+  `[ID]`), a `FilterConvention` subclass and a named convention, `BindValueObject`, the registration and its order, the
+  text operations with and without the translator, the text type bound by hand, a `null` fragment on a member and on a
+  nullable one, default instances, a value object written by hand
+  without operators (`OperatorlessCode`), and every sample through `GeneratedSurface/` (`GraphQLFilteringParity`: `eq`,
+  `in` and `gt`, `eq` alone over `bool`, against the instances' own equality and order in memory, and, but for the
+  128-bit integers, against SQLite's run of the same comparison of a column of the underlying type, which refuses a
+  `ulong`'s, a `TimeSpan`'s and a `DateTimeOffset`'s `gt`). A value object written by hand there is a `Declared<,>` over a declaration those tests own, through the
+  registry, or `HandWrittenRating` through `AddValueObjectScalar`, which asks no registry, or `OperatorlessCode`, which
+  nothing else names, and a generic one is closed over a test class (`FilterOwner`, `ResolvedOwner`).
+  `WithoutDynamicCodeGraphQLTests` runs each of its tests again in a child process whose runtime supports no dynamic code
+  (`WithoutDynamicCode`, at the suite's root: this assembly started by the running runtime's `dotnet` host over a copy
+  of its runtime configuration setting `System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported` to
+  false, the one test run by xUnit's own runner), since a process reads that switch once: the scalars and the filters
+  map a registered value object, refuse a construction of a generic one nothing registered with the
+  `NotSupportedException` naming the typed registrations, and filter it once typed or registered. A test run there
+  creates no NSubstitute proxy and no Entity Framework Core context, neither of which works without dynamic code, and
+  the coverage collector follows the child.
   The Entity Framework Core tests of `Persistence/` build models on Npgsql,
   which opens no connection to build one, and run collections of value objects through SQLite in memory, each test on a
   database of its own (`PrimitiveCollectionTests`): the JSON stored, the queries over the elements, change tracking,
@@ -1376,7 +1450,11 @@ Four suites, each with a distinct job:
   `varchar` column taking it, with keys an in-memory store hands back registered on each connection, and refusing an
   `nvarchar` parameter, a character outside ASCII replaced silently on SQL Server and kept on PostgreSQL, the guide's
   audit query counting the rows the migration then converts, and the migration of a key EF Core writes failing where the
-  guide's sequence applies (`NonUnicodeTextTests`); plus the API surface end to end; and a real MongoDB 8
+  guide's sequence applies (`NonUnicodeTextTests`); HotChocolate.Data's filters over value objects through
+  `AddValueObjectFiltering()`, translated to the column, `= ANY` on PostgreSQL and `IN` on SQL Server, a list's element
+  and the text operations under `UseValueObjectQueries()` included, which compare the column under its collation,
+  case-sensitive on PostgreSQL and not on SQL Server (`HotChocolateFilteringTests`); plus the API surface end to end; and
+  a real MongoDB 8
   server, which stores a value object of every underlying type MongoDB.Bson can represent, linked from the unit suite's
   `Domain/UnderlyingTypes.cs`, as the document its primitive writes, refuses one over `Int128` or `UInt128`, and
   answers each LINQ and `Builders` shape over value objects with the documents the same query over the primitives
@@ -1410,7 +1488,8 @@ CI publishes rather than tests. None imports `tests/Directory.Build.props`, so t
 on where they apply.
 
 - `AdCodicem.ValueObjects.NativeAot` is a minimal API referencing every package that claims to be AOT-compatible but
-  the HotChocolate one, whose framework warns on its own publish and starts natively only rooted (the constraint above),
+  the two HotChocolate ones, whose framework warns on its own publish and starts natively only rooted, and whose
+  HotChocolate.Data filtering of a struct has no native code (the constraints above),
   and the protobuf-net one, which `AdCodicem.ValueObjects.NativeAot.ProtobufNet` publishes apart, and serving a
   contract-first gRPC service over Kestrel's cleartext HTTP/2 with the gRPC package (`ContractFirstGrpc.cs`, its messages
   compiled from `ContractFirst.proto`),
@@ -1498,7 +1577,7 @@ on where they apply.
   precompiled query fails to map under native AOT. A strict context cannot track on a compiled model, so the `jit` round
   trip reads untracked (`UNTRACKED_READS`); the EF Core guide says why.
 
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the thirty-two packages exactly as
+Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the thirty-three packages exactly as
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
@@ -1523,7 +1602,8 @@ Serilog, Microsoft.Extensions.AI tools and structured output, through `FunctionI
 of Microsoft.Extensions.AI 10, Model Context Protocol tools on ModelContextProtocol 2.2, a server in process and the SDK's
 own client over a pair of pipes, the Azure Functions converter and problem details middleware beside ASP.NET Core 11,
 over the worker's own abstractions, HotChocolate 16 scalars in a schema built in process, on HotChocolate.Types'
-`net11.0` assembly, their messages in the language of the execution, a Blazor input rendered by `HtmlRenderer` on the
+`net11.0` assembly, their messages in the language of the execution, HotChocolate.Data filters over Entity Framework Core
+11 on SQLite, a refused operand quoted by its scalar's name, a Blazor input rendered by `HtmlRenderer` on the
 shared framework's Components 11, whose `InputBase` moved into Components.Web, its messages from `Messages.fr.resx`
 (`BlazorTests`, no bUnit and no Razor SDK there), an NSwag 14.7 document over TestHost beside
 `Microsoft.AspNetCore.OpenApi` 11 and Confluent's JSON serdes 2.16 over NJsonSchema 11.6, `XmlSerializer` and

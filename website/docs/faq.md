@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The thirty-two packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The thirty-three packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -275,9 +275,13 @@ Through HotChocolate 16, with `AdCodicem.ValueObjects.HotChocolate`: `AddValueOb
 every value object a scalar of its own, `scalar Iban`, named and described by its type and serialized as its underlying
 value, a Boolean, an Int, a Float or a String, which reads an argument, an input field or a variable through its rules
 and answers a refused value with the rule's code under `extensions.code`. Without it, HotChocolate infers an input
-object type from a value object it meets as an argument and the schema does not start. Filtering through
-HotChocolate.Data takes one binding per value object, and the native binary of a HotChocolate application needs
-HotChocolate.Types and the application's assembly rooted: [GraphQL](./how-to/graphql.md).
+object type from a value object it meets as an argument and the schema does not start. HotChocolate.Data filters every
+value object through its scalar with `AdCodicem.ValueObjects.HotChocolate.Data`'s `AddValueObjectFiltering()`: an
+operand normalized, refused with its rule code and translated by Entity Framework Core, with no binding per type, and
+`contains`, `startsWith` and `endsWith` over the text on request
+([Filtering](./how-to/graphql.md#filtering-and-sorting-with-hotchocolatedata)). The native binary of a HotChocolate
+application needs HotChocolate.Types and the application's assembly rooted, and HotChocolate.Data's filtering does not
+run natively: [GraphQL](./how-to/graphql.md).
 
 ### Does it work with Blazor?
 
@@ -370,7 +374,7 @@ formatter MessagePack asks it for, protobuf-net's `AddValueObjects` names the cl
 identifier's descriptor, the MVC model binder provider creates its binders, the minimal API filter closes the check of
 each parameter it explains, the Azure Functions converter the conversion of each value object a parameter binds and its
 middleware the check of each it explains, the HotChocolate type discovery handler the scalar of each value object a schema
-meets, the NJsonSchema package the converter it writes a value object's examples through under Newtonsoft.Json
+meets, the HotChocolate.Data type interceptor the operations of each value-object member a filter input meets, the NJsonSchema package the converter it writes a value object's examples through under Newtonsoft.Json
 settings, the Blazor input the text adapters of the value object it binds, the JSON converter factory closes the
 general-purpose converter it gives a value object
 written by hand, the test-data sampler, the AutoFixture customization, the Bogus extensions and FsCheck's
@@ -389,9 +393,10 @@ Serilog, Microsoft.Extensions.AI and Model Context Protocol integrations are mar
 trimming and AOT analyzers on, and CI publishes an
 application using them all with native AOT on every pull request, which merges only once that passes: it fails on any
 trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The
-HotChocolate package is marked AOT-compatible too, and its own code publishes with no warning, but CI publishes no
-HotChocolate application: HotChocolate's own publish warns, and its binary starts only with HotChocolate.Types and the
-application's assembly rooted ([GraphQL](./how-to/graphql.md#native-aot)). The gRPC package is
+two HotChocolate packages are marked AOT-compatible too, and their own code publishes with no warning, but CI publishes
+no HotChocolate application: HotChocolate's own publish warns, its binary starts only with HotChocolate.Types and the
+application's assembly rooted, and HotChocolate.Data's filtering of a struct has no native code
+([GraphQL](./how-to/graphql.md#native-aot)). The gRPC package is
 AOT-compatible, and CI's application serves a contract-first service with it. The Blazor package is AOT-compatible,
 and CI's application renders a form of every registered value object through `HtmlRenderer`; Microsoft.AspNetCore.Components
 warns for itself there ([Blazor](./how-to/blazor.md#native-aot-and-trimming)). The protobuf-net package is marked

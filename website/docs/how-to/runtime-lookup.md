@@ -66,7 +66,8 @@ resolver the formatter MessagePack asks it for, protobuf-net's `AddValueObjects`
 value object it registers, the MVC model binder provider creates its binders, the minimal API
 filter of `AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains, the Azure Functions
 converter closes the conversion of each value object a parameter binds and its middleware the check of each it
-explains, the HotChocolate type discovery handler the scalar of each value object a schema meets, the NJsonSchema
+explains, the HotChocolate type discovery handler the scalar of each value object a schema meets, the HotChocolate.Data
+type interceptor the operations of each value-object member a filter input meets, the NJsonSchema
 package the converter that writes a value object's examples through the Newtonsoft.Json settings of a schema, the Blazor
 input the text adapters, plain and nullable, of the value object it binds, through a visitor that is not generic,
 DataAnnotations' `[NotDefault]` its check of the default instance, once per type, the JSON converter factory closes the general-purpose converter it gives a value object written by hand, the test-data sampler's

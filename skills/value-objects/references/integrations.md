@@ -22,6 +22,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers and protobuf-net.Grpc code-first services: the underlying type's wire, strict reads, the scalar in the `.proto` export, a refused request answered `INVALID_ARGUMENT` with its code. AOT-compatible through protobuf-net's `[ProtoModel]`. |
 | `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC: every refused field at once in a `google.rpc.BadRequest`, a refusal escaping a handler as `INVALID_ARGUMENT` with a `google.rpc.ErrorInfo`. AOT-compatible. |
 | `AdCodicem.ValueObjects.HotChocolate` | HotChocolate 16: one GraphQL scalar per value object, read through its rules; a refused value answered with its code under `extensions.code`. AOT-compatible. |
+| `AdCodicem.ValueObjects.HotChocolate.Data` | HotChocolate.Data 16: every value object filtered through its scalar's operations, normalized, refused with its code, translated by EF Core; text operations on request. AOT-compatible code; HotChocolate.Data filtering does not run natively. |
 | `AdCodicem.ValueObjects.Blazor` | Blazor forms: `InputValueObject`, an input per value object read through its rules; the refused rule's message under the field, its code on the `EditContext`. AOT-compatible, installable in Blazor WebAssembly. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
@@ -714,7 +715,8 @@ builder.Services.AddGraphQLServer()                    // or services.AddGraphQL
     .AddValueObjects(o => o
         .Name<Shipping.Code>("ShippingCode")            // two value objects of one name fail the schema otherwise
         .SpecifiedBy<Iban>("https://www.iso.org/standard/81090.html")   // @specifiedBy; none by default
-        .UseResource<ValidationMessages>())             // messages by code; needs services.AddLocalization()
+        .UseResource<ValidationMessages>()              // messages by code; needs services.AddLocalization()
+        .QuoteScalarNameIn(v => v.Coordinate.Name == "RangeInput"))   // {0}: the scalar, not the field, for inputs named after an operation
     .AddValueObjectScalar<Reference<PurchaseOrder>, string>();  // typed: a generic construction, a hand-written one, AOT
 ```
 
@@ -741,19 +743,45 @@ found for input type type `Shop.Iban`.``), and an output value object is an obje
   keeps the rule's message, code `EXEC_INVALID_LEAF_VALUE`.
 - `UseResource<T>()`: an error filter looks the message up under `ValueObject.{code}` in the current UI culture
   (`UseRequestLocalization()`'s), `{0}` the argument, input field or variable (the scalar's name for a variable's
-  default value, which HotChocolate's error names `root`); the executor fails to start without
+  default value, which HotChocolate's error names `root`, or for an input value `QuoteScalarNameIn(v => …)` selects by
+  the error's coordinate, as `AddValueObjectFiltering()` does for every filter operation); the executor fails to start without
   `AddLocalization()`. An application filter registered after `AddValueObjects` sees the localized message.
 - A generic construction or a value object written by hand is described by the registry where dynamic code runs, else
   refused with `NotSupportedException`: `AddValueObjectScalar<TSelf, TValue>()` or `ValueObjectRegistry.Register`.
-- HotChocolate.Data filtering: bind each value object,
-  `AddFiltering(c => c.AddDefaults().BindRuntimeType<Iban, ComparableOperationFilterInputType<Iban>>())`, so that its
-  operands are the scalar (normalized, coded refusals, translated by EF Core); unbound, a filter names `value` and
-  compares raw text, and EF Core translates it only under `UseValueObjectQueries()`. Sorting needs no binding.
-- Native AOT: the package's code is clean, but HotChocolate 16.6.8's binary needs
+- HotChocolate.Data filtering (`AdCodicem.ValueObjects.HotChocolate.Data`): after `AddFiltering()`,
+
+  ```csharp skip
+  builder.Services.AddGraphQLServer()
+      .AddQueryType<Query>()
+      .AddValueObjects()
+      .AddFiltering()
+      .AddValueObjectFiltering(o => o.IncludeTextOperations());   // text operations optional
+  ```
+
+  A type interceptor replaces the input HotChocolate.Data infers for every value-object member (`TSelf`, `TSelf?`, a
+  list or an array of either; every filter input, named conventions and `FilterConvention` subclasses included) with
+  `{Scalar}OperationFilterInput`: `eq`, `neq`, `in`, `nin`, `gt`, `gte`, `lt`, `lte` and their negations (`eq`/`neq`
+  alone over `bool`), operands read through the scalar (normalized, a refusal coded at `inputPath` `["eq"]`), translated
+  by EF Core with no `UseValueObjectQueries()`; a list is `List{Scalar}OperationFilterInput`. `in` takes no `null`
+  element. A hand-written value object needs `==`, `<`… or its `eq`/`gt` fail at execution. It calls `AddValueObjects()`
+  and quotes the scalar's name in a localized refusal (`« Iban »`, never `« eq »`).
+  `IncludeTextOperations()`: `contains`/`startsWith`/`endsWith` and negations over the underlying text of value objects
+  over `string`, fragment as typed, never normalized; EF Core needs `UseValueObjectQueries()` (else each fails at its
+  first query); default convention only, so it must follow `AddFiltering()`.
+  An application's own binding, a field it types and `[ID]` are left alone. Under no dynamic code, a generic
+  construction or hand-written type needs `ValueObjectRegistry.Register`, or `AddValueObjectScalar<TSelf, TValue>()`
+  with `AddFiltering(c => c.AddDefaults().BindValueObject<TSelf, TValue>())` (the binding alone meets the scalar's
+  `NotSupportedException`). Binding by hand: bind both `TSelf` and `TSelf?` to `ValueObjectOperationFilterInputType<TSelf>`
+  (or a subclass), or, over `string`, `ValueObjectTextOperationFilterInputType<TSelf>`, which needs
+  `IncludeTextOperations()` and the default convention (else the schema fails: "no handler found"). Without the package,
+  a filter names `value` and compares raw text, which EF Core translates only under `UseValueObjectQueries()`. Sorting
+  and projections need nothing.
+- Native AOT: the packages' code is clean, but HotChocolate 16.6.8's binary needs
   `<TrimmerRootAssembly Include="HotChocolate.Types" />` and the application's assembly rooted; take list arguments as
-  `List<T>`, `IReadOnlyList<T>` or arrays.
-- Not covered: HotChocolate 15 and earlier, `AnyEntityId`, Relay `[ID]`, mutation conventions, subscriptions, Fusion,
-  projections.
+  `List<T>`, `IReadOnlyList<T>` or arrays. HotChocolate.Data's filtering of a value object has no native code.
+- Not covered: HotChocolate 15 and earlier, `AnyEntityId`, Relay `[ID]` (on a filtered value object, HotChocolate's
+  `IdOperationFilterInput` replaces the package's input, then fails), mutation conventions, subscriptions, Fusion,
+  HotChocolate.Data's MongoDb, Marten and Raven providers, text operations in a named convention.
 
 ## FluentValidation
 

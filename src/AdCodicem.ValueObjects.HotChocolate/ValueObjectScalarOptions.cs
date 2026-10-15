@@ -1,4 +1,5 @@
 using AdCodicem.ValueObjects.Metadata;
+using HotChocolate.Types;
 
 namespace AdCodicem.ValueObjects.HotChocolate;
 
@@ -20,6 +21,7 @@ public sealed class ValueObjectScalarOptions
 {
     private readonly Dictionary<Type, string> _names = [];
     private readonly Dictionary<Type, string> _specifications = [];
+    private readonly List<Func<IInputValueDefinition, bool>> _scalarQuoted = [];
 
     /// <summary>
     /// Gets the type whose resources hold the messages of refused values, or <see langword="null"/> to keep the English
@@ -82,7 +84,8 @@ public sealed class ValueObjectScalarOptions
     /// An error filter of the schema looks each refusal up under the keys of <see cref="ValueObjectMessages.KeysFor"/>,
     /// in the current UI culture, and formats it in the current culture with the argument, the input field or the
     /// variable the refusal concerns as <c>{0}</c>, or the scalar's name for a variable's default value, which
-    /// HotChocolate's error names no variable for, followed by the arguments
+    /// HotChocolate's error names no variable for, and for a value refused in an argument or an input field
+    /// <see cref="QuoteScalarNameIn"/> selects, followed by the arguments
     /// <see cref="ValueObjectMessages.ArgumentsFor{TSelf, TValue}"/> reads from the type's rules. A key with no entry keeps
     /// the English message, and the code stays the rule's.
     /// </para>
@@ -105,6 +108,63 @@ public sealed class ValueObjectScalarOptions
 
         ResourceType = resourceType;
         return this;
+    }
+
+    /// <summary>
+    /// Quotes the scalar's name as <c>{0}</c>, rather than the argument or the input field, in the localized message of a
+    /// value refused in one a predicate selects: an input named after what it does with the value, as the <c>eq</c> or the
+    /// <c>in</c> of a HotChocolate.Data filter, rather than after what the value is.
+    /// </summary>
+    /// <param name="inputValues">
+    /// Selects, by the member the error's <c>coordinate</c> names, the arguments and input fields whose refused values are
+    /// quoted by the scalar's name. Called in the request, on a refusal alone.
+    /// </param>
+    /// <returns>These options, so calls can be chained.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="inputValues"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// <para>
+    /// Each call adds a predicate, and a value any of them selects is quoted by the scalar's name. HotChocolate sets the
+    /// coordinate of an error to the innermost argument or input field it read the refused value under, whatever
+    /// variable or list holds it: <c>IbanOperationFilterInput.eq</c> for the <c>eq</c> of a filter on an <c>Iban</c>
+    /// member. A variable HotChocolate reads before any field, as <c>$v</c> in <c>eq: $v</c>, has no coordinate and keeps
+    /// its name, and a variable's default value keeps the scalar's.
+    /// </para>
+    /// <para>
+    /// Only the message of a localized refusal changes, which <see cref="UseResource{TResource}"/> asks for: its code, its
+    /// path, its <c>inputPath</c> and its <c>coordinate</c> stay HotChocolate's. A predicate that throws fails the error
+    /// filter, as any error filter that throws does. <c>AddValueObjectFiltering()</c> of
+    /// AdCodicem.ValueObjects.HotChocolate.Data selects the operations of every filter itself.
+    /// </para>
+    /// </remarks>
+    public ValueObjectScalarOptions QuoteScalarNameIn(Func<IInputValueDefinition, bool> inputValues)
+    {
+        ArgumentNullException.ThrowIfNull(inputValues);
+
+        _scalarQuoted.Add(inputValues);
+        return this;
+    }
+
+    /// <summary>
+    /// Gets whether a predicate selects arguments or input fields whose refused values are quoted by the scalar's name.
+    /// </summary>
+    internal bool QuotesScalarName => _scalarQuoted.Count > 0;
+
+    /// <summary>
+    /// Tells whether a value refused in an argument or an input field is quoted by the scalar's name.
+    /// </summary>
+    /// <param name="inputValue">The argument or the input field the error's coordinate names.</param>
+    /// <returns><see langword="true"/> when a predicate selects it.</returns>
+    internal bool QuotesScalarNameIn(IInputValueDefinition inputValue)
+    {
+        foreach (var selects in _scalarQuoted)
+        {
+            if (selects(inputValue))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
