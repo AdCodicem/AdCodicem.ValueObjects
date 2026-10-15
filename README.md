@@ -96,7 +96,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, a convention that maps a whole assembly, keys generated the provider's way, `.Value` translated in queries, and opt-in CHECK constraints from the rules, whose violations carry the rule code under `UseValueObjectCheckErrors()`. |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, native AOT included. |
-| `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | The same problem details for a body MVC reads with Newtonsoft.Json. |
+| `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | The same problem details for a body MVC reads with Newtonsoft.Json, and for a JSON Patch document applied through the rules. |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
 | `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10.3 and later. |
 | `AdCodicem.ValueObjects.NJsonSchema` | NSwag documents and the JSON Schemas Confluent's serdes register: each value object one definition of its underlying type, with its rules. |
@@ -307,6 +307,9 @@ An MVC application whose bodies Newtonsoft.Json reads calls `AddNewtonsoftJson()
 instead of `AddValueObjects()`, from `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson`: the converter goes into MVC's
 settings, which its responses are written with too, and a refused body carries its rule's code as with System.Text.Json
 ([the ASP.NET Core guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/aspnet-core#a-body-read-by-newtonsoftjson)).
+A `JsonPatchDocument<T>` applied with `patch.TryApplyTo(account, ModelState, HttpContext)` goes through the same rules,
+each error keyed by the path of its operation with its code
+([a JSON Patch document](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/aspnet-core#a-json-patch-document)).
 
 Minimal APIs need no package to bind: a generated value object implements `IParsable<T>`, which is exactly what
 minimal API parameter binding looks for. A value it rejects is answered there with a bare 400, naming neither the

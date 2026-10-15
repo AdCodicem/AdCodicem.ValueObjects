@@ -39,7 +39,9 @@ namespace AdCodicem.ValueObjects.NewtonsoftJson;
 /// Given to a JSON Patch document of Microsoft.AspNetCore.JsonPatch as its <c>ContractResolver</c>, it is what the
 /// document converts a value with. JSON Patch reads the value again under settings of its own, which drop
 /// <see cref="DateParseHandling.None"/> and <see cref="FloatParseHandling.Decimal"/>, and replaces the converter's
-/// refusal with a message of its own, which quotes the value and carries no code.
+/// refusal with a message of its own, which quotes the value and carries no code. In MVC,
+/// <c>ValueObjectJsonPatchExtensions.TryApplyTo</c>, in AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson, reads every
+/// value through the rules, with their codes, and needs no resolver.
 /// </para>
 /// </remarks>
 public sealed class ValueObjectContractResolver : IContractResolver

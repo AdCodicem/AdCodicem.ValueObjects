@@ -218,6 +218,9 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   code supplies, so AutoMapper finds no constructor and throws `AutoMapperMappingException`. Map through the
   factory: `CreateMap<string, Iban>().ConvertUsing(s => Iban.Create(s))`. On `ExplicitConversionFromValue = true`,
   AutoMapper calls the explicit conversion, which validates.
+- `patch.ApplyTo(entity, ModelState)` on a Newtonsoft `JsonPatchDocument<T>` holding value objects — no code, every
+  error under the type's name, quoting the value, and `remove` writes a default instance. Use
+  `patch.TryApplyTo(entity, ModelState, HttpContext)` (AspNetCore.NewtonsoftJson).
 - A separate FluentValidation rule restating length or pattern — defer to the value object
   (`MustParseAs`, `MustSatisfy`).
 - `[StringLength]` or `[RegularExpression]` restating a value object's rules on raw text — use `[ParsesAs(typeof(Iban))]`

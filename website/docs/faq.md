@@ -377,7 +377,9 @@ written by hand, the test-data sampler, the AutoFixture customization, the Bogus
 `MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
 value object, each element of a collection of them, and each entity identifier, all but the converter of an optional
 value object, which C# cannot name there and which they close with `MakeGenericType`; they do so only while a model is
-built, never under native AOT. DataAnnotations' `[NotDefault]` closes its check of the default instance per type through
+built, never under native AOT. `TryApplyTo`'s JSON Patch adapter of a dictionary keyed by value objects, or holding
+them, is closed over the dictionary's two types with `MakeGenericType` as well, as JSON Patch closes its own over the
+same types: MVC's JSON Patch runs in no native binary. DataAnnotations' `[NotDefault]` closes its check of the default instance per type through
 the visitor too, and `[ParsesAs(typeof(T))]` finds the descriptor as the registry does, its generic form reading the
 type's static members. The Microsoft.Extensions.AI integration closes nothing: it reads a tool's parameters
 once, when it wraps the function, and each argument through the function's own contracts. Nor does the Model Context Protocol one, which finds the tool methods

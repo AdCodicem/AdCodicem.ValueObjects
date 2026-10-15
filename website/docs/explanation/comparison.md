@@ -38,7 +38,7 @@ be corrected.
 | EF Core reads validate | on request (`strict: true`) | by default | — | no, reads use the constructor |
 | EF Core `.Value` in LINQ | translated to the column, on request (`UseValueObjectQueries()`) | no: compare the value objects | no: compare the value objects | no |
 | ASP.NET Core model binding | yes | through the `TypeConverter` | through the `TypeConverter` | yes |
-| Problem details carry the violated rule's code | MVC controllers and minimal APIs | no | no | no |
+| Problem details carry the violated rule's code | MVC controllers (bodies and JSON Patch documents) and minimal APIs | no | no | no |
 | OpenAPI | built-in stack, Swashbuckle 10 and NSwag 14, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
 | JSON Schema registry (Confluent's JSON serdes for Kafka) | the rules in the registered schema, numbers as numbers, a refused message with its code | no (8.0.7 and 9.0.0-beta.1 hold nothing for NJsonSchema) | not checked | not checked |
 | FluentValidation | yes | third-party package | no | no |
@@ -69,11 +69,11 @@ In the other
 three, a length or a pattern is code inside a validation method, so the column and the schema have to be told separately
 — which is exactly the drift that primitive obsession produces.
 
-**A rejection is data a client can act on.** Validation returns a `ValidationResult` struct holding a stable
-code and a message, and allocates nothing when the value is valid. The code travels to the problem details of
-MVC controllers, for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a query value, and of minimal
-APIs, native AOT included, for a route, query or header value, and for a body where `ThrowOnBadRequest` is on, to
-FluentValidation failures and to every exception an integration throws, so an API client branches on
+**A rejection is data a client can act on.** Validation returns a `ValidationResult` struct holding a stable code and a
+message, and allocates nothing when the value is valid. The code travels to the problem details of MVC controllers, for
+a JSON body, read by System.Text.Json or Newtonsoft.Json, and a JSON Patch document's values, as for a query value, and
+of minimal APIs, native AOT included, for a route, query or header value, and for a body where `ThrowOnBadRequest` is
+on, to FluentValidation failures and to every exception an integration throws, so an API client branches on
 `value_object.too_long` rather than on English. The same code keys the message an application shows in its users'
 language, which MVC (for a route, query, header or form value, and a body System.Text.Json reads), minimal APIs, Azure
 Functions, HotChocolate, Blazor, FluentValidation and the DataAnnotations attributes look up in its translations with

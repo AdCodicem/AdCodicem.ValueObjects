@@ -99,7 +99,11 @@ This distinction is where bugs hide, so it is worth knowing before changing anyt
   known values as the Newtonsoft.Json settings of a schema write them, DataAnnotations' `[NotDefault]` its check of
   the default instance, closed once per type, and the Blazor input the two text adapters of the value object it binds,
   plain and nullable, which it finds as `[ParsesAs(typeof(T))]` does, through a visitor that is not generic, so that a
-  native binary holds one closing per value object. The NJsonSchema package's reflection service and schema processor find a
+  native binary holds one closing per value object. The JSON Patch adapters of `TryApplyTo`, in
+  `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson`, tell a value object by `IsValueObject` and read its values through
+  the Newtonsoft.Json converter and its dictionary keys through the descriptor's `TryParse`; the adapter of a dictionary
+  is closed over its two types with `MakeGenericType`, as JSON Patch closes its own, since a visitor would name the value
+  object and never the dictionary's other type, and MVC's JSON Patch runs in no native binary. The NJsonSchema package's reflection service and schema processor find a
   value object NJsonSchema meets through `TryResolve`, as the OpenAPI packages do. The
   test-data sampler of `AdCodicem.ValueObjects.Testing.Data` draws a value of a type known only by
   its descriptor the same way, through the typed draw that reads `TSelf.Schema`, and so do its adapters: the AutoFixture
@@ -134,8 +138,9 @@ actually fired. `DescriptorTests.cs` covers that surface.
   trusted profile), since the bytes may come from another service or a client.
 - **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on success. The
   integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a `JsonException` or
-  `JsonSerializationException`, a model state error, the validation problem of a minimal API, a FluentValidation
-  failure, a Dapper `DataException`, a MongoDB.Driver `FormatException` or `BsonSerializationException`, a MessagePack
+  `JsonSerializationException`, a model state error, a JSON Patch document's keyed by the path of its operation, the
+  validation problem of a minimal API, a FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver
+  `FormatException` or `BsonSerializationException`, a MessagePack
   `MessagePackSerializationException`, a protobuf-net `ProtoException`, the `INVALID_ARGUMENT` a gRPC service answers,
   through the protobuf-net package's code-first binder or the gRPC package's interceptor and collector, whose
   `google.rpc.ErrorInfo` or `google.rpc.BadRequest` carries the code, an `XmlException` from `XmlSerializer` or `DataContractSerializer` in an assembly

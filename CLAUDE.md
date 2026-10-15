@@ -265,15 +265,21 @@ private or protected type inside a generic one, and a generic `[EntityId]` stay 
   `src/Shared/ValueObjectArguments.cs`, linked into both packages; nor the EF Core query translator
   `UseValueObjectQueries()` registers, which asks no registry: it tells a property this package maps by the converter on
   the SQL expression EF Core hands it, one of `ConverterTypes.Definitions` or EF Core's composition of one with its own
-  conversion of the underlying type. No EF Core convention runs under native AOT, where EF
+  conversion of the underlying type. The JSON Patch adapters of `TryApplyTo` visit no descriptor either: they tell a
+  value object by `IsValueObject`, read its values through the Newtonsoft.Json converter and its dictionary keys through
+  the descriptor's `TryParse`, and close the adapter of a dictionary keyed by value objects or holding them over its two
+  types with `MakeGenericType`, as JSON Patch closes its own (`ValueObjectAdapterFactory`): a visitor would name the
+  value object, never the dictionary's other type, and MVC's JSON Patch runs in no native binary. No EF Core convention
+  runs under native AOT, where EF
   Core reads the compiled model and builds none, and the MVC binder provider runs in no native binary, MVC not being
   AOT-compatible, so the `native AOT` job guards the JSON factory's visitor, the minimal API filter's and
   `[NotDefault]`'s, the lookup of `[ParsesAs(typeof(T))]`, the Blazor input's, and `EntityIdDescriptor.Accept`, which
   the application calls on every identifier registered; the visitors of the Azure Functions, HotChocolate and NJsonSchema packages run in no
   native binary, nor protobuf-net's `AddValueObjects`, which is `[RequiresDynamicCode]`. `RuntimeClosingTests` guards
   every package: it reads their IL and fails on a `MakeGenericType`, a `MakeGenericMethod` or an
-  `Activator.CreateInstance` outside the list it holds, the registry's reflection fallback and the EF Core converter of
-  a `TSelf?` property, or of such an element of a collection over text. A hand-written value object declares `Schema`
+  `Activator.CreateInstance` outside the list it holds, the registry's reflection fallback, the EF Core converter of
+  a `TSelf?` property, or of such an element of a collection over text, and the JSON Patch adapter of such a
+  dictionary. A hand-written value object declares `Schema`
   too, and the registry describes it from that alone: an annotation on it is read by nothing at run time.
 
 The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them. That is
@@ -298,8 +304,9 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   the trust.
 - **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on success. The
   integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a `JsonException` or
-  `JsonSerializationException`, a model state error, the validation problem of a minimal API, a FluentValidation
-  failure, a Dapper `DataException`, a MongoDB.Driver `FormatException` on read or `BsonSerializationException` on
+  `JsonSerializationException`, a model state error, `TryApplyTo`'s for a JSON Patch document, keyed by the path of its
+  operation with the code recorded beside it, or a call to its handler with the code, the validation problem of a
+  minimal API, a FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver `FormatException` on read or `BsonSerializationException` on
   write, a MessagePack `MessagePackSerializationException`, a protobuf-net `ProtoException`, an `XmlException` from
   `XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, carrying
   the code in its `Data`; a protobuf-net.Grpc code-first service configured with `ValueObjectBinderConfiguration.ForServer`
@@ -539,6 +546,23 @@ These are all load-bearing, and each cost real debugging time:
   either order (a unit test pins both): the resolver's unit tests serialize types of their own, over resolvers of their
   own. A contract's converter wins over the settings' converters, which is one reason neither
   `AddValueObjects()` nor `AddValueObjectsNewtonsoftJson()` wraps a resolver.
+- **JSON Patch converts a value under settings of its own, and its adapters are `Internal` types.**
+  `ConversionResultProvider.ConvertTo` writes a value to text and reads it back under fresh settings holding the
+  document's resolver alone, and swallows every exception; `copy` (`CopyTo`) and a dictionary key pass no resolver; MVC's
+  patch formatter hands the document MVC's resolver and nothing else of its settings. So `TryApplyTo` reads each value
+  itself, through `ValueObjectConverter` under `AddValueObjects()`'s settings and the document's resolver, without
+  `ValueObjectContractResolver`, a dictionary key through the descriptor's `TryParse`, and does `copy` and `move` itself
+  (`ValueObjectObjectAdapter`): JSON Patch's `move` adds at its target after a removal it refused. `ApplyTo` with an
+  error handler goes on after a failed operation and stops at a `JsonPatchException` (an unknown `op`, a bad escape),
+  reported under the operation's `path` but for a `from` it cannot read, which `ValueObjectObjectAdapter` reports under
+  the `from` before throwing again, its `Log` skipping JSON Patch's report of it; JSON Patch throws
+  `ArgumentNullException` for a missing `path` or `from`, and `ArgumentOutOfRangeException` for `-`, the end of a list,
+  read, removed or replaced in an empty list or tested in any (it reads index -1): `TryApplyTo` reports each, its list
+  adapter answering `-` for every list. A refusal is kept on the document's `ValueObjectPatchConversion` until the error
+  reporting it takes its code, every operation starting clean. `Patching/` derives from
+  `Microsoft.AspNetCore.JsonPatch.Internal` types, which "may change or be removed": the compatibility island, on JSON
+  Patch 11, is where a change shows. Microsoft.AspNetCore.JsonPatch comes with Microsoft.AspNetCore.Mvc.NewtonsoftJson,
+  at its version, and is pinned nowhere.
 - **`static virtual` and `static abstract` interface members are reachable only through a type parameter**
   (CS8926, CS0103 for explicit implementations). Default implementations on `INumericValueObject` are therefore
   unusable directly; the generator emits concrete members, and `UnderlyingValue` holds constrained generic
@@ -1280,6 +1304,17 @@ Four suites, each with a distinct job:
   built-in stack's (`NSwagParityTests`, every member of `EveryValueObject` and `EveryValueObjectAsText` alike after
   normalization, but `mass`, whose bounds no decimal holds), each request awaited with a timeout; `NSwagDocumentTests`
   compiles the C# client NSwag generates with Roslyn.
+  `Web/NewtonsoftJsonPatchTests.cs` applies JSON Patch documents through `TryApplyTo` over TestHost, to a fresh
+  `PatchedAccount` per request (`NewtonsoftPatchController`, in an application of its own through a `ControllerPart`):
+  keys and codes, the response of `InvalidModelStateResponseFactory`, a validation problem passing nothing, a prefix,
+  the error cap, MVC's own `ApplyTo` beside it; and through its handler, both overloads applying each document, every
+  operation on members, nullable members, lists, arrays, the end of an empty list, dictionaries keyed by value objects
+  or holding them, their keys under fr-FR, a `JObject`, malformed operations, a `from` it cannot read included, a
+  document read under Newtonsoft.Json's defaults, one built in code and ones whose contract resolver renames members,
+  dictionary keys or gives a value object a converter, against what JSON Patch's own `ApplyTo` does where they differ;
+  and every sample of `GeneratedSurface/` through `JsonPatchParity`, over `PatchHolder<TSelf>`. `NewtonsoftJsonTests.cs`
+  holds `ValueObjectContractResolver`'s tests, on holders and resolvers of their own, and JSON Patch documents outside
+  MVC applied through it, one the guide's way and others wrapping JSON Patch's own resolver, in either order.
 - **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
   incremental caching. It drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
   `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Snippets compile **without** implicit usings, which
@@ -1472,7 +1507,8 @@ key refused unset, `.Value` translated under `UseValueObjectQueries()`, a value 
 on SQLite, and
 a pattern constraint on PostgreSQL 17 with `ExcludePattern`, a refused row carrying the code of its rule, a refusal in
 a later statement of a batch included, System.Text.Json source generation, ASP.NET Core
-model binding, on System.Text.Json and on Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal
+model binding, on System.Text.Json and on Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, a JSON
+Patch document through `TryApplyTo` over its JSON Patch 11, whose `Internal` adapters the package derives from, minimal
 API problem details, the messages of both and of FluentValidation in the language of the request, the DataAnnotations
 attributes through `Validator`, options validation, an `[OptionsValidator]` validator, MVC 11 and the minimal API
 validation of Microsoft.Extensions.Validation 11, its `ParsesAsAttribute_Error` key and its propagation of an

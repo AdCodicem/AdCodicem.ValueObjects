@@ -11,7 +11,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.EntityFrameworkCore` | Converters, comparers, an assembly-wide convention (collections included), keys generated the provider's way, `.Value` in LINQ and CHECK constraints from the rules, a violated one carrying its rule code (all opt-in). |
 | `AdCodicem.ValueObjects.AspNetCore` | MVC model binding and RFC 9457 problem details carrying the violated rule. |
 | `AdCodicem.ValueObjects.AspNetCore.Http` | The same problem details for minimal APIs, AOT-compatible. |
-| `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | MVC on Newtonsoft.Json: the converter in MVC's settings, and the codes of a refused body. |
+| `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | MVC on Newtonsoft.Json: the converter in MVC's settings, the codes of a refused body, and JSON Patch documents applied through the rules (`TryApplyTo`). |
 | `AdCodicem.ValueObjects.OpenApi` | Schema transformer for the built-in .NET OpenAPI stack. |
 | `AdCodicem.ValueObjects.Swashbuckle` | Schema and parameter filters for Swashbuckle 10.3 and later. |
 | `AdCodicem.ValueObjects.NJsonSchema` | NSwag documents and the JSON Schemas Confluent's serdes register for Kafka: one definition per value object, its underlying type with its rules. |
@@ -201,6 +201,26 @@ builder.Services.Configure<ApiBehaviorOptions>(o => o.AddValueObjectProblemDetai
   keeps its own code (Newtonsoft.Json reads on); a positional record stops at its first. None past
   `MaxModelValidationErrors`.
 - A value object as a dictionary key is read through its type converter: no code, and the message quotes the key.
+- A `JsonPatchDocument<T>`: apply it with `TryApplyTo`, never MVC's `ApplyTo(entity, ModelState)` (no code, every
+  error under the type's name, in JSON Patch's words quoting the value, and `remove` writes a default instance):
+
+  ```csharp skip
+  if (!patch.TryApplyTo(account, ModelState, HttpContext))   // prefix optional: TryApplyTo(account, ModelState, HttpContext, "patch")
+  {
+      return ValidationProblem(extensions: new Dictionary<string, object?>
+      {
+          [ValueObjectProblemDetails.ExtensionName] = ValueObjectProblemDetails.GetErrorCodes(HttpContext),
+      });
+  }
+  ```
+
+  Errors and codes are keyed by the operation's `path` as sent (`/iban`, `/ibans/-`, `/perCountry/XX`), a `copy` or
+  `move` refused at its source by its `from`. Values are read through the converter as the document holds them;
+  dictionary keys through `TryParse`; `test` compares by value-object equality and quotes nothing; `copy` keeps the
+  instance; `remove` and `move` of a member that cannot be `null` are refused (`value_object.required`: declare it
+  `T?`). Every operation runs: do not save on `false`. Plain `ValidationProblem()` carries no codes; pass them as
+  above. Outside MVC, `TryApplyTo(entity, (error, code) => …)`, the document read under
+  `new JsonSerializerSettings().AddValueObjects()`.
 - Not AOT-compatible. In a `PostConfigure<MvcOptions>` registered after it, `RemoveType<NewtonsoftJsonInputFormatter>()`
   misses its formatter: remove every formatter that `is NewtonsoftJsonInputFormatter and not
   NewtonsoftJsonPatchInputFormatter` instead, leaving out any you derived yourself.

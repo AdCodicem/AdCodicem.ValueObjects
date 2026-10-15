@@ -413,4 +413,6 @@ wrapped document applied after it reads those members without the converter too,
 
 `JsonConvert.DefaultSettings = () => new JsonSerializerSettings().AddValueObjects();` reaches those reads too, and keeps
 the digits, the offsets, text that looks like a date and `copy`, but for every caller of `JsonConvert` in the process,
-and still with JSON Patch's messages and no code.
+and still with JSON Patch's messages and no code. In MVC, apply a document through `TryApplyTo` instead
+([A JSON Patch document](./aspnet-core.md#a-json-patch-document)), which reads every value through the rules, with
+their codes, and needs no resolver.

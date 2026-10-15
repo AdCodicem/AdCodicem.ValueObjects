@@ -2,7 +2,7 @@
 title: Use with ASP.NET Core
 sidebar_label: ASP.NET Core
 slug: /how-to/aspnet-core
-description: Bind value objects from routes, query strings, headers and bodies in MVC and minimal APIs, know what a rejection answers in each, and return RFC 9457 problem details carrying the violated rule, from MVC controllers on System.Text.Json or Newtonsoft.Json and from minimal APIs, native AOT included.
+description: Bind value objects from routes, query strings, headers and bodies in MVC and minimal APIs, know what a rejection answers in each, and return RFC 9457 problem details carrying the violated rule, from MVC controllers on System.Text.Json or Newtonsoft.Json, JSON Patch documents included, and from minimal APIs, native AOT included.
 ---
 
 # Use with ASP.NET Core
@@ -380,7 +380,8 @@ gives its error, Newtonsoft.Json's path rather than a `$.` one:
 - A value object used as a dictionary key is read by Newtonsoft.Json through its type converter, never the converter:
   its refusal carries no code, and its message quotes the key.
 - A Newtonsoft.Json input formatter the application built over settings of its own, or derived, is left as it is and
-  records no code; so is the JSON Patch formatter, whose document holds its values as JSON until `ApplyTo`.
+  records no code; so is the JSON Patch formatter, whose document holds its values as JSON until it is applied
+  ([a JSON Patch document](#a-json-patch-document) is applied through the rules).
 - Without `AddNewtonsoftJson()`, MVC reads with System.Text.Json, and the call amounts to `AddValueObjects()`.
 
 The swap is a post-configuration of `MvcOptions`, as for System.Text.Json: in a `PostConfigure<MvcOptions>` registered
@@ -401,6 +402,102 @@ builder.Services.PostConfigure<MvcOptions>(options =>
 ```
 
 The package is not AOT-compatible, as neither MVC nor Newtonsoft.Json is.
+
+### A JSON Patch document
+
+MVC reads a `JsonPatchDocument<T>` body through its JSON Patch formatter, and the document holds each value as JSON until
+it is applied. JSON Patch's own `ApplyTo` then converts each value by writing it to text and reading it back under
+settings of its own, which lose the digits of a `decimal`, an offset and text that looks like a date, and reports a
+refusal in its own words, which quote the value and name no rule. `TryApplyTo`, from the same package, applies the
+document through the value objects' rules instead, each error under the path of its operation, with the code of the rule
+a value broke:
+
+```csharp skip
+[HttpPatch("{id}")]
+public IActionResult Patch(AccountId id, [FromBody] JsonPatchDocument<Account> patch)
+{
+    var account = accounts.Find(id);
+    if (!patch.TryApplyTo(account, ModelState, HttpContext))
+    {
+        return ValidationProblem(extensions: new Dictionary<string, object?>
+        {
+            [ValueObjectProblemDetails.ExtensionName] = ValueObjectProblemDetails.GetErrorCodes(HttpContext),
+        });
+    }
+
+    accounts.Save(account);
+    return NoContent();
+}
+```
+
+```json
+{
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": {
+    "/quantity": ["The value is not a valid Quantity: The value must be less than or equal to 100."],
+    "/iban": ["The value is not a valid Iban: The value must be at least 15 characters long."],
+    "/perCountry/XX": ["The key is not a valid CountryCode: The value is not one of the accepted values."],
+    "/due": ["The value cannot be removed: a valid DueDate is required."]
+  },
+  "errorCodes": {
+    "/quantity": "value_object.out_of_range",
+    "/iban": "value_object.too_short",
+    "/perCountry/XX": "value_object.not_a_known_value",
+    "/due": "value_object.required"
+  }
+}
+```
+
+An action answering with a plain `ValidationProblem()` goes through MVC's `ProblemDetailsFactory`, which knows no code:
+pass the codes as above, or answer with the response `ApiBehaviorOptions.InvalidModelStateResponseFactory` builds, to
+which `AddValueObjectProblemDetails()` adds them.
+
+What each operation does to a value object:
+
+| Operation | Through `TryApplyTo` |
+| --- | --- |
+| `add`, `replace`, and the value of a `test` | The value is read as the document holds it, a string, a number, a boolean, a `null`, an object or an array, never written to text and read again: through `ValueObjectConverter`, under `AddValueObjects()`'s settings and the document's contract resolver, so its digits, its offset and its text are the client's once MVC has read the document under the settings `AddValueObjectsNewtonsoftJson()` gives it. A converter of the application's own in MVC's `SerializerSettings.Converters` is not used; one named on the type with `[JsonConverter]` is. A refusal is the converter's message, which names the type and the rule and never the value, with its code; a `null` into a value object that cannot be `null` is `value_object.required`. |
+| A dictionary key | Read from its text through the value object's rules, in the invariant culture, as a route value is, normalized: "The key is not a valid CountryCode: …", with its code. |
+| `test` | Compared through the value object's equality: `12.5` matches a stored `12.50`, an instant the same instant at another offset, and a closed set compared ignoring case another case; a `null` matches a `null` alone. One that does not match names neither value, "The current value at path 'quantity' is not equal to the test value.", and carries no code. A value the rules refuse is refused as for `replace`, with its code. |
+| `copy` | A value object is copied as the instance it is, a `DateTimeOffset` and a value object written by hand included, and read through the rules of a target of another type. A default instance its type refuses is refused at the target, as any writer refuses it. |
+| `remove` | A value object member that cannot be `null` is refused, `value_object.required`, since JSON Patch would set its default instance: declare it `T?` to remove it. A list element, a dictionary entry and a nullable member are removed. |
+| `move` | Refused at its source, by `remove`'s rule, it adds nothing at its target. Refused at its target, it has removed its source, as JSON Patch's does. A `move` to its own location changes nothing. |
+
+- Each error is keyed by the operation's `path`, as the client sent it, `/ibans/-` or `/perCountry/XX`, and a `copy` or
+  a `move` refused at its source, a `from` JSON Patch cannot read included, by its `from`.
+  `TryApplyTo(account, ModelState, HttpContext, "patch")` puts a prefix before it, with no separator since the path
+  starts with `/`: `patch/quantity`. An operation that names no `path` is keyed by the prefix alone. A key refused twice
+  keeps both messages and its first code, and an error past `MvcOptions.MaxModelValidationErrors` records no code, so
+  that every code has its message.
+- Every operation is applied in turn, after one that failed too, as MVC's `ApplyTo` does: on `false` the object is
+  partly patched, so do not save it. JSON Patch stops at an operation it cannot read, an unknown `op` or a path with a
+  bad escape, which is reported. An operation that names no `path`, or a `copy` or a `move` that names no `from`, is an
+  error, where JSON Patch throws an `ArgumentNullException`, which MVC answers with a 500; so is `-`, the end of a list,
+  where it holds no element to read, remove, replace or test, where JSON Patch throws an `ArgumentOutOfRangeException`.
+- A member of another type, a value object inside an object value, `replace /address {"zip":"XX"}`, which JSON Patch
+  converts as a whole, and an error no value explains are JSON Patch's, with its message, which may quote the value, and
+  no code. Patch the member's own path, `/address/zip`, to go through its rules.
+- The messages are English, as those of a body Newtonsoft.Json reads.
+- `TryApplyTo(account, (error, code) => …)` hands each error, and the code or `null`, to a handler instead, outside MVC.
+  Read such a document under `new JsonSerializerSettings().AddValueObjects()`: under Newtonsoft.Json's defaults, a
+  string that looks like a date and the digits of a `decimal` are lost when the document is read, before any value
+  object sees them.
+- Nothing is thrown for what the client sent; a `null` argument throws an `ArgumentNullException`.
+
+MVC's own `patch.ApplyTo(account, ModelState)` is unchanged. It puts every error under the object's type name,
+`"Account"`, in JSON Patch's words, "The value '500' is invalid for target location.", with no code. Its `remove`, and a
+`move` from a value object that cannot be `null`, write the default instance with no error
+([default instances](../reference/default-instances.md)); its `copy` of a value object written by hand gives the
+default instance; a `DateTimeOffset` value object refuses any text, and a `decimal` loses the digits past a `double`'s.
+
+System.Text.Json's JSON Patch, `Microsoft.AspNetCore.JsonPatch.SystemTextJson`, needs nothing from this library to
+convert a value: the generated converter keeps the digits and the offsets, and `copy` works. It reports a refusal in its
+own words, quoting the value, with no code, and its `remove` writes the default instance too. A value object written by
+hand needs `ValueObjectJsonConverterFactory` in the options it is read with, as everywhere. There is no `TryApplyTo`
+for it.
+
+Neither the package nor JSON Patch is AOT-compatible.
 
 ### A body read as XML
 
