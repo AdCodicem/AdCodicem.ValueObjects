@@ -26,6 +26,8 @@ namespace AdCodicem.ValueObjects.NewtonsoftJson;
 /// <para>
 /// <see cref="ValueObjectJsonSerializerSettingsExtensions.AddValueObjects(JsonSerializerSettings, bool)"/> adds it to
 /// the serializer settings with the two settings it reads value objects best under.
+/// <see cref="ValueObjectContractResolver"/> puts it on the contract of each value object instead, for code that hands
+/// Newtonsoft.Json a contract resolver alone.
 /// </para>
 /// <para>
 /// A value it refuses is a <see cref="JsonSerializationException"/>, the exception Newtonsoft.Json's own converters

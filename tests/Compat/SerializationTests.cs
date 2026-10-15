@@ -111,4 +111,22 @@ public sealed class SerializationTests
         json.Should().Be("\"ada@example.com\"");
         Newtonsoft.Json.JsonConvert.DeserializeObject<CountryCode>("\"be\"", settings).Should().Be(CountryCode.Belgium);
     }
+
+    /// <summary>
+    /// A serializer given the contract resolver alone writes and reads the bare value, a generic construction included,
+    /// and refuses a value with the code of the rule it breaks.
+    /// </summary>
+    [Fact]
+    public void Newtonsoft_given_the_contract_resolver_alone_writes_and_reads_the_underlying_value()
+    {
+        var settings = new Newtonsoft.Json.JsonSerializerSettings { ContractResolver = new ValueObjectContractResolver() };
+        var refused = () => Newtonsoft.Json.JsonConvert.DeserializeObject<Quantity>("101", settings);
+
+        Newtonsoft.Json.JsonConvert.SerializeObject(Sample.Purchase, settings).Should().Be("\"PO-7\"");
+        Newtonsoft.Json.JsonConvert.SerializeObject(Quantity.Create(7), settings).Should().Be("7");
+        Newtonsoft.Json.JsonConvert.DeserializeObject<Quantity?>("7", settings).Should().Be(Quantity.Create(7));
+        Newtonsoft.Json.JsonConvert.DeserializeObject<CountryCode>("\"be\"", settings).Should().Be(CountryCode.Belgium);
+        refused.Should().Throw<Newtonsoft.Json.JsonSerializationException>().Which.Data[ValueObjectErrors.ErrorCodeKey].Should()
+            .Be(ValueObjectErrorCodes.OutOfRange);
+    }
 }

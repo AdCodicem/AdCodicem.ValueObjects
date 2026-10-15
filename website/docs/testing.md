@@ -59,7 +59,11 @@ Four suites, each with a distinct job:
   both forms, and refuse each default instance, through `Validator`, options validated as a host starts and by the
   validator `[OptionsValidator]` writes, CommunityToolkit.Mvvm's `ObservableValidator`, MVC and a minimal API under
   `AddValidation()` over TestHost, with their messages in French from a resource, and both OpenAPI documents describe
-  each value object's text as the other does. NJsonSchema's two generators describe every sample value object as its
+  each value object's text as the other does. Newtonsoft.Json given `ValueObjectContractResolver` alone writes and reads
+  every underlying type as it does with the converter in its settings, a generic construction, value objects written by
+  hand and one carrying `[JsonObject]` included, keeps the converter a type names, leaves the contracts of the resolver
+  it wraps as they were, and converts the values of a JSON Patch document applied outside MVC. NJsonSchema's two
+  generators describe every sample value object as its
   underlying type on each wire their settings describe, and what each serializer writes of it, from the edges its rules
   declare to values drawn from them, validates as Confluent's serializer validates a message; NSwag's documents over
   TestHost, on System.Text.Json, on Newtonsoft.Json and in Swagger 2.0, describe each value object and each text, the
@@ -184,7 +188,7 @@ attribute's exception included,
 MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
 SignalR's MessagePack hub protocol 11 over TestHost, protobuf-net on a runtime model and on its compile-time model and
 a protobuf-net.Grpc code-first service over TestHost, a contract-first gRPC service answering through the gRPC package,
-FluentValidation, Newtonsoft.Json, Serilog, Microsoft.Extensions.AI
+FluentValidation, Newtonsoft.Json through its settings and its contract resolver, Serilog, Microsoft.Extensions.AI
 tools and structured output, Model Context Protocol tools over the SDK's own client, the Azure Functions converter and
 the problem details middleware beside ASP.NET Core 11, HotChocolate 16 scalars in a schema built in process, their
 messages in the language of the execution, a Blazor input rendered by `HtmlRenderer` on the Components of .NET 11, its

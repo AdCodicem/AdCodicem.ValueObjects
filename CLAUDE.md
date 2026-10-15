@@ -527,6 +527,18 @@ These are all load-bearing, and each cost real debugging time:
   handler of one request would record the codes of the next. The key it records a code under is the framework's model
   state key, rebuilt by `KeyOf` from the framework's error handler: a change to that handler upstream has to be carried
   there, and the parity theory of `NewtonsoftJsonInputFormatterTests` and the compatibility island are where it shows.
+- **Newtonsoft.Json keeps a member's contract on its container's contract.** `ValueObjectContractResolver` answers each
+  value object, and its nullable type, with a contract of its own carrying the converter, keeps a contract of the
+  resolver it wraps that carries a converter already (a `[JsonConverter]` on the type), and answers every other type
+  through that resolver, whose contracts it never changes: `CamelCasePropertyNamesContractResolver` keeps its cache in a
+  static field, MVC's default resolver is one static instance for every set of MVC's settings, and JSON Patch hands
+  every document it reads one resolver, through which it reads an object value's members (the guide gives a document a
+  `ValueObjectContractResolver` the application keeps, never a wrapper of its own resolver). A container's
+  contract stays the wrapped resolver's, and the first serializer to meet a member caches the member's contract on it,
+  so a serializer over the wrapper and another over the same wrapped resolver see each other's member contracts, in
+  either order (a unit test pins both): the resolver's unit tests serialize types of their own, over resolvers of their
+  own. A contract's converter wins over the settings' converters, which is one reason neither
+  `AddValueObjects()` nor `AddValueObjectsNewtonsoftJson()` wraps a resolver.
 - **`static virtual` and `static abstract` interface members are reachable only through a type parameter**
   (CS8926, CS0103 for explicit implementations). Default implementations on `INumericValueObject` are therefore
   unusable directly; the generator emits concrete members, and `UnderlyingValue` holds constrained generic
@@ -1470,7 +1482,7 @@ validator and entity identifiers minted on insert, MessagePack, with SignalR's M
 and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, protobuf-net on a runtime model and
 on its compile-time model, whose generator comes with the packed package, a protobuf-net.Grpc code-first service over
 TestHost 11, refused with its `ErrorInfo`, a contract-first service through the gRPC package's interceptor and
-collector, FluentValidation, Newtonsoft.Json,
+collector, FluentValidation, Newtonsoft.Json, through its settings and its contract resolver,
 Serilog, Microsoft.Extensions.AI tools and structured output, through `FunctionInvokingChatClient` and `ChatResponse<T>`
 of Microsoft.Extensions.AI 10, Model Context Protocol tools on ModelContextProtocol 2.2, a server in process and the SDK's
 own client over a pair of pipes, the Azure Functions converter and problem details middleware beside ASP.NET Core 11,

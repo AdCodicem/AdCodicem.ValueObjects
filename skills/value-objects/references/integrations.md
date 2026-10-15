@@ -151,6 +151,13 @@ is `value_object.not_parsable`, never truncated). The two modes read each other'
 rule there, so keep the converter. Hosts that serialize through Newtonsoft.Json by default, the Azure Cosmos DB SDK v3
 and Hangfire among them, take that path until their settings get the converter.
 
+Code that hands Newtonsoft.Json a contract resolver alone, with no settings, wraps it:
+`new ValueObjectContractResolver(inner)`, or `new ValueObjectContractResolver()` over a `DefaultContractResolver` of its
+own. Each value object, nullable or not, gets a contract of its own carrying the converter (a `[JsonConverter]` on the
+type is kept); every other type keeps the inner resolver's contract. Wrap a resolver no other serializer uses, never
+MVC's default one: Newtonsoft.Json caches each member's contract on its container's, which stays the inner resolver's.
+A contract's converter beats one in `settings.Converters`. Nothing wires it by itself.
+
 ## ASP.NET Core
 
 ```csharp skip
