@@ -284,6 +284,9 @@ body refuses for the problem details
 builder.Services.AddControllers().AddNewtonsoftJson().AddValueObjectsNewtonsoftJson(); // MVC
 ```
 
+Code that hands Newtonsoft.Json a contract resolver alone, with no settings to add the converter to, wraps the
+resolver instead ([A contract resolver](#a-contract-resolver)).
+
 One converter covers every value object, with the same rules as System.Text.Json and the same values on the wire:
 a number or a boolean as such, anything else as a string in the same form, `Int128` and `UInt128` included. The
 text is the same too, but for a whole `decimal`, `double` or `float`: Newtonsoft.Json always writes a real with a
@@ -317,8 +320,9 @@ Newtonsoft.Json reads as a `BigInteger`, is converted by no type converter, so a
 `long.MaxValue` written as a number is not read without the converter.
 
 `[JsonObject]` on a value object overrides the type converter: Newtonsoft.Json then writes the value object as an object
-holding `Value`, `{"Value":"ab"}`, and reads that object back as a default instance. Only `ValueObjectConverter` in the
-settings takes precedence over it. The attribute has no use on a value object, and `VO0043` fails the build on it
+holding `Value`, `{"Value":"ab"}`, and reads that object back as a default instance. Only `ValueObjectConverter`, in the
+settings or on the contract `ValueObjectContractResolver` gives the type ([A contract resolver](#a-contract-resolver)),
+takes precedence over it. The attribute has no use on a value object, and `VO0043` fails the build on it
 ([A serializer's contract attribute](../reference/diagnostics.md#a-serializers-contract-attribute)).
 
 ### Dates
@@ -356,3 +360,57 @@ var settings = new JsonSerializerSettings().AddValueObjects(decimalReals: false)
 
 `FloatParseHandling.Decimal` also gives an `object` or `JToken` member a `decimal` rather than a `double` for such a
 number.
+
+### A contract resolver
+
+Code that hands Newtonsoft.Json a contract resolver rather than settings wraps it in `ValueObjectContractResolver`:
+
+```csharp skip
+var camelCase = new ValueObjectContractResolver(new CamelCasePropertyNamesContractResolver());
+var resolver = new ValueObjectContractResolver();   // over a DefaultContractResolver of its own
+```
+
+It answers each value object, and its nullable type, with a contract of its own carrying `ValueObjectConverter`, a
+construction of a generic value object and a value object written by hand included, and every other type with the
+contract of the resolver it wraps. A value object whose type names a converter of its own with `[JsonConverter]` keeps
+that converter. The wrapped resolver's contracts are never changed: `CamelCasePropertyNamesContractResolver` shares its
+cache with every instance of its type in the process.
+
+Two consequences of how Newtonsoft.Json caches contracts:
+
+- The contract of a type holding value objects stays the wrapped resolver's, and Newtonsoft.Json keeps the contract of
+  each member on it from the first time a serializer reads or writes that member. A serializer over the wrapper and
+  another over the same wrapped resolver therefore see each other's member contracts, in whichever order they first
+  run. Wrap a resolver no other serializer uses, as the parameterless constructor does, and never MVC's default one,
+  a single instance every set of MVC's settings in the process shares.
+- A contract's converter wins over the converters the settings name: an application's own converter for a value
+  object in `Converters` loses to the resolver's. Name it on the type with `[JsonConverter]` instead.
+
+Neither `AddValueObjects()` nor `AddValueObjectsNewtonsoftJson()` wraps a resolver: settings keep the converter in
+`Converters`, which reaches every value object the resolver does.
+
+The one consumer found that reads a resolver alone is a JSON Patch document of `Microsoft.AspNetCore.JsonPatch` applied
+outside MVC. Give every document one resolver the application keeps:
+
+```csharp skip
+static readonly ValueObjectContractResolver PatchResolver = new();   // over a DefaultContractResolver of its own
+
+patch.ContractResolver = PatchResolver;
+patch.ApplyTo(order, error => logger.LogWarning("{Error}", error.ErrorMessage));
+```
+
+Through it, `replace` applies a value object written by hand, which has no type converter, and a `DateTimeOffset` in
+UTC, and a patched value follows the converter's wire, as a body does: `7.0` and `" 7"` are refused for an integer,
+`"true"` for a boolean. JSON Patch still reads each value again under settings of its own, with the document's resolver
+alone. A `decimal` loses the digits past a `double`'s, a `DateTimeOffset` refuses an explicit offset, a string value
+object refuses text that looks like a date, and a refusal is reported in JSON Patch's own words, which quote the value
+and carry no code. `copy` and the keys of a dictionary take no resolver at all.
+
+Never wrap the document's own resolver, `new ValueObjectContractResolver(patch.ContractResolver)`: it is one instance
+JSON Patch hands every document it reads, through which it reads an object value and its members. A document applied
+through it alone leaves the contracts of the members it read, without the converter, on the object's type, and a
+wrapped document applied after it reads those members without the converter too, as the first consequence above says.
+
+`JsonConvert.DefaultSettings = () => new JsonSerializerSettings().AddValueObjects();` reaches those reads too, and keeps
+the digits, the offsets, text that looks like a date and `copy`, but for every caller of `JsonConvert` in the process,
+and still with JSON Patch's messages and no code.

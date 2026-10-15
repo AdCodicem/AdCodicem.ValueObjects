@@ -34,6 +34,10 @@ public static class ValueObjectJsonSerializerSettingsExtensions
     /// <para>
     /// The converter is added once: a registration already in the settings is left alone.
     /// </para>
+    /// <para>
+    /// It leaves <see cref="JsonSerializerSettings.ContractResolver"/> as it is: <see cref="ValueObjectContractResolver"/>
+    /// is for code that hands Newtonsoft.Json a contract resolver alone.
+    /// </para>
     /// </remarks>
     public static JsonSerializerSettings AddValueObjects(this JsonSerializerSettings settings, bool decimalReals = true)
     {

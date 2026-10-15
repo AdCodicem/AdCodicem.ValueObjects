@@ -2,7 +2,9 @@ using System.Globalization;
 using AdCodicem.ValueObjects.Identifiers;
 using AdCodicem.ValueObjects.NewtonsoftJson;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
+using Microsoft.AspNetCore.JsonPatch;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using StjSerializer = System.Text.Json.JsonSerializer;
 
 namespace AdCodicem.ValueObjects.UnitTests;
@@ -10,7 +12,7 @@ namespace AdCodicem.ValueObjects.UnitTests;
 /// <summary>
 /// The Newtonsoft.Json converter, held to the System.Text.Json converter the generator emits: same rules, same wire.
 /// </summary>
-public class NewtonsoftJsonTests
+public partial class NewtonsoftJsonTests
 {
     /// <summary>The converter alone, under Newtonsoft.Json's defaults.</summary>
     private static readonly JsonSerializerSettings Defaults = new() { Converters = { new ValueObjectConverter() } };
@@ -704,12 +706,375 @@ public class NewtonsoftJsonTests
         large.Should().Throw<JsonReaderException>();
     }
 
+    /// <summary>
+    /// The resolver answers every value object, and its nullable type, with a contract of its own carrying the converter,
+    /// the same instance each time, under which a serializer given the resolver alone writes and reads what one given
+    /// the converter in its settings does.
+    /// </summary>
+    /// <param name="name">The case.</param>
+    [Theory]
+    [MemberData(nameof(Every))]
+    public void The_resolver_gives_every_value_object_and_its_nullable_type_a_contract_carrying_the_converter(string name)
+    {
+        var value = EveryUnderlyingType[name];
+        var resolver = new ValueObjectContractResolver();
+        var settings = new JsonSerializerSettings
+        {
+            ContractResolver = resolver,
+            DateParseHandling = DateParseHandling.None,
+            FloatParseHandling = FloatParseHandling.Decimal,
+        };
+
+        foreach (var type in new[] { value.GetType(), typeof(Nullable<>).MakeGenericType(value.GetType()) })
+        {
+            var contract = resolver.ResolveContract(type);
+
+            contract.Should().BeOfType<JsonStringContract>().Which.Converter.Should().BeOfType<ValueObjectConverter>();
+            resolver.ResolveContract(type).Should().BeSameAs(contract);
+
+            var json = JsonConvert.SerializeObject(value, type, settings);
+            json.Should().Be(JsonConvert.SerializeObject(value, type, Recommended));
+            JsonConvert.DeserializeObject(json, type, settings).Should().Be(value);
+        }
+
+        JsonConvert.DeserializeObject("null", typeof(Nullable<>).MakeGenericType(value.GetType()), settings).Should().BeNull();
+    }
+
+    /// <summary>
+    /// The resolver claims what the converter claims, through the registry: a construction of a generic value object
+    /// and value objects written by hand, nullable or not, whose refusals are the converter's, with their codes.
+    /// </summary>
+    [Fact]
+    public void The_resolver_claims_a_generic_construction_and_value_objects_written_by_hand()
+    {
+        var resolver = new ValueObjectContractResolver();
+        var settings = new JsonSerializerSettings { ContractResolver = resolver };
+        var quantity = () => JsonConvert.DeserializeObject<ResolvedHolder>("""{"Qty":1001}""", settings);
+        var code = () => JsonConvert.DeserializeObject<ResolvedHolder>("""{"Code":"x1"}""", settings);
+        var missing = () => JsonConvert.DeserializeObject<ResolvedHolder>("""{"Qty":null}""", settings);
+
+        foreach (var type in new[] { typeof(Reference<ResolvedHolder>), typeof(HandWrittenCode), typeof(HandWrittenLink?) })
+        {
+            resolver.ResolveContract(type).Converter.Should().BeOfType<ValueObjectConverter>("{0} is a value object", type);
+        }
+
+        var holder = JsonConvert.DeserializeObject<ResolvedHolder>(
+            """{"Qty":7,"Maybe":null,"Code":"abc","Ref":" po-9 ","Link":"https://example.com/a"}""",
+            settings)!;
+        JsonConvert.SerializeObject(holder, settings).Should()
+            .Be("""{"Qty":7,"Maybe":null,"Code":"ABC","Ref":"PO-9","Link":"https://example.com/a"}""");
+        quantity.Should().Throw<JsonSerializationException>().WithMessage("The value is not a valid Quantity: *")
+            .Which.ShouldCarry(ValueObjectErrorCodes.OutOfRange);
+        code.Should().Throw<JsonSerializationException>()
+            .WithMessage("The value is not a valid HandWrittenCode: A code holds ASCII letters only.")
+            .Which.ShouldCarry(ValueObjectErrorCodes.InvalidFormat);
+        missing.Should().Throw<JsonSerializationException>().WithMessage("Cannot convert null to 'Quantity'.")
+            .Which.ShouldCarry(ValueObjectErrorCodes.Required);
+    }
+
+    /// <summary>
+    /// A contract of the wrapped resolver that carries a converter already, the one a <c>[JsonConverter]</c> on the type
+    /// names, is answered as it is: that converter writes the value object.
+    /// </summary>
+    [Fact]
+    public void The_resolver_keeps_the_converter_a_value_object_names_on_its_type()
+    {
+        var inner = new DefaultContractResolver();
+        var resolver = new ValueObjectContractResolver(inner);
+
+        var contract = resolver.ResolveContract(typeof(PrefixedShelf));
+
+        contract.Should().BeSameAs(inner.ResolveContract(typeof(PrefixedShelf)));
+        contract.Converter.Should().BeOfType<PrefixedShelfConverter>();
+        JsonConvert.SerializeObject(new ShelfHolder { Shelf = PrefixedShelf.Create(7) }, new JsonSerializerSettings { ContractResolver = resolver })
+            .Should().Be("""{"Shelf":"S7"}""");
+    }
+
+    /// <summary>
+    /// A value object carrying Newtonsoft.Json's <c>[JsonObject]</c>, which <c>VO0043</c> refuses, gets an object
+    /// contract carrying no converter from the wrapped resolver, so the resolver answers it with its own: the resolver
+    /// alone writes and reads the value through its rules, where a serializer without it writes an object holding
+    /// <c>Value</c>, as the documentation states.
+    /// </summary>
+    [Fact]
+    public void The_resolver_writes_a_value_object_carrying_JsonObject_as_its_value()
+    {
+        var settings = new JsonSerializerSettings { ContractResolver = new ValueObjectContractResolver() };
+        var holder = new ObjectShapedHolder { Code = ObjectShapedCode.Create("ab") };
+        var tooLong = () => JsonConvert.DeserializeObject<ObjectShapedHolder>("""{"Code":"abcd"}""", settings);
+
+        JsonConvert.SerializeObject(holder).Should().Be("""{"Code":{"Value":"ab"}}""");
+        JsonConvert.SerializeObject(holder, settings).Should().Be("""{"Code":"ab"}""");
+        JsonConvert.DeserializeObject<ObjectShapedHolder>("""{"Code":"cd"}""", settings)!.Code.Should().Be(ObjectShapedCode.Create("cd"));
+        tooLong.Should().Throw<JsonSerializationException>().Which.ShouldCarry(ValueObjectErrorCodes.TooLong);
+    }
+
+    /// <summary>
+    /// The resolver never changes a contract of the resolver it wraps, whose cache may be shared by every instance of its
+    /// type, as the camel-case resolver's is: the wrapped resolver still answers a value object without the converter,
+    /// and a serializer over it alone writes a value object as its type converter's text.
+    /// </summary>
+    [Fact]
+    public void The_resolver_leaves_the_contracts_of_the_resolver_it_wraps_as_they_are()
+    {
+        var inner = new DefaultContractResolver();
+        var camelCase = new ValueObjectContractResolver(new CamelCasePropertyNamesContractResolver());
+
+        new ValueObjectContractResolver(inner).ResolveContract(typeof(Quantity));
+        camelCase.ResolveContract(typeof(Quantity)).Converter.Should().BeOfType<ValueObjectConverter>();
+
+        inner.ResolveContract(typeof(Quantity)).Converter.Should().BeNull();
+        new CamelCasePropertyNamesContractResolver().ResolveContract(typeof(Quantity)).Converter.Should().BeNull();
+        JsonConvert.SerializeObject(new ApartHolder { Qty = Quantity.Create(7) }, new JsonSerializerSettings { ContractResolver = inner })
+            .Should().Be("""{"Qty":"7"}""");
+    }
+
+    /// <summary>
+    /// The contract of a type holding value objects is the wrapped resolver's, on which Newtonsoft.Json keeps the
+    /// contract of each member the first time a serializer meets it: a serializer over the same wrapped resolver then
+    /// writes those members as the first one did, in either order, the limit the documentation tells a resolver of its
+    /// own for.
+    /// </summary>
+    [Fact]
+    public void A_serializer_sharing_the_wrapped_resolver_sees_the_member_contracts_the_first_one_cached()
+    {
+        var shared = new DefaultContractResolver();
+        var wrappedSettings = new JsonSerializerSettings { ContractResolver = new ValueObjectContractResolver(shared) };
+        var plainSettings = new JsonSerializerSettings { ContractResolver = shared };
+        var wrappedFirst = new SharedHolder { Qty = Quantity.Create(7) };
+        var plainFirst = new OtherSharedHolder { Qty = Quantity.Create(7) };
+
+        JsonConvert.SerializeObject(wrappedFirst, wrappedSettings).Should().Be("""{"Qty":7}""");
+        JsonConvert.SerializeObject(wrappedFirst, plainSettings).Should().Be("""{"Qty":7}""", "the plain serializer took the member contract the wrapped one cached");
+        JsonConvert.SerializeObject(plainFirst, plainSettings).Should().Be("""{"Qty":"7"}""");
+        JsonConvert.SerializeObject(plainFirst, wrappedSettings).Should().Be("""{"Qty":"7"}""", "the wrapped serializer took the member contract the plain one cached");
+    }
+
+    /// <summary>
+    /// Any type but a value object is the wrapped resolver's, its contract handed back as it is.
+    /// </summary>
+    [Fact]
+    public void The_resolver_answers_any_other_type_with_the_contract_of_the_resolver_it_wraps()
+    {
+        var inner = new DefaultContractResolver();
+        var resolver = new ValueObjectContractResolver(inner);
+
+        resolver.Inner.Should().BeSameAs(inner);
+        new ValueObjectContractResolver().Inner.Should().BeOfType<DefaultContractResolver>();
+        resolver.ResolveContract(typeof(string)).Should().BeSameAs(inner.ResolveContract(typeof(string)));
+        resolver.ResolveContract(typeof(ResolvedHolder)).Should().BeSameAs(inner.ResolveContract(typeof(ResolvedHolder)));
+    }
+
+    /// <summary>
+    /// A contract's converter wins over the converters the settings name, so an application's own converter for a value
+    /// object in the settings loses to the resolver's, as the documentation states.
+    /// </summary>
+    [Fact]
+    public void The_converter_of_a_contract_wins_over_a_converter_of_the_settings()
+    {
+        var settings = new JsonSerializerSettings
+        {
+            ContractResolver = new ValueObjectContractResolver(),
+            Converters = { new QuantityAsText() },
+        };
+
+        JsonConvert.SerializeObject(new ApartHolder { Qty = Quantity.Create(7) }, settings).Should().Be("""{"Qty":7}""");
+        JsonConvert.SerializeObject(new ApartHolder { Qty = Quantity.Create(7) }, new JsonSerializerSettings { Converters = { new QuantityAsText() } })
+            .Should().Be("""{"Qty":"Q7"}""");
+    }
+
+    [Fact]
+    public void The_resolver_refuses_a_null_resolver_or_type()
+    {
+        var resolver = () => new ValueObjectContractResolver(null!);
+        var contract = () => new ValueObjectContractResolver().ResolveContract(null!);
+
+        resolver.Should().Throw<ArgumentNullException>().WithParameterName("inner");
+        contract.Should().Throw<ArgumentNullException>().WithParameterName("type");
+    }
+
+    /// <summary>
+    /// Given to a JSON Patch document outside MVC, as the documentation shows, the resolver is what JSON Patch converts a
+    /// value with: a value object written by hand, which has no type converter, and a <c>DateTimeOffset</c> in UTC are
+    /// applied, where the document's own resolver refuses them. A value its rules refuse is still reported in JSON
+    /// Patch's terms, which quote the value and carry no code, the limit the documentation states.
+    /// </summary>
+    [Fact]
+    public void A_JSON_Patch_document_outside_MVC_converts_its_values_through_the_resolver()
+    {
+        const string Document = """
+            [{"op":"replace","path":"/code","value":"xyz"},{"op":"replace","path":"/at","value":"2026-10-14T08:00:00Z"},
+             {"op":"replace","path":"/qty","value":1001}]
+            """;
+        var wrapped = JsonConvert.DeserializeObject<JsonPatchDocument<ResolvedPatchTarget>>(Document)!;
+        wrapped.ContractResolver = new ValueObjectContractResolver();
+        var plain = JsonConvert.DeserializeObject<JsonPatchDocument<ResolvedPatchTarget>>(Document)!;
+        var target = new ResolvedPatchTarget();
+        var unwrapped = new ResolvedPatchTarget();
+        var errors = new List<JsonPatchError>();
+        var plainErrors = new List<string>();
+
+        wrapped.ApplyTo(target, errors.Add);
+        plain.ApplyTo(unwrapped, error => plainErrors.Add(error.ErrorMessage));
+
+        target.Code.Should().Be(HandWrittenCode.Create("XYZ"));
+        target.At.Should().Be(OccurredAt.Create(new DateTimeOffset(2026, 10, 14, 8, 0, 0, TimeSpan.Zero)));
+        errors.Should().ContainSingle().Which.ErrorMessage.Should().Be("The value '1001' is invalid for target location.");
+        plainErrors.Should().Contain("The value 'xyz' is invalid for target location.");
+        unwrapped.Code.IsDefault.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// JSON Patch hands every document it reads one resolver, through which it reads an object value and its members: a
+    /// document applied through it alone leaves the contract of a member it read, without the converter, on the object's
+    /// type, which a document wrapping that resolver then reads the member with, while a wrapper read first applies the
+    /// value, and a resolver of the application's own always does, as the documentation says.
+    /// </summary>
+    [Fact]
+    public void A_JSON_Patch_document_wrapping_its_own_resolver_reads_the_member_contracts_another_document_cached()
+    {
+        const string Document = """[{"op":"replace","path":"/home","value":{"code":"abc"}}]""";
+        var plain = JsonConvert.DeserializeObject<JsonPatchDocument<PatchedHome<PlainFirstHome>>>(Document)!;
+        var wrappedAfter = JsonConvert.DeserializeObject<JsonPatchDocument<PatchedHome<PlainFirstHome>>>(Document)!;
+        var wrappedAlone = JsonConvert.DeserializeObject<JsonPatchDocument<PatchedHome<WrappedAloneHome>>>(Document)!;
+        var own = JsonConvert.DeserializeObject<JsonPatchDocument<PatchedHome<PlainFirstHome>>>(Document)!;
+        var shared = plain.ContractResolver;
+        wrappedAfter.ContractResolver = new ValueObjectContractResolver(wrappedAfter.ContractResolver);
+        wrappedAlone.ContractResolver = new ValueObjectContractResolver(wrappedAlone.ContractResolver);
+        own.ContractResolver = new ValueObjectContractResolver();
+        var plainErrors = new List<string>();
+        var wrappedAfterErrors = new List<string>();
+        var alone = new PatchedHome<WrappedAloneHome>();
+        var owned = new PatchedHome<PlainFirstHome>();
+
+        plain.ApplyTo(new PatchedHome<PlainFirstHome>(), error => plainErrors.Add(error.ErrorMessage));
+        wrappedAfter.ApplyTo(new PatchedHome<PlainFirstHome>(), error => wrappedAfterErrors.Add(error.ErrorMessage));
+        wrappedAlone.ApplyTo(alone);
+        own.ApplyTo(owned);
+
+        ((ValueObjectContractResolver)wrappedAfter.ContractResolver).Inner.Should().BeSameAs(shared, "JSON Patch hands every document one resolver");
+        plainErrors.Should().ContainSingle().Which.Should().StartWith("The value '{");
+        wrappedAfterErrors.Should().Equal(plainErrors);
+        alone.Home!.Code.Should().Be(HandWrittenCode.Create("ABC"));
+        owned.Home!.Code.Should().Be(HandWrittenCode.Create("ABC"));
+    }
+
     private sealed record Payment(Iban Account, Amount Total, CustomerId Customer, BirthDate? Birth, Quantity Lines);
 
     /// <summary>A member holding a value object written by hand over a type Newtonsoft.Json reads itself.</summary>
     private sealed class Linked
     {
         public HandWrittenLink Link { get; set; }
+    }
+
+    /// <summary>A shelf naming a converter of the application's own on its type, which the resolver keeps.</summary>
+    [ValueObject<int>]
+    [Newtonsoft.Json.JsonConverter(typeof(PrefixedShelfConverter))]
+    public readonly partial struct PrefixedShelf;
+
+    /// <summary>A code carrying Newtonsoft.Json's <c>[JsonObject]</c>, which the resolver overrides.</summary>
+    [ValueObject<string>(MaxLength = 3)]
+#pragma warning disable VO0043 // The trap the resolver overrides, on purpose: Newtonsoft.Json alone writes it as an object.
+    [Newtonsoft.Json.JsonObject]
+#pragma warning restore VO0043
+    public readonly partial struct ObjectShapedCode;
+
+    /// <summary>Members of every kind the resolver answers, of a type no other test serializes.</summary>
+    private sealed class ResolvedHolder
+    {
+        public Quantity Qty { get; set; }
+
+        public Quantity? Maybe { get; set; }
+
+        public HandWrittenCode? Code { get; set; }
+
+        public Reference<ResolvedHolder>? Ref { get; set; }
+
+        public HandWrittenLink? Link { get; set; }
+    }
+
+    /// <summary>A member holding the shelf.</summary>
+    private sealed class ShelfHolder
+    {
+        public PrefixedShelf Shelf { get; set; }
+    }
+
+    /// <summary>A member holding the code carrying <c>[JsonObject]</c>.</summary>
+    private sealed class ObjectShapedHolder
+    {
+        public ObjectShapedCode Code { get; set; }
+    }
+
+    /// <summary>A member a serializer over the wrapped resolver alone writes.</summary>
+    private sealed class ApartHolder
+    {
+        public Quantity Qty { get; set; }
+    }
+
+    /// <summary>A member two serializers sharing a wrapped resolver write, the wrapped one first.</summary>
+    private sealed class SharedHolder
+    {
+        public Quantity Qty { get; set; }
+    }
+
+    /// <summary>A member two serializers sharing a wrapped resolver write, the plain one first.</summary>
+    private sealed class OtherSharedHolder
+    {
+        public Quantity Qty { get; set; }
+    }
+
+    /// <summary>The object a JSON Patch document applied outside MVC patches, which no other test patches.</summary>
+    private sealed class ResolvedPatchTarget
+    {
+        public HandWrittenCode Code { get; set; }
+
+        public OccurredAt At { get; set; }
+
+        public Quantity Qty { get; set; }
+    }
+
+    /// <summary>An object holding a home, an object value a JSON Patch document replaces whole.</summary>
+    /// <typeparam name="THome">The home, a type of each case's own.</typeparam>
+    private sealed class PatchedHome<THome>
+        where THome : class
+    {
+        public THome? Home { get; set; }
+    }
+
+    /// <summary>A home a document applied through JSON Patch's resolver alone reads first.</summary>
+    private sealed class PlainFirstHome
+    {
+        public HandWrittenCode Code { get; set; }
+    }
+
+    /// <summary>A home only a document wrapping JSON Patch's resolver reads.</summary>
+    private sealed class WrappedAloneHome
+    {
+        public HandWrittenCode Code { get; set; }
+    }
+
+    /// <summary>Writes a shelf with a prefix, and reads nothing.</summary>
+    private sealed class PrefixedShelfConverter : JsonConverter
+    {
+        public override bool CanConvert(Type objectType) => objectType == typeof(PrefixedShelf);
+
+        public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
+            => throw new NotSupportedException();
+
+        public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
+            => writer.WriteValue($"S{((PrefixedShelf)value!).Value.ToString(CultureInfo.InvariantCulture)}");
+    }
+
+    /// <summary>Writes a quantity as text with a prefix, a converter of the application's own, and reads nothing.</summary>
+    private sealed class QuantityAsText : JsonConverter
+    {
+        public override bool CanConvert(Type objectType) => objectType == typeof(Quantity);
+
+        public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
+            => throw new NotSupportedException();
+
+        public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
+            => writer.WriteValue($"Q{((Quantity)value!).Value.ToString(CultureInfo.InvariantCulture)}");
     }
 
     /// <summary>A member naming the converter although it holds no value object.</summary>
