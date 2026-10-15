@@ -157,18 +157,21 @@ public sealed partial class DocumentationSnippetTests
         var attributes = await RunAnalyzerAsync<ValidationAttributeAnalyzer>(snippet);
         var serializers = await RunAnalyzerAsync<SerializerContractAnalyzer>(snippet);
         var classifications = await RunAnalyzerAsync<DataClassificationAnalyzer>(snippet);
+        var nonUnicode = await RunAnalyzerAsync<NonUnicodeTextAnalyzer>(snippet);
 
         // VO0011 is the one that matters here: a rule written without its interface compiles, never runs, and is
         // only a warning in a consumer's project. Published prose is exactly where that gets copied from, and so is a
         // [ParsesAs] or a [NotDefault] on a member it would throw for, and a serializer's contract attribute on a value
         // object. The snippets reference no third-party serializer, so a block showing one is tagged skip already;
         // [DataContract], [XmlType] and [Serializable] come with the framework. A [LoggerMessage] method that writes a
-        // value object classified as personal data in clear is as easily copied.
+        // value object classified as personal data in clear is as easily copied, and so is Unicode = false on text its
+        // rules do not hold to ASCII.
         hooks.Select(diagnostic => diagnostic.Id).Should().BeEmpty("{0}, snippet {1}", file, index);
         uninitialized.Select(diagnostic => diagnostic.Id).Should().BeEmpty("{0}, snippet {1}", file, index);
         attributes.Select(diagnostic => diagnostic.Id).Should().BeEmpty("{0}, snippet {1}", file, index);
         serializers.Select(diagnostic => diagnostic.Id).Should().BeEmpty("{0}, snippet {1}", file, index);
         classifications.Select(diagnostic => diagnostic.Id).Should().BeEmpty("{0}, snippet {1}", file, index);
+        nonUnicode.Select(diagnostic => diagnostic.Id).Should().BeEmpty("{0}, snippet {1}", file, index);
     }
 
     /// <summary>

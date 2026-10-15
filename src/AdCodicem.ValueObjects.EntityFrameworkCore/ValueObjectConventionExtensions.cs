@@ -22,8 +22,16 @@ public static class ValueObjectConventionExtensions
     /// <returns>The same builder, so calls can be chained.</returns>
     /// <remarks>
     /// <para>
-    /// A value object declaring a maximum length also sizes its column, so an IBAN lands in <c>varchar(34)</c>
-    /// rather than an unbounded column — the rule is stated once, on the type, and the schema follows.
+    /// A value object declaring a maximum length also sizes its column, so an IBAN lands in <c>nvarchar(34)</c> on SQL
+    /// Server, or in <c>varchar(34)</c> once it declares <c>Unicode = false</c>, rather than an unbounded column — the
+    /// rule is stated once, on the type, and the schema follows.
+    /// </para>
+    /// <para>
+    /// A value object declaring <c>Unicode = false</c> is mapped to non-Unicode text, its optional form, each construction
+    /// of a generic one and each element of a collection included, so that SQL Server stores it in <c>varchar</c> and
+    /// declares a parameter compared with it <c>varchar</c> too. PostgreSQL and SQLite store text as they always do.
+    /// <c>Properties&lt;TSelf&gt;().AreUnicode(true)</c> after this call, or <c>IsUnicode(true)</c> on a property, keeps
+    /// Unicode text.
     /// </para>
     /// <para>
     /// A value object over <see cref="Int128"/> or <see cref="UInt128"/> is left alone: Entity Framework Core maps
@@ -39,7 +47,7 @@ public static class ValueObjectConventionExtensions
     /// <c>IReadOnlyList&lt;Iban?&gt;</c>, in an entity type, an owned type or a complex type, is mapped as a primitive
     /// collection: each element gets the converter, the comparer and the length of its value object, so that an IBAN
     /// lands in a <c>character varying(34)[]</c> on PostgreSQL, and in a JSON array elsewhere, which SQL Server reads as
-    /// <c>nvarchar(34)</c>. Only a property Entity Framework Core would map itself, one with a public getter and a setter,
+    /// <c>nvarchar(34)</c>, or <c>varchar(34)</c> for a value object declaring <c>Unicode = false</c>. Only a property Entity Framework Core would map itself, one with a public getter and a setter,
     /// is made one, unless the application converts the whole collection itself; a primitive collection the application
     /// declares, over a read-only property, gets its elements configured too, unless the application set their converter.
     /// </para>
@@ -121,9 +129,10 @@ public static class ValueObjectConventionExtensions
         var mapped = new Dictionary<Type, ValueObjectDescriptor>();
         foreach (var descriptor in ValueObjectRegistry.GetRegistered())
         {
-            // The length is the descriptor's: a registration made by hand may give a value object another schema than
-            // the one its type declares.
-            if (descriptor.Accept(new PropertiesConfiguration(builder, strict, descriptor.Schema.MaxLength)))
+            // The length and the Unicode facet are the descriptor's: a registration made by hand may give a value object
+            // another schema than the one its type declares.
+            var schema = descriptor.Schema;
+            if (descriptor.Accept(new PropertiesConfiguration(builder, strict, schema.MaxLength, schema.IsUnicode)))
             {
                 mapped.Add(descriptor.ValueObjectType, descriptor);
             }
@@ -183,11 +192,16 @@ public static class ValueObjectConventionExtensions
                 : new ValueObjectConverter<TSelf, TValue>(),
             new ValueObjectComparer<TSelf>());
 
-        // The length the value object declares, read off the type rather than out of the registry, which would describe
-        // a construction of a generic value object by reflection.
+        // The length and the Unicode facet the value object declares, read off the type rather than out of the registry,
+        // which would describe a construction of a generic value object by reflection.
         if (TSelf.Schema.MaxLength is { } maxLength)
         {
             builder.HasMaxLength(maxLength);
+        }
+
+        if (TSelf.Schema.IsUnicode is false)
+        {
+            builder.IsUnicode(false);
         }
 
         return builder;
@@ -341,7 +355,11 @@ public static class ValueObjectConventionExtensions
     /// <param name="builder">Model configuration builder.</param>
     /// <param name="strict">Whether what is read is validated again.</param>
     /// <param name="maxLength">The length the descriptor declares, which sizes the column.</param>
-    private sealed class PropertiesConfiguration(ModelConfigurationBuilder builder, bool strict, int? maxLength)
+    /// <param name="unicode">
+    /// Whether the descriptor declares its text Unicode: <see langword="false"/> maps it to non-Unicode text, and anything
+    /// else leaves the column to the provider.
+    /// </param>
+    private sealed class PropertiesConfiguration(ModelConfigurationBuilder builder, bool strict, int? maxLength, bool? unicode)
         : IValueObjectVisitor<bool>
     {
         /// <summary>
@@ -368,11 +386,16 @@ public static class ValueObjectConventionExtensions
                 properties.HaveMaxLength(length);
             }
 
-            // A TSelf? property takes the configuration of TSelf, the length included, then its own: a converter
-            // storing a value the value object rejects as NULL, where the column of a TSelf throws (a value object
-            // written by hand over a reference type other than string keeps its own), and a comparer of the nullable
-            // type, which a compiled model can write, where it cannot write the wrapping EF Core would otherwise give
-            // ValueObjectComparer.
+            if (unicode is false)
+            {
+                properties.AreUnicode(false);
+            }
+
+            // A TSelf? property takes the configuration of TSelf, the length and the Unicode facet included, then its
+            // own: a converter storing a value the value object rejects as NULL, where the column of a TSelf throws (a
+            // value object written by hand over a reference type other than string keeps its own), and a comparer of
+            // the nullable type, which a compiled model can write, where it cannot write the wrapping EF Core would
+            // otherwise give ValueObjectComparer.
             builder.Properties<TSelf?>().HaveConversion(
                 ConverterTypes.Optional<TSelf, TValue>(strict) ?? converter,
                 typeof(NullableValueObjectComparer<TSelf>));

@@ -18,6 +18,7 @@ JSON strings), `decimal`, `double`, `float`, `DateOnly`, `TimeOnly`, `DateTime`,
 | --- | --- | --- | --- |
 | `Pattern` | `string?` | none | **Removed**: setting it is a compile error (`VO0021`), and nothing reads it. Implement [`IValueObjectPatternValidator`](#a-pattern) instead. Any minor version may remove the property before 1.0.0. |
 | `MinLength`, `MaxLength` | `int` | `-1`, unconstrained | `string` only (`VO0008` otherwise). Validation, OpenAPI `minLength` / `maxLength`, and the EF Core column size. |
+| `Unicode` | `bool` | `true` | `string` only (`VO0008` otherwise). `false` stores and sends the text as non-Unicode text, `varchar` on SQL Server: the EF Core column and its parameters, and the Dapper handler's. How the text is stored, not a rule: for ASCII text, which the rules hold to ASCII, or `VO0047` warns. See [Non-Unicode text](./how-to/ef-core.md#non-unicode-text). |
 | `Minimum`, `Maximum` | `string?` | none | **Removed**: setting either is a compile error (`VO0028`), and nothing reads it. Implement [`IValueObjectMinimum<T>` and `IValueObjectMaximum<T>`](#bounds) instead. Any minor version may remove the properties before 1.0.0. |
 | `Comparison` | `StringComparison` | `Ordinal` | `string` only. Drives equality, ordering and hashing together. A value the enum does not define → `VO0020`. |
 | `ValueSet` | `ValueSetKind` | `Open` | `Closed` accepts only the [known values](#known-values), through a frozen lookup, and becomes the schema `enum`. Members of a closed set over a reference type are boxed once and shared, so the boxed paths allocate nothing. A value the enum does not define → `VO0020`. |
@@ -315,7 +316,7 @@ generated converter inherits.
 
 ## Diagnostics
 
-The generator, the analyzers and the compiler report `VO0001` to `VO0046`. [Diagnostics](./reference/diagnostics.md)
+The generator, the analyzers and the compiler report `VO0001` to `VO0047`. [Diagnostics](./reference/diagnostics.md)
 lists each one with its fix.
 
 Next: [Generated members](./reference/generated-members.md), for what the generator writes from all of this.

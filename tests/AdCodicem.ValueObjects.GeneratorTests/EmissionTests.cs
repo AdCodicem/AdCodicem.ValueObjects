@@ -169,6 +169,37 @@ public sealed class EmissionTests
     }
 
     /// <summary>
+    /// <c>Unicode = false</c> is stated in the schema after the length, for the Entity Framework Core conventions and the
+    /// Dapper handler, a generic value object's included; <c>Unicode = true</c>, the default, and an option left out state
+    /// nothing.
+    /// </summary>
+    /// <param name="declaration">The declaration.</param>
+    /// <param name="stated">Whether the schema states the text non-Unicode.</param>
+    [Theory]
+    [InlineData("[ValueObject<string>(MaxLength = 34, Unicode = false)] public readonly partial struct Iban;", true)]
+    [InlineData("[ValueObject<string>(Unicode = false, MaxLength = 34)] public readonly partial struct Code<TOwner>;", true)]
+    [InlineData("[ValueObject<string>(MaxLength = 34, Unicode = true)] public readonly partial struct Iban;", false)]
+    [InlineData("[ValueObject<string>(MaxLength = 34)] public readonly partial struct Iban;", false)]
+    public void The_schema_states_text_declared_non_Unicode(string declaration, bool stated)
+    {
+        var run = GeneratorHarness.Run(declaration);
+
+        run.Diagnostics.Should().BeEmpty();
+        run.CompilationDiagnostics.Should().BeEmpty();
+        var source = run.SingleValueObject;
+        source.Should().Contain("MaxLength = 34,");
+        if (stated)
+        {
+            source.IndexOf("IsUnicode = false,", StringComparison.Ordinal)
+                .Should().BeGreaterThan(source.IndexOf("MaxLength = 34,", StringComparison.Ordinal), "the facet follows the length");
+        }
+        else
+        {
+            source.Should().NotContain("IsUnicode");
+        }
+    }
+
+    /// <summary>
     /// A tool reading the public instance properties of a type publishes each as data, so <c>IsDefault</c>, a guard
     /// for code, is implemented explicitly: over a string it tells an instance holding no string, over a value type an
     /// instance equal to the type's zero.

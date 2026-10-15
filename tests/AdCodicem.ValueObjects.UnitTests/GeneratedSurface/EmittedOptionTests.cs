@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Globalization;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using AdCodicem.ValueObjects.Generated;
@@ -169,6 +170,23 @@ public class EmittedOptionTests
         FluentActions.Invoking(() => largest + ByteCount.Create(1)).Should().Throw<OverflowException>();
         FluentActions.Invoking(() => ByteCount.Sum([largest, ByteCount.Create(1)])).Should().Throw<OverflowException>();
         FluentActions.Invoking(() => FileSize.Create(long.MaxValue) * 2L).Should().Throw<OverflowException>();
+    }
+
+    /// <summary>
+    /// <c>Unicode = false</c> is how the text is stored, which the schema states for the Entity Framework Core
+    /// conventions and the Dapper handler, and the descriptor carries; a value object that does not declare it states
+    /// nothing. The attribute defaults to Unicode text.
+    /// </summary>
+    [Fact]
+    public void A_value_object_declaring_its_text_non_Unicode_states_it_in_its_schema_and_its_descriptor()
+    {
+        Bic.Schema.IsUnicode.Should().BeFalse();
+        Label.Schema.IsUnicode.Should().BeNull("a value object that does not declare the option states nothing");
+        ValueObjectRegistry.TryGet(typeof(Bic), out var descriptor).Should().BeTrue();
+        descriptor!.Schema.IsUnicode.Should().BeFalse();
+
+        typeof(Bic).GetCustomAttribute<ValueObjectAttribute<string>>()!.Unicode.Should().BeFalse();
+        new ValueObjectAttribute<string>().Unicode.Should().BeTrue();
     }
 
     [Fact]

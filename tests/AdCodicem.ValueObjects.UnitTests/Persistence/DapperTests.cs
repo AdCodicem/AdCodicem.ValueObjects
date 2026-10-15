@@ -4,6 +4,7 @@ using System.Reflection;
 using AdCodicem.ValueObjects.Dapper;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.UnitTests.Domain.HandWritten;
+using AdCodicem.ValueObjects.UnitTests.TestData;
 using Dapper;
 
 namespace AdCodicem.ValueObjects.UnitTests.Persistence;
@@ -304,23 +305,81 @@ public class DapperTests
     }
 
     /// <summary>
-    /// The EF Core conventions map an identifier to fixed-length, non-Unicode text of its exact length, and a value
-    /// object declaring a maximum length to Unicode text of that length. A parameter declaring the same type is
-    /// compared with the column as it is, and SQL Server keeps its index seek.
+    /// The EF Core conventions map an identifier to fixed-length, non-Unicode text of its exact length, a value object
+    /// declaring <c>Unicode = false</c> to non-Unicode text of its maximum length, and a value object declaring a maximum
+    /// length alone to Unicode text of that length. A parameter declaring the same type is compared with the column as it
+    /// is, and SQL Server keeps its index seek.
     /// </summary>
     [Fact]
     public void A_text_parameter_declares_the_column_the_conventions_map_the_value_object_to()
     {
         var identifier = Substitute.For<IDbDataParameter>();
         var iban = Substitute.For<IDbDataParameter>();
+        var bic = Substitute.For<IDbDataParameter>();
 
         new ValueObjectTypeHandler<AccountId, string>().SetValue(identifier, AccountId.New());
         new ValueObjectTypeHandler<Iban, string>().SetValue(iban, Iban.Create("FR7630006000011234567890189"));
+        new ValueObjectTypeHandler<Bic, string>().SetValue(bic, Bic.Create("DEUTDEFF"));
 
         identifier.DbType.Should().Be(DbType.AnsiStringFixedLength);
         identifier.Size.Should().Be(AccountId.Length);
         iban.DbType.Should().Be(DbType.String);
         iban.Size.Should().Be(34);
+        bic.DbType.Should().Be(DbType.AnsiString);
+        bic.Size.Should().Be(11);
+    }
+
+    /// <summary>
+    /// A value object declaring <c>Unicode = false</c> and no length goes out as non-Unicode text of the value's own
+    /// length, as SqlClient sizes Unicode text.
+    /// </summary>
+    [Fact]
+    public void A_non_Unicode_value_object_declaring_no_length_is_sized_as_its_value()
+    {
+        var parameter = Substitute.For<IDbDataParameter>();
+
+        new ValueObjectTypeHandler<AsciiTag, string>().SetValue(parameter, AsciiTag.Create("blue-7"));
+
+        parameter.DbType.Should().Be(DbType.AnsiString);
+        parameter.Size.Should().Be(6);
+    }
+
+    /// <summary>
+    /// A construction of a generic value object and a value object written by hand go out as non-Unicode text where
+    /// their schema declares it, read off the type: the registry is never asked to describe them.
+    /// </summary>
+    [Fact]
+    public void A_construction_and_a_value_object_written_by_hand_declaring_it_go_out_non_Unicode()
+    {
+        var reference = Substitute.For<IDbDataParameter>();
+        var declared = Substitute.For<IDbDataParameter>();
+
+        new ValueObjectTypeHandler<AsciiReference<NonUnicodeOwner>, string>()
+            .SetValue(reference, AsciiReference<NonUnicodeOwner>.Create("PO-7"));
+        new ValueObjectTypeHandler<Declared<AsciiDeclaration, string>, string>()
+            .SetValue(declared, Declared<AsciiDeclaration, string>.Create("legacy"));
+
+        reference.DbType.Should().Be(DbType.AnsiString);
+        reference.Size.Should().Be(12);
+        ValueObjectRegistry.TryGet(typeof(AsciiReference<NonUnicodeOwner>), out _).Should().BeFalse("nothing described it");
+        declared.DbType.Should().Be(DbType.AnsiString);
+        declared.Size.Should().Be(20);
+    }
+
+    /// <summary>
+    /// A value object whose schema states its text Unicode goes out as Unicode text of its length, as one stating nothing
+    /// does: only <c>false</c> is acted on.
+    /// </summary>
+    [Fact]
+    public void A_value_object_stating_its_text_Unicode_goes_out_as_Unicode_text()
+    {
+        var parameter = Substitute.For<IDbDataParameter>();
+
+        new ValueObjectTypeHandler<Declared<UnicodeDeclaration, string>, string>()
+            .SetValue(parameter, Declared<UnicodeDeclaration, string>.Create("legacy"));
+
+        parameter.DbType.Should().Be(DbType.String);
+        parameter.Size.Should().Be(20);
     }
 
     /// <summary>
@@ -353,6 +412,10 @@ public class DapperTests
         new ValueObjectTypeHandler<Iban, string>().SetValue(parameter, Iban.CreateUnchecked(new string('X', 40)));
 
         parameter.Size.Should().Be(40);
+
+        var bic = Substitute.For<IDbDataParameter>();
+        new ValueObjectTypeHandler<Bic, string>().SetValue(bic, Bic.CreateUnchecked(new string('X', 20)));
+        bic.Size.Should().Be(20);
     }
 
     [Fact]
@@ -595,6 +658,9 @@ public class DapperTests
 
         public RecordedAt? Closed { get; set; }
     }
+
+    /// <summary>The owner of a non-Unicode construction nothing else resolves.</summary>
+    private sealed class NonUnicodeOwner;
 
     /// <summary>An application's own handler, which reads every cell as the same IBAN.</summary>
     private sealed class FixedIbanHandler : SqlMapper.TypeHandler<Iban>

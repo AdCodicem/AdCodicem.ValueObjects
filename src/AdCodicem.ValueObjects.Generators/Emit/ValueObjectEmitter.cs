@@ -387,6 +387,12 @@ internal static class ValueObjectEmitter
             properties.Add($"MaxLength = {model.MaxLength},");
         }
 
+        // How the text is stored, which the EF Core conventions and the Dapper handler read: no rule checks it.
+        if (model.NonUnicode)
+        {
+            properties.Add("IsUnicode = false,");
+        }
+
         // A hook is read when the type initializes, through the bridge, and written in the one form a bound of its type
         // takes, which the OpenAPI transformer reads back as it reads a text bound.
         if (model.HasMinimumHook)

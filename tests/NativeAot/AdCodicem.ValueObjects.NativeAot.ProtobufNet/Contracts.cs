@@ -83,6 +83,9 @@ public sealed class Everything
 
     [ProtoMember(21)]
     public Price Price { get; set; }
+
+    [ProtoMember(22)]
+    public Bic Bic { get; set; }
 }
 
 /// <summary>The same message over the primitives, each at the level its value object's serializer names.</summary>
@@ -155,6 +158,9 @@ public sealed class PlainEverything
     [ProtoMember(21)]
     [CompatibilityLevel(CompatibilityLevel.Level300)]
     public decimal Price { get; set; }
+
+    [ProtoMember(22)]
+    public string? Bic { get; set; }
 }
 
 /// <summary>Lists of value objects, of a number and of text.</summary>

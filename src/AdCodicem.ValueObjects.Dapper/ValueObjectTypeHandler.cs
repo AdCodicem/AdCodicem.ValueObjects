@@ -22,9 +22,11 @@ namespace AdCodicem.ValueObjects.Dapper;
 /// <para>
 /// A parameter declares the column a value object over <see cref="string"/> is mapped to when the value object says
 /// more than its underlying type, as the Entity Framework Core conventions map it: an entity identifier as fixed-length,
-/// non-Unicode text of its exact length, a value object declaring a maximum length as Unicode text of that length.
-/// SQL Server then compares the parameter with the column as it is, with no implicit conversion of the column to cost
-/// an index seek. The size is never smaller than the value, which both SqlClient and Npgsql would otherwise truncate.
+/// non-Unicode text of its exact length, a value object declaring <c>Unicode = false</c> as non-Unicode text of its
+/// maximum length or, declaring none, of the value's own, and one declaring a maximum length alone as Unicode text of
+/// that length. SQL Server then compares the parameter with the column as it is, with no implicit conversion of the
+/// column to cost an index seek, and an Always Encrypted <c>varchar</c> column takes it. The size is never smaller than
+/// the value, which both SqlClient and Npgsql would otherwise truncate.
 /// </para>
 /// <para>
 /// A SQL <c>NULL</c> reads as <see langword="null"/> into an optional value object, <c>TSelf?</c>, and is refused
@@ -157,25 +159,35 @@ public sealed class ValueObjectTypeHandler<TSelf, TValue> : SqlMapper.TypeHandle
     /// <returns>The column type and its length, or <see langword="null"/> when the underlying type says it all.</returns>
     /// <remarks>
     /// <para>
-    /// Only an entity identifier is known to be ASCII. Declaring any other text non-Unicode would let SQL Server
-    /// replace the characters its code page lacks.
+    /// An entity identifier is ASCII by construction. Any other text goes out non-Unicode only where its value object
+    /// declares <c>Unicode = false</c>, since SQL Server would otherwise replace the characters its code page lacks;
+    /// with no maximum length declared, the size is the value's own, as SqlClient sizes Unicode text.
     /// </para>
     /// <para>
-    /// The length is the one the value object declares, read off <see cref="IValueObject{TSelf, TValue}.Schema"/>
-    /// rather than out of the registry, so that a construction of a generic value object, which the registry would
-    /// describe by reflection, is sized as any other value object is.
+    /// The length and the Unicode facet are the ones the value object declares, read off
+    /// <see cref="IValueObject{TSelf, TValue}.Schema"/> rather than out of the registry, so that a construction of a
+    /// generic value object, which the registry would describe by reflection, is sized as any other value object is.
     /// </para>
     /// </remarks>
     private static (DbType Type, int Length)? DeclaredColumn()
     {
-        if (typeof(TValue) != typeof(string) || TSelf.Schema.MaxLength is not { } maxLength)
+        if (typeof(TValue) != typeof(string))
         {
             return null;
         }
 
-        return typeof(TSelf).GetInterface(EntityIdInterface) is not null
-            ? (DbType.AnsiStringFixedLength, maxLength)
-            : (DbType.String, maxLength);
+        var schema = TSelf.Schema;
+        if (schema.MaxLength is { } fixedLength && typeof(TSelf).GetInterface(EntityIdInterface) is not null)
+        {
+            return (DbType.AnsiStringFixedLength, fixedLength);
+        }
+
+        if (schema.IsUnicode is false)
+        {
+            return (DbType.AnsiString, schema.MaxLength ?? 0);
+        }
+
+        return schema.MaxLength is { } maxLength ? (DbType.String, maxLength) : null;
     }
 
     /// <summary>

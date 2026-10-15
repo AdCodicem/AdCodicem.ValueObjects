@@ -49,6 +49,15 @@ public readonly partial struct EmailAddress : IValueObjectNormalizer<string>, IV
     public static string NormalizeValue(string value) => value.Trim().ToLowerInvariant();
 }
 
+/// <summary>A bank identifier code, held to ASCII by its pattern and stored as non-Unicode text: varchar on SQL Server.</summary>
+[ValueObject<string>(MinLength = 8, MaxLength = 11, Unicode = false)]
+public readonly partial struct Bic : IValueObjectPatternValidator
+{
+    /// <inheritdoc />
+    [GeneratedRegex("^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    public static partial Regex Pattern { get; }
+}
+
 /// <summary>A bounded string value object with every kind of rule: lengths, pattern, normalizer and validator.</summary>
 [ValueObject<string>(MinLength = 15, MaxLength = 34, SchemaFormat = "iban")]
 public readonly partial struct Iban : IValueObjectNormalizer<string>, IValueObjectPatternValidator, IValueObjectValidator<string>
@@ -242,6 +251,9 @@ public sealed class Parcel
 
     /// <summary>Gets or sets the label.</summary>
     public string Label { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the bank of the sender, if any.</summary>
+    public Bic? Sender { get; set; }
 }
 
 /// <summary>A ticket, whose key is the database's identity.</summary>

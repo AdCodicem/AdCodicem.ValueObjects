@@ -246,12 +246,36 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 
         var minLength = GetInt32(arguments, "MinLength");
         var maxLength = GetInt32(arguments, "MaxLength");
-        if (!underlying.IsString && (minLength >= 0 || maxLength >= 0))
+
+        var nonUnicode = DeclaresNonUnicode(arguments);
+        if (!underlying.IsString && (minLength >= 0 || maxLength >= 0 || nonUnicode))
         {
+            var set = new List<string>(3);
+            if (minLength >= 0)
+            {
+                set.Add("MinLength");
+            }
+
+            if (maxLength >= 0)
+            {
+                set.Add("MaxLength");
+            }
+
+            if (nonUnicode)
+            {
+                set.Add("Unicode = false");
+            }
+
             diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.LengthRequiresString, location, symbol.Name, underlying.Keyword));
+                DiagnosticDescriptors.TextOptionRequiresString,
+                location,
+                symbol.Name,
+                underlying.Keyword,
+                JoinOptions(set),
+                set.Count == 1 ? "it" : "them"));
             minLength = -1;
             maxLength = -1;
+            nonUnicode = false;
         }
 
         // The text options, Pattern, Minimum and Maximum, are compile errors (VO0021, VO0028) that nothing reads: what
@@ -368,6 +392,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             HasMaximumHook = maximumHook,
             HasExampleHook = exampleHook,
             PatternHookText = patternHook.Text,
+            NonUnicode = nonUnicode,
             MinLength = minLength,
             MaxLength = maxLength,
             SchemaFormat = GetString(arguments, "SchemaFormat") ?? underlying.SchemaFormat,
@@ -1197,7 +1222,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// </summary>
     /// <param name="symbol">The type.</param>
     /// <returns>Each member, with its attribute.</returns>
-    private static IEnumerable<(ISymbol Member, AttributeData Attribute)> KnownValueMembers(INamedTypeSymbol symbol)
+    internal static IEnumerable<(ISymbol Member, AttributeData Attribute)> KnownValueMembers(INamedTypeSymbol symbol)
     {
         foreach (var member in symbol.GetMembers())
         {
@@ -1512,7 +1537,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// <param name="symbol">The value object.</param>
     /// <param name="metadataName">Unqualified metadata name of the hook interface, arity included.</param>
     /// <returns><see langword="true"/> when the interface is implemented.</returns>
-    private static bool ImplementsHook(INamedTypeSymbol symbol, string metadataName)
+    internal static bool ImplementsHook(INamedTypeSymbol symbol, string metadataName)
         => symbol.AllInterfaces.Any(candidate =>
             string.Equals(candidate.MetadataName, metadataName, StringComparison.Ordinal)
             && candidate.ContainingNamespace.ToDisplayString() == HookNamespace);
@@ -1561,6 +1586,41 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             return (false, null);
         }
 
+        if (ReadGeneratedRegex(symbol) is not { } pattern)
+        {
+            return (true, null);
+        }
+
+        var (text, options, timeout, generated) = pattern;
+        var attributeLocation = generated.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? location;
+
+        var unpublished = UnpublishedRegexOptions.Where(option => (options & option.Flag) != 0).Select(option => option.Name).ToList();
+        if (unpublished.Count > 0)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.PatternOptionsNotPublished, attributeLocation, symbol.Name, string.Join(", ", unpublished)));
+        }
+
+        // Timeout.Infinite, -1, is how the attribute spells "no timeout" when it is written out.
+        if (timeout is null or -1)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.PatternWithoutTimeout, attributeLocation, symbol.Name));
+        }
+
+        return (true, text);
+    }
+
+    /// <summary>
+    /// Reads the <c>[GeneratedRegex]</c> attribute of a value object's static <c>Pattern</c> property, by the names of its
+    /// constructor's parameters, as the generator publishes the pattern and <c>VO0047</c> reads it.
+    /// </summary>
+    /// <param name="symbol">The value object.</param>
+    /// <returns>
+    /// What the attribute holds, or <see langword="null"/> when the property carries no <c>[GeneratedRegex]</c> the compiler
+    /// bound to a constructor.
+    /// </returns>
+    internal static GeneratedRegexArguments? ReadGeneratedRegex(INamedTypeSymbol symbol)
+    {
         var generated = symbol.GetMembers("Pattern")
             .OfType<IPropertySymbol>()
             .Where(property => property.IsStatic)
@@ -1569,7 +1629,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
 
         if (generated?.AttributeConstructor is not { } constructor)
         {
-            return (true, null);
+            return null;
         }
 
         string? text = null;
@@ -1592,22 +1652,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             }
         }
 
-        var attributeLocation = generated.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? location;
-
-        var unpublished = UnpublishedRegexOptions.Where(option => (options & option.Flag) != 0).Select(option => option.Name).ToList();
-        if (unpublished.Count > 0)
-        {
-            diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.PatternOptionsNotPublished, attributeLocation, symbol.Name, string.Join(", ", unpublished)));
-        }
-
-        // Timeout.Infinite, -1, is how the attribute spells "no timeout" when it is written out.
-        if (timeout is null or -1)
-        {
-            diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.PatternWithoutTimeout, attributeLocation, symbol.Name));
-        }
-
-        return (true, text);
+        return new GeneratedRegexArguments(text, options, timeout, generated);
     }
 
     /// <summary>
@@ -2090,6 +2135,25 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     }
 
     /// <summary>
+    /// Reads whether an annotation declares its text non-Unicode, <c>Unicode = false</c>: <c>Unicode = true</c> is the
+    /// default, and says nothing.
+    /// </summary>
+    /// <param name="arguments">Named arguments of the attribute.</param>
+    /// <returns><see langword="true"/> when the attribute sets <c>Unicode</c> to <see langword="false"/>.</returns>
+    internal static bool DeclaresNonUnicode(Dictionary<string, TypedConstant> arguments)
+        => arguments.TryGetValue("Unicode", out var unicode) && Equals(unicode.Value, false);
+
+    /// <summary>
+    /// Joins the options a message names as a sentence lists them: <c>A</c>, <c>A and B</c>, <c>A, B and C</c>.
+    /// </summary>
+    /// <param name="options">The options, at least one.</param>
+    /// <returns>The list.</returns>
+    private static string JoinOptions(List<string> options)
+        => options.Count == 1
+            ? options[0]
+            : string.Join(", ", options.Take(options.Count - 1)) + " and " + options[options.Count - 1];
+
+    /// <summary>
     /// Reads the named arguments of an annotation by name, the first of a name when it is written twice.
     /// </summary>
     /// <remarks>
@@ -2100,7 +2164,7 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// </remarks>
     /// <param name="attribute">The annotation.</param>
     /// <returns>Each named argument's value, by name.</returns>
-    private static Dictionary<string, TypedConstant> NamedArguments(AttributeData attribute)
+    internal static Dictionary<string, TypedConstant> NamedArguments(AttributeData attribute)
     {
         var arguments = new Dictionary<string, TypedConstant>(attribute.NamedArguments.Length, StringComparer.Ordinal);
         foreach (var argument in attribute.NamedArguments)
@@ -2155,6 +2219,32 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
         List<DiagnosticInfo> diagnostics,
         out string? member)
     {
+        if (TryReadEnumName(arguments, option, out member))
+        {
+            return true;
+        }
+
+        var value = arguments[option];
+        diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.UndefinedEnumValue,
+            location,
+            symbol.Name,
+            option,
+            string.Format(CultureInfo.InvariantCulture, "{0}", value.Value),
+            value.Type!.Name));
+
+        return false;
+    }
+
+    /// <summary>
+    /// Reads an enum option as the name of the member it holds, as <see cref="TryGetEnumName"/> does, without reporting.
+    /// </summary>
+    /// <param name="arguments">Named arguments of the attribute.</param>
+    /// <param name="option">Name of the option.</param>
+    /// <param name="member">The member the option holds, or <see langword="null"/> when it is not set.</param>
+    /// <returns><see langword="false"/> when the option holds a value its enum does not define.</returns>
+    internal static bool TryReadEnumName(Dictionary<string, TypedConstant> arguments, string option, out string? member)
+    {
         member = null;
         if (!arguments.TryGetValue(option, out var value) || value.Value is null || value.Type is not INamedTypeSymbol enumType)
         {
@@ -2170,14 +2260,6 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
             }
         }
 
-        diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.UndefinedEnumValue,
-            location,
-            symbol.Name,
-            option,
-            string.Format(CultureInfo.InvariantCulture, "{0}", value.Value),
-            enumType.Name));
-
         return false;
     }
 
@@ -2189,6 +2271,15 @@ public sealed class ValueObjectGenerator : IIncrementalGenerator
     /// <param name="Key">The value, in the form <c>LiteralFactory</c> compares it in, once converted.</param>
     /// <param name="Location">Where to report a refusal.</param>
     private readonly record struct DeclaredValue(string Label, string Text, IComparable? Key, Location Location);
+
+    /// <summary>
+    /// What the <c>[GeneratedRegex]</c> attribute of a value object's <c>Pattern</c> property holds.
+    /// </summary>
+    /// <param name="Text">The pattern, or <see langword="null"/> when it is no constant.</param>
+    /// <param name="Options">The <c>RegexOptions</c>, as the number the attribute holds, 0 when none is given.</param>
+    /// <param name="Timeout">The match timeout in milliseconds, or <see langword="null"/> when none is given.</param>
+    /// <param name="Attribute">The attribute, for where to report.</param>
+    internal readonly record struct GeneratedRegexArguments(string? Text, int Options, int? Timeout, AttributeData Attribute);
 
     private readonly record struct ParseResult(
         ValueObjectModel? Model,

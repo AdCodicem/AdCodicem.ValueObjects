@@ -37,10 +37,14 @@ internal static class DiagnosticDescriptors
         "Arithmetic requires a numeric underlying type",
         "'{0}' requests arithmetic operators but its underlying type '{1}' is not numeric");
 
-    public static readonly DiagnosticDescriptor LengthRequiresString = Warning(
+    /// <summary>
+    /// The text options, <c>MinLength</c>, <c>MaxLength</c> and <c>Unicode = false</c>, on another type: <c>{2}</c> lists
+    /// those set, <c>{3}</c> is <c>it</c> for one and <c>them</c> for more.
+    /// </summary>
+    public static readonly DiagnosticDescriptor TextOptionRequiresString = Warning(
         "VO0008",
-        "Length constraints only apply to strings",
-        "MinLength and MaxLength are ignored on '{0}' because its underlying type '{1}' is not a string");
+        "Text options only apply to strings",
+        "'{0}' sets {2}, which only text takes: its underlying type '{1}' is not a string, so the generator ignores {3}");
 
     public static readonly DiagnosticDescriptor ContainingTypeMustBePartial = Error(
         "VO0009",

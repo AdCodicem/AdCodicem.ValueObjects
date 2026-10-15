@@ -58,6 +58,8 @@ internal static class Shipments
         OptionalStatus = DocumentStatus.Final,
         Label = Label.Create(string.Empty),
         OptionalLabel = Label.Create("fragile"),
+        Bic = Bic.Create("DEUTDEFF"),
+        OptionalBic = Bic.Create("NEDSZAJJXXX"),
         Number = DocumentNumber<PurchaseOrder>.Create("po-1042"),
         OptionalNumber = DocumentNumber<PurchaseOrder>.Create("PO-7"),
         Contacts = [EmailAddress.Create("ada@example.com"), EmailAddress.Create(" Grace@Example.org")],
@@ -94,6 +96,7 @@ internal static class Shipments
         Email = Full.Email,
         Status = Full.Status,
         Label = Full.Label,
+        Bic = Full.Bic,
         Number = Full.Number,
     };
 

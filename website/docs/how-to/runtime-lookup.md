@@ -148,7 +148,7 @@ checks. Over text, `Comparison` states the comparison its `Validate` looks them 
 [MongoDB collection validator](./mongodb.md#a-collection-validator-from-the-rules) and the
 [EF Core CHECK constraints](./ef-core.md#check-constraints-from-the-rules) read before they write a closed set: left
 `null`, they try the other cases of each known value and a trailing soft hyphen, fewer spellings than a culture's
-comparison takes.
+comparison takes. `IsUnicode = false` maps it to [non-Unicode text](./ef-core.md#non-unicode-text) as the option does.
 Nothing registers it, so `TryResolve` describes it by reflection, the first time it is asked, with that schema, the one
 generic code constrained on it reads, whatever `[ValueObject<T>]` or `[KnownValue]` annotation it also carries. Where no
 generator runs, nothing reads an annotation: state each rule in the schema. Under native AOT, which cannot describe it

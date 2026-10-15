@@ -34,6 +34,7 @@ internal static class Samples
         ("Label", message => message.Label = new string('x', 201)),
         ("DocumentStatus", message => message.DocumentStatus = "archived"),
         ("Price", message => message.Price = -1m),
+        ("Bic", message => message.Bic = "deutdeff"),
     ];
 
     public static Everything Everything() => new()
@@ -59,6 +60,7 @@ internal static class Samples
         DocumentStatus = DocumentStatus.Final,
         Ticket = TicketId.Create(Ticket),
         Price = Price.Create(12.5m),
+        Bic = Bic.Create("DEUTDEFF500"),
     };
 
     public static PlainEverything Plain() => new()
@@ -84,6 +86,7 @@ internal static class Samples
         DocumentStatus = "final",
         Ticket = Ticket,
         Price = 12.5m,
+        Bic = "DEUTDEFF500",
     };
 
     /// <summary>Writes the values a message holds, in the invariant culture.</summary>
@@ -95,6 +98,6 @@ internal static class Samples
             message.PageNumber.Value, message.SequenceNumber.Value, message.FileSize.Value, message.ByteCount.Value,
             message.Latitude.Value, message.Ratio.Value, message.OpeningTime.Value, message.RecordedAt.Value.ToString("O", CultureInfo.InvariantCulture),
             message.Duration.Value, message.EffectiveDate.Value, message.Tolerance.Value, message.PhoneNumber.Value,
-            message.Label.Value, message.DocumentStatus.Value, message.Ticket.Value, message.Price.Value,
+            message.Label.Value, message.DocumentStatus.Value, message.Ticket.Value, message.Price.Value, message.Bic.Value,
         }.Select(value => Convert.ToString(value, CultureInfo.InvariantCulture)));
 }

@@ -148,6 +148,32 @@ public sealed class IncrementalityTests
             reason == IncrementalStepRunReason.Cached || reason == IncrementalStepRunReason.Unchanged);
     }
 
+    /// <summary>
+    /// <c>Unicode = false</c> joins the model, which the schema states: declaring it re-runs the model, and an unrelated
+    /// edit beside a value object declaring it leaves the model cached.
+    /// </summary>
+    [Fact]
+    public void Declaring_the_text_non_Unicode_does_re_run_the_model()
+    {
+        var edited = ValueObject.Replace("MaxLength = 8", "MaxLength = 8, Unicode = false", StringComparison.Ordinal);
+
+        var reasons = GeneratorHarness.RunTwice(ValueObject, edited, "ValueObjects");
+
+        reasons.Should().Contain(IncrementalStepRunReason.Modified);
+    }
+
+    [Fact]
+    public void An_unrelated_edit_does_not_re_run_a_non_Unicode_model()
+    {
+        var source = ValueObject.Replace("MaxLength = 8", "MaxLength = 8, Unicode = false", StringComparison.Ordinal);
+
+        var reasons = GeneratorHarness.RunTwice(source, source + Unrelated, "ValueObjects");
+
+        reasons.Should().NotBeEmpty();
+        reasons.Should().OnlyContain(reason =>
+            reason == IncrementalStepRunReason.Cached || reason == IncrementalStepRunReason.Unchanged);
+    }
+
     [Fact]
     public void Changing_a_declared_constraint_does_re_run_the_model()
     {

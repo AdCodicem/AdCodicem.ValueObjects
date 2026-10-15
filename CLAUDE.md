@@ -372,7 +372,10 @@ that actually fired. `DescriptorTests.cs` exists to cover that surface; extend i
   ends with its rule, and with a hash of its table and column when the provider would cut it, another check constraint
   of the model holds it already, in its table or, on SQL Server, in its schema, or, on SQL Server, another table of the
   schema would take it. Anything added to `[ValueObject<T>]` should feed all of them, the validator wherever
-  the server reads the rule as .NET does, the CHECK constraints wherever the database does. A hook can
+  the server reads the rule as .NET does, the CHECK constraints wherever the database does, but `Unicode = false`,
+  which states how the text is stored rather than what the type accepts: it feeds the EF Core conventions and the Dapper
+  handler alone (`Schema.IsUnicode`, `false` or `null`), and `VO0047`, an analyzer, warns where the rules let a
+  character outside ASCII through, which SQL Server replaces silently in a `varchar` column. A hook can
   feed the schema too: the `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off
   the attribute at compile time, becomes the OpenAPI `pattern`, and the `Pattern` of a HotChocolate scalar serialized as
   a String, which HotChocolate publishes as `@serializeAs` under `ApplySerializeAsToScalars`, beside the wire pattern of
@@ -1025,7 +1028,10 @@ These are all load-bearing, and each cost real debugging time:
   tested through `PcrePattern`, the EF Core copy through `SqlPattern`, and the copy of
   `AdCodicem.ValueObjects.Testing.Data` through `PatternSampler`, whose tests name no node type, and the Blazor copy
   through `EcmaScriptPattern`, its table in `Forms/EcmaScriptPatterns.json`. A further package linking it is tested the
-  same way. `TypeNames.cs`, which writes a type as C# names it in a message, is linked by
+  same way. The generator links it too, for `VO0047`, with substitutes for what `netstandard2.0` lacks (a helper for
+  `char.IsAsciiLetterOrDigit`, `<= '\x7F'` for `char.IsAscii`, `Substring` under `#if NETSTANDARD2_0` in
+  `ReadHexadecimal`): the GeneratorTests see the generator's copy and the contracts' through `InternalsVisibleTo`, so
+  they name neither (CS0433) and reach the generator's through `NonUnicodeTextAnalyzerTests`. `TypeNames.cs`, which writes a type as C# names it in a message, is linked by
   `Testing.Data`, by its AutoFixture, Bogus and FsCheck adapters, by the EF Core package, for the key and the
   pattern it refuses, by both Azure Functions packages, for the type a refusal names, and by the protobuf-net and gRPC
   packages, for the value object a refusal and an `ErrorInfo` name: the unit suite references `Testing.Data` under
@@ -1067,7 +1073,11 @@ These are all load-bearing, and each cost real debugging time:
 - **`#pragma` does not silence a diagnostic the generator reports.** `VO0025`, `VO0026` and the generator's other
   warnings fail the build under `TreatWarningsAsErrors` whatever surrounds the declaration: a test needing a type that
   trips one writes the value object by hand, as `Persistence/MongoDbShapedCode.cs` does for a pattern matched under
-  `IgnoreCase`, `Multiline` or `IgnorePatternWhitespace`.
+  `IgnoreCase`, `Multiline` or `IgnorePatternWhitespace`. That is why `VO0047`, which a project may silence on purpose for
+  a column of names kept under Latin-1, is an analyzer, `NonUnicodeTextAnalyzer`, which `#pragma` and a severity
+  setting silence. Every test-owned value object declaring `Unicode = false` holds its text to ASCII, by an anchored
+  pattern of ASCII classes or a closed set of ASCII known values compared ordinally (or a normalizer or validator hook,
+  which silences it), or the build of its suite fails on `VO0047`.
 - **NuGet lock files are deliberately absent**, and adding them breaks CI on the first run:
   `src/Directory.Build.props` references `Microsoft.SourceLink.GitHub` under
   `Condition="'$(GITHUB_ACTIONS)' == 'true'"`, so the package graph on a laptop is not the graph on the runner
@@ -1205,7 +1215,10 @@ Four suites, each with a distinct job:
   name read past each separator the reader knows, and System.Data.SQLite's message, which the name ends. A pattern
   matched under `IgnoreCase` is a construction of the hand-written `ShapedCode<TShape>` of `MongoDbShapedCode.cs` over
   a shape of the test's own, since a generated one trips VO0025. EF Core builds a model once per context type, so each
-  model shape there has a context type of its own.
+  model shape there has a context type of its own. `EntityFrameworkCoreUnicodeTests` holds the Unicode facet a value
+  object declaring `Unicode = false` gets, a property, its optional form, a construction, an element and a mapping by
+  hand, over the BIC of `Domain/` and the value objects of `Persistence/NonUnicodeValueObjects.cs`, each holding its text
+  to ASCII; `RegisteredAsciiDeclaration` is the one schema written by hand that a test resolves through the registry.
   The localized messages are tested in fr-FR, whose ICU formats the expected strings spell out (a decimal comma, a
   day-first date, `;` between known values), never in en-US times: `ValueObjectMessagesTests` builds the argument table
   of every code and bounded underlying type, `Web/LocalizedModelBindingTests` and `Web/LocalizedMinimalApiProblemDetailsTests`
@@ -1267,12 +1280,12 @@ Four suites, each with a distinct job:
   and in CI alike. The incrementality tests assert on
   `IncrementalStepRunReason`, the only way to notice caching regressions — losing them breaks nothing visible
   while making every IDE keystroke re-run the pipeline. `DocumentationSnippetTests` also runs the generator and
-  five analyzers over every ```` ```csharp ```` block the repository publishes — `skills/value-objects/`,
+  six analyzers over every ```` ```csharp ```` block the repository publishes — `skills/value-objects/`,
   `README.md` and `website/docs/` — each compiled against Microsoft.Extensions.Logging.Abstractions and
   Microsoft.Extensions.Telemetry.Abstractions with Microsoft.Gen.Logging running, so a snippet that stops generating, or
   that trips `VO0010`, `VO0011`, a DataAnnotations attribute's `VO0039` to `VO0041`, a serializer's contract attribute,
-  `VO0043` and `VO0044`, or a `[LoggerMessage]` method writing a classified value object in clear, `VO0045` and
-  `VO0046`, fails the build (`VO0042` needs `PublishAot`, which the snippet run does not set; the snippets reference no third-party
+  `VO0043` and `VO0044`, a `[LoggerMessage]` method writing a classified value object in clear, `VO0045` and
+  `VO0046`, or `Unicode = false` on text its rules do not hold to ASCII, `VO0047`, fails the build (`VO0042` needs `PublishAot`, which the snippet run does not set; the snippets reference no third-party
   serializer, so a block showing Orleans', protobuf-net's, MessagePack's, MemoryPack's or Newtonsoft.Json's attribute is
   tagged `skip` already, while `[DataContract]`, `[XmlType]` and `[Serializable]` come with the framework). The project
   references `AdCodicem.ValueObjects.ProtobufNet`, which `SerializerContractAnalyzerTests` and
@@ -1310,8 +1323,13 @@ Four suites, each with a distinct job:
   each name read back to its rule, which need no server, in `SqlServerCheckConstraintScriptTests`), and their patterns,
   refused with `value_object.invalid_format`, matched on PostgreSQL and on a
   SQL Server 2025 container (`SqlServer2025Fixture`, the only one that runs `REGEXP_LIKE`, which SQL Server 2022 lacks)
-  as .NET matches them, value by value (`CheckConstraintPatternTests`), plus the API surface end to end; and a real
-  MongoDB 8
+  as .NET matches them, value by value, a BIC's in its `varchar` column included (`CheckConstraintPatternTests`); a value
+  object declaring `Unicode = false` in `varchar` on SQL Server and compared through `varchar` parameters from EF Core
+  and Dapper alike, a JSON collection's elements and a value object declaring no length included, an Always Encrypted
+  `varchar` column taking it, with keys an in-memory store hands back registered on each connection, and refusing an
+  `nvarchar` parameter, a character outside ASCII replaced silently on SQL Server and kept on PostgreSQL, the guide's
+  audit query counting the rows the migration then converts, and the migration of a key EF Core writes failing where the
+  guide's sequence applies (`NonUnicodeTextTests`); plus the API surface end to end; and a real MongoDB 8
   server, which stores a value object of every underlying type MongoDB.Bson can represent, linked from the unit suite's
   `Domain/UnderlyingTypes.cs`, as the document its primitive writes, refuses one over `Int128` or `UInt128`, and
   answers each LINQ and `Builders` shape over value objects with the documents the same query over the primitives
@@ -1388,12 +1406,13 @@ on where they apply.
   still runs under the JIT and fails the native binary. A value object added to `UnderlyingTypes.cs`, or registered by
   the application, goes into its `AppJsonContext` too, with its underlying type, or the script reports it missing; an
   underlying type no other value object has, as `Uri`, also needs its texts in `Underlying.cs`, or the script probes it
-  with none. `PublishAot` is set by the project when `NativeAot` is true, never as `-p:PublishAot`, which would reach
+  with none, and one whose rules accept none of the texts of its underlying type needs one it accepts (and one it
+  refuses) added there, or `Logging.cs` fails it, "accepts none of the texts it is probed with", as the BIC did. `PublishAot` is set by the project when `NativeAot` is true, never as `-p:PublishAot`, which would reach
   the `netstandard2.0` generator. A `#pragma` silences only the analyzers that run with the compiler: the AOT compiler
   reads the compiled code, so a warning the library suppresses takes `[UnconditionalSuppressMessage]` and a guard, as
   `MustParseAs` found out.
 - `AdCodicem.ValueObjects.NativeAot.ProtobufNet` publishes protobuf-net's compile-time model (`AppModel`) over the
-  nineteen value objects of the linked `Domain/UnderlyingTypes.cs` whose underlying type protobuf-net writes, each naming
+  twenty value objects of the linked `Domain/UnderlyingTypes.cs` whose underlying type protobuf-net writes, each naming
   its serializer on a partial declaration (`ProtoContracts.cs`), and two of its own over a `Guid` and a `decimal` at
   `Level300`: the message written as its twin over the primitives and read back, a value each rule refuses with its code,
   a trusted profile, a field left out, a default refused on write, `GetSchema` refused. `native-aot.sh` runs it with the
@@ -1401,7 +1420,8 @@ on where they apply.
   its `aot-warnings.allowed` alone (the protobuf-net constraint above); `ci.yml`'s `native AOT` job runs it between the
   application and the compiled model.
 - `AdCodicem.ValueObjects.CompiledModel` holds a context mapping every value object the EF Core convention maps,
-  required and optional, a generic one, an `[EntityId]` key and collections of them, nullable elements included, keys
+  required and optional, a generic one, an `[EntityId]` key, a non-Unicode one, mapped to `varchar` and filtered on, and
+  collections of them, nullable elements included, keys
   typed as value objects it generates, over a `Guid` and an `int`, and one over a `Guid` it refuses to add unset, and a
   strict context beside it, both filtering on `.Value` through `UseValueObjectQueries()`, which `ShopContext` calls in
   `OnConfiguring`, so that the design-time factory precompiles those queries with it, and both adding the CHECK
@@ -1435,7 +1455,9 @@ Beside them, outside the solution, `tests/Compat` is the **compatibility island*
 packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
 release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
 Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
-key refused unset, `.Value` translated under `UseValueObjectQueries()`, CHECK constraints from the rules on SQLite, and
+key refused unset, `.Value` translated under `UseValueObjectQueries()`, a value object declaring `Unicode = false` in
+`varchar` on SQL Server, compared through `varchar` parameters from EF Core and Dapper, CHECK constraints from the rules
+on SQLite, and
 a pattern constraint on PostgreSQL 17 with `ExcludePattern`, a refused row carrying the code of its rule, a refusal in
 a later statement of a batch included, System.Text.Json source generation, ASP.NET Core
 model binding, on System.Text.Json and on Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, minimal

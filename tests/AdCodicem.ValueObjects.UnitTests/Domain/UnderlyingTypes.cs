@@ -244,6 +244,19 @@ public readonly partial struct Label : IValueObjectFormatter<string>
     }
 }
 
+// Its text is held to ASCII by its pattern, and declared non-Unicode: varchar on SQL Server.
+
+/// <summary>A bank identifier code, ISO 9362: eight or eleven capitals and digits, stored as non-Unicode text.</summary>
+[ValueObject<string>(MinLength = 8, MaxLength = 11, Unicode = false)]
+public readonly partial struct Bic : IValueObjectPatternValidator
+{
+    [System.Text.RegularExpressions.GeneratedRegex(
+        "^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+        matchTimeoutMilliseconds: 1000)]
+    public static partial System.Text.RegularExpressions.Regex Pattern { get; }
+}
+
 // One known value is a field, the other a property, described by its summary.
 
 /// <summary>The status of a document, from a closed set whose spelling does not matter.</summary>

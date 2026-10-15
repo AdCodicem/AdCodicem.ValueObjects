@@ -73,7 +73,8 @@ Four suites, each with a distinct job:
   incremental caching, the analyzer of the DataAnnotations attributes and its `PublishAot` gate included, the analyzer
   of serializers' contract attributes and its code fix, over protobuf-net itself and the other serializers' attributes
   declared under their real names, and the analyzer of data classifications held to the tags Microsoft.Gen.Logging, run
-  beside the generator, writes. It drives
+  beside the generator, writes, and the analyzer of non-Unicode text held to what .NET's regular expressions match under
+  each option. It drives
   Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that
   slipped into emitted code. The incrementality tests assert on the Roslyn incremental step run reason — the
@@ -89,7 +90,9 @@ Four suites, each with a distinct job:
   writes with the code of the rule it broke, from `SaveChanges`, a refusal in a later statement of a batch included,
   `ExecuteUpdate`, raw SQL and a migration, in every language SQL Server writes its messages in, and with none on SQL
   Server for a raw query reading back the rows it writes, their patterns matched value by value as .NET
-  matches them on PostgreSQL and on SQL Server 2025, plus the API surface end to end; and a
+  matches them on PostgreSQL and on SQL Server 2025, a value object declaring `Unicode = false` in `varchar` and
+  compared through `varchar` parameters from EF Core and Dapper, an Always Encrypted column included, beside the audit
+  of the rows a migration to it converts and the migration of a key, plus the API surface end to end; and a
   real MongoDB server, which stores a value object of every underlying type MongoDB.Bson can represent as the document
   its primitive writes, refuses one over `Int128` or `UInt128`, and answers each LINQ and `Builders` shape over them,
   `.Value` included; which, given the `$jsonSchema` validator built from the rules, refuses another writer's document
@@ -155,7 +158,7 @@ constraints, a row SQL writes breaking a rule refused with the rule's code; the 
 [Compiled models](./how-to/ef-core.md#compiled-models) says what holds there.
 
 The third publishes protobuf-net's compile-time model over the value objects of the first one's domain whose underlying
-type protobuf-net writes, nineteen of the twenty-two, each naming its serializer on a partial declaration, and two more
+type protobuf-net writes, twenty of the twenty-three, each naming its serializer on a partial declaration, and two more
 over a `Guid` and a `decimal` written as text:
 a message of all of them written as the same message over the primitives and read back, each value its rules refuse
 refused with its code, a trusted profile reading one anyway, a field left out read as the default instance, and a

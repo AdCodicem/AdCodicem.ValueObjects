@@ -34,6 +34,7 @@ namespace AdCodicem.ValueObjects.NativeAot;
 [JsonSerializable(typeof(Tolerance))]
 [JsonSerializable(typeof(PhoneNumber))]
 [JsonSerializable(typeof(Label))]
+[JsonSerializable(typeof(Bic))]
 [JsonSerializable(typeof(DocumentStatus))]
 [JsonSerializable(typeof(Quantity))]
 [JsonSerializable(typeof(Amount))]
