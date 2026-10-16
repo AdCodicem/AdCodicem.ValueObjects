@@ -143,9 +143,9 @@ public static class ValueObjectRegistry
     /// <c>ValueObjectRegistry.Register&lt;Code&lt;Order&gt;, string&gt;(static () =&gt; new Code&lt;Order&gt;.ValueJsonConverter())</c>.
     /// </para>
     /// <para>
-    /// The definition is checked without reading its interfaces, which native AOT does not keep for a generic type
-    /// definition: this runs in the module initializer of every assembly declaring a generic value object, where a
-    /// failure would stop the application before it starts.
+    /// This runs in the module initializer of every assembly declaring a generic value object, where a failure would
+    /// stop the application before it starts. Its checks hold under native AOT, the <see cref="IValueObject"/> marker
+    /// included, whether or not anything constructs the definition.
     /// </para>
     /// </remarks>
     public static void RegisterGenericDefinition(Type definition)
