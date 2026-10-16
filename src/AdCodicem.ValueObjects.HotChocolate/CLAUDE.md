@@ -2,7 +2,8 @@
 
 User-facing behaviour: `website/docs/how-to/graphql.md`. Tests: `GraphQL/` of the unit suite (`GraphQLHarness`, executors
 built in process). AOT-compatible itself, but out of `tests/NativeAot`: HotChocolate's own publish warns (IL2104,
-IL3053, IL3000, IL3002) and its binary starts only with HotChocolate.Types and the application rooted.
+IL3053, IL3000, IL3002) and its binary starts only with HotChocolate.Types rooted
+(ChilliCream/graphql-platform#10566), and the application too when its types are built by reflection.
 
 ## Schema building
 
@@ -37,7 +38,8 @@ IL3053, IL3000, IL3002) and its binary starts only with HotChocolate.Types and t
   `IStringLocalizerFactory` through `GetRootServiceProvider()`, in the execution's culture, and the executor fails to start
   when `UseResource()` lacks `AddLocalization()`.
 - HotChocolate reads a variable's default value under the path `["root"]`, which the filter quotes as the scalar's name,
-  telling it from a variable named `$root`, read from its JSON value, by the refusal's `Literal`.
+  telling it from a variable named `$root`, read from its JSON value, by the refusal's `Literal`. 16.7's previews report
+  it under `extensions.inputPath` with no path: revisit the filter at that bump.
 - `ValueObjectScalarOptions.QuoteScalarNameIn(predicate)` quotes the scalar's name for a value refused in the argument or
   input field the predicate selects: the filter looks up the error's `coordinate`, which HotChocolate keeps as text
   (`IbanOperationFilterInput.eq`), sets to the innermost input value, and leaves out for a variable it coerces before any

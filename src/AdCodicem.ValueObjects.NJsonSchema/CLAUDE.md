@@ -29,12 +29,12 @@ or later.
 - Its validator, which Confluent runs with no format validator, compares an `enum` by the `ToString()` of a token read
   with `FloatParseHandling.Double`, so a JSON Schema lists a closed set of reals as doubles (`ToEnumerationToken`), a
   decimal no double holds listed rounded; a document lists decimals as decimals. It throws `InvalidCastException` on a
-  JSON integer beyond Int64, which a test pins.
+  JSON integer beyond Int64 (RicoSuter/NJsonSchema#568), which a test pins.
 - NSwag describes Newtonsoft.Json's default settings for an application without MVC's System.Text.Json output formatter
-  whenever `Microsoft.AspNetCore.Mvc.NewtonsoftJson` can be loaded: the tests' NSwag applications call `AddControllers()`.
-  NSwag throws `AmbiguousMatchException` for an MVC query model hiding a property with one of another type
-  (`openapi.md`), and its C# client generator writes two converters on a member whose closed set is of `format: date`
-  (CS0579, pinned by `NSwagDocumentTests`).
+  whenever `Microsoft.AspNetCore.Mvc.NewtonsoftJson` can be loaded (RicoSuter/NSwag#5413): the tests' NSwag applications
+  call `AddControllers()`. NSwag throws `AmbiguousMatchException` for an MVC query model hiding a property with one of
+  another type (`openapi.md`, RicoSuter/NSwag#5412), and its C# client generator writes two converters on a member whose
+  closed set is of `format: date` (CS0579, pinned by `NSwagDocumentTests`, RicoSuter/NJsonSchema#1945).
 - Confluent's `JsonSerializer<T>` takes a class only, and 2.16's default subject name strategy calls
   `GetAssociationsByResourceNameAsync`, which a substitute registry answers with an empty list.
 - The namespace hides the root `NJsonSchema` namespace (root `CLAUDE.md`). A file importing `NJsonSchema` and

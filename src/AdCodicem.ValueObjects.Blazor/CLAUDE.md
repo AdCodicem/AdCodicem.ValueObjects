@@ -11,8 +11,8 @@ forms of `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Blazor`; `HtmlRenderer`
 - A statically rendered form is mapped by the framework through `IParsable<T>` in the invariant culture before any
   component runs, its converters internal: a refusal is "The value 'XX' is not valid for 'Account'.", quoting the text
   with no code, the member left at its default, and empty text is `null` only for primitive types, `DateOnly`, `TimeOnly`
-  and `DateTimeOffset` (dotnet/aspnetcore#52499, #60498), so an empty `TSelf?` is refused. `StaticFormTests` pins both
-  messages.
+  and `DateTimeOffset`, and from .NET 11 `TimeSpan`, `Guid`, `Int128`, `UInt128` and `Half` (dotnet/aspnetcore#60498,
+  #66625), so an empty `TSelf?` is refused on both (dotnet/aspnetcore#69901). `StaticFormTests` pins both messages.
 - `InputBase` binds `null` to a nullable value object for empty text without calling `TryParseValueFromString`, and
   formats the model only while no refused text shows, which is why the input clears a code in `FormatValueAsString` too.
 

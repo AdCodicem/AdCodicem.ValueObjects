@@ -89,7 +89,8 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   `Forms/EcmaScriptPatterns.json` is held to .NET here and to Node by `.github/scripts/ecmascript-patterns.mjs`: change
   both together.
 - HotChocolate: `GraphQL/GraphQLHarness` builds executors in process. The project sets `HotChocolateImplicitUsings` to
-  `disable`. `ScopedFilterQuery` has no projection (a `[UseProjection]` field beside a named convention fails the schema).
+  `disable`. `ScopedFilterQuery` declares its default-convention field first: a named convention's field declared before
+  it fails the schema (ChilliCream/graphql-platform#10565).
 - `RegisteredAsciiDeclaration` is the one schema written by hand that a test resolves through the registry.
 - `NSwag.OpenApiDocument` meets the suite's `Web.OpenApiDocument`: alias it (`NSwagOpenApiDocument`, as
   `NSwagDocumentTests` does).
