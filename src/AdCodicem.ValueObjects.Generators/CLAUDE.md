@@ -34,10 +34,9 @@ Targets `netstandard2.0`, ships inside the `AdCodicem.ValueObjects` package (not
   position would be CS0108 where a type of the route derives from another.
 - `RegisterGenericDefinition` runs in the module initializer of every assembly declaring a generic value object, natively
   too, where a throw stops the application before it starts: whatever it checks must hold under native AOT. Its
-  `typeof(IValueObject).IsAssignableFrom(definition)` does: a native binary registers the definition of a generic value
-  object, constructed or not (the `native AOT` job's `generic definitions` line; a probe publishing one constructed
-  nowhere, on .NET 10.0.13). Its doc comment, which says the definition is checked without reading its interfaces, is
-  wrong on that point.
+  `typeof(IValueObject).IsAssignableFrom(definition)` does, whether or not anything constructs the definition: the
+  `native AOT` job's `generic definitions` line lists `DocumentNumber<>`, constructed by the application, and
+  `ArchiveLabel<>`, constructed nowhere (#179).
 
 ## Analyzer surface
 
