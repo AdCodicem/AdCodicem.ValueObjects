@@ -6,7 +6,8 @@
 ## Registry and descriptors
 
 - A change to the descriptor is invisible to the typed unit tests: extend `DescriptorTests.cs`.
-- `RegisterGenericDefinition` runs in module initializers, natively too: keep what it checks AOT-safe
+- `RegisterGenericDefinition` runs in module initializers, natively too: keep what it checks AOT-safe. Its
+  `IsAssignableFrom` check on the definition holds natively, despite its doc comment
   (`src/AdCodicem.ValueObjects.Generators/CLAUDE.md`).
 - `TryResolve` keeps whatever it resolves for the process, a hand-written type described by reflection included: a test
   resolving a shared hand-written type registers it for every later test.
