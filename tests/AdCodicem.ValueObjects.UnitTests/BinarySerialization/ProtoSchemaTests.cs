@@ -54,12 +54,12 @@ public sealed class ProtoSchemaTests
     }
 
     /// <summary>
-    /// A dictionary of value objects is exported as a list of entry messages rather than a <c>map</c>, the same on the
-    /// wire, and two such dictionaries over other value objects of the same scalars as two messages of one name, which
-    /// protoc refuses.
+    /// A dictionary keyed by a value object is exported as a list of entry messages rather than a <c>map</c>, the same
+    /// on the wire, and two such dictionaries keyed by other value objects of the same scalars as two messages of one
+    /// name, which protoc refuses (protobuf-net/protobuf-net#1352).
     /// </summary>
     [Fact]
-    public void A_dictionary_of_value_objects_is_exported_as_entry_messages_rather_than_a_map()
+    public void A_dictionary_keyed_by_value_objects_is_exported_as_entry_messages_rather_than_a_map()
     {
         var exported = Lines(Model().AddValueObjects(typeof(Iban).Assembly).GetSchema(typeof(ProtoStock), ProtoSyntax.Proto3));
         var plain = Lines(Model().GetSchema(typeof(PlainProtoStock), ProtoSyntax.Proto3));

@@ -158,8 +158,8 @@ public class ExplicitFilterQuery : FilterQuery
 }
 
 /// <summary>
-/// The rows, filtered through the default filter convention and a named one; with no projection, which HotChocolate
-/// refuses beside a named convention filtering a part of the row.
+/// The rows, filtered through the default filter convention and a named one, in that order: HotChocolate refuses a
+/// field of a named convention declared before one of the default convention (ChilliCream/graphql-platform#10565).
 /// </summary>
 public class ScopedFilterQuery
 {
