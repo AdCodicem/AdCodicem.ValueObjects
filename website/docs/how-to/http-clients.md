@@ -82,4 +82,5 @@ resolver maps its parameters too (not run against such a document). It keys the 
 value object's type, which a construction of a generic one does not carry: `ReferenceOfPurchaseOrder`, as NSwag names
 the component of `Reference<PurchaseOrder>`, is generated as its underlying type. Whoever wrote the document, NSwag
 14.7.1 writes two JSON converters on a member whose closed set is of dates, a `string` enumeration of `format: date`,
-which C# refuses (CS0579): remove the `DateFormatConverter` beside the `StringEnumConverter` there.
+which C# refuses (CS0579, RicoSuter/NJsonSchema#1945): remove the `DateFormatConverter` beside the `StringEnumConverter`
+there.
