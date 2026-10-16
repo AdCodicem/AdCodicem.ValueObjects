@@ -1,1654 +1,286 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) in this repository. This file holds what every change needs; the traps of
+one package or one suite live in a `CLAUDE.md` of its own, next to the code (see [Where the rest lives](#where-the-rest-lives)).
 
 ## What this is
 
-Thirty-three NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct` marked
-`[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every boundary
-as its underlying type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object
-wrapper. Consumers define their own value objects; this repository ships the frame.
+- Thirty-three NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct`
+  marked `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every
+  boundary as its underlying type: an IBAN is a JSON string, a `VARCHAR`, a query-string parameter, never a wrapper
+  object. Consumers write the value objects; this repository ships the frame.
+- `README.md` is the authoring surface, `benchmarks/README.md` the measurements behind the design, `docs/adr/` the
+  decisions, `docs/maintaining.md` the maintainer runbook (previews, releases, settings, Dependabot), `website/` the
+  published documentation, which reorganises the same material. Edit the source of truth first (README, a `CLAUDE.md`,
+  the benchmark numbers), then the matching page under `website/docs/` (`website/CLAUDE.md`).
+- `skills/value-objects/` is the consumer agent skill, shipped as a Claude Code plugin through `.claude-plugin/`. It is
+  prescriptive only, with no rationale and no numbers. A change to what a consumer writes (an option of
+  `[ValueObject<T>]`, a hook interface, a diagnostic, an error code, an extension method) updates it in the same change;
+  `SkillCoverageTests` catches a missing option, hook, diagnostic or error code, nothing else.
+- `TreatWarningsAsErrors` is on repository-wide: any warning fails the build.
 
-Read `README.md` for the authoring surface and `benchmarks/README.md` for the measurements behind the design
-decisions. The published documentation (`website/`) reorganises this same material into a narrative site — edit
-the source of truth first (README, this file, the benchmark numbers), then the corresponding page under
-`website/docs/`. The site is versioned: `website/docs/` is the preview and describes `main`, while
-`website/versioned_docs/` holds what each stable line was released with (see Releases below). A change to
-`website/docs/` therefore reaches the preview pages at the next `preview.yml` run, and the stable pages at the next
-release, not before.
+## Where the rest lives
 
-`skills/value-objects/` is the consumer-facing agent skill, distributed as a Claude Code plugin through
-`.claude-plugin/`. It is prescriptive only — the authoring surface, the hooks, the wiring, the diagnostics — and
-deliberately carries no rationale or benchmark numbers, so it stays a short file rather than a fourth copy of
-the documentation. Anything that changes the surface a consumer writes (an option on `[ValueObject<T>]`, a hook
-interface, a diagnostic, an extension method) must be reflected there too.
+Claude Code loads a nested `CLAUDE.md` when it reads a file under its folder.
+
+- `src/<Package>/CLAUDE.md` for every package with traps of its own: Abstractions, Generators (generator, analyzers),
+  AspNetCore, AspNetCore.Http, AspNetCore.NewtonsoftJson, NewtonsoftJson, EntityFrameworkCore, Dapper, MongoDB,
+  Identifiers.MongoDB, MessagePack, ProtobufNet, Grpc, Serilog, AI, ModelContextProtocol, AzureFunctions,
+  AzureFunctions.AspNetCore, HotChocolate, HotChocolate.Data, Blazor, NJsonSchema, Swashbuckle, AutoFixture, Bogus,
+  FsCheck; `src/Shared/CLAUDE.md` for the source files several packages link.
+- `tests/<Suite>/CLAUDE.md` for each of the four suites, plus `tests/NativeAot/`, `tests/Compat/`, `tests/Fixtures/`.
+- `.github/CLAUDE.md` for workflows, scripts, Dependabot and release mechanics; `website/CLAUDE.md` for the site.
+- Record a new trap in the nearest of these files; at the root only when it crosses packages. One rule per bullet: the
+  fact or the instruction, then why in one clause, with exact identifiers. Where a document already explains it, keep
+  the one-line rule and point to the document.
+- `src/**/CLAUDE.md` is excluded from `preview-gate.sh`'s package inputs, so editing one publishes no preview.
 
 ## Commands
 
 ```bash
 dotnet build -c Release
-dotnet test -c Release                                    # all four suites
-# One suite. --project is required: given a bare directory, dotnet test prints a hint and exits 0
-# without running anything, which reads exactly like a pass.
-dotnet test --project tests/AdCodicem.ValueObjects.UnitTests        # behaviour of generated code
-dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests   # the generator itself
+dotnet test -c Release                                              # all four suites
+# One suite. --project is required: on a bare directory dotnet test prints a hint and exits 0, which reads as a pass.
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests
+dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests
 dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests # needs Docker
-dotnet test --project tests/AdCodicem.ValueObjects.RdgTests         # minimal APIs through the RDG
-
-# Formatting, as CI checks it. Not plain `dotnet format`: its workspace runs the source generators
-# it can load, but CI formats before it builds, and the generator is referenced as a project whose
-# assembly does not exist yet. So `analyzers` reports ASP0020 against every minimal API endpoint
-# binding a value object, and compile errors besides, for members the generator does emit. The
-# Request Delegate Generator has that blind spot in every build, for a value object of its own
-# project (VO0033).
-dotnet format AdCodicem.ValueObjects.slnx whitespace --verify-no-changes
-dotnet format AdCodicem.ValueObjects.slnx style --verify-no-changes
-# The packable projects under src/, as CI packs them
-dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
-
-# .NET 11 compatibility island: its own global.json (SDK 11 RC), outside the solution, run from its folder.
-# Pack at a fresh version: NuGet reuses whatever ~/.nuget/packages already holds at a version it has seen.
-v=0.0.0-compat.$(date +%s)
-MINVERVERSIONOVERRIDE=$v dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
-cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj -p:AdCodicemVersion=$v
-# The main project needs Docker for PostgreSQL, SQL Server and MongoDB; without it, add --filter-not-trait "Requires=Docker"
-dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj -p:AdCodicemVersion=$v   # no Docker
-
-# Native AOT, as ci.yml's native AOT job runs it; needs clang and zlib. The application of tests/NativeAot under
-# the JIT and as a native binary, compared; then protobuf-net's compile-time model, the same way in an application of
-# its own, whose aot-warnings.allowed lists the warnings protobuf-net's generated code raises; then the compiled model
-# written for native AOT, published (Docker-free).
-.github/scripts/native-aot.sh
-.github/scripts/native-aot.sh artifacts/native-aot-protobuf tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet
-.github/scripts/compiled-model.sh aot
-# The compiled model as the build job checks it: dotnet ef dbcontext optimize, a build on it, a round trip (Docker)
-.github/scripts/compiled-model.sh jit
-
-# Workflows, as lint.yml checks them (actionlint 1.7.12, with shellcheck on PATH; reads .github/actionlint.yaml)
-actionlint
-
-# The pattern attributes the Blazor package writes, in Node's v-flag engine, as ci.yml's documentation site job checks
-# the table EcmaScriptPatternTests pins
-node .github/scripts/ecmascript-patterns.mjs
-
-# One test (xunit.v3 runs on Microsoft Testing Platform; wildcards, not substrings, so wrap the name in *)
+dotnet test --project tests/AdCodicem.ValueObjects.RdgTests
+# One test: xunit.v3 on Microsoft Testing Platform; wildcards, not substrings
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests --filter-method "*The_name_of_the_test*"
 
-# Benchmarks; wants a quiet machine, and absolute timings are not comparable across runs
-cd benchmarks/AdCodicem.ValueObjects.Benchmarks
-dotnet run -c Release -- --filter '*WrapperCost*'
+# Formatting, as CI runs it, before the build. Never plain `dotnet format`: its `analyzers` step runs without the
+# generator's assembly and reports ASP0020 and compile errors for members the generator does emit.
+dotnet format AdCodicem.ValueObjects.slnx whitespace --verify-no-changes
+dotnet format AdCodicem.ValueObjects.slnx style --verify-no-changes
 
-# Documentation site (Docusaurus, published to https://adcodicem.github.io/AdCodicem.ValueObjects/)
-cd website
-npm ci
-npm run docs:api    # regenerate docs/api/ from the XML doc comments (DocFX; not committed)
-npm start           # local dev server
-npm run build       # production build; fails on a broken internal link
+# Pack as CI does: through the solution filter, never the whole solution
+dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
+
+actionlint                                   # as lint.yml's `workflows` job: 1.7.12, shellcheck on PATH
+node .github/scripts/ecmascript-patterns.mjs # Blazor's pattern table in Node's v-flag engine (`documentation site` job)
+
+# Benchmarks: a quiet machine; absolute timings are not comparable across runs
+cd benchmarks/AdCodicem.ValueObjects.Benchmarks && dotnet run -c Release -- --filter '*WrapperCost*'
 ```
 
-`npm run docs:api` has to run before `npm start` or `npm run build` on a fresh checkout: `sidebars.ts`
-builds its API reference category from `website/docs/api/`, which is generated and gitignored.
-
-Integration tests start PostgreSQL, SQL Server and MongoDB through Testcontainers, and the Azure Functions host, whose
-image exists for amd64 alone, beside Azurite.
-
-`TreatWarningsAsErrors` is on repository-wide, so a warning fails the build.
+Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 compatibility island:
+`tests/Compat/CLAUDE.md`. The documentation site: `website/CLAUDE.md`.
 
 ## Releases
 
-Two tracks, and nothing you merge publishes anything by itself.
-
-A **preview** is published by `preview.yml`, every Monday at 07:15 Paris time and whenever it is dispatched from
-`main`, and only when a package input changed since the version nuget.org has from the nearest commit:
-`.github/scripts/preview-gate.sh` decides `publish`, `repair` or `none`, and fails the run rather than guess when a
-lookup fails. All thirty-three packages go out at one version, or none. That version is the one semantic-release would
-give the next stable release, computed without a token by `.github/scripts/next-version.mjs`, which runs
-semantic-release's own commit analyzer with `.releaserc.json`, suffixed `-preview.<commits since the last stable
-tag>`: `0.3.0-preview.172` leads to `0.3.0`, and with no commit that releases anything the version is the next patch.
-The four suites run on that exact commit first, while a job of its own packs it, `src/` only. Before logging in,
-the publish job checks the set again (`verify-packages.sh`) and rechecks nuget.org (`preview-gate.sh --recheck`), so
-re-running an old run cannot publish a stale version. `push-packages.sh` pushes dependencies first and only what
-nuget.org lacks, in up to three passes, so a push that stops midway is completed at the same version by those
-passes, by **Re-run failed jobs** or by the next run (`repair`); then it waits until nuget.org lists every package.
-MinVer receives the version through `MINVERVERSIONOVERRIDE`. An empty override silently falls back to MinVer's own
-version, which `verify-packages.sh` refuses. The reasoning, and what stays open, is in
-`docs/adr/0009-publish-previews-weekly-when-a-package-input-changed.md`.
-
-A **stable** release is a manual `workflow_dispatch` on `release.yml`. Its tests run in a job of their own, and a
-**was it previewed** job (`preview-gate.sh --report`) warns, without ever blocking, when the release ships package
-inputs no version on nuget.org carries: dispatch `preview.yml` first, and start the release once that run is green.
-A **pack** job, which holds no credential, computes the version with `next-version.mjs`, packs `src/` through
-`release-pack.sh` and freezes the documentation through `docs-snapshot.sh`. Once the `nuget-stable` reviewer
-approves, the release job checks those files against the digests the pack job output, and semantic-release computes
-the version from the Conventional Commits, refuses to go on unless it is the one packed, writes `CHANGELOG.md`,
-commits it with the snapshot, tags, pushes through `push-packages.sh`, and the site is redeployed. No build code
-runs beside the NuGet key, the App token or the OIDC token. The bridge is `MINVERVERSIONOVERRIDE` again: the pack
-job hands MinVer the stable version and MinVer steps aside. Both read the same `v*` tags.
-
-The GitHub Release links every package to its version on nuget.org. That list is never written down: the pack job
-evaluates the packable projects under `src/` into `RELEASE_PACKAGE_IDS` with `.github/scripts/package-ids.sh`, and
-semantic-release starts with it (the release body is rendered from that starting environment, so a prepare step
-cannot feed it); `release-pack.sh` fails the pack job, before anything is pushed, if the packages it built differ
-from that list.
-The **attest provenance** job then signs those packages, and every assembly inside them, with a Sigstore SLSA
-provenance attestation and attaches the bundle to the release. nuget.org re-signs each `.nupkg`, so the copy it
-serves no longer has the attested digest, but it leaves the files inside as they were packed: an assembly restored
-from nuget.org verifies (`SECURITY.md`). `preview.yml` attests the same subjects, before its push. Releases are
-immutable on this repository — a published release takes no new asset — so semantic-release creates the GitHub
-Release as a draft (`draftRelease`) and that job publishes it once the bundle is attached. The draft's URL dies when
-it is published, which is why `.releaserc.json` overrides `successComment` to link to the tag instead.
-
-A commit type that triggers no release (`chore`, `ci`, `test`) contributes nothing to the next version. The
-reasoning for the stable track is in `docs/adr/0003-hybrid-release-manual-stable-continuous-preview.md`.
-`build(pack)` and `docs(readme)` are the exceptions among the types that otherwise release nothing:
-`.releaserc.json` rates them a patch, because the package metadata and the README ship inside every `.nupkg` — the
-README is its nuget.org page — so a change to either reaches users only through a release. Scope the commit
-accordingly, or the change waits for the next `feat` or `fix`. While the major is 0, a breaking change (`!`, or a
-`BREAKING CHANGE:` footer) releases a minor: the first of the `releaseRules` is
-`{ "breaking": true, "release": "minor" }`. At 1.0 that rule is replaced by `{ "breaking": true, "release": "major" }`,
-not deleted, or `build(pack)!` and `docs(readme)!` would fall back to a patch. So before 1.0.0, a minor may break,
-deprecate or remove public API, and the documentation says so (README's Versioning section): a deprecation reads
-"any minor version may remove it before 1.0.0", never "removed in the next major version". Only from 1.0.0 on does
-a breaking change wait for a major. The thirty-three packages share one version, never aligned with .NET's or EF Core's,
-and a framework's next major is supported in the same packages:
-`docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md`.
-
-The documentation follows the same two tracks (`docs/adr/0005-version-the-documentation-site.md`, amended by
-ADR-0009). Every `preview.yml` run that decides, whether it publishes or not, redeploys the site with
-`website/docs/` as the preview under `/docs/preview/`, labelled with the version on nuget.org that describes the
-commit it builds; a run in which a job failed deploys nothing. `deploy-docs.yml` is called only, never dispatched, so
-the site is redeployed by hand by dispatching `preview.yml`. `ci.yml`'s **documentation site** job builds the site
-on every pull request without deploying it, through `.github/actions/build-site`, the composite action
-`deploy-docs.yml` builds with, so a broken link fails there. A stable release freezes `website/docs/` — generated API reference
-included — into `website/versioned_docs/` through `.github/scripts/docs-snapshot.sh`, which `release.yml`'s pack
-job runs and semantic-release commits with the changelog. There is one entry per line, `0.<minor>.x` before 1.0 and
-`<major>.x` after, replaced wholesale when the line ships again. Never add or remove an entry by hand. Editing a
-released page is allowed only to correct an error that misleads users of that release, and the same fix must land
-in `website/docs/`, or the next snapshot of the line discards it.
-
-`v0.1.0` is a baseline tag placed by hand, not a release: no `0.1.0` package exists. semantic-release ignores
-prerelease tags on a stable branch, so without it the first stable release would have been `1.0.0`.
-`docs/maintaining.md` has the one-time settings the workflows depend on.
+- Nothing you merge publishes. A preview comes from `preview.yml` (Mondays, or dispatched from `main`) when a package
+  input changed; a stable release from a manual `release.yml` dispatch the `nuget-stable` reviewer approves.
+  Mechanics: `.github/CLAUDE.md`; runbook: `docs/maintaining.md`; reasoning: ADR 0003 and 0009.
+- The commit type sets the next version (Conventional Commits, `.releaserc.json`): `feat` a minor, `fix` and `perf` a
+  patch; `chore`, `ci`, `test`, `docs`, `refactor` nothing, except `build(pack)` and `docs(readme)`, rated a patch
+  because the package metadata and the README (the nuget.org page) ship inside every `.nupkg`. Scope such a commit
+  that way, or it waits for the next `feat` or `fix`.
+- While the major is 0, a breaking change (`!`, or a `BREAKING CHANGE:` footer) releases a minor: a minor may break,
+  deprecate or remove public API, and a deprecation reads "any minor version may remove it before 1.0.0", never "the
+  next major version". At 1.0, replace the first `releaseRules` entry with `{ "breaking": true, "release": "major" }`,
+  never delete it, or `build(pack)!` and `docs(readme)!` fall back to a patch.
+- The thirty-three packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
+  supported in the same packages (ADR 0010).
 
 ## Architecture
 
-### The generator is the centre
+### The generator
 
-`ValueObjectGenerator` (`ForAttributeWithMetadataName`) → `ValueObjectModel` (an equatable record, so an
-unrelated edit does not re-run the pipeline) → `ValueObjectEmitter`, which delegates to `JsonConverterEmitter`,
-`TypeConverterEmitter`, `XmlSerializableEmitter` and `RegistrationEmitter`. `Model/UnderlyingType.cs` is the closed
-table of the 22 supported underlying types and drives nearly every per-type decision the emitters make.
+- Pipeline: `ValueObjectGenerator` (`ForAttributeWithMetadataName`) → `ValueObjectModel` → `ValueObjectEmitter`, which
+  delegates to `JsonConverterEmitter`, `TypeConverterEmitter`, `XmlSerializableEmitter` and `RegistrationEmitter`.
+- `ValueObjectModel` is an equatable record of primitives and `EquatableArray`s: keep it so, or every unrelated edit
+  re-runs the pipeline (GeneratorTests' incrementality tests catch it).
+- `Model/UnderlyingType.cs` is the closed table of the 22 underlying types, which drives nearly every per-type decision
+  of the emitters. A new underlying type starts there.
+- `RegistrationEmitter` writes a `[ModuleInitializer]` that fills `ValueObjectRegistry`, so consumers register nothing.
+  Each descriptor carries the generated JSON converter, which `ValueObjectJsonConverterFactory` hands to a
+  source-generated serializer context.
+- Shapes the module initializer cannot name directly: a `private` or `protected` value object registers through a route
+  of nested static step classes (`ValueObjectModel.RegistrationRoute`); a generic value object, or one nested in a
+  generic type, registers its definition (`RegisterGenericDefinition`), and `ValueObjectRegistry.TryResolve` describes
+  each construction by reflection from its generated `Schema` and `ValueJsonConverter` the first time it is asked.
+  Still refused (`VO0019`): `file`-local types, a private or protected type inside a generic one, a generic `[EntityId]`.
+  Details: `src/AdCodicem.ValueObjects.Generators/CLAUDE.md`.
 
-`XmlSerializableEmitter` writes only in an assembly marked `[assembly: ValueObjectXmlSerialization]`: an explicit
-`IXmlSerializable` and a public static `GetXmlSchema` named by `[XmlSchemaProvider]`, each a one-line call to
-`ValueObjectXml` in the contracts, which reads through `TSelf.TryCreate` and assigns through `Unsafe.AsRef(in this)`.
-The generator reads the attribute off the compilation inside the transform, so the flag and its `Namespace` join the
-model: the transform runs again on every compilation, and the model's equality keeps the emission cached. A type that
-implements `IXmlSerializable` or carries `[XmlSchemaProvider]` itself is left alone.
+### Two ways to reach a value object
 
-`RegistrationEmitter` produces a `[ModuleInitializer]` that populates `ValueObjectRegistry`, so descriptors are
-available without the consumer registering anything. Each descriptor carries the generated JSON converter, which
-`ValueObjectJsonConverterFactory` hands to a source-generated serializer context, whatever the declaring assembly
-references.
-
-Two shapes cannot be registered from that class by a closed type. A `private` or `protected` value object is
-reachable only from the type declaring it, so the registration calls a step nested in the type declaring the
-outermost private or protected type, each step calls the next, and the last, nested in the type declaring the most
-deeply nested one, registers it (`ValueObjectModel.RegistrationRoute`). Each step is a static class of its own, named
-after its position on the route: a member of the author's type would run its static constructor from the module
-initializer, and one name for every position would be CS0108 where a type of the route derives from another.
-`RegisterGenericDefinition` reads nothing off the definition but its kind, since native AOT keeps no interface list
-for a generic type definition and it runs in the module initializer. A generic value object, or one nested in a generic type, has no
-construction the registration knows: it registers the generic definition (`RegisterGenericDefinition`), and
-`ValueObjectRegistry.TryResolve` describes each construction from its generated `Schema` and `ValueJsonConverter`,
-by reflection, the first time it is asked for it. The EF Core convention maps the definition and closes the converter
-per property; Dapper needs `AddValueObjectHandler<TSelf, TValue>()` per construction. Only `file`-local types, a
-private or protected type inside a generic one, and a generic `[EntityId]` stay refused (`VO0019`).
-
-### Two ways to reach a value object — and why bugs hide in one of them
-
-- **Typed path.** The static abstract members of `IValueObject<TSelf, TValue>` (`Create`, `TryCreate`,
-  `TryParse`, `Normalize`, `Validate`, and `Schema`, the rules as data). This is what domain code and the generic
-  integrations use — the ASP.NET binder, the EF converter, the Dapper handler and the MongoDB serializer are all generic
-  and closed over the concrete types at startup, so per-request work is fully typed and allocates nothing extra. A
-  typed adapter reads `TSelf.Schema`, never the registry, which would describe a construction of a generic value object
-  by reflection.
-- **Boxed path.** `ValueObjectDescriptor`, resolved from `ValueObjectRegistry`, for callers that only know a `Type` at
-  run time — `MustParseAs(Type)`, DataAnnotations' `[ParsesAs(typeof(T))]` (`ValueObjectValidationAttributes.Resolve`,
-  `MustParseAs`'s lookup made when a value is first validated, since anything reading a member's attributes creates them,
-  the descriptor kept by the attribute), the OpenAPI transformer and the Swashbuckle filters, model-binder resolution.
-  `descriptor.Accept` hands an `IValueObjectVisitor<TResult>` the type arguments back, so an integration closes its
-  adapter at compile time rather than with `MakeGenericType`, which native AOT cannot run for a struct. Dapper's
-  `AddValueObjectHandlers`, the MVC binder provider, the JSON factory's general-purpose converter, for a value object
-  written by hand, the minimal API filter of `AspNetCore.Http`, which closes a text check per parameter, the Azure
-  Functions converter, which closes the conversion of each value-object parameter the worker hands it as text, and its
-  middleware, which closes the check of each it explains, both through `ValueObjectBindingText.TryDescribe`, the MongoDB
-  provider, which builds the serializer the driver asks it for over the driver's serializer of the underlying type, the
-  MessagePack resolver, which builds, once per resolver, the formatter MessagePack asks it for, protobuf-net's
-  `AddValueObjects`, which names the closed serializer type of each value object it registers on a `RuntimeTypeModel`
-  with `typeof` over the visitor's type arguments, the profile following the trust and the model's level, the HotChocolate type
-  discovery handler, which closes, once per schema build, the scalar of each value object the schema meets (a typed
-  `AddValueObjectScalar<TSelf, TValue>()` asks no registry), the HotChocolate.Data type interceptor, which closes, once
-  per schema build, the operation type of each value-object member a filter input meets, and the list over it (a typed
-  `BindValueObject<TSelf, TValue>()` asks no registry), the NJsonSchema package's reflection service and schema
-  processor, which describe each value object NJsonSchema meets, found through `TryResolve`, and write its examples,
-  bounds and known values under Newtonsoft.Json settings through a System.Text.Json converter the visitor closes over it
-  (`NewtonsoftJsonWrittenConverterFactory`), DataAnnotations' `[NotDefault]`, which closes a check of
-  `IsDefault` once per type in a static cache (a failed resolution is not cached, so a registration made later is
-  found), the Blazor input, which finds the descriptor of its `TValue`, nullable unwrapped, as `[ParsesAs(typeof(T))]`
-  does, and closes both its text adapters, plain and nullable, once per value object through a visitor that is not
-  generic (`ValueObjectInputTexts.Closer`), caching them per `TValue` once found, the test-data sampler's
-  `Next(descriptor)`, the AutoFixture specimen builder, Bogus's `RuleForValueObjects` and `ValueObject<TSelf>`, FsCheck's
-  `MergeValueObjects`, EF Core's `ConfigureValueObjects` and `ConfigureEntityIds`, and the CHECK constraint convention
-  `AddValueObjectCheckConstraints` adds, which resolves the value object a converter of the package maps
-  (`ConverterTypes.TryGetValueObjectType`, over `ConverterTypes.Definitions`) through `TryResolve`, do. The key convention
-  `ConfigureValueObjects` adds closes nothing: it tells a value object over `Guid` by `IValueObject<Guid>` and names a
-  factory that is not generic, and `HasValueObjectKeyGeneration<TSelf>()` is typed. An entity identifier's descriptor
-  has a visitor of its own: `EntityIdDescriptor.Accept` hands an `IEntityIdVisitor<TResult>` the identifier type, under
-  `IEntityId<TId>`, through which `EntityIdBson.Register` of `Identifiers.MongoDB` closes each id generator and reaches
-  `TId.New()`.
-  `ConfigureValueObjects` still closes the converter of a `TSelf?` property, or of such an element of a collection over
-  text, with `MakeGenericType`, over the visitor's own type arguments: C# names it only under `TValue : struct` or
-  `TSelf : IValueObject<TSelf, string>`, which `Visit` cannot prove, and it must stay the type a compiled model names.
-  It and the conventions it adds, for generic constructions and for collections, are also the exception to a typed
-  adapter reading `TSelf.Schema`: they size a column or an element by the descriptor's `Schema`, which a registration
-  made by hand may set apart from the type's, handed to their visitor in a field. The CHECK constraint convention is
-  not: a constraint must be no stricter than what `Validate` enforces, so its visitor reads `TSelf.Schema`.
-  `ConfigureEntityIds` needs none: an identifier is over `string`, so its visitor casts itself to an interface it
-  implements over `string`, whose method takes that constraint. It visits the identifier's `ValueObjectDescriptor`, from
-  `TryResolve`, for the column it sizes from the descriptor's `Schema`: an identifier registered with `EntityIdRegistry`
-  alone, by hand, is described by reflection there, and stays in `ValueObjectRegistry` from then on. The Serilog
-  integration closes nothing and visits no descriptor: its policy and its enricher read a value Serilog has already
-  boxed through the `IValueObject` marker, and its option only reads the `ValueObjectType` of each descriptor the
-  registry holds, which it hands Serilog as a scalar type. Neither does the Microsoft.Extensions.AI integration, which
-  calls no `TryResolve` either: it tells a value-object parameter of a tool by `ValueObjectRegistry.IsValueObject`, and
-  reads each argument through the contract the tool's serializer options hold for the parameter, the one the tool's own
-  binding reads it through; nor the Model Context Protocol one, which reads them through the same checker,
-  `src/Shared/ValueObjectArguments.cs`, linked into both packages; nor the EF Core query translator
-  `UseValueObjectQueries()` registers, which asks no registry: it tells a property this package maps by the converter on
-  the SQL expression EF Core hands it, one of `ConverterTypes.Definitions` or EF Core's composition of one with its own
-  conversion of the underlying type. The JSON Patch adapters of `TryApplyTo` visit no descriptor either: they tell a
-  value object by `IsValueObject`, read its values through the Newtonsoft.Json converter and its dictionary keys through
-  the descriptor's `TryParse`, and close the adapter of a dictionary keyed by value objects or holding them over its two
-  types with `MakeGenericType`, as JSON Patch closes its own (`ValueObjectAdapterFactory`): a visitor would name the
-  value object, never the dictionary's other type, and MVC's JSON Patch runs in no native binary. No EF Core convention
-  runs under native AOT, where EF
-  Core reads the compiled model and builds none, and the MVC binder provider runs in no native binary, MVC not being
-  AOT-compatible, so the `native AOT` job guards the JSON factory's visitor, the minimal API filter's and
-  `[NotDefault]`'s, the lookup of `[ParsesAs(typeof(T))]`, the Blazor input's, and `EntityIdDescriptor.Accept`, which
-  the application calls on every identifier registered; the visitors of the Azure Functions, both HotChocolate and the NJsonSchema
-  packages run in no native binary, nor protobuf-net's `AddValueObjects`, which is `[RequiresDynamicCode]`. `RuntimeClosingTests` guards
-  every package: it reads their IL and fails on a `MakeGenericType`, a `MakeGenericMethod` or an
-  `Activator.CreateInstance` outside the list it holds, the registry's reflection fallback, the EF Core converter of
-  a `TSelf?` property, or of such an element of a collection over text, and the JSON Patch adapter of such a
-  dictionary. A hand-written value object declares `Schema`
-  too, and the registry describes it from that alone: an annotation on it is read by nothing at run time.
-
-The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them. That is
-exactly how the descriptor once flattened every rejection into a generic `not_parsable`, discarding the rule
-that actually fired. `DescriptorTests.cs` exists to cover that surface; extend it when touching the descriptor.
-
-### Invariants worth knowing before changing anything
-
-- **Normalize, then validate, then assign**, so a non-default instance is by construction normalized and valid. The
-  exceptions are the EF Core and Dapper read paths, which use `CreateUnchecked` because they read values this same
-  application already validated, and the temporary value of an integer key `HasValueObjectKeyGeneration` generates,
-  which the database replaces and nothing writes; the GUID it generates for a key goes through `Create`, since a write
-  validates only an instance equal to the default and trusts any other to have gone through it.
-  `ConfigureValueObjects(strict: true)` turns validation back on for EF Core; Dapper validates only a column the value
-  object cannot have written: text read into a value object over another type, or a number or a `Guid` read into one
-  over `string`. MongoDB reads the other way round: strict, through `TryCreate`, unless the serializer is trusted
-  (`ValueObjectBson.Register(trusted: true, …)`), since a collection has no schema and is often written by more than one
-  program; so does MessagePack, unless the resolver is trusted (`WithValueObjects(trusted: true)`,
-  `UseValueObjects(trusted: true)`), since the bytes may come from another service, and so does protobuf-net, unless the
-  serializers are trusted (`AddValueObjects(trusted: true, …)`, a `Trusted…` profile of `ValueObjectProtoProfiles`). A
-  `nil`, a BSON `null`, and a value the underlying type's own formatter or serializer cannot read are refused whatever
-  the trust.
-- **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on success. The
-  integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a `JsonException` or
-  `JsonSerializationException`, a model state error, `TryApplyTo`'s for a JSON Patch document, keyed by the path of its
-  operation with the code recorded beside it, or a call to its handler with the code, the validation problem of a
-  minimal API, a FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver `FormatException` on read or `BsonSerializationException` on
-  write, a MessagePack `MessagePackSerializationException`, a protobuf-net `ProtoException`, an `XmlException` from
-  `XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, carrying
-  the code in its `Data`; a protobuf-net.Grpc code-first service configured with `ValueObjectBinderConfiguration.ForServer`
-  answers a refused request `INVALID_ARGUMENT`, whose `grpc-status-details-bin` trailer holds a `google.rpc.ErrorInfo`
-  (reason `ToUpperSnakeCase(code)`, metadata `code` and `valueObject`, none for a code that maps to no reason), written by
-  hand in `RpcStatusDetails`, the `RpcException` carrying the code in its `Data` on the server; the gRPC package's
-  `ValueObjectExceptionInterceptor` answers a `ValueObjectException` carrying a code that escapes a handler the same way,
-  through Grpc.StatusProto, and its `ValueObjectBadRequest` records every refused field of a request and throws one
-  `INVALID_ARGUMENT` holding a `google.rpc.BadRequest`, a field violation's `reason` left empty for a code that maps to
-  none; the AI package's wrapper throws nothing, and returns the result of a Microsoft.Extensions.AI tool,
-  `{"error":"invalid_argument","argument","code","message"}`, which `FunctionInvokingChatClient` hands the model as it
-  is, and the Model Context Protocol package answers a tool execution error (`isError: true`) whose text carries the
-  code, and whose structured content is that object when the tool declares no output schema. The Azure Functions
-  converter fails a parameter with a `FormatException` carrying the code in its `Data` and at the end of its message,
-  since the worker keeps that text alone, and the middleware of `AzureFunctions.AspNetCore` answers an HTTP trigger of
-  the ASP.NET Core integration with the minimal API's validation problem. A HotChocolate scalar throws a
-  `LeafCoercionException` carrying the code in its `Data`, whose GraphQL error carries it as `extensions.code`, and an
-  internal `ValueObjectException` subclass (`ValueObjectScalarRefusal`) with the type and the code on `IError.Exception`;
-  HotChocolate replaces the code of a refused output with its own `EXEC_INVALID_LEAF_VALUE`. A refused HotChocolate.Data
-  filter operand is the scalar's own refusal, at the operation's `inputPath`, and a `null` text fragment HotChocolate's
-  `HC0026`, with no code. DataAnnotations'
-  `[ParsesAs]` and `[NotDefault]` refuse with a `ValueObjectValidationResult` (DataAnnotations' `ValidationResult`, the
-  code and the type beside the message), which `Validator.TryValidate*` and `ObservableValidator` keep and MVC,
-  `AddValidation()` and options validation reduce to its message; `Validator`'s throwing methods wrap it in a
-  `ValidationException` DataAnnotations raises itself, so `ValueObjectErrors.TryGetCode` reads the code off its result,
-  its `Data` being DataAnnotations'. A Blazor input throws nothing for refused text: `InputBase` adds the rule's message
-  to its own `ValidationMessageStore`, and the input keeps the code in a dictionary under a private key of
-  `EditContext.Properties`, which `TryGetValueObjectErrorCode` reads, set on a refusal and cleared on the next text it
-  reads, when it formats the model again and when it is disposed; empty text a type that cannot be `null` refuses is
-  `value_object.required` with `[Required]`'s message, a parser refusing without a reason `not_parsable` with "The text
-  could not be parsed as X." and an empty message "The field {0} is invalid.", as `[ParsesAs]` gives them. A misuse of a DataAnnotations attribute or of the Blazor input, a member of the wrong type or a type no value object or unregistered under
-  native AOT, throws `InvalidOperationException`, with no code; where the runtime supports no dynamic code, the
-  HotChocolate scalars and filters refuse a value object nothing registered with a `NotSupportedException` naming the
-  typed registrations, and the text operations' type over a value object not over `string` throws
-  `InvalidOperationException`, each inside HotChocolate's `SchemaException` at start, with no code. Under
-  `UseValueObjectCheckErrors()`, the EF Core package adds the code to the `Data` of the database provider's error for a
-  row a CHECK constraint from the rules refused, read off the constraint's name (`ValueObjectCheckConstraints`), never
-  off the model, and neither replaces nor wraps that error; `ValueObjectCheckConstraints.TryGetCode` reads it without
-  the call. The one that throws
-  `ValueObjectException` is a strict EF Core read, which goes through `Create` and fails the query; `Create`, `Parse`
-  and an explicit conversion throw it for code that treats a rejected value as a bug. `website/docs/reference/errors.md`
-  names what each integration throws. Validation is fail-fast: the first violated rule wins. The message of a rule stays
-  English, for exceptions and logs; an application localises it by code, under `ValueObject.{code}`
-  (`ValueObjectMessages` in the contracts), and keeps the English message for a key it lacks: MVC through
-  `AddValueObjects(messages => messages.UseResource<T>())` on `MvcOptions` or the builder (the binder and the JSON input
-  formatter), a minimal API through `WithValueObjectProblemDetails(messages => …)` (the filter and the exception
-  handler), an Azure Functions HTTP trigger through `UseValueObjectProblemDetails(messages => …)`, which applies the
-  culture of `IRequestCultureFeature` or else runs the framework's `RequestLocalizationMiddleware` around the lookup, each
-  reading the resource through the request's `IStringLocalizerFactory`, a HotChocolate schema through
-  `AddValueObjects(options => options.UseResource<T>())`, an error filter reading the application's
-  `IStringLocalizerFactory` through `GetRootServiceProvider()` in the culture of the execution, the executor failing to
-  start without `AddLocalization()`, a Blazor input through `AddValueObjectInputs(options => options.UseResource<T>())`,
-  which registers `AddLocalization()` itself, `{0}` the input's `DisplayName` or else its field's name, the lookup
-  reading the component's injected services in the current UI culture, FluentValidation from
-  `ValidatorOptions.Global.LanguageManager` when no
-  message is chained, and the DataAnnotations attributes from the resource their `ErrorMessageResourceType` names alone
-  (`ErrorMessage`, or a resource with its name, give DataAnnotations' single message), read through a
-  `ResourceManager(typeof(T))` cached per type, a `MissingManifestResourceException` taken for a missing key, the next
-  key looked up. No translation ships.
-- **Rules are declared once.** `MaxLength = 34` validates, sizes the EF column and becomes the OpenAPI `maxLength`, and
-  the `maxLength` of the MongoDB `$jsonSchema` validator (`ValueObjectBsonSchema`, which writes each rule of
-  `TSelf.Schema` only where the server refuses no value the type accepts, the pattern in PCRE2 through `PcrePattern`
-  over the shared reader below, each class escape listed from .NET's own Unicode tables, the `enum` of a closed set of
-  text only where the type stores no other spelling of a known value, as the CHECK constraints below, both through
-  `src/Shared/KnownValueSpellings.cs`, by the `Comparison` the schema states, which the generator writes on every value
-  object over text: always under `Ordinal`; never under a culture's, which takes spellings of the same length too; under
-  `OrdinalIgnoreCase`, or a schema stating none, only where the type stores neither another case of a known value, nor a
-  character sharing its upper case, `µ` for `μ` among them, nor the value followed by a soft hyphen). Opted in,
-  `AddValueObjectCheckConstraints` writes `MinLength`, the bounds and the closed sets of `TSelf.Schema`, and the pattern
-  in a dialect the options name, as CHECK constraints of the EF columns, the maximum length staying the column size,
-  only where the database refuses no value the type accepts: a length in bytes, a bound or set left out where the
-  column compares apart from .NET, a closed set of text left out when the type stores another spelling of a known value
-  (by the same comparison), a column two types of a hierarchy share
-  for two value objects left alone, no pattern on a fixed-length column; a name
-  ends with its rule, and with a hash of its table and column when the provider would cut it, another check constraint
-  of the model holds it already, in its table or, on SQL Server, in its schema, or, on SQL Server, another table of the
-  schema would take it. Anything added to `[ValueObject<T>]` should feed all of them, the validator wherever
-  the server reads the rule as .NET does, the CHECK constraints wherever the database does, but `Unicode = false`,
-  which states how the text is stored rather than what the type accepts: it feeds the EF Core conventions and the Dapper
-  handler alone (`Schema.IsUnicode`, `false` or `null`), and `VO0047`, an analyzer, warns where the rules let a
-  character outside ASCII through, which SQL Server replaces silently in a `varchar` column. A hook can
-  feed the schema too: the `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates, and its text, read off
-  the attribute at compile time, becomes the OpenAPI `pattern`, and the `Pattern` of a HotChocolate scalar serialized as
-  a String, which HotChocolate publishes as `@serializeAs` under `ApplySerializeAsToScalars`, beside the wire pattern of
-  a `TimeSpan`, a `TimeOnly` or a `DateTime`. Under `SchemaAttributes="true"`, a Blazor input writes `MaxLength`,
-  `MinLength` and the pattern as `maxlength`, `minlength` and `pattern`, the pattern through `EcmaScriptPattern` over the
-  shared reader below, for the `v` flag a browser compiles it with as `^(?:…)$`, only for a pattern each of whose
-  top-level alternatives is anchored at both ends, with `\d`, `\w`, `\s` and `\p{…}` listed from .NET's tables and
-  nothing that can match half of a surrogate pair; off by default, since a browser checks text before the normalizer
-  runs. The OpenAPI transformer, the Swashbuckle filters and the
-  JSON Schema transform (`ValueObjectJsonSchema`, in the Json package) take what a rule becomes in a schema from
-  `src/Shared/ValueObjectSchemaKeywords.cs`, an internal file each package links and compiles, not a project: a keyword
-  changes there, for all three, and the HotChocolate package links it too, for its wire patterns, and the NJsonSchema
-  package for the definitions it writes on NJsonSchema's object model (`ValueObjectJsonSchemaDescription`, a host file
-  of its own built as the shared OpenAPI one), NSwag's components and the JSON Schema Confluent's serdes register. The JSON Schema transform's language-model profile reaches the tools and the
-  structured output of Microsoft.Extensions.AI through the AI package's `WithValueObjects()` and
-  `ValueObjectResponseFormat.ForJsonSchema<T>()`, and the input and output schemas of a Model Context Protocol tool
-  through `WithValueObjectTools<T>()`. That profile describes what a model should send, and, as the OpenAPI one, keeps
-  two rules the MongoDB writer loosens where the server would refuse a value the type accepts: the `enum` of a closed
-  set looked up ignoring case, and a `minLength` .NET counts in UTF-16 code units. A tool's `outputSchema` can therefore
-  refuse a result the server writes, which the guide states as a limit. The OpenAPI transformer and the Swashbuckle
-  filters, both on the object model of `Microsoft.OpenApi` 2, share the whole description of a value object the same
-  way, through `src/Shared/ValueObjectOpenApiSchema.cs`; what is particular to each host stays with it: how it finds
-  the value object, the options, the name of a closed set's enumeration, parameters and containers. A member or a
-  parameter carrying `[ParsesAs]` is described as the value object's text through the same core (`Describe(...,
-  asText: true)`, a dictionary key's description), each host finding the attribute on the property, the constructor
-  parameter of the same name and the parameter, an MVC query model's member included, with
-  `GetCustomAttributes(...).OfType<ParsesAsAttribute>()`, since both forms may sit on one member; the rules the
-  declaration put on the schema are kept where stricter (`RulesOf`, `KeepStricterRules`), as for a route constraint. The XSD facets the
-  schema provider of an assembly opted into XML serialization publishes (`ValueObjectXml.ProvideSchema`) read the same
-  `TSelf.Schema`. A pattern leaving .NET goes through `src/Shared/ValueObjectPatternSyntax.cs`, the reader every package
-  that writes a .NET pattern in another dialect, or draws values from one, links: it reads a pattern into a tree,
-  refusing what it cannot read with certainty, and each dialect writes what it reads alike from the tree, `XsdPattern` in
-  the contracts for XSD, `SqlPattern` in the EF Core package for PostgreSQL's `~` and SQL Server 2025's `REGEXP_LIKE`
-  (a CHECK constraint, opted in with `ValueObjectCheckOptions.Patterns`, which fails the model on a pattern the dialect
-  reads apart, unless `ExcludePattern<TSelf>()` leaves that value object out; it also refuses repetitions matching more
-  than 1000 characters once written out, which both engines refuse as too complex only when they first check a value);
-  the test-data sampler (`PatternSampler` in `AdCodicem.ValueObjects.Testing.Data`) draws strings
-  from the same tree, and leaves a pattern outside its subset to rejection sampling, over the tree of the pattern read
-  without its lookarounds and with its categories reduced to printable ASCII. The rules a test draws values from
-  are the same `TSelf.Schema`: lengths, pattern, bounds, known values, and the example as a fallback. So are the
-  arguments of a localised message: `ValueObjectMessages.ArgumentsFor` reads `MinLength`, `MaxLength`, `Minimum` and
-  `Maximum` (the invariant text read back as the underlying type and written in the current culture) and `KnownValues`
-  (joined with the culture's list separator) off `TSelf.Schema`, or off a descriptor's, and `KeysFor` puts
-  `ValueObject.value_object.out_of_range.minimum` or `.maximum` before the bare key for a type declaring one bound. The
-  refused value is never an argument; `{0}` is the member, the value object's type name in a JSON body, the scalar's
-  name for an operand of a HotChocolate.Data filter.
-- **`default(T)` is a build error** (`VO0010`). Tests that deliberately construct one need a targeted
-  `#pragma warning disable VO0010` with a comment.
-- **A known value is the author's member, created before the lookup it belongs to.** `[KnownValue]` marks a
-  `static readonly` field or a get-only auto-property initialized through the generated, private `Known`, which
-  applies every rule but membership. The author's part of a type initializes before the generated part (Roslyn orders
-  the trees), so a closed set's `FrozenSet` is built from the members after they exist, and `Validate` throws
-  `InvalidOperationException`, with the reason, when a static initializer reaches it before then through `Create`.
-  `VO0036` reports a member the generator cannot read as a known value, `VO0037` a call to `Known` anywhere else.
-  The rules a value is checked against at compile time (`VO0031`) are read off constants only: `Known("FR")`, an
-  `Example` getter returning `Create(42)`, a bound returned as a constant. An attribute option written as text is no
-  longer read anywhere (`docs/adr/0011-declare-known-values-and-examples-as-typed-members.md`).
+- **Typed path**: the static abstract members of `IValueObject<TSelf, TValue>` (`Create`, `TryCreate`, `TryParse`,
+  `Normalize`, `Validate`, `Schema`). Domain code and the generic adapters (ASP.NET binder, EF converter, Dapper handler,
+  MongoDB serializer) use it, closed over the concrete types at startup, allocation-free per call. A typed adapter reads
+  `TSelf.Schema`, never the registry.
+- **Boxed path**: `ValueObjectDescriptor`, from `ValueObjectRegistry`, for code that knows a `Type` only at run time
+  (attribute lookups, schema generators, binder providers, test-data adapters). Get back to typed code through
+  `descriptor.Accept(IValueObjectVisitor<TResult>)` and close the adapter in `Visit<TSelf, TValue>`; never
+  `MakeGenericType`, `MakeGenericMethod` or `Activator.CreateInstance`, which native AOT cannot run for a struct. An
+  entity identifier has its own `EntityIdDescriptor.Accept(IEntityIdVisitor<TResult>)`.
+- `RuntimeClosingTests` reads every package's IL and fails on a runtime-closing call outside its allow-list (the
+  registry's reflection fallback, EF Core's converter of a `TSelf?` property or element, the JSON Patch dictionary
+  adapter). The test is the source of truth; a new entry needs a reason there.
+- Code that only asks "is this a value object" calls `ValueObjectRegistry.IsValueObject` and resolves nothing (Serilog,
+  AI, MCP, the EF Core `.Value` translator, JSON Patch).
+- The `native AOT` job runs the visitors of the JSON factory's general-purpose converter (for a hand-written value
+  object), the minimal API filter, `[NotDefault]`, the `[ParsesAs(typeof(T))]` lookup, the Blazor input, and
+  `EntityIdDescriptor.Accept`. Those of MVC, the EF Core conventions, Azure Functions, both HotChocolate packages,
+  NJsonSchema and protobuf-net's `AddValueObjects` run in no native binary, so a defect there shows under the JIT only.
+- A hand-written value object declares `Schema`: the registry describes it from that alone, and reads no annotation on
+  it at run time.
+- The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them (it once flattened
+  every rejection into `not_parsable`). Extend `DescriptorTests.cs` whenever you touch the descriptor.
 
 ### Hooks are interfaces
 
-A value object declares a rule by implementing `IValueObjectNormalizer<T>`, `IValueObjectSpanNormalizer`,
-`IValueObjectPatternValidator`, `IValueObjectValidator<T>`, `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>`,
-`IValueObjectFormatter<T>`, `IValueObjectStringFormatter<T>` or `IValueObjectExample<TSelf>`
-(`src/AdCodicem.ValueObjects.Abstractions/ValueObjectHooks.cs`). The compiler
-then checks the signature. The rules are public because a static abstract interface member cannot be anything
-else; `Normalize` remains the member callers use, guarding null before deferring to `NormalizeValue`. `VO0011`
-reports the one mistake left: a rule written without its interface. For a `static Regex Pattern` it reports a
-public one only, and stays quiet on a type that implements another hook, which may already run it.
+- A value object declares a rule by implementing a hook of `src/AdCodicem.ValueObjects.Abstractions/ValueObjectHooks.cs`
+  (`IValueObjectNormalizer<T>`, `IValueObjectSpanNormalizer`, `IValueObjectPatternValidator`, `IValueObjectValidator<T>`,
+  `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>`, `IValueObjectFormatter<T>`, `IValueObjectStringFormatter<T>`,
+  `IValueObjectExample<TSelf>`), so the compiler checks the signature. Hook members are public because a static abstract
+  member cannot be anything else. Callers use `Normalize`, which guards `null`, never `NormalizeValue`.
+- `VO0011` reports a rule written without its interface: a public static `Regex Pattern`, unless the type implements any
+  other hook, which may already run it; a public static `Minimum` or `Maximum` property of the underlying type, unless
+  the type implements `IValueObjectValidator<T>` or `IValueObjectNormalizer<T>`, which may check or clamp to it, and
+  never on a field, which could not implement the interface; a public static `Example` property of the type.
+- `IValueObjectPatternValidator`: the consumer writes `[GeneratedRegex(...)] public static partial Regex Pattern { get; }`
+  and the framework's regex generator supplies the body. Strings only (`VO0023`), never an `[EntityId]` (`VO0024`). The
+  generator reads the pattern text off the attribute for the schema: `VO0025` warns on a `RegexOptions` the text cannot
+  carry, `VO0026` on a missing `matchTimeoutMilliseconds` (ADR 0007).
+- A bound is read through `ValueObjectBound` every time, never cached: a copy taken while the type initializes would keep
+  the default for good (ADR 0008). The schema publishes it through `ValueObjectBound.Text`, which the schema transformer
+  re-writes in the converter's form. `VO0030`: a bound hook over a type that takes no bound, or over another type.
+- `IValueObjectExample<TSelf>` returns an instance, which the schema reads through `ValueObjectExample.Of<TSelf>()` and
+  publishes as its underlying value (`ValueObjectSchema.Example` is `object?`). `VO0038`: an example hook over another
+  type (ADR 0011).
+- The `Pattern`, `Minimum`, `Maximum` and `Example` options are `[Obsolete(error: true)]` (`VO0021`, `VO0028`, `VO0035`)
+  and read by nothing; any minor may remove them.
 
-`IValueObjectPatternValidator` is the one hook whose member is half written by another generator: the consumer
-declares `[GeneratedRegex(...)] public static partial Regex Pattern { get; }` and the framework's regex generator
-supplies the body. It applies to string value objects only (`VO0023`), never to an `[EntityId]` (`VO0024`), and
-replaces the `Pattern` option, now a compile error read by nothing (`VO0021`). The generator
-reads the pattern text off the attribute for the schema, so `VO0025` warns on a `RegexOptions` that text cannot
-carry, and `VO0026` on a missing `matchTimeoutMilliseconds`.
+## Invariants
 
-`IValueObjectMinimum<T>` and `IValueObjectMaximum<T>` replace the `Minimum` and `Maximum` options, which held the
-bound as text and are now a compile error read by nothing (`VO0028`). The generated code reads a bound through `ValueObjectBound`, a bridge that reaches it however the
-type implements it and that keeps nothing: a copy taken while the type initializes would keep the default for good.
-The schema publishes it through `ValueObjectBound.Text`, which the schema transformer re-writes in the converter's
-form. A hook over a type that takes no bound, or over another type than the underlying one, is `VO0030`. `VO0011`
-reports a public static `Minimum` or `Maximum` property of the underlying type without its interface, and stays
-quiet on a field, which could not implement it, on a type that implements `IValueObjectValidator<T>` or
-`IValueObjectNormalizer<T>`, which may already check it or clamp to it.
-`docs/adr/0008-deprecate-text-bounds-for-typed-bound-hooks.md` records why a bound is a constant that nothing caches.
+- **Normalize, then validate, then assign**: a non-default instance is normalized and valid by construction. Only three
+  paths skip validation through `CreateUnchecked`: EF Core and Dapper reads (values this application wrote), and the
+  temporary integer key `HasValueObjectKeyGeneration` hands EF Core (the database replaces it). Stores another program
+  may write validate on read unless the application opts into trust (MongoDB, MessagePack, protobuf-net); a `null` and a
+  value the underlying serializer cannot read are refused whatever the trust. The per-store detail is in each package's
+  `CLAUDE.md` and in `README.md`.
+- **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on success.
+  Every integration goes through `TryCreate` or `TryParse` and reports a refusal in its ecosystem's own terms, carrying
+  the rule's code (`ValueObjectErrors.TryGetCode` reads it). `ValueObjectException` is thrown by `Create`, `Parse` and an
+  explicit conversion, for code that treats a rejected value as a bug; of the integrations, only the EF Core converter
+  throws it to the caller (a refused write, a strict read). Misusing an integration (a member
+  of the wrong type, an unregistered type under native AOT) throws `InvalidOperationException` or
+  `NotSupportedException`, with no code. A change to what an integration throws updates
+  `website/docs/reference/errors.md`, the reference for all of them.
+- **Validation is fail-fast**: the first violated rule wins.
+- **Messages stay English; an application localises them by code**, under `ValueObject.{code}`
+  (`ValueObjectMessages`), keeping the English message for a key it lacks. `KeysFor` tries
+  `….out_of_range.minimum` or `.maximum` first for a type declaring one bound. The arguments come from `TSelf.Schema`
+  (`ArgumentsFor`: lengths, bounds in the current culture, known values joined by the culture's list separator); the
+  refused value is never an argument; `{0}` is the member, the value object's type name in a JSON body, the scalar's name
+  for an operand of a HotChocolate.Data filter. No translation ships. Each integration's entry point is listed
+  in `website/docs/reference/errors.md`.
+- **Rules are declared once, in `TSelf.Schema`.** Validation, the EF column, the CHECK constraints, the MongoDB
+  `$jsonSchema`, every OpenAPI and JSON Schema writer, the HotChocolate scalars, the Blazor input attributes, the XSD
+  facets, the test-data sampler and the message arguments all read it, so a new option of `[ValueObject<T>]` feeds every
+  one of them. A writer whose rule a server enforces (MongoDB validator, CHECK constraints, Blazor attributes) writes it
+  only where the target refuses no value the type accepts; a documentation schema keeps it strict. `Unicode = false`
+  describes storage, not acceptance: it feeds the EF Core conventions and the Dapper handler alone (`Schema.IsUnicode`),
+  and `VO0047` warns where the rules let a character outside ASCII through.
+- **A pattern leaving .NET goes through `src/Shared/ValueObjectPatternSyntax.cs`**, which reads it into a tree and refuses
+  what it cannot read with certainty; each dialect writes from the tree (`XsdPattern`, `SqlPattern`, `PcrePattern`,
+  `EcmaScriptPattern`, `PatternSampler`). Never translate a pattern by rewriting its text.
+- **`default(T)` is a build error** (`VO0010`, an analyzer): a test constructing one on purpose takes a targeted
+  `#pragma warning disable VO0010` with a comment.
+- **A known value is the author's member**: `[KnownValue]` on a `static readonly` field or get-only auto-property
+  initialized through the generated private `Known(...)`, which applies every rule but membership. The author's part of
+  a type initializes before the generated part, so a closed set's `FrozenSet` is built once the members exist; a static
+  initializer reaching `Create` earlier makes `Validate` throw `InvalidOperationException`. `VO0036`: a member the
+  generator cannot read; `VO0037`: `Known` called anywhere else; `VO0031`: a declared value its rules refuse, checked off
+  constants only (ADR 0011).
 
-`IValueObjectExample<TSelf>` declares the OpenAPI example as an instance of the type, which the schema reads through
-`ValueObjectExample.Of<TSelf>()`, a bridge that reaches an explicit implementation too, and publishes as its
-underlying value: `ValueObjectSchema.Example` is an `object?`, written by `ValueObjectSchemaKeywords.WriteExample`.
-It replaces the `Example` options of `[ValueObject<T>]` and `[EntityId]`, now a compile error (`VO0035`). A hook over
-another type is `VO0038`, and a public static `Example` property of the type without the interface is `VO0011`.
+## Cross-cutting traps
 
-## Constraints that will bite you
-
-These are all load-bearing, and each cost real debugging time:
-
-- **An attribute cannot name a type through a type parameter**, and neither System.Text.Json nor `TypeDescriptor`
-  closes an open generic converter over the type it converts (STJ throws on `typeof(Code<>.ValueJsonConverter)`).
-  A generic value object's `[JsonConverter]` and `[TypeConverter]` therefore name `GenericValueObjectJsonConverterFactory`
-  and `GenericValueObjectTypeConverter`, in the contracts, which reach the construction through its descriptor: a
-  construction registered by hand, as native AOT asks, needs no reflection. The generated code also names the types around a value object through their type parameters from
-  inside it, which is why a nested type or type parameter of the same name in between is `VO0019`.
-- **Source generators never observe each other's output.** The `[JsonConverter]` this generator writes is
-  invisible to the System.Text.Json generator, which is the entire reason `AdCodicem.ValueObjects.Json` exists:
-  a hand-written `ValueObjectJsonConverterFactory` the STJ generator *can* see, named via
-  `[JsonSourceGenerationOptions(Converters = ...)]`. The same constraint rules out `[GeneratedRegex]` in emitted
-  code, which is why the pattern is now a hook the consumer writes: `IValueObjectPatternValidator` takes a
-  `[GeneratedRegex]` partial property the regex generator *can* see. The `Pattern` option it replaces compiled a
-  `Regex` at run time with `RegexOptions.Compiled`, which native AOT interprets; it is now a compile error (`VO0021`)
-  that any minor may remove. `docs/adr/0007-deprecate-pattern-for-a-source-generated-regex-hook.md` has the numbers.
-  The Request Delegate Generator, on in every build under `PublishAot` or `PublishTrimmed`, is the case a consumer
-  meets: it binds a value object of its own project from the request body unless the declaration lists its
-  contract, which `VO0033` reports. That analyzer reads `EnableRequestDelegateGenerator` through the
-  `CompilerVisibleProperty` the package's `build/AdCodicem.ValueObjects.props` adds, which a project here, referencing
-  the generator by project, has to list itself.
-- **A minimal API convention runs before the binder describes the parameters.** `WithValueObjectProblemDetails`
-  reads them in its filter factory, from the `IParameterBindingMetadata` both binders add to the endpoint's metadata:
-  the parameters it checks, and the names they bind under, come from there, because `MethodInfo.GetParameters()`
-  misses the members `[AsParameters]` expands and the names those members bind under. `GetParameters()` serves only to
-  add no filter factory to a handler that has no value object, no array of them and no `[AsParameters]` parameter. The
-  filter mirrors the binder's empty-text rule, which differs: the reflection-based binding parses empty text; the RDG
-  refuses no empty query text, binding `null` to a nullable value object and the default instance, unchecked, to one
-  that cannot be `null`, and takes an empty header for an absent one. It tells the RDG's endpoints by the
-  `GeneratedCodeAttribute` the RDG adds to their metadata, which an RdgTests test pins, so that an SDK dropping it fails
-  there first. The convention fails the build of an endpoint whose HTTP JSON options cannot serialize the problem
-  details, as without reflection and without `AddProblemDetails()`, rather than let each refusal end in a 500.
-  `ValueObjectProblemDetails` lives in `AdCodicem.ValueObjects.AspNetCore.Http`, under the namespace
-  `AdCodicem.ValueObjects.AspNetCore`, and the MVC package forwards it (`TypeForwards.cs`), so that code compiled
-  against an earlier MVC package still finds it: keep both the namespace and the forward. `ValueObjectMessageOptions`
-  lives beside it, under the same namespace, which the MVC package shares. The messages a convention names belong to
-  the endpoint's marker: a group's conventions run before the endpoint's own, so the last convention naming messages
-  wins, and one without keeps them. The exception handler runs outside `UseRequestLocalization()` in the usual order,
-  whose culture is gone by then: it applies the culture of `IRequestCultureFeature` again while it answers.
-- **MVC does not narrow its value providers to a greedy binding source.** `AddValueObjects` inserts
-  `ValueObjectModelBinderProvider` first, ahead of MVC's providers for a header, the body, the services and a binder
-  `[ModelBinder(typeof(…))]` names, whose sources are greedy: claiming one bound a `[FromHeader]` or `[FromBody]` value
-  object from a route, query or form value of its name, or left it at its default instance. The provider declines a
-  greedy source, before its cache, which is keyed by type alone. MVC's header binder then asks for a binder again under
-  `BindingSource.ModelBinding`, which is the package's, and hands it a value provider holding the header alone, so a
-  refused header records its code as a query value does, under the key MVC gives the error, as for an `int`: the name
-  the attribute gives, or else the member's, prefixed as MVC prefixes a model's members, and for a parameter naming no
-  header the empty key, unless a route, query or form value carries the parameter's name, which is then the key.
-- **MVC's Newtonsoft.Json input formatter keeps its settings protected and changes its exception policy for a
-  subclass.** `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` derives from `NewtonsoftJsonInputFormatter`, which
-  answers `InputFormatterExceptionPolicy.AllExceptions` for any type but its own, under which MVC turns any exception a
-  read throws into a 400: the subclass overrides `ExceptionPolicy` back to `MalformedInputExceptions`. The setup tells
-  the framework's formatter by its settings, a protected property a derived class reads on its own instances alone
-  (CS1540), so it reads them through `[UnsafeAccessor]`. The subclass adds its `Error` handler to the pooled serializer
-  for the time of each read, in `CreateJsonSerializer(context)`, and removes it in `ReleaseJsonSerializer`, or the
-  handler of one request would record the codes of the next. The key it records a code under is the framework's model
-  state key, rebuilt by `KeyOf` from the framework's error handler: a change to that handler upstream has to be carried
-  there, and the parity theory of `NewtonsoftJsonInputFormatterTests` and the compatibility island are where it shows.
-- **Newtonsoft.Json keeps a member's contract on its container's contract.** `ValueObjectContractResolver` answers each
-  value object, and its nullable type, with a contract of its own carrying the converter, keeps a contract of the
-  resolver it wraps that carries a converter already (a `[JsonConverter]` on the type), and answers every other type
-  through that resolver, whose contracts it never changes: `CamelCasePropertyNamesContractResolver` keeps its cache in a
-  static field, MVC's default resolver is one static instance for every set of MVC's settings, and JSON Patch hands
-  every document it reads one resolver, through which it reads an object value's members (the guide gives a document a
-  `ValueObjectContractResolver` the application keeps, never a wrapper of its own resolver). A container's
-  contract stays the wrapped resolver's, and the first serializer to meet a member caches the member's contract on it,
-  so a serializer over the wrapper and another over the same wrapped resolver see each other's member contracts, in
-  either order (a unit test pins both): the resolver's unit tests serialize types of their own, over resolvers of their
-  own. A contract's converter wins over the settings' converters, which is one reason neither
-  `AddValueObjects()` nor `AddValueObjectsNewtonsoftJson()` wraps a resolver.
-- **JSON Patch converts a value under settings of its own, and its adapters are `Internal` types.**
-  `ConversionResultProvider.ConvertTo` writes a value to text and reads it back under fresh settings holding the
-  document's resolver alone, and swallows every exception; `copy` (`CopyTo`) and a dictionary key pass no resolver; MVC's
-  patch formatter hands the document MVC's resolver and nothing else of its settings. So `TryApplyTo` reads each value
-  itself, through `ValueObjectConverter` under `AddValueObjects()`'s settings and the document's resolver, without
-  `ValueObjectContractResolver`, a dictionary key through the descriptor's `TryParse`, and does `copy` and `move` itself
-  (`ValueObjectObjectAdapter`): JSON Patch's `move` adds at its target after a removal it refused. `ApplyTo` with an
-  error handler goes on after a failed operation and stops at a `JsonPatchException` (an unknown `op`, a bad escape),
-  reported under the operation's `path` but for a `from` it cannot read, which `ValueObjectObjectAdapter` reports under
-  the `from` before throwing again, its `Log` skipping JSON Patch's report of it; JSON Patch throws
-  `ArgumentNullException` for a missing `path` or `from`, and `ArgumentOutOfRangeException` for `-`, the end of a list,
-  read, removed or replaced in an empty list or tested in any (it reads index -1): `TryApplyTo` reports each, its list
-  adapter answering `-` for every list. A refusal is kept on the document's `ValueObjectPatchConversion` until the error
-  reporting it takes its code, every operation starting clean. `Patching/` derives from
-  `Microsoft.AspNetCore.JsonPatch.Internal` types, which "may change or be removed": the compatibility island, on JSON
-  Patch 11, is where a change shows. Microsoft.AspNetCore.JsonPatch comes with Microsoft.AspNetCore.Mvc.NewtonsoftJson,
-  at its version, and is pinned nowhere.
-- **`static virtual` and `static abstract` interface members are reachable only through a type parameter**
-  (CS8926, CS0103 for explicit implementations). Default implementations on `INumericValueObject` are therefore
-  unusable directly; the generator emits concrete members, and `UnderlyingValue` holds constrained generic
-  bridges (which the JIT devirtualizes) for things like `Guid.TryFormat`, whose 4-argument overload is an
-  explicit interface implementation.
-- **Generated code cannot rely on the consumer's usings.** Fully qualify everything, extension methods
-  included — `global::System.MemoryExtensions.AsSpan(x)`, never `x.AsSpan()`. A consumer with
-  `ImplicitUsings` disabled otherwise gets a compile error in code they cannot edit.
-- **`SymbolDisplayFormat.FullyQualifiedFormat` implies `UseSpecialTypes`**, so it yields `string` rather than
-  `global::System.String` and every primitive fails metadata resolution. Use the `QualifiedFormat` constant in
-  `ValueObjectGenerator`.
-- **The syntax predicate admits any `TypeDeclarationSyntax`**, not just structs, so a value object written as a
-  class or a record struct reaches `VO0002` instead of silently generating nothing.
-- **Analyzer release tracking** (`AnalyzerReleases.Shipped.md` / `.Unshipped.md`) must list every diagnostic, or
-  RS2008 fails the build. `VO0021`, `VO0028`, `VO0034` and `VO0035` are the exceptions: they are the `DiagnosticId`
-  of an `[Obsolete(error: true)]`, on `Pattern`, on `Minimum` and `Maximum`, on the constructor of `[KnownValue]`
-  that takes a name and a value (which `KnownValueMemberCodeFixProvider` rewrites) and on the `Example` options,
-  which the compiler reports, so no descriptor declares them and they have to be documented by hand. No `#pragma`
-  silences such an error, and the compiler does not report it inside a member or a type itself `[Obsolete]`: a test
-  that exercises one compiles it in a generator test and reads it among the compilation's diagnostics. Retired
-  identifiers (`VO0004`, `VO0006`, `VO0013`, `VO0014`, `VO0022`, `VO0029`) are never reused.
-- **Every action in `.github/workflows` and `.github/actions` is pinned to a commit SHA**, with the release as a
-  same-line comment (`uses: actions/checkout@3d3c42e... # v7.0.1`). Dependabot reads that comment to derive the
-  semver bump, so a pin without one falls out of the `actions` group and may auto-merge as a non-major. Its
-  `github-actions` entry lists `/.github/actions/*` beside `/`, since it does not look into a composite action's
-  folder on its own. Three of the eighteen actions publish *annotated* tags — `codecov/codecov-action`,
-  `ossf/scorecard-action`, `github/codeql-action` — so re-pinning by hand needs
-  `git ls-remote <repo> 'refs/tags/vX.Y.Z^{}'`: without the `^{}` you get the tag object's SHA, which GitHub
-  refuses to resolve. The calls from `preview.yml` and `release.yml` to
-  `./.github/workflows/deploy-docs.yml` target a local reusable workflow, and a `./.github/actions/` path a local
-  action: both must stay unpinned, since GitHub rejects `@ref` on either.
-- **actionlint is a downloaded binary, not an action.** `lint.yml`'s `workflows` job fetches the release named by
-  `ACTIONLINT_VERSION` and checks it against `ACTIONLINT_SHA256` before running it, so Dependabot never updates it:
-  bump both together, taking the digest from the release's checksums file. `.github/actionlint.yaml` silences the
-  one key actionlint does not know yet, `queue: max` in `deploy-docs.yml` and `preview.yml`.
-- **Trusted Publishing is keyed on a workflow file and an environment.** The nuget.org policies name `preview.yml`
-  with the `nuget` environment and `release.yml` with `nuget-stable`. Renaming either file, or moving its publish job
-  to another environment, breaks the OIDC exchange: change the policy on nuget.org first.
-- **Required checks are job names.** The `Default` ruleset on `main` requires `build and test` and `native AOT`
-  (`ci.yml`), and `workflows` (`lint.yml`). Renaming any of them leaves every pull request waiting for a check that
-  never reports. `compat (.NET 11)` becomes required when .NET 11 ships, not before.
-- **`src/AdCodicem.ValueObjects.Packages.slnf` must list every project under `src/`.** A solution filter cannot
-  glob, and previews and releases pack through it: a project left out is a package that never ships. `ci.yml` packs
-  through it and fails when a packable project is missing from the result. It sits under `src/`, not beside the
-  `.slnx`: `dotnet format` and `dotnet sln` refuse to pick between two solution files in one folder.
-- **`preview-gate.sh` holds the list of package inputs.** It covers `src/`, the solution filter included and the
-  analyzer release-tracking files left out, `README.md`, `icon.png`, the root `Directory.Build.*` files,
-  `global.json`, `nuget.config`, `.gitattributes` and `release-pack.sh`. It also covers `Directory.Packages.props`:
-  any change outside its `<PackageVersion>` elements, and the `<PackageVersion>` of any package in the restore graph
-  of the projects under `src/`, build-time ones included (MinVer, SourceLink, PolySharp, Roslyn and its analyzers).
-  That is a wider set than `.github/shipped-dependencies`, so a `chore(deps)` bump of MinVer still publishes a
-  preview. Anything else that changes the bytes or the metadata of a package has to be added to its `inputs`, or a
-  change to it never reaches a preview.
-- **`.github/shipped-dependencies` must match the packed nuspecs.** `dependabot-auto-merge.yml` retitles a Dependabot
-  pull request `fix(deps):`, or `fix(deps)!:` for a major, when it updates a dependency the list names, and a step of
-  `ci.yml` (`shipped-dependencies-check.sh`) fails when a nuspec names a dependency the list lacks, or a line matches
-  nothing. A dependency added to a shipped package goes into the list in the same pull request. Dependabot pull
-  requests are squash-merged, so that the title becomes the commit semantic-release reads; a rebase merge keeps
-  Dependabot's `chore(deps)` commit and releases nothing. One case needs a hand: a Dependabot security update that
-  pins a transitive dependency the list does not name yet. It opens as `chore(deps)` with auto-merge queued, unless
-  Dependabot groups it, as #166, which then carries no prefix and has to be retitled by hand all the same, and
-  `build and test` fails on the list; the workflow reads the list from the base branch and ignores your events, so it
-  cannot retitle it. Retitle the pull request `fix(deps): …` (`fix(deps)!: …` across a major) first, then push the
-  list line to its branch; the auto-merge still queued squashes it under your title. Never merge the line in a pull
-  request of its own: nothing on `main` ships that ID yet, so the check fails there too. An update, a security update
-  or the `dotnet` group's patch alike, whose new version asks for a later `Microsoft.Extensions.Options` or
-  `Microsoft.Extensions.DependencyInjection.Abstractions`, the transitive pins Dependabot never moves, fails its
-  restore with NU1109 and opens no pull request for it, as SignalR's 10.0.13 did: move those pins with it by hand,
-  with the rest of Microsoft's patch, in a `fix(deps)` commit of your own (`docs/maintaining.md`, Routines).
-- **The compatibility island is invisible to the root tooling.** `tests/Compat` has its own `global.json`, naming
-  the .NET 11 release candidate's SDK, which CI installs exactly and a later 11.0 SDK may run locally
-  (`rollForward: latestFeature`), and its own `Directory.Build.props`, `Directory.Packages.props` and
-  `nuget.config`. It is in no solution, so the root build, `dotnet format`, coverage and Dependabot never see it, and
-  it must be run from its folder: from the root, the root `global.json` selects SDK 10 and the build stops. Its SDK
-  and its .NET 11 packages are bumped by hand, Npgsql's provider in the same change as EF Core, which it pins exactly:
-  EF Core stays on RC1 under the RC2 SDK until Npgsql publishes its RC2.
-- **The EF Core package is built against EF Core 10 and runs under 11, which removed members a convention could
-  reach.** EF Core 11 has no `IConventionPropertyBuilder.SetElementType` and no `IPropertyElementTypeChangedConvention`:
-  a package built against 10 calling the first throws `MissingMethodException` when the calling method is compiled, and
-  one implementing the second `TypeLoadException` when the convention loads, which would fail every model
-  `ConfigureValueObjects` builds, collections or not. `ValueObjectCollectionConvention` therefore marks a primitive
-  collection through `IConventionProperty.SetElementType`, when an entity type or a complex property is added, and
-  configures the elements as the model finalizes, which also reaches a primitive collection the application declares.
-  Every suite runs EF Core 10: only the compatibility island notices such a break. An element of `TSelf?` over a value
-  type takes the converter of `TSelf`, not a nullable one: EF Core's JSON writer throws a `NullReferenceException` on
-  the `null` a nullable converter hands it there, so such an element is refused where an optional column stores a
-  `NULL`, and over text it is stored as a JSON `null`.
-- **EF Core generates a key, and calls a key's generator, by rules that look past the value object only halfway.** Its
-  conventions make a key generated on add from the key's own CLR type, so a key typed as a value object is generated by
-  nothing, and `ValueGeneratedOnAdd()` alone gets its random GUID generator, or its temporary integers converted through
-  a strict converter, which refuses them. It calls a property's generator whenever the property has one, even at
-  `ValueGenerated.Never`, for an entity whose key equals its sentinel, `default(TSelf)`, in `Add`, `Attach`, `Update`
-  and `Remove` alike: that is how `ValueObjectKeyConvention` refuses an unset `Guid` key without changing the column or
-  the migration snapshot, with `value_object.required` under `ValueObjectErrors.ErrorCodeKey`, and why `HasData` of a
-  `Guid.Empty` key then fails model building. The same generator makes it take a dependent whose key holds a foreign key
-  to that key, left at its default for the navigation, for a new one: `Attach` of a stored aggregate adds it, as for a
-  `Guid` key, which the guide and the changelog say. It caches a generator per property in its internal service
-  provider, which serves one provider, so `ProviderGuidValueGenerator` reads the provider's name once. A temporary
-  integer is replaced by a relational database only: the in-memory provider would store it as the key, so
-  `ValueObjectKeyGenerator` refuses the add on a provider that is not relational, which the unit suite checks on
-  `Microsoft.EntityFrameworkCore.InMemory`, a test-only reference. `HasValueObjectKeyGeneration` is declared once per
-  underlying type it supports, `Guid` in `ValueObjectConventionExtensions` and `short`, `int` and `long` in a static
-  class each, `ValueObjectInt16KeyGenerationExtensions`, `ValueObjectInt32KeyGenerationExtensions` and
-  `ValueObjectInt64KeyGenerationExtensions`: C# refuses two methods differing only by their constraints in one class
-  (CS0111), and drops from overload resolution a candidate whose constraints fail, so the call needs no type argument.
-  A further integer type is one more class, provided SQL Server and PostgreSQL make its identity column of the type's
-  own width, or the identity overflows the type.
-- **The translator of `.Value` re-types a column of a table only.** `ValueObjectMemberTranslator`, which
-  `ValueObjectMemberTranslatorPlugin`, the `IMemberTranslatorPlugin` an `IDbContextOptionsExtension`
-  (`ValueObjectQueryOptionsExtension`) registers, hands EF Core (query services cannot come from
-  `ConfigureConventions`), answers `.Value` of a property whose converter is one of the package's six, alone or composed
-  by EF Core with its own conversion of the underlying type. `CompositeValueConverter` is internal to EF Core, so it
-  reads the `ConvertToProviderExpression`: where the provider stores the underlying type as it stands, the mapping
-  `FindMapping(TValue, storeType)` finds for the column's store type carries no converter, and the conversion must be
-  the call to a package converter's `ToProvider` alone, since one written around it is the application's
-  (`ComposeWith`), which may store something else; where the provider converts the type itself, a call to it anywhere
-  will do, so an application's composition there is taken for EF Core's. It returns a `ColumnExpression` typed as the
-  underlying value, under that mapping, only where EF Core links the column to its table (`ColumnExpression.Column`
-  set), and a `JsonScalarExpression` likewise; anything else, the element of a table-valued function, a column an
-  optional navigation joins in, a `COALESCE`, it converts by a `CAST` to that same store type. Npgsql infers the type
-  mapping of the array an `unnest` reads from the columns referencing its element, and rebuilds the array over a
-  re-typed element, whose comparer it then fails to fit (`ArgumentException` inside a `TargetInvocationException`): the
-  unit suite's Npgsql text pins the cast there. A `CAST` on the column of a table would cost its index on SQL Server,
-  which scans it. EF Core 11 leaves the no-op casts out of the SQL, which the island pins. Once translated, a projected
-  `.Value` is read from the column as SQL reads it, which a strict context does not validate. A query `dotnet ef
-  dbcontext optimize --precompile-queries` precompiles carries the SQL the translator wrote, so the design-time options
-  must call `UseValueObjectQueries()` too, or the precompilation fails on that query. EF Core adds the services of an
-  options extension only to a service provider it builds, never to the one `UseInternalServiceProvider` names, and runs
-  the extensions' `Validate` each time a context starts on such a provider, before it initializes the provider's
-  singleton options: there, `Validate` refuses a provider that lacks the mark `ApplyServices` adds, and resolves nothing
-  else, since resolving the plugin would build the type mapping source, Npgsql's reading those options, before they are
-  set.
-- **EF Core hands a command interceptor no error a provider reports while results are read.** It calls
-  `CommandFailed` only around `DbCommand.Execute*`: a statement after the first of a batch that returns rows, an
-  `INSERT … RETURNING` or `OUTPUT INSERTED` reading back a generated key, SQL Server's `MERGE` of several rows, an
-  `UPDATE … OUTPUT 1`, fails while `ReaderModificationCommandBatch` consumes the results, and only
-  `SaveChangesFailed` sees it, inside the `DbUpdateException`; so `ValueObjectCheckErrorInterceptor` is both an
-  `IDbCommandInterceptor` and an `ISaveChangesInterceptor`, and the unit suite stands for that path by throwing SQLite's
-  error from `DataReaderClosing`, which the integration suite runs for real. Nor does it hand any interceptor an error
-  a provider reports while the rows of a query are read: on SQL Server, a raw SQL query writing rows it reads back,
-  `SqlQueryRaw` or `FromSqlRaw` over `OUTPUT`, fails with SqlClient's 547 carrying no code, which the guide states and
-  an integration test pins, `ValueObjectCheckConstraints.TryGetCode` reading it; PostgreSQL's and SQLite's `RETURNING`
-  fail as the command runs, and carry it. EF Core logs a failure before it calls the
-  interceptors, and builds the event data of every command once any command interceptor is registered (about 0.8 KB
-  per query on SQLite), which the guide states. The rule is read off the name, `CK_…_{rule}` with an optional
-  `_[0-9A-F]{8}`, and only on an error reporting a violated CHECK constraint, or a migration's "There is already an
-  object named …" would get a code: PostgreSQL's SQL state `23514`, Npgsql naming the constraint under
-  `Data["ConstraintName"]`; SqlClient's `Data["HelpLink.EvtID"]` of `"547"`, which it sets in every language, the name
-  read off a token of the message; SQLite's `CHECK constraint failed: `, which it never translates. SQL Server's Czech
-  and Dutch messages name the constraint unquoted, followed by a full stop, so a token ends at white space or a
-  quotation mark and loses the sentence's punctuation, each of which a unit test reads a name past.
-  `CheckConstraintRules` and the reader share the rule words, the internal constants of `ValueObjectCheckConstraints`,
-  and a unit test reads every name the convention writes back to the rule its SQL states.
-- **Swashbuckle 10 is built on `Microsoft.OpenApi` 2, and fails on 3.** Its document generator throws
-  `MissingMethodException` once `Microsoft.OpenApi` 3 is resolved, which `Microsoft.AspNetCore.OpenApi` 11 forces: the
-  island's main project references that package, so `AdCodicem.ValueObjects.Swashbuckle` is installed by a project of
-  its own, `tests/Compat/Swashbuckle`, which the main one excludes from its sources (`DefaultItemExcludes`), and the
-  `compat (.NET 11)` job runs both. Its floor on `Microsoft.OpenApi` is the transitive pin of `Directory.Packages.props`,
-  2.12.2: the 2.7.5 Swashbuckle asks for drops the example of an OpenAPI 3.0 schema. Pin no version of
-  `Swashbuckle.AspNetCore.Swagger`, which the tests take through `Swashbuckle.AspNetCore.SwaggerGen`: the pin would make
-  it a dependency of the package, to list in `.github/shipped-dependencies`. The package's namespace,
-  `AdCodicem.ValueObjects.Swashbuckle`, hides the root `Swashbuckle` namespace from code in any `AdCodicem.ValueObjects.*`
-  namespace, tests included: name Swashbuckle's types through usings at the top of the file, never through a
-  qualified `Swashbuckle.…` in a body. `AdCodicem.ValueObjects.Serilog` hides the root `Serilog` namespace the same
-  way, the island's `AdCodicem.ValueObjects.CompatTests` included, and a file importing `Serilog` beside
-  `Microsoft.Extensions.Logging` aliases one `ILogger` (CS0104).
-- **Swashbuckle creates its schema filters while it configures `SchemaGeneratorOptions`.**
-  `ConfigureSchemaGeneratorOptions` builds each with `ActivatorUtilities`, so a filter whose constructor takes
-  `SchemaGeneratorOptions` or `ISchemaGenerator`, which `AddSwaggerGen` builds from those options on any 10.x, or, from
-  10.3.0, the `ISerializerDataContractResolver` singleton, which its factory now builds from them too, has the options
-  configured again from inside their own configuration, and the document request hangs, with no error, once the
-  container's `StackGuard` moves the recursion to a thread that waits on the lock the first one holds.
-  `IOptions<SchemaGeneratorOptions>` alone is safe, its value read lazily. `ValueObjectSchemaFilter` takes the
-  container and resolves the resolver and the options as it describes a schema. `SwashbuckleDocuments.BuildAsync` and
-  the island await each document with a timeout, so that a hang fails the test rather than the job's time limit.
-- **MongoDB.Driver's serializer registry is process-wide, and caches for good.** A value object the driver serializes
-  before `ValueObjectBson.Register` keeps the class map it was given, which writes `{}`, for the rest of the process,
-  and `Register` then fails, naming it (it reads `BsonClassMap.GetRegisteredClassMaps()`, which caches nothing, and asks
-  `ValueObjectRegistry.IsValueObject` of each type, so a generic construction counts); a serializer of the application's
-  own, the `GuidSerializer(GuidRepresentation.Standard)` above all, is registered before it. So every MongoDB test class
-  of a suite goes through one static registration first (the unit suite's `Persistence/MongoDb.cs`, the integration
-  suite's `MongoDbFixture`, the island's), strict, and a test needing another trust or representation builds its
-  serializer by hand, sets one on a class map of its own, or uses a fresh `BsonSerializerRegistry`, which the internal
-  checks take as a parameter; a test of `Register` refusing goes through `MongoDbStartUpTests`' fresh copies of the
-  driver, loaded into an `AssemblyLoadContext` of their own. The id generators of
-  `AdCodicem.ValueObjects.Identifiers.MongoDB` are process-wide too, and a class map takes its id member's generator
-  when it is built, never again: the same static registrations call `EntityIdBson.Register` right after
-  `ValueObjectBson`, and a test of an id generator registered or kept closes `HandWrittenId<TProfile>` over a profile of
-  its own. The package's namespace, `AdCodicem.ValueObjects.MongoDB`, hides the root `MongoDB` namespace in every
-  `AdCodicem.ValueObjects.*` namespace, as Swashbuckle's and Serilog's do: name the driver's types through usings at the
-  top of the file. MongoDB.Bson has an internal `UInt128` of its own, which a `cref` to `UInt128` in a file importing
-  `MongoDB.Bson` resolves to (CS0419): write `System.UInt128` there. A query's `ToString()` reports a translation the
-  serializer refused instead of throwing it; a test of a refused query constant renders a `Builders` filter.
-- **MessagePack's analyzer comes with the MessagePack package, and neither MessagePack nor its SignalR protocol is
-  AOT-compatible.** MessagePack's nuspec takes `MessagePackAnalyzer` with `include="All"`, so its analyzer and source
-  generator reach every project referencing `AdCodicem.ValueObjects.MessagePack`, by package or by project, the unit
-  suite and the island included: `MsgPack003` fails the build of a `[MessagePackObject]` type holding a value object of
-  the same assembly, so `BinarySerialization/MessagePackAssumptions.cs` and the island's `MessagePackTests.cs` assume
-  each such value object formattable (`[assembly: MessagePackAssumedFormattable(typeof(Iban))]`), as the guide tells an
-  application to, and `MsgPack010` refuses a private formatter. MessagePack 3.1 has no trimming annotation (any native
-  publish warns `IL2104` and `IL3053` for the whole assembly), builds the formatters of a `Nullable<T>`, a collection or
-  a dictionary by reflection, which fails natively for any struct, and SignalR's MessagePack hub protocol needs dynamic
-  code: the package claims no AOT compatibility and stays out of `tests/NativeAot`. Under
-  `MessagePackSecurity.UntrustedData`, which SignalR sets, MessagePack refuses a dictionary keyed by a value object and
-  a set of them (`TypeAccessException`); the package adds no comparer, a value object's equality possibly differing from
-  its value's, and a test pins the refusal and the guide's workaround. The package's namespace,
-  `AdCodicem.ValueObjects.MessagePack`, hides the root `MessagePack` namespace in every `AdCodicem.ValueObjects.*`
-  namespace, as Swashbuckle's, Serilog's and MongoDB's do: name MessagePack's types through usings at the top of the
-  file, and name no test folder or namespace `MessagePack` (the unit suite's is `BinarySerialization/`).
-- **protobuf-net creates a custom serializer from its type, keeps one per type for the process, and adds a member's type
-  to a model only when it carries a contract attribute.** Trust and level are therefore type arguments, the profiles of
-  `ValueObjectProtoProfiles`, and nothing registers a value object lazily: `AddValueObjects` walks the registry once, and
-  a construction of a generic value object or one written by hand needs `AddValueObject<TSelf, TValue>()`. A model's
-  `DefaultCompatibilityLevel` cannot change once a type is added, and `RuntimeTypeModel.Default`'s is `Level200` for
-  good. A `MetaType` freezes once protobuf-net builds its serializer ("The type cannot be changed once a serializer has
-  been generated"), so registration comes before the first use, and the unit suite registers on the process-wide
-  `RuntimeTypeModel.Default` once, strict (`BinarySerialization/ProtoDefaultModel.cs`), every other test on a model of
-  its own; `[ProtoContract]` goes on no `Domain/` type, since protobuf-net honours it on every model: the attribute-route
-  value objects of the tests are their own (`ProtoSku`, `ProtoTicket`, `ProtoBareCode`, …), and `ProtoBareCode`, the
-  bare `[ProtoContract]` trap, takes a `#pragma warning disable VO0043` around its attribute. protobuf-net calls
-  `ISerializer<TSelf?>` only for the elements of a `[NullWrappedValue]` list, a nullable member going through
-  `ISerializer<TSelf>`. It calls a custom serializer whatever `DataFormat` a member declares, so a `ZigZag`, `FixedSize`
-  or `WellKnown` member of a value object is written and read as `DataFormat.Default`, which nothing reports and the
-  guide states, and it writes a root primitive at `Level200` whatever the model's level, where a root value object
-  follows its serializer's profile. Its inbuilt serializers throw `InvalidOperationException` for a negative length and
-  for a `decimal` as text that none parses, quoting the text: the serializers' read refuses it as
-  `value_object.not_parsable` with the other exceptions of a value it cannot read, all but an `ObjectDisposedException`.
-  The `.proto` export names a value object by its `MetaType`: the package sets `Name` and `Origin`, the scalar and its
-  import (`ProtoScalars`). protobuf-net.Core's generator and analyzers reach every project referencing the package, by
-  project reference too, the unit suite, the GeneratorTests and the island included: `[ProtoModel]` is `PBN9001`, an
-  error unless suppressed; once a project declares one, every `Serializer.*` call is `PBN3010`, which the unit suite's
-  default-model test suppresses; protobuf-net's generated code fails to compile a `TSelf?` member or a dictionary of value
-  objects (CS1503 in its own file); and its `[DynamicallyAccessedMembers]` on `SerializerCache.Get` reach the nested
-  converters of every value object, so the generated model warns at each call (IL2026, IL2111, IL3050, and IL2104 and
-  IL3053 for protobuf-net.Core): its native application, `tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet`,
-  is apart, with the Roslyn trim and AOT analyzers off and those codes out of `WarningsAsErrors` under `NativeAot`, and
-  `native-aot.sh` lets through the warnings its `aot-warnings.allowed` lists. Its own helpers into a `TypeModel` carry
-  protobuf-net's `[DynamicallyAccessedMembers]`, or ILC refuses them (IL2091). protobuf-net's analyzers also warn
-  `PBN2008` on a Google.Protobuf type in a code-first contract and `PBN0022` on a `[ProtoMember]` with an initializer:
-  test contracts carry no initializer, and the one Google.Protobuf message a code-first contract carries on purpose
-  (`CodeFirstGrpcContracts.cs`, `ForServer` keeping its marshaller) suppresses `PBN2008` around it.
-  `AdCodicem.ValueObjects.Metadata`, the contracts' namespace, hides `Grpc.Core.Metadata` in every
-  `AdCodicem.ValueObjects.*` namespace (CS0118): alias it (`RpcStatusDetails`). Grpc.AspNetCore reads a request
-  before any interceptor runs and answers its deserializer's exception `UNKNOWN`, so `ForServer`'s marshaller answers a
-  refused request; a reply the server cannot write stays `UNKNOWN`. protobuf-net.Grpc builds the proxy of a client over
-  a configuration created over a model eagerly, throwing a `TargetInvocationException` around "No marshaller available"
-  for a message the model cannot serialize, while its default client is built and fails its first call,
-  `NotSupportedException`, "Specified method is not supported.". The runtime model and protobuf-net.Grpc emit code,
-  unannotated upstream: `AddValueObjects`, `AddValueObject` and `ForServer` serve the JIT alone, and carry
-  `[RequiresDynamicCode]` for it, while the serializers run natively. The gRPC package's namespace,
-  `AdCodicem.ValueObjects.Grpc`, hides the root `Grpc` namespace in every `AdCodicem.ValueObjects.*` namespace, the
-  island's included, as Swashbuckle's, Serilog's, MongoDB's, MessagePack's, the Model Context Protocol's, HotChocolate's
-  and NJsonSchema's do: name gRPC's types through usings at the top of the file, or `global::Grpc` in a body (the unit
-  suite's `ContractFirstGrpcTests` names `GrpcServiceOptions` so); the code Grpc.Tools generates qualifies them through
-  `grpc::` aliases already. A class or a file named `Grpc` in such a namespace would hide it too. Name no test folder,
-  class or namespace `ProtoBuf`, `ProtobufNet` or `Grpc` (the unit suite's are `BinarySerialization/`, `CodeFirstGrpc*`
-  and `ContractFirstGrpc*`).
-- **Serilog destructures no object under trimming.** Its `buildTransitive/Serilog.targets` sets
-  `Serilog.Capturing.IsStructureValueSupported` to false under `PublishTrimmed`, which `PublishAot` implies, so a native
-  binary logs an object with `@` as its `ToString()`, and a bare `Int128` as its text. The native AOT application sets
-  the same switch for its JIT run, conditioned on `PublishTrimmed` not being on, or every `{@object}` line would
-  differ. Serilog.Expressions warns under native AOT (IL2104, IL3053), and `native-aot.sh` fails on any warning: it
-  stays in the unit suite, out of `tests/NativeAot`. Under the JIT, the option of `Destructure.ValueObjects` reads the
-  registry when it runs, before most module initializers have: the unit tests assert only on types registered for
-  certain, the domain's, or absent for certain, a fresh `AssemblyLoadContext` copy of the untouched fixture or a
-  construction over a marker type private to the test, and never `Register` a shared hand-written type.
-- **Microsoft.Extensions.Telemetry.Abstractions replaces the `[LoggerMessage]` generator wherever it reaches.** Its
-  `buildTransitive` props set `DisableMicrosoftExtensionsLoggingSourceGenerator`, whose target removes
-  Microsoft.Extensions.Logging's generator, and its analyzer folder, Microsoft.Gen.Logging, reaches every project the
-  package does, Microsoft.Extensions.Telemetry or a project reference included, whatever `ExcludeAssets` says. That
-  generator reads a data classification on a parameter or a property only, never on the type of a value it logs whole,
-  passes a value object of the same project as its `ToString()`, expands one of another assembly, or written by hand,
-  into its public properties under `[LogProperties]`, which then carry the type's classification alone, builds a
-  classification as `new TAttribute().Classification` (a copy of an attribute written with arguments is `CS7036` in its
-  file), and refuses a record logged whole whose property is classified (`LOGGEN035`, then `CS8795`); `Transitive` is
-  `[Experimental("EXTEXP0003")]`. Its parser, read from the 10.11.0 assembly, reads `Transitive` on the parameter alone
-  (a property's `[LogProperties(Transitive = true)]` expands one level), never calls a property's `[TagProvider]` and,
-  under `Transitive`, logs a property `[LogPropertyIgnore]` leaves out, both whole and in clear, reads a record
-  constructor parameter's classification as that of the property of its name, whatever its type, and a classification of
-  the type it expands, or of a base type, as that of each of its properties, and writes a collection it does not expand,
-  a collection interface, an array or one with no property to log, element by element: `DataClassificationAnalyzer`'s
-  `LoggedProperties` and `Expandable` follow it, and `LoggingGeneratorAssumptionsTests` pins each. It implements each
-  method with `[GeneratedCode("Microsoft.Gen.Logging", …)]`, which C# merges onto the author's definition, so
-  `DataClassificationAnalyzer` analyzes generated code
-  (`GeneratedCodeAnalysisFlags.Analyze`, without `ReportDiagnostics`: it reports on the author's parameter) and reads
-  only a method whose implementation carries it. An implementation written in the author's own file with that
-  attribute makes the location generated code, where nothing is reported; a test of the gate puts the implementation in
-  a `.g.cs` tree of its own. The unit suite, which references Microsoft.Extensions.Telemetry and the Redaction fixture,
-  sets `DisableMicrosoftExtensionsLoggingSourceGenerator` back to `false` and removes the package's analyzers after
-  `ResolveReferences` (`KeepTheDefaultLoggingGenerator`): Microsoft.Gen.Logging would pass its `PageNumber` as text to
-  `SerilogMicrosoftExtensionsLoggingTests`, which fails without both. The fixture names its classification
-  `RedactionTaxonomy` and `ContactDataAttribute`, the suite's global `Domain` using holding a `Taxonomy` and a
-  `PersonalDataAttribute`. Through logging, the HMAC redactor's hash of a value differs from its own `Redact` of it, and
-  from that of the same value logged under another tag name (observed on 10.11.0): the test compares a value object's
-  hash with its underlying value's logged under the same name.
-- **Microsoft.Extensions.AI binds an argument without asking the value object.** `AIFunctionFactory` hands a C# `null`,
-  which is what the OpenAI adapter makes of a JSON `null`, to a struct parameter as its uninitialized instance, without
-  calling the converter, fails an absent argument with an `ArgumentException`, and takes an object of another type
-  through a JSON round trip of its own, text that may be JSON read as JSON first, swallowing what it throws: the AI
-  package's wrapper answers the first two as `value_object.required`, and reads the third through the same round trip,
-  so that its verdict on text or a number a host hands over is the binding's. System.Text.Json writes the message of
-  a refusal the generated converter leaves without one, a number the underlying type cannot hold, with the path of the
-  value, which holds a dictionary's keys: the wrapper tells it by the path information at its end and answers
-  "The value is not a valid X." instead. It reads the name of a parameter through `AIParameterNameAttribute`, which is
-  `[Experimental("MEAI001")]`: `src/Shared/ValueObjectArguments.cs` reads it by name, so that a renaming or a removal
-  upstream leaves the check working, and mirrors `AIJsonUtilities.TryGetEffectiveDefaultValue` for the parameters the
-  binding fills in. Agent Framework's `RunAsync<T>` replaces the response format its run options carry with
-  `ChatResponseFormat.ForJsonSchema<T>`, which no schema option reaches: the guide hands the package's format to a plain
-  `RunAsync` and reads the answer with `AgentResponse<T>`, and `AgentFrameworkTests` pins both.
-- **The Model Context Protocol SDK rewrites the output schema of its own tools only.** For a client on a protocol version
-  before `2026-07-28`, which is every client in use today, `McpServerImpl` wraps a non-object `outputSchema` in
-  `{"type":"object","properties":{"result":…}}` only when the registered tool is its internal `AIFunctionMcpServerTool`,
-  while the tool still wraps its structured content: a tool wrapping another would publish a schema its content does not
-  match. So the package registers the SDK's own tools, built with `McpServerTool.Create` and schema options from
-  `WithValueObjects()`, keeps the parameters to check of each in a `ConditionalWeakTable` keyed by the tool, and checks
-  them in a call-tool filter that an `IPostConfigureOptions<McpServerOptions>` places, once per service collection
-  (`TryAddEnumerable`), after every filter `Configure` added: the last of the list is the innermost. Options built or
-  changed after that, by hand for a server created without dependency injection or in ModelContextProtocol.AspNetCore's
-  `ConfigureSessionOptions`, take it through the public `AddValueObjectValidation()`, which moves it last, once. The SDK
-  builds the pipeline when it creates a server, and refuses call-tool filters beside an explicit
-  `CallToolWithAlternateHandler` (`MCPEXP002`) then: at start over stdio, for each session over HTTP, for each request
-  when stateless. The SDK's client asks for `2026-07-28`, which hides the rewrite: a test of the older shape pins
-  `McpClientOptions.ProtocolVersion`. The SDK's own `McpServerToolCreateOptions.Clone()` is internal, so
-  `ValueObjectMcpServerTool.Describe` copies its properties one by one, and a test fails when the SDK adds one the copy
-  drops. Under reflection-free serialization the server's options are a copy of `McpJsonUtilities.DefaultOptions` with
-  the application's context first in the resolver chain and `ValueObjectJsonConverterFactory` in `Converters`: a
-  context resolving for options other than its own does not apply the converters its attribute names. The package's
-  namespace, `AdCodicem.ValueObjects.ModelContextProtocol`, hides the root `ModelContextProtocol` namespace in every
-  `AdCodicem.ValueObjects.*` namespace, as Swashbuckle's, Serilog's, MongoDB's and MessagePack's do: name the SDK's types
-  through usings at the top of the file, and name no test folder, class or namespace `ModelContextProtocol`.
-- **The Azure Functions worker keeps no exception of a failed conversion, and runs an invocation on the host's call.**
-  `DefaultFunctionInputBindingFeature` turns each failed parameter into a line of the text of the
-  `FunctionInputConverterException` it throws, with no inner exception, so the converter's `FormatException` and its
-  `Data` reach nothing: its message ends with the code. The worker drops a `Failed` result whose source is `null` and
-  binds the struct's default, so the converter answers `Unhandled` for one, leaving the worker to bind `null` or fail a
-  required parameter itself. The host sends binding data of another type than `string` as JSON, `InsertionTime` as
-  `"2026-10-13T10:13:54+00:00"`, which is why `ValueObjectBindingText.TryParse` decodes a JSON string literal the type
-  refuses as it stands. The host writes a message's number through a double, `0.0000001` as `1E-07`, an exponent a
-  decimal's `TryParse` refuses, which is why that method also reads a JSON number into a value object over `decimal` as
-  the generated JSON converter does, `TryGetDecimal` then `TryCreate`; every other underlying type's `TryParse` reads
-  every JSON number the type holds already. The worker reads `[InputConverter]` off the parameter, then off its type,
-  `Nullable<T>` for a `T?`, which is why the generator emits none and `UseValueObjects()` registers the converter
-  instead, at index 0 of `WorkerOptions.InputConverters` from a `Configure`: the ASP.NET Core integration registers its
-  `HttpContextConverter` at index 0 from a `Configure` of its own, so the converter is first only when
-  `UseValueObjects()` runs after `ConfigureFunctionsWebApplication()`, and right behind that converter, which binds an
-  `HttpRequest` and an `HttpRequestData` alone, otherwise. The middleware's answer reaches the client only from inside
-  the ASP.NET Core integration's `FunctionsHttpProxyingMiddleware`, which sets the request on the invocation
-  (`GetHttpContext()`) before it calls the middleware inside it: the middleware reads it when it starts, and without it
-  rethrows and warns once rather than swallow the failure into an empty 200, a refused body included, whose codes MVC
-  records on the request the integration sets inside it. The worker's culture is never the request's, the invocation
-  running on the host's gRPC call: the middleware applies the request's. `GetInvocationResult()` reads the worker's
-  internal `IFunctionBindingsFeature`, which the unit suite substitutes, found by name, NSubstitute implementing it
-  because Worker.Core grants `DynamicProxyGenAssembly2`. The worker's protocol with the host is internal, so no host
-  runs in process: the integration suite copies the build of `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Functions`
-  into Microsoft's `dotnet-isolated` image, amd64 only, beside Azurite, and disables the queue triggers of all but one
-  of its three hosts (`AzureWebJobs.<name>.Disabled`), so that each message is read once. The integration's analyzer
-  `RegistrationExpectedInASPNetIntegration` (Http.AspNetCore.Analyzers 1.0.4) throws AD0001, which fails a build under
-  `TreatWarningsAsErrors`, on a file declaring `Main` that calls `ConfigureFunctionsWorkerDefaults(...)`: keep that call
-  out of the fixture's `Program.cs`. Worker.Core is the converter package's floor, 2.52.0 as Microsoft's own worker
-  extensions take it, and `Microsoft.Azure.Functions.Worker` is pinned beside it, which makes it a dependency of the
-  ASP.NET Core package: Extensions.Http.AspNetCore asks for Worker 2.1.0, whose Worker.Grpc would run beside Worker.Core
-  2.52.0. Name no test namespace `Azure`, which would hide `Azure.Core` and `Azure.Storage` in the suite's.
-- **HotChocolate infers a type from every CLR type it meets, and builds its schema per executor.** Without the package
-  it infers an input object type from a value object it meets as an argument, finds no constructor a field fills (the
-  generated one takes an `UncheckedTag`, and HotChocolate's `InputObjectConstructorResolver` considers private ones), and
-  fails the schema at start: a schema test that forgets `AddValueObjects()` fails at `GetRequestExecutorAsync`, never at
-  a request. A type discovery handler is created per schema build, and a type system object belongs to the schema that
-  completes it, so `AddValueObjectScalar` adds a factory, never an instance, and the handler keeps its scalars per
-  build. `TypeDiscoveryHandler` lives in `HotChocolate.Internal`: a 16.x minor may change it, which Dependabot's grouped
-  minor and patch updates run the suite against first; its majors are ignored, HotChocolate 17 being a decision. The
-  options of every `AddValueObjects` call on a schema are one `ValueObjectScalarOptions`, found through an internal
-  `ValueObjectScalarRegistration` singleton of the application's services keyed by the schema's name, and handed to
-  the scalars through the schema builder's features, which each scalar reads in `CreateConfiguration`. Error filters live
-  in the schema services, built when the executor is created, so the localizing filter resolves the application's
-  `IStringLocalizerFactory` through `GetRootServiceProvider()` and refuses `UseResource()` without `AddLocalization()`
-  there; filters run in registration order. HotChocolate reads a variable's default value under a path of its own,
-  `["root"]`, which the filter quotes as the scalar's name, telling it from a variable named `$root`, read from its JSON
-  value, by the refusal's `Literal`. A predicate of `ValueObjectScalarOptions.QuoteScalarNameIn` makes the filter quote
-  the scalar's name for a value refused in the argument or the input field it selects: the filter reads the error's
-  `coordinate`, which HotChocolate keeps as text (`IbanOperationFilterInput.eq`), sets to the innermost input value and
-  leaves out for a variable it coerces before any field, and looks it up in the schema, which the filter's factory
-  resolves from the schema services. That is how the HotChocolate.Data package (`field is IFilterOperationField`) reaches
-  every operation with no `InternalsVisibleTo` and no reference from the scalar package to HotChocolate.Data; without a
-  predicate nothing changes. HotChocolate's validation refuses a literal of another kind before a scalar
-  reads it, by `SerializationType` (which is why the scalar derives the non-generic `ScalarType`: a Float takes an Int
-  literal), but hands a variable of another JSON kind to `CoerceInputValue`; a field error filter that throws becomes
-  HotChocolate's "Unexpected Execution Error", a variable's leaves the execution. HotChocolate overwrites the code of an
-  output error with `EXEC_INVALID_LEAF_VALUE`, and builds the `List<TSelf>` of a list argument with `MakeGenericType`,
-  which `ValueObjectScalarType.Instantiations` names for native AOT; its own publish warns (`IL2104`, `IL3053`, `IL3000`,
-  `IL3002`) and its binary starts only with HotChocolate.Types and the application rooted, so the package, AOT-compatible
-  itself, stays out of `tests/NativeAot`. HotChocolate.AspNetCore adds global usings of `HotChocolate`,
-  `HotChocolate.Types`, `HotChocolate.Types.Relay` and `GreenDonut` under `ImplicitUsings`, whose `DefaultValueAttribute`
-  collides with `System.ComponentModel`'s across the unit suite: its project sets `HotChocolateImplicitUsings` to
-  `disable`. The package's namespace, `AdCodicem.ValueObjects.HotChocolate`,
-  hides the root `HotChocolate` namespace in every `AdCodicem.ValueObjects.*` namespace, the island's included, as
-  Swashbuckle's, Serilog's, MongoDB's, MessagePack's and the Model Context Protocol's do: name HotChocolate's types
-  through usings at the top of the file, and name no test folder or namespace `HotChocolate` (the unit suite's is
-  `GraphQL/`). With `using HotChocolate;`, `Path` is ambiguous with `System.IO.Path` (alias it), and
-  `HotChocolate.Types` holds a `Tag`. HotChocolate's source generator (`[QueryType]`) runs in a fixture of its own,
-  `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.GraphQL`, so that the unit test assembly gets no generated module.
-- **HotChocolate.Data infers a filter from a struct, looks a binding up by its exact type, and names a filter after the
-  CLR types.** Unbound, a value-object member gets `FilterInputType<TSelf>`, the struct's public properties (`value`,
-  `countryCode`, a hand-written type's `isDefault`), which Entity Framework Core translates only under
-  `UseValueObjectQueries()` and which compares raw text; a binding of `TSelf` misses a `TSelf?` member. Binding from the
-  registry on the filter convention cannot work: the convention runs before any module initializer of an untouched
-  domain assembly, with 0 descriptors. `ValueObjectFilterTypeInterceptor` replaces the inferred reference in
-  `OnBeforeRegisterDependencies` (in `OnAfterInitialize` the dependencies are already registered and the schema fails),
-  and only an inference, `FilterInputType<TSelf>` or `ListFilterInputType<FilterInputType<TSelf>>`, so an application's
-  binding, `[ID]` (HotChocolate's own interceptor replaces any type that is not its ID input) and a field typed
-  explicitly win. HotChocolate's `FilterTypeInterceptor.OnBeforeCompleteName` writes the `s_` prefix of a named
-  convention before a type's naming tasks run, and a name function would overwrite it, two scopes then colliding:
-  `ValueObjectFilterNames` writes its own `OnBeforeNaming` task, `DependsOn` the scalar or the element, which puts the
-  prefix back and leaves a name a subclass sets (`IsNamed` is internal, so it compares with the conventional name it
-  captured). A list over one of the package's operation types, whoever made it, is HotChocolate's own
-  `ListFilterInputType<T>`, renamed `List…` by the interceptor through `FilterInputTypeDescriptor.From`; no list type of
-  the package's own exists, since a list's element must be the text type under `IncludeTextOperations()`. The text
-  operations' handlers come from a `FilterConventionExtension` of the default scope, which pre-empts `AddFiltering()`'s
-  `TryAddConvention` when added first, so they are added only when the option is on, and a named convention keeps the
-  comparable operations; a handler set on the field itself would be skipped silently by another provider's visitor
-  (`SkipAndLeave`). HotChocolate's `HasValueAndAlso` wraps `HasValue` in `IsTrue`, which Entity Framework Core does not
-  translate: the guard is `!= null`, the text `IValueObject<string>.Value` read through the interface's `PropertyInfo`,
-  which an explicit implementation answers and the trimmer sees. A `null` fragment goes to the base handler
-  (`CanBeNull = false`), which answers HotChocolate's own `HC0026`. HotChocolate.Data compares through the value object's
-  operators (`Expression.Equal`, `GreaterThan`), which a hand-written value object may lack, and its `in` through
-  `Enumerable.Contains`. The interceptor is created by a factory: natively, `TryAddTypeInterceptor<T>()` finds no
-  constructor. Where the runtime supports no dynamic code, it refuses a value object nothing registered with a
-  `NotSupportedException`, and `BindValueObject` alone does not take its place: the operands are the scalar, which the
-  scalar handler refuses the same way, so the message names `AddValueObjectScalar` beside it. The text operations' type
-  bound by hand without `IncludeTextOperations()`, or in a named convention, fails the schema, HotChocolate finding no
-  handler for `contains`. HotChocolate.Data closes `FilterExpressionBuilder.CreateAndConvertParameter<T>` and
-  `Enumerable.Contains<T>` over the member's type at run time, which have no native code for a struct, so the package,
-  AOT-compatible itself, stays out of `tests/NativeAot`. `IExtendedType` (`ExtendedTypeReference.Type`) lives in
-  `HotChocolate.Internal`, which a 16.x minor may change, as the order of the naming tasks and `From` over a list's
-  configuration; the scope and list tests notice. HotChocolate gives every field filtering a type the one filter type
-  registered for it, so a `FilterInputType<T>` of the application's own filters every field of `T`, and it fails a
-  schema holding a `[UseProjection]` field beside a field filtered through a named convention over a row holding an
-  object, a type registered twice, with or without the package: `ScopedFilterQuery` has no projection.
-  HotChocolate.Data's `build/` targets add `global using HotChocolate.Data` under `ImplicitUsings`, and reach only a
-  project referencing it directly: the package sets `HotChocolateImplicitUsings` to `disable`, and the unit suite, which
-  takes HotChocolate.Data through the package, gets none of them. The package's namespace,
-  `AdCodicem.ValueObjects.HotChocolate.Data`, is what `HotChocolate.Data` names in any `AdCodicem.ValueObjects.*`
-  namespace, through the scalar package's `AdCodicem.ValueObjects.HotChocolate`.
-- **Blazor binds a value object through the framework's own paths before any input runs, and reads `RendererInfo`.**
-  `@bind` reads text through `BindConverter`, which swallows the converter's `ValueObjectException` and calls the setter
-  with `default` for empty text; `InputSelect` and `InputRadioGroup` catch only `InvalidOperationException`, so a refused
-  option throws out of the change event, fatal to a Blazor Server circuit. A statically rendered form is mapped by the
-  framework, through `IParsable<T>` in the invariant culture, before any component runs, its converters and options
-  internal (`FormDataMapperOptions`, `ParsableConverter<T>`): a refusal is "The value 'XX' is not valid for 'Account'.",
-  which quotes the text and carries no code, the member it refused left at its default, and `NullableConverter` takes
-  empty text as `null` for primitive types, `DateOnly`, `TimeOnly` and `DateTimeOffset` alone (dotnet/aspnetcore#52499
-  and #60498), so an empty `TSelf?` is refused; `StaticFormTests` pins both messages. The input therefore writes the
-  invariant text under static rendering, and the current culture's where `RendererInfo.IsInteractive` or
-  `AssignedRenderMode` is set, which is how a prerendered interactive page reports itself (`Static`, not interactive,
-  the mode assigned). The round-trip text of a date is Gregorian whatever the culture, while `DateOnly`, `DateTime` and
-  `DateTimeOffset` parse in the culture's calendar, which reads `2000-01-01` 543 years earlier in `th-TH`, 621 years
-  later in `fa-IR` and not at all in `ar-SA`, the fifteen cultures .NET lists whose calendar is another: the input reads
-  a date with a copy of the culture set to `new GregorianCalendar()`, which every culture lists. bUnit throws
-  `MissingRendererInfoException` when a component reads `RendererInfo` before `SetRendererInfo`, and refuses a service
-  added once the renderer is asked for: `FormsHarness` adds the services first.
-  `InputBase` binds `null` to a nullable value object for empty text without calling `TryParseValueFromString`, and
-  formats the model only while no refused text shows, which is why the input clears a code in `FormatValueAsString`
-  too. Microsoft.AspNetCore.Components warns for itself in a native publish (`IL2104`, `IL3053`), which the main native
-  AOT application lists in an `aot-warnings.allowed` of its own and keeps out of `WarningsAsErrors` under `NativeAot`.
-  The package references `Microsoft.AspNetCore.Components.Web` rather than the shared framework, whose copy loads in a
-  server application. On .NET 11, `InputBase` moved into Components.Web, forwarded, `ValidationMessage` writes
-  `data-valmsg-*` and `InputText` an `id` this input does not, and `EditContext.Validate()` is obsolete (CS0618), for
-  `ValidateAsync()`: the island reads messages off the `EditContext`, never the markup, and validates asynchronously.
-  The ASP.NET Core analyzers refuse a computed sequence number (ASP0006): a helper rendering one component per call
-  takes literals, inside a region per call. The package's namespace hides no root namespace, no referenced assembly having a root `Blazor` one; the unit
-  suite's folder is `Forms/` all the same, as a `Blazor` namespace inside the suite's would hide
-  `AdCodicem.ValueObjects.Blazor`. Its Razor forms live in `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Blazor`
-  (Razor SDK), whose generated `Router` code warns under the trimming analyzer, which that fixture turns off.
-- **DataAnnotations hosts disagree on what they read and keep.** MVC refuses a validation attribute on a record's
-  property (`InvalidOperationException` at the first request validating the record) and wants it on the primary
-  constructor's parameter, which neither OpenAPI generator reads a `[StringLength]` from, while
-  Microsoft.AspNetCore.OpenApi 10.0.12 fails to build the whole document for an `[AsParameters]` record with a
-  validation attribute on a constructor parameter (dotnet/aspnetcore#65348), and the RDG of 10.0.12 does not compile
-  an `[AsParameters]` positional record of `string?` (CS8639): the RdgTests use a class, the guide `property:` there.
-  .NET 10's validation generator describes public types only, so an internal body is never validated (the native AOT
-  application's body is public), and catches an attribute's exception into a 400 carrying its message, where .NET 11
-  lets it propagate and looks a message up under `{Attribute}_Error` keys of its own, both of which the island pins,
-  as it pins the display name the validator `[OptionsValidator]` writes hands a message: `Type.Member` on .NET 10, the
-  member alone on .NET 11. MVC, .NET 10 and .NET 11 keep the message of an attribute naming
-  `ErrorMessageResourceType`, which is why `[ParsesAs]` reads a resource named alone by code: through
-  `ResourceManager(typeof(T))`, whose base name is the type's full name, never a `ResourcesPath`. Every host but
-  `Validator.TryValidate*` and `ObservableValidator` keeps the message alone. A `Type`-form attribute resolves nothing
-  until a value is validated, and a test resolving `HandWrittenCode`, `HandWrittenLink` or `UnregisteredCode` through
-  it or `[NotDefault]` would register them for the process: the unit tests close `Reference<T>` and
-  `HandWrittenTag<T>` over a marker of their own instead. The analyzer runs in the unit suite, which does not import
-  the package's build props, so `VO0042` never fires there; a member misusing an attribute on purpose takes `#pragma
-  warning disable VO0039` (or `VO0040`), which, unlike the generator's diagnostics, an analyzer's honours.
-- **NJsonSchema asks its reflection service before it describes a type, and hands a schema processor every schema.**
-  `AddValueObjects()` on any `JsonSchemaGeneratorSettings` wraps `settings.ReflectionService` in
-  `ValueObjectReflectionService`, which answers a value object, nullable unwrapped, as an object without members, so
-  that NJsonSchema files one definition and refers to it, as for an enumeration, and adds `ValueObjectSchemaProcessor`,
-  which fills the definition in; both once. `IReflectionService` has the same seven members in NJsonSchema 11.0.2 and
-  11.6.1, and a member a minor adds fails the build. NJsonSchema's own services describe a member with their own
-  `GetDescription`, and apply its validation attributes after the processors: `[Required]` on a value-object member
-  under Newtonsoft.Json settings adds `minLength: 1` beside the reference, a `[ParsesAs]` member is described again once
-  its object is complete, keeping the stricter rules, the member declared deepest in the hierarchy read per name, a
-  derived type's own members included, which NJsonSchema's inheritance puts in an inline part of `allOf` no processor is
-  handed, and NSwag applies a parameter's attributes last, so a parameter's `[StringLength]` wins (a limit the guide
-  states). A definition never says `null`, nor does an `enum` under Swagger 2.0, which takes no reference from a
-  parameter either (NSwag writes `type: object` and `x-schema`), so under `SchemaType.Swagger2` every value object is
-  described in place. The wire is read off the settings, never changed (`ValueObjectWire`): a copy of System.Text.Json's
-  options, made afresh while they are not read-only, numbers strict in a document; under Newtonsoft.Json,
-  `ValueObjectConverter` when the type's or the settings' converter is it, the type converter's text for a
-  `JsonStringContract`, left alone otherwise, its values written by those settings themselves. NJsonSchema looks a type
-  mapper up by the type the reflection service describes, then by its generic definition, before anything else: the
-  package answers a nullable value object unwrapped, so a mapper of the value object maps both forms, and leaves alone
-  only the form a mapper takes (`Mapped`), a mapper of the nullable type taking it only where Newtonsoft.Json's service
-  keeps that type, for a `JsonStringContract`; `[JsonSchemaType]` and `[JsonSchema]` win too. NJsonSchema holds
-  `minimum` and `maximum` in a `decimal`, which refuses `2E+32` and rounds `9.1E-31` to 0: such a bound goes to
-  `x-minimum` and `x-maximum`, and only a decimal is read as one (`ToToken`). Its validator, which Confluent runs with
-  no format validator, compares an `enum` by the `ToString()` of a token it reads with `FloatParseHandling.Double`, so
-  the `enum` of a closed set of reals holds doubles in a JSON Schema (`ToEnumerationToken`), or a payload's `20.0`, read
-  as the double 20, would be compared by its text with a decimal's `20.0`, and refused, a decimal no double holds listed
-  rounded; a document lists decimals as decimals; and it throws `InvalidCastException` on a JSON integer beyond Int64,
-  which the per-sample check leaves out and a test pins. NSwag describes Newtonsoft.Json's default settings for an
-  application without MVC's System.Text.Json output formatter whenever `Microsoft.AspNetCore.Mvc.NewtonsoftJson` can be
-  loaded, as in the unit suite and the island: their NSwag applications call `AddControllers()`. NSwag throws
-  `AmbiguousMatchException` for an MVC query model hiding a property with one of another type, and its C# client
-  generator writes two converters on a member whose closed set is of `format: date` (CS0579), which a test pins.
-  Confluent's `JsonSerializer<T>` takes a class only, and 2.16's default subject name strategy calls
-  `GetAssociationsByResourceNameAsync`, which a substitute registry answers with an empty list. The serdes never load
-  the Kafka client's native library: the unit suite and the island reference `librdkafka.redist` with
-  `ExcludeAssets="native;build"`, about 125 MB less output. The package's namespace,
-  `AdCodicem.ValueObjects.NJsonSchema`, hides the root `NJsonSchema` namespace in every `AdCodicem.ValueObjects.*`
-  namespace, the island's included, as Swashbuckle's, Serilog's, MongoDB's, MessagePack's, the Model Context Protocol's
-  and HotChocolate's do: name NJsonSchema's types through usings at the top of the file, and name no test folder, class
-  or namespace `NJsonSchema`, `NSwag` or `Confluent` (the unit suite's are `SchemaGeneration/` and `Web/NSwag*`). A file
-  importing `NJsonSchema` and `Confluent.SchemaRegistry` aliases `SchemaType` (CS0104), and `NSwag.OpenApiDocument`
-  meets the suite's `Web.OpenApiDocument`.
-- **`XmlSerializer` reads a value object's schema before it serializes anything.** It calls the provider when the
-  serializer is built, insists on finding it public and static, and compiles its `xs:simpleType`, refusing the whole
-  type, and every serializer over a type holding it, for one facet System.Xml cannot read. System.Xml holds an
-  `xs:integer` in a `decimal`, so `ValueObjectXml` leaves out a bound beyond one, checks every bound and enumeration
-  value with `XmlSchemaDatatype.ParseValue`, and drops the rules of a type that still does not compile. It also hands
-  an XSD pattern to .NET's engine as `^(…)$`, so a bare `$` in one is an anchor there: `XsdPattern` writes it `[$]`, and
-  `XsdPatternTests` compares every translation with .NET on the same values, through System.Xml's own validation.
-  `DataContractSerializer` cannot read an `IXmlSerializable` struct without dynamic code; the native AOT domain opts in
-  as a guard that the emission adds no warning, and calls neither serializer.
-- **A file of `src/Shared/` linked into two assemblies the unit suite sees is two internal types.** Both are visible
-  through `InternalsVisibleTo`, so a test naming one is CS0433. The contracts, the MongoDB and the EF Core packages link
-  `ValueObjectPatternSyntax.cs`: the unit suite references the contracts under `Aliases="global,abstractions"`, and
-  `ValueObjectPatternSyntaxTests` names the contracts' copy through `extern alias abstractions`; the MongoDB copy is
-  tested through `PcrePattern`, the EF Core copy through `SqlPattern`, and the copy of
-  `AdCodicem.ValueObjects.Testing.Data` through `PatternSampler`, whose tests name no node type, and the Blazor copy
-  through `EcmaScriptPattern`, its table in `Forms/EcmaScriptPatterns.json`. A further package linking it is tested the
-  same way. The generator links it too, for `VO0047`, with substitutes for what `netstandard2.0` lacks (a helper for
-  `char.IsAsciiLetterOrDigit`, `<= '\x7F'` for `char.IsAscii`, `Substring` under `#if NETSTANDARD2_0` in
-  `ReadHexadecimal`): the GeneratorTests see the generator's copy and the contracts' through `InternalsVisibleTo`, so
-  they name neither (CS0433) and reach the generator's through `NonUnicodeTextAnalyzerTests`. `TypeNames.cs`, which writes a type as C# names it in a message, is linked by
-  `Testing.Data`, by its AutoFixture, Bogus and FsCheck adapters, by the EF Core package, for the key and the
-  pattern it refuses, by both Azure Functions packages, for the type a refusal names, and by the protobuf-net and gRPC
-  packages, for the value object a refusal and an `ErrorInfo` name: the unit suite references `Testing.Data` under
-  `Aliases="global,testingdata"`, and `SamplerTests` names its copy through the alias.
-  `ValueObjectArguments.cs` and `ValueObjectArgumentRejection.cs`, the check of a tool's arguments and the result it
-  answers a refusal with, name no type of Microsoft.Extensions.AI, and are linked by the AI and the Model Context
-  Protocol packages, each overload of `FirstRejection` called by one of them: no test names them, `LanguageModels/`
-  reaching them through `WithValueObjectValidation()` and `WithValueObjectTools` alone, so that neither copy needs an
-  alias, and coverage counts a line of the file covered by either copy. `ValueObjectLocalizedMessages.cs`, the lookup
-  of a refusal's message in the application's resource, a partial class, is linked by the minimal API, the MVC, the
-  Azure Functions ASP.NET Core, the HotChocolate and the Blazor packages the same way, the three ASP.NET Core ones with
-  `ValueObjectLocalizedMessages.AspNetCore.cs` beside it, the part that reads `ValueObjectMessageOptions`, which the
-  HotChocolate and the Blazor packages do not reference; no test names either: the localized tests of `Web/`,
-  `Functions/`, `GraphQL/` and `Forms/` reach each copy through its package's API. `ValueObjectSchemaKeywords.cs` is linked by the OpenAPI, the
-  Swashbuckle, the Json, the HotChocolate and the NJsonSchema packages, and no test names it either. `ValueObjectBindingText.cs`, how the converter reads the worker's text, is linked by both
-  Azure Functions packages, so that the middleware parses a parameter again exactly as the converter parsed it, and no
-  test names it: `Functions/` reaches both copies through the converter and the middleware.
-  `KnownValueSpellings.cs`, which tells whether a closed set of text stores another spelling of a known value, is
-  linked by the MongoDB and the EF Core packages the same way: no test names it, the MongoDB copy is tested through the
-  validator's `enum` (`MongoDbSchemaTests`), the EF Core copy through the CHECK constraint's `IN`
-  (`EntityFrameworkCoreCheckConstraintTests`).
-- **The test-data adapters each meet their library's own rules.** AutoFixture stays at 4.18.1 while 5.0 is a release
-  candidate: a stable package depending on a prerelease is NU5104, which fails the pack; Dependabot proposes 5.0 as
-  `fix(deps)!` once it ships. Bogus keeps the last rule of a member, so `RuleForValueObjects` replaces a rule written
-  before it, and a test pins both orders. FsCheck's `MergeValueObjects` merges what the assembly's generated registration
-  lists, never the constructions of a generic value object nor a hand-written type nothing registered, which
-  `MergeValueObject<TSelf, TValue>` merges one by one: scanning the assembly through `TryResolve` would register every
-  hand-written type for the process. FsCheck stops a run at 5,000 shrinks, draws `bool` and `Guid` with no shrinker,
-  handles neither `DateOnly` nor `TimeOnly`, and derives the 128-bit integers by reflection, drawing 0, so a value object
-  over one of them shrinks to its declared values alone. Its other shrinks reach `ValueObjectSampler.Shrink` only when
-  the normalizer leaves them unchanged: its character shrinker proposes `a`, `b` and `c` for any capital, so an
-  upper-casing normalizer would shrink `B` and `C` to each other until that cap, and a test counts the shrinks. Its
-  `DateTime` shrinker makes a UTC value, as the sampler draws one, of no kind and nothing else, which the arbitrary works
-  around by shrinking the value of no kind and giving the kind back. FsCheck writes `Shrunk:` in a failure only after one
-  shrink at least: a test reading the counterexample falls back on `Original:`. The namespaces `AdCodicem.ValueObjects.AutoFixture`, `.Bogus` and `.FsCheck` hide the root `AutoFixture`,
-  `Bogus` and `FsCheck` namespaces in every `AdCodicem.ValueObjects.*` namespace, as Swashbuckle's, Serilog's, MongoDB's
-  and MessagePack's do: name their types through usings at the top of the file, and name no test folder or namespace after
-  one of them (the unit suite's is `TestData/`).
-- **`#pragma` does not silence a diagnostic the generator reports.** `VO0025`, `VO0026` and the generator's other
-  warnings fail the build under `TreatWarningsAsErrors` whatever surrounds the declaration: a test needing a type that
-  trips one writes the value object by hand, as `Persistence/MongoDbShapedCode.cs` does for a pattern matched under
-  `IgnoreCase`, `Multiline` or `IgnorePatternWhitespace`. That is why `VO0047`, which a project may silence on purpose for
-  a column of names kept under Latin-1, is an analyzer, `NonUnicodeTextAnalyzer`, which `#pragma` and a severity
-  setting silence. Every test-owned value object declaring `Unicode = false` holds its text to ASCII, by an anchored
-  pattern of ASCII classes or a closed set of ASCII known values compared ordinally (or a normalizer or validator hook,
-  which silences it), or the build of its suite fails on `VO0047`.
-- **NuGet lock files are deliberately absent**, and adding them breaks CI on the first run:
-  `src/Directory.Build.props` references `Microsoft.SourceLink.GitHub` under
-  `Condition="'$(GITHUB_ACTIONS)' == 'true'"`, so the package graph on a laptop is not the graph on the runner
-  and `--locked-mode` fails `NU1004`. `docs/adr/0004-pin-the-supply-chain-by-digest-not-nuget-lock-files.md`
-  has the full reasoning.
-- **A pull request of more than 100 commits cannot be merged.** `main` takes a linear history and no merge
-  commit, and a session's pull request lands with *Rebase and merge*, so that semantic-release reads each of its
-  commits. GitHub rebases at most 100 commits
-  ([its documented limit](https://docs.github.com/en/repositories/creating-and-managing-repositories/repository-limits#rebase-limits)).
-  Past that, the API answers `rebaseable: false` beside `mergeable: true`, and the web UI blames conflicts that
-  do not exist. *Squash and merge* still works, but it folds every `fix` and `feat` into one changelog line. Count
-  with `git rev-list --count origin/main..HEAD` before opening a pull request, and split work past 100 commits into
-  pull requests stacked on one another. CI runs only on pull requests that target `main`, so a stacked one gets
-  its checks once the one beneath it has merged and it has been rebased onto `main`.
-- **`website/package.json` carries `overrides`** for `postcss-selector-parser`, `qs`, `serialize-javascript`,
-  `tinypool` and `uuid`. All five are transitive under Docusaurus, which pins ranges too tight to pick up the patched
-  versions on its own, so Dependabot alerts on them and `npm audit fix --force` "fixes" four by *downgrading*
-  `@docusaurus/core`, to 3.5.2 for `qs`, `serialize-javascript` and `uuid`, to 3.7.0 for `tinypool`. Drop an override
-  once Docusaurus widens the range that holds it back, not before: `tinypool` once `@docusaurus/core` asks for
-  `^2.1.2` (3.10.2 asks for `^1.0.2`, and no 1.x is patched; the pool builds the static pages, `future.v4` turning on
-  its worker threads), `postcss-selector-parser` once `@docusaurus/cssnano-preset` leaves cssnano 6 (3.10.2 asks for
-  `cssnano-preset-advanced` `^6.1.2`, whose plugins ask for `^6`, and only 7.1.6 is patched). Re-run `npm audit`
-  after touching them: it reports `braces` alone, which has no patched release.
+- **Generated code assumes nothing of the consumer's project.** Fully qualify every name, extension methods included
+  (`global::System.MemoryExtensions.AsSpan(x)`, never `x.AsSpan()`): a consumer with `ImplicitUsings` off otherwise gets a
+  compile error in code they cannot edit.
+- **Source generators never see each other's output.** The System.Text.Json generator cannot see the `[JsonConverter]`
+  this generator writes, hence `AdCodicem.ValueObjects.Json`'s hand-written `ValueObjectJsonConverterFactory`, named
+  through `[JsonSourceGenerationOptions(Converters = ...)]`; emitted code cannot use `[GeneratedRegex]`, hence the
+  pattern hook; the Request Delegate Generator binds a value object of its own project from the body unless the
+  declaration lists its contract (`VO0033`).
+- **Every diagnostic is tracked** in `src/AdCodicem.ValueObjects.Generators/AnalyzerReleases.Shipped.md` or
+  `.Unshipped.md`, or RS2008 fails the build. `VO0021`, `VO0028`, `VO0034` and `VO0035` are the exceptions: the
+  `DiagnosticId` of an `[Obsolete(error: true)]`, which the compiler reports, documented by hand. Never reuse a retired
+  identifier (`website/docs/reference/diagnostics.md`).
+- **`#pragma` silences an analyzer's diagnostic, never the generator's.** `VO0025`, `VO0026` and the generator's other
+  warnings fail the build whatever surrounds the declaration: a test needing such a type writes the value object by hand.
+  A diagnostic users must be able to silence is an analyzer (`VO0047`, `NonUnicodeTextAnalyzer`). No `#pragma` silences
+  an `[Obsolete(error: true)]` either, and the compiler does not report one inside a member that is itself `[Obsolete]`:
+  test it by compiling a snippet in GeneratorTests.
+- **A package namespace hides the root namespace of the same name.** Inside any `AdCodicem.ValueObjects.*` namespace,
+  tests and the compatibility island included, `Swashbuckle`, `Serilog`, `MongoDB`, `MessagePack`, `Grpc`,
+  `ModelContextProtocol`, `HotChocolate`, `NJsonSchema`, `AutoFixture`, `Bogus` and `FsCheck` resolve to the package, and
+  `AdCodicem.ValueObjects.Metadata` hides `Grpc.Core.Metadata` (CS0118). Name third-party types through usings at the top
+  of the file, or `global::X` in a body. For the same reason, never name a test folder, namespace or class after a
+  library or a package (`Blazor`, `AI`, `HotChocolate`, `NJsonSchema`, `NSwag`, `Confluent`, `Azure`, `ProtoBuf`,
+  `ProtobufNet`, `Grpc`, `ModelContextProtocol`, `MessagePack`, …): the unit suite's folders are named apart
+  (`tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`).
+- **A file of `src/Shared/` linked into two assemblies the unit suite sees is two internal types**, both visible through
+  `InternalsVisibleTo`, so a test naming one is CS0433. Change a shared description once, there; the table of files,
+  linking projects and how tests reach each copy is in `src/Shared/CLAUDE.md`.
+- **Some state is process-wide and cached for good**: `ValueObjectRegistry` (`TryResolve` keeps what it resolves),
+  MongoDB.Driver's serializer registry and id generators, protobuf-net's `RuntimeTypeModel.Default`, FluentValidation's
+  language manager. A suite registers such state once, strict, before any test; a test needing another configuration
+  builds its own, and never resolves a hand-written type other tests share.
+- **A test file linked into another project changes it too**: the unit suite's `Domain/UnderlyingTypes.cs` is linked by
+  the integration suite and `tests/NativeAot`, and three files of `Domain/HandWritten/` (`HandWrittenCode.cs`,
+  `HandWrittenLink.cs`, `UnregisteredCode.cs`) by `tests/NativeAot`. Grep `Link=` before editing one.
+- **Native AOT compatibility is per package** (`IsAotCompatible`, true by default in `Directory.Build.props`).
+  `tests/NativeAot` references every package that claims it, but HotChocolate (its framework warns on its own publish
+  and starts natively only rooted), HotChocolate.Data (its filtering of a struct has no native code) and ProtobufNet,
+  published by an application of its own.
+- **`src/AdCodicem.ValueObjects.Packages.slnf` lists every project under `src/`.** Previews and releases pack through it,
+  so a project left out never ships; `ci.yml` fails when a packable project is missing. It sits under `src/` because
+  `dotnet format` and `dotnet sln` refuse two solution files in one folder.
+- **Anything that changes a package's bytes or metadata is a `preview-gate.sh` input**, or it never reaches a preview;
+  **a dependency added to a shipped package goes into `.github/shipped-dependencies`** in the same pull request, or CI
+  fails. Both: `.github/CLAUDE.md`.
+- **Required checks are job names**: `build and test`, `native AOT` (`ci.yml`) and `workflows` (`lint.yml`). Renaming
+  one leaves every pull request waiting for a check that never reports.
+- **No NuGet lock files.** `Microsoft.SourceLink.GitHub` is referenced only under `GITHUB_ACTIONS == 'true'`, so the
+  runner's package graph differs from a laptop's and `--locked-mode` fails with NU1004 (ADR 0004).
+- **A pull request of more than 100 commits cannot be rebase-merged**, and `main` takes a linear history landed with
+  *Rebase and merge*, so that semantic-release reads every commit. Past 100, GitHub answers `rebaseable: false` and the
+  web UI blames conflicts that do not exist; squashing folds every `fix` and `feat` into one changelog line. Count with
+  `git rev-list --count origin/main..HEAD` and stack pull requests past 100; CI runs only on a pull request targeting
+  `main`.
 
 ## Testing
 
-Four suites, each with a distinct job:
+- **UnitTests**: the behaviour of generated code, over the value objects of `Domain/`, and of every package called
+  directly.
+- **GeneratorTests**: the generator, every diagnostic, the analyzers and code fixes, incremental caching, and every
+  published C# snippet.
+- **IntegrationTests**: PostgreSQL, SQL Server, MongoDB and the Azure Functions host through Testcontainers, and the
+  sample API of `samples/` end to end. Needs Docker.
+- **RdgTests**: minimal API endpoints whose binding the Request Delegate Generator writes.
+- `tests/NativeAot` holds applications CI publishes natively and compares with the JIT (the `native AOT` check);
+  `tests/Compat` installs the packed packages on the .NET 11 release candidate, outside the solution.
+- Stack: xUnit v3 (`TestContext.Current.CancellationToken`), AwesomeAssertions, NSubstitute, Testcontainers. Versions
+  live in `Directory.Packages.props`, never in a `.csproj`; `tests/Compat` has its own.
+- `AdCodicem.ValueObjects.Testing` ships the contract kit (`ValueObjectContract`). Add a contract with each value object
+  added to `Domain/`, overriding `DerivesRejectedValues` to return `true`. The exceptions are `Floor` and `Celsius`,
+  whose formatted text does not parse back, and the private `Strongbox.Secret` and `Archive.Shelf`
+  (`DeclarationContextTests` covers them).
 
-- **UnitTests** — behaviour of generated code, using value objects defined in `Domain/`, and of every integration
-  package called directly. `Domain/UnderlyingTypes.cs` declares one value object for each underlying type and each
-  option or hook the rest of `Domain/` leaves out, and `GeneratedSurface/` runs every emitted member family on all
-  of them, so nothing the generator emits only compiles. `EmitCompilerGeneratedFiles`
-  is on, so generated sources land under `artifacts/obj/.../generated/` and can be read when diagnosing.
-  `Domain/HandWritten/` holds value objects written by hand, the supported input that reaches what the generator
-  always replaces: the interface defaults and the registry's reflection fallback. The test assembly cannot hold
-  the rest, since the generator runs on it and its module initializer has run before any test does, so seven
-  fixture assemblies under `tests/Fixtures/` do: a generated value object in a module nothing has used yet,
-  annotated hand-written ones where no generator runs, generated ones in an assembly that does not reference
-  `AdCodicem.ValueObjects.Json`, as a domain project serializing through an API's context does not, and generated ones
-  of every underlying type in an assembly marked `[assembly: ValueObjectXmlSerialization]`, beside value objects
-  written by hand on `ValueObjectXml` whose schemas the generator never writes (`XmlSerialization/` tests them), and
-  generated ones beside a `[QueryType]` HotChocolate's source generator binds, whose module the unit test assembly would
-  otherwise get (`SourceGeneratedQueryTests`), and Blazor forms written in Razor markup, with pages and value objects
-  of their own, which the Razor SDK builds while the suite stays on `Microsoft.NET.Sdk`, and `[LoggerMessage]` methods
-  Microsoft.Gen.Logging writes, beside value objects classified as personal data, which the suite's own
-  `[LoggerMessage]` generator would otherwise write (`Logging/MicrosoftExtensionsLoggingRedactionTests`, under
-  Microsoft.Extensions.Telemetry's `EnableRedaction()`: a classified parameter erased, a classification on the type
-  alone not read, `[NoDataClassification]`, `[LogProperties]` keeping a property's classification and `Transitive`
-  dropping it, the HMAC of a value object as its underlying value's, Serilog behind Microsoft.Extensions.Logging; a
-  Dependabot bump that fixes one of the logging generator's defects fails there first, and says `VO0045` or `VO0046`
-  can step back). Its build holds its correct methods to `VO0045` and `VO0046` under `TreatWarningsAsErrors`.
-  `Forms/` (not `Blazor/`, whose namespace would hide `AdCodicem.ValueObjects.Blazor` inside the suite's) renders the
-  fixture's forms through bUnit (`FormsHarness`, which adds the services before `SetRendererInfo`): text accepted,
-  normalized and refused, each with its code, the code cleared by the next text, an emptied nullable field and the
-  input's disposal, empty text on a value object and its nullable type, `AllowEmpty`, the culture under an interactive,
-  a static and a prerendered renderer and `Culture`, a date in `th-TH`, `fa-IR` and `ar-SA`, the text each underlying
-  type and a formatting hook is written as, a string formatter alone and hooked dates, times and a duration among them
-  (the fixture's `HookedValueObjects.cs`), what a handler of `OnFieldChanged` reads, the attributes written lazily
-  (`CountedTicket`), a submit blocked and then accepted, a parser refusing without a reason (`UnexplainedCode`, the
-  folder's own), a generic construction closed over `FormsOwner`, a `Declared<FormsTicket, string>` resolved through
-  the registry, the schema attributes, `[NotDefault]` under `DataAnnotationsValidator` (`AnnotatedFormTests`), the
-  messages of `Web/ValidationMessages.fr.resx` and `Web/SparseMessages.fr.resx` (`LocalizedInputTests`), and an
-  `HtmlRenderer` over services holding no options; a subclass setting `CurrentValueAsString` (`TypedInput`) stands for one that
-  types text from code. `StaticFormTests` serves the fixture's static and prerendered pages over TestHost in French,
-  pinning the framework's own refusals, and `EcmaScriptPatternTests` holds each pattern of
-  `Forms/EcmaScriptPatterns.json` to .NET, the table `.github/scripts/ecmascript-patterns.mjs` holds to Node in the
-  documentation site's job. `GeneratedSurface/` binds every sample through an input (`FormsParity`), alone and
-  nullable, under a static renderer, and reads back the text it writes in every culture .NET lists.
-  `BinarySerialization/` drives the MessagePack package directly and through a SignalR hub and the .NET client over
-  TestHost; a test of the reflection fallback there closes `Reference<TOwner>` over the test class, never
-  `UnregisteredCode`, which nothing may resolve. Its `Proto*` files drive the protobuf-net package on models of their
-  own (`ProtoWire.Model`), every sample through `GeneratedSurface/` (`ProtoParity`: alone, nullable, in a list, an array
-  and a set, and as the root, at the three levels, strict and trusted, the export's fields and imports against the
-  primitive's), the attribute route over value objects of their own, protobuf-net's `[ProtoModel]` under the JIT
-  (`ProtoGeneratedModel`), and the export's differences pinned, a member's `DataFormat` among them; a construction of
-  `Reference<TOwner>` in `ProtoModelTests` closes over `ProtoOwner`, which nothing else names. `CodeFirstGrpc*` runs a
-  protobuf-net.Grpc code-first service over TestHost with the .NET client, Grpc.StatusProto reading the `ErrorInfo`, and
-  its default client over `Reference<ProtoStranger>`, which nothing registers on `RuntimeTypeModel.Default`. `ContractFirstGrpc*` runs a contract-first service, whose messages Grpc.Tools compiles from
-  `ContractFirstGrpc.proto`, over TestHost, every kind of call with and without the gRPC package's interceptor, its
-  registrations and the collector, and a code-first handler through the same interceptor;
-  `ValueObjectExceptionInterceptorTests` and `ValueObjectBadRequestTests` call both directly. `LanguageModels/` (not
-  `AI/`, whose namespace would hide `AdCodicem.ValueObjects.AI` inside the suite's) builds Microsoft.Extensions.AI tools over `Domain/`, and over every
-  sample through `GeneratedSurface/`: a scripted `IChatClient` stands for the model behind `FunctionInvokingChatClient`,
-  and the request the OpenAI adapter sends in strict mode is captured by an `HttpMessageHandler` behind
-  `HttpClientPipelineTransport`, with no network; a test that names `AIParameterNameAttribute`, experimental
-  (`MEAI001`), silences it around that one use. `AgentFrameworkTests` runs the same tools and the response format
-  through Agent Framework's `ChatClientAgent`, over a scripted model. The folder's `Mcp*` files run a Model Context
-  Protocol server in process, over a pair of pipes, against the SDK's own client (`McpHarness`), the tools of
-  `McpTools.cs` and one over every sample; `McpRegistrationTests.cs` silences `MCPEXP002` around the one statement
-  setting `CallToolWithAlternateHandler`. `Functions/` calls the Azure Functions converter over `ConverterContext`s it
-  writes, every sample of `GeneratedSurface/` among them, and runs the problem details middleware over invocations it
-  writes (`FunctionsDoubles.cs`: `FunctionContext`, `FunctionDefinition` and `BindingContext` are public abstract
-  classes), the worker's internal `IFunctionBindingsFeature` a substitute, executing the answer on a `DefaultHttpContext`
-  as the integration does; a value object written by hand there is a `Declared<,>` over a declaration those tests own, or
-  `HandWrittenId<SilentFunctionsProfile>`, and a generic one is closed over a test class, since the converter's
-  `TryResolve` registers each for the process. The suite runs in the invariant culture, so the tests that pin the
-  invariant parse and the cultures the middleware applies set the current cultures to others, and give them back.
-  `GraphQL/` (not `HotChocolate/`, whose namespace would hide the package's) builds HotChocolate executors in process
-  (`GraphQLHarness`) over query types of its own (`GraphQLQueries.cs`), `EchoQuery<TSelf>` among them, and over every
-  sample through `GeneratedSurface/` (`GraphQLParity`), from the edges the sampler derives to the values it rules out;
-  `GraphQLHttpTests` answers over TestHost through HotChocolate.AspNetCore, its statuses and the language of the
-  request, `LocalizedGraphQLTests` sets the cultures of its executions, a refused filter operand quoted by its scalar's
-  name, `« Iban »`, beside arguments, input fields and variables quoted as before, and `QuoteScalarNameIn`'s predicates
-  over each form of coordinate. `GraphQLFilteringTests` runs `AddValueObjectFiltering()` over the rows of
-  `GraphQLFilteringModel.cs` on Entity Framework Core over SQLite in memory and in memory, the SQL read off the context's
-  log: the SDL, the names after the scalar, every comparable operation, lists, refusals and their codes, sorting and
-  projections, what the interceptor leaves to the application (its binding, its filter type, a subclass naming itself,
-  `[ID]`), a `FilterConvention` subclass and a named convention, `BindValueObject`, the registration and its order, the
-  text operations with and without the translator, the text type bound by hand, a `null` fragment on a member and on a
-  nullable one, default instances, a value object written by hand
-  without operators (`OperatorlessCode`), and every sample through `GeneratedSurface/` (`GraphQLFilteringParity`: `eq`,
-  `in` and `gt`, `eq` alone over `bool`, against the instances' own equality and order in memory, and, but for the
-  128-bit integers, against SQLite's run of the same comparison of a column of the underlying type, which refuses a
-  `ulong`'s, a `TimeSpan`'s and a `DateTimeOffset`'s `gt`). A value object written by hand there is a `Declared<,>` over a declaration those tests own, through the
-  registry, or `HandWrittenRating` through `AddValueObjectScalar`, which asks no registry, or `OperatorlessCode`, which
-  nothing else names, and a generic one is closed over a test class (`FilterOwner`, `ResolvedOwner`).
-  `WithoutDynamicCodeGraphQLTests` runs each of its tests again in a child process whose runtime supports no dynamic code
-  (`WithoutDynamicCode`, at the suite's root: this assembly started by the running runtime's `dotnet` host over a copy
-  of its runtime configuration setting `System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported` to
-  false, the one test run by xUnit's own runner), since a process reads that switch once: the scalars and the filters
-  map a registered value object, refuse a construction of a generic one nothing registered with the
-  `NotSupportedException` naming the typed registrations, and filter it once typed or registered. A test run there
-  creates no NSubstitute proxy and no Entity Framework Core context, neither of which works without dynamic code, and
-  the coverage collector follows the child.
-  The Entity Framework Core tests of `Persistence/` build models on Npgsql,
-  which opens no connection to build one, and run collections of value objects through SQLite in memory, each test on a
-  database of its own (`PrimitiveCollectionTests`): the JSON stored, the queries over the elements, change tracking,
-  strict reads, refused elements, owned and complex types, and every sample in a list, an array and a list of its
-  optional type (`PrimitiveCollectionParity`); and keys typed as value objects (`EntityFrameworkCoreKeyTests`): the
-  refusal of a `Guid` key left unset and its code, in every shape the convention concerns or leaves alone, an owned
-  collection item and a dependent attached through a navigation included, and keys generated, over a `Guid` and over
-  each integer type, a temporary value, a strict context, a migration's operations, a round trip through SQLite and the
-  refusal of the in-memory provider included; and `.Value` in a query under `UseValueObjectQueries()`
-  (`ValueObjectQueryTests`), run on SQLite and written in Npgsql's text: a column, an optional one, a JSON path, an
-  element of a collection, a joined column, a generic construction, an identifier, a composed converter, a converter of
-  the application's own left alone, composed around the package's one included, a strict context, what stays
-  untranslated, a service provider of the application's own refused unless it holds the translator, and every sample
-  against the same query over a property of its underlying type (`ValueQueryParity`); and the CHECK constraints of
-  `AddValueObjectCheckConstraints` (`EntityFrameworkCoreCheckConstraintTests`), run on SQLite and written in Npgsql's
-  text: each rule written or left out per provider, a value of every rule at its boundary accepted and another writer's
-  row refused on SQLite, closed sets whose type stores another spelling of a known value, nullable columns, each shape
-  of table a column lies in, a complex property a table-per-concrete-type leaf inherits included, shared columns, long
-  names and names kept apart from another the table holds, the create script, the converters of the package and one of
-  the application's own, another provider, and the patterns: written per dialect, none for a dialect the provider does
-  not run or a fixed-length column, a refused construct or option failing the model, an option the text keeps its
-  meaning under left alone, `ExcludePattern`, and every name the convention writes read back to the rule its SQL
-  states; `SqlPatternTests` tests the writer itself; and the code of the rule a refused row broke under
-  `UseValueObjectCheckErrors()` (`EntityFrameworkCoreCheckErrorTests`), on SQLite's error, from `SaveChanges`,
-  `ExecuteUpdate`, raw SQL and a raw query reading back the row it writes, a refusal only the save interceptor sees,
-  thrown from `DataReaderClosing`, a default instance the converter refuses first, the registration, and on errors
-  shaped as Npgsql's, whose public constructor names the constraint, and SqlClient's, which has none, a `DbException`
-  carrying its `Data` standing for it, SQL Server's message 547 in each language it is translated into among them, a
-  name read past each separator the reader knows, and System.Data.SQLite's message, which the name ends. A pattern
-  matched under `IgnoreCase` is a construction of the hand-written `ShapedCode<TShape>` of `MongoDbShapedCode.cs` over
-  a shape of the test's own, since a generated one trips VO0025. EF Core builds a model once per context type, so each
-  model shape there has a context type of its own. `EntityFrameworkCoreUnicodeTests` holds the Unicode facet a value
-  object declaring `Unicode = false` gets, a property, its optional form, a construction, an element and a mapping by
-  hand, over the BIC of `Domain/` and the value objects of `Persistence/NonUnicodeValueObjects.cs`, each holding its text
-  to ASCII; `RegisteredAsciiDeclaration` is the one schema written by hand that a test resolves through the registry.
-  The localized messages are tested in fr-FR, whose ICU formats the expected strings spell out (a decimal comma, a
-  day-first date, `;` between known values), never in en-US times: `ValueObjectMessagesTests` builds the argument table
-  of every code and bounded underlying type, `Web/LocalizedModelBindingTests` and `Web/LocalizedMinimalApiProblemDetailsTests`
-  answer requests of each culture through `UseRequestLocalization`, the exception handler outside it, and
-  `FluentValidationLocalizationTests` runs in the `FluentValidationGlobalOptions` collection, since the language manager
-  is global, restoring it with the cultures it sets. Their resources are `Web/ValidationMessages.fr.resx`, the French
-  example of the errors reference word for word, and `Web/SparseMessages.fr.resx`, a range of two bounds and a
-  malformed template, each French alone, so that another culture keeps English; a resource type's namespace is the root
-  namespace followed by its folder, or every key reads as missing, with no error.
-  `PropertyTests.cs` runs the laws `IValueObject<TSelf, TValue>` states in prose — normalization is
-  idempotent, an accepted value is a normalization fixed point, rejection never throws — over FsCheck-generated
-  input, the values each type accepts drawn by the FsCheck package's `ValueObjectArbitrary`, over `ValueObjectSampler`,
-  from a seed FsCheck draws, the IBAN's from the
-  MOD-97 generator registered with `Use<Iban, string>`, and the deliberately invalid input written by hand. Two things
-  keep such a suite honest and both are easy to lose: a property conditioned on "the value was
-  accepted" passes vacuously unless the generator produces values the type accepts, so each one counts how often
-  it reached the accepting branch and asserts on it; and a property over a wide type never lands on the boundary
-  by chance, so the range generator biases towards the edges, the `Boundaries` and `RejectedValues` the sampler
-  derives from the declared range. Change a generator and re-run the mutations in the commit message before trusting
-  the green. `TestData/` tests the sampler on value objects of its own beside `Domain/`, and on schemas written by hand
-  through `Declared<TDeclaration, TValue>`, a value object written by hand over any underlying type: the sampler's typed
-  path never asks the registry, and a test of its boxed path resolves only generated value objects, never a shared one
-  written by hand, which `TryResolve` would keep registered for the process. `GeneratedSurface/` draws every value object
-  of `Domain/` through it too. `AutoFixtureTests`, `BogusTests` and `FsCheckTests` drive the three adapters over the
-  objects of `TestDataOrders.cs`, which hold value objects in every shape a member takes; the adapters resolve through
-  the registry, so the only hand-written value objects they meet are `Declared<,>` constructions over declarations
-  those tests own (`Tally`, `WatchedTally`), and `FsCheckTests` merges a fresh `AssemblyLoadContext` copy of the
-  untouched fixture, whose registration only the merge can have run.
-  `DataAnnotations/` runs `[ParsesAs]` and `[NotDefault]` through `Validator`, a host's `ValidateDataAnnotations()`
-  and `ValidateOnStart()`, an `[OptionsValidator]` validator, whose generator runs in the suite, and CommunityToolkit.Mvvm's
-  `ObservableValidator` (test-only, its partial properties), with `SilentCode`, a value object written by hand private to
-  the tests, for a parser refusing without a code or a message; `Web/DataAnnotationsMvcTests.cs` and
-  `DataAnnotationsMinimalApiTests.cs` answer requests through MVC and `AddValidation()` over TestHost, whose validations
-  generator then walks every minimal API endpoint of the suite, and `Web/OpenApiTextTests.cs` and
-  `SwashbuckleTextTests.cs` read both documents' description of every value object's text, `EveryValueObjectAsText`,
-  against each other; `GeneratedSurface/` holds every sample to both forms and to `[NotDefault]`.
-  `SchemaGeneration/` (not `NJsonSchema/`, whose namespace would hide NJsonSchema's in the suite's) drives NJsonSchema's
-  two generators over `SchemaOrder` and the holders of `SchemaHolders.cs`: each wire, System.Text.Json under the default
-  options, the web defaults, named literals and options changed before their first use, Newtonsoft.Json with
-  `ValueObjectConverter` and without it, its payload validated as Confluent validates (`SchemaJson.Errors`, no format
-  validator), `[ParsesAs]` members, a derived form's own included, the application's own mappings, each form of a value
-  object apart, Swagger 2.0, and every sample through `GeneratedSurface/` (`NJsonSchemaWires`); a value object written by
-  hand there is a `Declared<,>` over a declaration of the tests' own, or `HandWrittenTag<T>` closed over a test class.
-  `ConfluentSerdesTests` runs Confluent's serdes over an NSubstitute `ISchemaRegistryClient` keeping what is registered,
-  no registry server. `Web/NSwagDocument.cs` builds NSwag's documents over TestHost for the endpoints and the controller
-  the built-in stack's document describes, on System.Text.Json, on Newtonsoft.Json, in Swagger 2.0 and beside the
-  built-in stack's (`NSwagParityTests`, every member of `EveryValueObject` and `EveryValueObjectAsText` alike after
-  normalization, but `mass`, whose bounds no decimal holds), each request awaited with a timeout; `NSwagDocumentTests`
-  compiles the C# client NSwag generates with Roslyn.
-  `Web/NewtonsoftJsonPatchTests.cs` applies JSON Patch documents through `TryApplyTo` over TestHost, to a fresh
-  `PatchedAccount` per request (`NewtonsoftPatchController`, in an application of its own through a `ControllerPart`):
-  keys and codes, the response of `InvalidModelStateResponseFactory`, a validation problem passing nothing, a prefix,
-  the error cap, MVC's own `ApplyTo` beside it; and through its handler, both overloads applying each document, every
-  operation on members, nullable members, lists, arrays, the end of an empty list, dictionaries keyed by value objects
-  or holding them, their keys under fr-FR, a `JObject`, malformed operations, a `from` it cannot read included, a
-  document read under Newtonsoft.Json's defaults, one built in code and ones whose contract resolver renames members,
-  dictionary keys or gives a value object a converter, against what JSON Patch's own `ApplyTo` does where they differ;
-  and every sample of `GeneratedSurface/` through `JsonPatchParity`, over `PatchHolder<TSelf>`. `NewtonsoftJsonTests.cs`
-  holds `ValueObjectContractResolver`'s tests, on holders and resolvers of their own, and JSON Patch documents outside
-  MVC applied through it, one the guide's way and others wrapping JSON Patch's own resolver, in either order.
-- **GeneratorTests** — the generator itself: emission, every diagnostic, hook detection, the analyzers, and
-  incremental caching. It drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
-  `Microsoft.CodeAnalysis.Testing`, which binds to xUnit v2. Snippets compile **without** implicit usings, which
-  is what catches unqualified names in emitted code. They compile with the Roslyn `Directory.Packages.props` pins,
-  4.14, under `LanguageVersion.Preview`, which runs a syntax node action three times per node inside a C# 14
-  extension block, where the compilers of SDK 10 and 11 run it once: a VO0010 test puts no lambda and no local
-  function in one. The harness also runs the framework's regex generator beside
-  this one, so a snippet implementing `IValueObjectPatternValidator` compiles; the `CopyRegexGenerator` target in
-  the test project copies it from the targeting pack the SDK resolved, so the SDK decides its version, on a laptop
-  and in CI alike. The incrementality tests assert on
-  `IncrementalStepRunReason`, the only way to notice caching regressions — losing them breaks nothing visible
-  while making every IDE keystroke re-run the pipeline. `DocumentationSnippetTests` also runs the generator and
-  six analyzers over every ```` ```csharp ```` block the repository publishes — `skills/value-objects/`,
-  `README.md` and `website/docs/` — each compiled against Microsoft.Extensions.Logging.Abstractions and
-  Microsoft.Extensions.Telemetry.Abstractions with Microsoft.Gen.Logging running, so a snippet that stops generating, or
-  that trips `VO0010`, `VO0011`, a DataAnnotations attribute's `VO0039` to `VO0041`, a serializer's contract attribute,
-  `VO0043` and `VO0044`, a `[LoggerMessage]` method writing a classified value object in clear, `VO0045` and
-  `VO0046`, or `Unicode = false` on text its rules do not hold to ASCII, `VO0047`, fails the build (`VO0042` needs `PublishAot`, which the snippet run does not set; the snippets reference no third-party
-  serializer, so a block showing Orleans', protobuf-net's, MessagePack's, MemoryPack's or Newtonsoft.Json's attribute is
-  tagged `skip` already, while `[DataContract]`, `[XmlType]` and `[Serializable]` come with the framework). The project
-  references `AdCodicem.ValueObjects.ProtobufNet`, which `SerializerContractAnalyzerTests` and
-  `SerializerContractCodeFixTests` alone hand their snippets, never a published one: `VO0043`'s code fix names its
-  serializer, and a test holds the underlying types the analyzer leaves to removal to those protobuf-net has no inbuilt
-  serializer for. `SerializerContractAnalyzerTests` declares the other serializers' attributes under their
-  real names in a stand-in assembly, and the harness ignores `CS1701` and `CS1702`, which the SDK passes as `/nowarn`,
-  for protobuf-net's assemblies built against .NET 8. The harness runs Microsoft.Gen.Logging on request
-  (`withLoggingGenerator`), copied by the `CopyLoggingGenerator` target from the Microsoft.Extensions.Telemetry.Abstractions
-  package `Directory.Packages.props` pins, and `GeneratorRun.LoggingSource` holds what it wrote, whose tags
-  `LoggingSnippets.LoggedTags` reads: `DataClassificationAnalyzerTests` and `CopyClassificationCodeFixTests` assert that
-  a warned tag goes to the logging generator's plain tag array and a fixed one to its classified array, over a domain
-  assembly of `LoggingSnippets` classified on its types, and `LoggingGeneratorAssumptionsTests` pins the logging
-  generator's behaviour the two diagnostics rest on, its defects first.
-  A skill snippet must compile outright; a README or site snippet is prose and may elide a body, so only the
-  declaration the generator sees is held to account. Tag a block ```` ```csharp skip ```` when it is a wiring or
-  usage fragment rather than a declaration. The homepage example is covered too, because it lives in the partial
-  `website/docs/_homepage-example.md` rather than in the TSX. `website/versioned_docs/` is deliberately out of
-  scope: those snapshots describe older releases, not the current generator.
-- **IntegrationTests** — real PostgreSQL and SQL Server, asserting against `information_schema` that value
-  objects reach the column types they claim, a collection of them the PostgreSQL array of its element's type, whose
-  length only `format_type` shows, or SQL Server's `nvarchar(max)` JSON, read as the element's type by a query over its
-  elements, `Guid` value-object keys generated as each provider generates a `Guid` (SQL Server's sequential GUIDs,
-  version 7 on PostgreSQL) and sorted by the engine as they were generated, and integer ones by an identity column of
-  their width, which SQL Server refuses an explicit key for, a prefix search on `.Value` under `UseValueObjectQueries()`
-  reading the column itself, a parameter declared as the column, `.Value` of a value object over a type the provider
-  converts, and of an element of a collection, the CHECK constraints of `AddValueObjectCheckConstraints` accepting every
-  value each type accepts and refusing another writer's row with the provider's error, which carries the code of the
-  rule under `UseValueObjectCheckErrors()` for a row the context writes, from `SaveChanges`, a refusal in a later
-  statement of a batch that no command interceptor sees included, `ExecuteUpdate`, raw SQL and a migration, in every
-  language SQL Server writes its messages in, none on SQL Server for a raw query reading back the rows it writes, and no
-  code on a migration's error naming a constraint it already holds, listed by the catalog, and failing
-  to be added to a table holding a refused row the guide's audit query counts, tables whose constraint names read alike
-  created side by side (`CheckConstraintTests`; SQL Server's text and script, names kept apart per schema included, and
-  each name read back to its rule, which need no server, in `SqlServerCheckConstraintScriptTests`), and their patterns,
-  refused with `value_object.invalid_format`, matched on PostgreSQL and on a
-  SQL Server 2025 container (`SqlServer2025Fixture`, the only one that runs `REGEXP_LIKE`, which SQL Server 2022 lacks)
-  as .NET matches them, value by value, a BIC's in its `varchar` column included (`CheckConstraintPatternTests`); a value
-  object declaring `Unicode = false` in `varchar` on SQL Server and compared through `varchar` parameters from EF Core
-  and Dapper alike, a JSON collection's elements and a value object declaring no length included, an Always Encrypted
-  `varchar` column taking it, with keys an in-memory store hands back registered on each connection, and refusing an
-  `nvarchar` parameter, a character outside ASCII replaced silently on SQL Server and kept on PostgreSQL, the guide's
-  audit query counting the rows the migration then converts, and the migration of a key EF Core writes failing where the
-  guide's sequence applies (`NonUnicodeTextTests`); HotChocolate.Data's filters over value objects through
-  `AddValueObjectFiltering()`, translated to the column, `= ANY` on PostgreSQL and `IN` on SQL Server, a list's element
-  and the text operations under `UseValueObjectQueries()` included, which compare the column under its collation,
-  case-sensitive on PostgreSQL and not on SQL Server (`HotChocolateFilteringTests`); plus the API surface end to end; and
-  a real MongoDB 8
-  server, which stores a value object of every underlying type MongoDB.Bson can represent, linked from the unit suite's
-  `Domain/UnderlyingTypes.cs`, as the document its primitive writes, refuses one over `Int128` or `UInt128`, and
-  answers each LINQ and `Builders` shape over value objects with the documents the same query over the primitives
-  would; under the `$jsonSchema` validator built from the rules, it refuses another writer's document, stores every
-  value each type accepts, reads each pattern the validator publishes as .NET does (`MongoDbValidatorTests`, which pins
-  the PCRE2 facts the writer works around), and mints an entity identifier for a document inserted without one; and
-  the Azure Functions host, `mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated10.0`, three of them
-  beside Azurite (`FunctionsHostFixture`, shared by `FunctionsTests` and `FunctionsQueueTests` through a collection),
-  running the build of `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Functions`, which the suite's project builds
-  without referencing its assembly and finds through an `AssemblyMetadata`: route and query values bound through the
-  rules on the current template's builder and on `HostBuilder`, each refusal answered with the minimal API's body and
-  its code, a `[FromBody]` one through the MVC package, in the request's language through a startup filter's
-  `UseRequestLocalization()` or the options alone, a failure no value object explains keeping the 500, the middleware
-  registered before the integration keeping it too, with its warning logged once, and a queue message's binding data
-  bound beside the message, a number the host writes in exponent form bound to a value object over `decimal`, a
-  raw-text one through `[InputConverter]`, a refused one moved to the poison queue. The tests read the host's statuses,
-  bodies and the package's own log lines, never the host's wording, which a new image may change.
-- **RdgTests** — minimal API endpoints whose binding the Request Delegate Generator writes, over value objects
-  declared in the endpoints' own project, which list their contract (VO0033). The project imports the package's
-  `build/AdCodicem.ValueObjects.props`, so VO0033 fails its build for a value object that drops its contract, and a
-  test reads the RDG's output under the generated files, so that a change in the SDK's defaults cannot turn it into a
-  test of the reflection-based binding. The RDG writes one interceptor for two handlers whose parameters share types
-  and names, dropping the attribute of the second, a `[FromHeader]` included: name such parameters apart. Its problem
-  details endpoints (`ProblemEndpoints.cs`) cover what only the RDG does: it refuses no empty query text and takes an
-  empty header for an absent one, and the filter tells its endpoints by the `GeneratedCodeAttribute` it adds to their
-  metadata, which a test pins. `AnnotationEndpoints.cs` validates `[ParsesAs]` and `[NotDefault]` with `AddValidation()`
-  over the RDG's binding, `[AsParameters]` over a class.
+### Coverage
 
-Beside them, in the solution but no suite, `tests/NativeAot` holds applications built as consumers build them, which
-CI publishes rather than tests. None imports `tests/Directory.Build.props`, so the trimming and AOT analyzers stay
-on where they apply.
+The aim is 100 % of each pull request's patch, as Codecov counts it (ADR 0006 holds the reasons).
 
-- `AdCodicem.ValueObjects.NativeAot` is a minimal API referencing every package that claims to be AOT-compatible but
-  the two HotChocolate ones, whose framework warns on its own publish and starts natively only rooted, and whose
-  HotChocolate.Data filtering of a struct has no native code (the constraints above),
-  and the protobuf-net one, which `AdCodicem.ValueObjects.NativeAot.ProtobufNet` publishes apart, and serving a
-  contract-first gRPC service over Kestrel's cleartext HTTP/2 with the gRPC package (`ContractFirstGrpc.cs`, its messages
-  compiled from `ContractFirst.proto`),
-  with its value objects in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
-  `Domain/UnderlyingTypes.cs`. The application links two value objects written by hand from `Domain/HandWritten/`, one
-  over `Uri`, and registers them without a converter, so the JSON factory's general-purpose converter runs natively,
-  and links `UnregisteredCode`, registered by nothing, which the factory refuses with a `NotSupportedException`. Two
-  more applications answer refusals with the minimal API problem details (`Problems.cs`), with `ThrowOnBadRequest` off
-  and on, each answer checked against the status and the codes the script expects, since both runs explaining nothing
-  would agree; their `/localized` group answers with the messages of the neutral `ProblemMessages.resx`, the
-  application running under the invariant culture of `InvariantGlobalization`, each answer checked with its messages
-  too; a third, without `AddProblemDetails()`, must fail to build its endpoints. `Annotations.cs` runs both forms of
-  `[ParsesAs]` and `[NotDefault]` through `Validator.TryValidateValue`, with a `ValidationContext` built with a display
-  name, the one constructor that is not `RequiresUnreferencedCode`, through the validator `[OptionsValidator]` writes, and
-  through a fourth application under `AddValidation()`, whose body type is public, failing the run on a refusal without
-  its code; an unregistered value object refused by the `Type` form is a line, alike in both runs. `Validation.cs` runs its forms a
-  second time with a `LanguageManager` holding English translations, which the invariant culture reads. `Logging.cs` logs every
-  registered value object through Serilog with and without `@`, under the policy and the option, and fails the run when
-  one is not the scalar of its underlying type, written as the bare value is. `LanguageModels.cs` describes every
-  registered value object in a Microsoft.Extensions.AI tool's schema, builds tools from method groups over
-  `AppJsonContext`, whose arguments are refused and accepted, and the response format of a structured output; a tool's
-  parameter and result types go into `AppJsonContext`, never their underlying types. `Mcp.cs` runs a Model Context
-  Protocol server in process over a pair of pipes, registered with `WithValueObjectTools<T>()` over a copy of
-  `McpJsonUtilities.DefaultOptions` whose resolver chain starts with `AppJsonContext`, lists its tools on the latest and
-  on an older protocol version, and calls them with refused and accepted arguments; the SDK's default options, which
-  know no value object, fail its start. `Forms.cs` renders a Blazor form of every registered value object, alone and
-  nullable, through `HtmlRenderer`, its Razor components (`BlazorForm.razor`, `BlazorForms.razor`) compiled by the Web
-  SDK, types each text of `Underlying.cs` into each input through a subclass setting `CurrentValueAsString`
-  (`TypedInput`), a second time with the messages of `ProblemMessages.resx` for two of them, and fails the run when a
-  field marked invalid keeps no code, or one that is not keeps one, or an emptied nullable field binds anything;
-  `UnregisteredCode` fails the first render, naming the registration. Microsoft.AspNetCore.Components warns for itself
-  once a component renders, `IL2104` and `IL3053`, which the project's `aot-warnings.allowed` lists and its
-  `WarningsNotAsErrors` keeps from stopping the AOT compiler under `NativeAot`. The domain opts into XML serialization,
-  which nothing calls: a guard that the emission adds no trimming or AOT warning and changes no output.
-  `ci.yml`'s `native AOT` job (`.github/scripts/native-aot.sh`), a required check, runs its fixed script once under the
-  JIT and once as the native binary, and fails on a trimming or AOT warning its `aot-warnings.allowed` does not list or
-  on any difference between the two outputs. The JIT run turns on the RDG and turns off reflection-based serialization and dynamic code, as `PublishAot`
-  does, so that the outputs differ only where native AOT changes something: a branch guarded by
-  `RuntimeFeature.IsDynamicCodeSupported` takes the same side in both runs, while a `MakeGenericType` left unguarded
-  still runs under the JIT and fails the native binary. A value object added to `UnderlyingTypes.cs`, or registered by
-  the application, goes into its `AppJsonContext` too, with its underlying type, or the script reports it missing; an
-  underlying type no other value object has, as `Uri`, also needs its texts in `Underlying.cs`, or the script probes it
-  with none, and one whose rules accept none of the texts of its underlying type needs one it accepts (and one it
-  refuses) added there, or `Logging.cs` fails it, "accepts none of the texts it is probed with", as the BIC did. `PublishAot` is set by the project when `NativeAot` is true, never as `-p:PublishAot`, which would reach
-  the `netstandard2.0` generator. A `#pragma` silences only the analyzers that run with the compiler: the AOT compiler
-  reads the compiled code, so a warning the library suppresses takes `[UnconditionalSuppressMessage]` and a guard, as
-  `MustParseAs` found out.
-- `AdCodicem.ValueObjects.NativeAot.ProtobufNet` publishes protobuf-net's compile-time model (`AppModel`) over the
-  twenty value objects of the linked `Domain/UnderlyingTypes.cs` whose underlying type protobuf-net writes, each naming
-  its serializer on a partial declaration (`ProtoContracts.cs`), and two of its own over a `Guid` and a `decimal` at
-  `Level300`: the message written as its twin over the primitives and read back, a value each rule refuses with its code,
-  a trusted profile, a field left out, a default refused on write, `GetSchema` refused. `native-aot.sh` runs it with the
-  project as its second argument, under the JIT and natively, as the main application, and lets through the warnings of
-  its `aot-warnings.allowed` alone (the protobuf-net constraint above); `ci.yml`'s `native AOT` job runs it between the
-  application and the compiled model.
-- `AdCodicem.ValueObjects.CompiledModel` holds a context mapping every value object the EF Core convention maps,
-  required and optional, a generic one, an `[EntityId]` key, a non-Unicode one, mapped to `varchar` and filtered on, and
-  collections of them, nullable elements included, keys
-  typed as value objects it generates, over a `Guid` and an `int`, and one over a `Guid` it refuses to add unset, and a
-  strict context beside it, both filtering on `.Value` through `UseValueObjectQueries()`, which `ShopContext` calls in
-  `OnConfiguring`, so that the design-time factory precompiles those queries with it, and both adding the CHECK
-  constraints, which no compiled model holds: `EnsureCreated` builds the design-time model and creates them, so that the
-  round trip writes every value through them, and an `UPDATE` in raw SQL breaking a rule is refused with the rule's
-  code, which `UseValueObjectCheckErrors()`, also called in `OnConfiguring`, reads off the constraint's name.
-  `.github/scripts/compiled-model.sh` writes their model with `dotnet ef dbcontext optimize` under
-  `artifacts/compiled-model/`, never committed, and builds on it with `CompiledModel=jit` or `aot`. The build job
-  takes the `jit` one on a round trip through SQL Server; the native AOT job publishes the `aot` one, written with its
-  queries precompiled, never runs it (two bugs of EF Core stop its queries), and fails on a warning about this
-  library's code only, EF Core and its dependencies warning on their own. The native binary holds the converters and
-  comparers the model names, never the conventions: EF Core builds no model under native AOT, so the AOT compiler drops
-  them, and only `optimize`, under the JIT, runs them, which is why a change to a convention shows in the model it
-  writes, never in a warning of the publish. `dotnet-ef` is pinned in
-  `.config/dotnet-tools.json` to the version of `Microsoft.EntityFrameworkCore.Design`, EF Core's own: Dependabot's
-  `dotnet` group bumps them together, and holds back the tool's next major as it does EF Core's. The project
-  turns transitive pinning off: Design depends on a later Roslyn than the one `Directory.Packages.props` pins for the
-  generator. It therefore references `System.Security.Cryptography.Pkcs` itself, which the pin raises above the
-  vulnerable 9.0.11 SqlClient asks for in every other SQL Server graph. EF Core 10 constrains what its query precompilation accepts, and Program.cs is written around it: each
-  query on a context held in a local and over locals (a context passed as a parameter is a "dynamic" query, a method
-  parameter inside the query throws), tracked (it writes an untracked query that does not compile), on an entity type
-  that is not sealed, in a model with no type named as one of EF Core's internal ones, `Reference<T>` among them
-  (CS0104), with `Contains` over an array called on it as an `IEnumerable<T>` (C# 14 binds the span overload, which the
-  precompilation cannot translate) and `Contains` over a `List<T?>` handed a local of type `T?`, whatever the element
-  type, naming no value object nested in a generic type (`Catalog<T>.Stock`: "Couldn't find nested type"), and comparing
-  `.Value` with no local of a type EF Core converts on SQL Server, a `ushort`, a `uint` or a `ulong`, whose parameter a
-  precompiled query fails to map under native AOT. A strict context cannot track on a compiled model, so the `jit` round
-  trip reads untracked (`UNTRACKED_READS`); the EF Core guide says why.
-
-Beside them, outside the solution, `tests/Compat` is the **compatibility island**: the thirty-three packages exactly as
-packed, installed from `artifacts/packages` at the one version just built into `net11.0` applications on the .NET 11
-release candidate. Its main project runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL
-Server and PostgreSQL 17, collections of value objects included, keys generated over a `Guid` and an `int` and a `Guid`
-key refused unset, `.Value` translated under `UseValueObjectQueries()`, a value object declaring `Unicode = false` in
-`varchar` on SQL Server, compared through `varchar` parameters from EF Core and Dapper, CHECK constraints from the rules
-on SQLite, and
-a pattern constraint on PostgreSQL 17 with `ExcludePattern`, a refused row carrying the code of its rule, a refusal in
-a later statement of a batch included, System.Text.Json source generation, ASP.NET Core
-model binding, on System.Text.Json and on Newtonsoft.Json through `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11, a JSON
-Patch document through `TryApplyTo` over its JSON Patch 11, whose `Internal` adapters the package derives from, minimal
-API problem details, the messages of both and of FluentValidation in the language of the request, the DataAnnotations
-attributes through `Validator`, options validation, an `[OptionsValidator]` validator, MVC 11 and the minimal API
-validation of Microsoft.Extensions.Validation 11, its `ParsesAsAttribute_Error` key and its propagation of an
-attribute's exception included, `[ParsesAs]` text in both OpenAPI documents,
-`Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper, MongoDB.Driver on MongoDB 8 with a collection
-validator and entity identifiers minted on insert, MessagePack, with SignalR's MessagePack hub protocol 11 between a hub
-and the .NET client over TestHost and MessagePack's analyzer in that SDK's compiler, protobuf-net on a runtime model and
-on its compile-time model, whose generator comes with the packed package, a protobuf-net.Grpc code-first service over
-TestHost 11, refused with its `ErrorInfo`, a contract-first service through the gRPC package's interceptor and
-collector, FluentValidation, Newtonsoft.Json, through its settings and its contract resolver,
-Serilog, Microsoft.Extensions.AI tools and structured output, through `FunctionInvokingChatClient` and `ChatResponse<T>`
-of Microsoft.Extensions.AI 10, Model Context Protocol tools on ModelContextProtocol 2.2, a server in process and the SDK's
-own client over a pair of pipes, the Azure Functions converter and problem details middleware beside ASP.NET Core 11,
-over the worker's own abstractions, HotChocolate 16 scalars in a schema built in process, on HotChocolate.Types'
-`net11.0` assembly, their messages in the language of the execution, HotChocolate.Data filters over Entity Framework Core
-11 on SQLite, a refused operand quoted by its scalar's name, a Blazor input rendered by `HtmlRenderer` on the
-shared framework's Components 11, whose `InputBase` moved into Components.Web, its messages from `Messages.fr.resx`
-(`BlazorTests`, no bUnit and no Razor SDK there), an NSwag 14.7 document over TestHost beside
-`Microsoft.AspNetCore.OpenApi` 11 and Confluent's JSON serdes 2.16 over NJsonSchema 11.6, `XmlSerializer` and
-`DataContractSerializer` over its domain, which opts into XML serialization, the contract kit and the test-data sampler,
-through AutoFixture, Bogus and FsCheck too, with no transitive
-pinning, so the dependency floors of the packages meet the next
-major as an application's would. `AdCodicem.ValueObjects.Swashbuckle` is installed by a second project, `tests/Compat/Swashbuckle`,
-which the main one excludes from its sources: Swashbuckle 10 over `Microsoft.OpenApi` 2, on which it is built, since it
-fails on the `Microsoft.OpenApi` 3 the main project's `Microsoft.AspNetCore.OpenApi` 11 brings. `ci.yml`'s
-`compat (.NET 11)` job runs both against the packages its build job packed; it is not a required check until .NET 11 ships, and is
-measured by no coverage. Without Docker its container tests fail rather than skip, so leave them out explicitly
-(Commands above). Tools that walk the repository rather than the solution do see it: CodeQL downloads its SDK, and
-GitHub's automatic dependency submission restores it with SDK 10 from the root, which is why its project files leave
-themselves empty on an SDK that cannot target `net11.0`. The suites above are still the four; the island checks the
-packages, not the code.
-
-`AdCodicem.ValueObjects.Testing` ships a contract kit (`ValueObjectContract`) that consumers point at their own
-types; the unit tests use it on every generated value object of `Domain/` but four. `Floor` and `Celsius` cannot
-satisfy it: their formatting hooks write text such as `floor 3` or `21 °C`, which does not parse back, and the kit
-requires a text round trip. `Strongbox.Secret` and `Archive.Shelf` are private, and no public contract class can
-name them; `DeclarationContextTests` covers them instead, with the protected `StrongboxId`. Every unit contract
-overrides `DerivesRejectedValues` to return `true`, so the kit also checks the values its schema rules out, which
-`AdCodicem.ValueObjects.Testing.Data` derives; a type whose normalizer clamps into its rules would fail it. Add a
-contract with each value object added to `Domain/`, opted in the same way.
-
-**Coverage aims at 100 % of each pull request's patch, as Codecov counts it**
-(`docs/adr/0006-coverage-is-a-signal-not-a-goal.md`). `codecov.yml` is the floor, not the aim: 95 % of the lines a
-pull request changes, a partial line counting as missed, and the project's coverage dropping by half a point at
-most, measuring `src/` only. Every member that is not private — public, internal, protected — is covered as far as
-it can be: through a natural input where one reaches it (a declaration compiled through the generator, a call
-through the public API, a request through ASP.NET Core, a database round trip), otherwise by a test that calls it
-directly, with what no natural input can produce. A private member, or a member of a private nested type, which a
-test could reach only by reflection, is not tested directly: its callers cover it, or it stays uncovered. A branch
-the compiler adds that no input can take — the default arm of an exhaustive switch expression, a `?.` on a value
-never null — stays partial rather than being rewritten. Code is removed for coverage only when no input can reach
-it — conditions that contradict each other, a dead branch, a non-public member nothing calls —, never because no
-test does. A defensive branch stays, covered or not. A public member nothing calls is a question for the
-maintainer, not a removal.
-
-Two blind spots, both deliberate. The collector instruments only the assemblies a test loads, so a package no test
-loads is missing from the report rather than at 0 %: `.github/scripts/coverage-modules.sh` fails CI when a project
-under `src/` is in no report. And the code the generator emits lives in the consumer's assembly — here the unit
-test assembly, which is not measured — so Codecov sees the emitters, not what they produce; it is audited by hand
-(see the ADR), not tracked.
-
-Stack: xUnit v3 (`TestContext.Current.CancellationToken`), AwesomeAssertions, NSubstitute, Testcontainers.
-Versions are centrally managed in `Directory.Packages.props`; versions live there, never in a `.csproj`.
-`tests/Compat`, outside the solution, is the one exception: it has a `Directory.Packages.props` of its own.
+- `codecov.yml` is the floor, not the aim: 95 % of the changed lines, a partial line counting as missed, and a project
+  drop of half a point at most. `tests/`, `samples/` and `benchmarks/` are ignored.
+- Cover every member that is not private through a natural input (a declaration compiled through the generator, a call
+  through the public API, a request, a database round trip), otherwise by a test calling it directly.
+- Never reach a private member by reflection: its callers cover it, or it stays uncovered. Leave a branch the compiler
+  adds and no input can take partial (the default arm of an exhaustive switch, a `?.` on a value never `null`).
+- Remove code only when no input can reach it, never because no test does. A defensive branch stays. A public member
+  nothing calls is a question for the maintainer.
+- Blind spots: a package no test loads is missing from the report rather than at 0 %, which
+  `.github/scripts/coverage-modules.sh` fails; the code the generator emits lives in the unit test assembly, which is not
+  measured, and is audited by hand.
