@@ -319,8 +319,8 @@ each one alike when numbers are read as numbers only. What differs is Swashbuckl
 The package is not AOT-compatible: Swashbuckle walks the application model by reflection, and its filters run while
 the document is built, never per request. Swashbuckle 10.3.0 itself throws `AmbiguousMatchException`, inside a
 `SwaggerGeneratorException`, for an MVC `[FromQuery]` model that hides an inherited property with one of another type,
-whatever this package does. Not covered: a value object bound from a form keeps the `string` Swashbuckle
-gives it; the own properties of a type
+whatever this package does (domaindrivendev/Swashbuckle.AspNetCore#4208). Not covered: a value object bound from a
+form keeps the `string` Swashbuckle gives it; the own properties of a type
 documented under `UseAllOfForInheritance`, which sit in an `allOf`, are not looked through for nullable value objects;
 and Swashbuckle's Newtonsoft.Json support, `AddSwaggerGenNewtonsoftSupport`, is not tested.
 
@@ -412,10 +412,10 @@ A C# client NSwag generates from the document holds the underlying types, `strin
 enumeration per closed set, named after its known values, wherever the set is used; the [type
 resolver](./http-clients.md#nswag) maps the components back to the value objects. NSwag 14.7.1's generator writes two
 JSON converters on a member whose closed set is of dates, a `string` enumeration of `format: date`, which C# refuses
-(CS0579), whoever wrote the document: remove the `DateFormatConverter` it adds there.
+(CS0579, RicoSuter/NJsonSchema#1945), whoever wrote the document: remove the `DateFormatConverter` it adds there.
 
 The package is not AOT-compatible: NJsonSchema and NSwag walk the types they describe by reflection, and the package
 describes each value object as the document is built, never per request. The package depends on `NJsonSchema` and
 `NJsonSchema.NewtonsoftJson` 11.6.1 or later, the version NSwag 14.7 asks for. NSwag itself throws
 `AmbiguousMatchException` for an MVC `[FromQuery]` model that hides an inherited property with one of another type,
-whatever this package does.
+whatever this package does (RicoSuter/NSwag#5412).

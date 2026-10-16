@@ -22,12 +22,14 @@ sample; the compatibility island runs MVC and JSON Patch 11.
   pass no resolver; MVC's patch formatter hands the document MVC's resolver and nothing else. So `TryApplyTo` reads each
   value itself, through `ValueObjectConverter` under `AddValueObjects()`'s settings and the document's resolver (without
   `ValueObjectContractResolver`), a dictionary key through the descriptor's `TryParse`, and does `copy` and `move` itself
-  (`ValueObjectObjectAdapter`): JSON Patch's `move` adds at its target after a removal it refused.
+  (`ValueObjectObjectAdapter`): JSON Patch's `move` adds at its target after a removal it refused. Reported as
+  dotnet/aspnetcore#69902 (the resolver), #69903 (the settings and the swallowed message) and #69904 (`move`).
 - `ApplyTo` with an error handler goes on after a failed operation and stops at a `JsonPatchException` (an unknown `op`,
   a bad escape), reported under the operation's `path`, except a `from` it cannot read, which `ValueObjectObjectAdapter`
   reports under the `from` before throwing again, its `Log` skipping JSON Patch's own report.
 - JSON Patch throws `ArgumentNullException` for a missing `path` or `from`, and `ArgumentOutOfRangeException` for `-`
-  read, removed or replaced in an empty list, or tested in any (it reads index -1): `TryApplyTo` reports each, its list
+  read, removed or replaced in an empty list, or tested in any (it reads index -1; dotnet/aspnetcore#25942, #68942):
+  `TryApplyTo` reports each, its list
   adapter answering `-` for every list.
 - A refusal stays on the document's `ValueObjectPatchConversion` until the error reporting it takes its code; every
   operation starts clean.

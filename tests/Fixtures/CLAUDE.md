@@ -23,4 +23,5 @@ integration suite's.
 - `Functions`: the Azure Functions application the integration suite runs in the host's container. Keep
   `ConfigureFunctionsWorkerDefaults(...)` out of its `Program.cs`: the integration's analyzer
   `RegistrationExpectedInASPNetIntegration` (Http.AspNetCore.Analyzers 1.0.4) throws AD0001 on a file declaring `Main` that
-  calls it, which fails the build under `TreatWarningsAsErrors`.
+  calls it at the start of an indented statement, which fails the build under `TreatWarningsAsErrors`
+  (Azure/azure-functions-dotnet-worker#3520).

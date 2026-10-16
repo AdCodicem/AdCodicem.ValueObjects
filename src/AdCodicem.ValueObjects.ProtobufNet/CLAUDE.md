@@ -16,8 +16,9 @@ the unit suite, `tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet`.
 - protobuf-net calls `ISerializer<TSelf?>` only for the elements of a `[NullWrappedValue]` list; a nullable member goes
   through `ISerializer<TSelf>`.
 - It calls a custom serializer whatever `DataFormat` a member declares, so a `ZigZag`, `FixedSize` or `WellKnown` member
-  is written as `DataFormat.Default`, which nothing reports and the guide states. It writes a root primitive at
-  `Level200` whatever the model's level, where a root value object follows its profile.
+  is written as `DataFormat.Default`, which nothing reports and the guide states (protobuf-net/protobuf-net#1373). It
+  writes a root primitive at `Level200` whatever the model's level, where a root value object follows its profile
+  (protobuf-net/protobuf-net#1374).
 - Its inbuilt serializers throw `InvalidOperationException` for a negative length and for a `decimal` as text none parses,
   quoting the text: `ValueObjectProtoWire` refuses it as `value_object.not_parsable`, with every other read exception
   but an `ObjectDisposedException`. A refusal is a `ProtoException`.
@@ -29,10 +30,11 @@ the unit suite, `tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet`.
 - protobuf-net.Core's generator and analyzers reach every project referencing this package, by project reference too:
   `[ProtoModel]` is `PBN9001`, an error unless suppressed; once a project declares one, every `Serializer.*` call is
   `PBN3010`; its generated code fails to compile a `TSelf?` member or a dictionary of value objects (CS1503 in its own
-  file); `PBN2008` flags a Google.Protobuf type in a code-first contract and `PBN0022` a `[ProtoMember]` with an
-  initializer.
+  file, protobuf-net/protobuf-net#1371); `PBN2008` flags a Google.Protobuf type in a code-first contract and `PBN0022` a
+  `[ProtoMember]` with an initializer.
 - Its `[DynamicallyAccessedMembers]` on `SerializerCache.Get` reach the nested converters of every value object, so a
-  generated model warns at each call (IL2026, IL2111, IL3050, and IL2104, IL3053 for protobuf-net.Core): its native
+  generated model warns at each call (IL2026, IL2111, IL3050, and IL2104, IL3053 for protobuf-net.Core,
+  protobuf-net/protobuf-net#1372): its native
   application is apart (`tests/NativeAot/CLAUDE.md`). The package's own helpers into a `TypeModel` carry protobuf-net's
   `[DynamicallyAccessedMembers]`, or ILC refuses them (IL2091).
 - The runtime model and protobuf-net.Grpc emit code, unannotated upstream: `AddValueObjects`, `AddValueObject` and

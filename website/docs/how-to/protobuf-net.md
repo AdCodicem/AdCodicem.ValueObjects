@@ -201,11 +201,13 @@ as where it needs no `import` (`string`, `int64`), or register with `AddValueObj
 
 Three differences remain, and the package does not rewrite protobuf-net's text to hide them:
 
-- **A dictionary is a list of entries.** A dictionary of value objects is exported as `repeated KeyValuePair_string_int32
-  Stock = 1;` with a `message KeyValuePair_string_int32`, rather than `map<string,int32>`. That is the same on the wire, a
-  protobuf map being a repeated entry message, but two such dictionaries over other value objects of the same scalars
-  export two messages of one name, which protoc refuses.
-- **No `[packed = false]`.** A list of numeric value objects lacks the annotation protobuf-net writes for a `List<int>`.
+- **A dictionary keyed by a value object is a list of entries.** It is exported as `repeated
+  KeyValuePair_string_int32 Stock = 1;` with a `message KeyValuePair_string_int32`, rather than `map<string,int32>`; a
+  dictionary whose values alone are value objects is a `map`. That is the same on the wire, a protobuf map being a
+  repeated entry message, but two such dictionaries keyed by other value objects of the same scalars export two messages
+  of one name, which protoc refuses (protobuf-net/protobuf-net#1352).
+- **No `[packed = false]`.** A list of numeric value objects lacks the annotation protobuf-net writes for a `List<int>`
+  (protobuf-net/protobuf-net#1373).
 - **A packed list cannot be read.** protobuf-net neither writes nor reads a list of value objects packed, whatever the
   member declares. A client generated from the file sends a `repeated int32` packed, as proto3 does by default, and the
   service cannot read it: a refusal with `value_object.not_parsable`. A `.proto` shared with other languages marks such a
@@ -312,7 +314,7 @@ writes, and compares the native binary with the JIT. What to know:
   reference, but a wrong one, on a `Guid` value object at `Level200`, where the value is a message, builds without a
   diagnostic and fails every read.
 - **No `TSelf?` member, no dictionary of value objects.** protobuf-net's generated code fails to compile for either,
-  `CS1503` in its own file; a list compiles, and writes as on a runtime model.
+  `CS1503` in its own file (protobuf-net/protobuf-net#1371); a list compiles, and writes as on a runtime model.
 - **No generic value object**: an attribute cannot name a type through a type parameter.
 - **No `.proto` export**: `GetSchema` on a generated model throws `NotSupportedException`. Export from a runtime model.
 - **Trimming warnings.** Each call of the generated model into a serializer demands, through protobuf-net's

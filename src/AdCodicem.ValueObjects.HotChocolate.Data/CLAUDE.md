@@ -33,8 +33,11 @@ itself, but out of `tests/NativeAot`: HotChocolate.Data closes `FilterExpression
   interceptor through `FilterInputTypeDescriptor.From`. No list type of the package's own exists, since a list's element
   must be the text type under `IncludeTextOperations()`.
 - HotChocolate gives every field filtering a type the one filter type registered for it, so an application's
-  `FilterInputType<T>` filters every field of `T`; a `[UseProjection]` field beside a field filtered through a named
-  convention over a row holding an object fails the schema (a type registered twice), with or without the package.
+  `FilterInputType<T>` filters every field of `T`.
+- A field filtered through a named convention declared before a field of the default convention fails the schema (a
+  type registered twice), with or without the package; declared after it, both build
+  (ChilliCream/graphql-platform#10565). C# lists a derived query class's members before its base class's.
+  `[UseProjection]` plays no part.
 
 ## Text operations (`IncludeTextOperations()`)
 
@@ -44,7 +47,8 @@ itself, but out of `tests/NativeAot`: HotChocolate.Data closes `FilterExpression
 - The text type bound by hand without the option, or in a named convention, fails the schema: HotChocolate finds no
   handler for `contains`. Over a value object not over `string` it throws `InvalidOperationException`, inside
   HotChocolate's `SchemaException` at start, with no code.
-- HotChocolate's `HasValueAndAlso` wraps `HasValue` in `IsTrue`, which EF Core does not translate: the guard is
+- HotChocolate's `HasValueAndAlso` wraps `HasValue` in `IsTrue`, which EF Core does not translate
+  (ChilliCream/graphql-platform#10567): the guard is
   `!= null`, the text read as `IValueObject<string>.Value` through the interface's `PropertyInfo`, which an explicit
   implementation answers and the trimmer sees.
 - A `null` fragment goes to the base handler (`CanBeNull = false`), which answers HotChocolate's `HC0026`, with no code.
