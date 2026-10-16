@@ -7,7 +7,7 @@
 #
 # The main application references every package that claims to be AOT-compatible but three: the two HotChocolate ones,
 # whose framework warns on its own publish and starts natively only rooted, and whose HotChocolate.Data filtering of a
-# struct has no native code (CLAUDE.md), and the protobuf-net one, which AdCodicem.ValueObjects.NativeAot.ProtobufNet
+# struct has no native code (each package's CLAUDE.md), and the protobuf-net one, which AdCodicem.ValueObjects.NativeAot.ProtobufNet
 # publishes apart. Each application runs a fixed script over every value
 # object of its domain, one line per scenario, into the file it is given: once under the JIT, through dotnet run, and
 # once as the binary the native AOT compiler wrote. The two files must be identical; behaviour.diff holds the
