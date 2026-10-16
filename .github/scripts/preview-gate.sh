@@ -82,7 +82,8 @@ fail() {
 # What can change the bytes or the metadata of a package, apart from Directory.Packages.props,
 # which is filtered below. Not docs/ or website/, which no package carries; not LICENSE, which
 # PackageLicenseExpression replaces; not .editorconfig, nor the analyzer release-tracking files
-# under src/, excluded at the end, which change diagnostics only; not the solution, which selects
+# under src/, which change diagnostics only, nor the CLAUDE.md files under src/, which no package
+# carries, both excluded at the end; not the solution, which selects
 # projects and changes nothing in them. The solution filter the pack goes through is under src/
 # and counts, since it decides what is packed. release-pack.sh is in, as it holds the pack command
 # line.
@@ -98,6 +99,7 @@ inputs=(
   .gitattributes
   .github/scripts/release-pack.sh
   ':(exclude,glob)src/**/AnalyzerReleases.*.md'
+  ':(exclude,glob)src/**/CLAUDE.md'
 )
 
 # --- nuget.org -------------------------------------------------------------------------------
