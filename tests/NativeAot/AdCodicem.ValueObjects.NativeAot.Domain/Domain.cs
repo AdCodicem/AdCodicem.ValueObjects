@@ -8,7 +8,8 @@ namespace AdCodicem.ValueObjects.NativeAot.Domain;
 
 // What the unit suite's UnderlyingTypes.cs, linked beside this file, leaves to the rest of its domain: the three
 // underlying types it does not use (short, decimal and Guid), a pattern hook, an entity identifier, a closed set of
-// numbers and a generic value object, which the application registers by hand, as native AOT asks.
+// numbers, a generic value object, a construction of which the application registers by hand, as native AOT asks, and
+// one nothing constructs.
 
 /// <summary>A quantity of items ordered.</summary>
 [ValueObject<short>(Arithmetic = true)]
@@ -87,3 +88,14 @@ public readonly partial struct DocumentNumber<TOwner> : IValueObjectNormalizer<s
 
 /// <summary>A purchase order, as the kind of document a number belongs to.</summary>
 public sealed class PurchaseOrder;
+
+/// <summary>The label of an archived item, whose kind is part of its type.</summary>
+/// <typeparam name="TItem">The kind of item labelled.</typeparam>
+/// <remarks>
+/// Nothing constructs it: only the module initializer names its definition, through RegisterGenericDefinition, which
+/// checks that it is a value object. The registry's line of generic definitions shows that the check holds natively for
+/// a definition nothing else keeps, where a failure would stop the binary before it starts.
+/// </remarks>
+[ValueObject<string>(MaxLength = 16)]
+public readonly partial struct ArchiveLabel<TItem>
+    where TItem : class;
