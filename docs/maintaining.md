@@ -9,7 +9,7 @@ is on, so this list is worth checking if something looks wired up but never happ
 `preview.yml` publishes a preview of every package to nuget.org every Monday at 07:15, Paris time, and whenever it is
 dispatched (**Actions → preview → Run workflow**, from `main`: a dispatch from another branch stops at its first
 job). It publishes only when a package input changed since the version nuget.org has from the nearest commit, and
-then all thirty-three packages at one version, or none.
+then all thirty-four packages at one version, or none.
 [ADR-0009](adr/0009-publish-previews-weekly-when-a-package-input-changed.md) has the reasoning.
 
 Each run says what it decided. The **compute the version** job prints the version semantic-release would give the
@@ -75,6 +75,11 @@ offering the higher one as the latest prerelease until a higher version ships.
   `dotnet` group cannot: Entity Framework Core's and SignalR's packages pull in the `Microsoft.Extensions.Options` of
   their own patch, which the pin holds back, so their update fails its restore with NU1109 ([Dependabot](#dependabot)).
   Type it `fix(deps)` when a shipped package's floor moves.
+- **When an Orleans minor raises its Roslyn floors**, move the Roslyn pins with it by hand.
+  `Microsoft.Orleans.Serialization` lists `Microsoft.CodeAnalysis.Analyzers`, which the central pin must reach (NU1109
+  below it, and no pull request), and `Microsoft.CodeAnalysis.Common`, which the unit suite's own
+  `Microsoft.CodeAnalysis.CSharp` entry must equal (NU1608 otherwise); the generator's `Microsoft.CodeAnalysis.CSharp`
+  4.14.0 stays where it is. The Analyzers pin is a dependency of the Orleans package, so the commit is `fix(deps)`.
 - **After 60 days without activity in the repository**, GitHub disables the schedule of a public repository's
   workflow. Turn it back on with `gh workflow enable preview.yml`.
 - **Failures of a scheduled run are notified to whoever last changed its cron line**, not to whoever dispatches it.
@@ -86,7 +91,7 @@ offering the higher one as the latest prerelease until a higher version ships.
 The first time `preview.yml` publishes, and after any change to its publish job, dispatch it rather than wait for
 Monday, and check:
 
-1. the thirty-three packages are on nuget.org at the version the run printed, and the publish job finished its wait for
+1. the thirty-four packages are on nuget.org at the version the run printed, and the publish job finished its wait for
    the listing;
 2. an assembly restored from nuget.org verifies, and the certificate comes from Sigstore's public-good instance:
 
@@ -209,10 +214,10 @@ Without them the release job stops at its first step, before anything is publish
   both `npm` and the `github-actions` entries, so that a broken or compromised release has time to be pulled first.
   Security updates ignore the cooldown and open at once.
 - **No framework major.** Semver-major updates of `Microsoft.EntityFrameworkCore*`, `Microsoft.AspNetCore.*`,
-  `Microsoft.Extensions.*`, `Microsoft.OpenApi`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `HotChocolate*` and
-  `NJsonSchema*`, whose packages share one version and move together, in the `dotnet` group or, for Microsoft's
-  patch, by hand ([Routines](#routines)), are ignored, and so are those of five packages whose majors follow one of
-  them: `dotnet-ef`, the local tool pinned to EF Core's version;
+  `Microsoft.Extensions.*`, `Microsoft.OpenApi`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `HotChocolate*`,
+  `Microsoft.Orleans.*` and `NJsonSchema*`, whose packages share one version and move together, in the `dotnet` group
+  or, for Microsoft's patch, by hand ([Routines](#routines)), are ignored, and so are those of five packages whose
+  majors follow one of them: `dotnet-ef`, the local tool pinned to EF Core's version;
   `NSwag.*`, which the tests take and whose majors move with NJsonSchema's;
   `Swashbuckle.AspNetCore*`, whose next major moves to `Microsoft.OpenApi` 3; `Serilog.Extensions.Logging`, which
   only the tests use and whose majors follow .NET's, each built on the `Microsoft.Extensions.Logging` of its major;

@@ -60,6 +60,10 @@ updates:
       # share one version; its minor and patch updates come in the dotnet group.
       - dependency-name: "HotChocolate*"
         update-types: ["version-update:semver-major"]
+      # The actor framework the Orleans package is built on, whose packages share one
+      # version; its minor and patch updates come in the dotnet group.
+      - dependency-name: "Microsoft.Orleans.*"
+        update-types: ["version-update:semver-major"]
       # The schema generator the NJsonSchema package is built on, whose majors NSwag's
       # follow and Confluent's JSON serdes are built against: the next one is a floor
       # to decide, with NSwag's, which the tests take; their minor and patch updates

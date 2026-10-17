@@ -1,7 +1,7 @@
 # tests/Fixtures — assemblies the test projects cannot hold
 
 The unit test assembly cannot hold these, since the generator runs on it and its module initializer has run before any
-test does. They are neither test projects nor packages. The unit suite references seven; `Fixtures.Functions` is the
+test does. They are neither test projects nor packages. The unit suite references eight; `Fixtures.Functions` is the
 integration suite's.
 
 - `Untouched`: a generated value object in a module nothing has used yet. A test needing "registered by nothing but this"
@@ -20,6 +20,11 @@ integration suite's.
   and `VO0046` under `TreatWarningsAsErrors`, so a bump fixing one of the logging generator's defects fails here first,
   and says `VO0045` or `VO0046` can step back. Its classification is named `RedactionTaxonomy` and `ContactDataAttribute`,
   since the suite's global `Domain` using holds a `Taxonomy` and a `PersonalDataAttribute`.
+- `Grains`: grains, grain interfaces, `[GenerateSerializer]` holders and value objects of its own, which Orleans' code
+  generator (Microsoft.Orleans.Sdk) writes proxies, invokers and codecs for. It does not reference the Orleans package,
+  as an application's grain interfaces do not. The unit suite gets Orleans' generator anyway through TestingHost, and
+  the `ApplicationPart` list it writes there is how a test cluster finds these grains. A grain calling itself deadlocks
+  (a grain is not reentrant): a relay goes to another key.
 - `Functions`: the Azure Functions application the integration suite runs in the host's container. Keep
   `ConfigureFunctionsWorkerDefaults(...)` out of its `Program.cs`: the integration's analyzer
   `RegistrationExpectedInASPNetIntegration` (Http.AspNetCore.Analyzers 1.0.4) throws AD0001 on a file declaring `Main` that

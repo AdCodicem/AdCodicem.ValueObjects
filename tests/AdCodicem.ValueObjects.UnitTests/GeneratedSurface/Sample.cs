@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.AI;
+using AdCodicem.ValueObjects.Fixtures.Grains;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.ModelContextProtocol;
 using AdCodicem.ValueObjects.NewtonsoftJson;
@@ -12,6 +13,7 @@ using AdCodicem.ValueObjects.UnitTests.BinarySerialization;
 using AdCodicem.ValueObjects.UnitTests.DataAnnotations;
 using AdCodicem.ValueObjects.UnitTests.Forms;
 using AdCodicem.ValueObjects.UnitTests.Functions;
+using AdCodicem.ValueObjects.UnitTests.Grains;
 using AdCodicem.ValueObjects.UnitTests.GraphQL;
 using AdCodicem.ValueObjects.UnitTests.LanguageModels;
 using AdCodicem.ValueObjects.UnitTests.Logging;
@@ -145,6 +147,20 @@ public abstract class Sample
     /// cannot write, that it is refused by name.
     /// </summary>
     public abstract void RoundTripsThroughProtobufAsItsUnderlyingValue();
+
+    /// <summary>
+    /// Writes the value object through Orleans, on a serializer registering it through the registry and on one registering
+    /// it by its type arguments, trusted, and checks that it writes and reads back what the bare value it carries writes
+    /// and reads, in a member typed <see cref="object"/> too, and that each value its rules refuse is refused with its code.
+    /// </summary>
+    public abstract void RoundTripsThroughOrleansAsItsUnderlyingValue();
+
+    /// <summary>
+    /// Sends the value object to a grain and back, as itself, nullable and typed <see cref="object"/>.
+    /// </summary>
+    /// <param name="grain">A grain of a cluster whose silo and client call <c>AddValueObjects()</c>.</param>
+    /// <returns>The check.</returns>
+    public abstract Task CrossesAGrainCallAsItselfAsync(IValueObjectGrain grain);
 
     /// <summary>
     /// Builds a tool taking the value object alone, nullable and in a list, with the schema options of
@@ -673,6 +689,18 @@ public class Sample<TSelf, TValue> : Sample
     {
         ProtoParity.Check<TSelf, TValue>(Small);
         ProtoParity.Check<TSelf, TValue>(Large);
+    }
+
+    public override void RoundTripsThroughOrleansAsItsUnderlyingValue()
+    {
+        OrleansParity.Check<TSelf, TValue>(Small);
+        OrleansParity.Check<TSelf, TValue>(Large);
+    }
+
+    public override async Task CrossesAGrainCallAsItselfAsync(IValueObjectGrain grain)
+    {
+        await OrleansParity.CheckAsync(grain, Small);
+        await OrleansParity.CheckAsync(grain, Large);
     }
 
     public override async Task AnswersARefusedToolArgumentWithItsRuleAsync()
