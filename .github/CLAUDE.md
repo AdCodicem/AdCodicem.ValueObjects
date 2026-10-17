@@ -7,7 +7,7 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 
 - Runs Mondays at 07:15 Europe/Paris and on dispatch from `main`; the `nuget` environment deploys from `main` only.
 - `scripts/preview-gate.sh` decides `publish`, `repair` or `none` against the version nuget.org has from the nearest
-  commit, and fails the run rather than guess when a lookup fails. All thirty-four packages go out at one version, or
+  commit, and fails the run rather than guess when a lookup fails. All thirty-five packages go out at one version, or
   none.
 - The version: `scripts/next-version.mjs` runs semantic-release's commit analyzer with `.releaserc.json`, without a
   token, and suffixes `-preview.<commits since the last stable tag>` (`0.3.0-preview.172` leads to `0.3.0`; with no

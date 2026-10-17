@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.Shared;
 using AnnotationResult = System.ComponentModel.DataAnnotations.ValidationResult;
 
 namespace AdCodicem.ValueObjects.Annotations;
@@ -154,7 +155,7 @@ public class ParsesAsAttribute : ValidationAttribute
         string message;
         if (ValueObjectValidationAttributes.NamesResourceAlone(this, out var resource))
         {
-            message = ValueObjectValidationAttributes.Find(resource, ValueObjectMessages.KeysFor(Schema, code), () => Arguments(code), name)
+            message = ValueObjectResourceMessages.Find(resource, ValueObjectMessages.KeysFor(Schema, code), () => Arguments(code), name)
                       ?? validation.ErrorMessage!;
         }
         else if (CustomMessage)

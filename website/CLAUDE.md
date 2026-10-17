@@ -21,6 +21,8 @@ npm run build       # production build; fails on a broken internal link
   users of that release, and land the same fix in `docs/`, or the next snapshot of the line discards it.
 - Pull requests build the site without deploying it in `ci.yml`'s `documentation site` job, through
   `.github/actions/build-site`, the action `deploy-docs.yml` builds with, so a broken link fails there.
+- Keep each `<c>` of an XML doc comment on one line: DocFX writes it as a `<code>` over a line break, which MDX closes
+  early, and the build then warns for the API page ("No "p" element in scope but a "p" end tag seen").
 - Every ```` ```csharp ```` block of `docs/` (and the homepage example, `docs/_homepage-example.md`) is compiled by
   GeneratorTests' `DocumentationSnippetTests`; tag a wiring or usage fragment ```` ```csharp skip ````
   (`tests/AdCodicem.ValueObjects.GeneratorTests/CLAUDE.md`). `versioned_docs/` is out of its scope.

@@ -167,7 +167,8 @@ jobs:
   # Microsoft.Extensions.AI tools and structured output, Model Context Protocol tools over in-process streams, the Azure
   # Functions worker's converter and problem details middleware, HotChocolate 16 scalars in process and
   # HotChocolate.Data filters over Entity Framework Core 11 on SQLite, a Blazor input
-  # rendered by HtmlRenderer on the next major's Components, NSwag documents
+  # rendered by HtmlRenderer on the next major's Components, System.CommandLine 3.0's
+  # release candidate parsing options and arguments of value objects, NSwag documents
   # and Confluent's JSON serdes over NJsonSchema, the contract kit and the test-data packages over AutoFixture, Bogus
   # and FsCheck, and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3, and Swashbuckle 10
   # over Microsoft.OpenApi 2 in a project of its own. The island has its own global.json, so the SDK it needs
@@ -243,7 +244,8 @@ jobs:
   # format, the Model Context Protocol tools of a server in process, a
   # contract-first gRPC service over Kestrel's cleartext HTTP/2, and a Blazor
   # form of every registered value object through HtmlRenderer, whose
-  # framework's own two assembly-level warnings are listed as expected. The
+  # framework's own two assembly-level warnings are listed as expected, and a
+  # System.CommandLine command of every registered value object. The
   # analyzers
   # see what each library calls; this runs it, once under the JIT and once as
   # the native binary, and a trimming or AOT warning, or any difference between

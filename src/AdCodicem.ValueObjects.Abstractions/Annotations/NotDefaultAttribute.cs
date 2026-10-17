@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
 using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.Shared;
 using AnnotationResult = System.ComponentModel.DataAnnotations.ValidationResult;
 
 namespace AdCodicem.ValueObjects.Annotations;
@@ -81,7 +82,7 @@ public sealed class NotDefaultAttribute : ValidationAttribute
 
         var name = ValueObjectValidationAttributes.DisplayName(validationContext, type);
         var message = ValueObjectValidationAttributes.NamesResourceAlone(this, out var resource)
-            ? ValueObjectValidationAttributes.Find(resource, [ValueObjectMessages.KeyFor(ValueObjectErrorCodes.Required)], static () => [], name)
+            ? ValueObjectResourceMessages.Find(resource, [ValueObjectMessages.KeyFor(ValueObjectErrorCodes.Required)], static () => [], name)
               ?? ValueObjectValidationAttributes.RequiredMessageFor(name)
             : FormatErrorMessage(name);
 

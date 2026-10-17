@@ -70,7 +70,8 @@ converter closes the conversion of each value object a parameter binds and its m
 explains, the HotChocolate type discovery handler the scalar of each value object a schema meets, the HotChocolate.Data
 type interceptor the operations of each value-object member a filter input meets, the NJsonSchema
 package the converter that writes a value object's examples through the Newtonsoft.Json settings of a schema, the Blazor
-input the text adapters, plain and nullable, of the value object it binds, through a visitor that is not generic,
+input the text adapters, plain and nullable, of the value object it binds, through a visitor that is not generic, the
+System.CommandLine symbols the parser of the value object their option or argument holds, in each of its shapes,
 DataAnnotations' `[NotDefault]` its check of the default instance, once per type, the JSON converter factory closes the general-purpose converter it gives a value object written by hand, the test-data sampler's
 `Next(descriptor)` draws a value, the AutoFixture customization answers a request, the Bogus extensions give a member a
 rule, FsCheck's `MergeValueObjects` merges an arbitrary, and the Entity Framework Core conventions map each value object

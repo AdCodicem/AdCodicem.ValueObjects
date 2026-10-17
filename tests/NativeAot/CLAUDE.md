@@ -41,6 +41,12 @@ stay on where they apply. How the script works is in the header of `.github/scri
   describes public types only and never validates an internal body.
 - It links hand-written value objects from `Domain/HandWritten/`, registered without a converter so the JSON factory's
   general-purpose converter runs natively, and `UnregisteredCode`, registered by nothing, which must stay refused.
+- `Cli.cs` parses a System.CommandLine command holding an option of every registered value object, of its nullable type
+  and of an array of it, and fails a line where an accepted text reads otherwise than `TryParse`, or a refusal carries
+  another code, or an invocation runs the action of a refused line, the command's options refused under its subcommand
+  included, or a localized message names a token among several otherwise than from zero (`--quantities[2]`). The
+  application runs under `InvariantGlobalization`: no culture but the invariant one exists there, so
+  the localized lines read the neutral `ProblemMessages.resx`.
 - Microsoft.AspNetCore.Components warns IL2104 and IL3053 for itself once a component renders: listed in
   `aot-warnings.allowed` and in `WarningsNotAsErrors`, so the AOT compiler finishes under `NativeAot`.
 - Serilog destructures no object under `PublishTrimmed`: the project sets `Serilog.Capturing.IsStructureValueSupported` to

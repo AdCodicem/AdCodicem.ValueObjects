@@ -39,7 +39,7 @@ body:
       label: Reproduction
       description: >-
         The smallest code that shows it. If the problem only appears through an integration,
-        say which call path reaches it — model binding, a DataAnnotations validation, a Blazor form's input, EF Core read, Dapper, a MongoDB read, query or validator, a MessagePack or SignalR message, a protobuf-net message or a gRPC call, an Orleans grain call, a GraphQL argument, variable, field or filter, JSON, an OpenAPI document or a JSON Schema, a Serilog log event, a tool call, an MCP tool call, a structured answer or an Azure Functions binding.
+        say which call path reaches it — model binding, a DataAnnotations validation, a Blazor form's input, a System.CommandLine option or argument, EF Core read, Dapper, a MongoDB read, query or validator, a MessagePack or SignalR message, a protobuf-net message or a gRPC call, an Orleans grain call, a GraphQL argument, variable, field or filter, JSON, an OpenAPI document or a JSON Schema, a Serilog log event, a tool call, an MCP tool call, a structured answer or an Azure Functions binding.
       render: csharp
     validations:
       required: true
@@ -64,6 +64,7 @@ body:
         - FluentValidation
         - DataAnnotations validation ([ParsesAs], [NotDefault])
         - Blazor forms (AdCodicem.ValueObjects.Blazor)
+        - System.CommandLine options and arguments (AdCodicem.ValueObjects.CommandLine)
         - Entity identifiers (AdCodicem.ValueObjects.Identifiers)
         - Logging (AdCodicem.ValueObjects.Serilog)
         - Language models (AdCodicem.ValueObjects.AI — Microsoft.Extensions.AI tools, structured output)

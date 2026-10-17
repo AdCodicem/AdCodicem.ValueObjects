@@ -18,10 +18,10 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
 - Folders, named apart from the packages and libraries they test (root `CLAUDE.md`): `Web/` (MVC, minimal APIs, OpenAPI,
   Swashbuckle, NSwag, JSON Patch, DataAnnotations through hosts), `Persistence/` (EF Core, Dapper, MongoDB),
   `BinarySerialization/` (MessagePack; protobuf-net as `Proto*`; gRPC as `CodeFirstGrpc*` and `ContractFirstGrpc*`),
-  `Grains/` (Orleans), `GraphQL/` (HotChocolate, HotChocolate.Data), `Forms/` (Blazor), `Functions/` (Azure Functions),
-  `LanguageModels/` (Microsoft.Extensions.AI, Model Context Protocol as `Mcp*`), `Logging/` (Serilog,
-  Microsoft.Gen.Logging redaction), `SchemaGeneration/` (NJsonSchema, Confluent), `DataAnnotations/`, `TestData/` (the
-  sampler and its three adapters), `XmlSerialization/`, `Identifiers/`.
+  `Grains/` (Orleans), `GraphQL/` (HotChocolate, HotChocolate.Data), `Forms/` (Blazor), `Cli/` (System.CommandLine),
+  `Functions/` (Azure Functions), `LanguageModels/` (Microsoft.Extensions.AI, Model Context Protocol as `Mcp*`),
+  `Logging/` (Serilog, Microsoft.Gen.Logging redaction), `SchemaGeneration/` (NJsonSchema, Confluent),
+  `DataAnnotations/`, `TestData/` (the sampler and its three adapters), `XmlSerialization/`, `Identifiers/`.
 - `EmitCompilerGeneratedFiles` is on: generated sources land under `artifacts/obj/AdCodicem.ValueObjects.UnitTests/…/generated/`
   — read them when diagnosing emission.
 - Fixtures the test assembly cannot hold, because the generator runs on it and its module initializer has run before any
@@ -94,6 +94,13 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   when a component reads `RendererInfo` first, and refuses a service added once the renderer is asked for.
   `Forms/EcmaScriptPatterns.json` is held to .NET here and to Node by `.github/scripts/ecmascript-patterns.mjs`: change
   both together.
+- System.CommandLine: `Cli/` parses through `Command.Parse` and invokes through `InvocationConfiguration` with writers
+  of its own (`CliHarness.Invoke`), never the console; `CliHarness.Refusals` reads each parse error with its code and
+  type. A `RootCommand` is named after the test host, so a test asserting an error that names the command parses a
+  `Command("app")`. A command with subcommands and no action answers "Required command was not provided.".
+  System.CommandLine converts a parent command's arguments, and its options neither `Recursive` nor with a default
+  value, only at `GetValue`; the walk's validator reads them when a subcommand is invoked, so a test of
+  System.CommandLine's own behaviour there configures its symbols with `AcceptValueObject` alone and walks no command.
 - HotChocolate: `GraphQL/GraphQLHarness` builds executors in process. The project sets `HotChocolateImplicitUsings` to
   `disable`. `ScopedFilterQuery` has no projection (a `[UseProjection]` field beside a named convention fails the schema).
 - `RegisteredAsciiDeclaration` is the one schema written by hand that a test resolves through the registry.

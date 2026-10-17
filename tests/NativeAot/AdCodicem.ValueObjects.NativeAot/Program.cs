@@ -46,6 +46,7 @@ try
     await LanguageModels.RunAsync(report);
     await Mcp.RunAsync(report);
     await Forms.RunAsync(report);
+    Cli.Run(report);
     await ContractFirstGrpc.RunAsync(report);
 
     using var client = ClientOf(app);

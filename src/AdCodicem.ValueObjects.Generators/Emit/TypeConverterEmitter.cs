@@ -15,7 +15,8 @@ namespace AdCodicem.ValueObjects.Generators.Emit;
 /// not run). It is not everywhere, though: the configuration binding source generator, CsvHelper, System.CommandLine
 /// 2.0, <c>XmlSerializer</c>, <c>DataContractSerializer</c>, Parquet.Net and the Azure Functions isolated worker
 /// never read <c>TypeDescriptor</c>: they reach a value object only through an extension point of their own, so
-/// support for them does not belong here. Having the converter costs one small class.
+/// support for them does not belong here; System.CommandLine's, a symbol's <c>CustomParser</c>, is what
+/// <c>AdCodicem.ValueObjects.CommandLine</c> sets. Having the converter costs one small class.
 /// </para>
 /// <para>
 /// A numeric value object converts from and to every numeric type a value object may wrap, not only its own: the

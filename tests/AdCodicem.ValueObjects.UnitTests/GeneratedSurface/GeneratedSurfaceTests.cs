@@ -144,6 +144,11 @@ public class GeneratedSurfaceTests
         => Samples.All[type].BindsThroughABlazorInput();
 
     [Theory]
+    [MemberData(nameof(Every))]
+    public void Every_value_object_reads_through_a_command_line_option(string type)
+        => Samples.All[type].ReadsThroughACommandLineOption();
+
+    [Theory]
     [MemberData(nameof(EveryArithmetic))]
     public void Every_arithmetic_member_validates_its_result(string type)
         => Samples.All[type].ComputesThroughEveryArithmeticMember();

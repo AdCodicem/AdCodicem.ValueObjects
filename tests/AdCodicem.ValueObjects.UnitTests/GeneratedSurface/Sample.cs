@@ -10,6 +10,7 @@ using AdCodicem.ValueObjects.ModelContextProtocol;
 using AdCodicem.ValueObjects.NewtonsoftJson;
 using AdCodicem.ValueObjects.Testing.Data;
 using AdCodicem.ValueObjects.UnitTests.BinarySerialization;
+using AdCodicem.ValueObjects.UnitTests.Cli;
 using AdCodicem.ValueObjects.UnitTests.DataAnnotations;
 using AdCodicem.ValueObjects.UnitTests.Forms;
 using AdCodicem.ValueObjects.UnitTests.Functions;
@@ -227,6 +228,15 @@ public abstract class Sample
     /// message <c>TryParse</c> gives.
     /// </summary>
     public abstract void BindsThroughABlazorInput();
+
+    /// <summary>
+    /// Reads the value object through System.CommandLine options of it, of its nullable type and of a list of it, and an
+    /// argument, configured by <c>AcceptValueObjects()</c>, and checks that the text of the two instances and of every
+    /// value at an edge of its rules reads as the instance <c>TryParse</c> gives, that the refused text, empty text and the
+    /// text of every value its schema rules out leave the code and the message <c>TryParse</c> gives on the parse error,
+    /// and that each known value is completed as text that reads back to it.
+    /// </summary>
+    public abstract void ReadsThroughACommandLineOption();
 
     /// <summary>
     /// Checks that <c>[NotDefault]</c> refuses the value object's default instance with
@@ -797,6 +807,8 @@ public class Sample<TSelf, TValue> : Sample
     public override void DescribesItselfInEveryNJsonSchemaWire() => NJsonSchemaWires.Check<TSelf, TValue>(Small, Large);
 
     public override void BindsThroughABlazorInput() => FormsParity.Check<TSelf, TValue>(Small, Large, Refused);
+
+    public override void ReadsThroughACommandLineOption() => CliParity.Check<TSelf, TValue>(Small, Large, Refused);
 
     public override void HoldsTextToItsRulesThroughDataAnnotations()
     {

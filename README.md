@@ -110,6 +110,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.HotChocolate` | One GraphQL scalar per value object under HotChocolate 16, read through its rules, a refused value answered with its rule code. |
 | `AdCodicem.ValueObjects.HotChocolate.Data` | Every value object filtered in HotChocolate.Data through its scalar: normalized, refused with its rule code, translated by Entity Framework Core, with no binding per type; text operations on request. |
 | `AdCodicem.ValueObjects.Blazor` | A Blazor input per value object, read through its rules, the refused rule's message under the field and its code on the `EditContext`. |
+| `AdCodicem.ValueObjects.CommandLine` | System.CommandLine options and arguments read through the rules, the refused rule's message on the terminal and its code on the parse error. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI tool and structured-output schemas that carry the rules, and a refused tool argument answered with its rule code. |
@@ -127,7 +128,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-four are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-five are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -155,6 +156,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.HotChocolate` | `net10.0` | HotChocolate 16.6, in process and over ASP.NET Core | HotChocolate 16.6 on .NET 11 |
 | `AdCodicem.ValueObjects.HotChocolate.Data` | `net10.0` | HotChocolate.Data 16.6, over EF Core 10 on SQLite, PostgreSQL and SQL Server, and in memory | HotChocolate.Data 16.6 over EF Core 11 on SQLite |
 | `AdCodicem.ValueObjects.Blazor` | `net10.0` | Blazor 10 (`Microsoft.AspNetCore.Components.Web` 10), through bUnit, static rendering over TestHost and `HtmlRenderer` under native AOT | Components 11, through `HtmlRenderer` |
+| `AdCodicem.ValueObjects.CommandLine` | `net10.0` | System.CommandLine 2.0, commands parsed and invoked in process, and native AOT | System.CommandLine 3.0 (release candidate) on .NET 11 |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
 | `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
 | `AdCodicem.ValueObjects.AI` | `net10.0` | Microsoft.Extensions.AI 10, with its OpenAI adapter in strict mode, and native AOT | Microsoft.Extensions.AI 10 on .NET 11 |
@@ -235,8 +237,8 @@ result a language model reads, an MCP tool execution error, the `FormatException
 parameter, whose text alone the worker keeps, and which therefore ends with the code, a GraphQL error whose
 `extensions.code` is the rule's, for an argument, a variable or the operand of a HotChocolate.Data filter, a
 DataAnnotations `ValueObjectValidationResult`, from `[ParsesAs]` and `[NotDefault]`, which `Validator`'s throwing
-methods wrap in a `ValidationException`, and a validation message under a Blazor form's field, its code on the form's
-`EditContext`. Each
+methods wrap in a `ValidationException`, a validation message under a Blazor form's field, its code on the form's
+`EditContext`, and the parse error of a System.CommandLine option or argument, its code beside it. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
 query value, those of a minimal API for a route, query or header value, and those of an Azure Functions HTTP trigger
@@ -244,8 +246,8 @@ for a route or query value. Under `UseValueObjectCheckErrors()`, the
 database provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the
 constraint's name.
 The message is English; the code keys the one an application shows in its users' language, which the MVC, minimal API,
-Azure Functions, HotChocolate, Blazor, FluentValidation and DataAnnotations integrations look up with the arguments the
-declared rules supply
+Azure Functions, HotChocolate, Blazor, System.CommandLine, FluentValidation and DataAnnotations integrations look up
+with the arguments the declared rules supply
 ([a message in the application's language](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/reference/errors#a-message-in-the-applications-language)).
 `Create` throws `ValueObjectException`, and is for the call sites that want it; a strict EF Core read goes through
 it, and fails the query. Validation is fail-fast: the first violated rule wins.
@@ -277,7 +279,8 @@ the tools of a Model Context Protocol server. A DTO or an options class that kee
 with DataAnnotations' `[ParsesAs(typeof(Iban))]`, which the OpenAPI packages, NSwag's included, describe as the value
 object's text, rather than restating them in `[StringLength]` and `[RegularExpression]`. A Blazor input reads its text
 through them, and, on request, writes the maximum and minimum lengths and a pattern a browser reads as .NET does as the
-`maxlength`, `minlength` and `pattern` of the field.
+`maxlength`, `minlength` and `pattern` of the field. A System.CommandLine option reads its text through them too, and
+takes its description and its completions from the type.
 
 ## Compared with other libraries
 
@@ -529,6 +532,19 @@ answers refused text with the rule's message under the field and its code on the
 
 ```csharp skip
 builder.Services.AddValueObjectInputs(options => options.UseResource<Messages>());   // optional: messages in the users' language
+```
+
+System.CommandLine reads neither `TypeDescriptor` nor `IParsable<T>`: an option of a value object parses with no error,
+then `GetValue` throws, and one over `bool` is no flag. `AdCodicem.ValueObjects.CommandLine`'s `AcceptValueObjects()`
+reads every option and argument of a value object through its rules, a parent command's ones while a subcommand is
+validated, in the invariant culture unless told otherwise, and answers refused text with a parse error naming the
+option and giving the rule's message, never the text, its code beside it
+([the command-line guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/files-and-command-line#systemcommandline)):
+
+```csharp skip
+var root = new RootCommand { new Option<Iban>("--iban"), new Option<Quantity?>("--quantity") };
+root.AcceptValueObjects();          // or (options => options.UseResource<Messages>()), messages in the users' language
+return root.Parse(args).Invoke();   // a refusal: its message on standard error, the help, exit code 1
 ```
 
 The Azure Functions isolated worker reads no `[TypeConverter]`: a route value, a query value or other binding data, such

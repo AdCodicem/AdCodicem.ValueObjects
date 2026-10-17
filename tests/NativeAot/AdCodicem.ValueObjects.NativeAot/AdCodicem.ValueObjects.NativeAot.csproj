@@ -13,7 +13,8 @@
     gRPC service, whose messages Grpc.Tools compiles from ContractFirst.proto, over Kestrel's cleartext HTTP/2, with the
     gRPC package's interceptor and collector. Forms.cs renders a Blazor form of every registered value object through
     HtmlRenderer, its Razor components compiled by the Web SDK, and types text into each input; Microsoft.AspNetCore.Components
-    warns for itself once a component renders, which aot-warnings.allowed lists. Two value objects written by
+    warns for itself once a component renders, which aot-warnings.allowed lists. Cli.cs parses a System.CommandLine command
+    of every registered value object, its options configured by AcceptValueObjects(). Two value objects written by
     hand, linked from the unit suite, have no generated converter: Program.cs registers them without one, so the JSON
     factory serves them its general-purpose converter. A third, UnregisteredCode, is registered by nothing, and the
     factory refuses it.
@@ -56,6 +57,7 @@
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.AI\AdCodicem.ValueObjects.AI.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.AspNetCore.Http\AdCodicem.ValueObjects.AspNetCore.Http.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Blazor\AdCodicem.ValueObjects.Blazor.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.CommandLine\AdCodicem.ValueObjects.CommandLine.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
