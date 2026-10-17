@@ -26,8 +26,9 @@ stay on where they apply. How the script works is in the header of `.github/scri
 
 ## `AdCodicem.ValueObjects.NativeAot`
 
-- A minimal API referencing every package that claims AOT compatibility but HotChocolate, HotChocolate.Data and
-  ProtobufNet, serving a contract-first gRPC service over Kestrel's cleartext HTTP/2 too. Its value objects are in
+- A minimal API referencing every package that claims AOT compatibility but HotChocolate, HotChocolate.Data, ProtobufNet
+  and Orleans (Orleans 10.4 does not start natively: `src/AdCodicem.ValueObjects.Orleans/CLAUDE.md`), serving a
+  contract-first gRPC service over Kestrel's cleartext HTTP/2 too. Its value objects are in
   `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's `Domain/UnderlyingTypes.cs` and opts into XML
   serialization, which nothing calls, as a guard that the emission adds no warning.
 - A value object added to `UnderlyingTypes.cs`, or registered by the application, goes into `AppJsonContext` with its

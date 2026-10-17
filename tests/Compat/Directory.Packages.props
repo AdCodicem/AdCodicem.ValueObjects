@@ -41,6 +41,7 @@
     <PackageVersion Include="AdCodicem.ValueObjects.NewtonsoftJson" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.NJsonSchema" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.OpenApi" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.Orleans" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.ProtobufNet" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Serilog" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Swashbuckle" Version="[$(AdCodicemVersion)]" />

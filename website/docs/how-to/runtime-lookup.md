@@ -63,7 +63,8 @@ object, since a struct type argument shares no code, and only for the visitors t
 Every integration that closes an adapter over a value object it knows only by its `Type` does so this way: the Dapper
 integration registers its handlers, the MongoDB provider builds the serializer the driver asks it for, the MessagePack
 resolver the formatter MessagePack asks it for, protobuf-net's `AddValueObjects` names the closed serializer type of each
-value object it registers, the MVC model binder provider creates its binders, the minimal API
+value object it registers, the Orleans package's selector the codec Orleans asks it for, the MVC model binder provider
+creates its binders, the minimal API
 filter of `AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains, the Azure Functions
 converter closes the conversion of each value object a parameter binds and its middleware the check of each it
 explains, the HotChocolate type discovery handler the scalar of each value object a schema meets, the HotChocolate.Data

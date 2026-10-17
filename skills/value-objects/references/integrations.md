@@ -21,6 +21,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers and protobuf-net.Grpc code-first services: the underlying type's wire, strict reads, the scalar in the `.proto` export, a refused request answered `INVALID_ARGUMENT` with its code. AOT-compatible through protobuf-net's `[ProtoModel]`. |
 | `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC: every refused field at once in a `google.rpc.BadRequest`, a refusal escaping a handler as `INVALID_ARGUMENT` with a `google.rpc.ErrorInfo`. AOT-compatible. |
+| `AdCodicem.ValueObjects.Orleans` | Orleans grain calls: the underlying value's wire, strict reads, a refusal's code back at the caller, a `ValueObjectException` from a grain carried with its code. AOT-compatible code; Orleans does not run natively. |
 | `AdCodicem.ValueObjects.HotChocolate` | HotChocolate 16: one GraphQL scalar per value object, read through its rules; a refused value answered with its code under `extensions.code`. AOT-compatible. |
 | `AdCodicem.ValueObjects.HotChocolate.Data` | HotChocolate.Data 16: every value object filtered through its scalar's operations, normalized, refused with its code, translated by EF Core; text operations on request. AOT-compatible code; HotChocolate.Data filtering does not run natively. |
 | `AdCodicem.ValueObjects.Blazor` | Blazor forms: `InputValueObject`, an input per value object read through its rules; the refused rule's message under the field, its code on the `EditContext`. AOT-compatible, installable in Blazor WebAssembly. |
@@ -39,7 +40,8 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 
 Never put a serializer's contract attribute on a value object: `[GenerateSerializer]`, `[ProtoContract]`, `[DataContract]`,
 `[XmlType]`, `[MessagePackObject]`, `[JsonObject]`, `[MemoryPackable]`, or `[Serializable]` outside the XML opt-in
-(`VO0043`, `VO0044`). The one exception is protobuf-net's attribute route,
+(`VO0043`, `VO0044`); for Orleans, register `AddValueObjects()` of `AdCodicem.ValueObjects.Orleans` instead. The one
+exception is protobuf-net's attribute route,
 `[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<TSelf, TValue>))]`. Where `DataContractSerializer` writes
 a `[Serializable]` value object, opt the assembly into XML serialization rather than remove the attribute, which would
 leave it writing an empty element.
@@ -706,6 +708,37 @@ without the package.
   code-first; a request refused while the message is read is `ForServer`'s (above).
 - The namespace `AdCodicem.ValueObjects.Grpc` hides the root `Grpc` namespace inside `AdCodicem.ValueObjects.*` code:
   put `using Grpc.Core;` at the top of the file, or write `global::Grpc`.
+
+## Orleans grain calls
+
+```csharp skip
+builder.UseOrleans(silo => silo.Services.AddSerializer(s => s.AddValueObjects()));         // every silo
+builder.UseOrleansClient(client => client.Services.AddSerializer(s => s.AddValueObjects())); // every client
+// s.AddValueObjects(trusted: true)          a cluster of the application's own: reads skip the rules
+// s.AddValueObject<Reference<Order>, string>()  a generic construction or a hand-written one, without the registry
+```
+
+- Register on both sides: a silo without the package has no codec (`CodecNotFoundException`, at start in Development).
+  The last registration answers first.
+- A value object writes its underlying value's bytes; in a member typed `object`, its type too. Put Orleans'
+  `[Alias("…")]` on a value object a grain returns or an `object` member holds, in a project referencing
+  Microsoft.Orleans.Sdk, so that renaming or moving it does not break calls between two versions. Never
+  `[GenerateSerializer]` on it (`VO0043`).
+- A refused value throws `SerializerException`, the code in `Data` (`ValueObjectErrors.TryGetCode`): on the caller for a
+  refused request or reply; a default its type rejects is refused before it is sent. A `null` is
+  `value_object.required`, an unreadable value `value_object.not_parsable`, whatever the trust.
+- A `ValueObjectException` a grain lets escape reaches the caller with `ErrorCode` and `ValueObjectType`, never
+  `AttemptedValue`; a subclass arrives as `ValueObjectException`.
+- A call between grains of one silo copies its arguments: a default instance arrives there unchecked. A member the
+  message leaves out holds the default instance: declare it `T?`.
+- Key a grain by the underlying value, `GetGrain<IOrderGrain>(orderId.Value)`, and read it back with
+  `OrderId.TryCreate(this.GetPrimaryKey(), out var id)`, never `CreateUnchecked`.
+- Grain state: `OrleansGrainStorageSerializer` uses the package; for the default `JsonGrainStorageSerializer`, configure
+  `OrleansJsonSerializerOptions` with `JsonSerializerSettings.AddValueObjects()` of `AdCodicem.ValueObjects.NewtonsoftJson`.
+- Without dynamic code, a value object nothing registered is refused with `NotSupportedException`: register it with
+  `ValueObjectRegistry.Register<TSelf, TValue>` or use `AddValueObject<TSelf, TValue>()`.
+- `AdCodicem.ValueObjects.Orleans` hides the root `Orleans` namespace inside `AdCodicem.ValueObjects.*` code: put
+  `using Orleans.Serialization;` at the top of the file.
 
 ## GraphQL (HotChocolate)
 

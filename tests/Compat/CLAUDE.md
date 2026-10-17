@@ -1,6 +1,6 @@
 # tests/Compat — the .NET compatibility island
 
-The thirty-three packages exactly as packed, installed from `artifacts/packages` at one fresh version into `net11.0`
+The thirty-four packages exactly as packed, installed from `artifacts/packages` at one fresh version into `net11.0`
 applications on the .NET 11 release candidate. It checks the packages, not the code. Runbook:
 `docs/maintaining.md`, "The .NET compatibility island".
 
@@ -30,6 +30,8 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
   `Internal` type changed upstream shows. It pins the .NET 11 side of the DataAnnotations hosts (`{Attribute}_Error`
   keys, an attribute's exception propagated, the member alone as display name) and of Blazor (messages read off the
   `EditContext`, never the markup; `ValidateAsync()`).
+- The Orleans package is exercised at serializer level (`OrleansTests.cs`): it brings Orleans' serializer alone, and no
+  grain, no Microsoft.Orleans.Sdk and no Orleans generator run here.
 - MessagePack's analyzer and protobuf-net's generator run in the SDK 11 compiler here: the island has its own
   `MessagePackAssumedFormattable` list and its own `PBN9001` suppression.
 - Its MongoDB tests go through one static, strict registration first, as the suites' do (the driver's registry is

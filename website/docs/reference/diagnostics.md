@@ -280,7 +280,7 @@ declaration carries it:
 
 | Attribute | Id | What the serializer does | Remedy |
 | --- | --- | --- | --- |
-| Orleans' `[GenerateSerializer]` | `VO0043` | Writes the value object with no field and reads it back as a default instance: a holder of two value objects is written `2020E021E0E0`. `DeepCopier` keeps the value, so a call Orleans copies rather than serializes does not show the loss. | Remove it, and give the value object a surrogate ([Orleans](#orleans)). |
+| Orleans' `[GenerateSerializer]` | `VO0043` | Writes the value object with no field and reads it back as a default instance: a holder of two value objects is written `2020E021E0E0`. `DeepCopier` keeps the value, so a call Orleans copies rather than serializes does not show the loss. | Remove it, and call `AddValueObjects()` of `AdCodicem.ValueObjects.Orleans` on the serializer of every silo and client ([Orleans](#orleans)). |
 | protobuf-net's `[ProtoContract]`, naming no serializer | `VO0043` | Writes an empty message, `0A00`, read back as a default instance; under protobuf-net's compile-time model, whatever the registration. | Name the serializer, which the code fix does ([protobuf-net](#protobuf-net)). |
 | `[DataContract]` | `VO0043` | protobuf-net writes `0A00` and MessagePack's standard resolver `[]`, each read back as a default instance; in an assembly opted into XML serialization, `DataContractSerializer` refuses the type: "Type '…' cannot be IXmlSerializable and have DataContractAttribute attribute." | Remove it: [`[assembly: ValueObjectXmlSerialization]`](../how-to/xml.md) writes the value object as its value. |
 | `[XmlType]` | `VO0043` | protobuf-net writes `0A00`, read back as a default instance; in an assembly opted into XML serialization, `XmlSerializer` refuses the type: "Only XmlRoot attribute may be specified for the type …". | Remove it: the schema provider names the type, and `[XmlRoot]` names the element of a root value object. |
@@ -356,27 +356,13 @@ the author's, and left alone, the last over `Int128` too, where protobuf-net's r
 
 ### Orleans
 
-No Orleans integration exists yet. Without `[GenerateSerializer]`, Orleans fails loudly, "Could not find a codec for type
-…". A surrogate and a converter under `[RegisterConverter]` keep the value, and refuse one the type rejects with the
-`ValueObjectException` of `Create`, its code under `ValueObjectErrors.ErrorCodeKey`. This recipe ran on Orleans 10.4.0,
-through its serializer and its copier, not in a call between silos, and stands until an integration replaces it:
+[`AdCodicem.ValueObjects.Orleans`](../how-to/orleans.md) writes a value object as Orleans writes its underlying value,
+and reads it back through its rules: remove the attribute, and call `AddValueObjects()` on the serializer of every silo
+and client. The message names that registration once the package is in reach, and the package to reference otherwise.
 
-```csharp skip
-[GenerateSerializer]
-public struct SkuSurrogate
-{
-    [Id(0)]
-    public string? Value;
-}
-
-[RegisterConverter]
-public sealed class SkuSurrogateConverter : IConverter<Sku, SkuSurrogate>
-{
-    public Sku ConvertFromSurrogate(in SkuSurrogate surrogate) => Sku.Create(surrogate.Value!);
-
-    public SkuSurrogate ConvertToSurrogate(in Sku value) => new() { Value = value.Value };
-}
-```
+A surrogate under `[RegisterConverter]` is no substitute: in a grain call, it writes the value as a nested object, where
+a member of the underlying type writes it bare, and a value it refuses reaches the caller as `CodecNotFoundException`
+for `ValueObjectException`, with neither the rule nor its code.
 
 ### MemoryPack
 

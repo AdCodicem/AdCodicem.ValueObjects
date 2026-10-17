@@ -59,6 +59,7 @@ Keep the rules, delete the plumbing.
 | `Conversions.Bson`, `BsonSerializationRegisterFor….TryRegister()` | `ValueObjectBson.Register(assembly)`, once, after the `GuidSerializer`: [MongoDB](mongodb.md) |
 | `Conversions.NewtonsoftJson` | `settings.AddValueObjects()`, which adds `ValueObjectConverter` to the serializer settings |
 | `Conversions.MessagePack` | `options.WithValueObjects()`, once, on the serializer options, which reads through the rules; `UseValueObjects()` for SignalR: [MessagePack and SignalR](messagepack.md) |
+| `Conversions.Orleans` | `AddValueObjects()`, once, on the serializer of every silo and client, which reads through the rules and carries a refusal's code back to the caller: [Orleans](orleans.md) |
 | `Conversions.XmlSerializable` | `[assembly: ValueObjectXmlSerialization]`, once for the assembly, which reads through the rules: [XML](xml.md) |
 | `new VogenTypesFactory()` in the options of a source-generated context | `[JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]` |
 | A length or pattern check inside `Validate` | `MinLength`, `MaxLength` on the attribute; a `[GeneratedRegex]` through `IValueObjectPatternValidator` |

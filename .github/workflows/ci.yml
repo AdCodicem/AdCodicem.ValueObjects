@@ -163,7 +163,7 @@ jobs:
   # model binding, on System.Text.Json and on Newtonsoft.Json, minimal API problem
   # details, MongoDB.Driver on MongoDB 8, MessagePack, with SignalR's MessagePack hub protocol over TestHost,
   # protobuf-net and a protobuf-net.Grpc code-first service over TestHost, a contract-first gRPC
-  # service with the gRPC package's interceptor and collector over TestHost, Serilog,
+  # service with the gRPC package's interceptor and collector over TestHost, Orleans' serializer, Serilog,
   # Microsoft.Extensions.AI tools and structured output, Model Context Protocol tools over in-process streams, the Azure
   # Functions worker's converter and problem details middleware, HotChocolate 16 scalars in process and
   # HotChocolate.Data filters over Entity Framework Core 11 on SQLite, a Blazor input
@@ -232,7 +232,8 @@ jobs:
   # The packages that claim to be AOT-compatible, in an application published
   # with native AOT (tests/NativeAot), all but the two HotChocolate packages, whose
   # framework warns on its own publish and starts natively only rooted, and whose
-  # HotChocolate.Data filtering of a struct has no native code: the contracts,
+  # HotChocolate.Data filtering of a struct has no native code, and the Orleans
+  # package, since Orleans does not start natively: the contracts,
   # the generated code, the
   # JSON package with a source-generated context and the JSON Schema it exports,
   # the identifiers and FluentValidation, every value object reached through the

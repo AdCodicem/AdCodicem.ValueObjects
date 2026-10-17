@@ -106,6 +106,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters, and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers, and protobuf-net.Grpc code-first services: the underlying value on the wire, strict reads, a refused request answered `INVALID_ARGUMENT` with its rule code. |
 | `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC services: every refused field answered at once as `INVALID_ARGUMENT` with a `google.rpc.BadRequest`, and a refusal escaping a handler with a `google.rpc.ErrorInfo` carrying its rule code. |
+| `AdCodicem.ValueObjects.Orleans` | Orleans grain calls: the underlying value on the wire, strict reads, a refusal's rule code back at the caller, and a `ValueObjectException` a grain lets escape carried with its code. |
 | `AdCodicem.ValueObjects.HotChocolate` | One GraphQL scalar per value object under HotChocolate 16, read through its rules, a refused value answered with its rule code. |
 | `AdCodicem.ValueObjects.HotChocolate.Data` | Every value object filtered in HotChocolate.Data through its scalar: normalized, refused with its rule code, translated by Entity Framework Core, with no binding per type; text operations on request. |
 | `AdCodicem.ValueObjects.Blazor` | A Blazor input per value object, read through its rules, the refused rule's message under the field and its code on the `EditContext`. |
@@ -126,7 +127,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-three are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-four are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -150,6 +151,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.MessagePack` | `net10.0` | MessagePack 3.1, with SignalR's MessagePack hub protocol 10 | MessagePack 3.1 on .NET 11, with the hub protocol 11 |
 | `AdCodicem.ValueObjects.ProtobufNet` | `net10.0` | protobuf-net 3.4 and protobuf-net.Grpc 1.3 over Grpc.AspNetCore 2.84, and protobuf-net's compile-time model under native AOT | protobuf-net 3.4 on .NET 11, a code-first call over TestHost |
 | `AdCodicem.ValueObjects.Grpc` | `net10.0` | Grpc.StatusProto 2.84, over Grpc.AspNetCore 2.84 and native AOT | a contract-first service over TestHost on .NET 11 |
+| `AdCodicem.ValueObjects.Orleans` | `net10.0` | Orleans 10.4, its serializer and an in-process cluster of one silo and of two, with its client | Orleans 10.4 on .NET 11, its serializer |
 | `AdCodicem.ValueObjects.HotChocolate` | `net10.0` | HotChocolate 16.6, in process and over ASP.NET Core | HotChocolate 16.6 on .NET 11 |
 | `AdCodicem.ValueObjects.HotChocolate.Data` | `net10.0` | HotChocolate.Data 16.6, over EF Core 10 on SQLite, PostgreSQL and SQL Server, and in memory | HotChocolate.Data 16.6 over EF Core 11 on SQLite |
 | `AdCodicem.ValueObjects.Blazor` | `net10.0` | Blazor 10 (`Microsoft.AspNetCore.Components.Web` 10), through bUnit, static rendering over TestHost and `HtmlRenderer` under native AOT | Components 11, through `HtmlRenderer` |
@@ -215,16 +217,17 @@ which is what makes the struct representation — zero allocation, no null — s
 its own output: `VO0032` reports it in the code of Riok.Mapperly and of the configuration binding generator, and
 of any generator a `.globalconfig` adds. What reaches a boundary the analyzer cannot see — an entity property never
 set, a default array element — is not written as it stands: the JSON converters, the Dapper handler, the MongoDB
-serializers, the MessagePack formatters, the protobuf-net serializers, the HotChocolate scalars, the XML serialization
-of an assembly marked `[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized
-instance whose value its type rejects, and an optional EF Core column stores a `NULL` instead, as does an element of
-a `List<Iban?>`. Under `ConfigureValueObjects`, an EF Core primary key of one property over a `Guid` value object,
-which nothing generates, refuses an entity added without it, whatever the type's rules.
+serializers, the MessagePack formatters, the protobuf-net serializers, the Orleans codecs, the HotChocolate scalars,
+the XML serialization of an assembly marked `[assembly: ValueObjectXmlSerialization]` and the EF Core converters
+refuse an uninitialized instance whose value its type rejects, and an optional EF Core column stores a `NULL` instead,
+as does an element of a `List<Iban?>`. Under `ConfigureValueObjects`, an EF Core primary key of one property over a
+`Guid` value object, which nothing generates, refuses an entity added without it, whatever the type's rules.
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
 their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a
 MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationException`, a protobuf-net `ProtoException`,
+an Orleans `SerializerException`, carried back to the caller of a grain,
 the `INVALID_ARGUMENT` status a gRPC service answers, code-first or contract-first, whose `google.rpc.ErrorInfo` or
 `google.rpc.BadRequest` carries the code, an `XmlException` from
 `XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool
@@ -252,9 +255,10 @@ valid. It happens on construction, on parsing, on deserialization and on model b
 materializing a row through EF Core or Dapper, which is the hottest path in most applications and reads values this
 same application wrote, nor for the temporary value EF Core holds for an integer key it generates, which the database
 replaces before anything is written. `ConfigureValueObjects(strict: true)` turns that back on for a table another system
-also writes to. MongoDB, MessagePack and protobuf-net reads validate, since a collection or a message may come from
-another program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
-`WithValueObjects(trusted: true)`, `AddValueObjects(trusted: true, …)`.
+also writes to. MongoDB, MessagePack, protobuf-net and Orleans reads validate, since a collection, a message or a grain
+call may come from another program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
+`WithValueObjects(trusted: true)`, `AddValueObjects(trusted: true, …)` on a protobuf-net model, and
+`AddValueObjects(trusted: true)` on an Orleans serializer.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
 collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema, NSwag's included, and of the
@@ -450,6 +454,18 @@ code; its serializers also run in protobuf-net's compile-time model under native
 RuntimeTypeModel.Default.AddValueObjects(typeof(Iban).Assembly); // or AddValueObjects(trusted: true, …) for a cache
 builder.Services.AddSingleton(ValueObjectBinderConfiguration.ForServer(RuntimeTypeModel.Default));
 builder.Services.AddCodeFirstGrpc();
+```
+
+Orleans has no codec for a value object: every grain call that takes or returns one fails on the caller with
+`CodecNotFoundException`, and `[GenerateSerializer]` on the value object writes it with no field, which loses the value
+(`VO0043`). `AdCodicem.ValueObjects.Orleans` writes each as Orleans writes its underlying value, byte for byte, with its
+type where a member typed `object` holds it, reads it back through its rules, and carries a refused request, a refused
+reply and a `ValueObjectException` a grain lets escape back to the caller with the rule's code
+([the Orleans guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/orleans)):
+
+```csharp skip
+builder.UseOrleans(silo => silo.Services.AddSerializer(serializer => serializer.AddValueObjects()));
+builder.UseOrleansClient(client => client.Services.AddSerializer(serializer => serializer.AddValueObjects()));
 ```
 
 A contract-first gRPC service's handlers map the strings and numbers of their messages to value objects, and a

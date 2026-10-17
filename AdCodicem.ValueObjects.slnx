@@ -23,6 +23,7 @@
     <Project Path="src/AdCodicem.ValueObjects.MessagePack/AdCodicem.ValueObjects.MessagePack.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.ProtobufNet/AdCodicem.ValueObjects.ProtobufNet.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Grpc/AdCodicem.ValueObjects.Grpc.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.Orleans/AdCodicem.ValueObjects.Orleans.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AI/AdCodicem.ValueObjects.AI.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.ModelContextProtocol/AdCodicem.ValueObjects.ModelContextProtocol.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AzureFunctions/AdCodicem.ValueObjects.AzureFunctions.csproj" />
@@ -45,6 +46,7 @@
   <Folder Name="/tests/Fixtures/">
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Blazor/AdCodicem.ValueObjects.Fixtures.Blazor.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Functions/AdCodicem.ValueObjects.Fixtures.Functions.csproj" />
+    <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Grains/AdCodicem.ValueObjects.Fixtures.Grains.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.GraphQL/AdCodicem.ValueObjects.Fixtures.GraphQL.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Redaction/AdCodicem.ValueObjects.Fixtures.Redaction.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Untouched/AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />

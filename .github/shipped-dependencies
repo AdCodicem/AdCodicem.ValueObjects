@@ -26,6 +26,7 @@ Microsoft.AspNetCore.SignalR.Protocols.MessagePack
 Microsoft.Azure.Functions.Worker
 Microsoft.Azure.Functions.Worker.Core
 Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore
+Microsoft.CodeAnalysis.Analyzers
 Microsoft.EntityFrameworkCore
 Microsoft.EntityFrameworkCore.Relational
 Microsoft.Extensions.AI.Abstractions
@@ -34,6 +35,7 @@ Microsoft.Extensions.Localization
 Microsoft.Extensions.Localization.Abstractions
 Microsoft.Extensions.Options
 Microsoft.OpenApi
+Microsoft.Orleans.Serialization
 ModelContextProtocol
 MongoDB.Driver
 Newtonsoft.Json
@@ -54,8 +56,8 @@ Microsoft.CodeAnalysis.CSharp.Workspaces
 PolySharp
 
 # Referenced by a project under src/ but shipping nothing, marked `!`: MinVer and Microsoft.SourceLink.GitHub
-# stamp the version and the source link but change no code, and Microsoft.CodeAnalysis.Analyzers only checks
-# the generator's own code. An update of one of them stays chore(deps).
+# stamp the version and the source link but change no code. An update of one of them stays chore(deps).
+# Microsoft.CodeAnalysis.Analyzers, which checks the generator's and the code fix's own code, is declared above:
+# Microsoft.Orleans.Serialization depends on it, so transitive pinning lists it in the Orleans package's nuspec.
 !MinVer
 !Microsoft.SourceLink.GitHub
-!Microsoft.CodeAnalysis.Analyzers

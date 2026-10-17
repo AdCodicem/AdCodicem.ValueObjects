@@ -11,10 +11,19 @@
   </ItemGroup>
 
   <ItemGroup Label="Source generators and analyzers">
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <!-- The Roslyn API the generator is built against, which sets the oldest compiler a consumer may use, and which the
+         generator tests compile snippets with. The unit suite alone takes 5.0.0: it compiles NSwag's client with Roslyn,
+         and it reaches Orleans, whose Microsoft.Orleans.Serialization brings Microsoft.CodeAnalysis.Common 5.0.0, which
+         CSharp 4.14.0 refuses (NU1608, an error here). Conditioned on the project rather than set by a VersionOverride,
+         so that every version stays in this file. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" Condition="'$(MSBuildProjectName)' != 'AdCodicem.ValueObjects.UnitTests'" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" Condition="'$(MSBuildProjectName)' == 'AdCodicem.ValueObjects.UnitTests'" />
     <!-- The code fix, in an assembly of its own: RS1038 refuses Workspaces where an analyzer or a generator lives. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" />
+    <!-- The analyzers that check the generator's and the code fix's own code, whose Roslyn API is the CSharp pin above. At
+         the floor Microsoft.Orleans.Serialization 10.4.0 declares, below which every project reaching Orleans fails to
+         restore (NU1109); transitive pinning lists it as a dependency of the Orleans package. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
     <PackageVersion Include="PolySharp" Version="1.16.0" />
   </ItemGroup>
 
@@ -31,9 +40,9 @@
          package, which reaches them through the hub protocol's Microsoft.AspNetCore.SignalR.Common, of the Model
          Context Protocol package, which reaches them through Microsoft.Extensions.Hosting.Abstractions, of the Azure
          Functions package, which reaches them through Worker.Core, of both HotChocolate packages, which reach them
-         through HotChocolate.Types, and of the Blazor package, which reaches them through
-         Microsoft.AspNetCore.Components.Web and Microsoft.Extensions.Localization: removing them changes what those eight
-         pack. Dependabot never moves them, so an update of a package that asks for a later version of either fails the
+         through HotChocolate.Types, of the Blazor package, which reaches them through
+         Microsoft.AspNetCore.Components.Web and Microsoft.Extensions.Localization, and of the Orleans package, which
+         reaches them through Microsoft.Orleans.Serialization: removing them changes what those nine pack. Dependabot never moves them, so an update of a package that asks for a later version of either fails the
          restore with NU1109, and opens no pull request, until they are raised by hand with it. -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.13" />
@@ -127,6 +136,11 @@
          Google.Api.CommonProtos and Google.Protobuf come with it and are pinned by nothing here: a pin would make them
          dependencies of the package. -->
     <PackageVersion Include="Grpc.StatusProto" Version="2.84.0" />
+    <!-- The Orleans package's floor, the version it is built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); Orleans 11 is a decision, not a bump.
+         Microsoft.Orleans.Serialization.Abstractions comes with it at exactly its version, and the Roslyn packages it lists
+         though its assembly loads none; none is pinned here but Microsoft.CodeAnalysis.Analyzers, above. -->
+    <PackageVersion Include="Microsoft.Orleans.Serialization" Version="10.4.0" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
@@ -229,6 +243,13 @@
          here: a pin would make them dependencies of every package whose restore graph holds them. -->
     <PackageVersion Include="protobuf-net.Grpc.AspNetCore" Version="1.3.14" />
     <PackageVersion Include="Grpc.AspNetCore" Version="2.84.0" />
+    <!-- What the unit suite drives the Orleans package through, as an application does: Orleans' code generator, which
+         writes the codecs and proxies of a fixture's grains and holders, and an in-process cluster, a silo and its client
+         talking over localhost through the same serializer; no package under src/ references them. TestingHost depends
+         on Microsoft.Orleans.DurableJobs 10.4.0-alpha.1, a prerelease, harmless in a test project, and brings Orleans'
+         generator, analyzers and global usings with it, through Microsoft.Orleans.Sdk. -->
+    <PackageVersion Include="Microsoft.Orleans.Sdk" Version="10.4.0" />
+    <PackageVersion Include="Microsoft.Orleans.TestingHost" Version="10.4.0" />
   </ItemGroup>
 
 </Project>

@@ -59,6 +59,7 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.NewtonsoftJson\AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.NJsonSchema\AdCodicem.ValueObjects.NJsonSchema.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.OpenApi\AdCodicem.ValueObjects.OpenApi.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Orleans\AdCodicem.ValueObjects.Orleans.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.ProtobufNet\AdCodicem.ValueObjects.ProtobufNet.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Serilog\AdCodicem.ValueObjects.Serilog.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Swashbuckle\AdCodicem.ValueObjects.Swashbuckle.csproj" />
@@ -73,9 +74,10 @@
          package, generated ones in an assembly that opts into XML serialization, and generated ones beside a query type
          HotChocolate's source generator binds, whose generated module this assembly would otherwise get
          (tests/Fixtures/Directory.Build.props); the Blazor forms written in Razor markup, which the Razor compiler
-         builds in a project of its own, so that this one stays on Microsoft.NET.Sdk; and [LoggerMessage] methods
+         builds in a project of its own, so that this one stays on Microsoft.NET.Sdk; [LoggerMessage] methods
          Microsoft.Gen.Logging writes, beside value objects classified as personal data, which this assembly's generator
-         would otherwise write. -->
+         would otherwise write; and grains, grain interfaces and [GenerateSerializer] holders Orleans' code generator
+         writes codecs and proxies for, declared as an application declares them, without the Orleans package. -->
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Untouched\AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutGenerator\AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutJson\AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />
@@ -83,6 +85,7 @@
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.GraphQL\AdCodicem.ValueObjects.Fixtures.GraphQL.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Blazor\AdCodicem.ValueObjects.Fixtures.Blazor.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Redaction\AdCodicem.ValueObjects.Fixtures.Redaction.csproj" />
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Grains\AdCodicem.ValueObjects.Fixtures.Grains.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -153,6 +156,12 @@
          does. -->
     <PackageReference Include="protobuf-net.Grpc.AspNetCore" />
     <PackageReference Include="Grpc.AspNetCore" />
+    <!-- An in-process Orleans cluster, a silo and its client talking over localhost through the same serializer, which
+         Grains/ calls the fixture's grains through. Through Microsoft.Orleans.Sdk it brings Orleans' code generator, whose
+         output lists the fixture as an application part, its analyzers, and global usings of Orleans, Orleans.Hosting and
+         Orleans.Runtime; and through Microsoft.Orleans.Serialization Microsoft.CodeAnalysis.Common 5.0.0, which is why
+         this project alone takes Microsoft.CodeAnalysis.CSharp 5.0.0 (Directory.Packages.props). -->
+    <PackageReference Include="Microsoft.Orleans.TestingHost" />
   </ItemGroup>
 
   <ItemGroup>
