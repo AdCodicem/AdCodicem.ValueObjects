@@ -19,7 +19,8 @@ namespace AdCodicem.ValueObjects.Orleans;
 /// Orleans serializes an exception only from the namespaces <c>Microsoft</c>, <c>System</c> and <c>Azure</c>, and its own
 /// codec restores no property of a derived type. A subclass of <see cref="ValueObjectException"/> reaches this codec too,
 /// which it implements <see cref="IDerivedTypeCodec"/> for, and arrives as a <see cref="ValueObjectException"/>; the inner
-/// exception does not travel.
+/// exception does not travel. A member, an argument or a result typed as the subclass is therefore refused on write, with
+/// a <see cref="NotSupportedException"/>.
 /// </para>
 /// <para>
 /// The exception is written as a value, never as a reference to one written earlier in the message, which Orleans' own
@@ -31,9 +32,22 @@ namespace AdCodicem.ValueObjects.Orleans;
 internal sealed class ValueObjectExceptionCodec(TypeConverter typeConverter) : IFieldCodec<ValueObjectException>, IDerivedTypeCodec
 {
     /// <inheritdoc />
+    /// <exception cref="NotSupportedException">
+    /// The member, the argument or the result is typed as a subclass of <see cref="ValueObjectException"/>, which the
+    /// reader could not assign the <see cref="ValueObjectException"/> it builds to.
+    /// </exception>
     public void WriteField<TBufferWriter>(ref Writer<TBufferWriter> writer, uint fieldIdDelta, Type? expectedType, [AllowNull] ValueObjectException value)
         where TBufferWriter : IBufferWriter<byte>
     {
+        if (expectedType is not null && expectedType.IsSubclassOf(typeof(ValueObjectException)))
+        {
+            // Refused before anything is written: the reader builds a ValueObjectException, which Orleans would then fail
+            // to cast to the subclass, with no code.
+            throw new NotSupportedException(
+                $"A member, an argument or a result typed {expectedType.Name} cannot cross Orleans: a subclass of "
+                + "ValueObjectException arrives as ValueObjectException, so type it ValueObjectException or Exception.");
+        }
+
         if (value is null)
         {
             ReferenceCodec.WriteNullReference(ref writer, fieldIdDelta);

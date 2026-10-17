@@ -12,7 +12,10 @@ dotnet add package AdCodicem.ValueObjects.Orleans
 ```
 
 ```csharp skip
+// In a silo's host
 builder.UseOrleans(silo => silo.Services.AddSerializer(serializer => serializer.AddValueObjects()));
+
+// In a client's host
 builder.UseOrleansClient(client => client.Services.AddSerializer(serializer => serializer.AddValueObjects()));
 ```
 
@@ -34,8 +37,10 @@ The package needs no Orleans code generator and writes nothing into the build. I
 
 ## Registering the value objects
 
-`AddValueObjects()` on the serializer builder of every silo and every client: Orleans builds one serializer per process,
-and each side reads what the other wrote. It registers three things:
+`AddValueObjects()` on the serializer builder of every silo and every client: Orleans builds one serializer per silo or
+client (per service provider), and each side reads what the other wrote. A process hosting a silo calls `UseOrleans`
+alone, which Orleans refuses beside `UseOrleansClient`: the silo's own client serializes through the silo's serializer.
+It registers three things:
 
 - a codec for every value object, which Orleans asks for the first time it meets the type, and keeps. A value object the
   registry holds is closed over its type arguments through its descriptor
@@ -46,6 +51,10 @@ and each side reads what the other wrote. It registers three things:
   allowed.`;
 - a codec for `ValueObjectException`, which carries one a grain lets escape back to the caller
   ([below](#a-valueobjectexception-from-grain-code)).
+
+Both registrations install `ValueObjectCodec<TSelf, TValue>`, which is public. An application registering it by hand
+gets neither the type filter, so a value object Orleans names on the wire is refused, `Type "Shop.Quantity" is not
+allowed.`, nor the codec of `ValueObjectException`.
 
 With the package on the client alone, the silo has no codec. In the `Development` environment, Orleans checks every type
 of the grain interfaces when the silo starts, and the silo fails to start with `CodecNotFoundException`; elsewhere, the
@@ -62,8 +71,14 @@ A member, an argument, a result or an element typed as the value object is writt
 replaces: the codec hands the value to Orleans' codec of the underlying type, with that type as the expected one, so no
 type is written. A class of twelve members, value objects alone, nullable, in a list, a dictionary and an array, is
 written byte for byte as its twin over the primitives, and each reads the other's bytes. The suite checks this for every
-underlying type, `Int128`, `UInt128` and `DateTimeOffset` included, which Orleans writes as it writes the primitives. The
-same value object met twice in a message writes its text once and then a reference to it, as the same text would be.
+underlying type, `Int128`, `UInt128` and `DateTimeOffset` included, which Orleans writes as it writes the primitives.
+
+One difference: Orleans writes a string it already met in the message as a reference to it, which its own codec of a
+`Sku?` reads only as `null`. A string value object therefore writes its text in full every time, the same `Sku` met
+twice included, where the twin writes a repeated string as a reference. A peer over the primitives reads it all the
+same. The other way round, a `Sku`, a `List<Sku>` and a dictionary key read a text such a peer repeats, but a `Sku?`, a
+`List<Sku?>` and a `Sku?[]` do not: the read fails with Orleans' `ReferenceNotFoundException`, a `SerializerException`
+carrying no code. The package cannot prevent it, since Orleans serves every nullable value with its own codec.
 
 A value object held by a member typed `object` or an interface is written with its type, so that the reader knows what
 to build: an object naming the value object, the underlying value as its field 0, and the end of the object, the shape
@@ -101,9 +116,9 @@ fail as Orleans' reader fails them, with an `IndexOutOfRangeException` and no co
 silo.Services.AddSerializer(serializer => serializer.AddValueObjects(trusted: true));
 ```
 
-The trust covers every peer of that silo or client, since Orleans serializes with one serializer per process, and grain
-state stored through `OrleansGrainStorageSerializer`. During a rolling deployment, a cluster also reads values written
-by a version whose rules were looser, which a strict read refuses.
+The trust covers every peer of that silo or client, since Orleans serializes with one serializer per silo or client (per
+service provider), and grain state stored through `OrleansGrainStorageSerializer`. During a rolling deployment, a
+cluster also reads values written by a version whose rules were looser, which a strict read refuses.
 
 ## Writing
 
@@ -127,9 +142,10 @@ it. Any other instance went through `Create`, or was read by a trusted codec, an
 A grain method calling `Quantity.Create(500)` throws a `ValueObjectException`, which reaches the caller with its
 message, its stack trace, its `ErrorCode` and its `ValueObjectType`. `AttemptedValue`, which holds the refused value,
 does not travel, and neither does the inner exception. A subclass of `ValueObjectException` arrives as a
-`ValueObjectException`, its own properties left behind, as Orleans' own exception codec leaves a derived exception's.
-The type travels as its name, and is restored only where the caller loads it and its type filters allow it: a value
-object only the silo knows reaches the caller with no type, its code intact.
+`ValueObjectException`, its own properties left behind, as Orleans' own exception codec leaves a derived exception's. A
+member, an argument or a result typed as the subclass is therefore refused on write, with a `NotSupportedException`:
+type it `ValueObjectException` or `Exception`. The type travels as its name, and is restored only where the caller loads
+it and its type filters allow it: a value object only the silo knows reaches the caller with no type, its code intact.
 
 ## Local calls and default instances
 
@@ -153,6 +169,11 @@ client.Services.AddSerializer(serializer => serializer.AddValueObject<Reference<
 `ValueObjectException` back as `AddValueObjects()` does. Each registration answers before the ones made earlier: called
 after `AddValueObjects()`, it answers for its type with its own trust, and of two `AddValueObjects()` calls the last
 one's trust applies.
+
+A value object written by hand over a reference type other than `string`, a `Uri`, is written as Orleans writes that
+type, an instance met earlier in the message as a reference to it: in a `Link?`, a `List<Link?>` or a `Link?[]`, the
+same instance twice fails to read with Orleans' `ReferenceNotFoundException`, as a text a peer over the primitives
+repeats does.
 
 ## Grain keys
 

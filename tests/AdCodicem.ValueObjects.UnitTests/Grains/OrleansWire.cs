@@ -59,9 +59,17 @@ public static class OrleansWire
     /// </summary>
     /// <param name="write">What to write.</param>
     /// <returns>The bytes.</returns>
-    public static byte[] Craft(Write write)
+    public static byte[] Craft(Write write) => Craft(CraftingServices, write);
+
+    /// <summary>
+    /// Writes bytes field by field, through a session of the services given, whose type filters the writer applies.
+    /// </summary>
+    /// <param name="services">The services of the serializer writing them.</param>
+    /// <param name="write">What to write.</param>
+    /// <returns>The bytes.</returns>
+    public static byte[] Craft(IServiceProvider services, Write write)
     {
-        using var session = CraftingServices.GetRequiredService<SerializerSessionPool>().GetSession();
+        using var session = services.GetRequiredService<SerializerSessionPool>().GetSession();
         var buffer = new ArrayBufferWriter<byte>();
         var writer = Writer.Create(buffer, session);
         write(ref writer);

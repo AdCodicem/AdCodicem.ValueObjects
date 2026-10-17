@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Text;
 using Orleans.Serialization;
 using Orleans.Serialization.Buffers;
 using Orleans.Serialization.Codecs;
@@ -15,9 +16,11 @@ namespace AdCodicem.ValueObjects.Orleans;
 /// <para>
 /// A member, an argument, a result or an element typed as the value object is written exactly as the underlying value it
 /// replaces: the value goes through Orleans' codec of <typeparamref name="TValue"/>, with that type as the expected one,
-/// so no type is written, and bytes a peer wrote for the primitive read as the value object. A value object held by a
-/// member typed <see cref="object"/> or an interface is written as Orleans writes a struct there: a header naming
-/// <typeparamref name="TSelf"/>, the underlying value as field 0, and the end of the object.
+/// so no type is written, and bytes a peer wrote for the primitive read as the value object. A string is written in full
+/// each time, where Orleans writes one it met earlier in the message as a reference to it, which its codec of a
+/// <c>TSelf?</c> reads only as <see langword="null"/>. A value object held by a member typed <see cref="object"/> or an
+/// interface is written as Orleans writes a struct there: a header naming <typeparamref name="TSelf"/>, the underlying
+/// value as field 0, and the end of the object.
 /// </para>
 /// <para>
 /// A read is strict unless the codec is trusted: the value read goes through <c>TryCreate</c>, which normalizes it, and one
@@ -69,6 +72,19 @@ public sealed class ValueObjectCodec<TSelf, TValue> : IFieldCodec<TSelf>
             {
                 throw Refusal($"The value to write is not a valid {typeof(TSelf).Name}: {validation.ErrorMessage}", validation.ErrorCode);
             }
+        }
+
+        if (expectedType == typeof(TSelf) && value.Value is string text)
+        {
+            // In full, as Orleans' codec writes a string met for the first time, never as a reference to one met earlier in
+            // the message: Orleans' codec of a TSelf?, which calls this codec, reads a reference only as null and fails on
+            // any other. The field takes its place among the references, as the string would.
+            ReferenceCodec.MarkValueField(writer.Session);
+            writer.WriteFieldHeader(fieldIdDelta, typeof(string), typeof(string), WireType.LengthPrefixed);
+            var length = Encoding.UTF8.GetByteCount(text);
+            writer.WriteVarUInt32((uint)length);
+            StringCodec.WriteRaw(ref writer, text, length);
+            return;
         }
 
         var codec = writer.Session.CodecProvider.GetCodec<TValue>();

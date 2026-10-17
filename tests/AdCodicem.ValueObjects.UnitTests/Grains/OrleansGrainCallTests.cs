@@ -39,6 +39,23 @@ public sealed class OrleansGrainCallTests(GrainCluster cluster) : IClassFixture<
         (await grain.EchoObject(AliasedCode.Create("ab"))).Should().Be(AliasedCode.Create("ab"));
         (await grain.Echo(new GrainOrder { Sku = GrainSku.Create("abc-123"), Quantity = GrainQuantity.Create(2), Amount = GrainAmount.Create(1m) }))
             .Should().BeEquivalentTo(new GrainOrder { Sku = GrainSku.Create("ABC-123"), Quantity = GrainQuantity.Create(2), Amount = GrainAmount.Create(1m) });
+        (await grain.Echo(new GrainInterfaceBox { Comparable = GrainQuantity.Create(5), Any = GrainSku.Create("abc-123") }))
+            .Should().BeEquivalentTo(new GrainInterfaceBox { Comparable = GrainQuantity.Create(5), Any = GrainSku.Create("ABC-123") });
+    }
+
+    /// <summary>
+    /// One text met twice in a call, in a member and a nullable member made from one literal, or twice in a list of
+    /// nullable value objects, crosses it: the codec writes it in full each time.
+    /// </summary>
+    /// <returns>The test.</returns>
+    [Fact]
+    public async Task A_value_object_met_twice_in_a_call_crosses_it()
+    {
+        var grain = cluster.Grain();
+        var order = new GrainOrder { Sku = GrainSku.Create("ABC-123"), Quantity = GrainQuantity.Create(1), Optional = GrainSku.Create("ABC-123") };
+
+        (await grain.Echo(order)).Should().BeEquivalentTo(order);
+        (await grain.Echo(new List<GrainSku?> { order.Sku, order.Sku })).Should().Equal(order.Sku, order.Sku);
     }
 
     [Fact]

@@ -373,11 +373,16 @@ stream's `ObjectDisposedException`.
 
 `AdCodicem.ValueObjects.Orleans` lets through Orleans' own exceptions, which carry no code. A side without the package
 has no codec: Orleans' `CodecNotFoundException`, "Could not find a codec for type Shop.Sku.", which a silo in the
-`Development` environment throws as it starts, and otherwise at the first call, returned to the caller; a codec without
-the type filter, Orleans' `InvalidOperationException`, `Type "Shop.Quantity" is not allowed.`. Bytes cut short fail with
-the reader's `IndexOutOfRangeException`. Where the runtime supports no dynamic code, a value object nothing registered,
-a construction of a generic one or one written by hand, is refused with a `NotSupportedException` naming
-`AddValueObject<TSelf, TValue>()`: a misuse, never a broken rule.
+`Development` environment throws as it starts, and otherwise at the first call, returned to the caller; a
+`ValueObjectCodec<TSelf, TValue>` an application registers by hand comes without the type filter, Orleans'
+`InvalidOperationException`, `Type "Shop.Quantity" is not allowed.`. Bytes cut short fail with the reader's
+`IndexOutOfRangeException`. A text a peer over the primitives repeats in its message, read into a `Sku?`, fails with
+Orleans' `ReferenceNotFoundException`, its codec of a nullable value reading a reference only as `null`
+([what a value object writes](../how-to/orleans.md#what-a-value-object-writes)). Two misuses, never a broken rule, are
+refused with a `NotSupportedException`: where the runtime supports no dynamic code, a value object nothing registered, a
+construction of a generic one or one written by hand, the message naming `AddValueObject<TSelf, TValue>()`; and on
+write, a member, an argument or a result typed as a subclass of `ValueObjectException`, which would arrive as a
+`ValueObjectException`, the message asking for `ValueObjectException` or `Exception`.
 
 A log is no such write: nothing reads one back into a value object. The
 [Serilog integration](../how-to/logging.md#serilog) logs a default instance as the default of its underlying type,

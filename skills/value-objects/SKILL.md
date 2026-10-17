@@ -254,7 +254,7 @@ builder.Services.AddSignalR().AddMessagePackProtocol(o => o.UseValueObjects()); 
 RuntimeTypeModel.Default.AddValueObjects(typeof(Iban).Assembly);                       // ProtobufNet, before the first message
 builder.Services.AddSingleton(ValueObjectBinderConfiguration.ForServer(RuntimeTypeModel.Default)); // ProtobufNet: code-first gRPC
 builder.Services.AddGrpc(o => o.Interceptors.Add<ValueObjectExceptionInterceptor>());  // Grpc: contract-first, ValueObjectBadRequest too
-builder.UseOrleans(s => s.Services.AddSerializer(o => o.AddValueObjects()));            // Orleans, on every silo and client
+builder.UseOrleans(s => s.Services.AddSerializer(o => o.AddValueObjects()));            // Orleans, a silo; UseOrleansClient the same in a client
 builder.Services.AddGraphQLServer().AddQueryType<Query>().AddValueObjects();           // HotChocolate, a scalar per value object
 //   .AddFiltering().AddValueObjectFiltering();   // HotChocolate.Data, after AddFiltering(): every value object filtered through its scalar
 builder.Services.AddValueObjectInputs(o => o.UseResource<Messages>());                // Blazor, optional: messages by code

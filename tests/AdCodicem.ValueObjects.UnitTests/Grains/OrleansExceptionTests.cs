@@ -44,6 +44,25 @@ public sealed class OrleansExceptionTests
         exception.AttemptedValue.Should().BeNull();
     }
 
+    /// <summary>
+    /// A member typed as a subclass is refused on write, with no code, since the subclass would arrive as a
+    /// <see cref="ValueObjectException"/>, which the reader could not assign to it; typed as the library's exception, the
+    /// subclass travels.
+    /// </summary>
+    [Fact]
+    public void A_member_typed_as_a_subclass_is_refused_on_write()
+    {
+        var refusal = FluentActions.Invoking(() => Strict.SerializeToArray(new GrainHolder<GrainRefusal> { Value = new GrainRefusal("refused") }))
+            .Should().Throw<NotSupportedException>().Which;
+
+        refusal.Message.Should().Be(
+            "A member, an argument or a result typed GrainRefusal cannot cross Orleans: a subclass of ValueObjectException "
+            + "arrives as ValueObjectException, so type it ValueObjectException or Exception.");
+        ValueObjectErrors.TryGetCode(refusal, out _).Should().BeFalse("a misuse carries no code");
+        Strict.Read<GrainHolder<ValueObjectException?>>(Strict.SerializeToArray(new GrainHolder<ValueObjectException?> { Value = new GrainRefusal("refused") }))
+            .Value.Should().BeOfType<ValueObjectException>().Which.ErrorCode.Should().Be("fixture.custom");
+    }
+
     [Fact]
     public void An_exception_never_thrown_carries_no_stack_trace()
     {

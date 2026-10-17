@@ -21,6 +21,12 @@ process, an in-process cluster through `GrainCluster`), over the grains and hold
 - A value object in a member typed `object` or an interface is a tagged object, its underlying value as field 0, as
   Orleans' own structs are; both sides call `ReferenceCodec.MarkValueField`, or the reference ids of the rest of the
   message shift.
+- A string underlying value is written in full (`MarkValueField`, a length-prefixed header, `StringCodec.WriteRaw`),
+  never through `StringCodec`, which writes a string met earlier in the message as a reference: Orleans'
+  `NullableCodec<T>` serves every `TSelf?`, found by the definition `Nullable<>` so no registration replaces it, and
+  reads a reference field only as null, throwing `ReferenceNotFoundException` for any other. A primitive peer's repeated
+  `string?` read as `TSelf?`, and a hand-written value object over another reference type (`Uri`) met twice in a
+  `TSelf?`, still fail: tests pin both.
 - `IFieldCodec<T>.WriteField`'s value carries `[AllowNull]` and `ReadValue` returns `[MaybeNull]`: implement them with
   `[AllowNull]` and a nullable return, or nullable analysis fails the build (CS8767, CS8603).
 - The read catches `SerializerException` (another wire type or length), `OverflowException` (a narrower type) and
@@ -41,6 +47,9 @@ process, an in-process cluster through `GrainCluster`), over the grains and hold
 - It writes by value, never as a reference: Orleans' `ExceptionCodec` refuses a reference field typed `Exception`. It
   implements `IDerivedTypeCodec`, without which a subclass never reaches it; the subclass is written as
   `ValueObjectException`.
+- A member, an argument or a result typed as a subclass is refused on write (`NotSupportedException`, no code): the
+  reader builds a `ValueObjectException`, which Orleans' generated code would fail to cast to the subclass
+  (`InvalidCastException`, no code).
 - The type travels as `RuntimeTypeNameFormatter.Format(type)`: `TypeConverter.Format(type, allowAllTypes)` ignores its
   second argument in 10.4.0 and throws for a type the writer refuses. `TypeConverter.TryParse` throws
   `TypeLoadException` for an assembly the reader does not load and `InvalidOperationException` for a type its filters

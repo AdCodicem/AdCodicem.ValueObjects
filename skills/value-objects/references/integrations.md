@@ -712,14 +712,15 @@ without the package.
 ## Orleans grain calls
 
 ```csharp skip
-builder.UseOrleans(silo => silo.Services.AddSerializer(s => s.AddValueObjects()));         // every silo
-builder.UseOrleansClient(client => client.Services.AddSerializer(s => s.AddValueObjects())); // every client
+builder.UseOrleans(silo => silo.Services.AddSerializer(s => s.AddValueObjects()));         // a silo's host
+builder.UseOrleansClient(client => client.Services.AddSerializer(s => s.AddValueObjects())); // or a client's host
 // s.AddValueObjects(trusted: true)          a cluster of the application's own: reads skip the rules
 // s.AddValueObject<Reference<Order>, string>()  a generic construction or a hand-written one, without the registry
 ```
 
 - Register on both sides: a silo without the package has no codec (`CodecNotFoundException`, at start in Development).
-  The last registration answers first.
+  The last registration answers first. A process hosting a silo calls `UseOrleans` alone, never beside
+  `UseOrleansClient`: its own client uses the silo's serializer.
 - A value object writes its underlying value's bytes; in a member typed `object`, its type too. Put Orleans'
   `[Alias("…")]` on a value object a grain returns or an `object` member holds, in a project referencing
   Microsoft.Orleans.Sdk, so that renaming or moving it does not break calls between two versions. Never
@@ -728,7 +729,10 @@ builder.UseOrleansClient(client => client.Services.AddSerializer(s => s.AddValue
   refused request or reply; a default its type rejects is refused before it is sent. A `null` is
   `value_object.required`, an unreadable value `value_object.not_parsable`, whatever the trust.
 - A `ValueObjectException` a grain lets escape reaches the caller with `ErrorCode` and `ValueObjectType`, never
-  `AttemptedValue`; a subclass arrives as `ValueObjectException`.
+  `AttemptedValue`; a subclass arrives as `ValueObjectException`. Type a member, an argument or a result carrying one
+  `ValueObjectException` or `Exception`, never a subclass (`NotSupportedException` on write).
+- Where a peer over the primitives sends the same string twice in a message, read it into `T`, never `T?`: Orleans'
+  codec of a nullable value fails on the repeat (`ReferenceNotFoundException`, no code).
 - A call between grains of one silo copies its arguments: a default instance arrives there unchecked. A member the
   message leaves out holds the default instance: declare it `T?`.
 - Key a grain by the underlying value, `GetGrain<IOrderGrain>(orderId.Value)`, and read it back with

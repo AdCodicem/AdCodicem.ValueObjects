@@ -59,7 +59,8 @@ public sealed class OrleansCodecTests
             Optional = GrainSku.Create("opt-001"),
         };
 
-        // Each string a distinct instance, as each normalizer makes one: Orleans writes a string it met before as a reference.
+        // Each string a distinct instance, which Orleans writes in full, as the codec writes every text: Orleans writes a
+        // string it met before in the message as a reference to it.
         var plain = new PlainGrainOrder
         {
             Id = id,
@@ -99,16 +100,96 @@ public sealed class OrleansCodecTests
         Strict.Deserialize<GrainQuantity?>(Strict.SerializeToArray<GrainQuantity?>(null)).Should().BeNull();
     }
 
+    /// <summary>
+    /// A value object met twice in a message writes its text in full each time, where Orleans writes a string it met before
+    /// as a reference to it, which its codec of a nullable value object reads only as null: two members made from one
+    /// literal, which a normalizer returns unchanged, and one value twice in a list, an array or a dictionary of nullable
+    /// value objects read back, and a peer over the primitives reads them.
+    /// </summary>
     [Fact]
-    public void A_value_object_met_twice_is_written_as_a_reference_to_its_text_as_the_text_is()
+    public void A_value_object_met_twice_writes_its_text_in_full_each_time()
     {
-        var sku = GrainSku.Create("abc-123");
+        var sku = GrainSku.Create("ABC-123");
         var text = sku.Value;
+        text.Should().BeSameAs(GrainSku.Create("ABC-123").Value, "the normalizer returns a text it does not change");
 
         Strict.SerializeToArray(new GrainHolder<List<GrainSku>> { Value = [sku, sku] })
-            .Should().Equal(Bare.SerializeToArray(new GrainHolder<List<string>> { Value = [text, text] }));
-        Strict.Read<GrainHolder<List<GrainSku>>>(Strict.SerializeToArray(new GrainHolder<List<GrainSku>> { Value = [sku, sku] })).Value
+            .Should().Equal(Bare.SerializeToArray(new GrainHolder<List<string>> { Value = [Distinct(text), Distinct(text)] }));
+
+        var order = new GrainOrder { Sku = sku, Quantity = GrainQuantity.Create(1), Optional = GrainSku.Create("ABC-123") };
+        var written = Strict.SerializeToArray(order);
+        Strict.Read<GrainOrder>(written).Should().BeEquivalentTo(order);
+        Bare.Read<PlainGrainOrder>(written).Optional.Should().Be(text);
+
+        Strict.Read<GrainHolder<List<GrainSku?>>>(Strict.SerializeToArray(new GrainHolder<List<GrainSku?>> { Value = [sku, null, sku] })).Value
+            .Should().Equal(sku, null, sku);
+        Strict.Read<GrainHolder<GrainSku?[]>>(Strict.SerializeToArray(new GrainHolder<GrainSku?[]> { Value = [sku, sku] })).Value
             .Should().Equal(sku, sku);
+        Strict.Read<GrainHolder<Dictionary<GrainSku, GrainSku?>>>(
+                Strict.SerializeToArray(new GrainHolder<Dictionary<GrainSku, GrainSku?>> { Value = new() { [sku] = sku } })).Value
+            .Should().Equal(new Dictionary<GrainSku, GrainSku?> { [sku] = sku });
+    }
+
+    [Fact]
+    public void A_text_beyond_ASCII_is_written_as_its_UTF8_bytes_as_the_string_is()
+    {
+        var code = AliasedCode.Create("ñé€");
+
+        var written = Strict.SerializeToArray(new GrainHolder<AliasedCode> { Value = code });
+        written.Should().Equal(Bare.SerializeToArray(new GrainHolder<string> { Value = "ñé€" }));
+        Strict.Read<GrainHolder<AliasedCode>>(written).Value.Should().Be(code);
+    }
+
+    /// <summary>
+    /// A text written in full takes its place among the references of the message, as the string would, so a reference
+    /// written after it still points at what it named.
+    /// </summary>
+    [Fact]
+    public void A_text_written_in_full_keeps_the_references_after_it()
+    {
+        var shared = Distinct("shared");
+        var stock = new Dictionary<GrainSku, string> { [GrainSku.Create("ABC-123")] = shared, [GrainSku.Create("XYZ-999")] = shared };
+
+        Strict.Read<GrainHolder<Dictionary<GrainSku, string>>>(Strict.SerializeToArray(new GrainHolder<Dictionary<GrainSku, string>> { Value = stock })).Value
+            .Should().Equal(new Dictionary<GrainSku, string> { [GrainSku.Create("ABC-123")] = "shared", [GrainSku.Create("XYZ-999")] = "shared" });
+    }
+
+    /// <summary>
+    /// A text a peer over the primitives repeats, which Orleans writes as a reference to the first, reads into a value
+    /// object, but not into a nullable one: Orleans' own codec of a nullable value, which the package cannot replace, reads
+    /// a reference only as null. Pinned, so that an Orleans release reading it fails here first.
+    /// </summary>
+    [Fact]
+    public void A_text_a_primitive_peer_repeats_reads_into_a_value_object_but_not_into_a_nullable_one()
+    {
+        const string text = "ABC-123";
+
+        Strict.Read<GrainHolder<List<GrainSku>>>(Bare.SerializeToArray(new GrainHolder<List<string>> { Value = [text, text] })).Value
+            .Should().Equal(GrainSku.Create(text), GrainSku.Create(text));
+
+        var refusal = FluentActions.Invoking(() => Strict.Read<GrainHolder<List<GrainSku?>>>(
+                Bare.SerializeToArray(new GrainHolder<List<string?>> { Value = [text, text] })))
+            .Should().Throw<ReferenceNotFoundException>().Which;
+        ValueObjectErrors.TryGetCode(refusal, out _).Should().BeFalse("Orleans' own exception carries no code");
+    }
+
+    /// <summary>
+    /// A value object written by hand over a reference type other than <see cref="string"/> is written as Orleans writes
+    /// that type, an instance met before in the message as a reference to it: twice in a list it reads back, twice in a
+    /// list of nullable ones it does not, Orleans' codec of a nullable value reading a reference only as null.
+    /// </summary>
+    [Fact]
+    public void A_value_object_written_by_hand_over_another_reference_type_met_twice_does_not_read_as_a_nullable_one()
+    {
+        var serializer = Build(static builder => builder.AddValueObject<Declared<OrleansLinkDeclaration, Uri>, Uri>());
+        var link = Declared<OrleansLinkDeclaration, Uri>.Create(new Uri("https://example.com/orders"));
+
+        serializer.Read<GrainHolder<List<Declared<OrleansLinkDeclaration, Uri>>>>(
+                serializer.SerializeToArray(new GrainHolder<List<Declared<OrleansLinkDeclaration, Uri>>> { Value = [link, link] })).Value
+            .Should().Equal(link, link);
+        FluentActions.Invoking(() => serializer.Read<GrainHolder<List<Declared<OrleansLinkDeclaration, Uri>?>>>(
+                serializer.SerializeToArray(new GrainHolder<List<Declared<OrleansLinkDeclaration, Uri>?>> { Value = [link, link] })))
+            .Should().Throw<ReferenceNotFoundException>();
     }
 
     /// <summary>
@@ -139,6 +220,21 @@ public sealed class OrleansCodecTests
         }
 
         Strict.Deserialize<object>(Strict.SerializeToArray<object>(GrainSku.Create("abc-123"))).Should().Be(GrainSku.Create("abc-123"));
+    }
+
+    /// <summary>
+    /// A value object held by a member typed by an interface it implements is written with its type, as in a member typed
+    /// <see cref="object"/>, and reads back as itself.
+    /// </summary>
+    [Fact]
+    public void A_value_object_in_a_member_typed_by_an_interface_is_written_with_its_type_and_reads_back_as_itself()
+    {
+        var written = Strict.SerializeToArray(new GrainInterfaceBox { Comparable = GrainQuantity.Create(5), Any = GrainSku.Create("abc-123") });
+
+        Encoding.UTF8.GetString(written).Should().Contain(typeof(GrainQuantity).FullName).And.Contain(typeof(GrainSku).FullName);
+        var read = Strict.Read<GrainInterfaceBox>(written);
+        read.Comparable.Should().Be(GrainQuantity.Create(5));
+        read.Any.Should().Be(GrainSku.Create("ABC-123"));
     }
 
     /// <summary>
@@ -322,6 +418,9 @@ public sealed class OrleansCodecTests
         quantity.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(ValueObjectErrorCodes.OutOfRange);
         FluentActions.Invoking(() => Strict.SerializeToArray(new GrainBox { Value = default(GrainSku) }))
             .Should().Throw<SerializerException>().Which.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(ValueObjectErrorCodes.Required);
+        FluentActions.Invoking(() => Trusted.SerializeToArray(new GrainHolder<GrainQuantity> { Value = default }))
+            .Should().Throw<SerializerException>("the trust covers reads alone")
+            .Which.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(ValueObjectErrorCodes.OutOfRange);
 
         Strict.SerializeToArray(new GrainHolder<GrainAmount> { Value = default })
             .Should().Equal(Bare.SerializeToArray(new GrainHolder<decimal> { Value = 0m }));
@@ -428,6 +527,30 @@ public sealed class OrleansCodecTests
             .Which.Trusted.Should().BeFalse();
     }
 
+    /// <summary>
+    /// The type filter allows every value object and has no opinion on any other type, which Orleans then refuses as it
+    /// would without the package: an object whose header names a type that is no value object is not read.
+    /// </summary>
+    [Fact]
+    public void The_type_filter_allows_value_objects_and_leaves_every_other_type_to_Orleans()
+    {
+        var filter = new ValueObjectTypeFilter();
+        filter.IsTypeAllowed(typeof(GrainSku)).Should().BeTrue();
+        filter.IsTypeAllowed(typeof(Reference<OrleansCodecOwner>)).Should().BeTrue();
+        filter.IsTypeAllowed(typeof(FileInfo)).Should().BeNull();
+        filter.IsTypeAllowed(typeof(GrainOrder)).Should().BeNull();
+
+        // Written by a peer allowing the type, since a writer applies its own type filters.
+        using var permissive = Services(static builder => builder.Configure(static options => options.AddAllowedType(typeof(FileInfo))));
+        var crafted = Craft(permissive, (ref writer) =>
+        {
+            writer.WriteStartObject(0, typeof(object), typeof(FileInfo));
+            writer.WriteEndObject();
+        });
+        FluentActions.Invoking(() => Strict.Deserialize<object>(crafted)).Should().Throw<InvalidOperationException>()
+            .WithMessage("Type \"System.IO.FileInfo\" is not allowed.*");
+    }
+
     [Fact]
     public void Without_the_package_Orleans_finds_no_codec_for_a_value_object()
     {
@@ -453,6 +576,12 @@ public sealed class OrleansCodecOwner;
 
 /// <summary>The owner of the references a typed registration serializes, which nothing else names.</summary>
 public sealed class OrleansTypedOwner;
+
+/// <summary>A link written by hand over <see cref="Uri"/>, which a typed registration serializes and nothing else declares.</summary>
+public sealed class OrleansLinkDeclaration : IDeclaration<Uri>
+{
+    public static ValueObjectSchema Schema { get; } = ValueObjectSchema.Unconstrained;
+}
 
 /// <summary>A code of up to three characters, written by hand, which nothing else declares.</summary>
 public sealed class OrleansCodeDeclaration : IDeclaration<string>

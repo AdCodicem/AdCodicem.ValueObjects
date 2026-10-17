@@ -458,13 +458,17 @@ builder.Services.AddCodeFirstGrpc();
 
 Orleans has no codec for a value object: every grain call that takes or returns one fails on the caller with
 `CodecNotFoundException`, and `[GenerateSerializer]` on the value object writes it with no field, which loses the value
-(`VO0043`). `AdCodicem.ValueObjects.Orleans` writes each as Orleans writes its underlying value, byte for byte, with its
-type where a member typed `object` holds it, reads it back through its rules, and carries a refused request, a refused
-reply and a `ValueObjectException` a grain lets escape back to the caller with the rule's code
+(`VO0043`). `AdCodicem.ValueObjects.Orleans` writes each as Orleans writes its underlying value, byte for byte, a text
+in full even where Orleans would refer back to the same string, with its type where a member typed `object` holds it,
+reads it back through its rules, and carries a refused request, a refused reply and a `ValueObjectException` a grain lets
+escape back to the caller with the rule's code
 ([the Orleans guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/orleans)):
 
 ```csharp skip
+// In a silo's host
 builder.UseOrleans(silo => silo.Services.AddSerializer(serializer => serializer.AddValueObjects()));
+
+// In a client's host
 builder.UseOrleansClient(client => client.Services.AddSerializer(serializer => serializer.AddValueObjects()));
 ```
 

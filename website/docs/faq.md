@@ -263,8 +263,9 @@ request at once in a `google.rpc.BadRequest`, through `ValueObjectBadRequest`: [
 ### Does it work with Orleans?
 
 Through Orleans 10.4, with `AdCodicem.ValueObjects.Orleans`: `AddValueObjects()` on the serializer of every silo and
-client writes each value object in a grain call as Orleans writes its underlying value, byte for byte, with its type
-where a member typed `object` holds it, and reads it back through its rules unless asked to trust the cluster. A refused
+client writes each value object in a grain call as Orleans writes its underlying value, byte for byte, a text in full
+even where Orleans would refer back to the same string, with its type where a member typed `object` holds it, and reads
+it back through its rules unless asked to trust the cluster. A refused
 request, a refused reply and a `ValueObjectException` a grain lets escape reach the caller with the rule's code.
 Without it, every grain call holding a value object fails with `CodecNotFoundException`, and `[GenerateSerializer]` on
 the value object, which would lose the value, fails the build (`VO0043`). A call within one silo copies its arguments,

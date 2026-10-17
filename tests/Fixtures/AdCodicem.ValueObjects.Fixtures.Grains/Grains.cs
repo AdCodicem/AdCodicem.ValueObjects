@@ -71,6 +71,17 @@ public sealed class GrainBox
     public object? Value { get; set; }
 }
 
+/// <summary>Holds values in members typed by interfaces a value object implements, which Orleans writes with their type.</summary>
+[GenerateSerializer]
+public sealed class GrainInterfaceBox
+{
+    [Id(0)]
+    public IComparable? Comparable { get; set; }
+
+    [Id(1)]
+    public IValueObject? Any { get; set; }
+}
+
 /// <summary>An order of value objects, the twin of <see cref="PlainGrainOrder"/> member for member.</summary>
 [GenerateSerializer]
 public sealed class GrainOrder

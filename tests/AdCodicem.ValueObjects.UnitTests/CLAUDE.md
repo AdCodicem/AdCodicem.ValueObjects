@@ -101,7 +101,9 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   `Orleans.Hosting` and `Orleans.Runtime` into this project (through Microsoft.Orleans.Sdk): a type of the suite named
   like a public type of those namespaces is ambiguous (CS0104), so name it apart. Its generated `ApplicationPart` list
   is how a test cluster finds the fixture's grains. Orleans' `Deserialize<T>` returns `[MaybeNull]`: read a holder
-  through `OrleansWire.Read<T>`. Bytes no serializer writes are crafted field by field through `OrleansWire.Craft`.
+  through `OrleansWire.Read<T>`. Bytes no serializer writes are crafted field by field through `OrleansWire.Craft`; a
+  writer applies its own type filters, so bytes naming a type the reader must refuse go through `Craft(services, …)`
+  over services allowing that type.
 - Roslyn: this project alone takes `Microsoft.CodeAnalysis.CSharp` 5.0.0 (`Directory.Packages.props`), which NSwag's
   client compiles with, since Orleans brings `Microsoft.CodeAnalysis.Common` 5.0.0; the generator and GeneratorTests
   stay on 4.14.

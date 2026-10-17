@@ -164,8 +164,9 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   Every integration goes through `TryCreate` or `TryParse` and reports a refusal in its ecosystem's own terms, carrying
   the rule's code (`ValueObjectErrors.TryGetCode` reads it). `ValueObjectException` is thrown by `Create`, `Parse` and an
   explicit conversion, for code that treats a rejected value as a bug; of the integrations, only the EF Core converter
-  throws it to the caller (a refused write, a strict read). Misusing an integration (a member
-  of the wrong type, an unregistered type under native AOT) throws `InvalidOperationException` or
+  throws it to the caller (a refused write, a strict read); the Orleans package rebuilds on the caller one that a grain
+  lets escape, without `AttemptedValue` (`src/AdCodicem.ValueObjects.Orleans/CLAUDE.md`). Misusing an integration (a
+  member of the wrong type, an unregistered type under native AOT) throws `InvalidOperationException` or
   `NotSupportedException`, with no code. A change to what an integration throws updates
   `website/docs/reference/errors.md`, the reference for all of them.
 - **Validation is fail-fast**: the first violated rule wins.
