@@ -50,6 +50,7 @@ be corrected.
 | Model Context Protocol tools | the C# SDK: the rules in `inputSchema` and `outputSchema`, a refused tool argument answered with its code | no | no | no |
 | GraphQL (HotChocolate) | a scalar per value object, read through its rules, a refused value answered with its code in `extensions.code`; HotChocolate.Data filters every value object through its scalar's operations | no | no | no |
 | Blazor forms | an input per value object, read through its rules, its rule's message under the field and its code on the `EditContext` | no (8.0.7 and 9.0.0-beta.1 hold no `InputBase`) | no (1.0.0-beta08 holds none) | no (10.5.1 holds none) |
+| System.CommandLine | options and arguments read through the rules, the refused rule's message on the terminal and its code on the parse error | no (8.0.7 and 9.0.0-beta.1 hold nothing for System.CommandLine) | no (1.0.0-beta08 holds nothing for it) | no (10.5.1 holds nothing for it) |
 | Azure Functions isolated worker | route values, query values and binding data bound through the rules; a refused one in an HTTP trigger answered 400 with its code | no (8.0.7 ships no Functions code) | not checked | not checked |
 | Contract test kit for your own types | yes, with the values its schema rules out, on request | no | no | no |
 | Valid test data from the declared rules | AutoFixture, Bogus and FsCheck packages over a dependency-free sampler | no (Vogen#153, AutoFixture specimen builders, closed as not planned) | no | no |
@@ -76,7 +77,8 @@ of minimal APIs, native AOT included, for a route, query or header value, and fo
 on, to FluentValidation failures and to every exception an integration throws, so an API client branches on
 `value_object.too_long` rather than on English. The same code keys the message an application shows in its users'
 language, which MVC (for a route, query, header or form value, and a body System.Text.Json reads), minimal APIs, Azure
-Functions, HotChocolate, Blazor, FluentValidation and the DataAnnotations attributes look up in its translations with
+Functions, HotChocolate, Blazor, System.CommandLine, FluentValidation and the DataAnnotations attributes look up in its
+translations with
 the length, the bounds or the known values the type declares ([a message in the application's
 language](../reference/errors.md#a-message-in-the-applications-language)).
 

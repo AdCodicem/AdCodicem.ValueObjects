@@ -1,7 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Text;
 using AdCodicem.ValueObjects.Metadata;
 using AdCodicem.ValueObjects.Shared;
 
@@ -139,28 +138,6 @@ internal sealed class ValueObjectInputTexts<TSelf, TUnderlying> : ValueObjectInp
 internal sealed class ValueObjectInputText<TSelf, TUnderlying> : ValueObjectInputText<TSelf>
     where TSelf : struct, IValueObject<TSelf, TUnderlying>
 {
-    /// <summary>
-    /// Whether a formatting hook writes the value object's text, which may not read back: <c>21 °C</c> for a temperature.
-    /// </summary>
-    private static readonly bool Hooked = typeof(TSelf).IsAssignableTo(typeof(IValueObjectFormatter<TUnderlying>))
-                                          || typeof(TSelf).IsAssignableTo(typeof(IValueObjectStringFormatter<TUnderlying>));
-
-    /// <summary>
-    /// Whether the underlying type holds a date, which a culture reads in its own calendar: the Gregorian text the input
-    /// writes would read hundreds of years away in the Thai Buddhist or the Persian calendar.
-    /// </summary>
-    private static readonly bool Dated = typeof(TUnderlying) == typeof(DateOnly)
-                                         || typeof(TUnderlying) == typeof(DateTime)
-                                         || typeof(TUnderlying) == typeof(DateTimeOffset);
-
-    /// <summary>
-    /// The text of the bare underlying value, in the form its parser reads back, which the generated text of a value
-    /// object without a hook is written in too: a date or a time in its round-trip form, and anything else in its default
-    /// format, a duration's being its constant one.
-    /// </summary>
-    private static readonly CompositeFormat RoundTrip = CompositeFormat.Parse(
-        Dated || typeof(TUnderlying) == typeof(TimeOnly) ? "{0:O}" : "{0}");
-
     /// <summary>The HTML attributes of the rules, once an input asked for them.</summary>
     private static IReadOnlyDictionary<string, object>? s_attributes;
 
@@ -195,7 +172,7 @@ internal sealed class ValueObjectInputText<TSelf, TUnderlying> : ValueObjectInpu
     /// <returns><see langword="true"/> when the type accepts the text.</returns>
     internal static bool Read(string? text, CultureInfo culture, out TSelf result, out string code, out string? message)
     {
-        if (TSelf.TryParse(text, Dated ? Gregorian(culture) : culture, out result, out var validation))
+        if (ValueObjectText<TSelf, TUnderlying>.TryParse(text, culture, out result, out var validation))
         {
             code = string.Empty;
             message = null;
@@ -208,12 +185,6 @@ internal sealed class ValueObjectInputText<TSelf, TUnderlying> : ValueObjectInpu
             code = ValueObjectErrorCodes.Required;
             message = null;
             return false;
-        }
-
-        // A parser written by hand may refuse without a code, which the descriptor's parser gives it too.
-        if (validation.IsValid)
-        {
-            validation = ValidationResult.Failure(ValueObjectErrorCodes.NotParsable, $"The text could not be parsed as {typeof(TSelf).Name}.");
         }
 
         code = validation.ErrorCode!;
@@ -233,26 +204,7 @@ internal sealed class ValueObjectInputText<TSelf, TUnderlying> : ValueObjectInpu
             return string.Empty;
         }
 
-        return Hooked
-            ? string.Format(culture, RoundTrip, value.Value)
-            : value.ToString(null, culture);
-    }
-
-    /// <summary>
-    /// Gets the culture a date is read in: the culture itself where its calendar is the Gregorian one, the calendar of the
-    /// round-trip text the input writes, and otherwise a copy of it whose calendar is the Gregorian one, which every
-    /// culture lists, so that its patterns and names stay and a year typed is a Gregorian one.
-    /// </summary>
-    private static CultureInfo Gregorian(CultureInfo culture)
-    {
-        if (culture.DateTimeFormat.Calendar is GregorianCalendar)
-        {
-            return culture;
-        }
-
-        var gregorian = (CultureInfo)culture.Clone();
-        gregorian.DateTimeFormat.Calendar = new GregorianCalendar();
-        return gregorian;
+        return ValueObjectText<TSelf, TUnderlying>.Format(value, culture);
     }
 }
 

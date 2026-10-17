@@ -5,7 +5,7 @@ one package or one suite live in a `CLAUDE.md` of its own, next to the code (see
 
 ## What this is
 
-- Thirty-four NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct`
+- Thirty-five NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct`
   marked `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every
   boundary as its underlying type: an IBAN is a JSON string, a `VARCHAR`, a query-string parameter, never a wrapper
   object. Consumers write the value objects; this repository ships the frame.
@@ -26,8 +26,8 @@ Claude Code loads a nested `CLAUDE.md` when it reads a file under its folder.
 - `src/<Package>/CLAUDE.md` for every package with traps of its own: Abstractions, Generators (generator, analyzers),
   AspNetCore, AspNetCore.Http, AspNetCore.NewtonsoftJson, NewtonsoftJson, EntityFrameworkCore, Dapper, MongoDB,
   Identifiers.MongoDB, MessagePack, ProtobufNet, Grpc, Orleans, Serilog, AI, ModelContextProtocol, AzureFunctions,
-  AzureFunctions.AspNetCore, HotChocolate, HotChocolate.Data, Blazor, NJsonSchema, Swashbuckle, AutoFixture, Bogus,
-  FsCheck; `src/Shared/CLAUDE.md` for the source files several packages link.
+  AzureFunctions.AspNetCore, HotChocolate, HotChocolate.Data, Blazor, CommandLine, NJsonSchema, Swashbuckle,
+  AutoFixture, Bogus, FsCheck; `src/Shared/CLAUDE.md` for the source files several packages link.
 - `tests/<Suite>/CLAUDE.md` for each of the four suites, plus `tests/NativeAot/`, `tests/Compat/`, `tests/Fixtures/`.
 - `.github/CLAUDE.md` for workflows, scripts, Dependabot and release mechanics; `website/CLAUDE.md` for the site.
 - Record a new trap in the nearest of these files; at the root only when it crosses packages. One rule per bullet: the
@@ -79,7 +79,7 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   deprecate or remove public API, and a deprecation reads "any minor version may remove it before 1.0.0", never "the
   next major version". At 1.0, replace the first `releaseRules` entry with `{ "breaking": true, "release": "major" }`,
   never delete it, or `build(pack)!` and `docs(readme)!` fall back to a patch.
-- The thirty-four packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
+- The thirty-five packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
   supported in the same packages (ADR 0010).
 
 ## Architecture
@@ -117,12 +117,12 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   registry's reflection fallback, EF Core's converter of a `TSelf?` property or element, the JSON Patch dictionary
   adapter). The test is the source of truth; a new entry needs a reason there.
 - Code that only asks "is this a value object" calls `ValueObjectRegistry.IsValueObject` and resolves nothing (Serilog,
-  AI, MCP, the EF Core `.Value` translator, JSON Patch).
+  AI, MCP, the EF Core `.Value` translator, JSON Patch, the System.CommandLine walk).
 - The `native AOT` job runs the visitors of the JSON factory's general-purpose converter (for a hand-written value
-  object), the minimal API filter, `[NotDefault]`, the `[ParsesAs(typeof(T))]` lookup, the Blazor input, and
-  `EntityIdDescriptor.Accept`. Those of MVC, the EF Core conventions, Azure Functions, both HotChocolate packages,
-  NJsonSchema, protobuf-net's `AddValueObjects` and Orleans' codec selector run in no native binary, so a defect there
-  shows under the JIT only.
+  object), the minimal API filter, `[NotDefault]`, the `[ParsesAs(typeof(T))]` lookup, the Blazor input, the
+  System.CommandLine symbols, and `EntityIdDescriptor.Accept`. Those of MVC, the EF Core conventions, Azure Functions,
+  both HotChocolate packages, NJsonSchema, protobuf-net's `AddValueObjects` and Orleans' codec selector run in no native
+  binary, so a defect there shows under the JIT only.
 - A hand-written value object declares `Schema`: the registry describes it from that alone, and reads no annotation on
   it at run time.
 - The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them (it once flattened
@@ -170,20 +170,23 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   `NotSupportedException`, with no code. A change to what an integration throws updates
   `website/docs/reference/errors.md`, the reference for all of them.
 - **Validation is fail-fast**: the first violated rule wins.
-- **Messages stay English; an application localises them by code**, under `ValueObject.{code}`
-  (`ValueObjectMessages`), keeping the English message for a key it lacks. `KeysFor` tries
-  `….out_of_range.minimum` or `.maximum` first for a type declaring one bound. The arguments come from `TSelf.Schema`
-  (`ArgumentsFor`: lengths, bounds in the current culture, known values joined by the culture's list separator); the
-  refused value is never an argument; `{0}` is the member, the value object's type name in a JSON body, the scalar's name
-  for an operand of a HotChocolate.Data filter. No translation ships. Each integration's entry point is listed
-  in `website/docs/reference/errors.md`.
+- **Messages stay English; an application localises them by code**, under `ValueObject.{code}` (`ValueObjectMessages`),
+  keeping the English message for a key it lacks. `KeysFor` tries `….out_of_range.minimum` or `.maximum` first for a
+  type declaring one bound. The arguments come from `TSelf.Schema` (`ArgumentsFor`: lengths, bounds in the current
+  culture, known values joined by the culture's list separator); the refused value is never an argument; `{0}` is the
+  member, the value object's type name in a JSON body, the scalar's name for an operand of a HotChocolate.Data filter,
+  the option's alias as typed or the argument's name on a command line, the token's position after it, from zero, where
+  the symbol received several (`--ibans[1]` for the second, as gRPC's `skus[1]`; the English message counts from one,
+  "the 2nd value"). No translation ships. Each integration's entry point is listed in
+  `website/docs/reference/errors.md`.
 - **Rules are declared once, in `TSelf.Schema`.** Validation, the EF column, the CHECK constraints, the MongoDB
-  `$jsonSchema`, every OpenAPI and JSON Schema writer, the HotChocolate scalars, the Blazor input attributes, the XSD
-  facets, the test-data sampler and the message arguments all read it, so a new option of `[ValueObject<T>]` feeds every
-  one of them. A writer whose rule a server enforces (MongoDB validator, CHECK constraints, Blazor attributes) writes it
-  only where the target refuses no value the type accepts; a documentation schema keeps it strict. `Unicode = false`
-  describes storage, not acceptance: it feeds the EF Core conventions and the Dapper handler alone (`Schema.IsUnicode`),
-  and `VO0047` warns where the rules let a character outside ASCII through.
+  `$jsonSchema`, every OpenAPI and JSON Schema writer, the HotChocolate scalars, the Blazor input attributes, the
+  System.CommandLine descriptions and completions, the XSD facets, the test-data sampler and the message arguments all
+  read it, so a new option of `[ValueObject<T>]` feeds every one of them. A writer whose rule a server enforces (MongoDB
+  validator, CHECK constraints, Blazor attributes) writes it only where the target refuses no value the type accepts; a
+  documentation schema keeps it strict. `Unicode = false` describes storage, not acceptance: it feeds the EF Core
+  conventions and the Dapper handler alone (`Schema.IsUnicode`), and `VO0047` warns where the rules let a character
+  outside ASCII through.
 - **A pattern leaving .NET goes through `src/Shared/ValueObjectPatternSyntax.cs`**, which reads it into a tree and refuses
   what it cannot read with certainty; each dialect writes from the tree (`XsdPattern`, `SqlPattern`, `PcrePattern`,
   `EcmaScriptPattern`, `PatternSampler`). Never translate a pattern by rewriting its text.
@@ -217,12 +220,13 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   test it by compiling a snippet in GeneratorTests.
 - **A package namespace hides the root namespace of the same name.** Inside any `AdCodicem.ValueObjects.*` namespace,
   tests and the compatibility island included, `Swashbuckle`, `Serilog`, `MongoDB`, `MessagePack`, `Grpc`, `Orleans`,
-  `ModelContextProtocol`, `HotChocolate`, `NJsonSchema`, `AutoFixture`, `Bogus` and `FsCheck` resolve to the package, and
-  `AdCodicem.ValueObjects.Metadata` hides `Grpc.Core.Metadata` (CS0118). Name third-party types through usings at the top
-  of the file, or `global::X` in a body. For the same reason, never name a test folder, namespace or class after a
+  `ModelContextProtocol`, `HotChocolate`, `NJsonSchema`, `AutoFixture`, `Bogus`, `FsCheck` and `CommandLine`
+  (CommandLineParser's root namespace, never System.CommandLine's) resolve to the package, and
+  `AdCodicem.ValueObjects.Metadata` hides `Grpc.Core.Metadata` (CS0118). Name third-party types through usings at the
+  top of the file, or `global::X` in a body. For the same reason, never name a test folder, namespace or class after a
   library or a package (`Blazor`, `AI`, `HotChocolate`, `NJsonSchema`, `NSwag`, `Confluent`, `Azure`, `ProtoBuf`,
-  `ProtobufNet`, `Grpc`, `Orleans`, `ModelContextProtocol`, `MessagePack`, …): the unit suite's folders are named apart
-  (`tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`).
+  `ProtobufNet`, `Grpc`, `Orleans`, `ModelContextProtocol`, `MessagePack`, `CommandLine`, …): the unit suite's folders
+  are named apart (`tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`).
 - **A file of `src/Shared/` linked into two assemblies the unit suite sees is two internal types**, both visible through
   `InternalsVisibleTo`, so a test naming one is CS0433. Change a shared description once, there; the table of files,
   linking projects and how tests reach each copy is in `src/Shared/CLAUDE.md`.

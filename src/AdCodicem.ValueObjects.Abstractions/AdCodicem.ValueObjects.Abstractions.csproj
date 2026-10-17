@@ -9,6 +9,9 @@
   <ItemGroup>
     <!-- The reader of a .NET pattern, compiled into every package that writes one in another dialect: an XSD pattern here. -->
     <Compile Include="..\Shared\ValueObjectPatternSyntax.cs" Link="Shared\ValueObjectPatternSyntax.cs" />
+    <!-- The lookup of a refusal's message in the resource a DataAnnotations attribute names, through a ResourceManager,
+         with no services, which the System.CommandLine package compiles too. -->
+    <Compile Include="..\Shared\ValueObjectResourceMessages.cs" Link="Shared\ValueObjectResourceMessages.cs" />
   </ItemGroup>
 
 </Project>

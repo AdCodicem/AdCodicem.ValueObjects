@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The thirty-four packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The thirty-five packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -115,15 +115,19 @@ supply: the length, the bounds, the known values, formatted in the request's cul
 translations from a resource the application names, `AddValueObjects(messages => messages.UseResource<T>())` and
 `WithValueObjectProblemDetails(messages => messages.UseResource<T>())`, so do the HTTP triggers of Azure Functions,
 `UseValueObjectProblemDetails(messages => messages.UseResource<T>())`, a HotChocolate schema,
-`AddValueObjects(options => options.UseResource<T>())`, and the inputs of a Blazor form,
-`AddValueObjectInputs(options => options.UseResource<T>())`, FluentValidation reads them from its `LanguageManager`, and
+`AddValueObjects(options => options.UseResource<T>())`, the inputs of a Blazor form,
+`AddValueObjectInputs(options => options.UseResource<T>())`, and the options and arguments of a System.CommandLine
+command, `AcceptValueObjects(options => options.UseResource<T>())`, FluentValidation reads them from its
+`LanguageManager`, and
 DataAnnotations' `[ParsesAs]` and `[NotDefault]` from the resource their `ErrorMessageResourceType` names alone. No
 translation ships with the packages. The
 [errors reference](./reference/errors.md#a-message-in-the-applications-language) lists the keys and the arguments, with a
 French example, and the guides for [ASP.NET Core](./how-to/aspnet-core.md#messages-in-the-applications-language),
 [Azure Functions](./how-to/azure.md#messages-in-the-requests-language),
 [GraphQL](./how-to/graphql.md#messages-in-the-applications-language),
-[Blazor](./how-to/blazor.md#messages-in-the-applications-language), [FluentValidation](./how-to/fluentvalidation.md#messages-in-another-language)
+[Blazor](./how-to/blazor.md#messages-in-the-applications-language),
+[System.CommandLine](./how-to/files-and-command-line.md#messages-in-the-applications-language),
+[FluentValidation](./how-to/fluentvalidation.md#messages-in-another-language)
 and [DataAnnotations](./how-to/data-annotations.md#messages-in-another-language) the wiring.
 
 ### Can a value object be a dictionary key, or an EF Core key?
@@ -305,6 +309,18 @@ default instance, and none of the built-in inputs takes a value object. A static
 framework first, which answers a refused value with its own message, quoting the text, and refuses an empty optional
 value object: [Blazor forms](./how-to/blazor.md).
 
+### Does it work with System.CommandLine?
+
+Through `AdCodicem.ValueObjects.CommandLine`, whose `AcceptValueObjects()` reads every option and argument of a value
+object, its nullable type or a collection of it, in a command and its subcommands, through the rules, in the invariant
+culture unless told otherwise, a parent command's while a subcommand is validated. A refused value is a parse error
+naming the option and giving the rule's message, which an invocation writes to standard error before the help,
+returning 1 without running the action, and `TryGetValueObjectErrorCode` reads its code.
+Without it, System.CommandLine 2.0, which reads neither `TypeDescriptor` nor `IParsable<T>`, parses a valid value with
+no error and then throws from `GetValue`, and gives the flag syntax to `bool` alone. Spectre.Console.Cli reads the
+`TypeConverter`, and needs no package:
+[Files and command line](./how-to/files-and-command-line.md#systemcommandline).
+
 ### Does it work with `XmlSerializer`, `DataContractSerializer` or WCF?
 
 Once the assembly asks for it: `[assembly: ValueObjectXmlSerialization]` makes the generator implement
@@ -387,7 +403,8 @@ identifier's descriptor, the MVC model binder provider creates its binders, the 
 each parameter it explains, the Azure Functions converter the conversion of each value object a parameter binds and its
 middleware the check of each it explains, the HotChocolate type discovery handler the scalar of each value object a schema
 meets, the HotChocolate.Data type interceptor the operations of each value-object member a filter input meets, the NJsonSchema package the converter it writes a value object's examples through under Newtonsoft.Json
-settings, the Blazor input the text adapters of the value object it binds, the JSON converter factory closes the
+settings, the Blazor input the text adapters of the value object it binds, the System.CommandLine symbols the parser of
+the value object their option or argument holds, the JSON converter factory closes the
 general-purpose converter it gives a value object
 written by hand, the test-data sampler, the AutoFixture customization, the Bogus extensions and FsCheck's
 `MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
@@ -411,7 +428,10 @@ application's assembly rooted, and HotChocolate.Data's filtering of a struct has
 ([GraphQL](./how-to/graphql.md#native-aot)). The gRPC package is
 AOT-compatible, and CI's application serves a contract-first service with it. The Blazor package is AOT-compatible,
 and CI's application renders a form of every registered value object through `HtmlRenderer`; Microsoft.AspNetCore.Components
-warns for itself there ([Blazor](./how-to/blazor.md#native-aot-and-trimming)). The protobuf-net package is marked
+warns for itself there ([Blazor](./how-to/blazor.md#native-aot-and-trimming)). The System.CommandLine package is
+AOT-compatible, and CI's application parses a command of every registered value object with it
+([System.CommandLine](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-and-native-aot)). The
+protobuf-net package is marked
 AOT-compatible: its serializers run in protobuf-net's compile-time model, which CI publishes in an application of its
 own, whose generated code protobuf-net's annotations make warn, while its registration and its code-first binder serve
 protobuf-net's runtime model, which needs the JIT ([protobuf-net](./how-to/protobuf-net.md#native-aot)). The Orleans

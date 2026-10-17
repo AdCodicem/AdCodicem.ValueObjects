@@ -28,10 +28,11 @@ namespace AdCodicem.ValueObjects.Metadata;
 /// <c>WithValueObjectProblemDetails(messages =&gt; …)</c> on a minimal API,
 /// <c>UseValueObjectProblemDetails(messages =&gt; …)</c> on an Azure Functions HTTP trigger,
 /// <c>AddValueObjects(options =&gt; options.UseResource&lt;T&gt;())</c> on a HotChocolate schema,
-/// <c>AddValueObjectInputs(options =&gt; options.UseResource&lt;T&gt;())</c> for the inputs of a Blazor form, FluentValidation's
-/// <c>LanguageManager</c> under <c>MustParseAs</c>, <c>MustSatisfy</c> and <c>NotDefault</c>, and DataAnnotations'
-/// <see cref="Annotations.ParsesAsAttribute"/> and <see cref="Annotations.NotDefaultAttribute"/> under the resource
-/// their <c>ErrorMessageResourceType</c> names alone. It reads no annotation and closes no generic type at run time, so
+/// <c>AddValueObjectInputs(options =&gt; options.UseResource&lt;T&gt;())</c> for the inputs of a Blazor form,
+/// <c>AcceptValueObjects(options =&gt; options.UseResource&lt;T&gt;())</c> on the options and arguments of a
+/// System.CommandLine command, FluentValidation's <c>LanguageManager</c> under <c>MustParseAs</c>, <c>MustSatisfy</c> and
+/// <c>NotDefault</c>, and DataAnnotations' <see cref="Annotations.ParsesAsAttribute"/> and
+/// <see cref="Annotations.NotDefaultAttribute"/> under the resource their <c>ErrorMessageResourceType</c> names alone. It reads no annotation and closes no generic type at run time, so
 /// it runs in a native binary.
 /// </para>
 /// </remarks>

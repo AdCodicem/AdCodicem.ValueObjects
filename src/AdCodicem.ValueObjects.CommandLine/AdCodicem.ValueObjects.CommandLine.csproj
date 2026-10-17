@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.CommandLine</RootNamespace>
+    <Description>System.CommandLine support for AdCodicem value objects: the options and arguments of a value object, of its nullable type or of a collection of it read through the value object's rules, the refused rule's message on the terminal and its code on the parse error, the known values as completions, and the messages in the application's language on request. Built against System.CommandLine 2.0, and runs on 3.0. AOT-compatible.</Description>
+    <PackageTags>$(PackageTags);commandline;cli;system.commandline;console</PackageTags>
+
+    <!--
+      AOT-compatible, by the repository's default: each option or argument closes its parser over the value object through
+      the descriptor's visitor, never with MakeGenericType, and a value object nothing registered is described by
+      reflection only where the runtime supports dynamic code. System.CommandLine 2.0 is trimmable, and 3.0 declares
+      itself AOT-compatible; tests/NativeAot/AdCodicem.ValueObjects.NativeAot parses a command of every registered value
+      object natively.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Option<T>, Argument<T>, their CustomParser and the parse errors; its net8.0 asset depends on nothing. -->
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- How the text of a value object is read and written for a person, a date in the Gregorian calendar whatever the
+         culture's, which the Blazor package compiles too. -->
+    <Compile Include="..\Shared\ValueObjectText.cs" Link="Shared\ValueObjectText.cs" />
+    <!-- The lookup of a refusal's message in the resource UseResource<T>() names, through a ResourceManager, with no
+         services, which the contracts compile for their DataAnnotations attributes. -->
+    <Compile Include="..\Shared\ValueObjectResourceMessages.cs" Link="Shared\ValueObjectResourceMessages.cs" />
+    <!-- A type as C# names it, for the message of a symbol this package cannot read. -->
+    <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
+  </ItemGroup>
+
+</Project>

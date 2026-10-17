@@ -141,6 +141,11 @@
          Microsoft.Orleans.Serialization.Abstractions comes with it at exactly its version, and the Roslyn packages it lists
          though its assembly loads none; none is pinned here but Microsoft.CodeAnalysis.Analyzers, above. -->
     <PackageVersion Include="Microsoft.Orleans.Serialization" Version="10.4.0" />
+    <!-- The System.CommandLine package's floor, the version it is built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); its net8.0 asset depends on nothing.
+         3.0, whose version follows .NET 11's, runs the package as built (tests/Compat); its next major is a decision, not a
+         bump. -->
+    <PackageVersion Include="System.CommandLine" Version="2.0.13" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">

@@ -25,6 +25,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.HotChocolate` | HotChocolate 16: one GraphQL scalar per value object, read through its rules; a refused value answered with its code under `extensions.code`. AOT-compatible. |
 | `AdCodicem.ValueObjects.HotChocolate.Data` | HotChocolate.Data 16: every value object filtered through its scalar's operations, normalized, refused with its code, translated by EF Core; text operations on request. AOT-compatible code; HotChocolate.Data filtering does not run natively. |
 | `AdCodicem.ValueObjects.Blazor` | Blazor forms: `InputValueObject`, an input per value object read through its rules; the refused rule's message under the field, its code on the `EditContext`. AOT-compatible, installable in Blazor WebAssembly. |
+| `AdCodicem.ValueObjects.CommandLine` | System.CommandLine 2.0 and 3.0: options and arguments read through the rules; the refused rule's message on the terminal, its code on the parse error. AOT-compatible. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI: the rules in tool and structured-output schemas; a refused tool argument answered with its code. AOT-compatible. |
@@ -965,6 +966,61 @@ editContext.TryGetValueObjectErrorCode(FieldIdentifier.Create(() => Order.Iban),
   `RendererInfo("Server", true)`; prerendering: `RendererInfo("Static", false)` plus
   `SetAssignedRenderMode(RenderMode.InteractiveServer)` on the parameters; static: `RendererInfo("Static", false)`
   alone.
+
+## System.CommandLine
+
+`AdCodicem.ValueObjects.CommandLine`. Without it, an option of a value object parses with no error and `GetValue`
+throws, `--flag` alone is refused for one over `bool`, and `AcceptOnlyFromAmong` refuses text the normalizer would
+accept.
+
+```csharp skip
+using AdCodicem.ValueObjects.CommandLine;
+
+var iban = new Option<Iban>("--iban") { Required = true };
+var quantity = new Option<Quantity?>("--quantity");
+var root = new RootCommand { iban, quantity, new Command("pay") { new Argument<Iban>("account") } };
+root.AcceptValueObjects(o => o.UseResource<Messages>());   // after every option, argument and subcommand is added
+root.SetAction(result => Place(result.GetValue(iban), result.GetValue(quantity)));
+return root.Parse(args).Invoke();
+
+var single = new Option<Quantity>("--count").AcceptValueObject();   // one symbol, T inferred
+foreach (var error in root.Parse(args).Errors)
+{
+    error.TryGetValueObjectErrorCode(out var code);   // false for System.CommandLine's own errors
+}
+```
+
+- Call `AcceptValueObjects()` once the tree is complete: a symbol added afterwards is not read. It configures each
+  command once, subcommands and a parent's `Recursive` options included, and leaves alone other types and a symbol whose
+  `CustomParser` is set (under no dynamic code, register its value object even then); `AcceptValueObject()` throws for
+  such a symbol rather than replace its parser.
+- A parent command's options and arguments are read while the invoked subcommand is validated, once
+  `AcceptValueObjects()` reached it (System.CommandLine alone reads them at `GetValue`, inside the action). Configured
+  by `AcceptValueObject()` alone, under a subcommand no walk reached, their refusal throws at `GetValue`, with no code.
+- Shapes: `T`, `T?`, `T[]`, `List<T>`, `IEnumerable<T>`, `IReadOnlyList<T>`, for options and arguments. Another shape
+  holding a value object (`T?[]`) throws `InvalidOperationException` when configured; `HashSet<T>` is not detected.
+- A refusal is a parse error, `Option '--quantity': <rule message>` (`, the 2nd value` for one token of several,
+  counted from one; none for a single token), never quoting the text; an invocation writes it to standard error, shows
+  the help, returns 1 and runs no action. One value given several tokens by the application's arity reads each through
+  the rules, the last kept. Read the code with `TryGetValueObjectErrorCode`, the type with `TryGetValueObjectType`.
+  `GetValue` on a refused symbol throws System.CommandLine's `InvalidOperationException`, with no code.
+- Culture: invariant by default (`12,5` refused, never 125); `o.Culture = …` for a tool typed in one locale. Dates
+  read in the Gregorian calendar whatever the culture's.
+- An option left out: `T?` is `null`, `T` the default instance (no parser runs), `IReadOnlyList<T>` `null`, other
+  collections empty: declare `T?`, `Required`, or a `DefaultValueFactory`, whose value is not read again. Empty text is
+  a token the type's rules read (`AllowEmpty` accepts it), never `null`.
+- A value object over `bool` is a flag: `--x`, `--x false`, `--x:false`. Set its `DefaultValueFactory` before
+  `AcceptValueObjects()`. A positional argument right after the flag is read as its value and refused: put flags last,
+  or use `Option<bool>`.
+- Never call `AcceptOnlyFromAmong` on a value object: the known values become completions, the help lists a closed set
+  `<BE|FR|LU>`, and the rule refuses with `value_object.not_a_known_value`.
+- Messages: `UseResource<T>()`, keys `ValueObject.{code}` (as MVC), through a `ResourceManager` over the type's full
+  name (MVC's base name while `ResourcesPath` is unset), current UI culture; `{0}` is the alias typed or the argument's
+  name, `--ibans[1]` for the second of several tokens (counted from zero), bare for a single token.
+- Under no dynamic code, register a hand-written value object and a generic construction by hand
+  (`ValueObjectRegistry.Register<TSelf, TValue>(…)`) before configuring, or it throws `InvalidOperationException`.
+- `AdCodicem.ValueObjects.CommandLine` hides a root `CommandLine` namespace (CommandLineParser's) inside
+  `AdCodicem.ValueObjects.*` code; `using System.CommandLine;` is unaffected.
 
 ## OpenAPI
 

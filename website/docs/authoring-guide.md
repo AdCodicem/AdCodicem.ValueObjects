@@ -304,7 +304,10 @@ handler](./how-to/graphql.md#generic-value-objects-and-value-objects-written-by-
 never meets a construction by itself: `AddValueObject<TSelf, TValue>()` registers each on the model. [Orleans'
 codecs](./how-to/orleans.md#generic-value-objects-and-value-objects-written-by-hand) describe one by reflection the first
 time Orleans asks for it, or take one registered with `ValueObjectRegistry.Register<TSelf, TValue>()` or serialized with
-`AddValueObject<TSelf, TValue>()`. Under native AOT, where describing a construction by reflection is out
+`AddValueObject<TSelf, TValue>()`. [The System.CommandLine
+symbols](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-and-native-aot) describe one by
+reflection when a command is configured, or take one registered with `ValueObjectRegistry.Register<TSelf, TValue>()`.
+Under native AOT, where describing a construction by reflection is out
 of reach, register each construction a type-driven integration needs; the registration reads its schema off the type:
 
 ```csharp skip

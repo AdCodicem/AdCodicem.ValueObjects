@@ -9,7 +9,7 @@ is on, so this list is worth checking if something looks wired up but never happ
 `preview.yml` publishes a preview of every package to nuget.org every Monday at 07:15, Paris time, and whenever it is
 dispatched (**Actions → preview → Run workflow**, from `main`: a dispatch from another branch stops at its first
 job). It publishes only when a package input changed since the version nuget.org has from the nearest commit, and
-then all thirty-four packages at one version, or none.
+then all thirty-five packages at one version, or none.
 [ADR-0009](adr/0009-publish-previews-weekly-when-a-package-input-changed.md) has the reasoning.
 
 Each run says what it decided. The **compute the version** job prints the version semantic-release would give the
@@ -91,7 +91,7 @@ offering the higher one as the latest prerelease until a higher version ships.
 The first time `preview.yml` publishes, and after any change to its publish job, dispatch it rather than wait for
 Monday, and check:
 
-1. the thirty-four packages are on nuget.org at the version the run printed, and the publish job finished its wait for
+1. the thirty-five packages are on nuget.org at the version the run printed, and the publish job finished its wait for
    the listing;
 2. an assembly restored from nuget.org verifies, and the certificate comes from Sigstore's public-good instance:
 
@@ -216,7 +216,8 @@ Without them the release job stops at its first step, before anything is publish
 - **No framework major.** Semver-major updates of `Microsoft.EntityFrameworkCore*`, `Microsoft.AspNetCore.*`,
   `Microsoft.Extensions.*`, `Microsoft.OpenApi`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `HotChocolate*`,
   `Microsoft.Orleans.*` and `NJsonSchema*`, whose packages share one version and move together, in the `dotnet` group
-  or, for Microsoft's patch, by hand ([Routines](#routines)), are ignored, and so are those of five packages whose
+  or, for Microsoft's patch, by hand ([Routines](#routines)), are ignored, and so are those of `System.CommandLine`,
+  whose 3.0 ships with .NET 11 and runs the package built against 2.0 (the island runs it), and of five packages whose
   majors follow one of them: `dotnet-ef`, the local tool pinned to EF Core's version;
   `NSwag.*`, which the tests take and whose majors move with NJsonSchema's;
   `Swashbuckle.AspNetCore*`, whose next major moves to `Microsoft.OpenApi` 3; `Serilog.Extensions.Logging`, which
@@ -365,12 +366,13 @@ so it has no version to move at a release candidate. Dependabot never sees the i
   version), the seven `11.0.0-rc…` packages of `tests/Compat/Directory.Packages.props`
   (`Microsoft.EntityFrameworkCore.Sqlite`, `Microsoft.EntityFrameworkCore.SqlServer`,
   `Microsoft.AspNetCore.Mvc.NewtonsoftJson`, `Microsoft.AspNetCore.OpenApi`, `Microsoft.AspNetCore.TestHost`,
-  `Microsoft.AspNetCore.SignalR.Protocols.MessagePack`, `Microsoft.AspNetCore.SignalR.Client`) and
-  `Npgsql.EntityFrameworkCore.PostgreSQL`. Npgsql's provider pins EF Core to the exact build it was compiled against,
-  so moving one without the other fails the restore with NU1107. When Npgsql has not published its build for the new
-  release candidate yet, the SDK and the five ASP.NET Core packages move alone, and EF Core's two packages and Npgsql's
-  provider follow together once it has: the island is on the RC2 SDK and ASP.NET Core packages, EF Core and Npgsql on
-  RC1, since 2026-10-14.
+  `Microsoft.AspNetCore.SignalR.Protocols.MessagePack`, `Microsoft.AspNetCore.SignalR.Client`),
+  `Npgsql.EntityFrameworkCore.PostgreSQL`, and `System.CommandLine`, whose `3.0.0-rc…` version carries .NET's build
+  number and moves to `3.0.0` when .NET 11 ships. Npgsql's provider pins EF Core to the exact build it was compiled
+  against, so moving one without the other fails the restore with NU1107. When Npgsql has not published its build for
+  the new release candidate yet, the SDK and the five ASP.NET Core packages move alone, and EF Core's two packages and
+  Npgsql's provider follow together once it has: the island is on the RC2 SDK and ASP.NET Core packages, EF Core and
+  Npgsql on RC1, since 2026-10-14.
 - **When an advisory names a release candidate's package**, nothing flags it. Dependabot raises no alert, the island
   being out of its graph, and the island's restore does not fail either: nuget.org's audit data closes the release
   candidate's range at its bare label, `[11.0.0-preview.5, 11.0.0-rc.1]` for GHSA-86xp-94pg-8r6r, and NuGet sorts that
@@ -381,6 +383,7 @@ so it has no version to move at a release candidate. Dependabot never sees the i
   - `global.json` becomes `"version": "11.0.100"`, `"rollForward": "latestFeature"`, `"allowPrerelease": false`,
     after which `setup-dotnet` installs the latest 11.0 SDK by itself;
   - the eight packages move to `11.0.0`, Npgsql's provider included;
+  - `System.CommandLine` moves to `3.0.0`;
   - `compat (.NET 11)` joins the required status checks of the `Default` ruleset (id 23842638);
   - the comment in `ci.yml` that says the job is not a required check goes.
 - **When .NET 12 previews arrive**, moving the island to the next major, or adding a second one, is a decision of its

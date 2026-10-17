@@ -1,6 +1,6 @@
 # tests/Compat — the .NET compatibility island
 
-The thirty-four packages exactly as packed, installed from `artifacts/packages` at one fresh version into `net11.0`
+The thirty-five packages exactly as packed, installed from `artifacts/packages` at one fresh version into `net11.0`
 applications on the .NET 11 release candidate. It checks the packages, not the code. Runbook:
 `docs/maintaining.md`, "The .NET compatibility island".
 
@@ -30,6 +30,9 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
   `Internal` type changed upstream shows. It pins the .NET 11 side of the DataAnnotations hosts (`{Attribute}_Error`
   keys, an attribute's exception propagated, the member alone as display name) and of Blazor (messages read off the
   `EditContext`, never the markup; `ValidateAsync()`).
+- The System.CommandLine package, built against 2.0, runs on System.CommandLine 3.0's release candidate
+  (`CommandLineTests.cs`), whose version carries .NET's build number: bump it with the island's other .NET 11 packages,
+  and to 3.0.0 when .NET 11 ships.
 - The Orleans package is exercised at serializer level (`OrleansTests.cs`): it brings Orleans' serializer alone, and no
   grain, no Microsoft.Orleans.Sdk and no Orleans generator run here.
 - MessagePack's analyzer and protobuf-net's generator run in the SDK 11 compiler here: the island has its own
