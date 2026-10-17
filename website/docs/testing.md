@@ -17,14 +17,16 @@ Four suites, each with a distinct job:
   generator emits for every one of them runs rather than only compiles. Generated sources are emitted to disk
   during the build, so they can be read when diagnosing a failure instead of decompiled from memory. Value
   objects written by hand reach what the generator always replaces, such as the default members of the
-  contracts, and seven small fixture assemblies hold what the test assembly cannot: a generated value object whose
+  contracts, and eight small fixture assemblies hold what the test assembly cannot: a generated value object whose
   module has not been used yet, annotated value objects in an assembly the generator does not run on,
   generated value objects in an assembly that does not reference the JSON package, generated value objects of
   every underlying type in an assembly that opts into XML serialization, generated value objects beside a query
-  type HotChocolate's source generator binds, Blazor forms written in Razor markup, and `[LoggerMessage]` methods
-  Microsoft.Gen.Logging writes, beside value objects classified as personal data. What needs a server and no container runs
-  here too, over TestHost: ASP.NET Core's pipelines, a SignalR hub talking MessagePack with the .NET client, and a
-  protobuf-net.Grpc code-first service and a contract-first gRPC service with the .NET gRPC client; and
+  type HotChocolate's source generator binds, Blazor forms written in Razor markup, `[LoggerMessage]` methods
+  Microsoft.Gen.Logging writes, beside value objects classified as personal data, and grains whose codecs and proxies
+  Orleans' code generator writes. What needs a server and no container runs here too, over TestHost: ASP.NET Core's
+  pipelines, a SignalR hub talking MessagePack with the .NET client, and a protobuf-net.Grpc code-first service and a
+  contract-first gRPC service with the .NET gRPC client; over localhost, an Orleans cluster in process, a silo and its
+  client, and two silos; and
   over SQLite in memory: collections of value objects through Entity Framework Core, every sample value object among
   them stored and read back, queries over their elements translated, queries on `.Value` translated to the column,
   for every sample value object as the same query over its underlying type is, and the CHECK constraints written from
@@ -145,7 +147,9 @@ one and the Blazor one, all but
 the two HotChocolate ones, whose framework warns on its own publish and starts natively only rooted, and whose
 HotChocolate.Data filtering of a struct has no native code ([GraphQL](./how-to/graphql.md#native-aot)), and whose
 refusal of a value object nothing registered the unit suite runs instead under the JIT, in a child process whose
-runtime supports no dynamic code, and the protobuf-net one, which the third publishes. Its value
+runtime supports no dynamic code, the protobuf-net one, which the third publishes, and the Orleans one, since Orleans
+does not start natively, whose refusal of a value object nothing registered the unit suite runs under the JIT too. Its
+value
 objects cover each of the 22 underlying types, a pattern hook, a
 closed set, an identifier, a generic value object registered by hand, and two value objects written by hand, registered
 without a converter, which the JSON factory serves its general-purpose one, beside a third that nothing registers, which
@@ -185,7 +189,7 @@ the warnings the project lists, `aot-warnings.allowed`, and fails on any other, 
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the thirty-three packages exactly as they were packed — from the folder the build packs into, at that one
+installs the thirty-four packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -199,6 +203,7 @@ attribute's exception included,
 MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
 SignalR's MessagePack hub protocol 11 over TestHost, protobuf-net on a runtime model and on its compile-time model and
 a protobuf-net.Grpc code-first service over TestHost, a contract-first gRPC service answering through the gRPC package,
+Orleans' serializer,
 FluentValidation, Newtonsoft.Json through its settings and its contract resolver, Serilog, Microsoft.Extensions.AI
 tools and structured output, Model Context Protocol tools over the SDK's own client, the Azure Functions converter and
 the problem details middleware beside ASP.NET Core 11, HotChocolate 16 scalars in a schema built in process, their

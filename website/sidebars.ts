@@ -35,6 +35,7 @@ const sidebars: SidebarsConfig = {
         'how-to/messagepack',
         'how-to/protobuf-net',
         'how-to/grpc',
+        'how-to/orleans',
         'how-to/fluentvalidation',
         'how-to/data-annotations',
         'how-to/blazor',

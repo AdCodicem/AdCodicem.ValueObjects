@@ -44,7 +44,7 @@ be corrected.
 | FluentValidation | yes | third-party package | no | no |
 | DataAnnotations | raw text held to the type's rules (`[ParsesAs]`), a default instance refused (`[NotDefault]`), the rule's code on the result | no | no | no |
 | Dapper | yes | yes | through a template | no |
-| Other serializers and stores | Newtonsoft.Json; XML (`XmlSerializer`, `DataContractSerializer`, opted in per assembly, read with validation, rules in the XSD); MongoDB.Driver (BSON, `.Value` in LINQ, read with validation, rules in a `$jsonSchema` validator, entity identifiers minted on insert); MessagePack and SignalR's MessagePack hub protocol (bare values, read with validation); protobuf-net and protobuf-net.Grpc code-first services (the underlying type's wire, read with validation, a refused request answered `INVALID_ARGUMENT` with its code) | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
+| Other serializers and stores | Newtonsoft.Json; XML (`XmlSerializer`, `DataContractSerializer`, opted in per assembly, read with validation, rules in the XSD); MongoDB.Driver (BSON, `.Value` in LINQ, read with validation, rules in a `$jsonSchema` validator, entity identifiers minted on insert); MessagePack and SignalR's MessagePack hub protocol (bare values, read with validation); protobuf-net and protobuf-net.Grpc code-first services (the underlying type's wire, read with validation, a refused request answered `INVALID_ARGUMENT` with its code); Orleans grain calls (the underlying value's wire, read with validation, the rule code back at the caller) | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
 | Structured logging | Serilog: `{@X}`, and `{X}` on request, as the underlying value | no | no | Serilog destructuring policy, `{@X}` only |
 | Language-model tools and structured output | Microsoft.Extensions.AI: the rules in the schemas, a refused tool argument answered with its code | no | no | no |
 | Model Context Protocol tools | the C# SDK: the rules in `inputSchema` and `outputSchema`, a refused tool argument answered with its code | no | no | no |
@@ -127,7 +127,14 @@ SignalR's MessagePack hub protocol, and which reads through the type's rules unl
 here. None of the others writes a value object to protobuf: Vogen's conversions hold no protobuf member, and
 Thinktecture's ProtoBuf package stopped at a beta, 8.7.0-beta02, with no project left in its sources, where
 [this library's](../how-to/protobuf-net.md) writes each as protobuf-net writes its underlying type, reads it through its
-rules, and answers a refused request of a code-first gRPC service with its code.
+rules, and answers a refused request of a code-first gRPC service with its code. Vogen and this library both send a
+value object in an Orleans grain call as its underlying codec's bytes, apart: Vogen's `Conversions.Orleans`, measured on
+8.0.7 and 9.0.0-beta.1, registers itself through a generated type manifest provider, validates on read with an exception
+that carries no code, fails a value object held in a member typed `object`, `UnexpectedLengthPrefixValueException`, and
+does not compile for a value object in the global namespace, `CS0119`, where [this library's](../how-to/orleans.md) is
+registered on the serializer, writes the type where a member typed `object` holds the value object, carries the rule's
+code of a refused request, a refused reply and a `ValueObjectException` back to the caller, and takes a trust option;
+StronglyTypedId and Thinktecture have nothing for Orleans.
 
 **Thinktecture goes beyond single values.** Complex value objects with several members, smart enums and
 discriminated unions are out of scope here.

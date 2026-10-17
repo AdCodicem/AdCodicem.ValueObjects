@@ -5,7 +5,7 @@ one package or one suite live in a `CLAUDE.md` of its own, next to the code (see
 
 ## What this is
 
-- Thirty-three NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct`
+- Thirty-four NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct`
   marked `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every
   boundary as its underlying type: an IBAN is a JSON string, a `VARCHAR`, a query-string parameter, never a wrapper
   object. Consumers write the value objects; this repository ships the frame.
@@ -25,7 +25,7 @@ Claude Code loads a nested `CLAUDE.md` when it reads a file under its folder.
 
 - `src/<Package>/CLAUDE.md` for every package with traps of its own: Abstractions, Generators (generator, analyzers),
   AspNetCore, AspNetCore.Http, AspNetCore.NewtonsoftJson, NewtonsoftJson, EntityFrameworkCore, Dapper, MongoDB,
-  Identifiers.MongoDB, MessagePack, ProtobufNet, Grpc, Serilog, AI, ModelContextProtocol, AzureFunctions,
+  Identifiers.MongoDB, MessagePack, ProtobufNet, Grpc, Orleans, Serilog, AI, ModelContextProtocol, AzureFunctions,
   AzureFunctions.AspNetCore, HotChocolate, HotChocolate.Data, Blazor, NJsonSchema, Swashbuckle, AutoFixture, Bogus,
   FsCheck; `src/Shared/CLAUDE.md` for the source files several packages link.
 - `tests/<Suite>/CLAUDE.md` for each of the four suites, plus `tests/NativeAot/`, `tests/Compat/`, `tests/Fixtures/`.
@@ -79,7 +79,7 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   deprecate or remove public API, and a deprecation reads "any minor version may remove it before 1.0.0", never "the
   next major version". At 1.0, replace the first `releaseRules` entry with `{ "breaking": true, "release": "major" }`,
   never delete it, or `build(pack)!` and `docs(readme)!` fall back to a patch.
-- The thirty-three packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
+- The thirty-four packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
   supported in the same packages (ADR 0010).
 
 ## Architecture
@@ -121,7 +121,8 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 - The `native AOT` job runs the visitors of the JSON factory's general-purpose converter (for a hand-written value
   object), the minimal API filter, `[NotDefault]`, the `[ParsesAs(typeof(T))]` lookup, the Blazor input, and
   `EntityIdDescriptor.Accept`. Those of MVC, the EF Core conventions, Azure Functions, both HotChocolate packages,
-  NJsonSchema and protobuf-net's `AddValueObjects` run in no native binary, so a defect there shows under the JIT only.
+  NJsonSchema, protobuf-net's `AddValueObjects` and Orleans' codec selector run in no native binary, so a defect there
+  shows under the JIT only.
 - A hand-written value object declares `Schema`: the registry describes it from that alone, and reads no annotation on
   it at run time.
 - The unit tests exercise the typed path, so a defect confined to the descriptor is invisible to them (it once flattened
@@ -155,16 +156,17 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 
 - **Normalize, then validate, then assign**: a non-default instance is normalized and valid by construction. Only three
   paths skip validation through `CreateUnchecked`: EF Core and Dapper reads (values this application wrote), and the
-  temporary integer key `HasValueObjectKeyGeneration` hands EF Core (the database replaces it). Stores another program
-  may write validate on read unless the application opts into trust (MongoDB, MessagePack, protobuf-net); a `null` and a
-  value the underlying serializer cannot read are refused whatever the trust. The per-store detail is in each package's
-  `CLAUDE.md` and in `README.md`.
+  temporary integer key `HasValueObjectKeyGeneration` hands EF Core (the database replaces it). Stores and peers another
+  program may write validate on read unless the application opts into trust (MongoDB, MessagePack, protobuf-net,
+  Orleans); a `null` and a value the underlying serializer cannot read are refused whatever the trust. The per-store
+  detail is in each package's `CLAUDE.md` and in `README.md`.
 - **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on success.
   Every integration goes through `TryCreate` or `TryParse` and reports a refusal in its ecosystem's own terms, carrying
   the rule's code (`ValueObjectErrors.TryGetCode` reads it). `ValueObjectException` is thrown by `Create`, `Parse` and an
   explicit conversion, for code that treats a rejected value as a bug; of the integrations, only the EF Core converter
-  throws it to the caller (a refused write, a strict read). Misusing an integration (a member
-  of the wrong type, an unregistered type under native AOT) throws `InvalidOperationException` or
+  throws it to the caller (a refused write, a strict read); the Orleans package rebuilds on the caller one that a grain
+  lets escape, without `AttemptedValue` (`src/AdCodicem.ValueObjects.Orleans/CLAUDE.md`). Misusing an integration (a
+  member of the wrong type, an unregistered type under native AOT) throws `InvalidOperationException` or
   `NotSupportedException`, with no code. A change to what an integration throws updates
   `website/docs/reference/errors.md`, the reference for all of them.
 - **Validation is fail-fast**: the first violated rule wins.
@@ -214,12 +216,12 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   an `[Obsolete(error: true)]` either, and the compiler does not report one inside a member that is itself `[Obsolete]`:
   test it by compiling a snippet in GeneratorTests.
 - **A package namespace hides the root namespace of the same name.** Inside any `AdCodicem.ValueObjects.*` namespace,
-  tests and the compatibility island included, `Swashbuckle`, `Serilog`, `MongoDB`, `MessagePack`, `Grpc`,
+  tests and the compatibility island included, `Swashbuckle`, `Serilog`, `MongoDB`, `MessagePack`, `Grpc`, `Orleans`,
   `ModelContextProtocol`, `HotChocolate`, `NJsonSchema`, `AutoFixture`, `Bogus` and `FsCheck` resolve to the package, and
   `AdCodicem.ValueObjects.Metadata` hides `Grpc.Core.Metadata` (CS0118). Name third-party types through usings at the top
   of the file, or `global::X` in a body. For the same reason, never name a test folder, namespace or class after a
   library or a package (`Blazor`, `AI`, `HotChocolate`, `NJsonSchema`, `NSwag`, `Confluent`, `Azure`, `ProtoBuf`,
-  `ProtobufNet`, `Grpc`, `ModelContextProtocol`, `MessagePack`, …): the unit suite's folders are named apart
+  `ProtobufNet`, `Grpc`, `Orleans`, `ModelContextProtocol`, `MessagePack`, …): the unit suite's folders are named apart
   (`tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`).
 - **A file of `src/Shared/` linked into two assemblies the unit suite sees is two internal types**, both visible through
   `InternalsVisibleTo`, so a test naming one is CS0433. Change a shared description once, there; the table of files,
@@ -233,14 +235,20 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   `HandWrittenLink.cs`, `UnregisteredCode.cs`) by `tests/NativeAot`. Grep `Link=` before editing one.
 - **Native AOT compatibility is per package** (`IsAotCompatible`, true by default in `Directory.Build.props`).
   `tests/NativeAot` references every package that claims it, but HotChocolate (its framework warns on its own publish
-  and starts natively only rooted), HotChocolate.Data (its filtering of a struct has no native code) and ProtobufNet,
-  published by an application of its own.
+  and starts natively only rooted), HotChocolate.Data (its filtering of a struct has no native code), ProtobufNet,
+  published by an application of its own, and Orleans, which does not start natively.
 - **`src/AdCodicem.ValueObjects.Packages.slnf` lists every project under `src/`.** Previews and releases pack through it,
   so a project left out never ships; `ci.yml` fails when a packable project is missing. It sits under `src/` because
   `dotnet format` and `dotnet sln` refuse two solution files in one folder.
 - **Anything that changes a package's bytes or metadata is a `preview-gate.sh` input**, or it never reaches a preview;
   **a dependency added to a shipped package goes into `.github/shipped-dependencies`** in the same pull request, or CI
   fails. Both: `.github/CLAUDE.md`.
+- **Two Roslyn versions, both in `Directory.Packages.props`.** `Microsoft.CodeAnalysis.CSharp` 4.14.0 is the API the
+  generator is built against, the oldest compiler a consumer may use: never raise it to follow a dependency. The unit
+  suite alone takes 5.0.0, through a second `PackageVersion` conditioned on `$(MSBuildProjectName)`, since Orleans
+  brings `Microsoft.CodeAnalysis.Common` 5.0.0 there (NU1608 otherwise); `Microsoft.CodeAnalysis.Analyzers` sits at
+  Orleans' floor, 5.9.0, and transitive pinning lists it in the Orleans package's nuspec
+  (`.github/shipped-dependencies`).
 - **Required checks are job names**: `build and test`, `native AOT` (`ci.yml`) and `workflows` (`lint.yml`). Renaming
   one leaves every pull request waiting for a check that never reports.
 - **No NuGet lock files.** `Microsoft.SourceLink.GitHub` is referenced only under `GITHUB_ACTIONS == 'true'`, so the

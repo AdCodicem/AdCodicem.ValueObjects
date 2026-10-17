@@ -48,6 +48,12 @@ public sealed class SerializerContractAnalyzer : DiagnosticAnalyzer
     private const string ProfiledSerializerName = "AdCodicem.ValueObjects.ProtobufNet.ValueObjectProtoSerializer`3";
 
     /// <summary>
+    /// The registration of <c>AdCodicem.ValueObjects.Orleans</c>, whose reach decides whether the remedy of
+    /// <c>[GenerateSerializer]</c> says to reference the package.
+    /// </summary>
+    private const string OrleansExtensionsName = "AdCodicem.ValueObjects.Orleans.ValueObjectSerializerBuilderExtensions";
+
+    /// <summary>
     /// What <c>DataContractSerializer</c> calls in place of reading the fields: the generator implements it under
     /// <c>[assembly: ValueObjectXmlSerialization]</c>, and an author may implement it by hand.
     /// </summary>
@@ -213,7 +219,11 @@ public sealed class SerializerContractAnalyzer : DiagnosticAnalyzer
             Contract.GenerateSerializer => (
                 ContractLosesTheValue,
                 "Orleans writes it with no field and reads it back as a default instance",
-                "Remove the attribute, and give the value object a surrogate registered with [RegisterConverter]"),
+                RequestDelegateGeneratorAnalyzer.Reachable(compilation, OrleansExtensionsName) is null
+                    ? "Remove the attribute, reference AdCodicem.ValueObjects.Orleans and call AddValueObjects() on the "
+                        + "serializer of every silo and client"
+                    : "Remove the attribute: AddValueObjects() of AdCodicem.ValueObjects.Orleans serializes the value object "
+                        + "as its underlying value"),
             Contract.ProtoContract when Copied(type, attribute) => (
                 ContractLosesTheValue,
                 $"protobuf-net refuses it: the serializer it names is not closed over '{type.ToDisplayString(TypeFormat)}'",

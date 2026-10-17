@@ -18,10 +18,10 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
 - Folders, named apart from the packages and libraries they test (root `CLAUDE.md`): `Web/` (MVC, minimal APIs, OpenAPI,
   Swashbuckle, NSwag, JSON Patch, DataAnnotations through hosts), `Persistence/` (EF Core, Dapper, MongoDB),
   `BinarySerialization/` (MessagePack; protobuf-net as `Proto*`; gRPC as `CodeFirstGrpc*` and `ContractFirstGrpc*`),
-  `GraphQL/` (HotChocolate, HotChocolate.Data), `Forms/` (Blazor), `Functions/` (Azure Functions), `LanguageModels/`
-  (Microsoft.Extensions.AI, Model Context Protocol as `Mcp*`), `Logging/` (Serilog, Microsoft.Gen.Logging redaction),
-  `SchemaGeneration/` (NJsonSchema, Confluent), `DataAnnotations/`, `TestData/` (the sampler and its three adapters),
-  `XmlSerialization/`, `Identifiers/`.
+  `Grains/` (Orleans), `GraphQL/` (HotChocolate, HotChocolate.Data), `Forms/` (Blazor), `Functions/` (Azure Functions),
+  `LanguageModels/` (Microsoft.Extensions.AI, Model Context Protocol as `Mcp*`), `Logging/` (Serilog,
+  Microsoft.Gen.Logging redaction), `SchemaGeneration/` (NJsonSchema, Confluent), `DataAnnotations/`, `TestData/` (the
+  sampler and its three adapters), `XmlSerialization/`, `Identifiers/`.
 - `EmitCompilerGeneratedFiles` is on: generated sources land under `artifacts/obj/AdCodicem.ValueObjects.UnitTests/…/generated/`
   — read them when diagnosing emission.
 - Fixtures the test assembly cannot hold, because the generator runs on it and its module initializer has run before any
@@ -69,6 +69,12 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
 - FluentValidation's language manager is global: such tests join the `FluentValidationGlobalOptions` collection and restore
   what they set.
 - EF Core builds a model once per context type: each model shape gets a context type of its own.
+- Orleans: serializers are built per test configuration (`Grains/OrleansWire`), none process-wide; `OrleansParity`
+  checks each sample through `AddValueObjects()` strict and `AddValueObject<TSelf, TValue>(trusted: true)`, a serializer
+  per type built once. Grain calls go through `GrainCluster`, one in-process cluster per test class (about 1.5 s the
+  first time, 0.3 s after); a test needing another configuration starts its own with `GrainCluster.StartAsync` and
+  disposes of it. A generic value object or one written by hand that a boxed path resolves is closed over a marker or a
+  declaration of the test's own (`OrleansCodecOwner`, `OrleansCodeDeclaration`, …).
 - `RuntimeFeature.IsDynamicCodeSupported` is read once per process: `WithoutDynamicCode` (at the suite's root) runs a test
   again in a child process whose runtime configuration turns dynamic code off. Such a test creates no NSubstitute proxy
   and no EF Core context, neither of which works there.
@@ -91,6 +97,16 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
 - HotChocolate: `GraphQL/GraphQLHarness` builds executors in process. The project sets `HotChocolateImplicitUsings` to
   `disable`. `ScopedFilterQuery` has no projection (a `[UseProjection]` field beside a named convention fails the schema).
 - `RegisteredAsciiDeclaration` is the one schema written by hand that a test resolves through the registry.
+- Orleans: Microsoft.Orleans.TestingHost brings Orleans' code generator, its analyzers and global usings of `Orleans`,
+  `Orleans.Hosting` and `Orleans.Runtime` into this project (through Microsoft.Orleans.Sdk): a type of the suite named
+  like a public type of those namespaces is ambiguous (CS0104), so name it apart. Its generated `ApplicationPart` list
+  is how a test cluster finds the fixture's grains. Orleans' `Deserialize<T>` returns `[MaybeNull]`: read a holder
+  through `OrleansWire.Read<T>`. Bytes no serializer writes are crafted field by field through `OrleansWire.Craft`; a
+  writer applies its own type filters, so bytes naming a type the reader must refuse go through `Craft(services, …)`
+  over services allowing that type.
+- Roslyn: this project alone takes `Microsoft.CodeAnalysis.CSharp` 5.0.0 (`Directory.Packages.props`), which NSwag's
+  client compiles with, since Orleans brings `Microsoft.CodeAnalysis.Common` 5.0.0; the generator and GeneratorTests
+  stay on 4.14.
 - `NSwag.OpenApiDocument` meets the suite's `Web.OpenApiDocument`: alias it (`NSwagOpenApiDocument`, as
   `NSwagDocumentTests` does).
 - MCP: `LanguageModels/McpHarness` runs a server and the SDK's client over a pair of pipes. Experimental-API diagnostics

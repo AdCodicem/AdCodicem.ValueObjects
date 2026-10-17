@@ -6,7 +6,7 @@ site, and the decisions that were costly to reverse are recorded in [`docs/adr/`
 
 ## What the repository ships
 
-Thirty-three NuGet packages for single-value DDD value objects. A `readonly partial struct` marked `[ValueObject<T>]`
+Thirty-four NuGet packages for single-value DDD value objects. A `readonly partial struct` marked `[ValueObject<T>]`
 gets its whole implementation from a Roslyn incremental generator, and crosses every boundary as its underlying
 type: an IBAN is a JSON string, a `VARCHAR`, and a query-string parameter — never an object wrapper. Consumers
 define their own value objects; this repository ships the frame.
@@ -14,7 +14,7 @@ define their own value objects; this repository ships the frame.
 ## Layout
 
 ```
-src/          the thirty-three shipped packages
+src/          the thirty-four shipped packages
 tests/        four suites with distinct jobs (see below)
   NativeAot/  applications CI publishes with native AOT and compiles an EF Core model for
   Compat/     the packed packages in .NET 11 applications, outside the solution
@@ -94,10 +94,11 @@ This distinction is where bugs hide, so it is worth knowing before changing anyt
   MessagePack resolver the formatter MessagePack asks it for, which writes through the options' formatter of the
   underlying type, protobuf-net's `AddValueObjects` the closed serializer type of each value object it registers, named
   with `typeof` over the visitor's type arguments, which writes through protobuf-net's own serializer of the underlying
-  type, the HotChocolate type discovery handler the scalar of each value object a schema meets, the HotChocolate.Data
-  type interceptor the operations of each value-object member a filter input meets, the NJsonSchema package the
-  System.Text.Json converter through which it writes a value object's examples, bounds and known values as the
-  Newtonsoft.Json settings of a schema write them, DataAnnotations' `[NotDefault]` its check of
+  type, the Orleans codec selector the codec Orleans asks it for, which writes through Orleans' own codec of the
+  underlying type, the HotChocolate type discovery handler the scalar of each value object a schema meets, the
+  HotChocolate.Data type interceptor the operations of each value-object member a filter input meets, the NJsonSchema
+  package the System.Text.Json converter through which it writes a value object's examples, bounds and known values as
+  the Newtonsoft.Json settings of a schema write them, DataAnnotations' `[NotDefault]` its check of
   the default instance, closed once per type, and the Blazor input the two text adapters of the value object it binds,
   plain and nullable, which it finds as `[ParsesAs(typeof(T))]` does, through a visitor that is not generic, so that a
   native binary holds one closing per value object. The JSON Patch adapters of `TryApplyTo`, in
@@ -135,14 +136,16 @@ actually fired. `DescriptorTests.cs` covers that surface.
   into a value object over another type, or a number read into one over `string`. MongoDB reads the other way round,
   strict unless the serializer is trusted (`ValueObjectBson.Register(trusted: true, …)`), since a collection has no
   schema and is often written by more than one program; so do MessagePack, strict unless trusted
-  (`WithValueObjects(trusted: true)`), and protobuf-net, strict unless trusted (`AddValueObjects(trusted: true, …)`, a
-  trusted profile), since the bytes may come from another service or a client.
+  (`WithValueObjects(trusted: true)`), protobuf-net, strict unless trusted (`AddValueObjects(trusted: true, …)`, a
+  trusted profile), and Orleans, strict unless trusted (`AddValueObjects(trusted: true)` on the serializer of a silo or
+  a client), since the bytes may come from another service or a client.
 - **Rejection is not an exception on a boundary.** `ValidationResult` is a struct that allocates nothing on success. The
   integrations go through `TryCreate` or `TryParse` and report a refusal in their own terms: a `JsonException` or
   `JsonSerializationException`, a model state error, a JSON Patch document's keyed by the path of its operation, the
   validation problem of a minimal API, a FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver
   `FormatException` or `BsonSerializationException`, a MessagePack
-  `MessagePackSerializationException`, a protobuf-net `ProtoException`, the `INVALID_ARGUMENT` a gRPC service answers,
+  `MessagePackSerializationException`, a protobuf-net `ProtoException`, an Orleans `SerializerException`, carried back
+  to the caller of a grain, the `INVALID_ARGUMENT` a gRPC service answers,
   through the protobuf-net package's code-first binder or the gRPC package's interceptor and collector, whose
   `google.rpc.ErrorInfo` or `google.rpc.BadRequest` carries the code, an `XmlException` from `XmlSerializer` or `DataContractSerializer` in an assembly
   marked `[assembly: ValueObjectXmlSerialization]`, the result of a Microsoft.Extensions.AI tool, which a model reads as
@@ -154,9 +157,11 @@ actually fired. `DescriptorTests.cs` covers that surface.
   `ValueObjectErrors.TryGetCode` reads, and a validation message under a Blazor form's field, its code on the form's
   `EditContext`, which `TryGetValueObjectErrorCode` reads. Under `UseValueObjectCheckErrors()`, the
   database provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the
-  constraint's name, which ends with its rule. The one that throws `ValueObjectException` is
-  a strict EF Core read, which goes through `Create` and fails the query; `Create`, `Parse` and an explicit conversion
-  throw it for code that treats a rejected value as a bug. The [error reference](website/docs/reference/errors.md) names
+  constraint's name, which ends with its rule. Of the integrations, the EF Core converter throws
+  `ValueObjectException`, for a refused write and for a strict read, which goes through `Create` and fails the query,
+  and the Orleans package rebuilds on the caller one that a grain lets escape, without `AttemptedValue`; `Create`,
+  `Parse` and an explicit conversion throw it for code that treats a rejected value as a bug. The
+  [error reference](website/docs/reference/errors.md) names
   what each integration throws. Validation is fail-fast: the first violated rule wins. The message of a rule stays
   English; its code keys the one an application shows in its users' language, `ValueObject.{code}`, which MVC, minimal
   APIs, the HTTP triggers of Azure Functions, a HotChocolate schema's error filter and the Blazor input read from the
@@ -204,11 +209,11 @@ actually fired. `DescriptorTests.cs` covers that surface.
 
 | Suite | Job |
 |---|---|
-| `UnitTests` | Behaviour of generated code, over value objects defined in `Domain/` — one per underlying type and per option or hook — and of every integration package called directly, a SignalR hub, a protobuf-net.Grpc code-first service and a contract-first gRPC service over TestHost, and collections of value objects, keys generated or refused when a `Guid` one is left unset, queries on `.Value` and CHECK constraints on SQLite in memory, the code of the rule a refused row broke among them, included; seven fixture assemblies hold what the test assembly cannot, value objects of an assembly that opts into XML serialization, value objects beside a query type HotChocolate's source generator binds, Blazor forms written in Razor markup and `[LoggerMessage]` methods Microsoft.Gen.Logging writes, beside value objects classified as personal data, among them. Its property-based tests draw the values each type accepts with the test-data sampler, through the FsCheck package's arbitraries, the AutoFixture, Bogus and FsCheck packages fill objects holding value objects, every contract of `Domain/` checks the values its schema rules out, Microsoft.Extensions.AI tools are called by a scripted model, the OpenAI adapter's strict-mode request captured with no network, the Azure Functions converter and problem details middleware run over the worker's own abstractions, HotChocolate schemas built in process and over TestHost take every value object of `Domain/` as a scalar of its own, and HotChocolate.Data filters every one through its scalar on SQLite and in memory, the DataAnnotations attributes hold every value object's text to its rules through `Validator`, options validation, `ObservableValidator`, MVC and `AddValidation()`, NJsonSchema's generators, NSwag's documents over TestHost and Confluent's serdes over a substitute registry client describe every value object as its underlying type, what each serializer writes of it validating against the schema, and Blazor forms, through bUnit and, statically rendered, over TestHost, read every value object's text through its rules. |
+| `UnitTests` | Behaviour of generated code, over value objects defined in `Domain/` — one per underlying type and per option or hook — and of every integration package called directly, a SignalR hub, a protobuf-net.Grpc code-first service and a contract-first gRPC service over TestHost, Orleans grain calls through an in-process cluster over localhost, and collections of value objects, keys generated or refused when a `Guid` one is left unset, queries on `.Value` and CHECK constraints on SQLite in memory, the code of the rule a refused row broke among them, included; eight fixture assemblies hold what the test assembly cannot, value objects of an assembly that opts into XML serialization, value objects beside a query type HotChocolate's source generator binds, Blazor forms written in Razor markup, `[LoggerMessage]` methods Microsoft.Gen.Logging writes, beside value objects classified as personal data, and grains Orleans' code generator writes codecs and proxies for, among them. Its property-based tests draw the values each type accepts with the test-data sampler, through the FsCheck package's arbitraries, the AutoFixture, Bogus and FsCheck packages fill objects holding value objects, every contract of `Domain/` checks the values its schema rules out, Microsoft.Extensions.AI tools are called by a scripted model, the OpenAI adapter's strict-mode request captured with no network, the Azure Functions converter and problem details middleware run over the worker's own abstractions, HotChocolate schemas built in process and over TestHost take every value object of `Domain/` as a scalar of its own, and HotChocolate.Data filters every one through its scalar on SQLite and in memory, the DataAnnotations attributes hold every value object's text to its rules through `Validator`, options validation, `ObservableValidator`, MVC and `AddValidation()`, NJsonSchema's generators, NSwag's documents over TestHost and Confluent's serdes over a substitute registry client describe every value object as its underlying type, what each serializer writes of it validating against the schema, and Blazor forms, through bUnit and, statically rendered, over TestHost, read every value object's text through its rules. |
 | `GeneratorTests` | The generator itself: emission, every diagnostic, hook detection, the analyzers, incremental caching, and every published documentation snippet. |
 | `IntegrationTests` | Real PostgreSQL and SQL Server (2022, and 2025 for `REGEXP_LIKE`) via Testcontainers, asserting against `information_schema`, a collection of value objects included, a prefix search on `.Value` reading the column itself, keys typed as value objects generated as each provider generates a key of their underlying type, and the CHECK constraints written from the rules accepting every value each type accepts and refusing another writer's row, and a row the context writes with the code of its rule, in every language SQL Server writes its messages in, patterns included, a value object declaring `Unicode = false` stored in `varchar` and compared through `varchar` parameters from EF Core and Dapper, an Always Encrypted `varchar` column included, the audit of the rows a migration to it converts and the migration of a key, HotChocolate.Data's filters over value objects translated to their columns, plus the API surface end to end; and a real MongoDB server, storing every underlying type MongoDB.Bson can represent as its primitive does, refusing the two 128-bit integers, answering each LINQ and `Builders` shape over value objects, applying the `$jsonSchema` validator built from the rules, and minting entity identifiers on insert; and the Azure Functions host in Microsoft's `dotnet-isolated` image, with Azurite, binding route values, query values and queue binding data through the rules and answering a refused HTTP value with its code. |
 | `RdgTests` | Minimal API endpoints whose binding the Request Delegate Generator writes, over value objects declared in the endpoints' own project, which list their contract (`VO0033`), the problem details their refusals are answered with, and the DataAnnotations attributes validated by `AddValidation()` over that binding. |
-| `tests/NativeAot` | Not a suite: an application referencing every AOT-compatible package but the two HotChocolate ones and the protobuf-net one, a Blazor form of every registered value object rendered through `HtmlRenderer` among its scenarios, run under the JIT and as a native AOT binary by the `native AOT` job of `ci.yml`, a required check, which fails on a trimming or AOT warning but the two Microsoft.AspNetCore.Components reports for itself, or on any difference between the two outputs; protobuf-net's compile-time model, in an application of its own run the same way, which fails on any warning but the ones its generated code is known to raise; and an EF Core model compiled with `dotnet ef dbcontext optimize`, taken on a round trip through SQL Server and published for native AOT. |
+| `tests/NativeAot` | Not a suite: an application referencing every AOT-compatible package but the two HotChocolate ones, the protobuf-net one and the Orleans one, which Orleans' own failure to start natively keeps out, a Blazor form of every registered value object rendered through `HtmlRenderer` among its scenarios, run under the JIT and as a native AOT binary by the `native AOT` job of `ci.yml`, a required check, which fails on a trimming or AOT warning but the two Microsoft.AspNetCore.Components reports for itself, or on any difference between the two outputs; protobuf-net's compile-time model, in an application of its own run the same way, which fails on any warning but the ones its generated code is known to raise; and an EF Core model compiled with `dotnet ef dbcontext optimize`, taken on a round trip through SQL Server and published for native AOT. |
 | `tests/Compat` | Not a suite of the solution: the packages exactly as packed, installed into `net11.0` applications on the .NET 11 release candidate, the Swashbuckle package into one of its own, with its own `global.json` and package versions. Run by the `compat (.NET 11)` job of `ci.yml`, informational until .NET 11 ships. |
 
 `GeneratorTests` drives Roslyn directly through `Harness/GeneratorHarness.cs` rather than through
@@ -237,5 +242,5 @@ build's own dependencies are pinned, and why NuGet lock files are not part of it
 [ADR-0005](docs/adr/0005-version-the-documentation-site.md) records how the documentation site follows the same
 two tracks: every `preview.yml` run redeploys the preview pages, and each stable release freezes its own.
 [ADR-0010](docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md) records the versioning
-policy: one version for the thirty-three packages, never aligned with .NET, and a framework's next major supported in
+policy: one version for the thirty-four packages, never aligned with .NET, and a framework's next major supported in
 the same packages.

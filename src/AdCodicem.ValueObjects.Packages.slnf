@@ -32,6 +32,7 @@
       "src/AdCodicem.ValueObjects.NJsonSchema/AdCodicem.ValueObjects.NJsonSchema.csproj",
       "src/AdCodicem.ValueObjects.NewtonsoftJson/AdCodicem.ValueObjects.NewtonsoftJson.csproj",
       "src/AdCodicem.ValueObjects.OpenApi/AdCodicem.ValueObjects.OpenApi.csproj",
+      "src/AdCodicem.ValueObjects.Orleans/AdCodicem.ValueObjects.Orleans.csproj",
       "src/AdCodicem.ValueObjects.ProtobufNet/AdCodicem.ValueObjects.ProtobufNet.csproj",
       "src/AdCodicem.ValueObjects.Serilog/AdCodicem.ValueObjects.Serilog.csproj",
       "src/AdCodicem.ValueObjects.Swashbuckle/AdCodicem.ValueObjects.Swashbuckle.csproj",

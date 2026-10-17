@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.Orleans</RootNamespace>
+    <Description>Orleans serialization for AdCodicem value objects: each written in a grain call as Orleans writes its underlying value, read back through the value object's rules by default, a value the type refuses never written, and the refused rule's code carried back to the caller.</Description>
+    <PackageTags>$(PackageTags);orleans;actors;grains;serialization</PackageTags>
+
+    <!--
+      AOT-compatible, by the repository's default: each codec is closed over its value object through the descriptor's
+      visitor, never with MakeGenericType, and a value object nothing registered is described by reflection only where
+      the runtime supports dynamic code. Orleans 10.4 does not start natively (AddSerializer fails to load its own
+      assemblies), and with dynamic code off its dependency injection cannot resolve the codec of a value type through
+      its open generic services: tests/NativeAot leaves this package out until Orleans runs natively.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- IFieldCodec, ISpecializableCodec, ITypeFilter and ISerializerBuilder: the serializer alone, not Orleans.Core, so
+         that every silo and every client takes the package, and no Orleans code generator reaches the application's
+         build through it. -->
+    <PackageReference Include="Microsoft.Orleans.Serialization" />
+  </ItemGroup>
+
+</Project>

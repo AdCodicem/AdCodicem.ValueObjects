@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The thirty-three packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The thirty-four packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -171,8 +171,9 @@ constraint refuses carries the rule's code; Dapper validates only a column the v
 value object over a number, say. MongoDB reads are the other way round: validated, since a collection has no schema and
 is often written by more than one program, unless the serializer is registered with
 `ValueObjectBson.Register(trusted: true, …)`. So are MessagePack reads, since the bytes may come from another service,
-unless the resolver is trusted, `WithValueObjects(trusted: true)` or `UseValueObjects(trusted: true)`, and protobuf-net
-reads, unless the serializers are registered with `AddValueObjects(trusted: true, …)` or name a trusted profile.
+unless the resolver is trusted, `WithValueObjects(trusted: true)` or `UseValueObjects(trusted: true)`, protobuf-net
+reads, unless the serializers are registered with `AddValueObjects(trusted: true, …)` or name a trusted profile, and
+Orleans reads, unless every silo and client registers `AddValueObjects(trusted: true)`.
 
 ### Does it work with minimal APIs?
 
@@ -258,6 +259,17 @@ serializers run in protobuf-net's compile-time model, named on the value object 
 generates, maps its fields to value objects in its handlers: `AdCodicem.ValueObjects.Grpc` answers the refusal of a
 `Create` there with `INVALID_ARGUMENT` and the same `ErrorInfo`, through an interceptor, and every refused field of a
 request at once in a `google.rpc.BadRequest`, through `ValueObjectBadRequest`: [gRPC services](./how-to/grpc.md).
+
+### Does it work with Orleans?
+
+Through Orleans 10.4, with `AdCodicem.ValueObjects.Orleans`: `AddValueObjects()` on the serializer of every silo and
+client writes each value object in a grain call as Orleans writes its underlying value, byte for byte, a text in full
+even where Orleans would refer back to the same string, with its type where a member typed `object` holds it, and reads
+it back through its rules unless asked to trust the cluster. A refused
+request, a refused reply and a `ValueObjectException` a grain lets escape reach the caller with the rule's code.
+Without it, every grain call holding a value object fails with `CodecNotFoundException`, and `[GenerateSerializer]` on
+the value object, which would lose the value, fails the build (`VO0043`). A call within one silo copies its arguments,
+so a default instance arrives there; Orleans does not run natively yet: [Orleans](./how-to/orleans.md).
 
 ### Does it work with Kafka and the Schema Registry?
 
@@ -370,7 +382,7 @@ lookup](./how-to/runtime-lookup.md#value-objects-written-by-hand) show. Code tha
 closes a generic adapter over it does so through the descriptor's visitor rather than `MakeGenericType`, which native
 AOT cannot run for a struct, as [Run-time lookup](./how-to/runtime-lookup.md#back-to-the-typed-path) shows; the Dapper
 integration registers its handlers that way, the MongoDB provider builds its serializers, the MessagePack resolver the
-formatter MessagePack asks it for, protobuf-net's `AddValueObjects` names the closed serializer type of each value object, the MongoDB identifiers package its id generators, through the visitor of an entity
+formatter MessagePack asks it for, protobuf-net's `AddValueObjects` names the closed serializer type of each value object, the Orleans package the codec Orleans asks it for, the MongoDB identifiers package its id generators, through the visitor of an entity
 identifier's descriptor, the MVC model binder provider creates its binders, the minimal API filter closes the check of
 each parameter it explains, the Azure Functions converter the conversion of each value object a parameter binds and its
 middleware the check of each it explains, the HotChocolate type discovery handler the scalar of each value object a schema
@@ -402,7 +414,9 @@ and CI's application renders a form of every registered value object through `Ht
 warns for itself there ([Blazor](./how-to/blazor.md#native-aot-and-trimming)). The protobuf-net package is marked
 AOT-compatible: its serializers run in protobuf-net's compile-time model, which CI publishes in an application of its
 own, whose generated code protobuf-net's annotations make warn, while its registration and its code-first binder serve
-protobuf-net's runtime model, which needs the JIT ([protobuf-net](./how-to/protobuf-net.md#native-aot)). The EF Core,
+protobuf-net's runtime model, which needs the JIT ([protobuf-net](./how-to/protobuf-net.md#native-aot)). The Orleans
+package is marked AOT-compatible, and its own code publishes with no warning, but Orleans 10.4 does not start in a
+native binary, so CI publishes no Orleans application ([Orleans](./how-to/orleans.md#native-aot)). The EF Core,
 ASP.NET Core MVC, OpenAPI, Swashbuckle, NJsonSchema, Dapper, MongoDB, MongoDB identifiers, MessagePack, Azure Functions
 and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
 in a cache it closes over the type at run time, so under native AOT a handler this package built without dynamic code
