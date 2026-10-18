@@ -136,6 +136,14 @@ public abstract class Sample
     public abstract void TranslatesItsValueInAQueryAsItsUnderlyingValue();
 
     /// <summary>
+    /// Queries the value object through Marten under <c>UseValueObjects()</c>, offline, and checks that a comparison of it
+    /// and of its nullable type, and a <c>Contains</c> over values of it, translate as the same queries over a member of
+    /// its underlying type do, the same parameters included; or, over an underlying type Marten maps to no column, that
+    /// both are refused the same way.
+    /// </summary>
+    public abstract void QueriesInADocumentStoreAsItsUnderlyingValue();
+
+    /// <summary>
     /// Writes the value object through MessagePack, with the resolver <c>WithValueObjects</c> puts in front of the
     /// options' own, and checks that it writes and reads back what the bare value it carries writes and reads, under the
     /// standard options and under the <c>Native*</c> resolvers.
@@ -700,6 +708,8 @@ public class Sample<TSelf, TValue> : Sample
     public override void RoundTripsThroughAPrimitiveCollection() => PrimitiveCollectionParity.Check<TSelf, TValue>(Small, Large);
 
     public override void TranslatesItsValueInAQueryAsItsUnderlyingValue() => ValueQueryParity.Check<TSelf, TValue>(Small, Large);
+
+    public override void QueriesInADocumentStoreAsItsUnderlyingValue() => MartenParity.Check<TSelf, TValue>(Small, Large);
 
     public override void RoundTripsThroughMessagePackAsItsUnderlyingValue()
     {

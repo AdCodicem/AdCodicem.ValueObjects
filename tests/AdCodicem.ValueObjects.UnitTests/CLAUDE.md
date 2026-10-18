@@ -16,7 +16,8 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   integration's own folder (`Forms/FormsParity.cs`, `BinarySerialization/ProtoParity.cs`, …), and add a theory over
   every sample.
 - Folders, named apart from the packages and libraries they test (root `CLAUDE.md`): `Web/` (MVC, minimal APIs, OpenAPI,
-  Swashbuckle, NSwag, JSON Patch, DataAnnotations through hosts), `Persistence/` (EF Core, Dapper, MongoDB),
+  Swashbuckle, NSwag, JSON Patch, DataAnnotations through hosts), `Persistence/` (EF Core, Dapper, MongoDB, Marten as
+  `Marten*`),
   `BinarySerialization/` (MessagePack; protobuf-net as `Proto*`; gRPC as `CodeFirstGrpc*` and `ContractFirstGrpc*`),
   `Grains/` (Orleans), `GraphQL/` (HotChocolate, HotChocolate.Data), `Forms/` (Blazor), `Cli/` (System.CommandLine),
   `Csv/` (CsvHelper), `Functions/` (Azure Functions), `LanguageModels/` (Microsoft.Extensions.AI, Model Context Protocol
@@ -76,6 +77,14 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   first time, 0.3 s after); a test needing another configuration starts its own with `GrainCluster.StartAsync` and
   disposes of it. A generic value object or one written by hand that a boxed path resolves is closed over a marker or a
   declaration of the test's own (`OrleansCodecOwner`, `OrleansCodeDeclaration`, …).
+- Marten: `Persistence/MartenHarness` builds stores over a port nothing listens on (`Unreachable`, `AutoCreate.None`)
+  and reads Marten's SQL (`ToCommand`), compiled-query plans and DDL without a connection; PostgreSQL runs in the
+  integration suite. Weasel's `PostgresqlProvider.Instance` mappings, which `UseValueObjects()` fills, are process-wide,
+  so a store of a test without the package fails at execution rather than at parsing for any value object another test
+  taught: assert what Marten refuses without the package on a value object no store of the suite is taught, and close a
+  generic or hand-written one the boxed path resolves over a declaration of the test's own (`MartenCodeDeclaration`,
+  `MartenStaticDeclaration`, …). An inline array in a `Contains` fails inside Marten (`MemoryExtensions.Contains`):
+  hold the values in a static field.
 - `RuntimeFeature.IsDynamicCodeSupported` is read once per process: `WithoutDynamicCode` (at the suite's root) runs a test
   again in a child process whose runtime configuration turns dynamic code off. Such a test creates no NSubstitute proxy
   and no EF Core context, neither of which works there.

@@ -310,6 +310,9 @@ reflection when a command is configured, or take one registered with `ValueObjec
 [The CsvHelper factory](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-in-a-file-and-native-aot)
 describes one by reflection the first time a CsvHelper context meets it, or takes one registered with
 `ValueObjectRegistry.Register<TSelf, TValue>()`, beside a converter `AddValueObject<TSelf, TValue>()` adds typed.
+[Marten's member source](./how-to/marten.md#registering-the-value-objects) describes one by reflection the first time a
+query, a duplicated field or a compiled query meets it, or takes one registered with
+`ValueObjectRegistry.Register<TSelf, TValue>()` or taught with `UseValueObject<TSelf, TValue>()`.
 Under native AOT, where describing a construction by reflection is out
 of reach, register each construction a type-driven integration needs; the registration reads its schema off the type:
 

@@ -68,14 +68,18 @@ Four suites, each with a distinct job:
   sample value object as a column and reads it back, alone and nullable, in the invariant culture and in French, and
   the converter reads back the text it writes in every culture whose calendar is not the Gregorian one, each value its
   rules rule out refused with its code on CsvHelper's exception, and its default written only where its rules accept
-  it, with class maps, defaults, the registration-order traps and CsvHelper's own behaviours pinned. The DataAnnotations
-  attributes hold the text of every sample value object to its rules, in
-  both forms, and refuse each default instance, through `Validator`, options validated as a host starts and by the
-  validator `[OptionsValidator]` writes, CommunityToolkit.Mvvm's `ObservableValidator`, MVC and a minimal API under
-  `AddValidation()` over TestHost, with their messages in French from a resource, and both OpenAPI documents describe
-  each value object's text as the other does. Newtonsoft.Json given `ValueObjectContractResolver` alone writes and reads
-  every underlying type as it does with the converter in its settings, a generic construction, value objects written by
-  hand and one carrying `[JsonObject]` included, keeps the converter a type names, leaves the contracts of the resolver
+  it, with class maps, defaults, the registration-order traps and CsvHelper's own behaviours pinned. Marten, over a
+  store that never connects, translates a comparison of every sample value object, of its nullable type and a `Contains`
+  over its values into the SQL and the parameters of the same query over its underlying type, and plans each compiled
+  query shape, binding its collections and refusing what Marten would freeze; the Marten members and planning steps the
+  package relies on, internal ones included, are pinned, so that a Marten release moving one fails here first. The
+  DataAnnotations attributes hold the text of every sample value object to its rules, in both forms, and refuse each
+  default instance, through `Validator`, options validated as a host starts and by the validator `[OptionsValidator]`
+  writes, CommunityToolkit.Mvvm's `ObservableValidator`, MVC and a minimal API under `AddValidation()` over TestHost,
+  with their messages in French from a resource, and both OpenAPI documents describe each value object's text as the
+  other does. Newtonsoft.Json given `ValueObjectContractResolver` alone writes and reads every underlying type as it
+  does with the converter in its settings, a generic construction, value objects written by hand and one carrying
+  `[JsonObject]` included, keeps the converter a type names, leaves the contracts of the resolver
   it wraps as they were, and converts the values of a JSON Patch document applied outside MVC. JSON Patch documents
   applied through `TryApplyTo`, over TestHost and through its handler, read each value through its rules in every
   operation, on members, nullable members, lists, arrays and dictionaries keyed by value objects or holding them, every
@@ -121,13 +125,17 @@ Four suites, each with a distinct job:
   its primitive writes, refuses one over `Int128` or `UInt128`, and answers each LINQ and `Builders` shape over them,
   `.Value` included; which, given the `$jsonSchema` validator built from the rules, refuses another writer's document
   and stores every value each type accepts, reads each pattern the validator publishes as .NET does, and mints an
-  entity identifier for a document inserted without one. And the Azure Functions host, in Microsoft's `dotnet-isolated`
-  image, running an application of the isolated worker with Azurite for its queues: route values and query values bound
-  through the rules, each refusal answered with the minimal API's validation problem and its code, a `[FromBody]` one
-  included, in the request's language, a failure no value object explains keeping the host's 500, the middleware
-  registered before the integration keeping it too, with its warning, and a queue message's binding data bound beside
-  the message its binding reads. These need a Docker daemon: Testcontainers starts the engines and the host for the
-  run.
+  entity identifier for a document inserted without one. On PostgreSQL too, Marten: every underlying type queried as
+  the primitive it replaces, each LINQ shape answering what the documents answer in memory, duplicated fields as columns
+  of the underlying type, a computed index over a date serving the query, events, identities, compiled queries binding
+  each call's collection, a batch included, the identity a compiled query replays pinned, patches, and a stored value
+  the rules refuse refused with its code however it is read. And the Azure Functions host, in Microsoft's
+  `dotnet-isolated` image, running an application of the isolated worker with Azurite for its queues: route values and
+  query values bound through the rules, each refusal answered with the minimal API's validation problem and its code, a
+  `[FromBody]` one included, in the request's language, a failure no value object explains keeping the host's 500, the
+  middleware registered before the integration keeping it too, with its warning, and a queue message's binding data
+  bound beside the message its binding reads. These need a Docker daemon: Testcontainers starts the engines and the host
+  for the run.
 - **RdgTests** — minimal API endpoints whose binding the Request Delegate Generator writes, as it does in every
   build under `PublishAot` or `PublishTrimmed`, over value objects declared in the endpoints' own project: the case
   [the Request Delegate Generator](./how-to/aspnet-core.md#the-request-delegate-generator) cannot see the
@@ -147,7 +155,7 @@ schema rules out (`DerivesRejectedValues`), and checks that the type refuses eac
 
 ## Native AOT and compiled models
 
-Three applications, built as an application builds them, are published rather than tested.
+Four applications, built as an application builds them, are published rather than tested.
 
 The first references every package that claims to be AOT-compatible: the contracts, the generated code, the JSON package
 with a source-generated context and the JSON Schema it exports, the minimal API problem details, the identifiers,
@@ -156,9 +164,9 @@ one, the Blazor one and the System.CommandLine one, all but
 the two HotChocolate ones, whose framework warns on its own publish and starts natively only rooted, and whose
 HotChocolate.Data filtering of a struct has no native code ([GraphQL](./how-to/graphql.md#native-aot)), and whose
 refusal of a value object nothing registered the unit suite runs instead under the JIT, in a child process whose
-runtime supports no dynamic code, the protobuf-net one, which the third publishes, the Orleans one, since Orleans
-does not start natively, and the CsvHelper one, whose CsvHelper record API has no native code, whose refusals of a
-value object nothing registered the unit suite runs under the JIT too. Its
+runtime supports no dynamic code, the protobuf-net one, which the third publishes, the Marten one, which the fourth
+publishes, the Orleans one, since Orleans does not start natively, and the CsvHelper one, whose CsvHelper record API has
+no native code, whose refusals of a value object nothing registered the unit suite runs under the JIT too. Its
 value
 objects cover each of the 22 underlying types, a pattern hook, a
 closed set, an identifier, a generic value object registered by hand, and two value objects written by hand, registered
@@ -198,10 +206,20 @@ each call into a serializer, its annotations reaching the converters every value
 the warnings the project lists, `aot-warnings.allowed`, and fails on any other, this library's included
 ([protobuf-net](./how-to/protobuf-net.md#native-aot)).
 
+The fourth runs a Marten document store against the PostgreSQL service container of `native AOT (Marten)`, a job of
+its own beside `native AOT`, since the native AOT compiler alone takes about 20 minutes over Marten: documents
+holding value objects of every family Marten maps, a nullable one, a construction of a generic value object and one
+written by hand, both registered by hand, stored and read back as the bare values, each LINQ shape checked against what
+the documents answer in memory, an identity, compiled queries binding a collection and refusing a single value object,
+a value object nothing registered refused, and a stored value the rules refuse refused with its code, once under the
+JIT and once as a native binary. Marten, JasperFx, Weasel and FastExpressionCompiler warn for themselves: the job lets
+through the warnings the project lists, and fails on any other, this library's included
+([Marten](./how-to/marten.md#native-aot)).
+
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the thirty-six packages exactly as they were packed — from the folder the build packs into, at that one
+installs the thirty-seven packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -212,10 +230,10 @@ DataAnnotations attributes through `Validator`, options validation, the validato
 the minimal API validation of Microsoft.Extensions.Validation 11, its own message keys and its handling of an
 attribute's exception included,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
-MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, MessagePack and
-SignalR's MessagePack hub protocol 11 over TestHost, protobuf-net on a runtime model and on its compile-time model and
-a protobuf-net.Grpc code-first service over TestHost, a contract-first gRPC service answering through the gRPC package,
-Orleans' serializer,
+MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, Marten on PostgreSQL
+17, its LINQ, a duplicated field and a compiled query's collection, MessagePack and SignalR's MessagePack hub protocol
+11 over TestHost, protobuf-net on a runtime model and on its compile-time model and a protobuf-net.Grpc code-first
+service over TestHost, a contract-first gRPC service answering through the gRPC package, Orleans' serializer,
 FluentValidation, Newtonsoft.Json through its settings and its contract resolver, Serilog, Microsoft.Extensions.AI
 tools and structured output, Model Context Protocol tools over the SDK's own client, the Azure Functions converter and
 the problem details middleware beside ASP.NET Core 11, HotChocolate 16 scalars in a schema built in process, their

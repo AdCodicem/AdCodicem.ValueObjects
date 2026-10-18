@@ -18,6 +18,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, a `$jsonSchema` validator from the rules. |
+| `AdCodicem.ValueObjects.Marten` | Marten: LINQ, `Contains`/`IsOneOf`, duplicated fields and identities over the underlying value, a compiled query's collections bound on every call, projected values read through the rules. AOT-compatible. |
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers and protobuf-net.Grpc code-first services: the underlying type's wire, strict reads, the scalar in the `.proto` export, a refused request answered `INVALID_ARGUMENT` with its code. AOT-compatible through protobuf-net's `[ProtoModel]`. |
 | `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC: every refused field at once in a `google.rpc.BadRequest`, a refusal escaping a handler as `INVALID_ARGUMENT` with a `google.rpc.ErrorInfo`. AOT-compatible. |
@@ -588,6 +589,56 @@ await database.CreateCollectionAsync("orders", new CreateCollectionOptions<BsonD
   it was. `validationLevel`/`validationAction` are yours to set.
 - `For<TDocument>()` throws `InvalidOperationException` before `ValueObjectBson.Register`, and for a document the driver
   serializes without a class map.
+
+## Marten
+
+```csharp skip
+builder.Services.AddMarten(options =>
+{
+    options.Connection(connectionString);
+    options.Schema.For<Order>().Duplicate(x => x.Iban);
+}).UseValueObjects();                                   // whatever the order of the calls inside AddMarten
+// a ConfigureMarten replacing the serializer: register it first, or end it with options.UseValueObjects()
+
+// bare StoreOptions: after UseSystemTextJsonForSerialization, which replaces the serializer
+options.UseSystemTextJsonForSerialization(AppJsonContext.Default.Options);
+options.UseValueObjects();
+```
+
+Without it, Marten stores a value object as its bare value but throws on every comparison of one, answers no rows for
+`x.Iban.Value == "…"`, fails `list.Contains(x.Country)` at execution and `Duplicate(x => x.Iban)` at the first write.
+Never use Marten's `RegisterValueType` for a generated value object: it refuses one.
+
+- Query value objects as their values: `x.Iban == iban`, `x.Quantity > q`, `x.Iban.Value.StartsWith("FR")`,
+  `list.Contains(x.Country)`, `x.Country.IsOneOf(countries)`, `x.Countries.Contains(code)`, `x.Backup == null`,
+  `OrderBy`, `Select(x => x.Quantity)`, `MaxAsync`. Compare with `==`, never `Equals` or `CompareTo`; select the value
+  object, never `x.Iban.Value`; compare a value object over `char` with the value object, never its `.Value`.
+- Hand a source-generated context's options to Marten,
+  `UseSystemTextJsonForSerialization(AppJsonContext.Default.Options)`; never the context alone as a resolver
+  (`UseTypeInfoResolver`), which writes every value object as `{}`.
+- `Duplicate(x => x.Iban)` makes a column of the underlying type, `varchar(MaxLength)` for text. Never `Select` a
+  duplicated value-object field: Marten reads its column as JSON and throws; select a member that is not duplicated, or
+  the document.
+- Compiled queries: declare a collection of value objects (`List<CountryCode>`, `CountryCode[]`) as a member of the
+  query type, and filter with `Contains` or `IsOneOf`; it is bound on every call. Never give the query type a member
+  holding a single value object, which Marten refuses (`InvalidCompiledQueryException`) whatever the query does with
+  it: declare the member as the underlying type and compare `.Value` with it (`x.Iban.Value == Iban`), an `int` over a
+  `short` or a `byte`. Never read values through a local of `QueryIs` or a collection of `TSelf?`, and never put a
+  constant collection beside a collection member of the same value object: refused with a `NotSupportedException`.
+- Never give a compiled query a member of a value object Marten takes for a document's identity: once Marten has met
+  that document, every call answers the first call's value. Load by identity or use a LINQ query.
+- An identity over `Guid`, `string`, `int` or `long` works when the value object has no other public property of an
+  identity type (an `[EntityId]` and a value object with a member of that type of its own are none).
+- Reads are strict, always: a stored value the rules refuse throws `ValueObjectJsonException` with its code, from a
+  document, a projected value and a raw event query; inside `EventDeserializationFailureException` from a stream, and,
+  without dynamic code (native AOT), inside `TargetInvocationException` for a projected value: read the code with
+  `ValueObjectErrors.TryGetCode`. A projected identity throws `ValueObjectException`.
+  `Patch<T>(id).Set(x => x.Iban, iban)` writes the bare value.
+- Native AOT: register a construction of a generic value object with its converter and a value object written by hand
+  with its schema before the store is built, or teach either with `UseValueObject<TSelf, TValue>()`; declare each
+  identity with `UseValueObjectId<TDocument, TSelf, TValue>()`; name every document type with `Schema.For<T>()`;
+  serialize through a source-generated context's options.
+- Not covered: Marten.SourceGenerator's compiled queries, Marten.Newtonsoft, patch operations other than `Set`.
 
 ## MessagePack and SignalR
 

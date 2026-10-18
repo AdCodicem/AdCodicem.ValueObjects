@@ -9,7 +9,7 @@ is on, so this list is worth checking if something looks wired up but never happ
 `preview.yml` publishes a preview of every package to nuget.org every Monday at 07:15, Paris time, and whenever it is
 dispatched (**Actions → preview → Run workflow**, from `main`: a dispatch from another branch stops at its first
 job). It publishes only when a package input changed since the version nuget.org has from the nearest commit, and
-then all thirty-six packages at one version, or none.
+then all thirty-seven packages at one version, or none.
 [ADR-0009](adr/0009-publish-previews-weekly-when-a-package-input-changed.md) has the reasoning.
 
 Each run says what it decided. The **compute the version** job prints the version semantic-release would give the
@@ -91,7 +91,7 @@ offering the higher one as the latest prerelease until a higher version ships.
 The first time `preview.yml` publishes, and after any change to its publish job, dispatch it rather than wait for
 Monday, and check:
 
-1. the thirty-six packages are on nuget.org at the version the run printed, and the publish job finished its wait for
+1. the thirty-seven packages are on nuget.org at the version the run printed, and the publish job finished its wait for
    the listing;
 2. an assembly restored from nuget.org verifies, and the certificate comes from Sigstore's public-good instance:
 
@@ -181,7 +181,7 @@ to `CHANGELOG.md` for a preview, which has no release of its own (`src/Directory
 |---|---|---|
 | Allow auto-merge | Settings → General → Pull Requests | `dependabot-auto-merge.yml` runs green and merges nothing. |
 | Squash merging allowed, with the pull request title as its default commit message, beside rebase merging | Settings → General → Pull Requests | A Dependabot pull request retitled `fix(deps)` lands as Dependabot's `chore(deps)` commit and releases nothing. Rebase merging stays the way every other pull request lands. |
-| Required status checks **`build and test`** and **`native AOT`** (`ci.yml`), and **`workflows`** (`lint.yml`) | Settings → Rules → Rulesets → `Default` (id 23842638) | Auto-merge can merge a red build, or one that breaks native AOT, and a red `fix(deps)` would then release a broken patch. The checks are job names: renaming any of these jobs leaves every pull request waiting for a check that never reports. `compat (.NET 11)` joins them when .NET 11 ships ([The .NET compatibility island](#the-net-compatibility-island)), not before. |
+| Required status checks **`build and test`** and **`native AOT`** (`ci.yml`), and **`workflows`** (`lint.yml`) | Settings → Rules → Rulesets → `Default` (id 23842638) | Auto-merge can merge a red build, or one that breaks native AOT, and a red `fix(deps)` would then release a broken patch. The checks are job names: renaming any of these jobs leaves every pull request waiting for a check that never reports. `compat (.NET 11)` joins them when .NET 11 ships ([The .NET compatibility island](#the-net-compatibility-island)), not before. `native AOT (Marten)` (`ci.yml`), the Marten application's job of its own, is not one until you add it here (see [Dependabot](#dependabot)). |
 | Allow GitHub Actions to create and approve pull requests | Settings → Actions → General | Not needed for auto-merge, but required if a workflow is ever made to open PRs. |
 | Discussions | Settings → General → Features | `.github/DISCUSSION_TEMPLATE/q-a.yml` and the issue-template link to Discussions go nowhere. |
 | Pages source: GitHub Actions | Settings → Pages | `deploy-docs.yml` uploads an artifact that is never served. |
@@ -217,18 +217,18 @@ Without them the release job stops at its first step, before anything is publish
   `Microsoft.Extensions.*`, `Microsoft.OpenApi`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `HotChocolate*`,
   `Microsoft.Orleans.*` and `NJsonSchema*`, whose packages share one version and move together, in the `dotnet` group
   or, for Microsoft's patch, by hand ([Routines](#routines)), are ignored, and so are those of `System.CommandLine`,
-  whose 3.0 ships with .NET 11 and runs the package built against 2.0 (the island runs it), and of five packages whose
-  majors follow one of them: `dotnet-ef`, the local tool pinned to EF Core's version;
-  `NSwag.*`, which the tests take and whose majors move with NJsonSchema's;
-  `Swashbuckle.AspNetCore*`, whose next major moves to `Microsoft.OpenApi` 3; `Serilog.Extensions.Logging`, which
-  only the tests use and whose majors follow .NET's, each built on the `Microsoft.Extensions.Logging` of its major;
-  and `System.Security.Cryptography.Pkcs`, a test-only pin on .NET's version line whose next major targets `net10.0`
-  too, removed once `Microsoft.Data.SqlClient` asks for a patched version. A
-  new major is supported by a decision, a dependency floor or a target framework
+  whose 3.0 ships with .NET 11 and runs the package built against 2.0 (the island runs it), of `Marten`, whose next
+  major is a floor to decide, since the package reaches one of its internals, and of five packages whose majors follow
+  one of them: `dotnet-ef`, the local tool pinned to EF Core's version; `NSwag.*`, which the tests take and whose majors
+  move with NJsonSchema's; `Swashbuckle.AspNetCore*`, whose next major moves to `Microsoft.OpenApi` 3;
+  `Serilog.Extensions.Logging`, which only the tests use and whose majors follow .NET's, each built on the
+  `Microsoft.Extensions.Logging` of its major; and `System.Security.Cryptography.Pkcs`, a test-only pin on .NET's
+  version line whose next major targets `net10.0` too, removed once `Microsoft.Data.SqlClient` asks for a patched
+  version. A new major is supported by a decision, a dependency floor or a target framework
   ([ADR-0010](adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)), never by a bump. Dependabot's
-  NuGet updater applies these rules to security updates too: a security fix that exists only on a new major of one
-  of them opens no pull request, and its alert stays open. Treat it as a deliberate migration under ADR-0010. A fix
-  on the current major opens at once.
+  NuGet updater applies these rules to security updates too: a security fix that exists only on a new major of one of
+  them opens no pull request, and its alert stays open. Treat it as a deliberate migration under ADR-0010. A fix on the
+  current major opens at once.
 - **`fix(deps)` for what ships.** Dependabot takes one `nuget` entry per directory, so every NuGet pull request opens
   as `chore(deps)`, unless Dependabot groups it, as #166, which then carries no prefix and has to be retitled by hand
   (the grouped security update below). `dependabot-auto-merge.yml` retitles it `fix(deps): …` when it updates a
@@ -288,6 +288,21 @@ Without them the release job stops at its first step, before anything is publish
   the warnings its `aot-warnings.allowed` lists, one extended regular expression per line, and fails on any other. A
   protobuf-net update whose generated code or annotations warn otherwise fails the job, naming the new warning: read
   it, and move the list with the update when the warning is protobuf-net's own, never one of this library's code.
+- **Marten and the native AOT (Marten) job.** The application of
+  `tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Marten` runs in a job of its own, `native AOT (Marten)`, against
+  its PostgreSQL service container, beside `native AOT`, which it would take from about 6 minutes to about 27: the
+  native AOT compiler alone takes about 20 minutes over Marten, on one core. It is not a required check: add it to the
+  `Default` ruleset once you want a Marten break to block a merge, and keep its timeout ahead of Marten's compile time
+  (45 minutes today). Marten, JasperFx, Weasel and
+  FastExpressionCompiler warn for themselves, which its `aot-warnings.allowed` lists by their source paths and
+  assemblies: a Marten update that warns otherwise fails the job, naming the warning; move the list with the update
+  when the warning is Marten's own, never one of this library's code.
+- **Marten's internals.** The Marten package reaches Marten's internal list of value types through `[UnsafeAccessor]`,
+  keeps every value object out of it so that Marten refuses a compiled query taking one, lists its nullable type for
+  the duplicated field, which finds a value type by the type its member reports, and binds a compiled query's
+  collections through Marten's planning steps; the unit suite's `MartenInternalsTests` pins each. A Marten update
+  failing it moved one of them: adapt the package in the same pull request
+  (`src/AdCodicem.ValueObjects.Marten/CLAUDE.md`), never silence the test.
 - **Microsoft.AspNetCore.Components and the native AOT job.** The main application of `tests/NativeAot` renders Blazor
   components, and Components warns for itself at assembly level, `IL2104` and `IL3053`, which that application's
   `aot-warnings.allowed` lists. Those warnings come from the runtime pack the SDK resolves, so an SDK or ASP.NET Core

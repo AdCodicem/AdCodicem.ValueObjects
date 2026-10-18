@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The thirty-six packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The thirty-seven packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -179,7 +179,8 @@ is often written by more than one program, unless the serializer is registered w
 `ValueObjectBson.Register(trusted: true, …)`. So are MessagePack reads, since the bytes may come from another service,
 unless the resolver is trusted, `WithValueObjects(trusted: true)` or `UseValueObjects(trusted: true)`, protobuf-net
 reads, unless the serializers are registered with `AddValueObjects(trusted: true, …)` or name a trusted profile, and
-Orleans reads, unless every silo and client registers `AddValueObjects(trusted: true)`.
+Orleans reads, unless every silo and client registers `AddValueObjects(trusted: true)`. Marten reads are validated
+always: a document goes through the generated JSON converter, and a value a query projects through the package.
 
 ### Does it work with minimal APIs?
 
@@ -236,6 +237,18 @@ uninitialized value object its type rejects. Without it, the driver writes `{}` 
 [MongoDB](./how-to/mongodb.md) has the wiring and what each type is stored as. Azure Cosmos DB for MongoDB and Azure
 DocumentDB go through the same driver (not run). The MongoDB provider for Entity Framework Core goes through
 `ConfigureValueObjects` instead: [Other providers](./how-to/ef-core.md#other-providers).
+
+### Does it work with Marten?
+
+Marten stores a value object as its bare value without help, through the generated JSON converter, and refuses on read
+a stored value the rules refuse, but it cannot query one: a comparison throws, `.Value` reads a path no document has and
+answers no rows, and a duplicated field fails at the first write. Through Marten 9.50, with
+`AdCodicem.ValueObjects.Marten`, `AddMarten(…).UseValueObjects()` teaches the store every value object as Marten's own
+value types are taught: LINQ, `Contains`, `IsOneOf`, duplicated fields, computed indexes and identities see the
+underlying value, a compiled query binds a collection of value objects on every call, Marten refusing a single one,
+whose `.Value` compared with a member of the underlying type it binds instead, and a value a query projects is read
+through the rules, its refusal carrying the code.
+[Marten](./how-to/marten.md) has the wiring, the SQL each shape translates to, and what stays Marten's.
 
 ### Does it work with MessagePack and SignalR?
 
@@ -418,7 +431,7 @@ middleware the check of each it explains, the HotChocolate type discovery handle
 meets, the HotChocolate.Data type interceptor the operations of each value-object member a filter input meets, the NJsonSchema package the converter it writes a value object's examples through under Newtonsoft.Json
 settings, the Blazor input the text adapters of the value object it binds, the System.CommandLine symbols the parser of
 the value object their option or argument holds, the CsvHelper factory the converter of each value object a context
-meets, the JSON converter factory closes the
+meets, the Marten package the member of each value object a query meets, the JSON converter factory closes the
 general-purpose converter it gives a value object
 written by hand, the test-data sampler, the AutoFixture customization, the Bogus extensions and FsCheck's
 `MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
@@ -454,7 +467,10 @@ native binary, so CI publishes no Orleans application ([Orleans](./how-to/orlean
 package is marked AOT-compatible, and its own code publishes with no warning, but CsvHelper's record API has no native
 code, its auto-mapping and class maps failing in a native binary, so CI publishes no CsvHelper application; its
 `GetField<T>` and `WriteField<T>` run natively
-([CsvHelper](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-in-a-file-and-native-aot)). The EF Core,
+([CsvHelper](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-in-a-file-and-native-aot)). The
+Marten package is AOT-compatible, and CI publishes a Marten application natively and runs it against PostgreSQL;
+Marten's own publish warns for Marten, JasperFx, Weasel and FastExpressionCompiler, never for this library
+([Marten](./how-to/marten.md#native-aot)). The EF Core,
 ASP.NET Core MVC, OpenAPI, Swashbuckle, NJsonSchema, Dapper, MongoDB, MongoDB identifiers, MessagePack, Azure Functions
 and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
 in a cache it closes over the type at run time, so under native AOT a handler this package built without dynamic code

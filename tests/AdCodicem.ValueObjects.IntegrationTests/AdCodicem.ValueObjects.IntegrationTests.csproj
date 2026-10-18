@@ -10,6 +10,9 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Dapper\AdCodicem.ValueObjects.Dapper.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.MongoDB\AdCodicem.ValueObjects.MongoDB.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.MongoDB\AdCodicem.ValueObjects.Identifiers.MongoDB.csproj" />
+    <!-- Marten's LINQ, duplicated fields, identities, events and compiled queries over value objects, on the PostgreSQL the
+         EF Core tests start (MartenTests.cs). -->
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Marten\AdCodicem.ValueObjects.Marten.csproj" />
     <!-- HotChocolate.Data's filters over value objects, translated by PostgreSQL and SQL Server
          (HotChocolateFilteringTests.cs); its build/ targets, which add global usings, come with a direct reference only. -->
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.HotChocolate.Data\AdCodicem.ValueObjects.HotChocolate.Data.csproj" />

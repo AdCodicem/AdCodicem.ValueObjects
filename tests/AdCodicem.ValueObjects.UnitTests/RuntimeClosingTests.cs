@@ -83,6 +83,7 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore", [] },
         { "AdCodicem.ValueObjects.Identifiers.MongoDB", [] },
         { "AdCodicem.ValueObjects.Json", [] },
+        { "AdCodicem.ValueObjects.Marten", [] },
         { "AdCodicem.ValueObjects.MessagePack", [] },
         { "AdCodicem.ValueObjects.ModelContextProtocol", [] },
         { "AdCodicem.ValueObjects.MongoDB", [] },
