@@ -248,8 +248,8 @@ answers no rows, and a duplicated field fails at the first write. Through Marten
 `AdCodicem.ValueObjects.Marten`, `AddMarten(…).UseValueObjects()` teaches the store every value object as Marten's own
 value types are taught: LINQ, `Contains`, `IsOneOf`, duplicated fields, computed indexes and identities see the
 underlying value, a compiled query binds a collection of value objects on every call, Marten refusing a single one,
-whose `.Value` compared with a member of the underlying type it binds instead, and a value a query projects is read
-through the rules, its refusal carrying the code.
+which `VO0048` reports when the project builds, and binding its `.Value` compared with a member of a type it binds, and
+a value a query projects is read through the rules, its refusal carrying the code.
 [Marten](./how-to/marten.md) has the wiring, the SQL each shape translates to, and what stays Marten's.
 
 ### Does it work with MessagePack and SignalR?

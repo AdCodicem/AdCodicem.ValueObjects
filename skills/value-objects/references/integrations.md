@@ -618,16 +618,23 @@ Never use Marten's `RegisterValueType` for a generated value object: it refuses 
   `UseSystemTextJsonForSerialization(AppJsonContext.Default.Options)`; never the context alone as a resolver
   (`UseTypeInfoResolver`), which writes every value object as `{}`.
 - `Duplicate(x => x.Iban)` makes a column of the underlying type, `varchar(MaxLength)` for text. Never `Select` a
-  duplicated value-object field: Marten reads its column as JSON and throws; select a member that is not duplicated, or
-  the document.
-- Compiled queries: declare a collection of value objects (`List<CountryCode>`, `CountryCode[]`) as a member of the
-  query type, and filter with `Contains` or `IsOneOf`; it is bound on every call. Never give the query type a member
-  holding a single value object, which Marten refuses (`InvalidCompiledQueryException`) whatever the query does with
-  it: declare the member as the underlying type and compare `.Value` with it (`x.Iban.Value == Iban`), an `int` over a
-  `short` or a `byte`. Never read values through a local of `QueryIs` or a collection of `TSelf?`, and never put a
-  constant collection beside a collection member of the same value object: refused with a `NotSupportedException`.
+  duplicated value-object field: Marten refuses it before a row is read (`NotSupportedException`;
+  `MissingMethodException` natively); select a member that is not duplicated, or the document.
+- Compiled queries: declare an array or a list of value objects (`CountryCode[]`, `List<CountryCode>`, any `IList<T>`;
+  never `IReadOnlyList<T>`, `IEnumerable<T>` or `HashSet<T>`, which Marten refuses) as a member of the query type, and
+  filter with `Contains` or `IsOneOf`; it is bound on every call. Never give the query type a public member holding a
+  single value object, which Marten refuses (`InvalidCompiledQueryException`) whatever the query does with it, and
+  `VO0048` fails the build on: declare the member as the underlying type and compare `.Value` with it
+  (`x.Iban.Value == Iban`) over `string`, `Guid`, `int`, `long`, `float`, `decimal`, `DateTime`, `DateTimeOffset` (set
+  in UTC, `ToUniversalTime()`: Npgsql refuses another offset); as an `int` over `sbyte`, `byte`, `short`; as a `long`
+  over `uint`. Over `bool`, `char`, `double`, `DateOnly`, `TimeOnly`, `TimeSpan`, declare an array or a list of the
+  value object. Never a `float` member against a `double`, nor a `bool` computed from an `int` member: Marten answers
+  every call with the first call's value. Never read values
+  through a local of `QueryIs` or a collection of `TSelf?`, and never put a constant collection beside a collection
+  member of the same value object: refused with a `NotSupportedException`.
 - Never give a compiled query a member of a value object Marten takes for a document's identity: once Marten has met
-  that document, every call answers the first call's value. Load by identity or use a LINQ query.
+  that document, every call answers the first call's value (`VO0048`). Load by identity, filter with an array or a list
+  of the identity (`x.Id.IsOneOf(ids)`), or use a LINQ query; never `x.Id.Value`, which Marten refuses.
 - An identity over `Guid`, `string`, `int` or `long` works when the value object has no other public property of an
   identity type (an `[EntityId]` and a value object with a member of that type of its own are none).
 - Reads are strict, always: a stored value the rules refuse throws `ValueObjectJsonException` with its code, from a
@@ -639,7 +646,9 @@ Never use Marten's `RegisterValueType` for a generated value object: it refuses 
   with its schema before the store is built, or teach either with `UseValueObject<TSelf, TValue>()`; declare each
   identity with `UseValueObjectId<TDocument, TSelf, TValue>()`; name every document type with `Schema.For<T>()`;
   serialize through a source-generated context's options.
-- Not covered: Marten.SourceGenerator's compiled queries, Marten.Newtonsoft, patch operations other than `Set`.
+- Not covered: the binding of a collection in Marten.SourceGenerator's compiled queries (`VO0048` reports their members
+  all the same; there, use none of the collection forms it names: compare `.Value` with a member of a type Marten binds,
+  load by identity, or use a LINQ query), Marten.Newtonsoft, patch operations other than `Set`.
 
 ## MessagePack and SignalR
 

@@ -42,7 +42,7 @@ public sealed class ValidationAttributeAnalyzerTests
         """;
 
     /// <summary>A value object written by hand, which nothing generated registers.</summary>
-    private const string HandWritten = """
+    internal const string HandWritten = """
         public readonly struct Code : IValueObject<Code, string>
         {
             private readonly string? _value;
@@ -82,7 +82,7 @@ public sealed class ValidationAttributeAnalyzerTests
     /// A struct implementing the contract over another value object, which every member delegates to: the registry
     /// describes a struct implementing it over itself alone.
     /// </summary>
-    private const string Imposter = """
+    internal const string Imposter = """
         public readonly struct Imposter : IValueObject<Code, string>
         {
             public static AdCodicem.ValueObjects.Metadata.ValueObjectSchema Schema => Code.Schema;

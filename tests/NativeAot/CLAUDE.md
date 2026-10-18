@@ -87,7 +87,8 @@ NATIVE_AOT_POSTGRES="Host=localhost;Port=5432;Database=postgres;Username=postgre
   options: a document type added needs its `[JsonSerializable]` there, and a `Schema.For<T>()` in the store's
   configuration, or Marten closes `DocumentMappingBuilder<T>` at run time and the native binary throws
   `MissingMethodException`.
-- A scenario whose outcome is a refusal in both runs (a compiled query's single value object) is written with
+- A scenario whose outcome is a refusal in both runs (a compiled query's single value object, whose member takes a
+  targeted `#pragma warning disable VO0048`, the generator being an analyzer of the project) is written with
   `LineAsync`, which writes the exception's type and first line; `AnswersAsync` fails the process where the server and
   the documents in memory answer otherwise. Marten's duplicated field selected is written with `RefusedAsync`, which
   writes that it was refused alone: Marten refuses the result type under the JIT (`NotSupportedException`) and a native

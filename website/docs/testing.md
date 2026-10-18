@@ -108,8 +108,9 @@ Four suites, each with a distinct job:
   incremental caching, the analyzer of the DataAnnotations attributes and its `PublishAot` gate included, the analyzer
   of serializers' contract attributes and its code fix, over protobuf-net itself and the other serializers' attributes
   declared under their real names, and the analyzer of data classifications held to the tags Microsoft.Gen.Logging, run
-  beside the generator, writes, and the analyzer of non-Unicode text held to what .NET's regular expressions match under
-  each option. It drives
+  beside the generator, writes, the analyzer of non-Unicode text held to what .NET's regular expressions match under
+  each option, and the analyzer of Marten's compiled queries, over Marten's interfaces declared under their real names,
+  which the unit suite runs over the real Marten and the identity query it pins. It drives
   Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that
   slipped into emitted code. The incrementality tests assert on the Roslyn incremental step run reason — the
@@ -137,14 +138,14 @@ Four suites, each with a distinct job:
   entity identifier for a document inserted without one. On PostgreSQL too, Marten: every underlying type queried as
   the primitive it replaces, each LINQ shape answering what the documents answer in memory, duplicated fields as columns
   of the underlying type, a computed index over a date serving the query, events, identities, compiled queries binding
-  each call's collection, a batch included, the identity a compiled query replays pinned, patches, and a stored value
-  the rules refuse refused with its code however it is read. And the Azure Functions host, in Microsoft's
-  `dotnet-isolated` image, running an application of the isolated worker with Azurite for its queues: route values and
-  query values bound through the rules, each refusal answered with the minimal API's validation problem and its code, a
-  `[FromBody]` one included, in the request's language, a failure no value object explains keeping the host's 500, the
-  middleware registered before the integration keeping it too, with its warning, and a queue message's binding data
-  bound beside the message its binding reads. These need a Docker daemon: Testcontainers starts the engines and the host
-  for the run.
+  each call's collection and the forms `VO0048` names, a batch included, the identity a compiled query replays pinned,
+  patches, and a stored value the rules refuse refused with its code however it is read. And the Azure Functions host,
+  in Microsoft's `dotnet-isolated` image, running an application of the isolated worker with Azurite for its queues:
+  route values and query values bound through the rules, each refusal answered with the minimal API's validation problem
+  and its code, a `[FromBody]` one included, in the request's language, a failure no value object explains keeping the
+  host's 500, the middleware registered before the integration keeping it too, with its warning, and a queue message's
+  binding data bound beside the message its binding reads. These need a Docker daemon: Testcontainers starts the engines
+  and the host for the run.
 - **RdgTests** — minimal API endpoints whose binding the Request Delegate Generator writes, as it does in every
   build under `PublishAot` or `PublishTrimmed`, over value objects declared in the endpoints' own project: the case
   [the Request Delegate Generator](./how-to/aspnet-core.md#the-request-delegate-generator) cannot see the

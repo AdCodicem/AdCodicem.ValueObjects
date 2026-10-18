@@ -442,8 +442,8 @@ comparison throws `BadLinqExpressionException`, `x.Iban.Value == "FR76…"` read
 rows, and `Duplicate(x => x.Iban)` fails at the first write. `AdCodicem.ValueObjects.Marten` teaches the store every
 value object as Marten's own value types are taught, so that LINQ, `Contains`, `IsOneOf`, duplicated fields, computed
 indexes and identities see the underlying value, a compiled query binds a collection of value objects on every call,
-one taking a single value object is refused rather than replay its first value, and a value a query projects is read
-through the rules
+one taking a single value object fails the build (`VO0048`), since Marten refuses it or, for a document's identity,
+answers every call with the first call's value, and a value a query projects is read through the rules
 ([the Marten guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/marten)):
 
 ```csharp skip
@@ -906,6 +906,7 @@ compile, and are retired. There is no `VO0012`.
 | `VO0045` | Warning | A value object classified on its type that a `[LoggerMessage]` method of Microsoft.Gen.Logging, Microsoft.Extensions.Telemetry's logging generator, writes in clear: that generator reads a classification on a parameter or a property only. A code fix copies the type's classification there. |
 | `VO0046` | Warning | A classified property whose value object a transitive `[LogProperties]`, or `[LogProperties]` on the property, expands into its `Value`, which drops the property's classification. |
 | `VO0047` | Warning | `Unicode = false` on a value object whose rules let a character outside ASCII through, which SQL Server replaces silently: no rule, a pattern not anchored at both ends or admitting `\d`, `.`, `IgnoreCase` and the like, a known value outside ASCII, or a closed set compared as a culture compares. |
+| `VO0048` | Error | A public field or property of a Marten compiled query holding a value object or its nullable type, which Marten refuses as a parameter or, for a document's identity, answers with the first call's value. The message names what to write instead: the member as a type Marten binds compared with the value object's `Value`, or an array or a list of the value object, both under `AdCodicem.ValueObjects.Marten`'s `UseValueObjects()`, without which Marten reads a `Value` no document holds and answers no rows; for an indexer, making it non-public or removing it; a LINQ query for a value object written by hand over another underlying type. |
 
 ## Using it with an AI coding agent
 

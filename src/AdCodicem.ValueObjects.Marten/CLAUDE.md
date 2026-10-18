@@ -111,8 +111,16 @@ compiled-query previews, DDL) and `tests/AdCodicem.ValueObjects.IntegrationTests
   identity (Marten's internal `StrongTypedIdMember` writes the parameter, no package code runs), the package refuses its
   own comparisons and `IsOneOf` over single members, and the shapes no package code sees replay too. Documented with a
   warning; `MartenInternalsTests` and the integration suite pin the replay.
+- `VO0048`, an analyzer of the generator (`src/AdCodicem.ValueObjects.Generators/CLAUDE.md`), reports a value-object
+  member of a compiled query at build time, the identity case included, which no package code reaches. A test declaring
+  one on purpose takes a targeted `#pragma warning disable VO0048`; the collection query types stay unsuppressed, so the
+  unit, integration and native builds hold `VO0048` silent on every shape the package binds. Its remedy rests on
+  `MartenInternalsTests`' pins of the member types Marten binds and of its refusal of an identity's `.Value`: when one
+  fails, adapt the analyzer's message.
 - Marten.SourceGenerator's compiled queries are not covered: a generated descriptor lists an array or a list member as
-  an include at compile time.
+  an include at compile time. It discovers the same query types, and Marten runs `QueryCompiler.BuildQueryPlan`, its
+  check included, before any descriptor it generated (offline previews identical with its handlers registered, never
+  executed on PostgreSQL), so `VO0048` reports them the same way.
 
 ## Identities, serializer, reads
 

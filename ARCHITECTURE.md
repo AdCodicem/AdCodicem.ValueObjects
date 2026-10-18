@@ -71,6 +71,14 @@ character, a known value spelled outside ASCII, a closed set compared as a cultu
 through the shared pattern reader, `src/Shared/ValueObjectPatternSyntax.cs`, which the generator links for it, and is an
 analyzer rather than a diagnostic of the generator so that `#pragma` and a severity setting silence it, for a column of
 names kept under Latin-1 on purpose.
+`VO0048` reports a public field or property of a Marten compiled query holding a single value object, which Marten
+refuses as a parameter or, once it takes the type for a document's identity, answers with the first call's value, out
+of the Marten package's reach. It matches Marten's interface and `[MartenIgnore]` by name, so it ships with every value
+object, reaches an application that queries Marten without the package, and stays silent in a project without Marten;
+its message names what to write instead for the type, by Marten's parameter finders, which the Marten package's tests
+pin. The `.Value` comparison and the collection it names read right only under the package's `UseValueObjects()`
+(without it, Marten reads a `Value` no document holds and answers no rows), and the message says so whether or not the
+project references the package, since a query type often lives in a library that does not reference what its host uses.
 
 ## Two ways to reach a value object
 

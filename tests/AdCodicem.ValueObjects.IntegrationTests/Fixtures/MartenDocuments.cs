@@ -287,11 +287,46 @@ public sealed class MartenShipmentsOfConsents : MartenShipmentQuery
     public override bool Answers(MartenShipment shipment) => Consents.Contains(shipment.Consent);
 }
 
+// The forms VO0048 names where a single value object is refused: a long for a uint, a collection for a char, a
+// DateTimeOffset set in UTC.
+
+public sealed class MartenShipmentsWithSequenceNumber : MartenShipmentQuery
+{
+    public long Sequence { get; set; }
+
+    public override Expression<Func<IMartenQueryable<MartenShipment>, IEnumerable<MartenShipment>>> QueryIs()
+        => shipments => shipments.Where(x => x.Sequence.Value == Sequence);
+
+    public override bool Answers(MartenShipment shipment) => shipment.Sequence.Value == Sequence;
+}
+
+public sealed class MartenShipmentsOfGrades : MartenShipmentQuery
+{
+    public List<Grade> Grades { get; set; } = [];
+
+    public override Expression<Func<IMartenQueryable<MartenShipment>, IEnumerable<MartenShipment>>> QueryIs()
+        => shipments => shipments.Where(x => x.Grade.IsOneOf(Grades));
+
+    public override bool Answers(MartenShipment shipment) => Grades.Contains(shipment.Grade);
+}
+
+public sealed class MartenShipmentsAtMoment : MartenShipmentQuery
+{
+    public DateTimeOffset Moment { get; set; }
+
+    public override Expression<Func<IMartenQueryable<MartenShipment>, IEnumerable<MartenShipment>>> QueryIs()
+        => shipments => shipments.Where(x => x.At.Value == Moment);
+
+    public override bool Answers(MartenShipment shipment) => shipment.At.Value == Moment;
+}
+
 // A single value object, whatever the query does with it: refused by Marten, which binds none.
 
 public sealed class MartenShipmentsByIban : MartenShipmentQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Iban Iban { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenShipment>, IEnumerable<MartenShipment>>> QueryIs()
         => shipments => shipments.Where(x => x.Iban == Iban);
@@ -301,7 +336,9 @@ public sealed class MartenShipmentsByIban : MartenShipmentQuery
 
 public sealed class MartenShipmentsByParcelTag : MartenShipmentQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Label Tag { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenShipment>, IEnumerable<MartenShipment>>> QueryIs()
         => shipments => shipments.Where(x => x.Parcels.Any(p => p.Tag == Tag));
@@ -311,7 +348,9 @@ public sealed class MartenShipmentsByParcelTag : MartenShipmentQuery
 
 public sealed class MartenShipmentsWithParcelsAbove : MartenShipmentQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public PageNumber Page { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenShipment>, IEnumerable<MartenShipment>>> QueryIs()
         => shipments => shipments.Where(x => x.Parcels.Any(p => p.Page > Page));
@@ -321,7 +360,9 @@ public sealed class MartenShipmentsWithParcelsAbove : MartenShipmentQuery
 
 public sealed class MartenShipmentsHoldingCountry : MartenShipmentQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public CountryCode Country { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenShipment>, IEnumerable<MartenShipment>>> QueryIs()
         => shipments => shipments.Where(x => x.Countries.Contains(Country));
@@ -331,7 +372,9 @@ public sealed class MartenShipmentsHoldingCountry : MartenShipmentQuery
 
 public sealed class MartenShipmentsNotedWithIban : MartenShipmentQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Iban Iban { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenShipment>, IEnumerable<MartenShipment>>> QueryIs()
         => shipments => shipments.Where(x => x.Note == Iban.Value);
@@ -341,7 +384,9 @@ public sealed class MartenShipmentsNotedWithIban : MartenShipmentQuery
 
 public sealed class MartenShipmentsWithIbanPrefix : MartenShipmentQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Iban Prefix { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenShipment>, IEnumerable<MartenShipment>>> QueryIs()
         => shipments => shipments.Where(x => x.Iban.Value.StartsWith(Prefix.Value));
@@ -351,7 +396,9 @@ public sealed class MartenShipmentsWithIbanPrefix : MartenShipmentQuery
 
 public sealed class MartenShipmentsAtPageIndex : MartenShipmentQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public PageNumber Page { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenShipment>, IEnumerable<MartenShipment>>> QueryIs()
         => shipments => shipments.Where(x => x.Index == Page.Value);
@@ -359,10 +406,21 @@ public sealed class MartenShipmentsAtPageIndex : MartenShipmentQuery
     public override bool Answers(MartenShipment shipment) => shipment.Index == Page.Value;
 }
 
+/// <summary>A compiled query reading a collection of a value-object identity: the form VO0048 names for one.</summary>
+public sealed class MartenCustomersByIds : ICompiledListQuery<MartenCustomer>
+{
+    public List<CustomerId> Ids { get; set; } = [];
+
+    public Expression<Func<IMartenQueryable<MartenCustomer>, IEnumerable<MartenCustomer>>> QueryIs()
+        => customers => customers.Where(x => x.Id.IsOneOf(Ids));
+}
+
 /// <summary>A compiled query comparing a value-object identity with a member.</summary>
 public sealed class MartenCustomersById : ICompiledListQuery<MartenCustomer>
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten answers a value-object identity with the first call's value.
     public CustomerId Id { get; set; }
+#pragma warning restore VO0048
 
     public Expression<Func<IMartenQueryable<MartenCustomer>, IEnumerable<MartenCustomer>>> QueryIs()
         => customers => customers.Where(x => x.Id == Id);

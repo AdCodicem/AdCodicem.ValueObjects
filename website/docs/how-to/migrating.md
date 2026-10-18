@@ -57,7 +57,7 @@ Keep the rules, delete the plumbing.
 | `Conversions.EfCoreValueConverter`, `HasVogenConversion()` | `ConfigureValueObjects(assembly)`, once |
 | `Conversions.DapperTypeHandler` | `ValueObjectDapper.AddValueObjectHandlers(assembly)`, once |
 | `Conversions.Bson`, `BsonSerializationRegisterFor….TryRegister()` | `ValueObjectBson.Register(assembly)`, once, after the `GuidSerializer`: [MongoDB](mongodb.md) |
-| Marten's `RegisterValueType(typeof(Iban))`, one per type | `AddMarten(…).UseValueObjects()`, once, which also binds a compiled query's collections and reads a projected value through the rules: [Marten](marten.md) |
+| Marten's `RegisterValueType(typeof(Iban))`, one per type | `AddMarten(…).UseValueObjects()`, once, which also binds a compiled query's collections and reads a projected value through the rules, and `VO0048` reports a value object a compiled query holds, which Marten answered with the first call's value: [Marten](marten.md) |
 | `Conversions.NewtonsoftJson` | `settings.AddValueObjects()`, which adds `ValueObjectConverter` to the serializer settings |
 | `Conversions.MessagePack` | `options.WithValueObjects()`, once, on the serializer options, which reads through the rules; `UseValueObjects()` for SignalR: [MessagePack and SignalR](messagepack.md) |
 | `Conversions.Orleans` | `AddValueObjects()`, once, on the serializer of every silo and client, which reads through the rules and carries a refusal's code back to the caller: [Orleans](orleans.md) |
