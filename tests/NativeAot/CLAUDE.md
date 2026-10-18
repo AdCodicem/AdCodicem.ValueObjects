@@ -4,9 +4,11 @@ CI publishes these rather than tests them. None imports `tests/Directory.Build.p
 stay on where they apply. How the script works is in the header of `.github/scripts/native-aot.sh`.
 
 ```bash
-# As ci.yml's `native AOT` job runs them; need clang and zlib
+# As ci.yml's `native AOT` job runs them, and its `native AOT (Marten)` job the third; need clang and zlib
 .github/scripts/native-aot.sh
 .github/scripts/native-aot.sh artifacts/native-aot-protobuf tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet
+NATIVE_AOT_POSTGRES="Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres" \
+  .github/scripts/native-aot.sh artifacts/native-aot-marten tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Marten
 .github/scripts/compiled-model.sh aot   # Docker-free: published, never run
 .github/scripts/compiled-model.sh jit   # as the build job: optimize, build, a round trip through SQL Server (Docker)
 ```
@@ -27,11 +29,12 @@ stay on where they apply. How the script works is in the header of `.github/scri
 ## `AdCodicem.ValueObjects.NativeAot`
 
 - A minimal API referencing every package that claims AOT compatibility but HotChocolate, HotChocolate.Data,
-  ProtobufNet, Orleans (Orleans 10.4 does not start natively: `src/AdCodicem.ValueObjects.Orleans/CLAUDE.md`) and
-  CsvHelper (its record API has no native code: `src/AdCodicem.ValueObjects.CsvHelper/CLAUDE.md`), serving a
-  contract-first gRPC service over Kestrel's cleartext HTTP/2 too. Its value objects are in
-  `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's `Domain/UnderlyingTypes.cs` and opts into XML
-  serialization, which nothing calls, as a guard that the emission adds no warning.
+  ProtobufNet, Marten (an application of its own, below), Orleans (Orleans 10.4 does not start natively:
+  `src/AdCodicem.ValueObjects.Orleans/CLAUDE.md`) and CsvHelper (its record API has no native code:
+  `src/AdCodicem.ValueObjects.CsvHelper/CLAUDE.md`), serving a contract-first gRPC service over Kestrel's cleartext
+  HTTP/2 too. Its value objects are in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
+  `Domain/UnderlyingTypes.cs` and opts into XML serialization, which nothing calls, as a guard that the emission adds no
+  warning.
 - A value object added to `UnderlyingTypes.cs`, or registered by the application, goes into `AppJsonContext` with its
   underlying type, or the script reports it missing. An underlying type no other value object has also needs its texts in
   `Underlying.cs`; a value object whose rules accept none of its underlying type's texts needs one it accepts and one it
@@ -61,6 +64,30 @@ stay on where they apply. How the script works is in the header of `.github/scri
 - protobuf-net's generated model warns at every call, so the Roslyn trim and AOT analyzers are off
   (`EnableTrimAnalyzer`, `EnableAotAnalyzer`) and `WarningsNotAsErrors` holds `IL2026;IL2104;IL2111;IL3050;IL3053`;
   `native-aot.sh` then lets through only what its `aot-warnings.allowed` lists.
+
+## `AdCodicem.ValueObjects.NativeAot.Marten`
+
+- A Marten document store over the PostgreSQL that `NATIVE_AOT_POSTGRES` names, in the schema `native_aot_marten`, which
+  each run cleans first: in CI, the `postgres:17-alpine` service container of `native AOT (Marten)`; locally, any
+  PostgreSQL (`docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:17-alpine`). Without it the application
+  exits 2.
+- `native AOT (Marten)` is a job of its own beside `native AOT`, so that the required check keeps its duration: the
+  native AOT compiler alone takes about 20 minutes over Marten, on one core, and the script 17.5 to 24 minutes on a warm
+  4-core machine, hence its 45-minute timeout. It is not a required check until the maintainer adds it to the ruleset.
+- Its documents hold the main application's domain (`AdCodicem.ValueObjects.NativeAot.Domain`), the construction of a
+  generic value object and `HandWrittenCode`, both registered in `Program.cs`, and `UnregisteredCode`, which the member
+  source must refuse; `UseValueObjectId` declares the identity. Serialization goes through `MartenJsonContext`'s
+  options: a document type added needs its `[JsonSerializable]` there, and a `Schema.For<T>()` in the store's
+  configuration, or Marten closes `DocumentMappingBuilder<T>` at run time and the native binary throws
+  `MissingMethodException`.
+- A scenario whose outcome is a refusal in both runs (a compiled query's single value object) is written with
+  `LineAsync`, which writes the exception's type and first line; `AnswersAsync` fails the process where the server and
+  the documents in memory answer otherwise. Marten's duplicated field selected is written with `RefusedAsync`, which
+  writes that it was refused alone: Marten refuses the result type under the JIT (`NotSupportedException`) and a native
+  image lacks its `DataSelectClause<TSelf?>` (`MissingMethodException`), both Marten's, before a row is read.
+- Marten, JasperFx, Weasel and FastExpressionCompiler warn for themselves: `aot-warnings.allowed` matches them by their
+  Source Link paths (`/_/src/Marten/`, `/_/src/Weasel.Storage/`) and assemblies, never a member of this library, and
+  `WarningsNotAsErrors` holds `IL2026;IL2104;IL3053` under `NativeAot`, so the AOT compiler finishes.
 
 ## `AdCodicem.ValueObjects.CompiledModel`
 

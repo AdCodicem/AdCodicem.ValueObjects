@@ -32,6 +32,7 @@ const sidebars: SidebarsConfig = {
         'how-to/ef-core',
         'how-to/dapper',
         'how-to/mongodb',
+        'how-to/marten',
         'how-to/messagepack',
         'how-to/protobuf-net',
         'how-to/grpc',

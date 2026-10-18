@@ -41,8 +41,9 @@
          Context Protocol package, which reaches them through Microsoft.Extensions.Hosting.Abstractions, of the Azure
          Functions package, which reaches them through Worker.Core, of both HotChocolate packages, which reach them
          through HotChocolate.Types, of the Blazor package, which reaches them through
-         Microsoft.AspNetCore.Components.Web and Microsoft.Extensions.Localization, and of the Orleans package, which
-         reaches them through Microsoft.Orleans.Serialization: removing them changes what those nine pack. Dependabot never moves them, so an update of a package that asks for a later version of either fails the
+         Microsoft.AspNetCore.Components.Web and Microsoft.Extensions.Localization, of the Orleans package, which
+         reaches them through Microsoft.Orleans.Serialization, and of the Marten package, which reaches them through
+         JasperFx: removing them changes what those ten pack. Dependabot never moves them, so an update of a package that asks for a later version of either fails the
          restore with NU1109, and opens no pull request, until they are raised by hand with it. -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.13" />
@@ -62,6 +63,12 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). MongoDB.Bson comes with it, at the
          same version, and is pinned by nothing here: a pin would make it a dependency of the package. -->
     <PackageVersion Include="MongoDB.Driver" Version="3.12.0" />
+    <!-- The Marten package's floor, the version it is built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); Marten 10 is a decision, not a bump.
+         JasperFx, JasperFx.Events, Weasel and Npgsql come with it and are pinned by nothing here: a pin would make them
+         dependencies of the package. Marten asks for Npgsql 9.0.4, which the suites resolve at 10.0.3 through the Entity
+         Framework Core provider. -->
+    <PackageVersion Include="Marten" Version="9.50.3" />
     <!-- The MessagePack package's floors, the versions it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). MessagePack 3 lifts the 2.5.302 the
          hub protocol asks for. MessagePack.Annotations and MessagePackAnalyzer come with MessagePack and are pinned by

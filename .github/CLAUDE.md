@@ -7,7 +7,7 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 
 - Runs Mondays at 07:15 Europe/Paris and on dispatch from `main`; the `nuget` environment deploys from `main` only.
 - `scripts/preview-gate.sh` decides `publish`, `repair` or `none` against the version nuget.org has from the nearest
-  commit, and fails the run rather than guess when a lookup fails. All thirty-six packages go out at one version, or
+  commit, and fails the run rather than guess when a lookup fails. All thirty-seven packages go out at one version, or
   none.
 - The version: `scripts/next-version.mjs` runs semantic-release's commit analyzer with `.releaserc.json`, without a
   token, and suffixes `-preview.<commits since the last stable tag>` (`0.3.0-preview.172` leads to `0.3.0`; with no
@@ -84,7 +84,9 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - Trusted Publishing is keyed on a workflow file and an environment (`preview.yml` with `nuget`, `release.yml` with
   `nuget-stable`): change the nuget.org policy before renaming either file or moving its publish job.
 - Required checks are job names: `build and test`, `native AOT` and `workflows`; `compat (.NET 11)` becomes one when
-  .NET 11 ships. Never rename them without updating the `Default` ruleset.
+  .NET 11 ships, and `native AOT (Marten)`, the Marten application's job of its own beside `native AOT` (Marten's native
+  AOT compiler alone takes about 20 minutes), once the maintainer adds it to the ruleset, not before. Never rename them
+  without updating the `Default` ruleset.
 - `scripts/ecmascript-patterns.mjs`, run by `ci.yml`'s `documentation site` job, holds the Blazor package's pattern
   table (`tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json`) to Node's v-flag engine, as
   `EcmaScriptPatternTests` holds it to .NET: change both together.

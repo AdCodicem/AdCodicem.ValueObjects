@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver, MessagePack and SignalR, protobuf-net and gRPC, Orleans, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker), HotChocolate (GraphQL), Blazor forms, System.CommandLine and CsvHelper integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, money, strongly-typed identifier), and whenever a VO0001–VO0047 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver, Marten, MessagePack and SignalR, protobuf-net and gRPC, Orleans, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker), HotChocolate (GraphQL), Blazor forms, System.CommandLine and CsvHelper integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, money, strongly-typed identifier), and whenever a VO0001–VO0047 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -249,6 +249,7 @@ ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);                
 BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));    // MongoDB, first
 ValueObjectBson.Register(typeof(Iban).Assembly);                                       // MongoDB, before anything is serialized
 EntityIdBson.Register(typeof(AccountId).Assembly);                                     // Identifiers.MongoDB, on insert
+builder.Services.AddMarten(o => o.Connection(cs)).UseValueObjects();                   // Marten, after AddMarten's own configuration
 var msgpack = MessagePackSerializerOptions.Standard.WithValueObjects();                // MessagePack
 builder.Services.AddSignalR().AddMessagePackProtocol(o => o.UseValueObjects());        // MessagePack, client too
 RuntimeTypeModel.Default.AddValueObjects(typeof(Iban).Assembly);                       // ProtobufNet, before the first message
@@ -300,7 +301,9 @@ text as the default instance. Without `AcceptValueObjects()` (`AdCodicem.ValueOb
 System.CommandLine option of a value object parses with no error and `GetValue` then throws, and `--flag` alone is
 refused for one over `bool`. Without `AddValueObjects()` on a context's `TypeConverterCache`
 (`AdCodicem.ValueObjects.CsvHelper`), CsvHelper writes a `Value` column per value object and reads default instances,
-with nothing thrown. Per-package details, EF `strict` mode and problem-details payloads:
+with nothing thrown. Without `UseValueObjects()` (`AdCodicem.ValueObjects.Marten`), Marten throws on every comparison
+of a value object, answers no rows for `x.Iban.Value == "…"`, and fails `Duplicate(x => x.Iban)` at the first write.
+Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.
 
 ## Test with the contract kit
@@ -349,7 +352,7 @@ library. AutoFixture, Bogus and FsCheck get the same values through `AdCodicem.V
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, protobuf-net and gRPC (code-first and contract-first), Orleans grain calls, GraphQL (HotChocolate), FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, XML, test data for AutoFixture, Bogus and FsCheck, Azure Functions (isolated worker), Blazor forms, System.CommandLine, CsvHelper, the run-time lookup when only a `Type` is known. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, Marten, MessagePack and SignalR, protobuf-net and gRPC (code-first and contract-first), Orleans grain calls, GraphQL (HotChocolate), FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, XML, test data for AutoFixture, Bogus and FsCheck, Azure Functions (isolated worker), Blazor forms, System.CommandLine, CsvHelper, the run-time lookup when only a `Type` is known. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, their EF Core columns and MongoDB id generation, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0047`, with the fix for each. |
 

@@ -19,6 +19,7 @@ FsCheck
 Grpc.StatusProto
 HotChocolate.Data
 HotChocolate.Types
+Marten
 MessagePack
 Microsoft.AspNetCore.Components.Web
 Microsoft.AspNetCore.Mvc.NewtonsoftJson

@@ -66,11 +66,13 @@ also writes to. MongoDB, MessagePack, protobuf-net and Orleans reads validate, s
 call may come from another program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
 `WithValueObjects(trusted: true)`, `AddValueObjects(trusted: true, …)` on a protobuf-net model, and
 `AddValueObjects(trusted: true)` on an Orleans serializer. A CSV field is always read through the rules, since people
-and spreadsheets edit a file.
+and spreadsheets edit a file, and so is a [Marten](./how-to/marten.md#strict-reads-and-patching) document, read through
+the generated JSON converter, and a value a Marten query projects.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
-collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema, NSwag's included, of the JSON Schema a
-[Kafka topic registers](./how-to/messaging.md#kafka-with-confluents-schema-registry), and of the [MongoDB collection
+collection of IBANs included, and a [Marten duplicated field](./how-to/marten.md#duplicated-fields), and becomes the
+`maxLength` keyword of the OpenAPI schema, NSwag's included, of the JSON Schema a [Kafka topic
+registers](./how-to/messaging.md#kafka-with-confluents-schema-registry), and of the [MongoDB collection
 validator](./how-to/mongodb.md#a-collection-validator-from-the-rules). A declared pattern becomes the pattern of the
 [GraphQL scalar](./how-to/graphql.md#what-the-schema-publishes) too, and, on request, the lengths and a pattern a browser
 reads as .NET does the `maxlength`, `minlength` and `pattern` of a [Blazor input](./how-to/blazor.md#the-attributes-of-the-rules).

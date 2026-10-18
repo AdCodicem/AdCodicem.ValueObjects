@@ -39,7 +39,7 @@ body:
       label: Reproduction
       description: >-
         The smallest code that shows it. If the problem only appears through an integration,
-        say which call path reaches it — model binding, a DataAnnotations validation, a Blazor form's input, a System.CommandLine option or argument, a CsvHelper read or write, EF Core read, Dapper, a MongoDB read, query or validator, a MessagePack or SignalR message, a protobuf-net message or a gRPC call, an Orleans grain call, a GraphQL argument, variable, field or filter, JSON, an OpenAPI document or a JSON Schema, a Serilog log event, a tool call, an MCP tool call, a structured answer or an Azure Functions binding.
+        say which call path reaches it — model binding, a DataAnnotations validation, a Blazor form's input, a System.CommandLine option or argument, a CsvHelper read or write, EF Core read, Dapper, a MongoDB read, query or validator, a Marten query, duplicated field or compiled query, a MessagePack or SignalR message, a protobuf-net message or a gRPC call, an Orleans grain call, a GraphQL argument, variable, field or filter, JSON, an OpenAPI document or a JSON Schema, a Serilog log event, a tool call, an MCP tool call, a structured answer or an Azure Functions binding.
       render: csharp
     validations:
       required: true
@@ -55,6 +55,7 @@ body:
         - Entity Framework Core
         - Dapper
         - MongoDB (AdCodicem.ValueObjects.MongoDB, AdCodicem.ValueObjects.Identifiers.MongoDB)
+        - Marten (AdCodicem.ValueObjects.Marten)
         - MessagePack or SignalR (AdCodicem.ValueObjects.MessagePack)
         - protobuf-net or gRPC (AdCodicem.ValueObjects.ProtobufNet, AdCodicem.ValueObjects.Grpc)
         - Orleans grain calls (AdCodicem.ValueObjects.Orleans)

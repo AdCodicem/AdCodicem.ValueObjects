@@ -2,12 +2,12 @@
 title: Packages
 sidebar_label: Packages
 slug: /packages
-description: The thirty-six AdCodicem.ValueObjects packages, and which boundary each one covers.
+description: The thirty-seven AdCodicem.ValueObjects packages, and which boundary each one covers.
 ---
 
 # Packages
 
-Thirty-six NuGet packages. Install `AdCodicem.ValueObjects` and add whichever of the others cover the boundaries your
+Thirty-seven NuGet packages. Install `AdCodicem.ValueObjects` and add whichever of the others cover the boundaries your
 application actually has.
 
 | Package | What it gives you |
@@ -25,6 +25,7 @@ application actually has.
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, and a `$jsonSchema` validator built from the rules. See [MongoDB](./how-to/mongodb.md). |
+| `AdCodicem.ValueObjects.Marten` | Marten's LINQ, duplicated fields and identities over the underlying value, `Contains` and `IsOneOf` over value objects, a compiled query's collection of value objects bound on every call and a single one refused, and strict reads carrying the rule code. See [Marten](./how-to/marten.md). |
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters, and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. See [MessagePack and SignalR](./how-to/messagepack.md). |
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers, and protobuf-net.Grpc code-first services: the underlying value on the wire, strict reads, the scalar in the `.proto` export, a refused request answered `INVALID_ARGUMENT` with its rule code. See [protobuf-net and code-first gRPC](./how-to/protobuf-net.md). |
 | `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC services: every refused field answered at once as `INVALID_ARGUMENT` with a `google.rpc.BadRequest`, and a refusal that escapes a handler with a `google.rpc.ErrorInfo` carrying its rule code. See [gRPC services](./how-to/grpc.md). |
@@ -51,7 +52,7 @@ application actually has.
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-six are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-seven are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -72,6 +73,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
 | `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
+| `AdCodicem.ValueObjects.Marten` | `net10.0` | Marten 9.50, on PostgreSQL 17, and native AOT | Marten 9.50 on .NET 11, on PostgreSQL 17 |
 | `AdCodicem.ValueObjects.MessagePack` | `net10.0` | MessagePack 3.1, with SignalR's MessagePack hub protocol 10 | MessagePack 3.1 on .NET 11, with the hub protocol 11 |
 | `AdCodicem.ValueObjects.ProtobufNet` | `net10.0` | protobuf-net 3.4 and protobuf-net.Grpc 1.3 over Grpc.AspNetCore 2.84, and protobuf-net's compile-time model under native AOT | protobuf-net 3.4 on .NET 11, a code-first call over TestHost |
 | `AdCodicem.ValueObjects.Grpc` | `net10.0` | Grpc.StatusProto 2.84, over Grpc.AspNetCore 2.84 and native AOT | a contract-first service over TestHost on .NET 11 |

@@ -103,6 +103,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, and a `$jsonSchema` validator built from the rules. |
+| `AdCodicem.ValueObjects.Marten` | Marten's LINQ, duplicated fields and identities over the underlying value, `Contains` and `IsOneOf`, a compiled query's collections bound on every call, and strict reads carrying the rule code. |
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters, and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers, and protobuf-net.Grpc code-first services: the underlying value on the wire, strict reads, a refused request answered `INVALID_ARGUMENT` with its rule code. |
 | `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC services: every refused field answered at once as `INVALID_ARGUMENT` with a `google.rpc.BadRequest`, and a refusal escaping a handler with a `google.rpc.ErrorInfo` carrying its rule code. |
@@ -129,7 +130,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-six are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-seven are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -150,6 +151,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
 | `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
+| `AdCodicem.ValueObjects.Marten` | `net10.0` | Marten 9.50, on PostgreSQL 17, and native AOT | Marten 9.50 on .NET 11, on PostgreSQL 17 |
 | `AdCodicem.ValueObjects.MessagePack` | `net10.0` | MessagePack 3.1, with SignalR's MessagePack hub protocol 10 | MessagePack 3.1 on .NET 11, with the hub protocol 11 |
 | `AdCodicem.ValueObjects.ProtobufNet` | `net10.0` | protobuf-net 3.4 and protobuf-net.Grpc 1.3 over Grpc.AspNetCore 2.84, and protobuf-net's compile-time model under native AOT | protobuf-net 3.4 on .NET 11, a code-first call over TestHost |
 | `AdCodicem.ValueObjects.Grpc` | `net10.0` | Grpc.StatusProto 2.84, over Grpc.AspNetCore 2.84 and native AOT | a contract-first service over TestHost on .NET 11 |
@@ -264,18 +266,20 @@ also writes to. MongoDB, MessagePack, protobuf-net and Orleans reads validate, s
 call may come from another program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
 `WithValueObjects(trusted: true)`, `AddValueObjects(trusted: true, …)` on a protobuf-net model, and
 `AddValueObjects(trusted: true)` on an Orleans serializer. A CSV field is always read through the rules, since people
-and spreadsheets edit a file.
+and spreadsheets edit a file, and so is a Marten document, read through the generated JSON converter, and a value a
+Marten query projects.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
-collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema, NSwag's included, and of the
-JSON Schema a Kafka topic registers through Confluent's serdes. The `[GeneratedRegex]` behind
-`IValueObjectPatternValidator` validates the value, and its text becomes the `pattern` keyword, and the pattern of a
-GraphQL scalar, which HotChocolate publishes as `@serializeAs` under `ApplySerializeAsToScalars`. The members marked
-`[KnownValue]` become a frozen membership lookup and the `enum` keyword of the schema, with their names beside it for
-generated clients. On request, `AddValueObjectCheckConstraints()` writes the minimum length, the bounds and the closed
-sets as CHECK constraints of the EF Core columns, wherever the database reads them as .NET does, and, once the options
-name the dialect of SQL Server 2025 or PostgreSQL, the patterns, refusing to build the model on one the database would
-read apart from .NET unless `ExcludePattern<TSelf>()` leaves it to the application.
+collection of IBANs included, and a Marten duplicated field, and becomes the `maxLength` keyword of the OpenAPI
+schema, NSwag's included, and of the JSON Schema a Kafka topic registers through Confluent's serdes. The
+`[GeneratedRegex]` behind `IValueObjectPatternValidator` validates the value, and its text becomes the `pattern`
+keyword, and the pattern of a GraphQL scalar, which HotChocolate publishes as `@serializeAs` under
+`ApplySerializeAsToScalars`. The members marked `[KnownValue]` become a frozen membership lookup and the `enum`
+keyword of the schema, with their names beside it for generated clients. On request,
+`AddValueObjectCheckConstraints()` writes the minimum length, the bounds and the closed sets as CHECK constraints of
+the EF Core columns, wherever the database reads them as .NET does, and, once the options name the dialect of SQL
+Server 2025 or PostgreSQL, the patterns, refusing to build the model on one the database would read apart from .NET
+unless `ExcludePattern<TSelf>()` leaves it to the application.
 The same rules fill in the JSON Schema System.Text.Json exports, which AI tools, structured output and MCP servers
 describe their parameters with, through `ValueObjectJsonSchema`; `AdCodicem.ValueObjects.AI` carries them to the tools
 and the structured output of Microsoft.Extensions.AI in one call, and `AdCodicem.ValueObjects.ModelContextProtocol` to
@@ -430,6 +434,19 @@ await database.CreateCollectionAsync("orders", new CreateCollectionOptions<BsonD
 {
     Validator = new BsonDocumentFilterDefinition<BsonDocument>(ValueObjectBsonSchema.For<Order>()),
 });
+```
+
+Marten stores a value object as its bare value through the generated JSON converter, but cannot query one: a
+comparison throws `BadLinqExpressionException`, `x.Iban.Value == "FR76…"` reads a path no document has and answers no
+rows, and `Duplicate(x => x.Iban)` fails at the first write. `AdCodicem.ValueObjects.Marten` teaches the store every
+value object as Marten's own value types are taught, so that LINQ, `Contains`, `IsOneOf`, duplicated fields, computed
+indexes and identities see the underlying value, a compiled query binds a collection of value objects on every call,
+one taking a single value object is refused rather than replay its first value, and a value a query projects is read
+through the rules
+([the Marten guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/marten)):
+
+```csharp skip
+builder.Services.AddMarten(options => options.Connection(connectionString)).UseValueObjects();
 ```
 
 SignalR's MessagePack hub protocol falls back to contractless serialization, which writes a value object as `{}`: the

@@ -1,6 +1,6 @@
 # tests/Compat — the .NET compatibility island
 
-The thirty-six packages exactly as packed, installed from `artifacts/packages` at one fresh version into `net11.0`
+The thirty-seven packages exactly as packed, installed from `artifacts/packages` at one fresh version into `net11.0`
 applications on the .NET 11 release candidate. It checks the packages, not the code. Runbook:
 `docs/maintaining.md`, "The .NET compatibility island".
 
@@ -37,6 +37,8 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
   grain, no Microsoft.Orleans.Sdk and no Orleans generator run here.
 - The CsvHelper package brings CsvHelper at its floor, 33.1.0, which the island pins nowhere: an application without
   central package management gets that version (`CsvHelperTests.cs`).
+- The Marten package brings Marten at its floor, which the island pins nowhere, and runs against the island's
+  PostgreSQL container (`MartenTests.cs`), through async calls alone, the only ones Marten 9 supports.
 - MessagePack's analyzer and protobuf-net's generator run in the SDK 11 compiler here: the island has its own
   `MessagePackAssumedFormattable` list and its own `PBN9001` suppression.
 - Its MongoDB tests go through one static, strict registration first, as the suites' do (the driver's registry is
