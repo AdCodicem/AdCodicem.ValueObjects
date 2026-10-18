@@ -46,6 +46,9 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AzureFunctions.AspNetCore\AdCodicem.ValueObjects.AzureFunctions.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Blazor\AdCodicem.ValueObjects.Blazor.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.CommandLine\AdCodicem.ValueObjects.CommandLine.csproj" />
+    <!-- Under an alias too: src/Shared/ValueObjectText.cs is compiled into the Blazor, System.CommandLine and CsvHelper
+         packages, and the test of its Gregorian cultures names the CsvHelper package's copy through the alias. -->
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.CsvHelper\AdCodicem.ValueObjects.CsvHelper.csproj" Aliases="global,csvhelper" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Dapper\AdCodicem.ValueObjects.Dapper.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />

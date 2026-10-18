@@ -26,7 +26,7 @@ reports it in the code of Riok.Mapperly and of the configuration binding generat
 `.globalconfig` adds ([the fix](./reference/diagnostics.md#a-value-object-another-generator-creates)). What reaches a
 boundary the analyzer cannot see — an entity property never set, a default array element — is not written as it stands:
 the JSON converters, the Dapper handler, the MongoDB serializers, the MessagePack formatters, the protobuf-net
-serializers, the Orleans codecs, the HotChocolate scalars, the XML serialization of an assembly marked `[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized instance
+serializers, the Orleans codecs, the CsvHelper converters, the HotChocolate scalars, the XML serialization of an assembly marked `[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized instance
 whose value its type rejects, and an optional EF Core column stores a `NULL` instead, as does an element of a
 `List<Iban?>` ([what each one throws](./reference/errors.md#a-value-refused-on-write)). Under
 `ConfigureValueObjects`, an EF Core primary key of one property over a `Guid` value object, which nothing generates,
@@ -37,7 +37,7 @@ refuses an entity added without it, whatever the type's rules
 valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in their own
 terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a MongoDB.Driver
 `FormatException`, a MessagePack `MessagePackSerializationException`, a protobuf-net `ProtoException`, an Orleans
-`SerializerException`, carried back to the caller of a grain, the
+`SerializerException`, carried back to the caller of a grain, a CsvHelper `TypeConverterException`, the
 `INVALID_ARGUMENT` status of a gRPC service, code-first or contract-first, an `XmlException` from `XmlSerializer` or
 `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool result a language model
 reads, a Model Context Protocol tool execution error, the text of the Azure Functions worker's binding failure, which
@@ -65,7 +65,8 @@ replaces before anything is written. `ConfigureValueObjects(strict: true)` turns
 also writes to. MongoDB, MessagePack, protobuf-net and Orleans reads validate, since a collection, a message or a grain
 call may come from another program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
 `WithValueObjects(trusted: true)`, `AddValueObjects(trusted: true, …)` on a protobuf-net model, and
-`AddValueObjects(trusted: true)` on an Orleans serializer.
+`AddValueObjects(trusted: true)` on an Orleans serializer. A CSV field is always read through the rules, since people
+and spreadsheets edit a file.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
 collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema, NSwag's included, of the JSON Schema a

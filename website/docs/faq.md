@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The thirty-five packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The thirty-six packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -119,8 +119,10 @@ translations from a resource the application names, `AddValueObjects(messages =>
 `AddValueObjectInputs(options => options.UseResource<T>())`, and the options and arguments of a System.CommandLine
 command, `AcceptValueObjects(options => options.UseResource<T>())`, FluentValidation reads them from its
 `LanguageManager`, and
-DataAnnotations' `[ParsesAs]` and `[NotDefault]` from the resource their `ErrorMessageResourceType` names alone. No
-translation ships with the packages. The
+DataAnnotations' `[ParsesAs]` and `[NotDefault]` from the resource their `ErrorMessageResourceType` names alone.
+CsvHelper shows no message to a person: an import reads the code off the exception and looks the message up itself
+([CsvHelper](./how-to/files-and-command-line.md#what-a-refused-field-looks-like)). No translation ships with the
+packages. The
 [errors reference](./reference/errors.md#a-message-in-the-applications-language) lists the keys and the arguments, with a
 French example, and the guides for [ASP.NET Core](./how-to/aspnet-core.md#messages-in-the-applications-language),
 [Azure Functions](./how-to/azure.md#messages-in-the-requests-language),
@@ -321,6 +323,17 @@ no error and then throws from `GetValue`, and gives the flag syntax to `bool` al
 `TypeConverter`, and needs no package:
 [Files and command line](./how-to/files-and-command-line.md#systemcommandline).
 
+### Does it work with CsvHelper?
+
+Through `AdCodicem.ValueObjects.CsvHelper`, whose `AddValueObjects()` on a context's converter cache maps each value
+object as one column: written as its own text, which its parser reads back, and read through its rules, in the
+member's culture. A refused field is CsvHelper's own `TypeConverterException`, naming the type and the rule, never the
+field, the rule's code in its `Data`, which an import reads in `ReadingExceptionOccurred` to report each refused row and
+go on; an empty field read into a value object that cannot be `null` is `value_object.required`, and an uninitialized
+instance its rules refuse is not written. Register before the first read, write or class map of the context. Without
+it, CsvHelper 33.1 writes a `Value` column per value object and reads default instances, with nothing thrown:
+[Files and command line](./how-to/files-and-command-line.md#csvhelper).
+
 ### Does it work with `XmlSerializer`, `DataContractSerializer` or WCF?
 
 Once the assembly asks for it: `[assembly: ValueObjectXmlSerialization]` makes the generator implement
@@ -404,7 +417,8 @@ each parameter it explains, the Azure Functions converter the conversion of each
 middleware the check of each it explains, the HotChocolate type discovery handler the scalar of each value object a schema
 meets, the HotChocolate.Data type interceptor the operations of each value-object member a filter input meets, the NJsonSchema package the converter it writes a value object's examples through under Newtonsoft.Json
 settings, the Blazor input the text adapters of the value object it binds, the System.CommandLine symbols the parser of
-the value object their option or argument holds, the JSON converter factory closes the
+the value object their option or argument holds, the CsvHelper factory the converter of each value object a context
+meets, the JSON converter factory closes the
 general-purpose converter it gives a value object
 written by hand, the test-data sampler, the AutoFixture customization, the Bogus extensions and FsCheck's
 `MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
@@ -436,7 +450,11 @@ AOT-compatible: its serializers run in protobuf-net's compile-time model, which 
 own, whose generated code protobuf-net's annotations make warn, while its registration and its code-first binder serve
 protobuf-net's runtime model, which needs the JIT ([protobuf-net](./how-to/protobuf-net.md#native-aot)). The Orleans
 package is marked AOT-compatible, and its own code publishes with no warning, but Orleans 10.4 does not start in a
-native binary, so CI publishes no Orleans application ([Orleans](./how-to/orleans.md#native-aot)). The EF Core,
+native binary, so CI publishes no Orleans application ([Orleans](./how-to/orleans.md#native-aot)). The CsvHelper
+package is marked AOT-compatible, and its own code publishes with no warning, but CsvHelper's record API has no native
+code, its auto-mapping and class maps failing in a native binary, so CI publishes no CsvHelper application; its
+`GetField<T>` and `WriteField<T>` run natively
+([CsvHelper](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-in-a-file-and-native-aot)). The EF Core,
 ASP.NET Core MVC, OpenAPI, Swashbuckle, NJsonSchema, Dapper, MongoDB, MongoDB identifiers, MessagePack, Azure Functions
 and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
 in a cache it closes over the type at run time, so under native AOT a handler this package built without dynamic code

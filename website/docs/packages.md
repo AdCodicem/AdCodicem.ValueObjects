@@ -2,12 +2,12 @@
 title: Packages
 sidebar_label: Packages
 slug: /packages
-description: The thirty-five AdCodicem.ValueObjects packages, and which boundary each one covers.
+description: The thirty-six AdCodicem.ValueObjects packages, and which boundary each one covers.
 ---
 
 # Packages
 
-Thirty-five NuGet packages. Install `AdCodicem.ValueObjects` and add whichever of the others cover the boundaries your
+Thirty-six NuGet packages. Install `AdCodicem.ValueObjects` and add whichever of the others cover the boundaries your
 application actually has.
 
 | Package | What it gives you |
@@ -33,6 +33,7 @@ application actually has.
 | `AdCodicem.ValueObjects.HotChocolate.Data` | Every value object filtered in HotChocolate.Data through its scalar: normalized, refused with its rule code, translated by Entity Framework Core, with no binding per type; text operations on request. See [GraphQL](./how-to/graphql.md#filtering-and-sorting-with-hotchocolatedata). |
 | `AdCodicem.ValueObjects.Blazor` | A Blazor input per value object, read through its rules, the refused rule's message under the field and its code on the `EditContext`. See [Blazor forms](./how-to/blazor.md). |
 | `AdCodicem.ValueObjects.CommandLine` | System.CommandLine options and arguments read through the rules, the refused rule's message on the terminal and its code on the parse error. See [Files and command line](./how-to/files-and-command-line.md#systemcommandline). |
+| `AdCodicem.ValueObjects.CsvHelper` | A CsvHelper column per value object, written as its own text and read through its rules, a refused field carrying its rule code. See [Files and command line](./how-to/files-and-command-line.md#csvhelper). |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. See [Logging](./how-to/logging.md#serilog). |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI tool and structured-output schemas that carry the rules, and a refused tool argument answered with its rule code. See [Language models](./how-to/language-models.md). |
@@ -50,7 +51,7 @@ application actually has.
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-five are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-six are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -79,6 +80,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.HotChocolate.Data` | `net10.0` | HotChocolate.Data 16.6, over EF Core 10 on SQLite, PostgreSQL and SQL Server, and in memory | HotChocolate.Data 16.6 over EF Core 11 on SQLite |
 | `AdCodicem.ValueObjects.Blazor` | `net10.0` | Blazor 10 (`Microsoft.AspNetCore.Components.Web` 10), through bUnit, static rendering over TestHost and `HtmlRenderer` under native AOT | Components 11, through `HtmlRenderer` |
 | `AdCodicem.ValueObjects.CommandLine` | `net10.0` | System.CommandLine 2.0, commands parsed and invoked in process, and native AOT | System.CommandLine 3.0 (release candidate) on .NET 11 |
+| `AdCodicem.ValueObjects.CsvHelper` | `net10.0` | CsvHelper 33.1, files read and written in memory | CsvHelper 33.1 on .NET 11 |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
 | `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
 | `AdCodicem.ValueObjects.AI` | `net10.0` | Microsoft.Extensions.AI 10, with its OpenAI adapter in strict mode, and native AOT | Microsoft.Extensions.AI 10 on .NET 11 |

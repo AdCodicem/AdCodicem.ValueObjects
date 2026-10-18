@@ -19,7 +19,8 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   Swashbuckle, NSwag, JSON Patch, DataAnnotations through hosts), `Persistence/` (EF Core, Dapper, MongoDB),
   `BinarySerialization/` (MessagePack; protobuf-net as `Proto*`; gRPC as `CodeFirstGrpc*` and `ContractFirstGrpc*`),
   `Grains/` (Orleans), `GraphQL/` (HotChocolate, HotChocolate.Data), `Forms/` (Blazor), `Cli/` (System.CommandLine),
-  `Functions/` (Azure Functions), `LanguageModels/` (Microsoft.Extensions.AI, Model Context Protocol as `Mcp*`),
+  `Csv/` (CsvHelper), `Functions/` (Azure Functions), `LanguageModels/` (Microsoft.Extensions.AI, Model Context Protocol
+  as `Mcp*`),
   `Logging/` (Serilog, Microsoft.Gen.Logging redaction), `SchemaGeneration/` (NJsonSchema, Confluent),
   `DataAnnotations/`, `TestData/` (the sampler and its three adapters), `XmlSerialization/`, `Identifiers/`.
 - `EmitCompilerGeneratedFiles` is on: generated sources land under `artifacts/obj/AdCodicem.ValueObjects.UnitTests/…/generated/`
@@ -101,6 +102,13 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   System.CommandLine converts a parent command's arguments, and its options neither `Recursive` nor with a default
   value, only at `GetValue`; the walk's validator reads them when a subcommand is invoked, so a test of
   System.CommandLine's own behaviour there configures its symbols with `AcceptValueObject` alone and walks no command.
+- CsvHelper: `Csv/CsvHarness` reads and writes through `StringReader` and `StringWriter`, a context per read or write,
+  so nothing is process-wide; its configuration ends lines with `\n`. A single-column row whose field is empty text is a
+  blank line, which CsvHelper skips: put the value after a `Line` column (`CsvLine<T>`) or quote it. A refused text is
+  written with `CsvHarness.Field`, so that CsvHelper quotes it. A `Csv/` file aliases `CsvHelper.MissingFieldException`,
+  which meets `System.MissingFieldException`, and never imports `System.ComponentModel` beside
+  `CsvHelper.Configuration.Attributes` (two `TypeConverterAttribute`s). A generated value object's `IsDefault` is an
+  explicit implementation: read it through `CsvHarness.IsUninitialized()`.
 - HotChocolate: `GraphQL/GraphQLHarness` builds executors in process. The project sets `HotChocolateImplicitUsings` to
   `disable`. `ScopedFilterQuery` has no projection (a `[UseProjection]` field beside a named convention fails the schema).
 - `RegisteredAsciiDeclaration` is the one schema written by hand that a test resolves through the registry.
@@ -131,7 +139,8 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   `ResolveReferences` (`KeepTheDefaultLoggingGenerator`); without both, Microsoft.Gen.Logging would pass `PageNumber` as
   text and `SerilogMicrosoftExtensionsLoggingTests` would fail.
 - Shared-source copies: the contracts' `ValueObjectPatternSyntax` is named through `extern alias abstractions`,
-  Testing.Data's types through `testingdata`; every other copy through its package's API (`src/Shared/CLAUDE.md`).
+  Testing.Data's types through `testingdata`, the CsvHelper package's `GregorianCultures` through `csvhelper`; every
+  other copy through its package's API (`src/Shared/CLAUDE.md`).
 - `DescriptorTests.cs` covers the boxed path the rest of the suite never reaches; `RuntimeClosingTests.cs` holds the
   allow-list of runtime-closing calls.
 - Property tests (`PropertyTests.cs`) run the laws `IValueObject<TSelf, TValue>` states in prose. A property conditioned on

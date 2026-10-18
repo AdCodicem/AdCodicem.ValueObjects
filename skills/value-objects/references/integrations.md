@@ -26,6 +26,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.HotChocolate.Data` | HotChocolate.Data 16: every value object filtered through its scalar's operations, normalized, refused with its code, translated by EF Core; text operations on request. AOT-compatible code; HotChocolate.Data filtering does not run natively. |
 | `AdCodicem.ValueObjects.Blazor` | Blazor forms: `InputValueObject`, an input per value object read through its rules; the refused rule's message under the field, its code on the `EditContext`. AOT-compatible, installable in Blazor WebAssembly. |
 | `AdCodicem.ValueObjects.CommandLine` | System.CommandLine 2.0 and 3.0: options and arguments read through the rules; the refused rule's message on the terminal, its code on the parse error. AOT-compatible. |
+| `AdCodicem.ValueObjects.CsvHelper` | CsvHelper 33.1: a column per value object, written as its own text, read through its rules; a refused field a `TypeConverterException` with its code in `Data`. AOT-compatible code; CsvHelper's record API does not run natively. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI: the rules in tool and structured-output schemas; a refused tool argument answered with its code. AOT-compatible. |
@@ -80,7 +81,8 @@ with `Minimum` 0, an unconstrained `Guid`) writes it.
 **Every exception an integration throws for a refused value carries the rule's code.** System.Text.Json:
 `ValueObjectJsonException.ErrorCode`, beside `ValueObjectType`. Newtonsoft.Json's `JsonSerializationException`, Dapper's
 `DataException`, MongoDB.Driver's `FormatException` (read) and `BsonSerializationException` (write), MessagePack's
-`MessagePackSerializationException`, protobuf-net's `ProtoException`, and the `XmlException` of `XmlSerializer` and `DataContractSerializer` in an
+`MessagePackSerializationException`, protobuf-net's `ProtoException`, CsvHelper's `TypeConverterException`, and the
+`XmlException` of `XmlSerializer` and `DataContractSerializer` in an
 assembly marked `[assembly: ValueObjectXmlSerialization]`, inside the serializer's own exception:
 `exception.Data[ValueObjectErrors.ErrorCodeKey]`. EF Core: the `ValueObjectException` inside `DbUpdateException`; a
 row a CHECK constraint from the rules refused, under `options.UseValueObjectCheckErrors()`: the provider's error, inside
@@ -1021,6 +1023,67 @@ foreach (var error in root.Parse(args).Errors)
   (`ValueObjectRegistry.Register<TSelf, TValue>(…)`) before configuring, or it throws `InvalidOperationException`.
 - `AdCodicem.ValueObjects.CommandLine` hides a root `CommandLine` namespace (CommandLineParser's) inside
   `AdCodicem.ValueObjects.*` code; `using System.CommandLine;` is unaffected.
+
+## CsvHelper
+
+`AdCodicem.ValueObjects.CsvHelper`. Without it, CsvHelper writes a `Value` column per value object and reads default
+instances with nothing thrown; through a class map it refuses every field with "The conversion cannot be performed.",
+with no code.
+
+```csharp skip
+using AdCodicem.ValueObjects.CsvHelper;
+
+using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+csv.Context.TypeConverterCache.AddValueObjects();   // before the first GetRecords, WriteRecords or RegisterClassMap
+var orders = csv.GetRecords<Order>().ToList();
+
+csv.Context.TypeConverterCache.AddValueObject<Reference<PurchaseOrder>, string>();   // one type, no registry
+
+var configuration = new CsvConfiguration(CultureInfo.InvariantCulture)
+{
+    ReadingExceptionOccurred = args =>
+    {
+        if (args.Exception is TypeConverterException refusal && ValueObjectErrors.TryGetCode(refusal, out var code))
+        {
+            Report(refusal.Context?.Parser?.Row, refusal.MemberMapData.Names[0], code);
+            return false;   // skip the row
+        }
+
+        return true;        // rethrow anything else
+    },
+};
+```
+
+- Call `AddValueObjects()` on the context of every reader and every writer, before its first `GetRecords`,
+  `WriteRecords` or `RegisterClassMap`: CsvHelper reads its converter cache when it builds a map.
+- Never call `AutoMap(CultureInfo)` in a class map: it builds a context without the converters. Use `AutoMap(context)`
+  over a context given `AddValueObjects()`, `csv.Context.AutoMap<T>()` after it,
+  `TypeConverter<ValueObjectTypeConverter<TSelf, TValue>>()` on the member map, or
+  `[TypeConverter(typeof(ValueObjectTypeConverter<TSelf, TValue>))]` on the member.
+- Name no converter on a positional record's `T?` parameter: leave it to `AddValueObjects()` or
+  `AddValueObject<TSelf, TValue>()`, or an empty field is `value_object.required`.
+- Declare `T?` for a column that may be empty: an empty field read into `T` is `value_object.required`, unless the type
+  accepts empty text. `NullValues` work on `T?` only. A `T?` reads the empty instance of a type accepting empty text
+  back as `null`.
+- Map one column per value object, never a collection (`List<T>`, `T[]`): CsvHelper's own converters write each
+  element's `ToString()` and, by name, drop a refused element with nothing thrown.
+- Never make a value object the record itself (`GetRecords<Iban>()` fails): read and write it with `GetField<T>` and
+  `WriteField<T>`, or put it in a class of one member.
+- Set `TypeConverterOptions` for `T?` too: options set for `T` do not reach a `T?` member. Only the culture is read;
+  `Formats`, `NumberStyles` and the boolean values are not.
+- `Default(…, useOnConversionFailure: true)` drops the refusal and its code.
+- Read the code in `ReadingExceptionOccurred` with `ValueObjectErrors.TryGetCode`; the column is
+  `MemberMapData.Names[0]` (`MemberMapData.Member` is `null` for a positional record). Return `true` for anything else,
+  so a misuse wrapped in `ReaderException` is not skipped.
+- Set `ExceptionMessagesContainRawData = false` to keep the field (`TypeConverterException.Text`) and the raw record out
+  of logs.
+- An uninitialized instance its rules refuse is not written (`TypeConverterException` with its code). Write to a
+  temporary file and move it once `WriteRecords` returns: a refused write leaves a partial row.
+- Under native AOT, register a hand-written value object and a generic construction
+  (`ValueObjectRegistry.Register<TSelf, TValue>(…)`), or add `AddValueObject<TSelf, TValue>()`, before CsvHelper meets
+  it. CsvHelper's record API fails natively; `GetField<T>` and `WriteField<T>` work.
+- `AdCodicem.ValueObjects.CsvHelper` hides the root `CsvHelper` namespace inside `AdCodicem.ValueObjects.*` code: name
+  CsvHelper's types through usings at the top of the file.
 
 ## OpenAPI
 

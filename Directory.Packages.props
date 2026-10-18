@@ -146,6 +146,10 @@
          3.0, whose version follows .NET 11's, runs the package as built (tests/Compat); its next major is a decision, not a
          bump. -->
     <PackageVersion Include="System.CommandLine" Version="2.0.13" />
+    <!-- The CsvHelper package's floor, the version it is built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md), and CsvHelper's latest release, of
+         2025-06-02; its net8.0 and net9.0 assets depend on nothing. -->
+    <PackageVersion Include="CsvHelper" Version="33.1.0" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">

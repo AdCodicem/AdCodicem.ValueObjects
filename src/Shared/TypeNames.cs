@@ -5,8 +5,8 @@ namespace AdCodicem.ValueObjects.Shared;
 /// this file, so that each writes the registration to add with the same names, and so do the Entity Framework Core
 /// package, which names the type of a key it refuses, and the value object whose pattern it refuses, the two Azure
 /// Functions packages, which name the type a refusal is for, the protobuf-net and gRPC packages, which name the value
-/// object a refusal and an <c>ErrorInfo</c> are for, and the System.CommandLine package, which names the type of a symbol
-/// it cannot read.
+/// object a refusal and an <c>ErrorInfo</c> are for, the System.CommandLine package, which names the type of a symbol it
+/// cannot read, and the CsvHelper package, which names the value object a refused field is for.
 /// </summary>
 internal static class TypeNames
 {

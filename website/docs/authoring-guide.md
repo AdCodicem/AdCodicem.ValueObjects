@@ -307,6 +307,9 @@ time Orleans asks for it, or take one registered with `ValueObjectRegistry.Regis
 `AddValueObject<TSelf, TValue>()`. [The System.CommandLine
 symbols](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-and-native-aot) describe one by
 reflection when a command is configured, or take one registered with `ValueObjectRegistry.Register<TSelf, TValue>()`.
+[The CsvHelper factory](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-in-a-file-and-native-aot)
+describes one by reflection the first time a CsvHelper context meets it, or takes one registered with
+`ValueObjectRegistry.Register<TSelf, TValue>()`, beside a converter `AddValueObject<TSelf, TValue>()` adds typed.
 Under native AOT, where describing a construction by reflection is out
 of reach, register each construction a type-driven integration needs; the registration reads its schema off the type:
 
