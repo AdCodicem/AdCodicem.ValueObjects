@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver, MessagePack and SignalR, protobuf-net and gRPC, Orleans, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker), HotChocolate (GraphQL), Blazor forms and System.CommandLine integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, money, strongly-typed identifier), and whenever a VO0001–VO0047 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver, MessagePack and SignalR, protobuf-net and gRPC, Orleans, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker), HotChocolate (GraphQL), Blazor forms, System.CommandLine and CsvHelper integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, money, strongly-typed identifier), and whenever a VO0001–VO0047 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -179,7 +179,7 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   validation. Construct through `Create`/`TryCreate`; express absence as `Iban?`, never as an empty or default
   instance. A test that needs one disables `VO0010` on that line with a comment saying why. One that slips past the
   analyzer (an entity property never set) is refused by every writer when its type rejects the default (JSON,
-  Dapper, MongoDB, MessagePack, protobuf-net, Orleans, a HotChocolate output field, XML in an assembly marked
+  Dapper, MongoDB, MessagePack, protobuf-net, Orleans, CsvHelper, a HotChocolate output field, XML in an assembly marked
   `[assembly: ValueObjectXmlSerialization]`, EF Core `SaveChanges`); an EF Core `Iban?` column stores `NULL` instead,
   and so does an element of a `List<Iban?>` (over text only: an element of a `List<Quantity?>` is refused). Under
   `ConfigureValueObjects`, an EF Core primary key of one property over a `Guid` value object that nothing generates
@@ -260,6 +260,7 @@ builder.Services.AddGraphQLServer().AddQueryType<Query>().AddValueObjects();    
 builder.Services.AddValueObjectInputs(o => o.UseResource<Messages>());                // Blazor, optional: messages by code
 // <InputValueObject @bind-Value="Model.Iban" /> in an EditForm                       // Blazor, an input per value object
 root.AcceptValueObjects(o => o.UseResource<Messages>());                              // CommandLine, once the whole tree is added
+csv.Context.TypeConverterCache.AddValueObjects();                                      // CsvHelper, each reader and writer, first
 new LoggerConfiguration().Enrich.FromLogContext()                                      // Serilog, after FromLogContext
     .Destructure.ValueObjects(o => { o.CaptureAsUnderlyingValue = true; o.Assemblies.Add(typeof(Iban).Assembly); });
 // [assembly: ValueObjectXmlSerialization]  in the domain assembly: XmlSerializer, DataContractSerializer, MVC XML formatters
@@ -297,7 +298,9 @@ text. A Blazor form binds a value object through
 `InputValueObject` (`AdCodicem.ValueObjects.Blazor`); `@bind` drops refused text without a message and binds empty
 text as the default instance. Without `AcceptValueObjects()` (`AdCodicem.ValueObjects.CommandLine`), a
 System.CommandLine option of a value object parses with no error and `GetValue` then throws, and `--flag` alone is
-refused for one over `bool`. Per-package details, EF `strict` mode and problem-details payloads:
+refused for one over `bool`. Without `AddValueObjects()` on a context's `TypeConverterCache`
+(`AdCodicem.ValueObjects.CsvHelper`), CsvHelper writes a `Value` column per value object and reads default instances,
+with nothing thrown. Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.
 
 ## Test with the contract kit
@@ -346,7 +349,7 @@ library. AutoFixture, Bogus and FsCheck get the same values through `AdCodicem.V
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, protobuf-net and gRPC (code-first and contract-first), Orleans grain calls, GraphQL (HotChocolate), FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, XML, test data for AutoFixture, Bogus and FsCheck, Azure Functions (isolated worker), Blazor forms, System.CommandLine, the run-time lookup when only a `Type` is known. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, protobuf-net and gRPC (code-first and contract-first), Orleans grain calls, GraphQL (HotChocolate), FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, XML, test data for AutoFixture, Bogus and FsCheck, Azure Functions (isolated worker), Blazor forms, System.CommandLine, CsvHelper, the run-time lookup when only a `Type` is known. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, their EF Core columns and MongoDB id generation, `AnyEntityId`, deterministic tests. |
 | `references/diagnostics.md` | `VO0001`–`VO0047`, with the fix for each. |
 

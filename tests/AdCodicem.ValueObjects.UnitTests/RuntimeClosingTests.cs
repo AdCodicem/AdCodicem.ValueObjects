@@ -61,6 +61,7 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.Blazor", [] },
         { "AdCodicem.ValueObjects.Bogus", [] },
         { "AdCodicem.ValueObjects.CommandLine", [] },
+        { "AdCodicem.ValueObjects.CsvHelper", [] },
         { "AdCodicem.ValueObjects.Dapper", [] },
 
         // The converter of a TSelf? property, or of such an element of a collection over text, which C# names only under a

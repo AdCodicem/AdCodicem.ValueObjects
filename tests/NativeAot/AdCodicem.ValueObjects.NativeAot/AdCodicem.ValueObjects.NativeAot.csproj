@@ -3,10 +3,12 @@
   <!--
     An application published with native AOT by ci.yml's native AOT job, which runs it once under the JIT and once as
     the native binary and fails when the two outputs differ (Program.cs). It references every package that claims to
-    be AOT-compatible but four, AdCodicem.ValueObjects.HotChocolate and AdCodicem.ValueObjects.HotChocolate.Data, whose
+    be AOT-compatible but five, AdCodicem.ValueObjects.HotChocolate and AdCodicem.ValueObjects.HotChocolate.Data, whose
     framework warns on its own publish and starts natively only rooted, and whose HotChocolate.Data filtering of a
     struct has no native code, AdCodicem.ValueObjects.ProtobufNet, which AdCodicem.ValueObjects.NativeAot.ProtobufNet
-    publishes apart, and AdCodicem.ValueObjects.Orleans, since Orleans 10.4 does not start natively, and its value objects come from a domain project, where the Request Delegate Generator sees their
+    publishes apart, AdCodicem.ValueObjects.Orleans, since Orleans 10.4 does not start natively, and
+    AdCodicem.ValueObjects.CsvHelper, whose CsvHelper record API has no native code, and its value objects come from a
+    domain project, where the Request Delegate Generator sees their
     interfaces; the RDG suite covers those declared in the endpoints' project. Microsoft.Extensions.AI builds the tools
     of LanguageModels.cs from their methods at run time, over the source-generated context, and so does the Model Context
     Protocol SDK for the server of Mcp.cs, in process over a pair of pipes. ContractFirstGrpc.cs serves a contract-first

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace AdCodicem.ValueObjects.Shared;
@@ -10,10 +11,10 @@ namespace AdCodicem.ValueObjects.Shared;
 /// <typeparam name="TSelf">The value object type.</typeparam>
 /// <typeparam name="TValue">Its underlying type.</typeparam>
 /// <remarks>
-/// This file is linked into the packages that read text a person typed: the Blazor one, for the input of a form, and the
-/// System.CommandLine one, for the options and arguments of a command. Each compiles its own copy, and keeps the rules
-/// that are its own: what empty text means, and what text a default instance is written as. It reads no annotation and
-/// closes no generic type at run time, so it runs in a native binary.
+/// This file is linked into the packages that read text a person typed or edited: the Blazor one, for the input of a form,
+/// the System.CommandLine one, for the options and arguments of a command, and the CsvHelper one, for the fields of a CSV
+/// file. Each compiles its own copy, and keeps the rules that are its own: what empty text means, and what text a default
+/// instance is written as. It reads no annotation and closes no generic type at run time, so it runs in a native binary.
 /// </remarks>
 internal static class ValueObjectText<TSelf, TValue>
     where TSelf : struct, IValueObject<TSelf, TValue>
@@ -48,10 +49,19 @@ internal static class ValueObjectText<TSelf, TValue>
     /// Why the text was refused: the rule the value breaks, or <see cref="ValueObjectErrorCodes.NotParsable"/> for a parser
     /// written by hand that refused without saying why.
     /// </param>
+    /// <param name="unexplained">
+    /// The message of <see cref="ValueObjectErrorCodes.NotParsable"/> for a parser written by hand that refused without
+    /// saying why; "The text could not be parsed as" followed by the type's name when omitted.
+    /// </param>
     /// <returns><see langword="true"/> when the type accepts the text.</returns>
-    public static bool TryParse(ReadOnlySpan<char> text, CultureInfo culture, out TSelf result, out ValidationResult validation)
+    public static bool TryParse(
+        ReadOnlySpan<char> text,
+        CultureInfo culture,
+        out TSelf result,
+        out ValidationResult validation,
+        string? unexplained = null)
     {
-        if (TSelf.TryParse(text, Dated ? Gregorian(culture) : culture, out result, out validation))
+        if (TSelf.TryParse(text, Dated ? GregorianCultures.Of(culture) : culture, out result, out validation))
         {
             return true;
         }
@@ -59,7 +69,7 @@ internal static class ValueObjectText<TSelf, TValue>
         // A parser written by hand may refuse without a code, which the descriptor's parser gives it too.
         if (validation.IsValid)
         {
-            validation = ValidationResult.Failure(ValueObjectErrorCodes.NotParsable, $"The text could not be parsed as {typeof(TSelf).Name}.");
+            validation = ValidationResult.Failure(ValueObjectErrorCodes.NotParsable, unexplained ?? $"The text could not be parsed as {typeof(TSelf).Name}.");
         }
 
         return false;
@@ -77,19 +87,42 @@ internal static class ValueObjectText<TSelf, TValue>
     /// <returns>The text: its underlying value's when a formatting hook writes its own, which may not read back.</returns>
     public static string Format(TSelf value, CultureInfo culture)
         => Hooked ? FormatValue(value.Value, culture) : value.ToString(null, culture);
+}
 
-    /// <summary>
-    /// Gets the culture a date is read in: the culture itself where its calendar is the Gregorian one, the calendar of the
-    /// round-trip text written here, and otherwise a copy of it whose calendar is the Gregorian one, which every culture
-    /// lists, so that its patterns and names stay and a year typed is a Gregorian one.
-    /// </summary>
-    private static CultureInfo Gregorian(CultureInfo culture)
+/// <summary>
+/// The cultures dates are read in: a culture whose calendar is the Gregorian one, the calendar of the round-trip text
+/// written here, and otherwise a copy of it whose calendar is the Gregorian one, which every culture lists, so that its
+/// patterns and names stay and a year typed is a Gregorian one.
+/// </summary>
+/// <remarks>
+/// The copy of a read-only culture, which <see cref="CultureInfo.GetCultureInfo(string)"/>, the current culture and the
+/// invariant culture are, is made once and kept, read-only too since threads share it: a CSV file of dates read in the
+/// Thai Buddhist calendar would otherwise clone its culture once per field. A culture the application may still change is
+/// copied each time.
+/// </remarks>
+internal static class GregorianCultures
+{
+    /// <summary>The Gregorian copy of each read-only culture asked for, held no longer than the culture.</summary>
+    private static readonly ConditionalWeakTable<CultureInfo, CultureInfo> Copies = new();
+
+    /// <summary>Gets the culture a date is read in.</summary>
+    /// <param name="culture">The culture the text is read in.</param>
+    /// <returns>The culture itself, or a copy of it whose calendar is the Gregorian one.</returns>
+    public static CultureInfo Of(CultureInfo culture)
     {
         if (culture.DateTimeFormat.Calendar is GregorianCalendar)
         {
             return culture;
         }
 
+        return culture.IsReadOnly
+            ? Copies.GetValue(culture, static source => CultureInfo.ReadOnly(Copy(source)))
+            : Copy(culture);
+    }
+
+    /// <summary>Copies a culture, setting the copy's calendar to the Gregorian one.</summary>
+    private static CultureInfo Copy(CultureInfo culture)
+    {
         var gregorian = (CultureInfo)culture.Clone();
         gregorian.DateTimeFormat.Calendar = new GregorianCalendar();
         return gregorian;

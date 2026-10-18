@@ -15,6 +15,7 @@
       "src/AdCodicem.ValueObjects.Bogus/AdCodicem.ValueObjects.Bogus.csproj",
       "src/AdCodicem.ValueObjects.CodeFixes/AdCodicem.ValueObjects.CodeFixes.csproj",
       "src/AdCodicem.ValueObjects.CommandLine/AdCodicem.ValueObjects.CommandLine.csproj",
+      "src/AdCodicem.ValueObjects.CsvHelper/AdCodicem.ValueObjects.CsvHelper.csproj",
       "src/AdCodicem.ValueObjects.Dapper/AdCodicem.ValueObjects.Dapper.csproj",
       "src/AdCodicem.ValueObjects.EntityFrameworkCore/AdCodicem.ValueObjects.EntityFrameworkCore.csproj",
       "src/AdCodicem.ValueObjects.FluentValidation/AdCodicem.ValueObjects.FluentValidation.csproj",

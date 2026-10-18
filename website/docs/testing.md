@@ -64,7 +64,11 @@ Four suites, each with a distinct job:
   System.CommandLine commands parsed and invoked in process read every sample value object through an option, its
   nullable type, a list and an argument, the text of each instance and of each edge of its rules reading back to it and
   each value its rules rule out refused with its code on the parse error, every known value completed as text that
-  reads back, with flags, cultures, a response file and messages in French from a resource. The DataAnnotations
+  reads back, with flags, cultures, a response file and messages in French from a resource. CsvHelper writes every
+  sample value object as a column and reads it back, alone and nullable, in the invariant culture and in French, and
+  the converter reads back the text it writes in every culture whose calendar is not the Gregorian one, each value its
+  rules rule out refused with its code on CsvHelper's exception, and its default written only where its rules accept
+  it, with class maps, defaults, the registration-order traps and CsvHelper's own behaviours pinned. The DataAnnotations
   attributes hold the text of every sample value object to its rules, in
   both forms, and refuse each default instance, through `Validator`, options validated as a host starts and by the
   validator `[OptionsValidator]` writes, CommunityToolkit.Mvvm's `ObservableValidator`, MVC and a minimal API under
@@ -152,8 +156,9 @@ one, the Blazor one and the System.CommandLine one, all but
 the two HotChocolate ones, whose framework warns on its own publish and starts natively only rooted, and whose
 HotChocolate.Data filtering of a struct has no native code ([GraphQL](./how-to/graphql.md#native-aot)), and whose
 refusal of a value object nothing registered the unit suite runs instead under the JIT, in a child process whose
-runtime supports no dynamic code, the protobuf-net one, which the third publishes, and the Orleans one, since Orleans
-does not start natively, whose refusal of a value object nothing registered the unit suite runs under the JIT too. Its
+runtime supports no dynamic code, the protobuf-net one, which the third publishes, the Orleans one, since Orleans
+does not start natively, and the CsvHelper one, whose CsvHelper record API has no native code, whose refusals of a
+value object nothing registered the unit suite runs under the JIT too. Its
 value
 objects cover each of the 22 underlying types, a pattern hook, a
 closed set, an identifier, a generic value object registered by hand, and two value objects written by hand, registered
@@ -196,7 +201,7 @@ the warnings the project lists, `aot-warnings.allowed`, and fails on any other, 
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the thirty-five packages exactly as they were packed — from the folder the build packs into, at that one
+installs the thirty-six packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -215,7 +220,8 @@ FluentValidation, Newtonsoft.Json through its settings and its contract resolver
 tools and structured output, Model Context Protocol tools over the SDK's own client, the Azure Functions converter and
 the problem details middleware beside ASP.NET Core 11, HotChocolate 16 scalars in a schema built in process, their
 messages in the language of the execution, HotChocolate.Data filters over Entity Framework Core 11 on SQLite, a Blazor input rendered by `HtmlRenderer` on the Components of .NET 11, its
-messages from a resource, System.CommandLine 3.0's release candidate over the package built against 2.0, an NSwag 14.7
+messages from a resource, System.CommandLine 3.0's release candidate over the package built against 2.0, CsvHelper 33.1
+reading and writing value objects as columns, an NSwag 14.7
 document and Confluent's JSON serdes 2.16 over NJsonSchema,
 `XmlSerializer` and
 `DataContractSerializer` over a domain that opts into XML serialization, the contract kit, and the test-data sampler

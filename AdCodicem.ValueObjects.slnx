@@ -32,6 +32,7 @@
     <Project Path="src/AdCodicem.ValueObjects.HotChocolate.Data/AdCodicem.ValueObjects.HotChocolate.Data.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Blazor/AdCodicem.ValueObjects.Blazor.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.CommandLine/AdCodicem.ValueObjects.CommandLine.csproj" />
+    <Project Path="src/AdCodicem.ValueObjects.CsvHelper/AdCodicem.ValueObjects.CsvHelper.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing.Data/AdCodicem.ValueObjects.Testing.Data.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AutoFixture/AdCodicem.ValueObjects.AutoFixture.csproj" />

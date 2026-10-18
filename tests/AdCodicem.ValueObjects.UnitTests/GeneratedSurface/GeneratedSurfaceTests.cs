@@ -149,6 +149,11 @@ public class GeneratedSurfaceTests
         => Samples.All[type].ReadsThroughACommandLineOption();
 
     [Theory]
+    [MemberData(nameof(Every))]
+    public void Every_value_object_round_trips_through_a_CSV_column(string type)
+        => Samples.All[type].RoundTripsThroughACsvColumn();
+
+    [Theory]
     [MemberData(nameof(EveryArithmetic))]
     public void Every_arithmetic_member_validates_its_result(string type)
         => Samples.All[type].ComputesThroughEveryArithmeticMember();

@@ -11,6 +11,7 @@ using AdCodicem.ValueObjects.NewtonsoftJson;
 using AdCodicem.ValueObjects.Testing.Data;
 using AdCodicem.ValueObjects.UnitTests.BinarySerialization;
 using AdCodicem.ValueObjects.UnitTests.Cli;
+using AdCodicem.ValueObjects.UnitTests.Csv;
 using AdCodicem.ValueObjects.UnitTests.DataAnnotations;
 using AdCodicem.ValueObjects.UnitTests.Forms;
 using AdCodicem.ValueObjects.UnitTests.Functions;
@@ -237,6 +238,17 @@ public abstract class Sample
     /// and that each known value is completed as text that reads back to it.
     /// </summary>
     public abstract void ReadsThroughACommandLineOption();
+
+    /// <summary>
+    /// Writes the value object, alone and as its nullable type, as a CsvHelper column through <c>AddValueObjects()</c>, and
+    /// checks that the two instances and every value at an edge of its rules read back to themselves, in the invariant
+    /// culture and in French, and alone through the converter in every culture whose calendar is not the Gregorian one;
+    /// that the refused text, empty text and the text of every value its schema rules out leave a
+    /// <c>TypeConverterException</c> with the code and the message <c>TryParse</c> gives, or
+    /// <see cref="ValueObjectErrorCodes.Required"/> for empty text; and that its default is written only where its rules
+    /// accept it.
+    /// </summary>
+    public abstract void RoundTripsThroughACsvColumn();
 
     /// <summary>
     /// Checks that <c>[NotDefault]</c> refuses the value object's default instance with
@@ -809,6 +821,8 @@ public class Sample<TSelf, TValue> : Sample
     public override void BindsThroughABlazorInput() => FormsParity.Check<TSelf, TValue>(Small, Large, Refused);
 
     public override void ReadsThroughACommandLineOption() => CliParity.Check<TSelf, TValue>(Small, Large, Refused);
+
+    public override void RoundTripsThroughACsvColumn() => CsvParity.Check<TSelf, TValue>(Small, Large, Refused);
 
     public override void HoldsTextToItsRulesThroughDataAnnotations()
     {

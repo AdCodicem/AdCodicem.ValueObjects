@@ -168,7 +168,8 @@ jobs:
   # Functions worker's converter and problem details middleware, HotChocolate 16 scalars in process and
   # HotChocolate.Data filters over Entity Framework Core 11 on SQLite, a Blazor input
   # rendered by HtmlRenderer on the next major's Components, System.CommandLine 3.0's
-  # release candidate parsing options and arguments of value objects, NSwag documents
+  # release candidate parsing options and arguments of value objects, CsvHelper 33.1
+  # reading and writing value objects as columns, NSwag documents
   # and Confluent's JSON serdes over NJsonSchema, the contract kit and the test-data packages over AutoFixture, Bogus
   # and FsCheck, and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3, and Swashbuckle 10
   # over Microsoft.OpenApi 2 in a project of its own. The island has its own global.json, so the SDK it needs
@@ -233,8 +234,9 @@ jobs:
   # The packages that claim to be AOT-compatible, in an application published
   # with native AOT (tests/NativeAot), all but the two HotChocolate packages, whose
   # framework warns on its own publish and starts natively only rooted, and whose
-  # HotChocolate.Data filtering of a struct has no native code, and the Orleans
-  # package, since Orleans does not start natively: the contracts,
+  # HotChocolate.Data filtering of a struct has no native code, the Orleans
+  # package, since Orleans does not start natively, and the CsvHelper package,
+  # whose CsvHelper record API has no native code: the contracts,
   # the generated code, the
   # JSON package with a source-generated context and the JSON Schema it exports,
   # the identifiers and FluentValidation, every value object reached through the

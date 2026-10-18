@@ -12,6 +12,7 @@
 # that pulls it in.
 AutoFixture
 Bogus
+CsvHelper
 Dapper
 FluentValidation
 FsCheck

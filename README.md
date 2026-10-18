@@ -111,6 +111,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.HotChocolate.Data` | Every value object filtered in HotChocolate.Data through its scalar: normalized, refused with its rule code, translated by Entity Framework Core, with no binding per type; text operations on request. |
 | `AdCodicem.ValueObjects.Blazor` | A Blazor input per value object, read through its rules, the refused rule's message under the field and its code on the `EditContext`. |
 | `AdCodicem.ValueObjects.CommandLine` | System.CommandLine options and arguments read through the rules, the refused rule's message on the terminal and its code on the parse error. |
+| `AdCodicem.ValueObjects.CsvHelper` | A CsvHelper column per value object, written as its own text and read through its rules, a refused field carrying its rule code. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI tool and structured-output schemas that carry the rules, and a refused tool argument answered with its rule code. |
@@ -128,7 +129,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-five are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-six are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -157,6 +158,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.HotChocolate.Data` | `net10.0` | HotChocolate.Data 16.6, over EF Core 10 on SQLite, PostgreSQL and SQL Server, and in memory | HotChocolate.Data 16.6 over EF Core 11 on SQLite |
 | `AdCodicem.ValueObjects.Blazor` | `net10.0` | Blazor 10 (`Microsoft.AspNetCore.Components.Web` 10), through bUnit, static rendering over TestHost and `HtmlRenderer` under native AOT | Components 11, through `HtmlRenderer` |
 | `AdCodicem.ValueObjects.CommandLine` | `net10.0` | System.CommandLine 2.0, commands parsed and invoked in process, and native AOT | System.CommandLine 3.0 (release candidate) on .NET 11 |
+| `AdCodicem.ValueObjects.CsvHelper` | `net10.0` | CsvHelper 33.1, files read and written in memory | CsvHelper 33.1 on .NET 11 |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
 | `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
 | `AdCodicem.ValueObjects.AI` | `net10.0` | Microsoft.Extensions.AI 10, with its OpenAI adapter in strict mode, and native AOT | Microsoft.Extensions.AI 10 on .NET 11 |
@@ -219,17 +221,18 @@ which is what makes the struct representation — zero allocation, no null — s
 its own output: `VO0032` reports it in the code of Riok.Mapperly and of the configuration binding generator, and
 of any generator a `.globalconfig` adds. What reaches a boundary the analyzer cannot see — an entity property never
 set, a default array element — is not written as it stands: the JSON converters, the Dapper handler, the MongoDB
-serializers, the MessagePack formatters, the protobuf-net serializers, the Orleans codecs, the HotChocolate scalars,
-the XML serialization of an assembly marked `[assembly: ValueObjectXmlSerialization]` and the EF Core converters
-refuse an uninitialized instance whose value its type rejects, and an optional EF Core column stores a `NULL` instead,
-as does an element of a `List<Iban?>`. Under `ConfigureValueObjects`, an EF Core primary key of one property over a
-`Guid` value object, which nothing generates, refuses an entity added without it, whatever the type's rules.
+serializers, the MessagePack formatters, the protobuf-net serializers, the Orleans codecs, the CsvHelper converters,
+the HotChocolate scalars, the XML serialization of an assembly marked `[assembly: ValueObjectXmlSerialization]` and
+the EF Core converters refuse an uninitialized instance whose value its type rejects, and an optional EF Core column
+stores a `NULL` instead, as does an element of a `List<Iban?>`. Under `ConfigureValueObjects`, an EF Core primary key
+of one property over a `Guid` value object, which nothing generates, refuses an entity added without it, whatever the
+type's rules.
 
 **Rejection is not an exception.** `Validate` returns a `readonly struct` that allocates nothing when the value
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
 their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a
 MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationException`, a protobuf-net `ProtoException`,
-an Orleans `SerializerException`, carried back to the caller of a grain,
+an Orleans `SerializerException`, carried back to the caller of a grain, a CsvHelper `TypeConverterException`,
 the `INVALID_ARGUMENT` status a gRPC service answers, code-first or contract-first, whose `google.rpc.ErrorInfo` or
 `google.rpc.BadRequest` carries the code, an `XmlException` from
 `XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool
@@ -260,7 +263,8 @@ replaces before anything is written. `ConfigureValueObjects(strict: true)` turns
 also writes to. MongoDB, MessagePack, protobuf-net and Orleans reads validate, since a collection, a message or a grain
 call may come from another program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
 `WithValueObjects(trusted: true)`, `AddValueObjects(trusted: true, …)` on a protobuf-net model, and
-`AddValueObjects(trusted: true)` on an Orleans serializer.
+`AddValueObjects(trusted: true)` on an Orleans serializer. A CSV field is always read through the rules, since people
+and spreadsheets edit a file.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
 collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI schema, NSwag's included, and of the
@@ -280,7 +284,7 @@ with DataAnnotations' `[ParsesAs(typeof(Iban))]`, which the OpenAPI packages, NS
 object's text, rather than restating them in `[StringLength]` and `[RegularExpression]`. A Blazor input reads its text
 through them, and, on request, writes the maximum and minimum lengths and a pattern a browser reads as .NET does as the
 `maxlength`, `minlength` and `pattern` of the field. A System.CommandLine option reads its text through them too, and
-takes its description and its completions from the type.
+takes its description and its completions from the type, and a CsvHelper column reads its field through them.
 
 ## Compared with other libraries
 
@@ -545,6 +549,18 @@ option and giving the rule's message, never the text, its code beside it
 var root = new RootCommand { new Option<Iban>("--iban"), new Option<Quantity?>("--quantity") };
 root.AcceptValueObjects();          // or (options => options.UseResource<Messages>()), messages in the users' language
 return root.Parse(args).Invoke();   // a refusal: its message on standard error, the help, exit code 1
+```
+
+CsvHelper reads no `TypeDescriptor` either: it writes a value object as a column per public property, `Value`, and reads
+it back as a default instance, with nothing thrown. `AdCodicem.ValueObjects.CsvHelper`'s `AddValueObjects()` maps each
+value object as one column, written as its own text, which its parser reads back, and read through its rules, a refused
+field throwing CsvHelper's `TypeConverterException` with the rule's code in its `Data` and no field in its message
+([the CsvHelper guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/files-and-command-line#csvhelper)):
+
+```csharp skip
+using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+csv.Context.TypeConverterCache.AddValueObjects();   // before the first GetRecords, WriteRecords or RegisterClassMap
+var orders = csv.GetRecords<Order>().ToList();      // a refusal: TypeConverterException, the rule's code in its Data
 ```
 
 The Azure Functions isolated worker reads no `[TypeConverter]`: a route value, a query value or other binding data, such
