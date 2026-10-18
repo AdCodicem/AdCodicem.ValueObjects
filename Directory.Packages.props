@@ -12,14 +12,19 @@
 
   <ItemGroup Label="Source generators and analyzers">
     <!-- The Roslyn API the generator is built against, which sets the oldest compiler a consumer may use, and which the
-         generator tests compile snippets with. The unit suite alone takes 5.0.0: it compiles NSwag's client with Roslyn,
+         generator tests compile snippets with. The unit suite takes 5.0.0: it compiles NSwag's client with Roslyn,
          and it reaches Orleans, whose Microsoft.Orleans.Serialization brings Microsoft.CodeAnalysis.Common 5.0.0, which
-         CSharp 4.14.0 refuses (NU1608, an error here). Conditioned on the project rather than set by a VersionOverride,
-         so that every version stays in this file. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" Condition="'$(MSBuildProjectName)' != 'AdCodicem.ValueObjects.UnitTests'" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" Condition="'$(MSBuildProjectName)' == 'AdCodicem.ValueObjects.UnitTests'" />
-    <!-- The code fix, in an assembly of its own: RS1038 refuses Workspaces where an analyzer or a generator lives. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
+         CSharp 4.14.0 refuses (NU1608, an error here). So does the Wolverine.Http fixture application, whose
+         WolverineFx.RuntimeCompilation compiles the endpoints' generated code through JasperFx.RuntimeCompiler 5.0.0,
+         which asks for Microsoft.CodeAnalysis 5.0.0, CSharp 5.0.0 and, through the first, CSharp.Workspaces 5.0.0
+         exactly (NU1109 otherwise). Conditioned on the project rather than set by a VersionOverride, so that every
+         version stays in this file. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" Condition="'$(MSBuildProjectName)' != 'AdCodicem.ValueObjects.UnitTests' and '$(MSBuildProjectName)' != 'AdCodicem.ValueObjects.Fixtures.WolverineHttp'" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" Condition="'$(MSBuildProjectName)' == 'AdCodicem.ValueObjects.UnitTests' or '$(MSBuildProjectName)' == 'AdCodicem.ValueObjects.Fixtures.WolverineHttp'" />
+    <!-- The code fix, in an assembly of its own: RS1038 refuses Workspaces where an analyzer or a generator lives. The
+         Wolverine.Http fixture application takes 5.0.0, as above. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" Condition="'$(MSBuildProjectName)' != 'AdCodicem.ValueObjects.Fixtures.WolverineHttp'" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" Condition="'$(MSBuildProjectName)' == 'AdCodicem.ValueObjects.Fixtures.WolverineHttp'" />
     <!-- The analyzers that check the generator's and the code fix's own code, whose Roslyn API is the CSharp pin above. At
          the floor Microsoft.Orleans.Serialization 10.4.0 declares, below which every project reaching Orleans fails to
          restore (NU1109); transitive pinning lists it as a dependency of the Orleans package. -->
@@ -157,6 +162,13 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md), and CsvHelper's latest release, of
          2025-06-02; its net8.0 and net9.0 assets depend on nothing. -->
     <PackageVersion Include="CsvHelper" Version="33.1.0" />
+    <!-- The Wolverine.Http package's floor, the version it is built against
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md), below which the tests do not build
+         (RejectUnparseableQueryValues came after 6.0); Wolverine 7 is a decision, not a bump. WolverineFx, JasperFx,
+         JasperFx.Events, JasperFx.SourceGenerator and the rest come with it and are pinned by nothing here: a pin would
+         make them dependencies of the package. The Microsoft.Extensions pins above are pruned by its ASP.NET Core
+         framework reference. -->
+    <PackageVersion Include="WolverineFx.Http" Version="6.51.0" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
@@ -266,6 +278,10 @@
          generator, analyzers and global usings with it, through Microsoft.Orleans.Sdk. -->
     <PackageVersion Include="Microsoft.Orleans.Sdk" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.TestingHost" Version="10.4.0" />
+    <!-- Wolverine's dynamic mode, which compiles each endpoint's generated code at run time with Roslyn 5.0.0: the
+         Wolverine.Http fixture application alone references it, and takes its Roslyn through the conditional pins above;
+         no package under src/ references it. -->
+    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.51.0" />
   </ItemGroup>
 
 </Project>

@@ -69,6 +69,14 @@ updates:
       # the package reaches one of its internals (MartenInternalsTests).
       - dependency-name: "Marten"
         update-types: ["version-update:semver-major"]
+      # The HTTP framework the Wolverine.Http package is built on, whose packages share
+      # one version (WolverineFx.RuntimeCompilation, test-only, among them); its minor
+      # and patch updates come in the dotnet group, each moving the package's floor
+      # (the maintainer's choice), and Wolverine 7 is a floor to decide, since the
+      # package reaches three of its internals (HttpChain.IsFormData and RequestType,
+      # HttpElementVariable.ReassignCreator).
+      - dependency-name: "WolverineFx*"
+        update-types: ["version-update:semver-major"]
       # The schema generator the NJsonSchema package is built on, whose majors NSwag's
       # follow and Confluent's JSON serdes are built against: the next one is a floor
       # to decide, with NSwag's, which the tests take; their minor and patch updates

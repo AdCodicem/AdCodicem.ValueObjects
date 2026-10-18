@@ -22,6 +22,7 @@ using AdCodicem.ValueObjects.UnitTests.Logging;
 using AdCodicem.ValueObjects.UnitTests.Persistence;
 using AdCodicem.ValueObjects.UnitTests.SchemaGeneration;
 using AdCodicem.ValueObjects.UnitTests.Web;
+using AdCodicem.ValueObjects.UnitTests.WolverineHttp;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.AI;
@@ -200,6 +201,15 @@ public abstract class Sample
     /// </summary>
     /// <returns>The check.</returns>
     public abstract Task BindsThroughTheFunctionsWorkerAsync();
+
+    /// <summary>
+    /// Binds the value object's text through the helpers the code Wolverine.Http generates for an endpoint calls, alone,
+    /// as its nullable type and as the elements of an array, and checks that it binds the value <c>TryParse</c> reads,
+    /// with nothing to answer, and that the refused text is answered with the message and the code a minimal API answers
+    /// it with, the code recorded on the request.
+    /// </summary>
+    /// <returns>The check.</returns>
+    public abstract Task BindsThroughAWolverineEndpointAsync();
 
     /// <summary>
     /// Builds a HotChocolate schema echoing the value object, alone, optional and in a list, with <c>AddValueObjects()</c>,
@@ -821,6 +831,8 @@ public class Sample<TSelf, TValue> : Sample
     }
 
     public override Task BindsThroughTheFunctionsWorkerAsync() => FunctionsParity.CheckAsync<TSelf, TValue>(Small, Text, Refused);
+
+    public override Task BindsThroughAWolverineEndpointAsync() => WolverineHttpParity.CheckAsync<TSelf, TValue>(Small, Text, Refused);
 
     public override Task AnswersARefusedGraphQLValueWithItsRuleAsync() => GraphQLParity.CheckAsync<TSelf, TValue>(Small, Large, Refused);
 

@@ -119,6 +119,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.ModelContextProtocol` | Model Context Protocol tool schemas that carry the rules, and a refused tool argument answered with its rule code. |
 | `AdCodicem.ValueObjects.AzureFunctions` | Azure Functions isolated worker: route values, query values and binding data bound through the rules, a refusal carrying its code. |
 | `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` | The minimal API problem details for the HTTP triggers of the Functions ASP.NET Core integration. |
+| `AdCodicem.ValueObjects.Wolverine.Http` | Wolverine.Http endpoints: route, query, header and form values bound through the rules, every refused or missing one answered 400 with the minimal API's problem details and rule codes, native AOT included in Wolverine's static mode. |
 | `AdCodicem.ValueObjects.Identifiers` | Stripe-style public entity identifiers: `acc_2K7X9…`. |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | Fixed-width, non-Unicode columns for those identifiers. |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | Those identifiers minted by MongoDB.Driver for a document inserted without one. |
@@ -130,7 +131,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-seven are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-eight are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -167,6 +168,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.ModelContextProtocol` | `net10.0` | ModelContextProtocol 2.2, in process over streams, and native AOT | ModelContextProtocol 2.2 on .NET 11 |
 | `AdCodicem.ValueObjects.AzureFunctions` | `net10.0` | Microsoft.Azure.Functions.Worker 2.52, in the Functions host's `dotnet-isolated` 10.0 image | Worker 2.52 on .NET 11 |
 | `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` | `net10.0` | the Functions ASP.NET Core integration 2.1, in the Functions host's `dotnet-isolated` 10.0 image | the integration 2.1 beside ASP.NET Core 11 |
+| `AdCodicem.ValueObjects.Wolverine.Http` | `net10.0` | Wolverine.Http 6.51, in dynamic mode over TestHost, and in static mode under native AOT | Wolverine.Http 6.51 on .NET 11, in dynamic mode over TestHost |
 | `AdCodicem.ValueObjects.Identifiers` | `net10.0` | .NET 10 | .NET 11 |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
@@ -246,13 +248,12 @@ methods wrap in a `ValidationException`, a validation message under a Blazor for
 `EditContext`, and the parse error of a System.CommandLine option or argument, its code beside it. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
-query value, those of a minimal API for a route, query or header value, and those of an Azure Functions HTTP trigger
-for a route or query value. Under `UseValueObjectCheckErrors()`, the
-database provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the
-constraint's name.
-The message is English; the code keys the one an application shows in its users' language, which the MVC, minimal API,
-Azure Functions, HotChocolate, Blazor, System.CommandLine, FluentValidation and DataAnnotations integrations look up
-with the arguments the declared rules supply
+query value, those of a minimal API for a route, query or header value, those of an Azure Functions HTTP trigger
+for a route or query value, and those of a Wolverine.Http endpoint for a route, query, header or form value. Under
+`UseValueObjectCheckErrors()`, the database provider's error for a row a CHECK constraint from the rules refused carries
+the code too, read off the constraint's name. The message is English; the code keys the one an application shows in its
+users' language, which the MVC, minimal API, Azure Functions, Wolverine.Http, HotChocolate, Blazor, System.CommandLine,
+FluentValidation and DataAnnotations integrations look up with the arguments the declared rules supply
 ([a message in the application's language](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/reference/errors#a-message-in-the-applications-language)).
 `Create` throws `ValueObjectException`, and is for the call sites that want it; a strict EF Core read goes through
 it, and fails the query. Validation is fail-fast: the first violated rule wins.
@@ -591,6 +592,19 @@ minimal API writes, carrying its code
 ```csharp skip
 builder.UseValueObjects();                // any application of the worker
 builder.UseValueObjectProblemDetails();   // HTTP triggers, after ConfigureFunctionsWebApplication()
+```
+
+Wolverine.Http binds a value object from its `TryParse`, but answers a refused route value 404, binds as the default
+instance a refused query value under its default `RejectUnparseableQueryValues = false`, an empty or absent one in
+either mode, and a refused, empty or absent header or form value, and stops at startup on `[FromQuery]` over one.
+`AdCodicem.ValueObjects.Wolverine.Http`'s `UseValueObjects()` plugs a parameter strategy into Wolverine's code
+generation: each value object is read through its rules from where Wolverine reads it, and every refused or missing one
+of a request is answered at once with the validation problem a minimal API writes, carrying the codes, before any
+middleware method runs
+([the Wolverine guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/wolverine)):
+
+```csharp skip
+app.MapWolverineEndpoints(opts => opts.UseValueObjects());   // in static mode, run codegen write again afterwards
 ```
 
 ### Testing your own value objects

@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The thirty-seven packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The thirty-eight packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -114,7 +114,8 @@ and an application translates them under the key `ValueObject.` followed by the 
 supply: the length, the bounds, the known values, formatted in the request's culture. MVC and minimal APIs read the
 translations from a resource the application names, `AddValueObjects(messages => messages.UseResource<T>())` and
 `WithValueObjectProblemDetails(messages => messages.UseResource<T>())`, so do the HTTP triggers of Azure Functions,
-`UseValueObjectProblemDetails(messages => messages.UseResource<T>())`, a HotChocolate schema,
+`UseValueObjectProblemDetails(messages => messages.UseResource<T>())`, Wolverine.Http endpoints,
+`UseValueObjects(messages => messages.UseResource<T>())`, a HotChocolate schema,
 `AddValueObjects(options => options.UseResource<T>())`, the inputs of a Blazor form,
 `AddValueObjectInputs(options => options.UseResource<T>())`, and the options and arguments of a System.CommandLine
 command, `AcceptValueObjects(options => options.UseResource<T>())`, FluentValidation reads them from its
@@ -126,6 +127,7 @@ packages. The
 [errors reference](./reference/errors.md#a-message-in-the-applications-language) lists the keys and the arguments, with a
 French example, and the guides for [ASP.NET Core](./how-to/aspnet-core.md#messages-in-the-applications-language),
 [Azure Functions](./how-to/azure.md#messages-in-the-requests-language),
+[Wolverine](./how-to/wolverine.md#messages-in-the-requests-language),
 [GraphQL](./how-to/graphql.md#messages-in-the-applications-language),
 [Blazor](./how-to/blazor.md#messages-in-the-applications-language),
 [System.CommandLine](./how-to/files-and-command-line.md#messages-in-the-applications-language),
@@ -404,6 +406,20 @@ binding's, read through the generated JSON converter. The in-process model is no
 worker does not support. [Azure Functions](./how-to/azure.md#azure-functions-isolated-worker) has the wiring, the
 answers, and the limits.
 
+### Does it work with Wolverine?
+
+Messaging needs nothing: Wolverine serializes with System.Text.Json, which writes a value object as its underlying value
+and reads it back through its rules, a refused message moving to the error queue with the converter's exception and its
+code. Wolverine.Http binds a route, query, header or form value through `TryParse`, but in its own terms: a refused
+route value is a 404, a refused query value reaches the handler as the default instance under its default
+`RejectUnparseableQueryValues = false`, and so do an empty or absent one in either mode and a refused, empty or absent
+header or form value, and `[FromQuery]` on a value object stops the application at startup.
+`AdCodicem.ValueObjects.Wolverine.Http`'s `UseValueObjects()`, inside `MapWolverineEndpoints`, binds each through its
+rules and answers every refused or missing one of a request at once with the validation problem a minimal API writes,
+and their codes, before any middleware method runs. `[AsParameters]` members and the JSON body stay Wolverine's. It runs
+in Wolverine's static mode under native AOT, over the code `codegen write` writes. [Wolverine](./how-to/wolverine.md)
+has the wiring, the answers, and the limits.
+
 ## Performance
 
 ### Does a value object cost more than the primitive it wraps?
@@ -470,9 +486,12 @@ code, its auto-mapping and class maps failing in a native binary, so CI publishe
 ([CsvHelper](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-in-a-file-and-native-aot)). The
 Marten package is AOT-compatible, and CI publishes a Marten application natively and runs it against PostgreSQL;
 Marten's own publish warns for Marten, JasperFx, Weasel and FastExpressionCompiler, never for this library
-([Marten](./how-to/marten.md#native-aot)). The EF Core,
-ASP.NET Core MVC, OpenAPI, Swashbuckle, NJsonSchema, Dapper, MongoDB, MongoDB identifiers, MessagePack, Azure Functions
-and Newtonsoft.Json integrations are not AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
+([Marten](./how-to/marten.md#native-aot)). The Wolverine.Http package is AOT-compatible and closes nothing at run time:
+the code Wolverine writes for an endpoint names each value object, and CI's application serves Wolverine.Http endpoints
+natively in Wolverine's static mode, over the code `codegen write` writes first
+([Wolverine](./how-to/wolverine.md#native-aot)). The EF Core, ASP.NET Core MVC, OpenAPI, Swashbuckle, NJsonSchema,
+Dapper, MongoDB, MongoDB identifiers, MessagePack, Azure Functions and Newtonsoft.Json integrations are not
+AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
 in a cache it closes over the type at run time, so under native AOT a handler this package built without dynamic code
 still fails inside Dapper: native AOT goes through [Dapper.AOT](./how-to/dapper.md#dapperaot).
 

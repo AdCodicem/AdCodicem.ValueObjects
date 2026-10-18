@@ -1,5 +1,6 @@
 using System.Globalization;
 using AdCodicem.ValueObjects.Metadata;
+using AdCodicem.ValueObjects.Shared;
 
 namespace AdCodicem.ValueObjects.AspNetCore.Http.Binding;
 

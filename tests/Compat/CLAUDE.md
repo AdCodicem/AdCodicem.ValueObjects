@@ -1,6 +1,6 @@
 # tests/Compat — the .NET compatibility island
 
-The thirty-seven packages exactly as packed, installed from `artifacts/packages` at one fresh version into `net11.0`
+The thirty-eight packages exactly as packed, installed from `artifacts/packages` at one fresh version into `net11.0`
 applications on the .NET 11 release candidate. It checks the packages, not the code. Runbook:
 `docs/maintaining.md`, "The .NET compatibility island".
 
@@ -39,6 +39,10 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
   central package management gets that version (`CsvHelperTests.cs`).
 - The Marten package brings Marten at its floor, which the island pins nowhere, and runs against the island's
   PostgreSQL container (`MartenTests.cs`), through async calls alone, the only ones Marten 9 supports.
+- The Wolverine.Http package runs through Wolverine's dynamic mode over TestHost (`WolverineHttpTests.cs`): the island
+  pins `WolverineFx.RuntimeCompilation` at the version of the WolverineFx.Http the package brings at its floor; bump
+  them together when the package's floor moves. Its endpoint class is named apart (`IslandWolverineEndpoints`), and the
+  discovery is narrowed to it, since Wolverine scans the island's assembly.
 - MessagePack's analyzer and protobuf-net's generator run in the SDK 11 compiler here: the island has its own
   `MessagePackAssumedFormattable` list and its own `PBN9001` suppression.
 - Its MongoDB tests go through one static, strict registration first, as the suites' do (the driver's registry is

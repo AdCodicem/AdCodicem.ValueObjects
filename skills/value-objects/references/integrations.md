@@ -34,6 +34,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.ModelContextProtocol` | MCP C# SDK: the rules in tool input and output schemas; a refused tool argument answered with its code, as a tool execution error. AOT-compatible. |
 | `AdCodicem.ValueObjects.AzureFunctions` | Azure Functions isolated worker: route values, query values and binding data bound through `TryParse`; a refusal carrying its code. |
 | `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` | The minimal API problem details, with codes, for HTTP triggers on the Functions ASP.NET Core integration. |
+| `AdCodicem.ValueObjects.Wolverine.Http` | Wolverine.Http 6.51: route, query, header and form values bound through their rules; every refused or missing one answered 400 with the minimal API's problem details and codes. AOT-compatible in Wolverine's static mode. |
 | `AdCodicem.ValueObjects.Identifiers[.EntityFrameworkCore\|.MongoDB]` | Stripe-style public identifiers, their columns, their minting on insert. See `identifiers.md`. |
 | `AdCodicem.ValueObjects.Testing` | The xUnit contract kit. |
 | `AdCodicem.ValueObjects.Testing.Data` | Values each type accepts, drawn from its rules; the values at its edges and the values its schema rules out. |
@@ -1525,6 +1526,43 @@ new HostBuilder().ConfigureFunctionsWebApplication(worker => worker.UseValueObje
   `[QueueTrigger]` message holding value objects binds, and a bare value object message must be JSON (`"ABC-123"`). For
   a raw-text payload, `[QueueTrigger("codes")][InputConverter(typeof(ValueObjectInputConverter))] CustomerCode code`.
 - Not AOT-compatible (the worker is not). A query parameter named `code` never reaches a function (function keys).
+
+## Wolverine.Http endpoints
+
+```csharp skip
+using AdCodicem.ValueObjects.Wolverine.Http;
+
+builder.Services.AddWolverineHttp();
+builder.Services.AddProblemDetails();                      // required without reflection-based JSON (native AOT)
+var app = builder.Build();
+app.MapWolverineEndpoints(opts =>
+{
+    opts.UseValueObjects();                                // or opts.UseValueObjects(m => m.UseResource<Messages>())
+    opts.RejectUnparseableQueryValues = true;              // for Wolverine's own parameters, [AsParameters] members
+});
+```
+
+- Call it inside `MapWolverineEndpoints`'s callback, the one place Wolverine accepts a parameter strategy. Every
+  parameter of type `T`, `T?`, `T[]`, `List<T>`, `IList<T>`, `IReadOnlyList<T>` or `IEnumerable<T>`, of an endpoint or
+  of its `Before`/`Load`/`Validate` method, is read from where Wolverine reads it: `[FromForm]`, a route parameter
+  (`[FromRoute(Name)]`, or of the parameter's name), `[FromHeader]`, else the query string. A collection binds from the
+  query or a form only.
+- A refused value (empty text is parsed: refused unless the type accepts it, `AllowEmpty`), or an absent value that
+  cannot be `null`, is answered 400 with every refusal of the request at once, `errors` and `errorCodes`, through
+  `IProblemDetailsService`, before any middleware method runs; the codes are also on the request
+  (`ValueObjectProblemDetails.GetErrorCodes`). A refused route value is a 400, not Wolverine's 404; a route constraint
+  (`{id:int}`) still answers 404 first. `T?` binds `null`, an array none, when absent; an optional segment `{qty?}` does
+  not make `T` optional: declare `T?`.
+- Left to Wolverine: `[AsParameters]` members, a complex `[FromQuery]`/`[FromForm]` type's members, an `After`/`Finally`
+  parameter reading a value no value object of the endpoint reads, and the JSON body ("Invalid JSON format", with the
+  rule's message and no code). An `After`/`Finally` parameter or an `[Entity]`-style identity reading the same route,
+  query, header or form value as a value object of the endpoint receives the package's read. A complex type's property
+  bound to that same name stays default: read the value object parameter instead.
+- Static mode (`TypeLoadMode.Static`, native AOT): run `codegen write` again after installing or upgrading the package;
+  stale code runs without a warning. Messages in the request's language: `AddLocalization()` and
+  `UseRequestLocalization()`.
+- `AdCodicem.ValueObjects.Wolverine.Http` hides the root `Wolverine` namespace inside `AdCodicem.ValueObjects.*` code:
+  put `using Wolverine.Http;` at the top of the file.
 
 ## Run-time lookup, when only a `Type` is known
 

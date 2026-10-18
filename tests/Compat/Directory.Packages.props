@@ -50,6 +50,7 @@
     <PackageVersion Include="AdCodicem.ValueObjects.Swashbuckle" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Testing" Version="[$(AdCodicemVersion)]" />
     <PackageVersion Include="AdCodicem.ValueObjects.Testing.Data" Version="[$(AdCodicemVersion)]" />
+    <PackageVersion Include="AdCodicem.ValueObjects.Wolverine.Http" Version="[$(AdCodicemVersion)]" />
   </ItemGroup>
 
   <!--
@@ -97,6 +98,10 @@
          every runtime, the next major's included. -->
     <PackageVersion Include="protobuf-net.Grpc.AspNetCore" Version="1.3.14" />
     <PackageVersion Include="Grpc.AspNetCore" Version="2.84.0" />
+    <!-- Wolverine's dynamic mode, which compiles the endpoints' generated code with Roslyn at run time, at the version of
+         the WolverineFx.Http the Wolverine.Http package brings at its floor: one line for every runtime, the next major's
+         included. -->
+    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.51.0" />
   </ItemGroup>
 
 </Project>

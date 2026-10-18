@@ -144,7 +144,7 @@ internal sealed partial class ValueObjectProblemDetailsMiddleware(ValueObjectPro
     /// <summary>Parses each value-object parameter the converter reads again, and lists the body's refusal first.</summary>
     private static ValidationProblem? Collect(FunctionContext context, HttpContext httpContext, InvalidOperationException? body, ValueObjectMessageOptions? messages)
     {
-        var refusals = new ValueObjectFunctionRefusals(messages, httpContext.RequestServices);
+        var refusals = new ValueObjectRefusals(messages, httpContext.RequestServices);
         if (body is not null)
         {
             // MVC's messages, joined by the integration in its exception, beside the codes MVC's formatter recorded: one

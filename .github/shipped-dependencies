@@ -48,6 +48,7 @@ protobuf-net.Grpc
 Serilog
 Swashbuckle.AspNetCore.SwaggerGen
 System.CommandLine
+WolverineFx.Http
 xunit.v3.assert
 xunit.v3.extensibility.core
 

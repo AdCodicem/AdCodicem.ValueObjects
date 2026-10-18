@@ -2,7 +2,7 @@
   "name": "adcodicem-valueobjects",
   "displayName": "AdCodicem.ValueObjects",
   "version": "0.1.0",
-  "description": "Authoring and integration guidance for AdCodicem.ValueObjects: [ValueObject<T>] structs, [EntityId] identifiers, the hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB, Marten, MessagePack and SignalR, protobuf-net and gRPC, Orleans, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Confluent Schema Registry, Serilog, Microsoft.Extensions.AI, Model Context Protocol, Azure Functions, HotChocolate (GraphQL), Blazor forms, System.CommandLine and CsvHelper integrations, test data for AutoFixture, Bogus and FsCheck, and XML serialization.",
+  "description": "Authoring and integration guidance for AdCodicem.ValueObjects: [ValueObject<T>] structs, [EntityId] identifiers, the hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB, Marten, MessagePack and SignalR, protobuf-net and gRPC, Orleans, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Confluent Schema Registry, Serilog, Microsoft.Extensions.AI, Model Context Protocol, Azure Functions, Wolverine.Http, HotChocolate (GraphQL), Blazor forms, System.CommandLine and CsvHelper integrations, test data for AutoFixture, Bogus and FsCheck, and XML serialization.",
   "author": {
     "name": "AdCodicem",
     "url": "https://github.com/AdCodicem"

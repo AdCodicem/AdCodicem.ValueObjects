@@ -23,7 +23,9 @@ Four suites, each with a distinct job:
   every underlying type in an assembly that opts into XML serialization, generated value objects beside a query
   type HotChocolate's source generator binds, Blazor forms written in Razor markup, `[LoggerMessage]` methods
   Microsoft.Gen.Logging writes, beside value objects classified as personal data, and grains whose codecs and proxies
-  Orleans' code generator writes. What needs a server and no container runs here too, over TestHost: ASP.NET Core's
+  Orleans' code generator writes; a ninth, a Wolverine.Http application, runs as a child process, Wolverine's dynamic
+  mode compiling its endpoints' code with a Roslyn this suite does not take. What needs a server and no container runs
+  here too, over TestHost: ASP.NET Core's
   pipelines, a SignalR hub talking MessagePack with the .NET client, and a protobuf-net.Grpc code-first service and a
   contract-first gRPC service with the .NET gRPC client; over localhost, an Orleans cluster in process, a silo and its
   client, and two silos; and
@@ -72,7 +74,14 @@ Four suites, each with a distinct job:
   store that never connects, translates a comparison of every sample value object, of its nullable type and a `Contains`
   over its values into the SQL and the parameters of the same query over its underlying type, and plans each compiled
   query shape, binding its collections and refusing what Marten would freeze; the Marten members and planning steps the
-  package relies on, internal ones included, are pinned, so that a Marten release moving one fails here first. The
+  package relies on, internal ones included, are pinned, so that a Marten release moving one fails here first.
+  Wolverine.Http hosts built in process, without Wolverine's runtime compiler, show the endpoints Wolverine builds once
+  the package claims their value objects: where each value is read from and under which name, what is declined, the
+  refusal answered before any middleware method, the form marking antiforgery reads, the descriptions ApiExplorer and
+  both OpenAPI documents give, and the code Wolverine writes for every family of value object, compiled; the helpers
+  that code calls bind every sample value object as its `TryParse` reads it and answer its refusal as a minimal API
+  does; and the fixture application answers a script of requests through the code Wolverine compiles, lenient, strict
+  and in French. The
   DataAnnotations attributes hold the text of every sample value object to its rules, in both forms, and refuse each
   default instance, through `Validator`, options validated as a host starts and by the validator `[OptionsValidator]`
   writes, CommunityToolkit.Mvvm's `ObservableValidator`, MVC and a minimal API under `AddValidation()` over TestHost,
@@ -160,7 +169,7 @@ Four applications, built as an application builds them, are published rather tha
 The first references every package that claims to be AOT-compatible: the contracts, the generated code, the JSON package
 with a source-generated context and the JSON Schema it exports, the minimal API problem details, the identifiers,
 FluentValidation, the Serilog integration, the Microsoft.Extensions.AI one, the Model Context Protocol one, the gRPC
-one, the Blazor one and the System.CommandLine one, all but
+one, the Blazor one, the System.CommandLine one and the Wolverine.Http one, all but
 the two HotChocolate ones, whose framework warns on its own publish and starts natively only rooted, and whose
 HotChocolate.Data filtering of a struct has no native code ([GraphQL](./how-to/graphql.md#native-aot)), and whose
 refusal of a value object nothing registered the unit suite runs instead under the JIT, in a child process whose
@@ -182,7 +191,9 @@ forms and `[NotDefault]`, through `Validator`, the validator `[OptionsValidator]
 `AddValidation()`, each refusal checked against its code, a Blazor form of every one of them through
 `HtmlRenderer`, each text of its underlying type typed into its input, alone and nullable, and a System.CommandLine
 command holding an option of every one of them, each text of its underlying type given to it alone and in an array, and
-its nullable option given nothing and empty text — once under the JIT and
+its nullable option given nothing and empty text, and Wolverine.Http endpoints in Wolverine's static mode, over the code
+`codegen write` writes for them before both runs, each refused route, query, header or form value answered with its code
+and no handler or `Before` method run for it — once under the JIT and
 once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT warning in the publish, but the two
 Microsoft.AspNetCore.Components reports for itself once a component renders, which the project lists in its
 `aot-warnings.allowed`, and on any difference between the two outputs, and a pull request merges only once it passes,
@@ -219,7 +230,7 @@ through the warnings the project lists, and fails on any other, this library's i
 ## The compatibility island
 
 The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
-installs the thirty-seven packages exactly as they were packed — from the folder the build packs into, at that one
+installs the thirty-eight packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -239,7 +250,8 @@ tools and structured output, Model Context Protocol tools over the SDK's own cli
 the problem details middleware beside ASP.NET Core 11, HotChocolate 16 scalars in a schema built in process, their
 messages in the language of the execution, HotChocolate.Data filters over Entity Framework Core 11 on SQLite, a Blazor input rendered by `HtmlRenderer` on the Components of .NET 11, its
 messages from a resource, System.CommandLine 3.0's release candidate over the package built against 2.0, CsvHelper 33.1
-reading and writing value objects as columns, an NSwag 14.7
+reading and writing value objects as columns, Wolverine.Http 6.51 endpoints in Wolverine's dynamic mode over TestHost,
+an NSwag 14.7
 document and Confluent's JSON serdes 2.16 over NJsonSchema,
 `XmlSerializer` and
 `DataContractSerializer` over a domain that opts into XML serialization, the contract kit, and the test-data sampler

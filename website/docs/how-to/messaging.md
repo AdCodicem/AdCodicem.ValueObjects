@@ -76,22 +76,13 @@ Rebus 8 serializes with System.Text.Json by default: nothing to do.
 
 ## Wolverine
 
-On Wolverine 6.45.0, messaging needs nothing. Wolverine.Http binds route and query values through `IParsable<T>`, but
-under its default a query value the type rejects reaches the handler as the default, and so does a missing one:
-
-```text
-GET /items?qty=500 -> 200 qty 0
-GET /items -> 200 qty 0
-```
-
-Refuse what does not parse:
-
-```csharp skip
-app.MapWolverineEndpoints(options => options.RejectUnparseableQueryValues = true);   // the default from Wolverine 7
-```
-
-A rejected value is then a 400, without the rule's code. A missing value still binds the default, as Wolverine
-documents, so declare an optional parameter `T?`.
+Wolverine's messaging needs nothing (WolverineFx 6.51.0): its default serializer is System.Text.Json, a value object
+travels as its underlying value, and a message whose value its type refuses moves to the error queue, the logged
+exception being the converter's `ValueObjectJsonException`, which carries the rule's code. Wolverine.Http endpoints bind
+route, query, header and form values in Wolverine's own terms, a refused route value answered 404, and an absent query
+value, or a refused one under the default `RejectUnparseableQueryValues = false`, bound as the default instance:
+`AdCodicem.ValueObjects.Wolverine.Http` binds them through their rules and answers a refusal with its code
+([Wolverine](./wolverine.md)).
 
 ## Kafka with Confluent's Schema Registry
 

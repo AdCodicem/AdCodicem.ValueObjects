@@ -9,7 +9,7 @@ is on, so this list is worth checking if something looks wired up but never happ
 `preview.yml` publishes a preview of every package to nuget.org every Monday at 07:15, Paris time, and whenever it is
 dispatched (**Actions → preview → Run workflow**, from `main`: a dispatch from another branch stops at its first
 job). It publishes only when a package input changed since the version nuget.org has from the nearest commit, and
-then all thirty-seven packages at one version, or none.
+then all thirty-eight packages at one version, or none.
 [ADR-0009](adr/0009-publish-previews-weekly-when-a-package-input-changed.md) has the reasoning.
 
 Each run says what it decided. The **compute the version** job prints the version semantic-release would give the
@@ -77,9 +77,20 @@ offering the higher one as the latest prerelease until a higher version ships.
   Type it `fix(deps)` when a shipped package's floor moves.
 - **When an Orleans minor raises its Roslyn floors**, move the Roslyn pins with it by hand.
   `Microsoft.Orleans.Serialization` lists `Microsoft.CodeAnalysis.Analyzers`, which the central pin must reach (NU1109
-  below it, and no pull request), and `Microsoft.CodeAnalysis.Common`, which the unit suite's own
-  `Microsoft.CodeAnalysis.CSharp` entry must equal (NU1608 otherwise); the generator's `Microsoft.CodeAnalysis.CSharp`
-  4.14.0 stays where it is. The Analyzers pin is a dependency of the Orleans package, so the commit is `fix(deps)`.
+  below it, and no pull request), and `Microsoft.CodeAnalysis.Common`, which the unit suite's
+  `Microsoft.CodeAnalysis.CSharp` must equal (NU1608 otherwise); the generator's `Microsoft.CodeAnalysis.CSharp` 4.14.0
+  stays where it is. The 5.0.0 `Microsoft.CodeAnalysis.CSharp` entry is shared by the unit suite and the Wolverine.Http
+  fixture application, whose JasperFx.RuntimeCompiler pins its Roslyn exactly (next bullet): moving it moves both, so
+  move the fixture's `CSharp.Workspaces` entry and its `WolverineFx.RuntimeCompilation` to a Roslyn that matches, or
+  split the condition into an entry per project. The Analyzers pin is a dependency of the Orleans package, so the
+  commit is `fix(deps)`.
+- **When a WolverineFx.RuntimeCompilation update asks for a later Roslyn**, move the Wolverine.Http fixture
+  application's two conditional `PackageVersion`s, `Microsoft.CodeAnalysis.CSharp` and `CSharp.Workspaces`, with it by
+  hand: its JasperFx.RuntimeCompiler asks for both at its Roslyn exactly (NU1109 below it, and no pull request). The
+  `Microsoft.CodeAnalysis.CSharp` entry is the unit suite's too, which must equal Orleans'
+  `Microsoft.CodeAnalysis.Common` (previous bullet): split its condition into an entry per project rather than move the
+  unit suite past Orleans. They reach no package, so the commit is `chore(deps)`. The island pins
+  `WolverineFx.RuntimeCompilation` at the version of the package's `WolverineFx.Http` floor: move it with the floor.
 - **After 60 days without activity in the repository**, GitHub disables the schedule of a public repository's
   workflow. Turn it back on with `gh workflow enable preview.yml`.
 - **Failures of a scheduled run are notified to whoever last changed its cron line**, not to whoever dispatches it.
@@ -91,7 +102,7 @@ offering the higher one as the latest prerelease until a higher version ships.
 The first time `preview.yml` publishes, and after any change to its publish job, dispatch it rather than wait for
 Monday, and check:
 
-1. the thirty-seven packages are on nuget.org at the version the run printed, and the publish job finished its wait for
+1. the thirty-eight packages are on nuget.org at the version the run printed, and the publish job finished its wait for
    the listing;
 2. an assembly restored from nuget.org verifies, and the certificate comes from Sigstore's public-good instance:
 
@@ -218,7 +229,9 @@ Without them the release job stops at its first step, before anything is publish
   `Microsoft.Orleans.*` and `NJsonSchema*`, whose packages share one version and move together, in the `dotnet` group
   or, for Microsoft's patch, by hand ([Routines](#routines)), are ignored, and so are those of `System.CommandLine`,
   whose 3.0 ships with .NET 11 and runs the package built against 2.0 (the island runs it), of `Marten`, whose next
-  major is a floor to decide, since the package reaches one of its internals, and of five packages whose majors follow
+  major is a floor to decide, since the package reaches one of its internals, of `WolverineFx*`, whose packages share
+  one version and whose next major is a floor to decide, since the Wolverine.Http package reaches three of its
+  internals, and of five packages whose majors follow
   one of them: `dotnet-ef`, the local tool pinned to EF Core's version; `NSwag.*`, which the tests take and whose majors
   move with NJsonSchema's; `Swashbuckle.AspNetCore*`, whose next major moves to `Microsoft.OpenApi` 3;
   `Serilog.Extensions.Logging`, which only the tests use and whose majors follow .NET's, each built on the
@@ -303,6 +316,20 @@ Without them the release job stops at its first step, before anything is publish
   collections through Marten's planning steps; the unit suite's `MartenInternalsTests` pins each. A Marten update
   failing it moved one of them: adapt the package in the same pull request
   (`src/AdCodicem.ValueObjects.Marten/CLAUDE.md`), never silence the test.
+- **Wolverine and the native AOT job.** The main application of `tests/NativeAot` serves Wolverine.Http endpoints in
+  Wolverine's static mode, over the code `native-aot.sh` has `codegen write` write into `artifacts/wolverine-codegen`
+  before both runs, never committed. A Wolverine update that changes what that code needs shows there: in the codegen
+  pass, in the publish's warnings, or as a difference between the runs. Wolverine.Http's minor and patch updates come
+  weekly in the `dotnet` group, and each moves the package's floor, so its pull request is `fix(deps)`: the maintainer
+  chose this on 2026-10-18, the repository's rule for every shipped dependency, over ignoring WolverineFx's minors and
+  moving the floor by hand. Revisit it if the churn weighs.
+- **Wolverine's internals.** The Wolverine.Http package sets `HttpChain.IsFormData` and `RequestType` through
+  `[UnsafeAccessor]`, as Wolverine's own `[FromForm]` binding does, takes over the variables Wolverine's factories create
+  through `HttpElementVariable.ReassignCreator`, as Wolverine's own `[AsParameters]` binding does, and relies on Wolverine
+  describing ApiExplorer's parameters and looking a value up again by name from those variables' lists;
+  `WolverineHttpStrategyTests`, `WolverineHttpCodeTests` and `WolverineHttpDocumentTests` pin them. A Wolverine update
+  failing them moved one: adapt the package in the same pull request
+  (`src/AdCodicem.ValueObjects.Wolverine.Http/CLAUDE.md`), never silence the test.
 - **Microsoft.AspNetCore.Components and the native AOT job.** The main application of `tests/NativeAot` renders Blazor
   components, and Components warns for itself at assembly level, `IL2104` and `IL3053`, which that application's
   `aot-warnings.allowed` lists. Those warnings come from the runtime pack the SDK resolves, so an SDK or ASP.NET Core
