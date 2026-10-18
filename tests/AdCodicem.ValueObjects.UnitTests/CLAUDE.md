@@ -48,7 +48,8 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
 - Every value object of `Domain/` gets a `ValueObjectContract` overriding `DerivesRejectedValues` to return `true` (the
   exceptions are in the root `CLAUDE.md`).
 - A test constructing `default(T)` on purpose takes a targeted `#pragma warning disable VO0010` with a comment; one
-  misusing a DataAnnotations attribute on purpose, `VO0039` or `VO0040`. The package's build props are not imported here,
+  misusing a DataAnnotations attribute on purpose, `VO0039` or `VO0040`; a Marten compiled query holding a single value
+  object on purpose, `VO0048`, around the member alone. The package's build props are not imported here,
   so `VO0042` never fires.
 
 ## Process-wide state
@@ -146,6 +147,10 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   Roslyn compiling the endpoints in each child. The children run with `CORECLR_ENABLE_PROFILING=0`: the coverage
   collector follows a child through that profiler, and merging the fixture's report lost hits of the packages both
   processes load (`ValueObjectRefusals.Body.cs` read as missed).
+- Marten's compiled-query diagnostic: `Persistence/MartenCompiledQueryDiagnosticTests` runs `VO0048`'s analyzer, loaded
+  from the generator's assembly that the `CopyValueObjectAnalyzers` target copies to `analyzers/`, over a snippet
+  compiled against the trusted platform assemblies; this project's Roslyn 5 runs the analyzer built against 4.14, as
+  the SDK's compiler does.
 - `NSwag.OpenApiDocument` meets the suite's `Web.OpenApiDocument`: alias it (`NSwagOpenApiDocument`, as
   `NSwagDocumentTests` does).
 - MCP: `LanguageModels/McpHarness` runs a server and the SDK's client over a pair of pipes. Experimental-API diagnostics

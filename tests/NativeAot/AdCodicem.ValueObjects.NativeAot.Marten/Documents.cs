@@ -61,7 +61,9 @@ public sealed class Invoice
 /// <summary>A single value object compared with a member: refused.</summary>
 public sealed class ShopsAboveQuantity : ICompiledListQuery<Shop>
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Quantity Minimum { get; set; }
+#pragma warning restore VO0048
 
     public Expression<Func<IMartenQueryable<Shop>, IEnumerable<Shop>>> QueryIs() => shops => shops.Where(x => x.Quantity > Minimum);
 }

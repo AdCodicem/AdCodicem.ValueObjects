@@ -258,6 +258,28 @@ public sealed class MartenCompiledQueryTests
         Refuses(store, new MartenOrdersOfEitherCustomer { First = first, Second = second }, "MartenOrdersOfEitherCustomer", "CustomerId", "First");
     }
 
+    /// <summary>
+    /// A collection of a value object Marten takes for a document's identity, read with <c>IsOneOf</c>, is bound on every
+    /// call once Marten lists the type: the form <c>VO0048</c> names for a document's identity, whose <c>Value</c> Marten
+    /// does not read.
+    /// </summary>
+    [Fact]
+    public void A_collection_of_a_value_object_identity_is_bound_on_every_call()
+    {
+        using var store = MartenHarness.Offline(static options =>
+        {
+            options.UseValueObjects();
+            options.UseValueObjectId<MartenAccount, CustomerId, Guid>();
+        });
+        MartenHarness.Sql<MartenAccount>(store, static accounts => accounts.Where(x => x.Name == "Ada"));
+
+        Calls.Select(call => MartenHarness.Preview(store, new MartenAccountsByIds { Ids = [CustomerId.Create(Guid.Parse($"0000000{call + 1}-0000-0000-0000-000000000000"))] }).Description)
+            .Should().Equal(
+                "select d.data from public.mt_doc_martenaccount as d where d.id = ANY(:p0); | [00000001-0000-0000-0000-000000000000] Guid Array|Uuid",
+                "select d.data from public.mt_doc_martenaccount as d where d.id = ANY(:p0); | [00000002-0000-0000-0000-000000000000] Guid Array|Uuid",
+                "select d.data from public.mt_doc_martenaccount as d where d.id = ANY(:p0); | [00000003-0000-0000-0000-000000000000] Guid Array|Uuid");
+    }
+
     [Fact]
     public void Values_the_package_cannot_read_off_a_member_of_the_query_type_are_refused()
     {

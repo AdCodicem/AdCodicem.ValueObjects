@@ -382,7 +382,7 @@ public sealed class SerializerContractAnalyzer : DiagnosticAnalyzer
     /// name of the type containing it, a plus and its metadata name. None of the names read is nested, so a nested type
     /// of the same name matches none, and nor does a type of the global namespace.
     /// </summary>
-    private static string FullName(INamedTypeSymbol type)
+    internal static string FullName(INamedTypeSymbol type)
         => type.ContainingType is { } containing
             ? $"{FullName(containing)}+{type.MetadataName}"
             : $"{type.ContainingNamespace.ToDisplayString()}.{type.MetadataName}";

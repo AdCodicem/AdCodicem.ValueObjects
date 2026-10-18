@@ -23,9 +23,10 @@ namespace AdCodicem.ValueObjects.UnitTests.Persistence;
 /// one fails here first and names it: the internal <c>StoreOptions.ValueTypes</c> the package reaches through
 /// <c>[UnsafeAccessor]</c>, the duplicated field finding a value type by the type its member reports, Marten's refusal of a
 /// compiled query over a value type its list does not hold, the select clause constructor its member closes, each step of
-/// the compiled-query planning the binding of a collection rests on, and Marten's own stale compiled-query parameters,
+/// the compiled-query planning the binding of a collection rests on, Marten's own stale compiled-query parameters,
 /// which the package refuses or documents, and which, the day Marten binds them, these tests report so that the refusal
-/// can step back.
+/// can step back, and what the remedy of <c>VO0048</c> rests on: the member types Marten binds in a compiled query, and
+/// its refusal of an identity's <c>Value</c>.
 /// </summary>
 public sealed class MartenInternalsTests
 {
@@ -150,6 +151,82 @@ public sealed class MartenInternalsTests
             .Should().Be(first.Value, "Marten replays the identity it planned from; the day it binds the second, the guide's warning goes");
     }
 
+    /// <summary>The types a value object may hold, by the names a test gives them.</summary>
+    public static TheoryData<string> UnderlyingTypes =>
+    [
+        "string", "Guid", "bool", "char", "sbyte", "byte", "short", "ushort", "int", "uint", "long", "ulong", "Int128",
+        "UInt128", "decimal", "double", "float", "DateOnly", "TimeOnly", "DateTime", "DateTimeOffset", "TimeSpan",
+    ];
+
+    /// <summary>
+    /// Marten binds a compiled query's member of its own parameter types alone, <see langword="string"/>,
+    /// <see cref="Guid"/>, <see langword="int"/>, <see langword="long"/>, <see langword="float"/>, <see langword="decimal"/>,
+    /// <see cref="DateTime"/> and <see cref="DateTimeOffset"/> among the types a value object may hold, and refuses a
+    /// member of any other, whether its query reads it or not. <c>VO0048</c> names a member of one of those types, an
+    /// <see langword="int"/> or a <see langword="long"/> C# promotes the value to, or a collection of the value object: the
+    /// day this fails, Marten binds another type, and the diagnostic's remedy follows.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(UnderlyingTypes))]
+    public void Marten_binds_a_compiled_query_member_of_its_own_parameter_types_alone(string type)
+    {
+        using var store = MartenHarness.Offline(static _ => { });
+        var planning = type switch
+        {
+            "string" => Planning<string>(store),
+            "Guid" => Planning<Guid>(store),
+            "bool" => Planning<bool>(store),
+            "char" => Planning<char>(store),
+            "sbyte" => Planning<sbyte>(store),
+            "byte" => Planning<byte>(store),
+            "short" => Planning<short>(store),
+            "ushort" => Planning<ushort>(store),
+            "int" => Planning<int>(store),
+            "uint" => Planning<uint>(store),
+            "long" => Planning<long>(store),
+            "ulong" => Planning<ulong>(store),
+            "Int128" => Planning<Int128>(store),
+            "UInt128" => Planning<UInt128>(store),
+            "decimal" => Planning<decimal>(store),
+            "double" => Planning<double>(store),
+            "float" => Planning<float>(store),
+            "DateOnly" => Planning<DateOnly>(store),
+            "TimeOnly" => Planning<TimeOnly>(store),
+            "DateTime" => Planning<DateTime>(store),
+            "DateTimeOffset" => Planning<DateTimeOffset>(store),
+            "TimeSpan" => Planning<TimeSpan>(store),
+            _ => throw new InvalidOperationException($"No query holds a {type}."),
+        };
+
+        if (type is "string" or "Guid" or "int" or "long" or "float" or "decimal" or "DateTime" or "DateTimeOffset")
+        {
+            planning.Should().NotThrow();
+        }
+        else
+        {
+            planning.Should().Throw<InvalidCompiledQueryException>().WithMessage("Members * Value cannot be used as parameters to a compiled query");
+        }
+    }
+
+    /// <summary>
+    /// Marten reads no <c>Value</c> of a value object it takes for a document's identity: <c>x.Id.Value == Id</c> is its
+    /// <c>BadLinqExpressionException</c>, so <c>VO0048</c> names a collection of the value object for a document's identity,
+    /// which the package binds on every call. The day this fails, that clause can go.
+    /// </summary>
+    [Fact]
+    public void Marten_reads_no_Value_of_a_value_object_it_takes_for_an_identity()
+    {
+        using var store = MartenHarness.Offline(static options =>
+        {
+            options.UseValueObjects();
+            options.UseValueObjectId<MartenAccount, CustomerId, Guid>();
+        });
+        MartenHarness.Sql<MartenAccount>(store, static accounts => accounts.Where(x => x.Name == "Ada"));
+
+        FluentActions.Invoking(() => MartenHarness.Preview(store, new MartenAccountsByIdValue { Id = Guid.Parse("00000001-0000-0000-0000-000000000000") }))
+            .Should().Throw<BadLinqExpressionException>().WithMessage("Marten does not (yet) support using member chain: Id.Value");
+    }
+
     [Fact]
     public void Planning_writes_the_command_into_the_plan_then_offers_each_parameter_to_its_members_in_order()
     {
@@ -229,6 +306,8 @@ public sealed class MartenInternalsTests
                 .Replace("select d.data from public.mt_doc_martenorder as d where (", string.Empty, StringComparison.Ordinal)
                 .Replace(");", string.Empty, StringComparison.Ordinal);
     }
+
+    private static Action Planning<T>(IDocumentStore store) => () => MartenHarness.Preview(store, new MartenPrimitiveQuery<T>());
 }
 
 /// <summary>A value type of the test's own, registered with Marten's own <c>RegisterValueType</c>, never through the registry.</summary>
@@ -255,10 +334,31 @@ public sealed class MartenWrappedQuery : ICompiledListQuery<MartenWrappedHolder>
 /// <summary>A compiled query comparing a value-object identity with a member.</summary>
 public sealed class MartenAccountsById : ICompiledListQuery<MartenAccount>
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten answers a value-object identity with the first call's value.
     public CustomerId Id { get; set; }
+#pragma warning restore VO0048
 
     public Expression<Func<IMartenQueryable<MartenAccount>, IEnumerable<MartenAccount>>> QueryIs()
         => accounts => accounts.Where(x => x.Id == Id);
+}
+
+/// <summary>A compiled query comparing a value-object identity's <c>Value</c> with a member of its underlying type.</summary>
+public sealed class MartenAccountsByIdValue : ICompiledListQuery<MartenAccount>
+{
+    public Guid Id { get; set; }
+
+    public Expression<Func<IMartenQueryable<MartenAccount>, IEnumerable<MartenAccount>>> QueryIs()
+        => accounts => accounts.Where(x => x.Id.Value == Id);
+}
+
+/// <summary>A compiled query holding a member of one type, which its query does not read.</summary>
+/// <typeparam name="T">The member's type.</typeparam>
+public sealed class MartenPrimitiveQuery<T> : ICompiledListQuery<MartenOrder>
+{
+    public T Value { get; set; } = default!;
+
+    public Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
+        => orders => orders.Where(x => x.Index > 0);
 }
 
 /// <summary>Refuses every identifier without a reason, under a prefix no other profile claims.</summary>

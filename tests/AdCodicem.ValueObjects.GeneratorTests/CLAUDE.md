@@ -21,6 +21,9 @@ The generator, every diagnostic, the analyzers and code fixes, incremental cachi
   attributes under their real names in a stand-in assembly, and `AdCodicem.ValueObjects.Orleans`' registration, whose
   reach `VO0043`'s remedy reads, as a stand-in too: the real package brings Orleans' Roslyn 5 graph into a project
   compiled against the 4.14 pins.
+- `MartenCompiledQueryAnalyzerTests` compiles against stand-ins of Marten's compiled-query interfaces, `[MartenIgnore]`
+  and JasperFx's attributes under their real names (`MartenReferences`): the real Marten would bring JasperFx's source
+  generators and Marten's graph into a project on the 4.14 pins. The unit suite checks the names against Marten itself.
 - `withLoggingGenerator: true` runs Microsoft.Gen.Logging, which the `CopyLoggingGenerator` target copies from the
   pinned Microsoft.Extensions.Telemetry.Abstractions; `GeneratorRun.LoggingSource` holds what it wrote and
   `LoggingSnippets.LoggedTags` reads its tags. `DataClassificationAnalyzerTests` and `CopyClassificationCodeFixTests`

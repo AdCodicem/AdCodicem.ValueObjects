@@ -41,3 +41,4 @@ VO0044 | AdCodicem.ValueObjects | Warning | Serializer contract attribute that s
 VO0045 | AdCodicem.ValueObjects | Warning | Classified value object logged without its classification
 VO0046 | AdCodicem.ValueObjects | Warning | Classification dropped by a transitive expansion
 VO0047 | AdCodicem.ValueObjects | Warning | Non-Unicode text that its rules do not hold to ASCII
+VO0048 | AdCodicem.ValueObjects | Error | Value object held by a Marten compiled query

@@ -408,8 +408,9 @@ package: a member of the author's, `x.Iban.CountryCode`, is Marten's `BadLinqExp
 `x.Iban.Equals(iban)` its `NotSupportedException` ("Marten does not (yet) support Linq queries using the … Equals()
 method") ([what does not translate](../how-to/marten.md#what-translates)); a compiled query whose query type holds a
 single value object is its `InvalidCompiledQueryException` ("Members Iban Iban cannot be used as parameters to a
-compiled query"), and a value-object identity Marten does not take for one its `InvalidDocumentException` when the
-document is first stored ([identities](../how-to/marten.md#identities)). The package's own refusals of a misuse, never a
+compiled query"), which `VO0048` reports when the project builds, and a value-object identity Marten does not take for
+one its `InvalidDocumentException` when the document is first stored
+([identities](../how-to/marten.md#identities)). The package's own refusals of a misuse, never a
 broken rule, are `NotSupportedException`s too, told apart from Marten's by their messages: in a compiled query, values
 of a member read through a local of `QueryIs` or a constant collection beside such a member, a collection of nullable
 value objects, or a single value object of a type Marten lists as an identity, each message naming the query, the value

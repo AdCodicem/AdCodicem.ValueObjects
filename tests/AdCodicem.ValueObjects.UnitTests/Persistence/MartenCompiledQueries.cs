@@ -18,7 +18,9 @@ public abstract class MartenOrderQuery : ICompiledListQuery<MartenOrder>
 /// <summary>A single value object compared with a member: refused by Marten.</summary>
 public sealed class MartenOrdersByIban : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Iban Iban { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Iban == Iban);
@@ -27,7 +29,9 @@ public sealed class MartenOrdersByIban : MartenOrderQuery
 /// <summary>A single value object over an integer, compared with a member: refused by Marten.</summary>
 public sealed class MartenOrdersAbovePage : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public PageNumber Minimum { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Page > Minimum);
@@ -36,9 +40,9 @@ public sealed class MartenOrdersAbovePage : MartenOrderQuery
 /// <summary>A single value object held by a field, beside an integer: refused by Marten, or by the package once Marten lists it as an identity.</summary>
 public sealed class MartenOrdersByCustomerFrom : MartenOrderQuery
 {
-#pragma warning disable CA1051 // A field of the query type is what the test is about.
+#pragma warning disable CA1051, VO0048 // A field of the query type, holding a single value object Marten refuses, is what the test is about.
     public CustomerId Customer;
-#pragma warning restore CA1051
+#pragma warning restore CA1051, VO0048
 
     public int MinimumIndex { get; set; }
 
@@ -49,7 +53,9 @@ public sealed class MartenOrdersByCustomerFrom : MartenOrderQuery
 /// <summary>A single value object of a generic construction the store is taught, compared with a member: refused by Marten.</summary>
 public sealed class MartenOrdersByReference : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Reference<MartenCompiledOwner> Reference { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.CompiledReference == Reference);
@@ -61,7 +67,9 @@ public sealed class MartenOrdersByReference : MartenOrderQuery
 /// </summary>
 public sealed class MartenOrdersByUnknownReference : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Reference<MartenUnknownOwner> Reference { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.UnknownReference == Reference);
@@ -70,7 +78,9 @@ public sealed class MartenOrdersByUnknownReference : MartenOrderQuery
 /// <summary>A single value object, planned from values the query type sets: refused by Marten.</summary>
 public sealed class MartenOrdersByIbanPlanned : MartenOrderQuery, IQueryPlanning
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Iban Iban { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Iban == Iban);
@@ -81,7 +91,9 @@ public sealed class MartenOrdersByIbanPlanned : MartenOrderQuery, IQueryPlanning
 /// <summary>A nullable value object compared with a member: Marten's own refusal, as for an <c>int?</c>.</summary>
 public sealed class MartenOrdersByMaybeIban : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Iban? Iban { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Iban == Iban);
@@ -301,9 +313,11 @@ public sealed class MartenOrdersOnPagesThroughALocal : MartenOrderQuery
 /// <summary><c>IsOneOf</c> over two single members: refused by Marten.</summary>
 public sealed class MartenOrdersOnEitherPage : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public PageNumber First { get; set; }
 
     public PageNumber Second { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Page.IsOneOf(First, Second));
@@ -349,7 +363,9 @@ public sealed class MartenPageFilter
 /// <summary>A single value object compared with a member of a child collection: refused by Marten.</summary>
 public sealed class MartenOrdersByLineTag : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Label Tag { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Lines.Any(l => l.Tag == Tag));
@@ -358,7 +374,9 @@ public sealed class MartenOrdersByLineTag : MartenOrderQuery
 /// <summary>A single value object ordered against a member of a child collection: refused by Marten.</summary>
 public sealed class MartenOrdersWithLinesAbove : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Quantity Minimum { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Lines.Any(l => l.Quantity > Minimum));
@@ -367,7 +385,9 @@ public sealed class MartenOrdersWithLinesAbove : MartenOrderQuery
 /// <summary>A single value object sought in a collection the document holds: refused by Marten.</summary>
 public sealed class MartenOrdersHoldingCountry : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public CountryCode Country { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Countries.Contains(Country));
@@ -376,7 +396,9 @@ public sealed class MartenOrdersHoldingCountry : MartenOrderQuery
 /// <summary>The <c>Value</c> of a single value object compared with a member of another type: refused by Marten.</summary>
 public sealed class MartenOrdersNotedWithIban : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Iban Iban { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Note == Iban.Value);
@@ -385,7 +407,9 @@ public sealed class MartenOrdersNotedWithIban : MartenOrderQuery
 /// <summary>The <c>Value</c> of a single value object handed to a string method: refused by Marten.</summary>
 public sealed class MartenOrdersWithIbanPrefix : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public Iban Prefix { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Iban.Value.StartsWith(Prefix.Value));
@@ -394,7 +418,9 @@ public sealed class MartenOrdersWithIbanPrefix : MartenOrderQuery
 /// <summary>The <c>Value</c> of a single value object over an integer compared with an integer member: refused by Marten.</summary>
 public sealed class MartenOrdersAtPageIndex : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public PageNumber Page { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Index == Page.Value);
@@ -403,9 +429,11 @@ public sealed class MartenOrdersAtPageIndex : MartenOrderQuery
 /// <summary><c>IsOneOf</c> over two single members of a value object Marten may list as an identity.</summary>
 public sealed class MartenOrdersOfEitherCustomer : MartenOrderQuery
 {
+#pragma warning disable VO0048 // The shape this test pins: Marten refuses a single value object as a parameter.
     public CustomerId First { get; set; }
 
     public CustomerId Second { get; set; }
+#pragma warning restore VO0048
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Customer.IsOneOf(First, Second));
@@ -439,6 +467,15 @@ public sealed class MartenOrdersFrom : MartenOrderQuery
 
     public override Expression<Func<IMartenQueryable<MartenOrder>, IEnumerable<MartenOrder>>> QueryIs()
         => orders => orders.Where(x => x.Index >= MinimumIndex);
+}
+
+/// <summary>An array of a value object Marten may take for a document's identity, compared with the identity: bound on each call.</summary>
+public sealed class MartenAccountsByIds : ICompiledListQuery<MartenAccount>
+{
+    public CustomerId[] Ids { get; set; } = [];
+
+    public Expression<Func<IMartenQueryable<MartenAccount>, IEnumerable<MartenAccount>>> QueryIs()
+        => accounts => accounts.Where(x => x.Id.IsOneOf(Ids));
 }
 
 /// <summary>The owner of the references a compiled query compares one by one, which no other test closes over.</summary>

@@ -374,6 +374,15 @@ public sealed class MartenTests(PostgreSqlFixture fixture) : IClassFixture<Postg
         await AnswersEachCallAsync(store, shipments, call => new MartenShipmentsEffectiveOn { Dates = [Shipments()[call].Effective, Shipments()[3].Effective], MinimumIndex = call });
         await AnswersEachCallAsync(store, shipments, call => new MartenShipmentsAt { Moments = [Shipments()[call].At] });
         await AnswersEachCallAsync(store, shipments, call => new MartenShipmentsOfConsents { Consents = [Consent.Create(call == 1)] });
+        await AnswersEachCallAsync(store, shipments, call => new MartenShipmentsWithSequenceNumber { Sequence = call + 1 });
+        await AnswersEachCallAsync(store, shipments, call => new MartenShipmentsOfGrades { Grades = call == 1 ? [Grade.Create('D')] : [Grade.Create((char)('A' + call)), Grade.Create('E')] });
+        await AnswersEachCallAsync(store, shipments, call => new MartenShipmentsAtMoment { Moment = Shipments()[call].At.Value.ToUniversalTime() });
+
+        // Marten writes a DateTimeOffset member as it stands, which Npgsql refuses at any offset but UTC: the form VO0048
+        // names sets it in UTC, where the package's LINQ converts a value itself.
+        await using var offset = store.QuerySession();
+        await FluentActions.Awaiting(() => offset.QueryAsync(new MartenShipmentsAtMoment { Moment = Shipments()[0].At.Value }, Cancellation))
+            .Should().ThrowAsync<ArgumentException>().WithMessage("*only offset 0 (UTC) is supported*");
     }
 
     /// <summary>
@@ -456,8 +465,9 @@ public sealed class MartenTests(PostgreSqlFixture fixture) : IClassFixture<Postg
 
     /// <summary>
     /// A value-object identity compared with a member of a compiled query is written by Marten's own member, which no code
-    /// of the package reaches: every call is answered with the first call's identity, which the guide warns of. The day
-    /// this fails, Marten binds it, and the warning goes.
+    /// of the package reaches: every call is answered with the first call's identity, which the guide warns of and
+    /// <c>VO0048</c> reports at build time. The day this fails, Marten binds it, and the warning goes. A collection of the
+    /// identity, read with <c>IsOneOf</c>, the form the diagnostic names, is bound on every call.
     /// </summary>
     [Fact]
     public async Task A_compiled_query_over_a_value_object_identity_answers_every_call_with_the_first_call_s_identity()
@@ -479,6 +489,12 @@ public sealed class MartenTests(PostgreSqlFixture fixture) : IClassFixture<Postg
         (await session.QueryAsync(new MartenCustomersById { Id = first }, Cancellation)).Select(static x => x.Name).Should().Equal("Ada");
         (await session.QueryAsync(new MartenCustomersById { Id = second }, Cancellation)).Select(static x => x.Name)
             .Should().Equal(["Ada"], "Marten replays the identity it planned from");
+
+        // The form VO0048 names for a document's identity, whose Value Marten does not read: each call's own identities.
+        (await session.QueryAsync(new MartenCustomersByIds { Ids = [second] }, Cancellation)).Select(static x => x.Name).Should().Equal("Grace");
+        (await session.QueryAsync(new MartenCustomersByIds { Ids = [first] }, Cancellation)).Select(static x => x.Name).Should().Equal("Ada");
+        (await session.QueryAsync(new MartenCustomersByIds { Ids = [first, second] }, Cancellation)).Select(static x => x.Name).Order()
+            .Should().Equal("Ada", "Grace");
     }
 
     [Fact]

@@ -315,7 +315,10 @@ Without them the release job stops at its first step, before anything is publish
   the duplicated field, which finds a value type by the type its member reports, and binds a compiled query's
   collections through Marten's planning steps; the unit suite's `MartenInternalsTests` pins each. A Marten update
   failing it moved one of them: adapt the package in the same pull request
-  (`src/AdCodicem.ValueObjects.Marten/CLAUDE.md`), never silence the test.
+  (`src/AdCodicem.ValueObjects.Marten/CLAUDE.md`), never silence the test. The same class pins the member types Marten
+  binds in a compiled query and its refusal of an identity's `Value`, which `VO0048`'s message rests on: when one of
+  those fails, adapt the message in `src/AdCodicem.ValueObjects.Generators/Analyzers/MartenCompiledQueryAnalyzer.cs`
+  and the forms the Marten guide, the diagnostics reference and the skill list.
 - **Wolverine and the native AOT job.** The main application of `tests/NativeAot` serves Wolverine.Http endpoints in
   Wolverine's static mode, over the code `native-aot.sh` has `codegen write` write into `artifacts/wolverine-codegen`
   before both runs, never committed. A Wolverine update that changes what that code needs shows there: in the codegen
