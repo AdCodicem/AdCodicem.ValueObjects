@@ -51,6 +51,13 @@ NATIVE_AOT_POSTGRES="Host=localhost;Port=5432;Database=postgres;Username=postgre
   included, or a localized message names a token among several otherwise than from zero (`--quantities[2]`). The
   application runs under `InvariantGlobalization`: no culture but the invariant one exists there, so
   the localized lines read the neutral `ProblemMessages.resx`.
+- `WolverineHttp.cs` serves Wolverine.Http endpoints in Wolverine's static mode, in an application of their own built by
+  `WolverineHttp.Build()`. Their code is never committed: `native-aot.sh` writes it first, `WOLVERINE_CODEGEN=write
+  dotnet run -- codegen write`, under the JIT, into `artifacts/wolverine-codegen` (the folder `WOLVERINE_CODEGEN_PATH`
+  names), and the JIT run and the publish compile it in with `WOLVERINE_CODEGEN=read`. Without it, as in the solution's
+  build and `dotnet format`, the application builds and its Wolverine endpoints refuse to start; `dotnet run` outside
+  the script needs the same two passes. Endpoint types are listed in `Build()`'s discovery, and a line fails when a
+  refused value reaches its handler or an accepted one is refused.
 - Microsoft.AspNetCore.Components warns IL2104 and IL3053 for itself once a component renders: listed in
   `aot-warnings.allowed` and in `WarningsNotAsErrors`, so the AOT compiler finishes under `NativeAot`.
 - Serilog destructures no object under `PublishTrimmed`: the project sets `Serilog.Capturing.IsStructureValueSupported` to

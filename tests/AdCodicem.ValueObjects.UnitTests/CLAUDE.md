@@ -9,7 +9,7 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   hook the rest leaves out; it is linked by the integration suite and `tests/NativeAot`, so a change there changes them.
   `Domain/HandWritten/`: value objects written by hand, the only way to reach the interface defaults and the registry's
   reflection fallback (`HandWrittenCode.cs`, `HandWrittenLink.cs` and `UnregisteredCode.cs` are linked by
-  `tests/NativeAot` too).
+  `tests/NativeAot` too, and `HandWrittenCode.cs` by the Functions and Wolverine.Http fixtures of `tests/Fixtures`).
 - `GeneratedSurface/` runs every emitted member family on every sample, so nothing the generator emits only compiles, and
   holds every sample to each integration. To add an integration: declare an abstract check on `Sample`
   (`GeneratedSurface/Sample.cs`), implement it in `Sample<TSelf, TValue>` by calling an `…Parity` helper kept in the
@@ -20,8 +20,8 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   `Marten*`),
   `BinarySerialization/` (MessagePack; protobuf-net as `Proto*`; gRPC as `CodeFirstGrpc*` and `ContractFirstGrpc*`),
   `Grains/` (Orleans), `GraphQL/` (HotChocolate, HotChocolate.Data), `Forms/` (Blazor), `Cli/` (System.CommandLine),
-  `Csv/` (CsvHelper), `Functions/` (Azure Functions), `LanguageModels/` (Microsoft.Extensions.AI, Model Context Protocol
-  as `Mcp*`),
+  `Csv/` (CsvHelper), `Functions/` (Azure Functions), `WolverineHttp/` (Wolverine.Http, never `Wolverine/`),
+  `LanguageModels/` (Microsoft.Extensions.AI, Model Context Protocol as `Mcp*`),
   `Logging/` (Serilog, Microsoft.Gen.Logging redaction), `SchemaGeneration/` (NJsonSchema, Confluent),
   `DataAnnotations/`, `TestData/` (the sampler and its three adapters), `XmlSerialization/`, `Identifiers/`.
 - `EmitCompilerGeneratedFiles` is on: generated sources land under `artifacts/obj/AdCodicem.ValueObjects.UnitTests/…/generated/`
@@ -85,6 +85,13 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   generic or hand-written one the boxed path resolves over a declaration of the test's own (`MartenCodeDeclaration`,
   `MartenStaticDeclaration`, …). An inline array in a `Contains` fails inside Marten (`MemoryExtensions.Contains`):
   hold the values in a static field.
+- Wolverine.Http: `WolverineHttp/WolverineHttpHost` maps the endpoint types a test names, in `TypeLoadMode.Auto` and
+  without Wolverine's runtime compiler, which this project does not reference: chains, ApiExplorer, documents and the
+  code Wolverine writes are there, a request is not. Every test building a host joins the `WolverineHttpHosts`
+  collection, run alone, since `GenerateCodeAsync` turns JasperFx's static `DynamicCodeBuilder.WithinCodegenCommand` on
+  while it runs; such a host serves no request afterwards. Requests go through the fixture application
+  (`WolverineHttpEndToEndTests`, below). Wolverine scans this assembly: name an endpoint type apart
+  (`Wolverine…Endpoints`) and list it in `Map`, and keep endpoint classes public and static.
 - `RuntimeFeature.IsDynamicCodeSupported` is read once per process: `WithoutDynamicCode` (at the suite's root) runs a test
   again in a child process whose runtime configuration turns dynamic code off. Such a test creates no NSubstitute proxy
   and no EF Core context, neither of which works there.
@@ -128,9 +135,17 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   through `OrleansWire.Read<T>`. Bytes no serializer writes are crafted field by field through `OrleansWire.Craft`; a
   writer applies its own type filters, so bytes naming a type the reader must refuse go through `Craft(services, …)`
   over services allowing that type.
-- Roslyn: this project alone takes `Microsoft.CodeAnalysis.CSharp` 5.0.0 (`Directory.Packages.props`), which NSwag's
-  client compiles with, since Orleans brings `Microsoft.CodeAnalysis.Common` 5.0.0; the generator and GeneratorTests
-  stay on 4.14.
+- Roslyn: this project takes `Microsoft.CodeAnalysis.CSharp` 5.0.0 (`Directory.Packages.props`), which NSwag's client
+  and the code Wolverine writes compile with, since Orleans brings `Microsoft.CodeAnalysis.Common` 5.0.0; the generator
+  and GeneratorTests stay on 4.14. `CSharp.Workspaces` stays on 4.14.0 here: the Wolverine.Http fixture takes 5.0.0
+  through a pin of its own, and its reference (`ReferenceOutputAssembly="false"`) brings none of its packages here.
+- Wolverine.Http end to end: `WolverineHttpEndToEndTests` starts
+  `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WolverineHttp` with the `dotnet` host three times at once (lenient,
+  strict, French), from the folder the `WolverineHttpApplication` assembly metadata names, and reads the JSON line each
+  request is answered with, keyed by its label; a label the fixture's script changes must change here too. About 7 s,
+  Roslyn compiling the endpoints in each child. The children run with `CORECLR_ENABLE_PROFILING=0`: the coverage
+  collector follows a child through that profiler, and merging the fixture's report lost hits of the packages both
+  processes load (`ValueObjectRefusals.Body.cs` read as missed).
 - `NSwag.OpenApiDocument` meets the suite's `Web.OpenApiDocument`: alias it (`NSwagOpenApiDocument`, as
   `NSwagDocumentTests` does).
 - MCP: `LanguageModels/McpHarness` runs a server and the SDK's client over a pair of pipes. Experimental-API diagnostics

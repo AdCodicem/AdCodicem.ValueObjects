@@ -10,7 +10,8 @@
 # struct has no native code (each package's CLAUDE.md), the protobuf-net one, which AdCodicem.ValueObjects.NativeAot.ProtobufNet
 # publishes apart, the Orleans one, since Orleans does not start natively, the CsvHelper one, whose CsvHelper record
 # API has no native code, and the Marten one, which AdCodicem.ValueObjects.NativeAot.Marten publishes apart and runs
-# against the PostgreSQL that NATIVE_AOT_POSTGRES names, which that application alone reads. Each application runs a
+# against the PostgreSQL that NATIVE_AOT_POSTGRES names, which that application alone reads. Its Wolverine.Http
+# endpoints run Wolverine's static mode, whose code a pass before both runs writes (below). Each application runs a
 # fixed script over every value object of its domain, one line per scenario, into the file it is given: once under the
 # JIT, through dotnet run, and once as the binary the native AOT compiler wrote. The two files must be identical;
 # behaviour.diff holds the difference when they are not. The analyzers see what each library calls, but they do not run
@@ -39,6 +40,18 @@ project="${2:-tests/NativeAot/AdCodicem.ValueObjects.NativeAot}"
 name="$(basename "$project")"
 binary="$out/bin/$name"
 allowed="$project/aot-warnings.allowed"
+
+# An application serving Wolverine.Http endpoints runs Wolverine's static mode, over the code codegen write writes for
+# them: written first, under the JIT, into artifacts/wolverine-codegen, never committed, then compiled into the
+# application for both runs. The project picks the pass from WOLVERINE_CODEGEN.
+if grep -q WOLVERINE_CODEGEN "$project/$name.csproj"; then
+  export WOLVERINE_CODEGEN_PATH="$PWD/artifacts/wolverine-codegen"
+  rm -rf "$WOLVERINE_CODEGEN_PATH"
+  echo "::group::Write the code of the Wolverine endpoints"
+  WOLVERINE_CODEGEN="write" dotnet run --project "$project" -c Release -- codegen write
+  echo "::endgroup::"
+  export WOLVERINE_CODEGEN=read
+fi
 
 echo "::group::Run under the JIT"
 dotnet run --project "$project" -c Release -- "$out/jit.txt"

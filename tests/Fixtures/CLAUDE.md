@@ -1,8 +1,8 @@
 # tests/Fixtures — assemblies the test projects cannot hold
 
 The unit test assembly cannot hold these, since the generator runs on it and its module initializer has run before any
-test does. They are neither test projects nor packages. The unit suite references eight; `Fixtures.Functions` is the
-integration suite's.
+test does. They are neither test projects nor packages. The unit suite references eight and builds a ninth,
+`WolverineHttp`, without referencing its assembly; `Fixtures.Functions` is the integration suite's.
 
 - `Untouched`: a generated value object in a module nothing has used yet. A test needing "registered by nothing but this"
   loads a fresh `AssemblyLoadContext` copy of it.
@@ -25,6 +25,14 @@ integration suite's.
   as an application's grain interfaces do not. The unit suite gets Orleans' generator anyway through TestingHost, and
   the `ApplicationPart` list it writes there is how a test cluster finds these grains. A grain calling itself deadlocks
   (a grain is not reentrant): a relay goes to another key.
+- `WolverineHttp`: a Wolverine.Http application in Wolverine's dynamic mode, which the unit suite builds through a
+  `ReferenceOutputAssembly="false"` reference and starts as a child process: an application, not a library. Its runtime
+  compiler (WolverineFx.RuntimeCompilation) asks for Roslyn 5.0.0 and its Workspaces, which conditional
+  `PackageVersion`s keyed on its project name give it alone. It answers a fixed script of requests (`Program.cs`,
+  `Script`) over TestHost, one JSON line each, the codes `CustomizeProblemDetails` reads and the run of a `Before`,
+  `After` or `Finally` method noted beside the answer; a label of the script is a key of `WolverineHttpEndToEndTests`. It links the unit suite's
+  `HandWrittenCode.cs`, in its own process. Its namespace hides the root `Wolverine` one: usings at the top of each
+  file.
 - `Functions`: the Azure Functions application the integration suite runs in the host's container. Keep
   `ConfigureFunctionsWorkerDefaults(...)` out of its `Program.cs`: the integration's analyzer
   `RegistrationExpectedInASPNetIntegration` (Http.AspNetCore.Analyzers 1.0.4) throws AD0001 on a file declaring `Main` that

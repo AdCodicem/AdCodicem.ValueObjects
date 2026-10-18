@@ -15,7 +15,7 @@ internal abstract class ValueObjectParameterCheck
     /// <param name="text">The text the worker held for the parameter.</param>
     /// <param name="member">The name of the parameter, which the refusal is listed under.</param>
     /// <param name="refusals">The refusals of the invocation.</param>
-    public abstract void Check(string text, string member, ValueObjectFunctionRefusals refusals);
+    public abstract void Check(string text, string member, ValueObjectRefusals refusals);
 
     /// <summary>Finds the check of a value object, keeping it only once the type is described.</summary>
     /// <param name="type">The parameter's type, possibly nullable.</param>
@@ -61,7 +61,7 @@ internal sealed class ValueObjectParameterCheck<TSelf, TValue> : ValueObjectPara
     where TSelf : struct, IValueObject<TSelf, TValue>
 {
     /// <inheritdoc />
-    public override void Check(string text, string member, ValueObjectFunctionRefusals refusals)
+    public override void Check(string text, string member, ValueObjectRefusals refusals)
     {
         if (!ValueObjectBindingText.TryParse<TSelf, TValue>(text, out _, out var validation))
         {

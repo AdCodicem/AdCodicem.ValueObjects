@@ -96,6 +96,7 @@ public sealed class RuntimeClosingTests
         { "AdCodicem.ValueObjects.Swashbuckle", [] },
         { "AdCodicem.ValueObjects.Testing", [] },
         { "AdCodicem.ValueObjects.Testing.Data", [] },
+        { "AdCodicem.ValueObjects.Wolverine.Http", [] },
     };
 
     /// <summary>

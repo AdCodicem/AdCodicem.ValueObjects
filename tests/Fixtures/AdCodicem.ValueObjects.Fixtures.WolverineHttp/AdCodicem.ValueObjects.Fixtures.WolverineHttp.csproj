@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A Wolverine.Http application in Wolverine's dynamic mode, which the unit suite builds without referencing it and
+    starts as a child process (WolverineHttp/WolverineHttpEndToEndTests.cs): Wolverine writes each endpoint's code at
+    startup, the package's reads and refusal frame included, and compiles it with WolverineFx.RuntimeCompilation, over
+    TestHost. It answers a fixed script of requests and writes each answer as a JSON line. Its own process, because the
+    runtime compiler brings Roslyn 5.0.0 with Microsoft.CodeAnalysis.CSharp.Workspaces, which the conditional pins of
+    Directory.Packages.props give this project alone.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AdCodicem.ValueObjects.Fixtures.WolverineHttp</RootNamespace>
+
+    <!-- Wolverine's dynamic mode compiles code at run time, which neither trimming nor native AOT allows. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+
+    <!-- CA1515: Wolverine discovers public endpoint types alone. CA2007: the application has no synchronization context
+         to leave. -->
+    <NoWarn>$(NoWarn);CA1515;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Wolverine.Http\AdCodicem.ValueObjects.Wolverine.Http.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WolverineFx.RuntimeCompilation" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A value object written by hand, which nothing registers: the generated code names it, as any other. In this
+         process, not the unit suite's. -->
+    <Compile Include="..\..\AdCodicem.ValueObjects.UnitTests\Domain\HandWritten\HandWrittenCode.cs" Link="HandWrittenCode.cs" />
+  </ItemGroup>
+
+</Project>

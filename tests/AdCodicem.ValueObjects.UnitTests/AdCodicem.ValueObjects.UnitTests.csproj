@@ -68,6 +68,7 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.ProtobufNet\AdCodicem.ValueObjects.ProtobufNet.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Serilog\AdCodicem.ValueObjects.Serilog.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Swashbuckle\AdCodicem.ValueObjects.Swashbuckle.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Wolverine.Http\AdCodicem.ValueObjects.Wolverine.Http.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
@@ -91,6 +92,17 @@
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Blazor\AdCodicem.ValueObjects.Fixtures.Blazor.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Redaction\AdCodicem.ValueObjects.Fixtures.Redaction.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Grains\AdCodicem.ValueObjects.Fixtures.Grains.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Wolverine.Http application WolverineHttp/WolverineHttpEndToEndTests.cs starts as a child process: built with
+         this project, never loaded by it, and found where the build writes it. Wolverine's dynamic mode compiles the
+         endpoints' code with Roslyn 5.0.0 and its Workspaces, which that project takes through conditional pins of its
+         own (Directory.Packages.props); a reference that does not reference its assembly brings none of its packages
+         here. -->
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WolverineHttp\AdCodicem.ValueObjects.Fixtures.WolverineHttp.csproj"
+                      ReferenceOutputAssembly="false" />
+    <AssemblyMetadata Include="WolverineHttpApplication" Value="$(ArtifactsPath)/bin/AdCodicem.ValueObjects.Fixtures.WolverineHttp/$(Configuration.ToLowerInvariant())" />
   </ItemGroup>
 
   <ItemGroup>

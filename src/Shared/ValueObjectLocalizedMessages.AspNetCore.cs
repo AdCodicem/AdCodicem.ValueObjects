@@ -7,9 +7,10 @@ namespace AdCodicem.ValueObjects.Shared;
 /// <see cref="ValueObjectMessageOptions"/>.
 /// </summary>
 /// <remarks>
-/// The part of the lookup the three ASP.NET Core packages share through <see cref="ValueObjectMessageOptions"/>, which
-/// only they reference, the minimal API one, the MVC one and the Azure Functions ASP.NET Core one: linked into the three
-/// beside <c>ValueObjectLocalizedMessages.cs</c>, which the HotChocolate package links alone.
+/// The part of the lookup the four ASP.NET Core packages share through <see cref="ValueObjectMessageOptions"/>, which
+/// only they reference, the minimal API one, the MVC one, the Azure Functions ASP.NET Core one and the Wolverine.Http
+/// one: linked into the four beside <c>ValueObjectLocalizedMessages.cs</c>, which the HotChocolate and Blazor packages
+/// link alone.
 /// </remarks>
 internal static partial class ValueObjectLocalizedMessages
 {

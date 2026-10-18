@@ -21,11 +21,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The lookup of a refusal's message in the application's resource, compiled into the MVC and the Azure Functions
-         ASP.NET Core packages too, which see none of this one's internals, and, without its ASP.NET Core part, into the
-         HotChocolate package. -->
+    <!-- The lookup of a refusal's message in the application's resource, compiled into the MVC, the Azure Functions
+         ASP.NET Core and the Wolverine.Http packages too, which see none of this one's internals, and, without its
+         ASP.NET Core part, into the HotChocolate and Blazor packages. -->
     <Compile Include="..\Shared\ValueObjectLocalizedMessages.cs" Link="Shared\ValueObjectLocalizedMessages.cs" />
     <Compile Include="..\Shared\ValueObjectLocalizedMessages.AspNetCore.cs" Link="Shared\ValueObjectLocalizedMessages.AspNetCore.cs" />
+    <!-- The refusal list and its validation problem, which the Azure Functions ASP.NET Core and Wolverine.Http packages
+         compile too; the refusal of a request body is this package's own part (Binding\ValueObjectRefusals.Body.cs). -->
+    <Compile Include="..\Shared\ValueObjectRefusals.cs" Link="Shared\ValueObjectRefusals.cs" />
   </ItemGroup>
 
 </Project>

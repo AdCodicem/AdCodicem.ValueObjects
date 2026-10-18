@@ -5,7 +5,7 @@ one package or one suite live in a `CLAUDE.md` of its own, next to the code (see
 
 ## What this is
 
-- Thirty-seven NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct`
+- Thirty-eight NuGet packages for single-value DDD value objects on .NET 10 and later. A `readonly partial struct`
   marked `[ValueObject<T>]` gets its whole implementation from a Roslyn incremental generator, and crosses every
   boundary as its underlying type: an IBAN is a JSON string, a `VARCHAR`, a query-string parameter, never a wrapper
   object. Consumers write the value objects; this repository ships the frame.
@@ -26,9 +26,9 @@ Claude Code loads a nested `CLAUDE.md` when it reads a file under its folder.
 - `src/<Package>/CLAUDE.md` for every package with traps of its own: Abstractions, Generators (generator, analyzers),
   AspNetCore, AspNetCore.Http, AspNetCore.NewtonsoftJson, NewtonsoftJson, EntityFrameworkCore, Dapper, MongoDB,
   Identifiers.MongoDB, Marten, MessagePack, ProtobufNet, Grpc, Orleans, Serilog, AI, ModelContextProtocol,
-  AzureFunctions, AzureFunctions.AspNetCore, HotChocolate, HotChocolate.Data, Blazor, CommandLine, CsvHelper,
-  NJsonSchema, Swashbuckle, AutoFixture, Bogus, FsCheck; `src/Shared/CLAUDE.md` for the source files several packages
-  link.
+  AzureFunctions, AzureFunctions.AspNetCore, Wolverine.Http, HotChocolate, HotChocolate.Data, Blazor, CommandLine,
+  CsvHelper, NJsonSchema, Swashbuckle, AutoFixture, Bogus, FsCheck; `src/Shared/CLAUDE.md` for the source files several
+  packages link.
 - `tests/<Suite>/CLAUDE.md` for each of the four suites, plus `tests/NativeAot/`, `tests/Compat/`, `tests/Fixtures/`.
 - `.github/CLAUDE.md` for workflows, scripts, Dependabot and release mechanics; `website/CLAUDE.md` for the site.
 - Record a new trap in the nearest of these files; at the root only when it crosses packages. One rule per bullet: the
@@ -80,7 +80,7 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   deprecate or remove public API, and a deprecation reads "any minor version may remove it before 1.0.0", never "the
   next major version". At 1.0, replace the first `releaseRules` entry with `{ "breaking": true, "release": "major" }`,
   never delete it, or `build(pack)!` and `docs(readme)!` fall back to a patch.
-- The thirty-seven packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
+- The thirty-eight packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
   supported in the same packages (ADR 0010).
 
 ## Architecture
@@ -107,8 +107,9 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 
 - **Typed path**: the static abstract members of `IValueObject<TSelf, TValue>` (`Create`, `TryCreate`, `TryParse`,
   `Normalize`, `Validate`, `Schema`). Domain code and the generic adapters (ASP.NET binder, EF converter, Dapper handler,
-  MongoDB serializer) use it, closed over the concrete types at startup, allocation-free per call. A typed adapter reads
-  `TSelf.Schema`, never the registry.
+  MongoDB serializer) use it, closed over the concrete types at startup, allocation-free per call, and so does the code
+  Wolverine generates for an endpoint, which names each value object. A typed adapter reads `TSelf.Schema`, never the
+  registry.
 - **Boxed path**: `ValueObjectDescriptor`, from `ValueObjectRegistry`, for code that knows a `Type` only at run time
   (attribute lookups, schema generators, binder providers, converter factories, Marten's member source, test-data
   adapters). Get back to typed code through `descriptor.Accept(IValueObjectVisitor<TResult>)` and close the adapter in
@@ -120,10 +121,12 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 - Code that only asks "is this a value object" calls `ValueObjectRegistry.IsValueObject` and resolves nothing (Serilog,
   AI, MCP, the EF Core `.Value` translator, JSON Patch, the System.CommandLine walk, the CsvHelper factory's
   `CanCreate`).
-- The `native AOT` job runs the visitors of the JSON factory's general-purpose converter (for a hand-written value
+- The `native AOT` jobs run the visitors of the JSON factory's general-purpose converter (for a hand-written value
   object), the minimal API filter, `[NotDefault]`, the `[ParsesAs(typeof(T))]` lookup, the Blazor input, the
-  System.CommandLine symbols, the Marten member source (an application of its own, against PostgreSQL), and
-  `EntityIdDescriptor.Accept`. Those of MVC, the EF Core conventions, Azure Functions,
+  System.CommandLine symbols, the Marten member source (an application of its own, against PostgreSQL, in
+  `native AOT (Marten)`), and `EntityIdDescriptor.Accept`; beside them, the Wolverine.Http strategy and helpers in Wolverine's static mode, over the
+  code `codegen write` writes first, which names each value object and closes nothing at run time. Those of MVC, the EF
+  Core conventions, Azure Functions,
   both HotChocolate packages, NJsonSchema, protobuf-net's `AddValueObjects`, Orleans' codec selector and the CsvHelper
   factory run in no native binary, so a defect there shows under the JIT only.
 - A hand-written value object declares `Schema`: the registry describes it from that alone, and reads no annotation on
@@ -226,13 +229,13 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   test it by compiling a snippet in GeneratorTests.
 - **A package namespace hides the root namespace of the same name.** Inside any `AdCodicem.ValueObjects.*` namespace,
   tests and the compatibility island included, `Swashbuckle`, `Serilog`, `MongoDB`, `Marten`, `MessagePack`, `Grpc`,
-  `Orleans`, `ModelContextProtocol`, `HotChocolate`, `NJsonSchema`, `AutoFixture`, `Bogus`, `FsCheck`, `CsvHelper` and
-  `CommandLine` (CommandLineParser's root namespace, never System.CommandLine's) resolve to the package, and
-  `AdCodicem.ValueObjects.Metadata` hides `Grpc.Core.Metadata` (CS0118). Name third-party types through usings at the
-  top of the file, or `global::X` in a body. For the same reason, never name a test folder, namespace or class after a
-  library or a package (`Blazor`, `AI`, `HotChocolate`, `NJsonSchema`, `NSwag`, `Confluent`, `Azure`, `ProtoBuf`,
-  `ProtobufNet`, `Grpc`, `Orleans`, `ModelContextProtocol`, `MessagePack`, `CommandLine`, `CsvHelper`, `Marten`, …): the
-  unit suite's folders are named apart (`tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`).
+  `Orleans`, `ModelContextProtocol`, `HotChocolate`, `NJsonSchema`, `AutoFixture`, `Bogus`, `FsCheck`, `CsvHelper`,
+  `Wolverine` and `CommandLine` (CommandLineParser's root namespace, never System.CommandLine's) resolve to the package,
+  and `AdCodicem.ValueObjects.Metadata` hides `Grpc.Core.Metadata` (CS0118). Name third-party types through usings at
+  the top of the file, or `global::X` in a body. For the same reason, never name a test folder, namespace or class after
+  a library or a package (`Blazor`, `AI`, `HotChocolate`, `NJsonSchema`, `NSwag`, `Confluent`, `Azure`, `ProtoBuf`,
+  `ProtobufNet`, `Grpc`, `Orleans`, `ModelContextProtocol`, `MessagePack`, `CommandLine`, `CsvHelper`, `Marten`,
+  `Wolverine`, …): the unit suite's folders are named apart (`tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`).
 - **A file of `src/Shared/` linked into two assemblies the unit suite sees is two internal types**, both visible through
   `InternalsVisibleTo`, so a test naming one is CS0433. Change a shared description once, there; the table of files,
   linking projects and how tests reach each copy is in `src/Shared/CLAUDE.md`.
@@ -241,8 +244,9 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   language manager. A suite registers such state once, strict, before any test; a test needing another configuration
   builds its own, and never resolves a hand-written type other tests share.
 - **A test file linked into another project changes it too**: the unit suite's `Domain/UnderlyingTypes.cs` is linked by
-  the integration suite and `tests/NativeAot`, and three files of `Domain/HandWritten/` (`HandWrittenCode.cs`,
-  `HandWrittenLink.cs`, `UnregisteredCode.cs`) by `tests/NativeAot`. Grep `Link=` before editing one.
+  the integration suite and `tests/NativeAot`, three files of `Domain/HandWritten/` (`HandWrittenCode.cs`,
+  `HandWrittenLink.cs`, `UnregisteredCode.cs`) by `tests/NativeAot`, and `HandWrittenCode.cs` by the Functions and
+  Wolverine.Http fixtures of `tests/Fixtures` too. Grep `Link=` before editing one.
 - **Native AOT compatibility is per package** (`IsAotCompatible`, true by default in `Directory.Build.props`).
   `tests/NativeAot` references every package that claims it, but HotChocolate (its framework warns on its own publish
   and starts natively only rooted), HotChocolate.Data (its filtering of a struct has no native code), ProtobufNet and
@@ -258,10 +262,12 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   fails. Both: `.github/CLAUDE.md`.
 - **Two Roslyn versions, both in `Directory.Packages.props`.** `Microsoft.CodeAnalysis.CSharp` 4.14.0 is the API the
   generator is built against, the oldest compiler a consumer may use: never raise it to follow a dependency. The unit
-  suite alone takes 5.0.0, through a second `PackageVersion` conditioned on `$(MSBuildProjectName)`, since Orleans
-  brings `Microsoft.CodeAnalysis.Common` 5.0.0 there (NU1608 otherwise); `Microsoft.CodeAnalysis.Analyzers` sits at
-  Orleans' floor, 5.9.0, and transitive pinning lists it in the Orleans package's nuspec
-  (`.github/shipped-dependencies`).
+  suite takes 5.0.0, through a second `PackageVersion` conditioned on `$(MSBuildProjectName)`, since Orleans brings
+  `Microsoft.CodeAnalysis.Common` 5.0.0 there (NU1608 otherwise), and so does the Wolverine.Http fixture application,
+  with `Microsoft.CodeAnalysis.CSharp.Workspaces` 5.0.0 too, which Wolverine's runtime compiler asks for (NU1109
+  otherwise); a reference with `ReferenceOutputAssembly="false"` brings none of them into the unit suite.
+  `Microsoft.CodeAnalysis.Analyzers` sits at Orleans' floor, 5.9.0, and transitive pinning lists it in the Orleans
+  package's nuspec (`.github/shipped-dependencies`).
 - **Required checks are job names**: `build and test`, `native AOT` (`ci.yml`) and `workflows` (`lint.yml`). Renaming
   one leaves every pull request waiting for a check that never reports. `native AOT (Marten)` (`ci.yml`), the Marten
   application's job of its own, is not one until the maintainer adds it to the `Default` ruleset.

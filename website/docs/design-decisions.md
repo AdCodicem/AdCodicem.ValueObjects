@@ -41,7 +41,8 @@ terms: a JSON exception, a model state error, a FluentValidation failure, a Dapp
 `INVALID_ARGUMENT` status of a gRPC service, code-first or contract-first, an `XmlException` from `XmlSerializer` or
 `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool result a language model
 reads, a Model Context Protocol tool execution error, the text of the Azure Functions worker's binding failure, which
-ends with the code, a validation problem for one of its HTTP triggers, a GraphQL error whose `extensions.code` is the
+ends with the code, a validation problem for one of its HTTP triggers or for a Wolverine.Http endpoint, a GraphQL
+error whose `extensions.code` is the
 rule's, a HotChocolate.Data filter operand's included, the `ValueObjectValidationResult` DataAnnotations' `[ParsesAs]`
 and `[NotDefault]` refuse with, a validation message under a Blazor form's field, its code on the form's
 `EditContext`, and the parse error of a System.CommandLine option or argument, its code beside it
@@ -50,8 +51,8 @@ Each carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads fr
 an exception](./reference/errors.md#the-code-in-an-exception)). Under `UseValueObjectCheckErrors()`, the database
 provider's error for a row a CHECK constraint from the rules refused carries the code too, read off the constraint's
 name. The message is English; the code keys the one an
-application shows in its users' language, which the MVC, minimal API, Azure Functions, HotChocolate, Blazor,
-System.CommandLine, FluentValidation and DataAnnotations integrations look up with the
+application shows in its users' language, which the MVC, minimal API, Azure Functions, Wolverine.Http, HotChocolate,
+Blazor, System.CommandLine, FluentValidation and DataAnnotations integrations look up with the
 arguments the declared rules supply ([a message in the application's
 language](./reference/errors.md#a-message-in-the-applications-language)). `Create` throws `ValueObjectException`, and is
 for the call sites that want it; a strict EF Core read goes through it, and fails the query. Validation is fail-fast: the

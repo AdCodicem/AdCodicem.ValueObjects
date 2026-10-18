@@ -17,7 +17,8 @@
     gRPC package's interceptor and collector. Forms.cs renders a Blazor form of every registered value object through
     HtmlRenderer, its Razor components compiled by the Web SDK, and types text into each input; Microsoft.AspNetCore.Components
     warns for itself once a component renders, which aot-warnings.allowed lists. Cli.cs parses a System.CommandLine command
-    of every registered value object, its options configured by AcceptValueObjects(). Two value objects written by
+    of every registered value object, its options configured by AcceptValueObjects(). WolverineHttp.cs serves Wolverine.Http
+    endpoints in Wolverine's static mode, over the code codegen write writes first (see WOLVERINE_CODEGEN below). Two value objects written by
     hand, linked from the unit suite, have no generated converter: Program.cs registers them without one, so the JSON
     factory serves them its general-purpose converter. A third, UnregisteredCode, is registered by nothing, and the
     factory refuses it.
@@ -39,8 +40,26 @@
          there, and still fails the native binary. -->
     <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
-    <DynamicCodeSupport>false</DynamicCodeSupport>
+    <DynamicCodeSupport Condition="'$(WOLVERINE_CODEGEN)' != 'write'">false</DynamicCodeSupport>
   </PropertyGroup>
+
+  <!--
+    Wolverine's static mode runs the code codegen write writes for its endpoints, which native-aot.sh writes into
+    artifacts/wolverine-codegen before either run, never committed. The WOLVERINE_CODEGEN environment variable, rather than
+    a global property, which would reach the referenced projects too, picks the pass: write compiles JasperFx's command
+    line in (WolverineHttp.Build().RunJasperFxCommands, which needs unreferenced and dynamic code) and runs under the JIT
+    with dynamic code; read compiles the code written into the application, for the JIT run and the publish. Unset, as in
+    the solution's build and dotnet format, the application builds without it, and its Wolverine endpoints would refuse to
+    start in static mode.
+  -->
+  <PropertyGroup Condition="'$(WOLVERINE_CODEGEN)' == 'write'">
+    <DefineConstants>$(DefineConstants);WOLVERINE_CODEGEN</DefineConstants>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(WOLVERINE_CODEGEN)' == 'read'">
+    <Compile Include="$(ArtifactsPath)/wolverine-codegen/**/*.cs" Link="WolverineCodegen/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
 
   <!-- So that the AOT compiler finishes the publish, and the script, rather than TreatWarningsAsErrors, judges the two
        assembly-level warnings Microsoft.AspNetCore.Components reports for itself against aot-warnings.allowed. -->
@@ -67,6 +86,7 @@
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Grpc\AdCodicem.ValueObjects.Grpc.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.ModelContextProtocol\AdCodicem.ValueObjects.ModelContextProtocol.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Serilog\AdCodicem.ValueObjects.Serilog.csproj" />
+    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Wolverine.Http\AdCodicem.ValueObjects.Wolverine.Http.csproj" />
     <ProjectReference Include="..\AdCodicem.ValueObjects.NativeAot.Domain\AdCodicem.ValueObjects.NativeAot.Domain.csproj" />
   </ItemGroup>
 

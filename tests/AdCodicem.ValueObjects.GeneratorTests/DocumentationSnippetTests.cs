@@ -116,6 +116,19 @@ public sealed partial class DocumentationSnippetTests
     }
 
     /// <summary>
+    /// Keeps the front matter one <c>key: value</c> per line: a value wrapped onto lines starting in the first column, as
+    /// the description once was, is no YAML a host reads, and the length check below would measure its first line alone.
+    /// </summary>
+    [Fact]
+    public void The_front_matter_holds_one_key_and_its_value_per_line()
+    {
+        var frontMatter = File.ReadLines(Path.Combine(SkillDirectory(), "SKILL.md")).Skip(1).TakeWhile(static line => line != "---").ToList();
+
+        frontMatter.Should().NotBeEmpty()
+            .And.OnlyContain(static line => FrontMatterEntry().IsMatch(line), "a value continued on a line of its own is no YAML a host reads");
+    }
+
+    /// <summary>
     /// Keeps the description within the 1024 characters the skill format allows: a validator refuses a longer one, and a
     /// host cuts it, which loses its end, the clause that says when to load the skill.
     /// </summary>
@@ -250,4 +263,8 @@ public sealed partial class DocumentationSnippetTests
 
     [GeneratedRegex(@"^```csharp(?<meta>[^\r\n]*)\r?\n(?<code>.*?)^```", RegexOptions.Multiline | RegexOptions.Singleline)]
     private static partial Regex FencedBlock();
+
+    /// <summary>A line of YAML front matter holding a key and its value, which no later line continues.</summary>
+    [GeneratedRegex(@"^[a-z][a-z-]*: \S")]
+    private static partial Regex FrontMatterEntry();
 }

@@ -27,6 +27,7 @@ const sidebars: SidebarsConfig = {
         'how-to/json',
         'how-to/xml',
         'how-to/aspnet-core',
+        'how-to/wolverine',
         'how-to/openapi',
         'how-to/graphql',
         'how-to/ef-core',

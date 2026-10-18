@@ -38,7 +38,7 @@ be corrected.
 | EF Core reads validate | on request (`strict: true`) | by default | — | no, reads use the constructor |
 | EF Core `.Value` in LINQ | translated to the column, on request (`UseValueObjectQueries()`) | no: compare the value objects | no: compare the value objects | no |
 | ASP.NET Core model binding | yes | through the `TypeConverter` | through the `TypeConverter` | yes |
-| Problem details carry the violated rule's code | MVC controllers (bodies and JSON Patch documents) and minimal APIs | no | no | no |
+| Problem details carry the violated rule's code | MVC controllers (bodies and JSON Patch documents), minimal APIs, Azure Functions HTTP triggers and Wolverine.Http endpoints | no | no | no |
 | OpenAPI | built-in stack, Swashbuckle 10 and NSwag 14, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
 | JSON Schema registry (Confluent's JSON serdes for Kafka) | the rules in the registered schema, numbers as numbers, a refused message with its code | no (8.0.7 and 9.0.0-beta.1 hold nothing for NJsonSchema) | not checked | not checked |
 | FluentValidation | yes | third-party package | no | no |
@@ -53,6 +53,7 @@ be corrected.
 | System.CommandLine | options and arguments read through the rules, the refused rule's message on the terminal and its code on the parse error | no (8.0.7 and 9.0.0-beta.1 hold nothing for System.CommandLine) | no (1.0.0-beta08 holds nothing for it) | no (10.5.1 holds nothing for it) |
 | CSV files (CsvHelper) | a column per value object, written as its own text and read through its rules, a refused field carrying its code | no (8.0.7 and 9.0.0-beta.1 hold nothing for CsvHelper) | no (1.0.0-beta08 holds nothing for it) | no (10.5.1 holds nothing for it) |
 | Azure Functions isolated worker | route values, query values and binding data bound through the rules; a refused one in an HTTP trigger answered 400 with its code | no (8.0.7 ships no Functions code) | not checked | not checked |
+| Wolverine.Http endpoints | route, query, header and form values bound through the rules; a refused or missing one answered 400 with its code, every refusal of a request at once | no (8.0.7 and 9.0.0-beta.1 hold nothing for Wolverine) | no (1.0.0-beta08 holds nothing for it) | no (10.5.1 holds nothing for it) |
 | Contract test kit for your own types | yes, with the values its schema rules out, on request | no | no | no |
 | Valid test data from the declared rules | AutoFixture, Bogus and FsCheck packages over a dependency-free sampler | no (Vogen#153, AutoFixture specimen builders, closed as not planned) | no | no |
 | Prefixed public identifiers (`acc_…`) | yes | no | no | no |
@@ -75,11 +76,11 @@ three, a length or a pattern is code inside a validation method, so the column a
 message, and allocates nothing when the value is valid. The code travels to the problem details of MVC controllers, for
 a JSON body, read by System.Text.Json or Newtonsoft.Json, and a JSON Patch document's values, as for a query value, and
 of minimal APIs, native AOT included, for a route, query or header value, and for a body where `ThrowOnBadRequest` is
-on, to FluentValidation failures and to every exception an integration throws, so an API client branches on
-`value_object.too_long` rather than on English. The same code keys the message an application shows in its users'
-language, which MVC (for a route, query, header or form value, and a body System.Text.Json reads), minimal APIs, Azure
-Functions, HotChocolate, Blazor, System.CommandLine, FluentValidation and the DataAnnotations attributes look up in its
-translations with
+on, of Wolverine.Http endpoints, for a route, query, header or form value, to FluentValidation failures and to every
+exception an integration throws, so an API client branches on `value_object.too_long` rather than on English. The same
+code keys the message an application shows in its users' language, which MVC (for a route, query, header or form value,
+and a body System.Text.Json reads), minimal APIs, Azure Functions, Wolverine.Http, HotChocolate, Blazor,
+System.CommandLine, FluentValidation and the DataAnnotations attributes look up in its translations with
 the length, the bounds or the known values the type declares ([a message in the application's
 language](../reference/errors.md#a-message-in-the-applications-language)).
 

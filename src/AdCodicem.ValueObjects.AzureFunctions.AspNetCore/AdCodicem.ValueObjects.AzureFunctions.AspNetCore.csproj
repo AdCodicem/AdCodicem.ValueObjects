@@ -29,13 +29,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The converter's reading of the worker's text, the name of a type as C# writes it, and the lookup of a refusal's
-         message in the application's resource, compiled here too rather than reached through InternalsVisibleTo: the
-         packages are installed apart, and an internal of one is no contract of the other. -->
+    <!-- The converter's reading of the worker's text, the name of a type as C# writes it, the lookup of a refusal's
+         message in the application's resource, and the refusal list and its validation problem, which the minimal API
+         package writes, compiled here too rather than reached through InternalsVisibleTo: the packages are installed
+         apart, and an internal of one is no contract of the other. -->
     <Compile Include="..\Shared\ValueObjectBindingText.cs" Link="Shared\ValueObjectBindingText.cs" />
     <Compile Include="..\Shared\TypeNames.cs" Link="Shared\TypeNames.cs" />
     <Compile Include="..\Shared\ValueObjectLocalizedMessages.cs" Link="Shared\ValueObjectLocalizedMessages.cs" />
     <Compile Include="..\Shared\ValueObjectLocalizedMessages.AspNetCore.cs" Link="Shared\ValueObjectLocalizedMessages.AspNetCore.cs" />
+    <Compile Include="..\Shared\ValueObjectRefusals.cs" Link="Shared\ValueObjectRefusals.cs" />
   </ItemGroup>
 
 </Project>

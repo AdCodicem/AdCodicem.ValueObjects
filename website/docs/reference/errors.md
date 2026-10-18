@@ -42,7 +42,10 @@ refuse a value: `AddValueObjects(messages => messages.UseResource<T>())` on MVC 
 `WithValueObjectProblemDetails(messages => messages.UseResource<T>())` on a minimal API
 ([ASP.NET Core](../how-to/aspnet-core.md#messages-in-the-applications-language)),
 `UseValueObjectProblemDetails(messages => messages.UseResource<T>())` on an Azure Functions HTTP trigger
-([Azure](../how-to/azure.md#messages-in-the-requests-language)), `AddValueObjects(options => options.UseResource<T>())`
+([Azure](../how-to/azure.md#messages-in-the-requests-language)),
+`UseValueObjects(messages => messages.UseResource<T>())` on Wolverine.Http endpoints
+([Wolverine](../how-to/wolverine.md#messages-in-the-requests-language)),
+`AddValueObjects(options => options.UseResource<T>())`
 on a HotChocolate schema ([GraphQL](../how-to/graphql.md#messages-in-the-applications-language)),
 `AddValueObjectInputs(options => options.UseResource<T>())` for the inputs of a Blazor form
 ([Blazor](../how-to/blazor.md#messages-in-the-applications-language)),
@@ -66,7 +69,7 @@ A message quotes arguments the rules the type declares supply, through `ValueObj
 name, which FluentValidation quotes as a placeholder, and a position, which an `IStringLocalizer` formats with
 `string.Format`.
 
-| Code | Named (FluentValidation) | Positional (MVC, minimal APIs, Azure Functions, HotChocolate, Blazor inputs, System.CommandLine, DataAnnotations) |
+| Code | Named (FluentValidation) | Positional (MVC, minimal APIs, Azure Functions, Wolverine.Http, HotChocolate, Blazor inputs, System.CommandLine, DataAnnotations) |
 | --- | --- | --- |
 | Every code | `{PropertyName}`, `{ValueObject}` | `{0}`, the member |
 | `value_object.too_short` | `{MinLength}` | `{1}` |
@@ -76,8 +79,9 @@ name, which FluentValidation quotes as a placeholder, and a position, which an `
 
 - `{ValueObject}` is the name of the value object type, without the arity of a generic one: `Reference` for
   `Reference<PurchaseOrder>`. `{0}` is the member the refusal is listed under: the display name MVC gives it, the
-  name a minimal API value binds from, the name of the parameter of an Azure Functions HTTP trigger, the argument, the
-  input field or the variable of a GraphQL refusal (the scalar's name for a variable's default value, which HotChocolate
+  name a minimal API value binds from, the name of the parameter of an Azure Functions HTTP trigger, the name a
+  Wolverine.Http value binds from (a header's name, `X-Customer`), the argument, the input field or the variable of a
+  GraphQL refusal (the scalar's name for a variable's default value, which HotChocolate
   names no variable for, and for an operand of a HotChocolate.Data filter under `AddValueObjectFiltering()`, or any
   input value `QuoteScalarNameIn` selects), the field of a refused output, the `DisplayName` of a Blazor input, or else its field's
   name, the alias of a System.CommandLine option as typed or the name of an argument, followed by the token's position
@@ -104,12 +108,12 @@ those the application's `RequestLocalizationOptions` choose from the request
 ([Azure](../how-to/azure.md#messages-in-the-requests-language)). A template quoting an argument its code does not
 supply is the application's error: an `IStringLocalizer` throws its `FormatException`, which the integrations let
 through, HotChocolate answering a field it fails with its own unexpected error, while FluentValidation leaves a
-placeholder it has no value for as it is. On MVC, minimal APIs and Azure Functions HTTP triggers, a resource read without
-`builder.Services.AddLocalization()` throws an `InvalidOperationException` naming the call; on HotChocolate, the request
-executor fails to start with that exception. `AddValueObjectInputs` registers the localization services itself, and a
-Blazor input whose options were configured by hand without them throws that exception from its change event. The
-System.CommandLine options and arguments, which have no services, read the resource through a `ResourceManager` over its
-type, as DataAnnotations does; a blank entry keeps the English message.
+placeholder it has no value for as it is. On MVC, minimal APIs, Azure Functions HTTP triggers and Wolverine.Http
+endpoints, a resource read without `builder.Services.AddLocalization()` throws an `InvalidOperationException` naming the
+call; on HotChocolate, the request executor fails to start with that exception. `AddValueObjectInputs` registers the
+localization services itself, and a Blazor input whose options were configured by hand without them throws that
+exception from its change event. The System.CommandLine options and arguments, which have no services, read the resource
+through a `ResourceManager` over its type, as DataAnnotations does; a blank entry keeps the English message.
 
 A French resource for the codes of the framework, as an example:
 
@@ -255,6 +259,7 @@ the grain, its code and type kept:
 | A structured answer, read through `ChatResponse<T>.Result` | The converters' `ValueObjectJsonException`, whose code the application can ask again with ([structured output](../how-to/language-models.md#structured-output)). |
 | A Model Context Protocol tool argument, through [`AdCodicem.ValueObjects.ModelContextProtocol`](../how-to/language-models.md#a-refused-argument-as-a-tool-execution-error)'s `WithValueObjectTools` | Nothing is thrown: the server answers a tool execution error, `isError: true`, whose text is `Argument 'quantity' rejected (value_object.out_of_range): …`, and whose structured content is the object above when the tool declares no output schema, its code and message read the same way. Without the package, the SDK answers `An error occurred invoking 'place_order'.`, and the rule and its code are lost. |
 | An Azure Functions isolated worker binding, through [`AdCodicem.ValueObjects.AzureFunctions`](../how-to/azure.md#route-values-query-values-and-binding-data)'s `UseValueObjects()` | The converter fails the parameter with a `FormatException`, "The value is not a valid Quantity: The value must be less than or equal to 100. (value_object.out_of_range)", carrying the code in its `Data` and at the end of its message; the worker keeps that text alone, in a `FunctionInputConverterException` with no inner exception, which fails the invocation. Over HTTP, with [`UseValueObjectProblemDetails()`](../how-to/azure.md#problem-details-for-http-triggers) after `ConfigureFunctionsWebApplication()`, a validation problem carrying the code of each refused route or query value, and of a `[FromBody]` value object where the MVC package's `AddValueObjects()` reads the body; the middleware throws nothing of its own. Without the package, the worker's JSON conversion refuses the text, a valid `Guid` or date included, and the host logs the reader's message, which can quote part of the value: `'not-a-guid' is an invalid JSON literal`. |
+| A Wolverine.Http route, query, header or form value, through [`AdCodicem.ValueObjects.Wolverine.Http`](../how-to/wolverine.md#a-refused-value)'s `UseValueObjects()` | Nothing is thrown: the request is answered 400 with the validation problem a minimal API answers, every refused or absent value of the request at once, each under the name it binds from with the rule's message, never the text, and its code under `errorCodes`, also recorded on the request, where `ValueObjectProblemDetails.GetErrorCodes` reads it; an absent value that cannot be `null` is `value_object.required`, "A value is required.". No middleware method and no handler runs. A JSON body stays Wolverine's: its own 400, "Invalid JSON format", with the rule's message in `detail` and no code; and so do `[AsParameters]` members, which Wolverine binds itself, leniently or, under `RejectUnparseableQueryValues = true`, with its own 400 and no code. Misuse throws `InvalidOperationException`, which carries no code: from `MapWolverineEndpoints`, one name bound to two value objects in an endpoint, and HTTP JSON options that cannot write the validation problem (no reflection-based serialization and no `AddProblemDetails()`); from a refusal answered with the messages of a resource, `builder.Services.AddLocalization()` missing. Without the package, Wolverine answers a refused route value 404, binds a refused query value as the default instance under its default `RejectUnparseableQueryValues = false`, and an empty or absent one, or a refused, empty or absent header or form value, in either mode; `[FromQuery]` on a value object stops the application at startup, "Sequence contains no elements". |
 | A Kafka message, through Confluent's JSON serdes with the schema of [`AdCodicem.ValueObjects.NJsonSchema`](../how-to/messaging.md#kafka-with-confluents-schema-registry) | The package refuses nothing: `JsonDeserializer<T>` reads through the settings' `ValueObjectConverter`, whose `JsonSerializationException` carries the code in its `Data`, and `JsonSerializer<T>` refuses to write a value its type refuses the same way. Confluent's own `InvalidDataException`, "Schema validation failed for properties: […]", from the validation of a message against the registered schema, carries none. |
 | A GraphQL argument, input field or variable, through [`AdCodicem.ValueObjects.HotChocolate`](../how-to/graphql.md#a-refused-value)'s `AddValueObjects()`, or a filter operand, through [`AdCodicem.ValueObjects.HotChocolate.Data`](../how-to/graphql.md#filtering-and-sorting-with-hotchocolatedata)'s `AddValueObjectFiltering()` | `LeafCoercionException`, carrying the code in its `Data`, whose GraphQL error has the message of the rule, the code as `extensions.code`, and a `ValueObjectException` with the type and the code on `IError.Exception`: a field error at the argument's `inputPath`, a filter operand's at its operation, `["eq"]` or `["in", 1]`, a request error at the variable's `path`. A variable of another JSON kind is `value_object.not_parsable`; a literal of another kind and a `null` literal are its own validation errors, with no code, and a `null` variable its `HC0018`; a `null` text fragment of a filter is its `HC0026`, as for a `String` member, with no code. Without the package, a schema taking a value object as an argument does not start: ``No compatible constructor found for input type type `Shop.Iban`.``. |
 | A Blazor form's text, through [`AdCodicem.ValueObjects.Blazor`](../how-to/blazor.md#the-code)'s `InputValueObject` | Nothing is thrown: the refused text stays in the field, the rule's message goes under it through the form's `EditContext`, and `TryGetValueObjectErrorCode` reads the code; empty text a value object that cannot be `null` refuses is `value_object.required`. A type the registry does not describe, one that is no value object, or, where the runtime supports no dynamic code, a value object written by hand or a construction of a generic one that nothing registered, throws `InvalidOperationException` at the input's first render, naming the registration native AOT needs, which carries no code: it reports a misuse, never a broken rule. A statically rendered form is mapped by the framework first, which answers a refused value with its own message, quoting the text, and no code ([static rendering](../how-to/blazor.md#static-rendering)). |
@@ -468,7 +473,9 @@ reading English:
 A Blazor input throws nothing for refused text, and so has no row here: the rule's message goes under the field, through
 the form's `EditContext`, and `TryGetValueObjectErrorCode` reads the code from it, as the table of rejected values under
 [`ValueObjectException`](#valueobjectexception) says. A System.CommandLine option or argument throws nothing for refused
-text either: the refusal is a parse error, whose code `TryGetValueObjectErrorCode` reads.
+text either: the refusal is a parse error, whose code `TryGetValueObjectErrorCode` reads. Nor does a Wolverine.Http
+endpoint for a refused route, query, header or form value: the request is answered with the validation problem, its
+codes under `errorCodes` and recorded on the request for `ValueObjectProblemDetails.GetErrorCodes`.
 
 The code is the one the rule reports. A value that is not of the underlying type at all carries
 `value_object.not_parsable`: a JSON token of the wrong kind, a number the underlying type cannot hold, text not of its

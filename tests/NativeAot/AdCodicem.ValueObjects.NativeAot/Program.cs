@@ -9,6 +9,15 @@ using AdCodicem.ValueObjects.NativeAot;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 
+#if WOLVERINE_CODEGEN
+// The codegen pass of native-aot.sh writes the code of the Wolverine.Http endpoints for static mode, under the JIT, before
+// either run: JasperFx's command line needs unreferenced code and dynamic code, so it is compiled into that pass alone.
+if (args is ["codegen", ..])
+{
+    return await global::JasperFx.CommandLineHostingExtensions.RunJasperFxCommands(WolverineHttp.Build(), args);
+}
+#endif
+
 if (args.Length != 1)
 {
     await Console.Error.WriteLineAsync("Usage: AdCodicem.ValueObjects.NativeAot <output file>");
@@ -114,6 +123,10 @@ await using (var annotations = annotationsBuilder.Build())
         await annotations.StopAsync();
     }
 }
+
+// The Wolverine.Http endpoints, in Wolverine's static mode, over the code the codegen pass wrote, in an application of
+// their own.
+await WolverineHttp.RunAsync(report);
 
 // Without AddProblemDetails(), the HTTP JSON options of an application without reflection cannot write problem details,
 // and the convention fails the build of the endpoints rather than answer each refusal with a 500.

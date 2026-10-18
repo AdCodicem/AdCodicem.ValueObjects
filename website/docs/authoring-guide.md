@@ -313,6 +313,8 @@ describes one by reflection the first time a CsvHelper context meets it, or take
 [Marten's member source](./how-to/marten.md#registering-the-value-objects) describes one by reflection the first time a
 query, a duplicated field or a compiled query meets it, or takes one registered with
 `ValueObjectRegistry.Register<TSelf, TValue>()` or taught with `UseValueObject<TSelf, TValue>()`.
+[A Wolverine.Http endpoint](./how-to/wolverine.md#where-a-value-is-read-from) binds a construction with no registration,
+natively too: the code Wolverine generates names it.
 Under native AOT, where describing a construction by reflection is out
 of reach, register each construction a type-driven integration needs; the registration reads its schema off the type:
 

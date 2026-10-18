@@ -94,7 +94,7 @@ internal static class WithoutDynamicCode
     /// Gets the <c>dotnet</c> host of the running runtime, three folders above it, as a framework-dependent installation
     /// lays them out.
     /// </summary>
-    private static string Host()
+    internal static string Host()
         => Path.GetFullPath(Path.Combine(
             RuntimeEnvironment.GetRuntimeDirectory(),
             "..",
