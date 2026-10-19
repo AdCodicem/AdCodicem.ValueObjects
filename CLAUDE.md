@@ -81,7 +81,8 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   next major version". At 1.0, replace the first `releaseRules` entry with `{ "breaking": true, "release": "major" }`,
   never delete it, or `build(pack)!` and `docs(readme)!` fall back to a patch.
 - The thirty-eight packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
-  supported in the same packages (ADR 0010).
+  supported in the same packages. ADR 0012 replaces the one version with two trains (core, satellites) and ADR 0013
+  the CI with a targeted one; both are accepted but not built yet, so the mechanics this file describes still hold.
 
 ## Architecture
 

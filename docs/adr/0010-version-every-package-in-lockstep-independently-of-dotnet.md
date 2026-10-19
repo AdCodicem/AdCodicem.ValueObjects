@@ -4,7 +4,10 @@ Date: 2026-10-03
 
 ## Status
 
-Accepted
+Superseded by [ADR-0012](0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md): the packages are
+released in two trains. This record's ladder for a framework's next major, its compatibility island and its floors with
+no upper bound stand, restated there train by train. The body below is kept as the record of the decision as it was
+taken.
 
 ## Context
 
@@ -53,7 +56,8 @@ framework major.
 - **One version for the twelve.** A consumer references the same version of each.
 - **Support is stated, not encoded in package IDs.** Each package's target framework, `net10.0` today, says where it
   installs: on .NET 10 or any later version. Its dependencies are minimums with no upper bound, as Microsoft's
-  [library guidance](https://learn.microsoft.com/dotnet/standard/library-guidance/dependencies#nuget-dependency-version-ranges)
+  [library
+  guidance](https://learn.microsoft.com/dotnet/standard/library-guidance/dependencies#nuget-dependency-version-ranges)
   recommends: an upper bound fails a restore that pairs the package with anything newer, breaking or not. The
   [support table](../../README.md#supported-frameworks) names, for each package, the framework majors it is built and
   tested against and what the compatibility job checks on the next one. It names majors; the exact minimum of each

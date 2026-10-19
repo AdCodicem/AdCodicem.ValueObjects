@@ -4,7 +4,9 @@ Date: 2026-10-01
 
 ## Status
 
-Accepted
+Accepted. Amended by [ADR-0013](0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md): in its
+second phase, the unit suite splits into a test project per CI family, the same suite, split, where this record rejected
+a fourth one.
 
 ## Context
 
