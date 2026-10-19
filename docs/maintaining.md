@@ -192,7 +192,7 @@ to `CHANGELOG.md` for a preview, which has no release of its own (`src/Directory
 |---|---|---|
 | Allow auto-merge | Settings → General → Pull Requests | `dependabot-auto-merge.yml` runs green and merges nothing. |
 | Squash merging allowed, with the pull request title as its default commit message, beside rebase merging | Settings → General → Pull Requests | A Dependabot pull request retitled `fix(deps)` lands as Dependabot's `chore(deps)` commit and releases nothing. Rebase merging stays the way every other pull request lands. |
-| Required status checks **`build and test`** and **`native AOT`** (`ci.yml`), and **`workflows`** (`lint.yml`) | Settings → Rules → Rulesets → `Default` (id 23842638) | Auto-merge can merge a red build, or one that breaks native AOT, and a red `fix(deps)` would then release a broken patch. The checks are job names: renaming any of these jobs leaves every pull request waiting for a check that never reports. `compat (.NET 11)` joins them when .NET 11 ships ([The .NET compatibility island](#the-net-compatibility-island)), not before. `native AOT (Marten)` (`ci.yml`), the Marten application's job of its own, is not one until you add it here (see [Dependabot](#dependabot)). |
+| Required status checks **`build and test`** and **`native AOT`** (`ci.yml`), and **`workflows`** and **`conventional commits`** (`lint.yml`) | Settings → Rules → Rulesets → `Default` (id 23842638) | Auto-merge can merge a red build, or one that breaks native AOT, and a red `fix(deps)` would then release a broken patch. The checks are job names: renaming any of these jobs leaves every pull request waiting for a check that never reports. `compat (.NET 11)` and `native AOT (Marten)` (`ci.yml`), the Marten application's job of its own, never join them: [ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md) moves them, with `native AOT`, to the jobs that gate a release. |
 | Allow GitHub Actions to create and approve pull requests | Settings → Actions → General | Not needed for auto-merge, but required if a workflow is ever made to open PRs. |
 | Discussions | Settings → General → Features | `.github/DISCUSSION_TEMPLATE/q-a.yml` and the issue-template link to Discussions go nowhere. |
 | Pages source: GitHub Actions | Settings → Pages | `deploy-docs.yml` uploads an artifact that is never served. |
@@ -314,9 +314,9 @@ Without them the release job stops at its first step, before anything is publish
 - **Marten and the native AOT (Marten) job.** The application of
   `tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Marten` runs in a job of its own, `native AOT (Marten)`, against
   its PostgreSQL service container, beside `native AOT`, which it would take from about 6 minutes to about 27: the
-  native AOT compiler alone takes about 20 minutes over Marten, on one core. It is not a required check: add it to the
-  `Default` ruleset once you want a Marten break to block a merge, and keep its timeout ahead of Marten's compile time
-  (45 minutes today). Marten, JasperFx, Weasel and
+  native AOT compiler alone takes about 20 minutes over Marten, on one core. It is not a required check and never becomes
+  one: [ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md) moves it to the jobs
+  that gate a release. Keep its timeout ahead of Marten's compile time (45 minutes today). Marten, JasperFx, Weasel and
   FastExpressionCompiler warn for themselves, which its `aot-warnings.allowed` lists by their source paths and
   assemblies: a Marten update that warns otherwise fails the job, naming the warning; move the list with the update
   when the warning is Marten's own, never one of this library's code.
@@ -439,8 +439,8 @@ so it has no version to move at a release candidate. Dependabot never sees the i
     after which `setup-dotnet` installs the latest 11.0 SDK by itself;
   - the eight packages move to `11.0.0`, Npgsql's provider included;
   - `System.CommandLine` moves to `3.0.0`;
-  - `compat (.NET 11)` joins the required status checks of the `Default` ruleset (id 23842638);
-  - the comment in `ci.yml` that says the job is not a required check goes.
+  - `compat (.NET 11)` blocks previews from then on, and stays out of the required status checks
+    ([ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)).
 - **When .NET 12 previews arrive**, moving the island to the next major, or adding a second one, is a decision of its
   own. Renaming the job changes the required check.
 - **`librdkafka.redist` moves with `Confluent.SchemaRegistry.Serdes.Json`**, in the island as in the repository's

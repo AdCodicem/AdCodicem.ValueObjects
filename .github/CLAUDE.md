@@ -83,10 +83,10 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   `actionlint.yaml` silences `queue: max`, which actionlint does not know yet, in `deploy-docs.yml` and `preview.yml`.
 - Trusted Publishing is keyed on a workflow file and an environment (`preview.yml` with `nuget`, `release.yml` with
   `nuget-stable`): change the nuget.org policy before renaming either file or moving its publish job.
-- Required checks are job names: `build and test`, `native AOT` and `workflows`; `compat (.NET 11)` becomes one when
-  .NET 11 ships, and `native AOT (Marten)`, the Marten application's job of its own beside `native AOT` (Marten's native
-  AOT compiler alone takes about 20 minutes), once the maintainer adds it to the ruleset, not before. Never rename them
-  without updating the `Default` ruleset.
+- Required checks are job names: `build and test`, `native AOT`, `workflows` and `conventional commits`. Never rename
+  them without updating the `Default` ruleset. `compat (.NET 11)` and `native AOT (Marten)`, the Marten application's job
+  of its own beside `native AOT` (Marten's native AOT compiler alone takes about 20 minutes), never become one: ADR 0013
+  moves them, with `native AOT`, to the jobs that gate a preview and a stable release.
 - `scripts/ecmascript-patterns.mjs`, run by `ci.yml`'s `documentation site` job, holds the Blazor package's pattern
   table (`tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json`) to Node's v-flag engine, as
   `EcmaScriptPatternTests` holds it to .NET: change both together.
