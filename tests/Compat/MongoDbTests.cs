@@ -42,7 +42,9 @@ public sealed class MongoDbFixture : IAsyncLifetime
         return true;
     });
 
-    private readonly MongoDbContainer _container = new MongoDbBuilder("mongo:8.0").Build();
+    // MongoDB 7.0, not 8: every MongoDB 8.x refuses to start on a Linux kernel 6.19 or later (SERVER-121912), which
+    // GitHub's runners now run. Back to mongo:8.0 once an 8.x starts there (docs/maintaining.md).
+    private readonly MongoDbContainer _container = new MongoDbBuilder("mongo:7.0").Build();
 
     /// <summary>Gets the client connected to the running server.</summary>
     public MongoClient Client { get; private set; } = null!;

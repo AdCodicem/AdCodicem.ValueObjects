@@ -3,8 +3,11 @@
 Real servers through Testcontainers, and the sample API of `samples/` end to end. Needs Docker.
 
 - Images: `postgres:17-alpine`, `mssql/server:2022-latest`, `mssql/server:2025-latest` (`SqlServer2025Fixture`, the only
-  one that runs `REGEXP_LIKE`), `mongo:8.0`, Azurite, and `azure-functions/dotnet-isolated:4-dotnet-isolated10.0`, which
+  one that runs `REGEXP_LIKE`), `mongo:7.0`, Azurite, and `azure-functions/dotnet-isolated:4-dotnet-isolated10.0`, which
   exists for amd64 alone.
+- `mongo:7.0`, not 8: every MongoDB 8.x refuses to start on a Linux kernel 6.19 or later (SERVER-121912), which GitHub's
+  runners now run, so a job fails or passes by the runner it lands on. Move back to `mongo:8.0`, with
+  `tests/Compat/MongoDbTests.cs` and the support table, once an 8.x starts there.
 - Assert column types against `information_schema` (`format_type` for a PostgreSQL array, whose element length only it
   shows), never against what EF Core says it mapped.
 - `Domain/UnderlyingTypes.cs` is linked from the unit suite: a value object added there is stored through a real MongoDB
