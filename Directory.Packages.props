@@ -52,7 +52,7 @@
          restore with NU1109, and opens no pull request, until they are raised by hand with it. -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.13" />
-    <PackageVersion Include="FluentValidation" Version="12.1.1" />
+    <PackageVersion Include="FluentValidation" Version="12.2.0" />
     <PackageVersion Include="Dapper" Version="2.1.89" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
     <!-- Swashbuckle 10 builds on Microsoft.OpenApi 2, whose pin above is the Swashbuckle package's floor. Its next major is
