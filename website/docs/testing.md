@@ -242,7 +242,7 @@ DataAnnotations attributes through `Validator`, options validation, the validato
 the minimal API validation of Microsoft.Extensions.Validation 11, its own message keys and its handling of an
 attribute's exception included,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
-MongoDB.Driver on MongoDB 8 with a collection validator and entity identifiers minted on insert, Marten on PostgreSQL
+MongoDB.Driver on MongoDB 7.0 with a collection validator and entity identifiers minted on insert, Marten on PostgreSQL
 17, its LINQ, a duplicated field and a compiled query's collection, MessagePack and SignalR's MessagePack hub protocol
 11 over TestHost, protobuf-net on a runtime model and on its compile-time model and a protobuf-net.Grpc code-first
 service over TestHost, a contract-first gRPC service answering through the gRPC package, Orleans' serializer,
