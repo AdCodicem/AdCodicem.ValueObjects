@@ -4,7 +4,7 @@ Date: 2026-10-19
 
 ## Status
 
-Proposed. Once accepted:
+Accepted.
 
 - **Supersedes** [ADR-0010](0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its ladder for a
   framework's next major, its compatibility island and its floors with no upper bound on the frameworks stand, restated

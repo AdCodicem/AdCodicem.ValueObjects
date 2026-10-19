@@ -6,7 +6,11 @@ Date: 2026-10-03
 
 Accepted. Supersedes the preview track of [ADR-0003](0003-hybrid-release-manual-stable-continuous-preview.md);
 amends [ADR-0004](0004-pin-the-supply-chain-by-digest-not-nuget-lock-files.md) and
-[ADR-0005](0005-version-the-documentation-site.md).
+[ADR-0005](0005-version-the-documentation-site.md). Amended by
+[ADR-0012](0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md): a preview publishes every
+release train at its own version, the core first; and by
+[ADR-0013](0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md): it runs the heavy jobs before it
+publishes.
 
 ## Context
 

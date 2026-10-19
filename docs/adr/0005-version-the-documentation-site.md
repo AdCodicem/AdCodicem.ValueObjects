@@ -10,7 +10,9 @@ nuget.org that describes the commit it builds. `ci.yml` no longer deploys it, `d
 dispatched, and the pull-request validation of `deploy-docs.yml` that `ci.yml` gave is now `lint.yml`'s actionlint
 job, beside a build of the site on every pull request. `docs-snapshot.sh` no longer runs in semantic-release's
 prepare step: `release.yml`'s pack job, which holds no credential, runs it on every run, a dry run included, and
-semantic-release commits what it wrote.
+semantic-release commits what it wrote. Amended by
+[ADR-0012](0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md): the site's lines follow the core
+train, each naming the satellites version it describes.
 
 ## Context
 
