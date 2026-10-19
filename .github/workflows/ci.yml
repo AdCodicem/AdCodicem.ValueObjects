@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+# One run per pull request: a push cancels the run it supersedes. A push to main is keyed on its
+# commit and never cancelled, so that every commit of main keeps a complete run. The workflow's
+# name is in the key because concurrency groups are repository-wide: without it, ci.yml and
+# lint.yml would share a group and cancel each other's required checks.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 

@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# As in ci.yml: a push to a pull request cancels the run it supersedes, a push to main never.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
