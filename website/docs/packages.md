@@ -73,7 +73,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.NJsonSchema` | `net10.0` | NJsonSchema 11.6: NSwag 14.7 on ASP.NET Core 10, Confluent's JSON serdes 2.16 | NSwag 14.7 and Confluent's JSON serdes 2.16 on .NET 11 |
 | `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
 | `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
-| `AdCodicem.ValueObjects.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
+| `AdCodicem.ValueObjects.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 7.0² | MongoDB.Driver 3.12 on .NET 11, on MongoDB 7.0² |
 | `AdCodicem.ValueObjects.Marten` | `net10.0` | Marten 9.50, on PostgreSQL 17, and native AOT | Marten 9.50 on .NET 11, on PostgreSQL 17 |
 | `AdCodicem.ValueObjects.MessagePack` | `net10.0` | MessagePack 3.1, with SignalR's MessagePack hub protocol 10 | MessagePack 3.1 on .NET 11, with the hub protocol 11 |
 | `AdCodicem.ValueObjects.ProtobufNet` | `net10.0` | protobuf-net 3.4 and protobuf-net.Grpc 1.3 over Grpc.AspNetCore 2.84, and protobuf-net's compile-time model under native AOT | protobuf-net 3.4 on .NET 11, a code-first call over TestHost |
@@ -93,7 +93,7 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.Wolverine.Http` | `net10.0` | Wolverine.Http 6.51, in dynamic mode over TestHost, and in static mode under native AOT | Wolverine.Http 6.51 on .NET 11, in dynamic mode over TestHost |
 | `AdCodicem.ValueObjects.Identifiers` | `net10.0` | .NET 10 | .NET 11 |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
-| `AdCodicem.ValueObjects.Identifiers.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 8 | MongoDB.Driver 3.12 on .NET 11, on MongoDB 8 |
+| `AdCodicem.ValueObjects.Identifiers.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 7.0² | MongoDB.Driver 3.12 on .NET 11, on MongoDB 7.0² |
 | `AdCodicem.ValueObjects.Testing` | `net10.0` | xUnit v3 4 | xUnit v3 4 on .NET 11 |
 | `AdCodicem.ValueObjects.Testing.Data` | `net10.0` | .NET 10 | .NET 11 |
 | `AdCodicem.ValueObjects.AutoFixture` | `net10.0` | AutoFixture 4.18 | AutoFixture 4.18 on .NET 11 |
@@ -104,6 +104,10 @@ next major is supported by these same packages, never by a package per framework
 applications, the Swashbuckle package into one of its own
 ([How the library is tested](./testing.md#the-compatibility-island)). It informs and blocks nothing until .NET 11
 ships.
+
+² MongoDB 7.0 until a MongoDB 8 release starts on GitHub's runners: every MongoDB 8.x refuses a Linux kernel 6.19 or
+later ([SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912)), which the runners run since 2026-10-18. The
+packages ran against MongoDB 8 until then.
 
 ## Versioning
 
