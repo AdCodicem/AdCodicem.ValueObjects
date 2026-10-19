@@ -190,6 +190,9 @@ train by train, with no maintenance line.
   - A framework-free kernel, `AdCodicem.ValueObjects.Testing.Contracts`, joins the core next to `Testing.Data`.
   - `AdCodicem.ValueObjects.Testing` stays the xunit.v3 adapter, in the satellites. Its users change nothing, and
     xunit's majors stay out of the core.
+  - The adapter runs the kernel's checks as one theory, a row per check, so that a check the kernel adds in a minor
+    shows up with no new version of the adapter. A check that can fail a contract that passed before is opt-in in a
+    minor, and on by default only in a major of the core.
 - **Families.** After their common 1.0, satellites may leave in families of their own, each with a `<family>-v` tag and
   a changelog. A family leaves when one of these holds:
   - its framework forced two breaking versions in twelve months;

@@ -12,6 +12,8 @@ Proposed. Its concurrency rule is already in place; the rest waits for acceptanc
   stable release instead.
 - Amends [ADR-0009](0009-publish-previews-weekly-when-a-package-input-changed.md): a preview runs this record's heavy
   jobs before it publishes.
+- Amends [ADR-0006](0006-coverage-is-a-signal-not-a-goal.md) in its second phase: the unit suite splits into a test
+  project per family, where ADR-0006 rejected a fourth test suite.
 
 ## Context
 
@@ -72,9 +74,9 @@ matrix.
 
 ## Decision
 
-On a pull request, we will run only the jobs for the kinds of files it changes, behind the one required check that
-`ci.yml` already reports. The heavy jobs will run before every preview and stable release, and after every push to
-`main`.
+On a pull request, we will run only the jobs of the package families and the kinds of files it changes, behind the one
+required check that `ci.yml` already reports. The heavy jobs will run before every preview and stable release, and after
+every push to `main`.
 
 - **Concurrency.**
   - `ci.yml` and `lint.yml` set `group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}`
@@ -83,29 +85,75 @@ On a pull request, we will run only the jobs for the kinds of files it changes, 
   - Concurrency groups are repository-wide, hence the workflow's name in the key. Without it, `ci.yml` and `lint.yml`
     would cancel each other's required checks.
   - A reusable workflow sets its concurrency on its jobs, since `github.workflow` there is its caller's name.
-- **A plan by path.** The first job of `ci.yml`, `plan`, runs `.github/scripts/ci-plan.sh` on `git diff --name-only
-  <base>...<head>` and picks lanes, with no third-party tool:
-  - **none**: `CLAUDE.md` files, `docs/**`, root Markdown files other than `README.md`, `.github/ISSUE_TEMPLATE/**`,
-    `.claude-plugin/**`, `.github/dependabot.yml`, and workflows other than `ci.yml` and `heavy.yml`. Only `lint.yml`
-    checks them.
-  - **documentation**: `README.md`, `website/docs/**` and `skills/value-objects/**`. The generator suite runs, filtered
-    on `[Trait("Reads", "Documentation")]`; the nine classes that read the repository carry it, and a test holds them to
-    it. The site job also runs when `website/` changed.
-  - **site**: `website/**`, `docs/docfx/**` and `.github/actions/build-site/**`. The `documentation site` job runs.
-  - **.NET**: every other path, an unknown one included, so that a missing entry costs time and never a check.
+- **Eleven CI families.** `.github/ci-families.json` maps every project under `src/`, and every top-level folder of the
+  unit suite, to exactly one family, and every family to one release train (ADR-0012):
 
-  A push to `main`, a dispatch, and a call from `preview.yml` or `release.yml` run every lane.
-- **The .NET lane** keeps everything that caught a real defect, and leaves out what needs a container, a native compiler
-  or the next SDK. It runs:
-  - whitespace formatting in a job of its own (`dotnet format whitespace . --folder --verify-no-changes`), without the
-    style pass;
-  - the build of the whole solution, which compiles the native applications and the integration suite too;
-  - the unit, generator and RDG suites, in parallel;
-  - the compiled model, generated and compiled but without SQL Server (`compiled-model.sh compile`);
-  - the pack and its checks: every packable project packed, `shipped-dependencies-check.sh`, `coverage-modules.sh`, the
-    train check of ADR-0012, and `next-version.mjs` for each train when the release tooling changed;
-  - the documentation site;
-  - one Codecov upload, as today.
+  | Family | Projects under `src/` | Train |
+  | --- | --- | --- |
+  | `core` | AdCodicem.ValueObjects, Generators, CodeFixes, Abstractions, Json, Identifiers, Testing.Data | core |
+  | `aspnet` | AspNetCore.Http, AspNetCore, OpenApi | core |
+  | `efcore` | EntityFrameworkCore, Identifiers.EntityFrameworkCore | core |
+  | `data` | Dapper, MongoDB, Identifiers.MongoDB, Marten | satellites |
+  | `serialization` | NewtonsoftJson, AspNetCore.NewtonsoftJson, Swashbuckle, NJsonSchema, MessagePack, ProtobufNet, Grpc | satellites |
+  | `orleans` | Orleans | satellites |
+  | `hosts` | AzureFunctions, AzureFunctions.AspNetCore, Wolverine.Http | satellites |
+  | `graphql` | HotChocolate, HotChocolate.Data | satellites |
+  | `text` | Blazor, CommandLine, CsvHelper, which share `ValueObjectText.cs` | satellites |
+  | `observability` | Serilog, AI, ModelContextProtocol, FluentValidation | satellites |
+  | `testdata` | Testing, AutoFixture, Bogus, FsCheck | satellites |
+
+  Eleven families for forty projects stay under the twenty concurrent jobs of GitHub's free plan.
+- **A plan.** The first job of `ci.yml`, `plan`, runs `.github/scripts/ci-plan.sh`, which picks families and lanes:
+  - It crosses `git diff <base>...<head>` with `dotnet-affected` 7.0.1, pinned as a local tool in
+    `.config/dotnet-tools.json`. The tool follows the MSBuild graph: `ProjectReference`s, the files of `src/Shared` that
+    several projects link, a `<PackageVersion>` bump, an imported props file. Replayed over 76 merged pull requests and
+    320 commits, it ran without a restore in 0.7 seconds at the median, 15.9 at most.
+  - An affected project under `src/` selects its family and every family that depends on it. An affected test project
+    with no affected project under `src/` (a bump of xunit or of the coverage tool) selects every family of its suite.
+  - A change to a folder of the unit suite selects that folder's family; `Domain/`, `GeneratedSurface/` and the suite's
+    project file select every family.
+  - Path rules cover what no project holds:
+    - **none**: `CLAUDE.md` files, `docs/**`, root Markdown files other than `README.md`, `.github/ISSUE_TEMPLATE/**`,
+      `.claude-plugin/**`, `.github/dependabot.yml`, and workflows other than `ci.yml` and `heavy.yml`. Only `lint.yml`
+      checks them.
+    - **documentation**: `README.md`, `website/docs/**` and `skills/value-objects/**`. The generator suite runs,
+      filtered on `[Trait("Reads", "Documentation")]`; the nine classes that read the repository carry it, and a test
+      holds them to it.
+    - **site**: `website/**`, `docs/docfx/**` and `.github/actions/build-site/**`, and any project under `src/` (DocFX
+      reads its API). The `documentation site` job runs.
+    - **every family**: the global build inputs (`Directory.Build.*`, `global.json`, `nuget.config`, `.editorconfig`,
+      the solution files, `ci.yml`, the plan's script and family table, `codecov.yml`), a change of
+      `Directory.Packages.props` outside its `<PackageVersion>` elements, and any path no rule names.
+    - **release tooling**: `package.json`, `.releaserc.json` and the version scripts run `next-version.mjs` for each
+      train.
+    - **heavy inputs**: `tests/NativeAot/**`, `tests/Compat/**`, the integration suite, `samples/**`, the native and
+      compiled-model scripts and `heavy.yml` are compiled on the pull request, and a notice asks for `ci:heavy`.
+  - When `dotnet-affected` fails (any exit code but 0, and 166 for "nothing affected"), the plan selects every family.
+  - At every run, without a build, the plan checks that every project under `src/` and every top-level folder of the
+    unit suite belongs to exactly one family, and fails otherwise. So no test can fall outside every filter.
+  - A push to `main`, a dispatch, and a call from `preview.yml` or `release.yml` select every family.
+- **What a selected family runs.** Every .NET run formats whitespace in a job of its own (`dotnet format whitespace .
+  --folder --verify-no-changes`, without the style pass, which the build already enforces) and builds the solution.
+  Then, per family:
+  - its unit tests;
+  - the generator suite in full for `core`, the RDG suite for `aspnet`, the compiled model generated and compiled
+    without SQL Server for `efcore` (`compiled-model.sh compile`), and `ecmascript-patterns.mjs` for `text`;
+  - with any family, the cross-package guards: `GeneratedSurface`, `RuntimeClosingTests`, `DescriptorTests`, and
+    `coverage-modules.sh` over the families of the run, about 18 seconds;
+  - when a project under `src/` is affected, the pack and its checks: every packable project packed,
+    `shipped-dependencies-check.sh`, and the train check of ADR-0012.
+
+  Everything that caught a real defect on a pull request in the last 40 days still runs there.
+- **The unit suite is split in two phases.**
+  - **Phase A**, with the plan: each family is a `--filter-query` on the namespaces of its folders, inside the one
+    unit-test assembly. Most of the gain comes from targeting and from moving the heavy jobs: a median of 4.0 minutes
+    over the replay.
+  - **Phase B**: one test project per family, behind a `family` matrix fed by the plan, each with its own
+    `InternalsVisibleTo` entry. It starts with `orleans`, `hosts` and `graphql`, whose dependencies condition
+    `Directory.Packages.props` on the project name (Roslyn 5.0.0 for Orleans and Wolverine), then the others. A family's
+    graph builds cold in 17 seconds, against 73 for the unit suite. An edit to one test file rebuilds in 6.7 seconds,
+    against 38.7. The median falls to 2.4 minutes.
+  - Phase B amends ADR-0006, which rejected "a fourth test suite": it is the same unit suite, split by family.
 - **One required check.**
   - `build and test` becomes an aggregator that runs with `if: always()`, and the build job is renamed `build`.
   - The aggregator fails when `plan` did not succeed, when a job it needs failed or was cancelled, or when a job that
@@ -125,33 +173,33 @@ On a pull request, we will run only the jobs for the kinds of files it changes, 
     minutes, on its commit.
   - It runs on a pull request labelled `ci:heavy`, which `plan` reads from the event when the run starts. The label is
     not a trigger: a run started by labelling would cancel the real run.
-  - It runs on dispatch, and on every Dependabot NuGet pull request, which auto-merge lands with no human reading it.
+  - It runs on dispatch, and on a Dependabot NuGet pull request for the heavy jobs that cover its families, since
+    auto-merge lands it with no human reading it.
   - `compat (.NET 11)` only informs until .NET 11's general availability, because the island targets a release candidate
     until then. After it, it blocks previews. It always blocks a stable release, and it is never a required check of a
     pull request.
-- **Coverage.** The .NET lane makes one upload; `heavy.yml` uploads the integration suite's coverage after a push to
-  `main`. There are no per-family flags and no carry-forward.
-- **Targeting by family waits for test projects per family.**
-  - Targeting inside the one unit-test assembly saves too little to pay for a family table and its filters.
-  - The unit suite splits by family, starting with Orleans, whose Roslyn 5.0.0 pins condition `Directory.Packages.props`
-    on the project, when one of these happens:
-    - a second restore conflict confined to the tests, after #189;
-    - an agent's edit, build and test loop measured as blocking (an edit to one test file rebuilds the unit suite in
-      38.7 seconds, and a family's project in 6.7);
-    - a family whose jobs dominate the .NET lane.
-  - That split amends ADR-0006, which rejected a fourth test suite.
+- **Coverage.**
+  - Codecov gets one flag per family, plus `generator`, `rdg` and `integration`, each with the `paths` of its projects
+    (generated from the family table and the links of `src/Shared`) and `carryforward`.
+  - A pull request's unit report is uploaded with the flags of the families that ran; the others carry forward from the
+    base.
+  - The patch target (95 %) is measured by the families that ran, which hold the changed lines. A change to a file of
+    `src/Shared` selects every family that links it, so no changed line is judged on carried-forward coverage.
+  - A push to `main` runs every family and refreshes every flag; `heavy.yml` uploads the integration suite's coverage
+    there.
+  - The ruleset's `code_coverage` rule (minimum 59) goes: no workflow reports coverage to GitHub, so it measures
+    nothing, and Codecov is the coverage signal (ADR-0006).
 
 ### Rejected
 
 - **`paths` or `paths-ignore` on the workflow.** A required check stays pending when the workflow is skipped, and
   Markdown is a test input.
-- **Families inside the one unit-test assembly**: eleven families, `--filter-query`, `dotnet-affected` 7.0.1, and one
-  Codecov flag per family with carry-forward.
-  - It brings the median to 4.0 minutes, against about 4 for the .NET lane run as parallel jobs. Both are under CodeQL's
-    6.4 minutes on a human pull request.
-  - It adds a third-party tool and a table to maintain.
-  - A test named outside its family's filter runs nowhere.
-  - Carried-forward coverage of a changed shared file is shifted by the commit.
+- **Lanes by path only, with no families.** It brings the median to about 4 minutes too, but a satellite's pull request
+  would still build and run the whole unit suite, and phase B, which brings 2.4 minutes, needs the families anyway.
+- **A project graph of our own instead of `dotnet-affected`.** It would rewrite MSBuild's evaluation: imports, linked
+  files, and the conditions of `Directory.Packages.props` on `$(MSBuildProjectName)`.
+- **`dorny/paths-filter`.** It ignores the project graph, the linked files of `src/Shared` and the package bumps, and
+  adds a third-party action to pin.
 - **A required check per family or per heavy job.** Every new or renamed family would touch the ruleset.
 - **Running the heavy jobs nightly instead of after each push.** A regression would be found hours later, among several
   merges.
@@ -166,9 +214,9 @@ On a pull request, we will run only the jobs for the kinds of files it changes, 
 
 Pull requests wait less, within a floor:
 
-- A pull request that changes .NET code waits about 4 minutes for its checks instead of 7.9.
-- A documentation change waits about 2.4 minutes, and a change outside both under one. These are estimates from the
-  replay.
+- Estimated from the replay: a satellite's pull request waits about 3.1 minutes for its checks in phase A, 2.4 in phase
+  B, instead of 7.9; a core pull request 4.0, then 2.4; a documentation change about 2.4; a change outside .NET and the
+  site under one.
 - CodeQL keeps a floor of about 6.4 minutes on a human pull request. Dependabot's pull requests, which CodeQL skips,
   gain the most.
 
@@ -179,13 +227,19 @@ Heavy regressions move after the merge:
 - A preview's critical path grows by the Marten job, about 19 minutes.
 - A flaky heavy job holds back the Monday preview until "Re-run failed jobs"; nothing is published in the meantime.
 
+The families are a registry:
+
+- `.github/ci-families.json` changes with every project added or moved; the plan's check fails until it does.
+- `dotnet-affected` is a third-party tool with one maintainer upstream. It is pinned, and when it fails the plan runs
+  every family.
+- Codecov's configuration lists a flag per family, generated from the same table.
+
 Documentation must follow:
 
 - Several files change: `docs/maintaining.md` (line 195, and lines 427 to 433), `.github/CLAUDE.md` (line 86), the root
   `CLAUDE.md` (line 271 and its formatting commands), and the comment in `dependabot-auto-merge.yml` (lines 79 to 81).
 - They must say that the required checks are `build and test`, `workflows` and `conventional commits`, and that `compat
   (.NET 11)` is a release gate.
-- The path table of `ci-plan.sh` is a registry that an agent edits when it adds a new kind of file.
 
 On a pull request that changes one of the eight lines that only the integration suite covers, those lines count as
 missed in `codecov/patch`. No ruleset requires that check.
