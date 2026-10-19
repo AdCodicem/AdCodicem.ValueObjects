@@ -50,4 +50,5 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
   Kafka client's native library.
 - The namespace rule of the root `CLAUDE.md` holds here too: `AdCodicem.ValueObjects.CompatTests` is an
   `AdCodicem.ValueObjects.*` namespace.
-- `compat (.NET 11)` is not a required check, and no coverage measures it, until .NET 11 ships.
+- `compat (.NET 11)` is not a required check and never becomes one: ADR 0013 makes it a gate of every preview, once
+  .NET 11 ships, and of every stable release. No coverage measures it.
