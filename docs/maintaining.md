@@ -358,8 +358,13 @@ Some versions are bumped by hand, because Dependabot never sees them:
   taking the digest of `actionlint_<version>_linux_amd64.tar.gz` from the release's checksums file.
 - the Azurite image the integration suite's Functions fixture names at an exact version
   (`tests/AdCodicem.ValueObjects.IntegrationTests/Fixtures/FunctionsHostFixture.cs`). The Functions host's image,
-  `mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated10.0`, is a moving tag, as `mongo:8.0` is, and
+  `mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated10.0`, is a moving tag, as `mongo:7.0` is, and
   moves to the next .NET's tag with the target framework.
+- `mongo:7.0`, which the integration suite and the compatibility island run in place of `mongo:8.0`: every MongoDB 8.x
+  refuses to start on a Linux kernel 6.19 or later ([SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912)),
+  which GitHub's runners run since their image of 2026-10-18. Once an 8.x starts there, move both fixtures back to
+  `mongo:8.0` and the support tables of `README.md` and `website/docs/packages.md` back to MongoDB 8, removing their
+  footnote.
 
 ## Supply chain and the OpenSSF scorecard
 

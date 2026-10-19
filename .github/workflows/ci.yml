@@ -169,7 +169,7 @@ jobs:
   # major (tests/Compat): the generator in its compiler, Entity Framework Core 11 on
   # SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core
   # model binding, on System.Text.Json and on Newtonsoft.Json, minimal API problem
-  # details, MongoDB.Driver on MongoDB 8, Marten 9.50 on PostgreSQL 17, its LINQ, a duplicated field and a compiled
+  # details, MongoDB.Driver on MongoDB 7.0, Marten 9.50 on PostgreSQL 17, its LINQ, a duplicated field and a compiled
   # query's collection, MessagePack, with SignalR's MessagePack hub protocol over TestHost,
   # protobuf-net and a protobuf-net.Grpc code-first service over TestHost, a contract-first gRPC
   # service with the gRPC package's interceptor and collector over TestHost, Orleans' serializer, Serilog,

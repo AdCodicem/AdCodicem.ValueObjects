@@ -25,7 +25,7 @@ namespace AdCodicem.ValueObjects.IntegrationTests.Fixtures;
 /// </para>
 /// <para>
 /// HTTP triggers need no storage once the host keeps its keys in files; the queue triggers' storage is Azurite, reached
-/// through the network the containers share. The image is a moving tag, as <c>mongo:8.0</c> is, and exists for amd64
+/// through the network the containers share. The image is a moving tag, as <c>mongo:7.0</c> is, and exists for amd64
 /// alone.
 /// </para>
 /// </remarks>

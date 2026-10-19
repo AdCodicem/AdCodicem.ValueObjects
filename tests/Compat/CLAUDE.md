@@ -45,6 +45,8 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
   discovery is narrowed to it, since Wolverine scans the island's assembly.
 - MessagePack's analyzer and protobuf-net's generator run in the SDK 11 compiler here: the island has its own
   `MessagePackAssumedFormattable` list and its own `PBN9001` suppression.
+- Its MongoDB tests run `mongo:7.0`, as the integration suite's do: MongoDB 8.x does not start on the runners' Linux
+  kernel (SERVER-121912, `tests/AdCodicem.ValueObjects.IntegrationTests/CLAUDE.md`).
 - Its MongoDB tests go through one static, strict registration first, as the suites' do (the driver's registry is
   process-wide). `librdkafka.redist` is referenced with `ExcludeAssets="native;build"`: Confluent's serdes never load the
   Kafka client's native library.
