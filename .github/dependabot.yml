@@ -28,6 +28,22 @@ updates:
     commit-message:
       prefix: "chore(deps)"
     groups:
+      # Families whose packages require one another at exactly one version: a bump of some
+      # of them without the rest fails the restore (NU1608, #189). Each gets a pull request of
+      # its own, so that a red one holds back no other update. Before `dotnet`: a dependency
+      # joins the first group it matches.
+      xunit:
+        patterns: ["xunit.v3*"]
+        update-types: ["minor", "patch"]
+      roslyn:
+        patterns: ["Microsoft.CodeAnalysis*"]
+        update-types: ["minor", "patch"]
+      hotchocolate:
+        patterns: ["HotChocolate*"]
+        update-types: ["minor", "patch"]
+      modelcontextprotocol:
+        patterns: ["ModelContextProtocol*"]
+        update-types: ["minor", "patch"]
       dotnet:
         update-types: ["minor", "patch"]
     # A new major of a framework is supported by a decision -- a dependency floor
@@ -57,7 +73,7 @@ updates:
       - dependency-name: "Npgsql.EntityFrameworkCore.PostgreSQL"
         update-types: ["version-update:semver-major"]
       # The GraphQL framework the HotChocolate packages are built on, whose packages
-      # share one version; its minor and patch updates come in the dotnet group.
+      # share one version; its minor and patch updates come in the hotchocolate group.
       - dependency-name: "HotChocolate*"
         update-types: ["version-update:semver-major"]
       # The actor framework the Orleans package is built on, whose packages share one
@@ -99,6 +115,55 @@ updates:
       # .NET's version line, whose next major targets net10.0 too: removed once
       # SqlClient asks for a patched version (Directory.Packages.props).
       - dependency-name: "System.Security.Cryptography.Pkcs"
+        update-types: ["version-update:semver-major"]
+      # The Roslyn API the generator and the code fix are built against sets the oldest
+      # compiler a consumer may use, at its major.minor (an analyzer that references a later
+      # Microsoft.CodeAnalysis fails with CS9057 in an older compiler): a minor raises it as a
+      # major does, and CLAUDE.md never raises it to follow a dependency (#190). Patches stay
+      # open.
+      - dependency-name: "Microsoft.CodeAnalysis.CSharp*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # At the floor Microsoft.Orleans.Serialization declares (Directory.Packages.props).
+      - dependency-name: "Microsoft.CodeAnalysis.Analyzers"
+        update-types: ["version-update:semver-major"]
+      # The other dependencies the packages ship (.github/shipped-dependencies): their next
+      # major is a floor to decide, never a bump; minor and patch updates come in the groups.
+      - dependency-name: "AutoFixture"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Bogus"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "CsvHelper"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Dapper"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "FluentValidation"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "FsCheck"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Grpc.StatusProto"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "MessagePack"
+        update-types: ["version-update:semver-major"]
+      # Worker, Worker.Core and Worker.Extensions.Http.AspNetCore, shipped; Worker.Sdk and
+      # Worker.Extensions.Storage.Queues, test-only, move with them.
+      - dependency-name: "Microsoft.Azure.Functions.Worker*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "ModelContextProtocol*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "MongoDB.Driver"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Newtonsoft.Json"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "PolySharp"
+        update-types: ["version-update:semver-major"]
+      # protobuf-net and protobuf-net.Grpc, shipped; protobuf-net.Grpc.AspNetCore, test-only.
+      - dependency-name: "protobuf-net*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Serilog"
+        update-types: ["version-update:semver-major"]
+      # extensibility.core and assert, shipped by the contract kit; xunit.v3, test-only,
+      # requires them at its own version.
+      - dependency-name: "xunit.v3*"
         update-types: ["version-update:semver-major"]
 
   # Release tooling (semantic-release and its plugins) in the root package.json.

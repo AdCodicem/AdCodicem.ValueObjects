@@ -237,11 +237,21 @@ Without them the release job stops at its first step, before anything is publish
   `Serilog.Extensions.Logging`, which only the tests use and whose majors follow .NET's, each built on the
   `Microsoft.Extensions.Logging` of its major; and `System.Security.Cryptography.Pkcs`, a test-only pin on .NET's
   version line whose next major targets `net10.0` too, removed once `Microsoft.Data.SqlClient` asks for a patched
-  version. A new major is supported by a decision, a dependency floor or a target framework
+  version. The same goes for every other dependency `.github/shipped-dependencies` lists, test-only packages of the
+  same families moving with them (`xunit.v3*`, `protobuf-net*`, `Microsoft.Azure.Functions.Worker*`,
+  `ModelContextProtocol*`), and for the minors of `Microsoft.CodeAnalysis.CSharp*` too: its `major.minor` is the
+  oldest compiler that loads the generator, which a minor raises as a major does (#190). Dependabot no longer proposes
+  those majors, so check the shipped dependencies for one before each stable release. A new major is supported by a
+  decision, a dependency floor or a target framework
   ([ADR-0010](adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)), never by a bump. Dependabot's
   NuGet updater applies these rules to security updates too: a security fix that exists only on a new major of one of
   them opens no pull request, and its alert stays open. Treat it as a deliberate migration under ADR-0010. A fix on the
   current major opens at once.
+- **Families in groups of their own.** `xunit.v3*`, `Microsoft.CodeAnalysis*`, `HotChocolate*` and
+  `ModelContextProtocol*` require one another at exactly one version, so a bump of some of them without the rest fails
+  the restore with NU1608 (#189). Each family's minor and patch updates come in a pull request of their own, ahead of
+  the `dotnet` group, so that a red family holds back no other update. A group does not make Dependabot update every
+  member: if one is left behind, bump the family by hand, in one commit, and check it with `dotnet restore`.
 - **`fix(deps)` for what ships.** Dependabot takes one `nuget` entry per directory, so every NuGet pull request opens
   as `chore(deps)`, unless Dependabot groups it, as #166, which then carries no prefix and has to be retitled by hand
   (the grouped security update below). `dependabot-auto-merge.yml` retitles it `fix(deps): …` when it updates a
