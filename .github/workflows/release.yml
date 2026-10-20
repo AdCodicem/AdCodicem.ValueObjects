@@ -27,7 +27,7 @@ jobs:
   # forever. A job of its own, so that the job that packs restores nothing but
   # the packable projects under src/: no test project, no Testcontainers.
   test:
-    name: build and test
+    name: suites
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

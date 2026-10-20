@@ -134,7 +134,7 @@ Then run **Actions → release → Run workflow** with `dry_run` ticked and read
 it for real. Publishing to nuget.org cannot be undone — a package can be delisted, never unpublished. The **was it
 previewed** job warns on the run page when the release ships package inputs that no version on nuget.org carries;
 it never blocks the release, and it runs before the release job so that its warning is there when the `nuget-stable`
-reviewer approves. The **build and test** and **pack** jobs must pass: the release job waits for both. The pack job,
+reviewer approves. The **suites** and **pack** jobs must pass: the release job waits for both. The pack job,
 which holds no credential, packs only the packable projects under `src/` and freezes the documentation; the release
 job builds nothing, checks what the pack job produced against its digests, and pushes it.
 

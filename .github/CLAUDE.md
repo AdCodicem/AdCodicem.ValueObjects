@@ -94,6 +94,9 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - A job that must block a merge goes into the `gate` job's `needs`, never into the `Default` ruleset: a check per job
   would touch the ruleset at every rename (ADR 0013, Rejected). `native AOT` is in both until the maintainer takes it
   out of the ruleset.
+- No workflow but `ci.yml` names a job `build and test` (`preview.yml` and `release.yml` run theirs as `suites`): a
+  dispatch from a pull request's branch would report a check of that name on its head commit, and a skipped one reads
+  as a success.
 - After a red `build` or `native AOT`, **Re-run failed jobs** re-runs `build and test` with it; after a cancelled run,
   re-run all jobs or push again. A re-run of a green run keeps the previous `build and test` until the jobs it needs
   end.
