@@ -270,8 +270,10 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   `Microsoft.CodeAnalysis.Analyzers` sits at Orleans' floor, 5.9.0, and transitive pinning lists it in the Orleans
   package's nuspec (`.github/shipped-dependencies`).
 - **Required checks are job names**: `build and test`, `native AOT` (`ci.yml`), `workflows` and `conventional commits`
-  (`lint.yml`). Renaming one leaves every pull request waiting for a check that never reports. `native AOT (Marten)` and
-  `compat (.NET 11)` never become one: ADR 0013 moves them, with `native AOT`, to the jobs that gate a release.
+  (`lint.yml`). Renaming one leaves every pull request waiting for a check that never reports. `build and test` is
+  `ci.yml`'s aggregator (`gate`), failing unless every job it needs succeeded; the build, suites and pack run in `build`.
+  `native AOT (Marten)` and `compat (.NET 11)` never become one: ADR 0013 moves them, with `native AOT`, to the jobs
+  that gate a release.
 - **No NuGet lock files.** `Microsoft.SourceLink.GitHub` is referenced only under `GITHUB_ACTIONS == 'true'`, so the
   runner's package graph differs from a laptop's and `--locked-mode` fails with NU1004 (ADR 0004).
 - **A pull request of more than 100 commits cannot be rebase-merged**, and `main` takes a linear history landed with

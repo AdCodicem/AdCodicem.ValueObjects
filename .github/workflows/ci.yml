@@ -23,8 +23,10 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
+  # The build, the four suites and the pack. Reported as "build"; the required check "build and test" is the
+  # aggregator at the end of this file, which needs this job.
   build:
-    name: build and test
+    name: build
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.packed.outputs.version }}
@@ -272,7 +274,8 @@ jobs:
   # written for native AOT with its queries precompiled, and published: never
   # run, since two bugs of Entity Framework Core stop its queries. Beside build
   # rather than after it, as a native publish takes minutes. A required check of
-  # the "Default" ruleset on main, by its name: renaming the job leaves every
+  # the "Default" ruleset on main, by its name, until the ruleset leaves it to
+  # "build and test", which needs it (ADR 0013): renaming the job leaves every
   # pull request waiting for it.
   native-aot:
     name: native AOT
@@ -424,3 +427,28 @@ jobs:
       # checked in a JavaScript engine, the Node the step above installs.
       - name: Check the patterns written for browsers
         run: node .github/scripts/ecmascript-patterns.mjs tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json
+
+  # The required check "build and test" of the "Default" ruleset on main, by its name (ADR 0013): it reports the jobs
+  # it needs as one, so that the ruleset names a single check whatever this workflow runs. It runs whatever happened to
+  # them, and fails unless each one succeeded: a job that failed, was cancelled or was skipped fails it, where a
+  # required check skipped by its own `if` would read as a success. Renaming the job leaves every pull request waiting
+  # for a check that never reports.
+  gate:
+    name: build and test
+    if: always()
+    needs: [build, native-aot]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every job it needs succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          failed="$(jq -r '[to_entries[] | select(.value.result != "success") | .key] | join(", ")' <<< "$NEEDS")"
+          if [[ -n "$failed" ]]; then
+            echo "::error::Not successful: $failed." >&2
+            exit 1
+          fi
