@@ -80,7 +80,7 @@ NATIVE_AOT_POSTGRES="Host=localhost;Port=5432;Database=postgres;Username=postgre
   exits 2.
 - `native AOT (Marten)` is a job of its own beside `native AOT`, so that the required check keeps its duration: the
   native AOT compiler alone takes about 20 minutes over Marten, on one core, and the script 17.5 to 24 minutes on a warm
-  4-core machine, hence its 45-minute timeout. It is not a required check until the maintainer adds it to the ruleset.
+  4-core machine, hence its 45-minute timeout. It is never a required check: ADR 0013 makes it a gate of every release.
 - Its documents hold the main application's domain (`AdCodicem.ValueObjects.NativeAot.Domain`), the construction of a
   generic value object and `HandWrittenCode`, both registered in `Program.cs`, and `UnregisteredCode`, which the member
   source must refuse; `UseValueObjectId` declares the identity. Serialization goes through `MartenJsonContext`'s

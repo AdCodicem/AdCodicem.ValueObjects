@@ -28,7 +28,7 @@
 #
 # ci.yml runs the main and the protobuf-net applications in its native AOT job, a required check, and the Marten one in a
 # job of its own, native AOT (Marten), since the native AOT compiler alone takes about 20 minutes over Marten: that job
-# is not a required check until the maintainer adds it to the ruleset.
+# is never a required check, which ADR 0013 makes a gate of every release.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
