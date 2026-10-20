@@ -134,7 +134,7 @@ jobs:
           fi
 
   test:
-    name: build and test
+    name: suites
     needs: plan
     if: needs.plan.outputs.mode != 'none'
     runs-on: ubuntu-latest
