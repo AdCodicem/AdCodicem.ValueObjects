@@ -89,8 +89,14 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   0013 moves them, with `native AOT`, to the jobs that gate a preview and a stable release.
 - `build and test` is `ci.yml`'s `gate` job, an aggregator (ADR 0013): `if: always()` and `needs` on `build` (the build,
   the four suites, the pack and their checks) and `native-aot`, failing unless each one succeeded. Never give it an `if`
-  that can skip it, or let it pass a job that did not succeed: a required check that is skipped reads as a success. A
-  job that must block a merge goes into its `needs`, never into the ruleset.
+  that can skip it, or let it pass a job that failed or was cancelled: a required check that is skipped reads as a
+  success. Once ADR 0013's plan lands, the gate also needs it and passes a job the plan left out of `expected`.
+- A job that must block a merge goes into the `gate` job's `needs`, never into the `Default` ruleset: a check per job
+  would touch the ruleset at every rename (ADR 0013, Rejected). `native AOT` is in both until the maintainer takes it
+  out of the ruleset.
+- After a red `build` or `native AOT`, **Re-run failed jobs** re-runs `build and test` with it; after a cancelled run,
+  re-run all jobs or push again. A re-run of a green run keeps the previous `build and test` until the jobs it needs
+  end.
 - `scripts/ecmascript-patterns.mjs`, run by `ci.yml`'s `documentation site` job, holds the Blazor package's pattern
   table (`tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json`) to Node's v-flag engine, as
   `EcmaScriptPatternTests` holds it to .NET: change both together.
