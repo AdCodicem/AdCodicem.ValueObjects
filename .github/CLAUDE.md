@@ -61,9 +61,9 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   updating a listed dependency `fix(deps):`, or `fix(deps)!:` across a major. Dependabot pull requests are squash-merged,
   so that the title becomes the commit semantic-release reads; a rebase keeps `chore(deps)` and releases nothing.
 - A Dependabot security update pinning a transitive dependency the list does not name yet opens as `chore(deps)` (with
-  no prefix when grouped) and fails `build and test`. The workflow reads the list from the base branch and ignores your
-  events, so retitle the pull request `fix(deps): …` first, then push the list line to its branch. Never land the line
-  in a pull request of its own: nothing on `main` ships that ID yet, so the check fails there too.
+  no prefix when grouped) and fails `build`, so `build and test`. The workflow reads the list from the base branch and
+  ignores your events, so retitle the pull request `fix(deps): …` first, then push the list line to its branch. Never
+  land the line in a pull request of its own: nothing on `main` ships that ID yet, so the check fails there too.
 - An update needing a later `Microsoft.Extensions.Options` or `Microsoft.Extensions.DependencyInjection.Abstractions`,
   transitive pins Dependabot never moves, fails its restore with NU1109 and opens no pull request: move those pins by hand
   with the rest of Microsoft's patch, in a `fix(deps)` commit (`docs/maintaining.md`, Routines).
@@ -84,9 +84,13 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - Trusted Publishing is keyed on a workflow file and an environment (`preview.yml` with `nuget`, `release.yml` with
   `nuget-stable`): change the nuget.org policy before renaming either file or moving its publish job.
 - Required checks are job names: `build and test`, `native AOT`, `workflows` and `conventional commits`. Never rename
-  them without updating the `Default` ruleset. `compat (.NET 11)` and `native AOT (Marten)`, the Marten application's job
-  of its own beside `native AOT` (Marten's native AOT compiler alone takes about 20 minutes), never become one: ADR 0013
-  moves them, with `native AOT`, to the jobs that gate a preview and a stable release.
+  them without updating the `Default` ruleset. `compat (.NET 11)` and `native AOT (Marten)`, the Marten application's
+  job of its own beside `native AOT` (Marten's native AOT compiler alone takes about 20 minutes), never become one: ADR
+  0013 moves them, with `native AOT`, to the jobs that gate a preview and a stable release.
+- `build and test` is `ci.yml`'s `gate` job, an aggregator (ADR 0013): `if: always()` and `needs` on `build` (the build,
+  the four suites, the pack and their checks) and `native-aot`, failing unless each one succeeded. Never give it an `if`
+  that can skip it, or let it pass a job that did not succeed: a required check that is skipped reads as a success. A
+  job that must block a merge goes into its `needs`, never into the ruleset.
 - `scripts/ecmascript-patterns.mjs`, run by `ci.yml`'s `documentation site` job, holds the Blazor package's pattern
   table (`tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json`) to Node's v-flag engine, as
   `EcmaScriptPatternTests` holds it to .NET: change both together.
