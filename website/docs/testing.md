@@ -264,8 +264,9 @@ the Swashbuckle package, Swashbuckle 10 failing on the `Microsoft.OpenApi` 3 the
 an application that takes Swashbuckle alone.
 
 CI's `compat (.NET 11)` job runs it on every pull request, against the packages that commit packed. It informs and
-blocks nothing until .NET 11 ships, then becomes a required check. The "On the next .NET" column of
-[Supported frameworks](./packages.md#supported-frameworks) states what it covers.
+blocks nothing until .NET 11 ships; from then on it gates previews and stable releases, never a pull request
+([ADR-0013](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)).
+The "On the next .NET" column of [Supported frameworks](./packages.md#supported-frameworks) states what it covers.
 
 ## Two ways to reach a value object — and why bugs hide in one of them
 
