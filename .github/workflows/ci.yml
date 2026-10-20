@@ -429,10 +429,12 @@ jobs:
         run: node .github/scripts/ecmascript-patterns.mjs tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json
 
   # The required check "build and test" of the "Default" ruleset on main, by its name (ADR 0013): it reports the jobs
-  # it needs as one, so that the ruleset names a single check whatever this workflow runs. It runs whatever happened to
-  # them, and fails unless each one succeeded: a job that failed, was cancelled or was skipped fails it, where a
-  # required check skipped by its own `if` would read as a success. Renaming the job leaves every pull request waiting
-  # for a check that never reports.
+  # it needs as one, so that the ruleset can name a single check of this workflow ("native AOT" stays in the ruleset
+  # too until the maintainer takes it out). It runs whatever happened to them, and fails unless each one succeeded: a
+  # job that failed, was cancelled or was skipped fails it, where a required check skipped by its own `if` would read
+  # as a success. A job that must block a merge goes into `needs`, never into the ruleset. Once ADR 0013's plan lands,
+  # the gate also needs it and passes a job the plan left out of its `expected` list. Renaming the job leaves every pull
+  # request waiting for a check that never reports.
   gate:
     name: build and test
     if: always()
@@ -446,8 +448,13 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           set -euo pipefail
+          # With no job to read, the check below would pass anything.
+          if ! jq -e 'length > 0' <<< "$NEEDS" > /dev/null; then
+            echo "::error::The gate needs no job." >&2
+            exit 1
+          fi
           jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
-          failed="$(jq -r '[to_entries[] | select(.value.result != "success") | .key] | join(", ")' <<< "$NEEDS")"
+          failed="$(jq -r '[to_entries[] | select(.value.result != "success") | "\(.key) (\(.value.result))"] | join(", ")' <<< "$NEEDS")"
           if [[ -n "$failed" ]]; then
             echo "::error::Not successful: $failed." >&2
             exit 1
