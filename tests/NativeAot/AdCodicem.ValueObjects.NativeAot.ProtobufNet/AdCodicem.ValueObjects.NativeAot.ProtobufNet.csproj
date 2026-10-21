@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    An application published with native AOT by ci.yml's native AOT job, apart from AdCodicem.ValueObjects.NativeAot:
+    An application published with native AOT by heavy.yml's native AOT job, apart from AdCodicem.ValueObjects.NativeAot:
     protobuf-net's compile-time model ([ProtoModel]), which its generator, coming with protobuf-net.Core, writes at build
     time, over every value object of the unit suite's UnderlyingTypes.cs protobuf-net writes, each naming its serializer
     with [ProtoContract(Serializer = ...)] on a partial declaration of its own (ProtoContracts.cs). The script runs it

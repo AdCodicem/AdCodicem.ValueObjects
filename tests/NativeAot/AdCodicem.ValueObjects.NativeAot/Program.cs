@@ -1,5 +1,5 @@
 // Runs a fixed script over every value object of the domain and writes one line per scenario to the file it is given.
-// ci.yml's native AOT job runs it once under the JIT (dotnet run) and once as the native binary, then diffs the two
+// heavy.yml's native AOT job runs it once under the JIT (dotnet run) and once as the native binary, then diffs the two
 // files: a difference is a behaviour native AOT changes, and fails the job. The process also fails on its own when a
 // scenario throws where nothing should, so that a script both runs get wrong does not pass by agreeing with itself.
 using System.Net;

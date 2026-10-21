@@ -5,11 +5,11 @@
     underlying type but the 128-bit ones, required and optional, a generic one, an entity identifier as the key, and
     collections of them, nullable elements included, with keys typed as value objects it generates, over a Guid and an
     int, and one over a Guid it refuses unset, and of a strict context beside it, both translating .Value in a query
-    through UseValueObjectQueries(), which the queries precompiled for native AOT need too (ci.yml). The model is written
-    under artifacts/compiled-model/, never committed, and compiled only when CompiledModel names it: "jit" for the model
-    `optimize` writes, which Program.cs takes on a round trip through SQL Server, "aot" for the one it writes for native
-    AOT, with the queries of Program.cs precompiled, published with native AOT and never run: two bugs of Entity
-    Framework Core stop its queries there.
+    through UseValueObjectQueries(), which the queries precompiled for native AOT need too (heavy.yml). The model is
+    written under artifacts/compiled-model/, never committed, and compiled only when CompiledModel names it: "jit" for
+    the model `optimize` writes, which Program.cs takes on a round trip through SQL Server, "aot" for the one it writes
+    for native AOT, with the queries of Program.cs precompiled, published with native AOT and never run: two bugs of
+    Entity Framework Core stop its queries there.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -40,7 +40,8 @@
     <NoWarn Condition="'$(CompiledModel)' == 'aot'">$(NoWarn);CS9270;CS0184;CS8669</NoWarn>
 
     <!-- Entity Framework Core is neither trim- nor AOT-compatible: its assemblies, SqlClient's, and this program's calls
-         into them, warn when it is published with native AOT. ci.yml fails on a warning about this library's code. -->
+         into them, warn when it is published with native AOT. heavy.yml fails on a warning about this library's
+         code. -->
     <IlcTreatWarningsAsErrors Condition="'$(CompiledModel)' == 'aot'">false</IlcTreatWarningsAsErrors>
   </PropertyGroup>
 

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    An application published with native AOT by ci.yml's native AOT (Marten) job, apart from the main application: a
+    An application published with native AOT by heavy.yml's native AOT (Marten) job, apart from the main application: a
     Marten document store over PostgreSQL, which the job starts as a service container and names in NATIVE_AOT_POSTGRES.
     The script runs it once under the JIT and once as the native binary, each in the same schema, cleared first, and
     fails when the two outputs differ, as for the main application.

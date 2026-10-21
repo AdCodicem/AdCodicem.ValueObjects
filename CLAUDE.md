@@ -292,8 +292,8 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 - **GeneratorTests**: the generator, every diagnostic, the analyzers and code fixes, incremental caching, and every
   published C# snippet.
 - **IntegrationTests**: PostgreSQL, SQL Server, MongoDB and the Azure Functions host through Testcontainers, and the
-  sample API of `samples/` end to end. Needs Docker. CI runs it in `heavy.yml`, never on a pull request but a labelled
-  one: run it locally when a change reaches a store.
+  sample API of `samples/` end to end. Needs Docker. CI runs it in `heavy.yml`, never on a pull request but one
+  labelled `ci:heavy` or a Dependabot NuGet update: run it locally when a change reaches a store.
 - **RdgTests**: minimal API endpoints whose binding the Request Delegate Generator writes.
 - `tests/NativeAot` holds applications CI publishes natively and compares with the JIT (`heavy.yml`'s `native AOT` job,
   and its `native AOT (Marten)` job for Marten's);

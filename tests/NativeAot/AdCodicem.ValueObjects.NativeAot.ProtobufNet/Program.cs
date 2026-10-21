@@ -1,5 +1,5 @@
 // Runs a fixed script over protobuf-net's compile-time model and writes one line per scenario to the file it is given.
-// ci.yml's native AOT job runs it once under the JIT (dotnet run) and once as the native binary, then diffs the two
+// heavy.yml's native AOT job runs it once under the JIT (dotnet run) and once as the native binary, then diffs the two
 // files, as for AdCodicem.ValueObjects.NativeAot: a difference is a behaviour native AOT changes, and fails the job. The
 // process also fails on its own when a scenario finds what neither run should.
 using System.Diagnostics.CodeAnalysis;

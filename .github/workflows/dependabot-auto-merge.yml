@@ -77,14 +77,19 @@ jobs:
 
       # Auto-merge is a queue, not an immediate merge: GitHub waits for the
       # status checks the "Default" ruleset requires on main -- "build and test"
-      # (ci.yml), which needs "build" and "native AOT", and "workflows" and
-      # "conventional commits" (lint.yml) -- so a red build, a native AOT
-      # publish that warns or behaves differently, a broken workflow or a commit
-      # message that is not a Conventional Commit blocks the merge. A pull
-      # request nothing blocks is merged at once, failing checks the ruleset
-      # does not require included ("compat (.NET 11)", "documentation site"). It
-      # needs "Allow auto-merge" in the repository settings. No --subject: the
-      # commit subject is the pull request title at merge time, retitled or not.
+      # (ci.yml), and "workflows" and "conventional commits" (lint.yml). "build
+      # and test" is the gate over the plan of .github/scripts/ci-plan.sh: it
+      # needs "build", and on a NuGet update heavy.yml too (native AOT, native
+      # AOT (Marten) and the integration tests; compat (.NET 11) only informs).
+      # So a red build, a native AOT publish that warns or behaves differently,
+      # a red integration suite, a broken workflow or a commit message that is
+      # not a Conventional Commit blocks the merge of a NuGet update; the gate
+      # of an npm, pip or GitHub Actions update waits for "build" alone, and
+      # heavy.yml runs on main after it. A pull request nothing blocks is merged
+      # at once, failing checks the ruleset does not require included
+      # ("documentation site"). It needs "Allow auto-merge" in the repository
+      # settings. No --subject: the commit subject is the pull request title at
+      # merge time, retitled or not.
       #
       # Queued once, when Dependabot opens the pull request, so that a
       # maintainer who disables it keeps it off through Dependabot's later
