@@ -91,8 +91,9 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   rename them without updating the `Default` ruleset. No job of `heavy.yml` is one, nor ever becomes one (ADR 0013).
 - `build and test` is `ci.yml`'s `gate` job, an aggregator (ADR 0013): `if: always()` and `needs` on `plan`, `build`
   (the build, three suites, the compiled model, the pack and their checks) and `heavy`, failing unless the plan
-  succeeded and each job of its `expected` output succeeded. Never give it an `if` that can skip it, or let it pass an
-  expected job that failed, was cancelled or was skipped: a required check that is skipped reads as a success.
+  succeeded and each job of its `expected` output succeeded; a job left out of `expected` may be skipped, never failed
+  or cancelled. Never give it an `if` that can skip it, or let it pass an expected job that failed, was cancelled or
+  was skipped: a required check that is skipped reads as a success.
 - A job that must block a merge goes into the `gate` job's `needs`, and into `scripts/ci-plan.sh`'s `expected` whenever
   it runs, never into the `Default` ruleset: a check per job would touch the ruleset at every rename (ADR 0013,
   Rejected).
@@ -106,11 +107,12 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   and a workflow-level group could match the caller's.
 - `ci-plan.sh` reads the labels from the event, as the run starts: a `ci:heavy` label added later is seen by the next
   push, never by **Re-run jobs**. It only raises a notice when a pull request changes what only `heavy.yml` runs
-  (`tests/NativeAot/`, `tests/Compat/`, the integration suite, `samples/`, `native-aot.sh`, `compiled-model.sh`,
-  `heavy.yml`, Markdown aside).
+  (`tests/NativeAot/`, `tests/Compat/`, the integration suite and its Functions fixture, `samples/`, `native-aot.sh`,
+  `compiled-model.sh`, `heavy.yml`, Markdown aside).
 - compat only informs unless the caller passes `compat-blocks: true`: `release.yml` does, `preview.yml` once .NET 11
-  ships (`docs/maintaining.md`). Informing, its test steps take `continue-on-error` and a warning says it failed, so the
-  job stays green: how a caller reads a job that fails under job-level `continue-on-error` is not documented. With no
+  ships (`docs/maintaining.md`). Informing, the install of the island's SDK and its test steps take
+  `continue-on-error`, each test step has a time limit below the job's, and a warning says it failed, so the job stays
+  green: how a caller reads a job that fails under job-level `continue-on-error` is not documented. With no
   `packages-artifact-id`, it packs the commit under test itself; a caller's packages come by the artifact's id, never
   by name, and never with an empty id, which downloads every artifact of the run.
 - Every job of `heavy.yml` runs, its conditions on its steps: a called job skipped by its own `if` can skip the

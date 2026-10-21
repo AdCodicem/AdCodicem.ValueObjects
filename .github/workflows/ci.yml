@@ -230,9 +230,10 @@ jobs:
   # needs as one, so that the ruleset names a single check of this workflow. It runs whatever happened to them, and
   # fails unless the plan succeeded and each job of the plan's `expected` list succeeded: a job of that list that
   # failed, was cancelled or was skipped fails it, where a required check skipped by its own `if` would read as a
-  # success. It passes a job the plan left out, which the job's own `if` skips. A job that must block a merge goes into
-  # `needs`, and into the plan's `expected` when it runs, never into the ruleset. Renaming the job leaves every pull
-  # request waiting for a check that never reports.
+  # success. A job the plan left out may only be skipped, as its own `if` does: failed or cancelled, it fails the gate
+  # too, so that an `if` written wrong cannot pass a pull request. A job that must block a merge goes into `needs`, and
+  # into the plan's `expected` when it runs, never into the ruleset. Renaming the job leaves every pull request waiting
+  # for a check that never reports.
   gate:
     name: build and test
     if: always()
@@ -264,7 +265,8 @@ jobs:
             echo "::error::The plan expects a job the gate does not need: $unknown." >&2
             exit 1
           fi
-          failed="$(jq -r --argjson expected "$EXPECTED" '[to_entries[] | select(.key | IN($expected[])) | select(.value.result != "success") | "\(.key) (\(.value.result))"] | join(", ")' <<< "$NEEDS")"
+          # An expected job must succeed; any job, expected or not, must not have failed or been cancelled.
+          failed="$(jq -r --argjson expected "$EXPECTED" '[to_entries[] | select((.key | IN($expected[])) and .value.result != "success" or .value.result == "failure" or .value.result == "cancelled") | "\(.key) (\(.value.result))"] | join(", ")' <<< "$NEEDS")"
           if [[ -n "$failed" ]]; then
             echo "::error::Not successful: $failed." >&2
             exit 1
