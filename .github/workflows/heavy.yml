@@ -9,7 +9,9 @@ name: heavy
 #   - on dispatch, from any branch;
 #   - from ci.yml, on a pull request labelled ci:heavy or a Dependabot NuGet update, as a job the gate holds to success;
 #   - from preview.yml and release.yml, on the packages they packed, as a job the publish job needs.
-# A reusable workflow sets its concurrency on its jobs, since github.workflow there is its caller's name.
+# A reusable workflow sets its concurrency on its jobs, since github.workflow there is its caller's name. Every job
+# runs, its conditions on its steps: a job of a called workflow skipped by its own `if` can skip the caller's jobs that
+# need the call, even when every job that ran succeeded, and preview.yml would then publish nothing without a word.
 on:
   push:
     branches: [main]
@@ -21,7 +23,7 @@ on:
         type: string
         default: ''
       packages-artifact-id:
-        description: 'The packages compat (.NET 11) installs, an artifact of the calling run; packed here when empty'
+        description: 'The packages compat (.NET 11) installs, an artifact of the calling run; packed by compat when empty'
         type: string
         default: ''
       compat-blocks:
@@ -118,6 +120,8 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
+          # "Re-run all jobs" uploads the same name again in the same run.
+          overwrite: true
           name: native-aot
           path: |
             artifacts/native-aot/*.txt
@@ -192,6 +196,8 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
+          # "Re-run all jobs" uploads the same name again in the same run.
+          overwrite: true
           name: native-aot-marten
           path: |
             artifacts/native-aot-marten/*.txt
@@ -232,13 +238,16 @@ jobs:
         run: dotnet build tests/AdCodicem.ValueObjects.IntegrationTests -c Release
 
       - name: Integration tests
+        id: integration
         run: >-
           dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests
           --no-build -c Release
           --report-trx --report-trx-filename integration.trx
           --coverage --coverage-output-format cobertura --coverage-output integration.cobertura.xml
 
+      # Run even when the suite failed, so that each break shows.
       - name: Compiled model
+        if: success() || failure()
         run: .github/scripts/compiled-model.sh jit
 
       # On main, and on a pull request whose ci.yml asks for it, beside the
@@ -246,7 +255,7 @@ jobs:
       # this suite covers are the SQL Server and PostgreSQL branches of the EF Core
       # CHECK constraints.
       - name: Upload coverage
-        if: github.event_name == 'push' || inputs.coverage
+        if: ${{ !cancelled() && steps.integration.outcome == 'success' && (github.event_name == 'push' || inputs.coverage) }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -256,41 +265,10 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
+          # "Re-run all jobs" uploads the same name again in the same run.
+          overwrite: true
           name: integration-test-results
           path: '**/integration.trx'
-
-  # The packages compat (.NET 11) installs, when the caller hands none: packed
-  # here from the commit under test, through the solution filter preview.yml and
-  # release.yml pack with. Not --no-build: the generator is built into the main
-  # package through ResolveReferences during Pack, which trips NETSDK1085.
-  pack:
-    name: pack for compat
-    if: inputs.packages-artifact-id == ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    concurrency:
-      group: heavy-${{ github.event_name == 'push' && github.ref || github.run_id }}-pack
-      cancel-in-progress: ${{ github.event_name == 'push' }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref }}
-          # MinVer derives the version from the tag history.
-          fetch-depth: 0
-          persist-credentials: false
-
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      - name: Pack
-        run: dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: heavy-packages
-          path: artifacts/packages/*.*nupkg
-          if-no-files-found: error
 
   # The packages, exactly as packed, installed into an application on the next
   # .NET major (tests/Compat): the generator in its compiler, Entity Framework
@@ -315,17 +293,15 @@ jobs:
   # Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3, and Swashbuckle 10
   # over Microsoft.OpenApi 2 in a project of its own. The island has its own
   # global.json, so the SDK it needs is installed from there and everything runs
-  # from its folder. It only informs, red but passing the run, unless the caller
-  # sets compat-blocks: release.yml always does, preview.yml once .NET 11 ships
-  # (ADR 0013). Never a required check of a pull request.
+  # from its folder. It only informs unless the caller sets compat-blocks:
+  # release.yml always does, preview.yml once .NET 11 ships (ADR 0013). Informing,
+  # a failed test step leaves the job green with a warning on the run, since how a
+  # caller reads a job that fails under job-level continue-on-error is not
+  # documented. Never a required check of a pull request.
   compat:
     name: compat (.NET 11)
-    needs: pack
-    # The pack above, or the caller's packages when it was skipped for them.
-    if: ${{ !cancelled() && (needs.pack.result == 'success' || needs.pack.result == 'skipped') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    continue-on-error: ${{ !inputs.compat-blocks }}
+    timeout-minutes: 30
     concurrency:
       group: heavy-${{ github.event_name == 'push' && github.ref || github.run_id }}-compat
       cancel-in-progress: ${{ github.event_name == 'push' }}
@@ -333,11 +309,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
+          # MinVer derives the version of a pack below from the tag history.
+          fetch-depth: 0
           persist-credentials: false
 
       # Where tests/Compat/nuget.config looks for them, the one source it takes
       # them from. The caller's by the id it hands over, never by name: any job
-      # of its run can delete an artifact by name and upload another.
+      # of its run can delete an artifact by name and upload another. Never with
+      # an empty id, which downloads every artifact of the run.
       - name: The caller's packages
         if: inputs.packages-artifact-id != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -345,12 +324,18 @@ jobs:
           artifact-ids: ${{ inputs.packages-artifact-id }}
           path: artifacts/packages
 
-      - name: The packages packed above
+      # Otherwise packed here, from the commit under test, through the solution
+      # filter preview.yml and release.yml pack with, by the SDK of the root
+      # global.json. Not --no-build: the generator is built into the main package
+      # through ResolveReferences during Pack, which trips NETSDK1085.
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         if: inputs.packages-artifact-id == ''
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: heavy-packages
-          path: artifacts/packages
+          global-json-file: global.json
+
+      - name: Pack
+        if: inputs.packages-artifact-id == ''
+        run: dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 
       # The version the island restores, exactly, read off the main package.
       - name: Version
@@ -373,6 +358,8 @@ jobs:
       # From the island's folder, so that its global.json selects the SDK and the test
       # runner. The containers need Docker, which the runner has.
       - name: Compatibility tests
+        id: compat
+        continue-on-error: ${{ !inputs.compat-blocks }}
         working-directory: tests/Compat
         env:
           ADCODICEM_VERSION: ${{ steps.version.outputs.version }}
@@ -387,7 +374,9 @@ jobs:
       # where Microsoft.OpenApi resolves to the package's floor. Run even when the first
       # step failed, so that each break shows.
       - name: Compatibility tests, Swashbuckle
+        id: swashbuckle
         if: (success() || failure()) && steps.version.outcome == 'success'
+        continue-on-error: ${{ !inputs.compat-blocks }}
         working-directory: tests/Compat
         env:
           ADCODICEM_VERSION: ${{ steps.version.outputs.version }}
@@ -397,8 +386,16 @@ jobs:
           -p:AdCodicemVersion="$ADCODICEM_VERSION"
           --report-trx --report-trx-filename compat-swashbuckle.trx
 
+      - name: It only informs
+        if: ${{ !cancelled() && !inputs.compat-blocks && (steps.compat.outcome == 'failure' || steps.swashbuckle.outcome == 'failure') }}
+        run: |
+          echo "::warning title=compat (.NET 11)::The packages fail on .NET 11 (see the steps above). This run only informs; release.yml blocks on it, and preview.yml will once .NET 11 ships."
+          echo "compat (.NET 11) failed and only informs: see its test steps." >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
+          # "Re-run all jobs" uploads the same name again in the same run.
+          overwrite: true
           name: compat-test-results
           path: tests/Compat/**/*.trx

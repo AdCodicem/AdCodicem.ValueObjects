@@ -2,13 +2,17 @@
 # Decides which jobs a run of ci.yml calls, and which of them its gate, the required check "build and test", holds to
 # success (docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md).
 #
-# Usage: EVENT_NAME=<event> LABELS=<JSON array> AUTHOR=<login> HEAD_REF=<branch> ci-plan.sh
+# Usage: EVENT_NAME=<event> LABELS=<JSON array> AUTHOR=<login> HEAD_REF=<branch> HEAD_REPO=<owner/name> \
+#          REPOSITORY=<owner/name> ci-plan.sh
 #
 #   EVENT_NAME  github.event_name: pull_request or push.
 #   LABELS      the pull request's labels as the event carries them, when the run starts: a label added later is not
 #               seen, not even by "Re-run jobs", until a push starts a new run.
-#   AUTHOR      the login that opened the pull request.
+#   AUTHOR      the login that opened the pull request, never github.actor, which is whoever pushed last: the maintainer
+#               pushing a line of .github/shipped-dependencies to a Dependabot branch would otherwise drop the heavy jobs.
 #   HEAD_REF    its branch.
+#   HEAD_REPO   the repository its branch lives in, and REPOSITORY this one: a fork's branch named dependabot/nuget/...
+#               is not Dependabot's.
 #
 # On a pull request, heavy.yml (native AOT, native AOT (Marten), the integration suite and compat (.NET 11)) runs when
 # the pull request is labelled ci:heavy, or when Dependabot opened it to update a NuGet package, since auto-merge then
@@ -27,6 +31,8 @@ labels="${LABELS:-[]}"
 [[ "$labels" == null ]] && labels='[]'
 author="${AUTHOR:-}"
 head_ref="${HEAD_REF:-}"
+head_repo="${HEAD_REPO:-}"
+repository="${REPOSITORY:-}"
 
 if ! jq -e 'type == "array" and all(.[]; type == "string")' <<<"$labels" > /dev/null 2>&1; then
   echo "::error::LABELS is not a JSON array of names: $labels" >&2
@@ -40,7 +46,8 @@ case "$event" in
     if jq -e 'index("ci:heavy") != null' <<<"$labels" > /dev/null; then
       heavy=true
       reason="the pull request is labelled ci:heavy"
-    elif [[ "$author" == 'dependabot[bot]' && "$head_ref" == dependabot/nuget/* ]]; then
+    elif [[ "$author" == 'dependabot[bot]' && "$head_ref" == dependabot/nuget/* && -n "$repository" &&
+      "$head_repo" == "$repository" ]]; then
       heavy=true
       reason="Dependabot updates a NuGet package, and auto-merge lands it with nobody reading it"
     fi
