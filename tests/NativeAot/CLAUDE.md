@@ -4,13 +4,14 @@ CI publishes these rather than tests them. None imports `tests/Directory.Build.p
 stay on where they apply. How the script works is in the header of `.github/scripts/native-aot.sh`.
 
 ```bash
-# As ci.yml's `native AOT` job runs them, and its `native AOT (Marten)` job the third; need clang and zlib
+# As heavy.yml's `native AOT` job runs them, and its `native AOT (Marten)` job the third; need clang and zlib
 .github/scripts/native-aot.sh
 .github/scripts/native-aot.sh artifacts/native-aot-protobuf tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet
 NATIVE_AOT_POSTGRES="Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres" \
   .github/scripts/native-aot.sh artifacts/native-aot-marten tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Marten
-.github/scripts/compiled-model.sh aot   # Docker-free: published, never run
-.github/scripts/compiled-model.sh jit   # as the build job: optimize, build, a round trip through SQL Server (Docker)
+.github/scripts/compiled-model.sh compile   # ci.yml's build job: optimize and build, no database
+.github/scripts/compiled-model.sh jit       # heavy.yml's integration job: plus a SQL Server round trip (Docker)
+.github/scripts/compiled-model.sh aot       # heavy.yml's native AOT job, Docker-free: published, never run
 ```
 
 ## How a run is judged
@@ -78,10 +79,9 @@ NATIVE_AOT_POSTGRES="Host=localhost;Port=5432;Database=postgres;Username=postgre
   each run cleans first: in CI, the `postgres:17-alpine` service container of `native AOT (Marten)`; locally, any
   PostgreSQL (`docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:17-alpine`). Without it the application
   exits 2.
-- `native AOT (Marten)` is a job of its own beside `native AOT`, so that `native AOT`, which `build and test` waits for,
-  keeps its duration: the native AOT compiler alone takes about 20 minutes over Marten, on one core, and the script 17.5
-  to 24 minutes on a warm 4-core machine, hence its 45-minute timeout. It is never a required check: ADR 0013 makes it a
-  gate of every release.
+- `native AOT (Marten)` is a job of its own beside `native AOT`, so that `native AOT` keeps its duration: the native AOT
+  compiler alone takes about 20 minutes over Marten, on one core, and the script 17.5 to 24 minutes on a warm 4-core
+  machine, hence its 45-minute timeout. It is never a required check: ADR 0013 makes it a gate of every release.
 - Its documents hold the main application's domain (`AdCodicem.ValueObjects.NativeAot.Domain`), the construction of a
   generic value object and `HandWrittenCode`, both registered in `Program.cs`, and `UnregisteredCode`, which the member
   source must refuse; `UseValueObjectId` declares the identity. Serialization goes through `MartenJsonContext`'s
@@ -100,10 +100,12 @@ NATIVE_AOT_POSTGRES="Host=localhost;Port=5432;Database=postgres;Username=postgre
 
 ## `AdCodicem.ValueObjects.CompiledModel`
 
-- `compiled-model.sh jit|aot` writes the model with `dotnet ef dbcontext optimize` under `artifacts/compiled-model/`,
-  never committed, and builds on it. `jit` takes a round trip through SQL Server in the build job; `aot`, written with
-  its queries precompiled, is published by the native AOT job and never run (two EF Core bugs stop its queries); it fails
-  on a warning about this library's code only.
+- `compiled-model.sh compile|jit|aot` writes the model with `dotnet ef dbcontext optimize` under
+  `artifacts/compiled-model/`, never committed, and builds on it. `compile` stops there, in `ci.yml`'s build job, on
+  every pull request: a model that no longer compiles is what this caught. `jit`, the same model, takes a round trip
+  through SQL Server in `heavy.yml`'s integration job; `aot`, written with its queries precompiled, is published by its
+  native AOT job and never run (two EF Core bugs stop its queries); it fails on a warning about this library's code
+  only. `compile` and `jit` write the same folder, `jit/`, which `-p:CompiledModel=jit` compiles in.
 - A change to a convention shows in the model `optimize` writes, never in a publish warning: EF Core builds no model
   natively, so the AOT compiler drops the conventions.
 - `ShopContext.OnConfiguring` calls `UseValueObjectQueries()` and `UseValueObjectCheckErrors()`, so the design-time

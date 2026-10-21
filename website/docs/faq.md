@@ -463,8 +463,9 @@ of a type as the SDK does, the generic registration through a type parameter car
 contracts, the generated code, the JSON package, the minimal API problem details, FluentValidation, identifiers and the
 Serilog, Microsoft.Extensions.AI and Model Context Protocol integrations are marked AOT-compatible and built with the
 trimming and AOT analyzers on, and CI publishes an
-application using them all with native AOT on every pull request, which merges only once that passes: it fails on any
-trimming or AOT warning, and unless the native binary does exactly what the application does under the JIT. The
+application using them all with native AOT after every merge and before every preview and stable release, which
+publish nothing unless it passes: it fails on any trimming or AOT warning, and unless the native binary does exactly
+what the application does under the JIT. The
 two HotChocolate packages are marked AOT-compatible too, and their own code publishes with no warning, but CI publishes
 no HotChocolate application: HotChocolate's own publish warns, its binary starts only with HotChocolate.Types and the
 application's assembly rooted, and HotChocolate.Data's filtering of a struct has no native code

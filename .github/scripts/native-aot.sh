@@ -26,9 +26,9 @@
 # nested converters of every value object at each call into the model its generator writes, and protobuf-net.Core's own,
 # and the Marten application's those Marten, JasperFx, Weasel and FastExpressionCompiler report for themselves.
 #
-# ci.yml runs the main and the protobuf-net applications in its native AOT job, which the required check build and test
-# needs, and the Marten one in a job of its own, native AOT (Marten), since the native AOT compiler alone takes about 20
-# minutes over Marten: that job is never a required check, which ADR 0013 makes a gate of every release.
+# heavy.yml runs the main and the protobuf-net applications in its native AOT job, and the Marten one in a job of its
+# own, native AOT (Marten), since the native AOT compiler alone takes about 20 minutes over Marten: after every merge,
+# before every preview and stable release, and on a pull request labelled ci:heavy (ADR 0013).
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."

@@ -98,18 +98,21 @@ pip install pre-commit && pre-commit install
 6. Open the PR and fill in the template.
 
 Three checks must pass before a pull request merges: **build and test** (`ci.yml`), which fails unless the build, the
-suites and the pack succeed (**build**) and so does **native AOT**, which publishes the applications of
-`tests/NativeAot` but Marten's with native AOT and fails on a trimming or AOT warning, the known ones of protobuf-net's
-generated code and of Microsoft.AspNetCore.Components aside (each application's `aot-warnings.allowed`), or on any
-difference between the native binary and the JIT; **workflows** (`lint.yml`), which runs
-[actionlint](https://github.com/rhysd/actionlint) over every workflow, the ones that never run on a pull request
-included; and **conventional commits** (`lint.yml`), which checks every commit message of the pull request. `CLAUDE.md`
-has the command to run actionlint locally, and `tests/NativeAot/CLAUDE.md` those of the native AOT scripts, which need
-clang and zlib.
-`ci.yml` also builds the documentation site, runs the packages in a .NET 11 application, and publishes the Marten
-application the same way against a PostgreSQL service container, the known warnings of Marten and its dependencies aside
-(**native AOT (Marten)**, a job of its own, since Marten takes about 20 minutes to compile natively), in jobs that are
-worth a look when red but do not block the merge.
+unit, generator and RDG suites, the compiled model and the pack succeed (**build**); **workflows** (`lint.yml`), which
+runs [actionlint](https://github.com/rhysd/actionlint) over every workflow, the ones that never run on a pull request
+included; and **conventional commits** (`lint.yml`), which checks every commit message of the pull request. `ci.yml`
+also builds the documentation site, in a job that is worth a look when red but does not block the merge.
+
+The heavy jobs run in `heavy.yml`, after the merge on `main`, before every preview and stable release, and on a pull
+request labelled `ci:heavy`, where **build and test** waits for them: **native AOT**, which publishes the applications
+of `tests/NativeAot` but Marten's with native AOT and fails on a trimming or AOT warning, the known ones of
+protobuf-net's generated code and of Microsoft.AspNetCore.Components aside (each application's `aot-warnings.allowed`),
+or on any difference between the native binary and the JIT; **native AOT (Marten)**, the Marten application published
+the same way against a PostgreSQL service container, a job of its own since Marten takes about 20 minutes to compile
+natively; the integration suite; and the packages in a .NET 11 application. Ask for the label when your change touches
+native AOT, a store, the sample API or the next .NET; the label is read when a run starts, so push after adding it.
+`CLAUDE.md` has the command to run actionlint locally, and `tests/NativeAot/CLAUDE.md` those of the native AOT scripts,
+which need clang and zlib.
 
 Releases are cut manually by the maintainer from `main`, so a merged pull request publishes nothing by itself: if it
 changes what ships in a package, the next weekly preview carries it, and the next stable release ships it.

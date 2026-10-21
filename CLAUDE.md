@@ -81,8 +81,10 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   next major version". At 1.0, replace the first `releaseRules` entry with `{ "breaking": true, "release": "major" }`,
   never delete it, or `build(pack)!` and `docs(readme)!` fall back to a patch.
 - The thirty-eight packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
-  supported in the same packages. ADR 0012 replaces the one version with two trains (core, satellites) and ADR 0013
-  the CI with a targeted one; both are accepted but not built yet, so the mechanics this file describes still hold.
+  supported in the same packages. ADR 0012 replaces the one version with two trains (core, satellites), accepted but
+  not built yet, so the one version holds. ADR 0013 targets the CI: its heavy jobs are built (`heavy.yml`, after the
+  merge and before a release), its pull-request families not yet, so a pull request still builds and tests everything
+  else.
 
 ## Architecture
 
@@ -271,9 +273,10 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   package's nuspec (`.github/shipped-dependencies`).
 - **Required checks are job names**: `build and test` (`ci.yml`), `workflows` and `conventional commits` (`lint.yml`).
   Renaming one leaves every pull request waiting for a check that never reports. `build and test` is `ci.yml`'s
-  aggregator (`gate`) over the jobs that block a merge, `native AOT` among them (`.github/CLAUDE.md`).
-  `native AOT (Marten)` and `compat (.NET 11)` never become one: ADR 0013 moves them, with `native AOT`, to the jobs
-  that gate a release.
+  aggregator (`gate`) over the jobs its plan expects (`.github/CLAUDE.md`). The heavy jobs never become one:
+  `native AOT`, `native AOT (Marten)`, `integration tests` and `compat (.NET 11)` run in `heavy.yml`, after every push
+  to `main`, before every preview and stable release, and on a pull request labelled `ci:heavy` or a Dependabot NuGet
+  update (ADR 0013). Label a pull request that touches native AOT, a store or the next .NET, then push.
 - **No NuGet lock files.** `Microsoft.SourceLink.GitHub` is referenced only under `GITHUB_ACTIONS == 'true'`, so the
   runner's package graph differs from a laptop's and `--locked-mode` fails with NU1004 (ADR 0004).
 - **A pull request of more than 100 commits cannot be rebase-merged**, and `main` takes a linear history landed with
@@ -289,10 +292,11 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 - **GeneratorTests**: the generator, every diagnostic, the analyzers and code fixes, incremental caching, and every
   published C# snippet.
 - **IntegrationTests**: PostgreSQL, SQL Server, MongoDB and the Azure Functions host through Testcontainers, and the
-  sample API of `samples/` end to end. Needs Docker.
+  sample API of `samples/` end to end. Needs Docker. CI runs it in `heavy.yml`, never on a pull request but a labelled
+  one: run it locally when a change reaches a store.
 - **RdgTests**: minimal API endpoints whose binding the Request Delegate Generator writes.
-- `tests/NativeAot` holds applications CI publishes natively and compares with the JIT (the `native AOT` job, and the
-  `native AOT (Marten)` job for Marten's);
+- `tests/NativeAot` holds applications CI publishes natively and compares with the JIT (`heavy.yml`'s `native AOT` job,
+  and its `native AOT (Marten)` job for Marten's);
   `tests/Compat` installs the packed packages on the .NET 11 release candidate, outside the solution.
 - Stack: xUnit v3 (`TestContext.Current.CancellationToken`), AwesomeAssertions, NSubstitute, Testcontainers. Versions
   live in `Directory.Packages.props`, never in a `.csproj`; `tests/Compat` has its own.
@@ -315,4 +319,6 @@ The aim is 100 % of each pull request's patch, as Codecov counts it (ADR 0006 ho
   nothing calls is a question for the maintainer.
 - Blind spots: a package no test loads is missing from the report rather than at 0 %, which
   `.github/scripts/coverage-modules.sh` fails; the code the generator emits lives in the unit test assembly, which is not
-  measured, and is audited by hand.
+  measured, and is audited by hand. The integration suite reports from `heavy.yml`, so on a pull request that is not
+  labelled `ci:heavy` the lines only it covers (the SQL Server and PostgreSQL branches of the EF Core CHECK constraints)
+  count as missed.
