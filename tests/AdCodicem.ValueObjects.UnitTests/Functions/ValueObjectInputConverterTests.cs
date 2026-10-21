@@ -256,6 +256,23 @@ public sealed class ValueObjectInputConverterTests
     }
 
     /// <summary>
+    /// The Azure Functions worker keeps no exception a converter fails a parameter with, only its text: the converter's
+    /// <see cref="FormatException"/> carries the code in its data, as any other ecosystem's does, and at the end of its
+    /// message, the one place the worker's own failure keeps it, where <see cref="ValueObjectErrors.TryGetCode"/> reads it.
+    /// </summary>
+    [Fact]
+    public async Task The_code_is_read_from_the_Functions_converters_refusal_and_ends_its_message()
+    {
+        var result = await ConvertAsync<Iban>("FR76");
+
+        var refusal = result.Error.Should().BeOfType<FormatException>().Which;
+        ValueObjectErrors.TryGetCode(refusal, out var code).Should().BeTrue();
+        code.Should().Be(ValueObjectErrorCodes.TooShort);
+        refusal.Data[ValueObjectErrors.ErrorCodeKey].Should().Be(ValueObjectErrorCodes.TooShort);
+        refusal.Message.Should().StartWith("The value is not a valid Iban: ").And.EndWith($" ({ValueObjectErrorCodes.TooShort})");
+    }
+
+    /// <summary>
     /// A value object written by hand and a construction of a generic one, which nothing registered, are described by
     /// reflection the first time the converter meets them, and found registered from then on; a generic construction is
     /// named as C# names it.
