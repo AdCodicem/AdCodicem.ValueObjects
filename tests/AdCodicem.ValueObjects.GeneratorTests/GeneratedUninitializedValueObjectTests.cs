@@ -539,6 +539,7 @@ public sealed class GeneratedUninitializedValueObjectTests
     /// the diagnostics reference its anchor names.
     /// </summary>
     [Fact]
+    [Trait("Reads", "Documentation")]
     public void The_help_link_lands_on_the_section_of_the_diagnostics_reference_that_holds_the_fix()
     {
         var link = new Uri(GeneratedUninitializedValueObjectAnalyzer.CreatedByGeneratedCode.HelpLinkUri);

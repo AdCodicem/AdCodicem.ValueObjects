@@ -664,6 +664,7 @@ public sealed class RequestDelegateGeneratorTests
     /// silent everywhere, with nothing failing.
     /// </summary>
     [Fact]
+    [Trait("Reads", "Documentation")]
     public void The_package_makes_the_property_it_reads_visible_to_the_compiler_in_every_project_that_gets_the_analyzer()
     {
         var props = XDocument.Load(Path.Combine(RepositoryRoot(), "src", "AdCodicem.ValueObjects", "build", "AdCodicem.ValueObjects.props"));
@@ -683,6 +684,7 @@ public sealed class RequestDelegateGeneratorTests
     /// The help link lands on the section of the ASP.NET Core page that states the rule.
     /// </summary>
     [Fact]
+    [Trait("Reads", "Documentation")]
     public void The_help_link_lands_on_the_section_that_states_the_rule()
     {
         var link = new Uri(RequestDelegateGeneratorAnalyzer.HiddenFromRequestDelegateGenerator.HelpLinkUri);

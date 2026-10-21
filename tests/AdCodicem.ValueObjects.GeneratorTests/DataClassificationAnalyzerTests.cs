@@ -1112,6 +1112,7 @@ public sealed class DataClassificationAnalyzerTests
     }
 
     [Fact]
+    [Trait("Reads", "Documentation")]
     public void The_help_links_land_on_the_data_classification_section_of_the_logging_guide()
     {
         var analyzer = new DataClassificationAnalyzer();

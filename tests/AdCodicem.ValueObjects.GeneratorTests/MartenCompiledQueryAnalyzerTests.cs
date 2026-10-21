@@ -821,6 +821,7 @@ public sealed class MartenCompiledQueryAnalyzerTests
 
     /// <summary>The help link lands on the section of the Marten guide that gives each form.</summary>
     [Fact]
+    [Trait("Reads", "Documentation")]
     public void The_help_link_lands_on_the_compiled_queries_section_of_the_Marten_guide()
     {
         var link = new Uri(MartenCompiledQueryAnalyzer.ValueObjectInCompiledQuery.HelpLinkUri);
