@@ -83,17 +83,17 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   `actionlint.yaml` silences `queue: max`, which actionlint does not know yet, in `deploy-docs.yml` and `preview.yml`.
 - Trusted Publishing is keyed on a workflow file and an environment (`preview.yml` with `nuget`, `release.yml` with
   `nuget-stable`): change the nuget.org policy before renaming either file or moving its publish job.
-- Required checks are job names: `build and test`, `native AOT`, `workflows` and `conventional commits`. Never rename
-  them without updating the `Default` ruleset. `compat (.NET 11)` and `native AOT (Marten)`, the Marten application's
-  job of its own beside `native AOT` (Marten's native AOT compiler alone takes about 20 minutes), never become one: ADR
-  0013 moves them, with `native AOT`, to the jobs that gate a preview and a stable release.
+- Required checks are job names: `build and test` (`ci.yml`), `workflows` and `conventional commits` (`lint.yml`). Never
+  rename them without updating the `Default` ruleset. `native AOT` left the ruleset once `build and test` needed it.
+  `compat (.NET 11)` and `native AOT (Marten)`, the Marten application's job of its own beside `native AOT` (Marten's
+  native AOT compiler alone takes about 20 minutes), never join it: ADR 0013 moves them, with `native AOT`, to the jobs
+  that gate a preview and a stable release.
 - `build and test` is `ci.yml`'s `gate` job, an aggregator (ADR 0013): `if: always()` and `needs` on `build` (the build,
   the four suites, the pack and their checks) and `native-aot`, failing unless each one succeeded. Never give it an `if`
   that can skip it, or let it pass a job that failed or was cancelled: a required check that is skipped reads as a
   success. Once ADR 0013's plan lands, the gate also needs it and passes a job the plan left out of `expected`.
 - A job that must block a merge goes into the `gate` job's `needs`, never into the `Default` ruleset: a check per job
-  would touch the ruleset at every rename (ADR 0013, Rejected). `native AOT` is in both until the maintainer takes it
-  out of the ruleset.
+  would touch the ruleset at every rename (ADR 0013, Rejected).
 - No workflow but `ci.yml` names a job `build and test` (`preview.yml` and `release.yml` run theirs as `suites`): a
   dispatch from a pull request's branch would report a check of that name on its head commit, and a skipped one reads
   as a success.
