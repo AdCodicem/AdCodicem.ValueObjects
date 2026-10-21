@@ -23,44 +23,109 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  # Which jobs this run calls, and which of them the gate holds to success (ADR 0013): heavy.yml on a pull request
-  # labelled ci:heavy or a Dependabot NuGet update, and on none otherwise, since it runs on its own push to main.
-  # .github/scripts/ci-plan.sh has the rules. The depth of 2 gives it the merge commit's parents, against which it reads
-  # the files a pull request changes.
+  # What this run builds and tests, and which of its jobs the gate holds to success (ADR 0013): on a pull request, the
+  # families of .github/ci-families.json and the lanes the files it changes select, through dotnet-affected for the
+  # files under src/; on a push to main, everything. .github/scripts/ci-plan.sh has the rules, and checks the family
+  # table against the repository first. The depth of 2 gives it the merge commit's parents, against which it reads the
+  # files a pull request changes; the SDK is installed only when the plan asks dotnet-affected.
   plan:
     name: plan
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     outputs:
       heavy: ${{ steps.plan.outputs.heavy }}
       expected: ${{ steps.plan.outputs.expected }}
+      dotnet: ${{ steps.plan.outputs.dotnet }}
+      families: ${{ steps.plan.outputs.families }}
+      unit-filter: ${{ steps.plan.outputs.unit-filter }}
+      generator: ${{ steps.plan.outputs.generator }}
+      rdg: ${{ steps.plan.outputs.rdg }}
+      compiled-model: ${{ steps.plan.outputs.compiled-model }}
+      ecmascript: ${{ steps.plan.outputs.ecmascript }}
+      pack: ${{ steps.plan.outputs.pack }}
+      site: ${{ steps.plan.outputs.site }}
+      release: ${{ steps.plan.outputs.release }}
+      coverage: ${{ steps.plan.outputs.coverage }}
+    env:
+      EVENT_NAME: ${{ github.event_name }}
+      LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+      AUTHOR: ${{ github.event.pull_request.user.login }}
+      HEAD_REF: ${{ github.head_ref }}
+      HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      REPOSITORY: ${{ github.repository }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
           persist-credentials: false
 
+      - name: Does the plan read the project graph?
+        id: graph
+        run: .github/scripts/ci-plan.sh --graph-needed
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        if: steps.graph.outputs.graph == 'true'
+        with:
+          global-json-file: global.json
+
       - name: Plan
         id: plan
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-          AUTHOR: ${{ github.event.pull_request.user.login }}
-          HEAD_REF: ${{ github.head_ref }}
-          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          REPOSITORY: ${{ github.repository }}
         run: .github/scripts/ci-plan.sh
 
-  # The build, three suites, the compiled model and the pack. Reported as "build"; the required check "build and test"
-  # is the aggregator at the end of this file, which needs this job. The integration suite runs in heavy.yml.
+  # Whitespace, in every .cs file of the repository, tests/Compat/ included, against .editorconfig. --folder loads no
+  # project, so it needs no restore and runs beside the build; the style pass does not run, since
+  # EnforceCodeStyleInBuild already fails the build on the style rules (Directory.Build.props). Never `analyzers`: its
+  # workspace cannot run the generator before the build, and reports ASP0020 against every minimal API endpoint binding
+  # a value object.
+  format:
+    name: format
+    needs: plan
+    if: needs.plan.outputs.dotnet == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Whitespace
+        run: dotnet format whitespace . --folder --verify-no-changes --verbosity minimal
+
+  # The build, and what the plan selects of the three suites, the compiled model, the patterns written for browsers
+  # and the pack. Reported as "build"; the required check "build and test" is the aggregator at the end of this file,
+  # which needs this job. The integration suite runs in heavy.yml.
   build:
     name: build
+    needs: plan
+    if: needs.plan.outputs.dotnet == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      coverage: ${{ steps.coverage.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # MinVer derives the version from the tag history, which a shallow clone does not have.
           fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: needs.plan.outputs.ecmascript == 'true'
+        with:
+          node-version: lts/*
+
+      # The pattern attribute the Blazor package writes for an input, which a
+      # browser compiles with the v flag: the table EcmaScriptPatternTests pins,
+      # checked in a JavaScript engine, the Node the documentation site builds with.
+      - name: Check the patterns written for browsers
+        if: needs.plan.outputs.ecmascript == 'true'
+        run: node .github/scripts/ecmascript-patterns.mjs tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -69,43 +134,56 @@ jobs:
       - name: Restore
         run: dotnet restore
 
-      # whitespace and style only, deliberately not `analyzers`. dotnet format's
-      # workspace runs the source generators it can load, but this step runs
-      # before the build, and the generator is referenced as a project whose
-      # assembly does not exist yet. So it cannot see the IParsable<T>
-      # implementation the generator emits, and reports ASP0020 against every
-      # minimal API endpoint binding a value object. The real build, where the
-      # generator does run, is clean -- and EnforceCodeStyleInBuild already holds
-      # analyzer diagnostics to error there. The Request Delegate Generator has
-      # the same blind spot in the real build, for a value object declared in
-      # the project it compiles, which VO0033 reports.
-      - name: Format
-        run: |
-          dotnet format AdCodicem.ValueObjects.slnx whitespace --verify-no-changes --verbosity minimal
-          dotnet format AdCodicem.ValueObjects.slnx style --verify-no-changes --verbosity minimal
-
       - name: Build
         run: dotnet build --no-restore -c Release
 
+      # The families' --filter-query values, which xUnit ORs, the guards' among them; no filter when every family runs.
       - name: Unit tests
-        run: >-
-          dotnet test --project tests/AdCodicem.ValueObjects.UnitTests
-          --no-build -c Release
-          --report-trx --report-trx-filename unit.trx
-          --coverage --coverage-output-format cobertura --coverage-output unit.cobertura.xml
+        if: needs.plan.outputs.families != '[]'
+        env:
+          UNIT_FILTER: ${{ needs.plan.outputs.unit-filter }}
+        run: |
+          set -euo pipefail
+          filter=()
+          while IFS= read -r query; do
+            filter+=(--filter-query "$query")
+          done < <(jq -r '.[]' <<< "$UNIT_FILTER")
+          dotnet test --project tests/AdCodicem.ValueObjects.UnitTests \
+            --no-build -c Release \
+            --report-trx --report-trx-filename unit.trx \
+            --coverage --coverage-output-format cobertura --coverage-output unit.cobertura.xml \
+            "${filter[@]}"
+
+      # When every family runs, so after every merge: the families' filters and the guards' together list every test of
+      # the suite, so that a query written wrong cannot leave a test out of every pull request that runs its family.
+      - name: Every unit test belongs to a family
+        if: needs.plan.outputs.families != '[]' && needs.plan.outputs.unit-filter == '[]'
+        run: .github/scripts/unit-families-check.sh
 
       - name: Generator tests
+        if: needs.plan.outputs.generator == 'full'
         run: >-
           dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests
           --no-build -c Release
           --report-trx --report-trx-filename generator.trx
           --coverage --coverage-output-format cobertura --coverage-output generator.cobertura.xml
 
+      # The tests that read README.md, website/docs/ and skills/value-objects/, which DocumentationTraitTests holds to
+      # the trait. No coverage: a partial report under the generator flag would replace the whole suite's.
+      - name: Generator tests that read the documentation
+        if: needs.plan.outputs.generator == 'documentation'
+        run: >-
+          dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests
+          --no-build -c Release
+          --report-trx --report-trx-filename generator.trx
+          --filter-trait Reads=Documentation
+
       # Minimal API endpoints whose binding the Request Delegate Generator writes,
       # as it does in every build under PublishAot or PublishTrimmed, over value
       # objects declared in the endpoints' own project: the case where it cannot
       # see what the generator adds, and where VO0033 fails the build.
       - name: Request Delegate Generator tests
+        if: needs.plan.outputs.rdg == 'true'
         run: >-
           dotnet test --project tests/AdCodicem.ValueObjects.RdgTests
           --no-build -c Release
@@ -118,37 +196,47 @@ jobs:
       # no database: heavy.yml takes the same model on a round trip through SQL
       # Server, and compiles it for native AOT.
       - name: Compiled model
+        if: needs.plan.outputs.compiled-model == 'true'
         run: .github/scripts/compiled-model.sh compile
 
-      # The three suites, because they cover genuinely different surfaces: the
-      # typed path, the generator, and minimal API binding as the Request
-      # Delegate Generator writes it. Coverage from the unit suite alone would
-      # flatter the descriptor, which is exactly where defects have hidden
-      # before. The integration suite's report, against real engines, comes from
-      # heavy.yml, for the same commit on main.
-      - name: Upload coverage
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+      # The reports of the suites that ran, for the coverage job, which uploads them once per Codecov flag. The three
+      # suites cover genuinely different surfaces: the typed path, the generator, and minimal API binding as the Request
+      # Delegate Generator writes it. Coverage from the unit suite alone would flatter the descriptor, which is exactly
+      # where defects have hidden before. The integration suite's report, against real engines, comes from heavy.yml,
+      # for the same commit on main.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        id: coverage
+        if: needs.plan.outputs.coverage != '[]'
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: '**/*.cobertura.xml'
-          fail_ci_if_error: false
+          name: coverage
+          path: '**/*.cobertura.xml'
+          if-no-files-found: error
 
       # An assembly no test loads is absent from the reports rather than at 0 %, and
-      # Codecov then leaves its lines out of the project's figure. After the upload,
-      # so that the report still arrives when this step fails.
+      # Codecov then leaves its lines out of the project's figure. Over the families
+      # that ran, after their reports are kept, so that the reports still reach
+      # Codecov when this step fails.
       - name: Every shipped assembly is measured
-        run: .github/scripts/coverage-modules.sh
+        if: needs.plan.outputs.families != '[]'
+        env:
+          FAMILIES: ${{ needs.plan.outputs.families }}
+        run: |
+          set -euo pipefail
+          mapfile -t families < <(jq -r '.[]' <<< "$FAMILIES")
+          .github/scripts/coverage-modules.sh "${families[@]}"
 
       # The packable projects under src/ only, through the solution filter preview.yml and
       # release.yml pack with. Not --no-build: the generator is built into the main package
       # through ResolveReferences during Pack, which trips NETSDK1085.
       - name: Pack
+        if: needs.plan.outputs.pack == 'true'
         run: dotnet pack src/AdCodicem.ValueObjects.Packages.slnf --no-restore -c Release -o artifacts/packages
 
       # The solution filter cannot glob: a project added under src/ and left out of it would
       # be missing from every preview and release. Caught here, on the pull request that adds
       # it, rather than when a preview or a release packs.
       - name: Every packable project is packed
+        if: needs.plan.outputs.pack == 'true'
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -166,6 +254,7 @@ jobs:
       # dependency the packed nuspecs declare, and classify every package a
       # project under src/ references.
       - name: Every shipped dependency is listed
+        if: needs.plan.outputs.pack == 'true'
         run: .github/scripts/shipped-dependencies-check.sh artifacts/packages
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -173,11 +262,100 @@ jobs:
         with:
           name: test-results
           path: '**/*.trx'
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: needs.plan.outputs.pack == 'true'
         with:
           name: packages
           path: artifacts/packages/*.*nupkg
+
+  # The reports, one upload per Codecov flag (codecov.yml): the unit report under each family that ran, each upload
+  # keeping the lines of its family's projects, and the generator and RDG reports under their own. The flags of what
+  # did not run carry forward from the parent commit. One flag per upload, since Codecov drops a carried-forward upload
+  # whole when an upload sharing any of its flags arrives. No check the gate needs: a failed upload blocks nothing.
+  coverage:
+    name: coverage (${{ matrix.flag }})
+    needs: [plan, build]
+    if: ${{ !cancelled() && needs.plan.outputs.coverage != '[]' && needs.build.outputs.coverage != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        flag: ${{ fromJSON(needs.plan.outputs.coverage) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      # By the artifact's id, never by name, and never with an empty id, which downloads every artifact of the run.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.coverage }}
+          path: ${{ runner.temp }}/coverage
+
+      - name: Pick the report
+        id: report
+        env:
+          FLAG: ${{ matrix.flag }}
+          REPORTS: ${{ runner.temp }}/coverage
+        run: |
+          set -euo pipefail
+          case "$FLAG" in
+            generator | rdg) name="$FLAG.cobertura.xml" ;;
+            *) name=unit.cobertura.xml ;;
+          esac
+          mapfile -t reports < <(find "$REPORTS" -name "$name")
+          if (( ${#reports[@]} != 1 )); then
+            echo "::error::Expected one $name for the $FLAG flag, found ${#reports[@]}." >&2
+            exit 1
+          fi
+          echo "file=${reports[0]}" >> "$GITHUB_OUTPUT"
+
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ steps.report.outputs.file }}
+          disable_search: true
+          flags: ${{ matrix.flag }}
+          name: ${{ matrix.flag }}
+          fail_ci_if_error: false
+
+  # The version semantic-release's commit analyzer derives from the commits since the last stable tag, as preview.yml
+  # and release.yml compute it, when a pull request changes the tooling behind it: package.json, its lock file,
+  # .releaserc.json or next-version.mjs.
+  release-tooling:
+    name: release tooling
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tags and every commit since the last stable one.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # The commit analyzer semantic-release itself loads, at the version
+      # package-lock.json pins. Nothing it installs runs a script.
+      - name: Install release tooling
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Next version
+        run: node .github/scripts/next-version.mjs
 
   # The jobs too slow for every pull request (heavy.yml): native AOT, native AOT
   # (Marten), the integration suite and compat (.NET 11), on the commit this run
@@ -196,13 +374,17 @@ jobs:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   # The documentation site, built as deploy-docs.yml builds it and deployed by
-  # nobody. ci.yml deploys nothing since preview.yml took the site over, so a broken
-  # link, a sidebar entry that no longer resolves or an API reference DocFX cannot
-  # generate would otherwise first fail the run that deploys, on main. Here it fails
-  # the pull request that causes it, and main after a merge, where two pull requests
-  # that each built can still break the site together. Not a required check.
+  # nobody, when the plan selects it: a change to the site, or to a project under
+  # src/, whose API DocFX reads. ci.yml deploys nothing since preview.yml took the
+  # site over, so a broken link, a sidebar entry that no longer resolves or an API
+  # reference DocFX cannot generate would otherwise first fail the run that
+  # deploys, on main. Here it fails the pull request that causes it, and main after
+  # a merge, where two pull requests that each built can still break the site
+  # together. Not a required check.
   site:
     name: documentation site
+    needs: plan
+    if: needs.plan.outputs.site == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -220,12 +402,6 @@ jobs:
       - name: Build the site
         uses: ./.github/actions/build-site
 
-      # The pattern attribute the Blazor package writes for an input, which a
-      # browser compiles with the v flag: the table EcmaScriptPatternTests pins,
-      # checked in a JavaScript engine, the Node the step above installs.
-      - name: Check the patterns written for browsers
-        run: node .github/scripts/ecmascript-patterns.mjs tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json
-
   # The required check "build and test" of the "Default" ruleset on main, by its name (ADR 0013): it reports the jobs it
   # needs as one, so that the ruleset names a single check of this workflow. It runs whatever happened to them, and
   # fails unless the plan succeeded and each job of the plan's `expected` list succeeded: a job of that list that
@@ -237,7 +413,7 @@ jobs:
   gate:
     name: build and test
     if: always()
-    needs: [plan, build, heavy]
+    needs: [plan, format, build, release-tooling, heavy]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
@@ -253,13 +429,13 @@ jobs:
             echo "::error::The plan did not succeed ($plan)." >&2
             exit 1
           fi
-          # With no job to read, the check below would pass anything.
+          # The plan always lists itself: with no job to read, the check below would pass anything.
           if ! jq -e 'type == "array" and length > 0 and all(.[]; type == "string")' <<< "$EXPECTED" > /dev/null 2>&1; then
             echo "::error::The plan expects no job, or not as a JSON array of names: '$EXPECTED'." >&2
             exit 1
           fi
           jq -r --argjson expected "$EXPECTED" \
-            'to_entries[] | "\(.key): \(.value.result)\(if .key == "plan" or (.key | IN($expected[])) then "" else " (not expected)" end)"' <<< "$NEEDS"
+            'to_entries[] | "\(.key): \(.value.result)\(if (.key | IN($expected[])) then "" else " (not expected)" end)"' <<< "$NEEDS"
           unknown="$(jq -r --argjson expected "$EXPECTED" '. as $needs | [$expected[] | select($needs[.] == null)] | join(", ")' <<< "$NEEDS")"
           if [[ -n "$unknown" ]]; then
             echo "::error::The plan expects a job the gate does not need: $unknown." >&2

@@ -1,0 +1,209 @@
+{
+  "$comment": [
+    "The CI families of docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md, read by",
+    ".github/scripts/ci-plan.sh, which fails the plan when a project under src/ or an entry of the unit suite's folder",
+    "belongs to no family here, or to two. coverage-modules.sh reads the projects; codecov.yml's flags are generated from",
+    "them (ci-plan.sh --codecov-flags).",
+    "families.<name>.projects: the projects under src/, by folder name. Each is in exactly one family.",
+    "families.<name>.train: its release train (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).",
+    "families.<name>.dependsOn: the families whose change selects this one beyond what the project graph says, because",
+    "this family's tests run their code (GraphQL filtering runs over EF Core, Wolverine.Http's documents over",
+    "Swashbuckle).",
+    "families.<name>.unit: the unit suite's --filter-query values of the family, ORed: the namespace of each of its",
+    "folders and its sub-namespaces, and, for the root namespace, Web/ and Persistence/, which hold several families, the",
+    "classes of the family by name; core and aspnet and efcore take what the others leave there.",
+    "guards: the cross-package guards, run with any family: GeneratedSurface, DescriptorTests and RuntimeClosingTests.",
+    "unit.folders: the families a change to a top-level folder of the unit suite selects; '*' selects every family. A",
+    "change to a file at the suite's root selects every family with a class in the root namespace, since a file there",
+    "may declare a class of any of them; unit.shared lists the files used across families, which select every family."
+  ],
+  "families": {
+    "core": {
+      "train": "core",
+      "projects": [
+        "AdCodicem.ValueObjects",
+        "AdCodicem.ValueObjects.Generators",
+        "AdCodicem.ValueObjects.CodeFixes",
+        "AdCodicem.ValueObjects.Abstractions",
+        "AdCodicem.ValueObjects.Json",
+        "AdCodicem.ValueObjects.Identifiers",
+        "AdCodicem.ValueObjects.Testing.Data"
+      ],
+      "dependsOn": [],
+      "unit": [
+        "/*/AdCodicem.ValueObjects.UnitTests/(!*Contract)&(!ContractKitTests)&(!PropertyTests)&(!FluentValidation*)&(!NewtonsoftJson*)&(!DescriptorTests)&(!RuntimeClosingTests)",
+        "/*/(AdCodicem.ValueObjects.UnitTests.DataAnnotations)|(AdCodicem.ValueObjects.UnitTests.DataAnnotations.*)",
+        "/*/(AdCodicem.ValueObjects.UnitTests.Domain)|(AdCodicem.ValueObjects.UnitTests.Domain.*)",
+        "/*/(AdCodicem.ValueObjects.UnitTests.Identifiers)|(AdCodicem.ValueObjects.UnitTests.Identifiers.*)",
+        "/*/(AdCodicem.ValueObjects.UnitTests.XmlSerialization)|(AdCodicem.ValueObjects.UnitTests.XmlSerialization.*)"
+      ]
+    },
+    "aspnet": {
+      "train": "core",
+      "projects": [
+        "AdCodicem.ValueObjects.AspNetCore.Http",
+        "AdCodicem.ValueObjects.AspNetCore",
+        "AdCodicem.ValueObjects.OpenApi"
+      ],
+      "dependsOn": [],
+      "unit": [
+        "/*/AdCodicem.ValueObjects.UnitTests.Web/(!NSwag*)&(!Newtonsoft*)&(!Swashbuckle*)"
+      ]
+    },
+    "efcore": {
+      "train": "core",
+      "projects": [
+        "AdCodicem.ValueObjects.EntityFrameworkCore",
+        "AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore"
+      ],
+      "dependsOn": [],
+      "unit": [
+        "/*/AdCodicem.ValueObjects.UnitTests.Persistence/(!Dapper*)&(!*MongoDb*)&(!Marten*)&(!PcrePattern*)"
+      ]
+    },
+    "data": {
+      "train": "satellites",
+      "projects": [
+        "AdCodicem.ValueObjects.Dapper",
+        "AdCodicem.ValueObjects.MongoDB",
+        "AdCodicem.ValueObjects.Identifiers.MongoDB",
+        "AdCodicem.ValueObjects.Marten"
+      ],
+      "dependsOn": [],
+      "unit": [
+        "/*/AdCodicem.ValueObjects.UnitTests.Persistence/(Dapper*)|(*MongoDb*)|(Marten*)|(PcrePattern*)"
+      ]
+    },
+    "serialization": {
+      "train": "satellites",
+      "projects": [
+        "AdCodicem.ValueObjects.NewtonsoftJson",
+        "AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson",
+        "AdCodicem.ValueObjects.Swashbuckle",
+        "AdCodicem.ValueObjects.NJsonSchema",
+        "AdCodicem.ValueObjects.MessagePack",
+        "AdCodicem.ValueObjects.ProtobufNet",
+        "AdCodicem.ValueObjects.Grpc"
+      ],
+      "dependsOn": ["aspnet"],
+      "unit": [
+        "/*/AdCodicem.ValueObjects.UnitTests/NewtonsoftJson*",
+        "/*/(AdCodicem.ValueObjects.UnitTests.BinarySerialization)|(AdCodicem.ValueObjects.UnitTests.BinarySerialization.*)",
+        "/*/(AdCodicem.ValueObjects.UnitTests.SchemaGeneration)|(AdCodicem.ValueObjects.UnitTests.SchemaGeneration.*)",
+        "/*/AdCodicem.ValueObjects.UnitTests.Web/(NSwag*)|(Newtonsoft*)|(Swashbuckle*)"
+      ]
+    },
+    "orleans": {
+      "train": "satellites",
+      "projects": [
+        "AdCodicem.ValueObjects.Orleans"
+      ],
+      "dependsOn": [],
+      "unit": [
+        "/*/(AdCodicem.ValueObjects.UnitTests.Grains)|(AdCodicem.ValueObjects.UnitTests.Grains.*)"
+      ]
+    },
+    "hosts": {
+      "train": "satellites",
+      "projects": [
+        "AdCodicem.ValueObjects.AzureFunctions",
+        "AdCodicem.ValueObjects.AzureFunctions.AspNetCore",
+        "AdCodicem.ValueObjects.Wolverine.Http"
+      ],
+      "dependsOn": ["aspnet", "serialization"],
+      "unit": [
+        "/*/(AdCodicem.ValueObjects.UnitTests.Functions)|(AdCodicem.ValueObjects.UnitTests.Functions.*)",
+        "/*/(AdCodicem.ValueObjects.UnitTests.WolverineHttp)|(AdCodicem.ValueObjects.UnitTests.WolverineHttp.*)"
+      ]
+    },
+    "graphql": {
+      "train": "satellites",
+      "projects": [
+        "AdCodicem.ValueObjects.HotChocolate",
+        "AdCodicem.ValueObjects.HotChocolate.Data"
+      ],
+      "dependsOn": ["efcore"],
+      "unit": [
+        "/*/(AdCodicem.ValueObjects.UnitTests.GraphQL)|(AdCodicem.ValueObjects.UnitTests.GraphQL.*)"
+      ]
+    },
+    "text": {
+      "train": "satellites",
+      "projects": [
+        "AdCodicem.ValueObjects.Blazor",
+        "AdCodicem.ValueObjects.CommandLine",
+        "AdCodicem.ValueObjects.CsvHelper"
+      ],
+      "dependsOn": [],
+      "unit": [
+        "/*/(AdCodicem.ValueObjects.UnitTests.Cli)|(AdCodicem.ValueObjects.UnitTests.Cli.*)",
+        "/*/(AdCodicem.ValueObjects.UnitTests.Csv)|(AdCodicem.ValueObjects.UnitTests.Csv.*)",
+        "/*/(AdCodicem.ValueObjects.UnitTests.Forms)|(AdCodicem.ValueObjects.UnitTests.Forms.*)"
+      ]
+    },
+    "observability": {
+      "train": "satellites",
+      "projects": [
+        "AdCodicem.ValueObjects.Serilog",
+        "AdCodicem.ValueObjects.AI",
+        "AdCodicem.ValueObjects.ModelContextProtocol",
+        "AdCodicem.ValueObjects.FluentValidation"
+      ],
+      "dependsOn": [],
+      "unit": [
+        "/*/AdCodicem.ValueObjects.UnitTests/FluentValidation*",
+        "/*/(AdCodicem.ValueObjects.UnitTests.LanguageModels)|(AdCodicem.ValueObjects.UnitTests.LanguageModels.*)",
+        "/*/(AdCodicem.ValueObjects.UnitTests.Logging)|(AdCodicem.ValueObjects.UnitTests.Logging.*)"
+      ]
+    },
+    "testdata": {
+      "train": "satellites",
+      "projects": [
+        "AdCodicem.ValueObjects.Testing",
+        "AdCodicem.ValueObjects.AutoFixture",
+        "AdCodicem.ValueObjects.Bogus",
+        "AdCodicem.ValueObjects.FsCheck"
+      ],
+      "dependsOn": [],
+      "unit": [
+        "/*/AdCodicem.ValueObjects.UnitTests/(*Contract)|(ContractKitTests)|(PropertyTests)",
+        "/*/(AdCodicem.ValueObjects.UnitTests.TestData)|(AdCodicem.ValueObjects.UnitTests.TestData.*)"
+      ]
+    }
+  },
+  "guards": [
+    "/*/AdCodicem.ValueObjects.UnitTests/(DescriptorTests)|(RuntimeClosingTests)",
+    "/*/(AdCodicem.ValueObjects.UnitTests.GeneratedSurface)|(AdCodicem.ValueObjects.UnitTests.GeneratedSurface.*)"
+  ],
+  "unit": {
+    "folders": {
+      "BinarySerialization": ["serialization"],
+      "Cli": ["text"],
+      "Csv": ["text"],
+      "DataAnnotations": ["core", "aspnet"],
+      "Domain": "*",
+      "Forms": ["text"],
+      "Functions": ["hosts"],
+      "GeneratedSurface": "*",
+      "Grains": ["orleans"],
+      "GraphQL": ["graphql"],
+      "Identifiers": ["core", "efcore", "data"],
+      "LanguageModels": ["observability"],
+      "Logging": ["observability"],
+      "Persistence": ["efcore", "data"],
+      "SchemaGeneration": ["serialization"],
+      "TestData": ["testdata"],
+      "Web": ["aspnet", "serialization"],
+      "WolverineHttp": ["hosts"],
+      "XmlSerialization": ["core"]
+    },
+    "shared": [
+      "AdCodicem.ValueObjects.UnitTests.csproj",
+      "CodeCarrying.cs",
+      "WithoutDynamicCode.cs",
+      "TestData/SamplerFixtures.cs",
+      "Web/SparseMessages.*",
+      "Web/ValidationMessages.*"
+    ]
+  }
+}
