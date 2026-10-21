@@ -418,6 +418,7 @@ public sealed class ValidationAttributeAnalyzerTests
     /// <c>VO0033</c> reads: a mismatch would leave it silent everywhere, with nothing failing.
     /// </summary>
     [Fact]
+    [Trait("Reads", "Documentation")]
     public void The_package_makes_PublishAot_visible_to_the_compiler()
     {
         var props = System.Xml.Linq.XDocument.Load(Path.Combine(RepositoryRoot(), "src", "AdCodicem.ValueObjects", "build", "AdCodicem.ValueObjects.props"));
@@ -429,6 +430,7 @@ public sealed class ValidationAttributeAnalyzerTests
 
     /// <summary>Each help link lands on the guide that states the rules.</summary>
     [Fact]
+    [Trait("Reads", "Documentation")]
     public void The_help_links_land_on_the_DataAnnotations_guide()
     {
         var analyzer = new ValidationAttributeAnalyzer();

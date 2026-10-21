@@ -22,6 +22,7 @@ namespace AdCodicem.ValueObjects.GeneratorTests;
 /// not a reviewer remembering to look. When one fails, add the missing entry to the skill file it names.
 /// </para>
 /// </remarks>
+[Trait("Reads", "Documentation")]
 public sealed class SkillCoverageTests
 {
     [Fact]
