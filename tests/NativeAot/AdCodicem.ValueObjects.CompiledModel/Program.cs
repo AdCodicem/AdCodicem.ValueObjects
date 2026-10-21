@@ -22,12 +22,12 @@
 // precompiled untracked query that does not compile, for any entity type in a namespace, with or without this library.
 using System.Data.SqlTypes;
 using AdCodicem.ValueObjects.CompiledModel;
+using DotNet.Testcontainers.Containers;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Testcontainers.MsSql;
 
-await using var server = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
-await server.StartAsync();
+await using var server = await StartServerAsync();
 
 var connectionString = new SqlConnectionStringBuilder(server.GetConnectionString()) { InitialCatalog = "shop" }.ConnectionString;
 var failures = 0;
@@ -202,4 +202,24 @@ void Compare(string scenario, Shipment written, Shipment read)
 {
     var differences = Shipments.Differences(written, read);
     Report(differences.Length == 0 ? scenario : $"{scenario}, with {differences}", differences.Length == 0);
+}
+
+// SQL Server's images crash on a few starts in a hundred ("Failed to load LSA", microsoft/mssql-docker#974, fixed in SQL
+// Server 2022 CU29 and 2025 CU12): a container whose server exits while it starts is replaced by a new one, up to three
+// starts in all, as the integration suite's fixture does.
+static async Task<MsSqlContainer> StartServerAsync()
+{
+    for (var start = 1; ; start++)
+    {
+        var server = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+        try
+        {
+            await server.StartAsync();
+            return server;
+        }
+        catch (ContainerNotRunningException) when (start < 3)
+        {
+            await server.DisposeAsync();
+        }
+    }
 }

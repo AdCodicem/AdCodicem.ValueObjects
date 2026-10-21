@@ -2,6 +2,7 @@ using System.Data.Common;
 using AdCodicem.ValueObjects.Dapper;
 using AdCodicem.ValueObjects.EntityFrameworkCore;
 using Dapper;
+using DotNet.Testcontainers.Containers;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -148,9 +149,14 @@ public sealed class PostgreSqlFixture : DatabaseFixture
 }
 
 /// <summary>SQL Server, through Microsoft's provider for Entity Framework Core 11.</summary>
+/// <remarks>
+/// SQL Server's images crash on a few starts in a hundred ("Failed to load LSA", microsoft/mssql-docker#974, fixed in
+/// SQL Server 2022 CU29 and 2025 CU12): a container whose server exits while it starts is replaced by a new one, up to
+/// three starts in all, as the integration suite's fixture does.
+/// </remarks>
 public sealed class SqlServerFixture : DatabaseFixture
 {
-    private readonly MsSqlContainer _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+    private MsSqlContainer _container = Build();
 
     public override string BoundedTextType => "nvarchar";
 
@@ -188,10 +194,23 @@ public sealed class SqlServerFixture : DatabaseFixture
 
     protected override async Task<string> StartAsync()
     {
-        await _container.StartAsync();
+        for (var start = 1; ; start++)
+        {
+            try
+            {
+                await _container.StartAsync();
 
-        return _container.GetConnectionString();
+                return _container.GetConnectionString();
+            }
+            catch (ContainerNotRunningException) when (start < 3)
+            {
+                await _container.DisposeAsync();
+                _container = Build();
+            }
+        }
     }
+
+    private static MsSqlContainer Build() => new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
 }
 
 /// <summary>

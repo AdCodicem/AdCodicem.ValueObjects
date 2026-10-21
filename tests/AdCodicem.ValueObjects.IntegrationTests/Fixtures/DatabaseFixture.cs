@@ -1,4 +1,5 @@
 using System.Data.Common;
+using DotNet.Testcontainers.Containers;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -119,9 +120,18 @@ public sealed class PostgreSqlFixture : DatabaseFixture
 /// <summary>
 /// SQL Server, which differs from PostgreSQL on identifier storage and on default collation.
 /// </summary>
+/// <remarks>
+/// SQL Server's images crash on a few starts in a hundred, more often when several containers start at once, which this
+/// suite does ("Failed to load LSA", microsoft/mssql-docker#974, fixed in SQL Server 2022 CU29 and 2025 CU12). A
+/// container whose server exits while it starts is therefore replaced by a new one, up to <see cref="Starts"/> starts
+/// in all; a crashed one is never restarted, which would reuse what it left half written.
+/// </remarks>
 public class SqlServerFixture : DatabaseFixture
 {
-    private readonly MsSqlContainer _container;
+    private const int Starts = 3;
+
+    private readonly string _image;
+    private MsSqlContainer _container;
 
     /// <summary>Initializes a new instance of the <see cref="SqlServerFixture"/> class, on SQL Server 2022.</summary>
     public SqlServerFixture()
@@ -131,7 +141,11 @@ public class SqlServerFixture : DatabaseFixture
 
     /// <summary>Initializes a new instance of the <see cref="SqlServerFixture"/> class, on the image given.</summary>
     /// <param name="image">The image of the server.</param>
-    protected SqlServerFixture(string image) => _container = new MsSqlBuilder(image).Build();
+    protected SqlServerFixture(string image)
+    {
+        _image = image;
+        _container = new MsSqlBuilder(image).Build();
+    }
 
     /// <inheritdoc />
     public override string ProviderName => "SqlServer";
@@ -165,9 +179,20 @@ public class SqlServerFixture : DatabaseFixture
     /// <inheritdoc />
     protected override async Task<string> StartAsync()
     {
-        await _container.StartAsync();
+        for (var start = 1; ; start++)
+        {
+            try
+            {
+                await _container.StartAsync();
 
-        return _container.GetConnectionString();
+                return _container.GetConnectionString();
+            }
+            catch (ContainerNotRunningException) when (start < Starts)
+            {
+                await _container.DisposeAsync();
+                _container = new MsSqlBuilder(_image).Build();
+            }
+        }
     }
 }
 

@@ -8,6 +8,11 @@ Real servers through Testcontainers, and the sample API of `samples/` end to end
 - `mongo:7.0`, not 8: every MongoDB 8.x refuses to start on a Linux kernel 6.19 or later (SERVER-121912), which GitHub's
   runners now run, so a job fails or passes by the runner it lands on. Move back to `mongo:8.0`, with
   `tests/Compat/MongoDbTests.cs` and the support table, once an 8.x starts there.
+- SQL Server's images crash on a few starts in a hundred, more often when several containers start at once ("Failed to
+  load LSA", microsoft/mssql-docker#974): `SqlServerFixture.StartAsync` replaces a container that exits while it starts
+  (`ContainerNotRunningException`) by a new one, up to three starts, never restarting the crashed one. The island's
+  `SqlServerFixture` (`tests/Compat/DatabaseTests.cs`) and the compiled model's `Program.cs` do the same. Remove the
+  three once `2022-latest` and `2025-latest` carry the fix (SQL Server 2022 CU29, 2025 CU12).
 - Assert column types against `information_schema` (`format_type` for a PostgreSQL array, whose element length only it
   shows), never against what EF Core says it mapped.
 - `Domain/UnderlyingTypes.cs` is linked from the unit suite: a value object added there is stored through a real MongoDB
