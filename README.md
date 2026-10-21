@@ -178,8 +178,10 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.Bogus` | `net10.0` | Bogus 35 | Bogus 35 on .NET 11 |
 | `AdCodicem.ValueObjects.FsCheck` | `net10.0` | FsCheck 3 | FsCheck 3 on .NET 11 |
 
-¹ On the .NET 11 release candidate, by a CI job that installs the packages each commit builds into `net11.0`
-applications, the Swashbuckle package into one of its own. It informs and blocks nothing until .NET 11 ships.
+¹ On the .NET 11 release candidate, by a CI job that installs the packages into `net11.0` applications, the
+Swashbuckle package into one of its own: those of `main` after each push, a newer push cancelling an older one's run,
+and those of every preview and stable release before it is published. A stable release ships only once it passes; a
+preview too, once .NET 11 ships.
 
 ² MongoDB 7.0 until a MongoDB 8 release starts on GitHub's runners: every MongoDB 8.x refuses a Linux kernel 6.19 or
 later ([SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912)), which the runners run since 2026-10-18. The
