@@ -273,10 +273,9 @@ jobs:
   # the job. Then the compiled model of the build job,
   # written for native AOT with its queries precompiled, and published: never
   # run, since two bugs of Entity Framework Core stop its queries. Beside build
-  # rather than after it, as a native publish takes minutes. A required check of
-  # the "Default" ruleset on main, by its name, until the ruleset leaves it to
-  # "build and test", which needs it (ADR 0013): renaming the job leaves every
-  # pull request waiting for it.
+  # rather than after it, as a native publish takes minutes. Blocks a merge
+  # through "build and test", which needs it (ADR 0013), not as a check of the
+  # "Default" ruleset of its own.
   native-aot:
     name: native AOT
     runs-on: ubuntu-latest
@@ -428,13 +427,12 @@ jobs:
       - name: Check the patterns written for browsers
         run: node .github/scripts/ecmascript-patterns.mjs tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json
 
-  # The required check "build and test" of the "Default" ruleset on main, by its name (ADR 0013): it reports the jobs
-  # it needs as one, so that the ruleset can name a single check of this workflow ("native AOT" stays in the ruleset
-  # too until the maintainer takes it out). It runs whatever happened to them, and fails unless each one succeeded: a
-  # job that failed, was cancelled or was skipped fails it, where a required check skipped by its own `if` would read
-  # as a success. A job that must block a merge goes into `needs`, never into the ruleset. Once ADR 0013's plan lands,
-  # the gate also needs it and passes a job the plan left out of its `expected` list. Renaming the job leaves every pull
-  # request waiting for a check that never reports.
+  # The required check "build and test" of the "Default" ruleset on main, by its name (ADR 0013): it reports the jobs it
+  # needs as one, so that the ruleset names a single check of this workflow. It runs whatever happened to them, and
+  # fails unless each one succeeded: a job that failed, was cancelled or was skipped fails it, where a required check
+  # skipped by its own `if` would read as a success. A job that must block a merge goes into `needs`, never into the
+  # ruleset. Once ADR 0013's plan lands, the gate also needs it and passes a job the plan left out of its `expected`
+  # list. Renaming the job leaves every pull request waiting for a check that never reports.
   gate:
     name: build and test
     if: always()

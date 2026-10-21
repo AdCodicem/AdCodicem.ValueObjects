@@ -97,11 +97,12 @@ pip install pre-commit && pre-commit install
    before pushing — CI enforces both, with `--verify-no-changes`.
 6. Open the PR and fill in the template.
 
-Four checks must pass before a pull request merges: **build and test** (`ci.yml`); **native AOT** (`ci.yml`), which
-publishes the applications of `tests/NativeAot` but Marten's with native AOT and fails on a trimming or AOT warning, the
-known ones of protobuf-net's generated code and of Microsoft.AspNetCore.Components aside (each application's
-`aot-warnings.allowed`), or on any difference between the native binary and the JIT; **workflows** (`lint.yml`), which
-runs [actionlint](https://github.com/rhysd/actionlint) over every workflow, the ones that never run on a pull request
+Three checks must pass before a pull request merges: **build and test** (`ci.yml`), which fails unless the build, the
+suites and the pack succeed (**build**) and so does **native AOT**, which publishes the applications of
+`tests/NativeAot` but Marten's with native AOT and fails on a trimming or AOT warning, the known ones of protobuf-net's
+generated code and of Microsoft.AspNetCore.Components aside (each application's `aot-warnings.allowed`), or on any
+difference between the native binary and the JIT; **workflows** (`lint.yml`), which runs
+[actionlint](https://github.com/rhysd/actionlint) over every workflow, the ones that never run on a pull request
 included; and **conventional commits** (`lint.yml`), which checks every commit message of the pull request. `CLAUDE.md`
 has the command to run actionlint locally, and `tests/NativeAot/CLAUDE.md` those of the native AOT scripts, which need
 clang and zlib.

@@ -269,10 +269,11 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   otherwise); a reference with `ReferenceOutputAssembly="false"` brings none of them into the unit suite.
   `Microsoft.CodeAnalysis.Analyzers` sits at Orleans' floor, 5.9.0, and transitive pinning lists it in the Orleans
   package's nuspec (`.github/shipped-dependencies`).
-- **Required checks are job names**: `build and test`, `native AOT` (`ci.yml`), `workflows` and `conventional commits`
-  (`lint.yml`). Renaming one leaves every pull request waiting for a check that never reports. `build and test` is
-  `ci.yml`'s aggregator (`gate`) over the jobs that block a merge (`.github/CLAUDE.md`). `native AOT (Marten)` and
-  `compat (.NET 11)` never become one: ADR 0013 moves them, with `native AOT`, to the jobs that gate a release.
+- **Required checks are job names**: `build and test` (`ci.yml`), `workflows` and `conventional commits` (`lint.yml`).
+  Renaming one leaves every pull request waiting for a check that never reports. `build and test` is `ci.yml`'s
+  aggregator (`gate`) over the jobs that block a merge, `native AOT` among them (`.github/CLAUDE.md`).
+  `native AOT (Marten)` and `compat (.NET 11)` never become one: ADR 0013 moves them, with `native AOT`, to the jobs
+  that gate a release.
 - **No NuGet lock files.** `Microsoft.SourceLink.GitHub` is referenced only under `GITHUB_ACTIONS == 'true'`, so the
   runner's package graph differs from a laptop's and `--locked-mode` fails with NU1004 (ADR 0004).
 - **A pull request of more than 100 commits cannot be rebase-merged**, and `main` takes a linear history landed with
@@ -290,7 +291,7 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 - **IntegrationTests**: PostgreSQL, SQL Server, MongoDB and the Azure Functions host through Testcontainers, and the
   sample API of `samples/` end to end. Needs Docker.
 - **RdgTests**: minimal API endpoints whose binding the Request Delegate Generator writes.
-- `tests/NativeAot` holds applications CI publishes natively and compares with the JIT (the `native AOT` check, and the
+- `tests/NativeAot` holds applications CI publishes natively and compares with the JIT (the `native AOT` job, and the
   `native AOT (Marten)` job for Marten's);
   `tests/Compat` installs the packed packages on the .NET 11 release candidate, outside the solution.
 - Stack: xUnit v3 (`TestContext.Current.CancellationToken`), AwesomeAssertions, NSubstitute, Testcontainers. Versions
