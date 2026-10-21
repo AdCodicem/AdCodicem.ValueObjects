@@ -53,10 +53,6 @@ jobs:
       - name: Generator tests
         run: dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests --no-build -c Release
 
-      # Testcontainers starts PostgreSQL, SQL Server and MongoDB on the runner's Docker daemon.
-      - name: Integration tests
-        run: dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests --no-build -c Release
-
       - name: Request Delegate Generator tests
         run: dotnet test --project tests/AdCodicem.ValueObjects.RdgTests --no-build -c Release
 
@@ -190,6 +186,23 @@ jobs:
         continue-on-error: true
         run: .github/scripts/preview-gate.sh --report
 
+  # The heavy jobs (heavy.yml) on the commit the suites test, compat (.NET 11)
+  # installing the very packages the release job pushes, by the id of their
+  # artifact, and blocking the release whatever the .NET 11 it targets (ADR
+  # 0013). Not on a dry run, which publishes nothing, nor when nothing was
+  # packed. Before the release job, so that the nuget-stable reviewer is asked
+  # only once they passed.
+  heavy:
+    name: heavy
+    needs: pack
+    if: ${{ !inputs.dry_run && needs.pack.outputs.release == 'true' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/heavy.yml
+    with:
+      packages-artifact-id: ${{ needs.pack.outputs.packages-artifact-id }}
+      compat-blocks: true
+
   # Builds nothing and runs no build code: it checks the pack job's files,
   # then semantic-release commits the changelog and the documentation, tags,
   # pushes the packages and drafts the GitHub Release. What third-party code is
@@ -197,11 +210,15 @@ jobs:
   # .NET SDK's `dotnet nuget push`.
   release:
     name: ${{ inputs.dry_run && 'dry run' || 'publish' }}
-    # Waits for the warning to be on the run page, but only the tests and the
-    # pack can stop the release: a failure anywhere in the previewed job, not
-    # only in its check, must not block it.
-    needs: [test, pack, previewed]
-    if: ${{ !cancelled() && needs.test.result == 'success' && needs.pack.result == 'success' }}
+    # Waits for the warning to be on the run page, but only the tests, the pack
+    # and the heavy jobs can stop the release: a failure anywhere in the
+    # previewed job, not only in its check, must not block it. The heavy jobs
+    # are skipped on a dry run and when nothing was packed, and then only.
+    needs: [test, pack, previewed, heavy]
+    if: >-
+      ${{ !cancelled() && needs.test.result == 'success' && needs.pack.result == 'success' &&
+      (needs.heavy.result == 'success' ||
+      (needs.heavy.result == 'skipped' && (inputs.dry_run || needs.pack.outputs.release != 'true'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # A separate environment from preview.yml's publish job: this is the one gated

@@ -170,10 +170,6 @@ jobs:
       - name: Generator tests
         run: dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests --no-build -c Release
 
-      # Testcontainers starts PostgreSQL, SQL Server and MongoDB on the runner's Docker daemon.
-      - name: Integration tests
-        run: dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests --no-build -c Release
-
       - name: Request Delegate Generator tests
         run: dotnet test --project tests/AdCodicem.ValueObjects.RdgTests --no-build -c Release
 
@@ -237,11 +233,27 @@ jobs:
           if-no-files-found: error
           overwrite: true
 
+  # The heavy jobs (heavy.yml) on the commit the suites test, compat (.NET 11)
+  # installing the very packages the publish job pushes, by the id of their
+  # artifact. compat only informs until .NET 11 ships; from then on it blocks a
+  # preview too (ADR 0013): set compat-blocks then.
+  heavy:
+    name: heavy
+    needs: [plan, pack]
+    if: needs.plan.outputs.mode != 'none'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/heavy.yml
+    with:
+      ref: ${{ needs.plan.outputs.ref }}
+      packages-artifact-id: ${{ needs.pack.outputs.artifact-id }}
+      compat-blocks: false
+
   publish:
     name: publish to nuget.org
-    needs: [plan, test, pack]
-    # No status function, so success() is implied: plan, test and pack must all
-    # have succeeded.
+    needs: [plan, test, pack, heavy]
+    # No status function, so success() is implied: plan, test, pack and heavy
+    # must all have succeeded.
     if: needs.plan.outputs.mode != 'none'
     runs-on: ubuntu-latest
     # The push, then up to 30 minutes for nuget.org to list it.
@@ -337,7 +349,7 @@ jobs:
   # (docs/adr/0005-version-the-documentation-site.md).
   docs:
     name: publish preview documentation
-    needs: [plan, test, pack, publish]
+    needs: [plan, test, pack, heavy, publish]
     if: >-
       ${{ !cancelled() && needs.plan.result == 'success' &&
       !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
