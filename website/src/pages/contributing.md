@@ -38,10 +38,13 @@ Testcontainers, so they need a Docker daemon; the Functions host's image exists 
 
 ## Coverage
 
-CI uploads the coverage of all four suites to [Codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects),
-which reports on each pull request against two floors set in `codecov.yml`: 95 % of the lines the pull request
-changes, a partial line counting as missed, and the project's coverage down by half a point at most. Only `src/` is
-measured. The floor is not the aim; 100 % of each patch is, under a rule that keeps the number honest
+CI uploads the coverage of the unit, generator and RDG suites to
+[Codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects) on every pull request, and the integration suite's
+with the heavy jobs, after the merge or on a pull request labelled `ci:heavy`, so that the few lines only that suite
+covers count as missed on any other pull request. Codecov reports on each pull request against two floors set in
+`codecov.yml`: 95 % of the lines the pull request changes, a partial line counting as missed, and the project's coverage
+down by half a point at most. Only `src/` is measured. The floor is not the aim; 100 % of each patch is, under a rule
+that keeps the number honest
 ([ADR-0006](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0006-coverage-is-a-signal-not-a-goal.md)):
 
 - every member that is not private is covered as far as it can be — through a natural input where one reaches it

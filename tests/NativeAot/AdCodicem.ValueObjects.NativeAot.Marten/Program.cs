@@ -1,8 +1,8 @@
 // Runs a fixed script over a Marten document store on PostgreSQL and writes one line per scenario to the file it is
-// given. ci.yml's native AOT job runs it once under the JIT (dotnet run) and once as the native binary, against the
-// PostgreSQL service container NATIVE_AOT_POSTGRES names, then diffs the two files, as for AdCodicem.ValueObjects.NativeAot:
-// a difference is a behaviour native AOT changes, and fails the job. The process also fails on its own when a scenario
-// throws where neither run should.
+// given. heavy.yml's native AOT (Marten) job runs it once under the JIT (dotnet run) and once as the native binary,
+// against the PostgreSQL service container NATIVE_AOT_POSTGRES names, then diffs the two files, as for
+// AdCodicem.ValueObjects.NativeAot: a difference is a behaviour native AOT changes, and fails the job. The process also
+// fails on its own when a scenario throws where neither run should.
 using System.Globalization;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;

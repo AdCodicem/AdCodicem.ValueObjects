@@ -16,9 +16,9 @@ Each run says what it decided. The **compute the version** job prints the versio
 next release, and **decide what to publish** writes a summary, *Preview: publish*, *repair* or *none*, with the
 reason and the package inputs that changed:
 
-- **publish**: the tests run on `HEAD`, the pack job packs it at `<next release>-preview.<commits since the last
-  stable tag>`, `heavy.yml` runs native AOT, Marten's, the integration suite and the .NET 11 island over those
-  packages, and the publish job attests and pushes it. Count about 25 minutes, Marten's native AOT job setting the
+- **publish**: the tests run on `HEAD`, the pack job packs it at `<next release>-preview.<commits since the last stable
+  tag>`, `heavy.yml` runs native AOT, Marten's and the integration suite on that commit, and the .NET 11 island over
+  those packages, and the publish job attests and pushes it. Count about 25 minutes, Marten's native AOT job setting the
   time.
 - **repair**: a previous push stopped midway, so nuget.org has the base version for some packages only. The run
   packs that commit again at that version, tests included, and pushes only the missing packages. Whatever `HEAD`
@@ -30,10 +30,13 @@ describes the commit it builds. A run with a failed or cancelled job deploys not
 
 ### When a run is red
 
-- **A heavy job failed** (`heavy / native AOT`, `heavy / native AOT (Marten)`, `heavy / integration tests`): nothing
-  was published. The same job on `main`, run by `heavy.yml` after the merge, has usually shown it first, on the commit
-  that broke it. Fix it on `main` and dispatch again; **Re-run failed jobs** helps only with a job that died before its
-  tests ran. `heavy / compat (.NET 11)` only informs until .NET 11 ships ([below](#the-net-compatibility-island)).
+- **A heavy job failed** (`heavy / native AOT`, `heavy / native AOT (Marten)`, `heavy / integration tests`): nothing was
+  published. The same job on `main`, run by `heavy.yml` after the merge, has usually shown it first. Fix it on `main`
+  and dispatch again; **Re-run failed jobs** helps only with a job that died before its tests ran. A **repair** run
+  tests the base commit, whose code no fix on `main` changes: complete that version instead, with **Re-run failed jobs**
+  on the publish job of the run that stopped midway, or by pushing the missing packages of its `packages-<version>`
+  artifact by hand, dependencies first, then dispatch again. A failed test of `heavy / compat (.NET 11)`, or its .NET 11
+  SDK failing to install, only informs until .NET 11 ships ([below](#the-net-compatibility-island)).
 - **The publish job failed.** Use **Re-run failed jobs** on that run. It pushes the same bytes, already tested and
   attested, and only what nuget.org still lacks. If a newer run has published since, its recheck refuses ("something
   was published since"): dispatch `preview.yml` instead, which decides again.
@@ -63,9 +66,11 @@ offering the higher one as the latest prerelease until a higher version ships.
 ### Routines
 
 - **After a merge**, `heavy.yml` runs on `main`: native AOT, Marten's, the integration suite and the .NET 11 island,
-  which no pull request runs unless labelled `ci:heavy`. A red run there names the commit that broke it, and holds back
-  the next preview, which runs the same jobs. Label a pull request `ci:heavy`, then push to it, when it touches native
-  AOT, a store, the sample API or the island; the label is read when a run starts, so **Re-run jobs** does not see it.
+  which no pull request runs unless it is labelled `ci:heavy` or Dependabot opened it to update a NuGet package. A newer
+  push cancels an older one's run, so a red run names the tip of the push it tested, which may be later than the commit
+  that broke it; it also holds back the next preview, which runs the same jobs. Label a pull request `ci:heavy`, then
+  push to it, when it touches native AOT, a store, the sample API or the island; the label is read when a run starts, so
+  **Re-run jobs** does not see it.
 - **Before a stable release**, dispatch `preview.yml` if package inputs changed since the last preview, and start the
   release once that run is green (see [Cutting a stable release](#cutting-a-stable-release)).
 - **After merging a security update of a dependency the packages ship**, dispatch `preview.yml` rather than wait for
@@ -146,8 +151,9 @@ previewed** job warns on the run page when the release ships package inputs that
 it never blocks the release, and it runs before the release job so that its warning is there when the `nuget-stable`
 reviewer approves. The **suites**, **pack** and **heavy** jobs must pass: the release job waits for all three. The
 pack job, which holds no credential, packs only the packable projects under `src/` and freezes the documentation;
-**heavy** runs `heavy.yml` on the same commit, native AOT, Marten's, the integration suite and the .NET 11 island over
-the packed packages, compat blocking the release whatever .NET 11 it targets, and is skipped on a dry run; the release
+**heavy** runs `heavy.yml` on the same commit, native AOT, Marten's and the integration suite built from it and the
+.NET 11 island over the packed packages, compat blocking the release whatever .NET 11 it targets, and is skipped on a
+dry run; the release
 job builds nothing, checks what the pack job produced against its digests, and pushes it. Count about 25 minutes
 before the `nuget-stable` reviewer is asked: Marten's native AOT job sets that time.
 
@@ -205,7 +211,7 @@ to `CHANGELOG.md` for a preview, which has no release of its own (`src/Directory
 |---|---|---|
 | Allow auto-merge | Settings → General → Pull Requests | `dependabot-auto-merge.yml` runs green and merges nothing. |
 | Squash merging allowed, with the pull request title as its default commit message, beside rebase merging | Settings → General → Pull Requests | A Dependabot pull request retitled `fix(deps)` lands as Dependabot's `chore(deps)` commit and releases nothing. Rebase merging stays the way every other pull request lands. |
-| Required status checks **`build and test`** (`ci.yml`), **`workflows`** and **`conventional commits`** (`lint.yml`), and no code coverage rule | Settings → Rules → Rulesets → `Default` (id 23842638) | Auto-merge can merge a red build, or one that breaks native AOT, and a red `fix(deps)` would then release a broken patch. The checks are job names: renaming any of these jobs leaves every pull request waiting for a check that never reports. **`build and test`** is `ci.yml`'s aggregator, which fails unless its plan and every job the plan expects succeeded: the `build` job (build, suites, pack), and `heavy.yml` on a pull request labelled `ci:heavy` or a Dependabot NuGet update ([ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)). A job that must block a merge goes into its `needs`, never into this list. The jobs of `heavy.yml` (`native AOT`, `native AOT (Marten)`, `integration tests`, `compat (.NET 11)`) never join them: they run after the merge, and gate every preview and stable release. No workflow reports coverage to GitHub, so a code coverage rule would measure nothing: Codecov's `codecov/patch` and `codecov/project` are the coverage signal ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
+| Required status checks **`build and test`** (`ci.yml`), **`workflows`** and **`conventional commits`** (`lint.yml`), and no code coverage rule | Settings → Rules → Rulesets → `Default` (id 23842638) | Auto-merge can merge a red build, or one that breaks native AOT, and a red `fix(deps)` would then release a broken patch. The checks are job names: renaming any of these jobs leaves every pull request waiting for a check that never reports. **`build and test`** is `ci.yml`'s aggregator, which fails unless its plan and every job the plan expects succeeded: the `build` job (build, suites, pack), and `heavy.yml` on a pull request labelled `ci:heavy` or a Dependabot NuGet update ([ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)). A job that must block a merge goes into its `needs`, never into this list. The jobs of `heavy.yml` (`native AOT`, `native AOT (Marten)`, `integration tests`, `compat (.NET 11)`) never join them: they run after the merge, and gate every stable release, and every preview but compat, which gates previews once .NET 11 ships. No workflow reports coverage to GitHub, so a code coverage rule would measure nothing: Codecov's `codecov/patch` and `codecov/project` are the coverage signal ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
 | Allow GitHub Actions to create and approve pull requests | Settings → Actions → General | Not needed for auto-merge, but required if a workflow is ever made to open PRs. |
 | Discussions | Settings → General → Features | `.github/DISCUSSION_TEMPLATE/q-a.yml` and the issue-template link to Discussions go nowhere. |
 | Pages source: GitHub Actions | Settings → Pages | `deploy-docs.yml` uploads an artifact that is never served. |

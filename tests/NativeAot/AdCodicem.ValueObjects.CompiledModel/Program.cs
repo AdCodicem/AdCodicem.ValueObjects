@@ -1,4 +1,4 @@
-// A round trip through SQL Server, under the model the project is built with: the compiled one that ci.yml has
+// A round trip through SQL Server, under the model the project is built with: the compiled one that heavy.yml has
 // `dotnet ef dbcontext optimize` write, when it builds with CompiledModel=jit. The relaxed context writes a shipment
 // holding every value object and another leaving every optional one out, both contexts read them back and filter on
 // them, collections of value objects included, on .Value too, which UseValueObjectQueries() translates to the column, and
