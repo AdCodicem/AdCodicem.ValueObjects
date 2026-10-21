@@ -295,13 +295,15 @@ jobs:
   # global.json, so the SDK it needs is installed from there and everything runs
   # from its folder. It only informs unless the caller sets compat-blocks:
   # release.yml always does, preview.yml once .NET 11 ships (ADR 0013). Informing,
-  # a failed test step leaves the job green with a warning on the run, since how a
-  # caller reads a job that fails under job-level continue-on-error is not
-  # documented. Never a required check of a pull request.
+  # a failed install of the island's SDK or a failed test step leaves the job
+  # green with a warning on the run, since how a caller reads a job that fails
+  # under job-level continue-on-error is not documented; each test step has a
+  # time limit of its own below the job's, so that a hang fails the step, not the
+  # job. Never a required check of a pull request.
   compat:
     name: compat (.NET 11)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     concurrency:
       group: heavy-${{ github.event_name == 'push' && github.ref || github.run_id }}-compat
       cancel-in-progress: ${{ github.event_name == 'push' }}
@@ -352,6 +354,8 @@ jobs:
           echo "version=${version#AdCodicem.ValueObjects.}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        id: sdk
+        continue-on-error: ${{ !inputs.compat-blocks }}
         with:
           global-json-file: tests/Compat/global.json
 
@@ -360,6 +364,7 @@ jobs:
       - name: Compatibility tests
         id: compat
         continue-on-error: ${{ !inputs.compat-blocks }}
+        timeout-minutes: 15
         working-directory: tests/Compat
         env:
           ADCODICEM_VERSION: ${{ steps.version.outputs.version }}
@@ -377,6 +382,7 @@ jobs:
         id: swashbuckle
         if: (success() || failure()) && steps.version.outcome == 'success'
         continue-on-error: ${{ !inputs.compat-blocks }}
+        timeout-minutes: 5
         working-directory: tests/Compat
         env:
           ADCODICEM_VERSION: ${{ steps.version.outputs.version }}
@@ -387,7 +393,9 @@ jobs:
           --report-trx --report-trx-filename compat-swashbuckle.trx
 
       - name: It only informs
-        if: ${{ !cancelled() && !inputs.compat-blocks && (steps.compat.outcome == 'failure' || steps.swashbuckle.outcome == 'failure') }}
+        if: >-
+          ${{ !cancelled() && !inputs.compat-blocks && (steps.sdk.outcome == 'failure' ||
+          steps.compat.outcome == 'failure' || steps.swashbuckle.outcome == 'failure') }}
         run: |
           echo "::warning title=compat (.NET 11)::The packages fail on .NET 11 (see the steps above). This run only informs; release.yml blocks on it, and preview.yml will once .NET 11 ships."
           echo "compat (.NET 11) failed and only informs: see its test steps." >> "$GITHUB_STEP_SUMMARY"

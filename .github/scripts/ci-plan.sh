@@ -8,8 +8,9 @@
 #   EVENT_NAME  github.event_name: pull_request or push.
 #   LABELS      the pull request's labels as the event carries them, when the run starts: a label added later is not
 #               seen, not even by "Re-run jobs", until a push starts a new run.
-#   AUTHOR      the login that opened the pull request, never github.actor, which is whoever pushed last: the maintainer
-#               pushing a line of .github/shipped-dependencies to a Dependabot branch would otherwise drop the heavy jobs.
+#   AUTHOR      the login that opened the pull request, never github.actor, which is whoever pushed last: the
+#               maintainer pushing a line of .github/shipped-dependencies to a Dependabot branch would otherwise drop
+#               the heavy jobs.
 #   HEAD_REF    its branch.
 #   HEAD_REPO   the repository its branch lives in, and REPOSITORY this one: a fork's branch named dependabot/nuget/...
 #               is not Dependabot's.
@@ -66,11 +67,15 @@ if [[ "$heavy" == true ]]; then
   expected='["build","heavy"]'
 fi
 
-# The heavy jobs' own inputs, what only they build or run, Markdown aside. The build job compiles them and runs none.
+# The heavy jobs' own inputs, what only they build or run, Markdown aside. The build job compiles them, tests/Compat/
+# aside, which is in no solution, and runs none of them.
+heavy_paths='^(tests/NativeAot/|tests/Compat/|tests/AdCodicem\.ValueObjects\.IntegrationTests/'
+heavy_paths+='|tests/Fixtures/AdCodicem\.ValueObjects\.Fixtures\.Functions/|samples/'
+heavy_paths+='|\.github/scripts/(native-aot|compiled-model)\.sh$|\.github/workflows/heavy\.yml$)'
 heavy_inputs=()
 if [[ "$event" == pull_request && "$heavy" == false ]]; then
   if changed="$(git diff --name-only HEAD^1 HEAD 2> /dev/null)"; then
-    mapfile -t heavy_inputs < <(grep -E '^(tests/NativeAot/|tests/Compat/|tests/AdCodicem\.ValueObjects\.IntegrationTests/|samples/|\.github/scripts/(native-aot|compiled-model)\.sh$|\.github/workflows/heavy\.yml$)' <<<"$changed" | grep -v '\.md$' || true)
+    mapfile -t heavy_inputs < <(grep -E "$heavy_paths" <<<"$changed" | grep -v '\.md$' || true)
   else
     echo "::warning::The files this pull request changes could not be read (the checkout needs a depth of 2)." >&2
   fi
