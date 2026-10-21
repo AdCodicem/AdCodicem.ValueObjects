@@ -2,13 +2,16 @@
 # Compiles the model of tests/NativeAot/AdCodicem.ValueObjects.CompiledModel with `dotnet ef dbcontext optimize`, for
 # its relaxed context and its strict one, and builds the project on it.
 #
-# Usage: compiled-model.sh jit|aot
+# Usage: compiled-model.sh compile|jit|aot
 #
-#   jit  The model `optimize` writes by default. The project builds on it and runs: a round trip through SQL Server,
-#        started in a container (Docker), which fails on a value read back different from the one written.
-#   aot  The model `optimize --nativeaot` writes, with the queries of the project precompiled. The project is published
-#        with native AOT and fails on a trimming or AOT warning about this library's code; Entity Framework Core's own,
-#        and its dependencies', are expected. The binary is not run: two bugs of Entity Framework Core stop its queries.
+#   compile  The model `optimize` writes by default, and the project built on it, without running it: no database, no
+#            Docker. What a pull request runs, since a model that no longer compiles is what this has caught.
+#   jit      The same model and build, then a run: a round trip through SQL Server, started in a container (Docker),
+#            which fails on a value read back different from the one written.
+#   aot      The model `optimize --nativeaot` writes, with the queries of the project precompiled. The project is
+#            published with native AOT and fails on a trimming or AOT warning about this library's code; Entity Framework
+#            Core's own, and its dependencies', are expected. The binary is not run: two bugs of Entity Framework Core
+#            stop its queries.
 #
 # The model is written under artifacts/compiled-model/, never committed. `optimize` connects to no database. Run it
 # from anywhere in the repository.
@@ -19,16 +22,18 @@ cd "$(dirname "$0")/../.."
 variant="${1:-}"
 project=tests/NativeAot/AdCodicem.ValueObjects.CompiledModel
 namespace=AdCodicem.ValueObjects.CompiledModel.Compiled
-out="$PWD/artifacts/compiled-model/$variant"
 
+# The model, which the project compiles in from artifacts/compiled-model/<model>/ when built with CompiledModel=<model>:
+# compile and jit both write the jit model, compile only builds the project on it, and jit runs it.
 case "$variant" in
-  jit) relaxed=() strict=() ;;
-  aot) relaxed=(--nativeaot --precompile-queries) strict=(--nativeaot) ;;
+  compile | jit) model=jit relaxed=() strict=() ;;
+  aot) model=aot relaxed=(--nativeaot --precompile-queries) strict=(--nativeaot) ;;
   *)
-    echo "Usage: compiled-model.sh jit|aot" >&2
+    echo "Usage: compiled-model.sh compile|jit|aot" >&2
     exit 2
     ;;
 esac
+out="$PWD/artifacts/compiled-model/$model"
 
 rm -rf "$out"
 dotnet tool restore
@@ -47,6 +52,10 @@ dotnet ef dbcontext optimize --project "$project" --configuration Release --no-b
   --context StrictShopContext --output-dir "$out/Strict" --namespace "$namespace.Strict" "${strict[@]}"
 echo "::endgroup::"
 
+if [[ "$variant" == compile ]]; then
+  dotnet build "$project" -c Release -p:CompiledModel=jit
+  exit 0
+fi
 if [[ "$variant" == jit ]]; then
   dotnet run --project "$project" -c Release -p:CompiledModel=jit
   exit 0

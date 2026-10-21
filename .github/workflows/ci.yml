@@ -23,13 +23,37 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  # The build, the four suites and the pack. Reported as "build"; the required check "build and test" is the
-  # aggregator at the end of this file, which needs this job.
+  # Which jobs this run calls, and which of them the gate holds to success (ADR 0013): heavy.yml on a pull request
+  # labelled ci:heavy or a Dependabot NuGet update, and on none otherwise, since it runs on its own push to main.
+  # .github/scripts/ci-plan.sh has the rules. The depth of 2 gives it the merge commit's parents, against which it reads
+  # the files a pull request changes.
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      heavy: ${{ steps.plan.outputs.heavy }}
+      expected: ${{ steps.plan.outputs.expected }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Plan
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: .github/scripts/ci-plan.sh
+
+  # The build, three suites, the compiled model and the pack. Reported as "build"; the required check "build and test"
+  # is the aggregator at the end of this file, which needs this job. The integration suite runs in heavy.yml.
   build:
     name: build
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.packed.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -75,19 +99,6 @@ jobs:
           --report-trx --report-trx-filename generator.trx
           --coverage --coverage-output-format cobertura --coverage-output generator.cobertura.xml
 
-      # The runner ships a Docker daemon, which is what Testcontainers needs to start
-      # PostgreSQL, SQL Server and MongoDB for the persistence and API tests. It pulls
-      # SQL Server 2025 beside 2022, for the CHECK constraints of patterns alone:
-      # REGEXP_LIKE exists from SQL Server 2025 on. It also pulls the Azure Functions
-      # host's dotnet-isolated image, amd64 only, and Azurite, which run the Functions
-      # application the build wrote for the worker's bindings.
-      - name: Integration tests
-        run: >-
-          dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests
-          --no-build -c Release
-          --report-trx --report-trx-filename integration.trx
-          --coverage --coverage-output-format cobertura --coverage-output integration.cobertura.xml
-
       # Minimal API endpoints whose binding the Request Delegate Generator writes,
       # as it does in every build under PublishAot or PublishTrimmed, over value
       # objects declared in the endpoints' own project: the case where it cannot
@@ -101,17 +112,18 @@ jobs:
 
       # `dotnet ef dbcontext optimize` turns a model mapping every value object
       # into code that names each converter and comparer, which only this
-      # catches when it no longer compiles. The project then builds on it and
-      # takes it on a round trip through SQL Server, started by Testcontainers.
-      # The native AOT job compiles the same model for native AOT.
+      # catches when it no longer compiles. The project then builds on it, with
+      # no database: heavy.yml takes the same model on a round trip through SQL
+      # Server, and compiles it for native AOT.
       - name: Compiled model
-        run: .github/scripts/compiled-model.sh jit
+        run: .github/scripts/compiled-model.sh compile
 
-      # All four suites, because they cover genuinely different surfaces: the
-      # typed path, the generator, the integrations against real engines, and
-      # minimal API binding as the Request Delegate Generator writes it.
-      # Coverage from the unit suite alone would flatter the descriptor and the
-      # database mappings, which is exactly where defects have hidden before.
+      # The three suites, because they cover genuinely different surfaces: the
+      # typed path, the generator, and minimal API binding as the Request
+      # Delegate Generator writes it. Coverage from the unit suite alone would
+      # flatter the descriptor, which is exactly where defects have hidden
+      # before. The integration suite's report, against real engines, comes from
+      # heavy.yml, for the same commit on main.
       - name: Upload coverage
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
@@ -135,7 +147,6 @@ jobs:
       # be missing from every preview and release. Caught here, on the pull request that adds
       # it, rather than when a preview or a release packs.
       - name: Every packable project is packed
-        id: packed
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -147,7 +158,6 @@ jobs:
           version="$(basename "${main[0]}" .nupkg)"
           version="${version#AdCodicem.ValueObjects.}"
           ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "$version" "$(.github/scripts/package-ids.sh)"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       # .github/shipped-dependencies decides which Dependabot updates land as
       # fix(deps) and release (dependabot-auto-merge.yml): it has to name every
@@ -167,234 +177,21 @@ jobs:
           name: packages
           path: artifacts/packages/*.*nupkg
 
-  # The packages this commit packed, installed into an application on the next .NET
-  # major (tests/Compat): the generator in its compiler, Entity Framework Core 11 on
-  # SQLite, SQL Server and PostgreSQL, System.Text.Json source generation, ASP.NET Core
-  # model binding, on System.Text.Json and on Newtonsoft.Json, minimal API problem
-  # details, MongoDB.Driver on MongoDB 7.0, Marten 9.50 on PostgreSQL 17, its LINQ, a duplicated field and a compiled
-  # query's collection, MessagePack, with SignalR's MessagePack hub protocol over TestHost,
-  # protobuf-net and a protobuf-net.Grpc code-first service over TestHost, a contract-first gRPC
-  # service with the gRPC package's interceptor and collector over TestHost, Orleans' serializer, Serilog,
-  # Microsoft.Extensions.AI tools and structured output, Model Context Protocol tools over in-process streams, the Azure
-  # Functions worker's converter and problem details middleware, HotChocolate 16 scalars in process and
-  # HotChocolate.Data filters over Entity Framework Core 11 on SQLite, a Blazor input
-  # rendered by HtmlRenderer on the next major's Components, System.CommandLine 3.0's
-  # release candidate parsing options and arguments of value objects, CsvHelper 33.1
-  # reading and writing value objects as columns, Wolverine.Http 6.51 endpoints in
-  # Wolverine's dynamic mode over TestHost, NSwag documents
-  # and Confluent's JSON serdes over NJsonSchema, the contract kit and the test-data packages over AutoFixture, Bogus
-  # and FsCheck, and Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3, and Swashbuckle 10
-  # over Microsoft.OpenApi 2 in a project of its own. The island has its own global.json, so the SDK it needs
-  # is installed from there and everything runs from its folder. Never a required check
-  # (ADR 0013 makes it a release gate), and deliberately not continue-on-error: a break
-  # shows red on the pull request.
-  compat:
-    name: compat (.NET 11)
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      # Where tests/Compat/nuget.config looks for them, the one source it takes them from.
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: packages
-          path: artifacts/packages
-
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: tests/Compat/global.json
-
-      # From the island's folder, so that its global.json selects the SDK and the test
-      # runner. The version is the one the build job packed, never floated: the island
-      # restores exactly that version, from artifacts/packages only. The containers need
-      # Docker, which the runner has.
-      - name: Compatibility tests
-        working-directory: tests/Compat
-        env:
-          ADCODICEM_VERSION: ${{ needs.build.outputs.version }}
-        run: >-
-          dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj
-          -c Release
-          -p:AdCodicemVersion="$ADCODICEM_VERSION"
-          --report-trx --report-trx-filename compat.trx
-
-      # Swashbuckle 10 fails on the Microsoft.OpenApi 3 that Microsoft.AspNetCore.OpenApi 11
-      # brings into the project above, so the Swashbuckle package has a project of its own,
-      # where Microsoft.OpenApi resolves to the package's floor. Run even when the first
-      # step failed, so that each break shows.
-      - name: Compatibility tests, Swashbuckle
-        if: success() || failure()
-        working-directory: tests/Compat
-        env:
-          ADCODICEM_VERSION: ${{ needs.build.outputs.version }}
-        run: >-
-          dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj
-          -c Release
-          -p:AdCodicemVersion="$ADCODICEM_VERSION"
-          --report-trx --report-trx-filename compat-swashbuckle.trx
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: compat-test-results
-          path: tests/Compat/**/*.trx
-
-  # The packages that claim to be AOT-compatible, in an application published
-  # with native AOT (tests/NativeAot), all but the two HotChocolate packages, whose
-  # framework warns on its own publish and starts natively only rooted, and whose
-  # HotChocolate.Data filtering of a struct has no native code, the Orleans
-  # package, since Orleans does not start natively, the CsvHelper package,
-  # whose CsvHelper record API has no native code, the protobuf-net package,
-  # published in an application of its own, and the Marten package, which the
-  # next job publishes: the contracts,
-  # the generated code, the
-  # JSON package with a source-generated context and the JSON Schema it exports,
-  # the identifiers and FluentValidation, every value object reached through the
-  # visitor its descriptor accepts, and over Kestrel through the Request
-  # Delegate Generator, the minimal API problem details included, the Serilog
-  # policy and enricher, the Microsoft.Extensions.AI tools and response
-  # format, the Model Context Protocol tools of a server in process, a
-  # contract-first gRPC service over Kestrel's cleartext HTTP/2, and a Blazor
-  # form of every registered value object through HtmlRenderer, whose
-  # framework's own two assembly-level warnings are listed as expected, a
-  # System.CommandLine command of every registered value object, and
-  # Wolverine.Http endpoints in Wolverine's static mode, over the code the
-  # script has codegen write write first. The
-  # analyzers
-  # see what each library calls; this runs it, once under the JIT and once as
-  # the native binary, and a trimming or AOT warning, or any difference between
-  # the two outputs, fails the job. Then protobuf-net's compile-time model, the
-  # same way in an application of its own, whose generated code protobuf-net's
-  # annotations make warn: those warnings, listed, are expected, any other fails
-  # the job. Then the compiled model of the build job,
-  # written for native AOT with its queries precompiled, and published: never
-  # run, since two bugs of Entity Framework Core stop its queries. Beside build
-  # rather than after it, as a native publish takes minutes. Blocks a merge
-  # through "build and test", which needs it (ADR 0013), not as a check of the
-  # "Default" ruleset of its own.
-  native-aot:
-    name: native AOT
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # MinVer runs when the projects under src/ build, and reads the tag
-          # history, which a shallow clone does not have.
-          fetch-depth: 0
-          persist-credentials: false
-
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      # What the native AOT compiler links with on Linux. The runner image ships
-      # both; they are installed only if it no longer does.
-      - name: Native toolchain
-        run: |
-          if ! command -v clang > /dev/null || ! dpkg -s zlib1g-dev > /dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install --yes --no-install-recommends clang zlib1g-dev
-          fi
-
-      # Records the size of the binary in the job summary, with no threshold.
-      - name: Application
-        run: .github/scripts/native-aot.sh
-
-      # protobuf-net's compile-time model, in an application of its own: protobuf-net's
-      # annotations reach the nested converters every value object carries, and
-      # its publish warns at each call into the model it generates. The script
-      # fails on any other warning (the project's aot-warnings.allowed).
-      - name: protobuf-net application
-        run: .github/scripts/native-aot.sh artifacts/native-aot-protobuf tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet
-
-      - name: Compiled model
-        run: .github/scripts/compiled-model.sh aot
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: native-aot
-          path: |
-            artifacts/native-aot/*.txt
-            artifacts/native-aot/*.diff
-            artifacts/native-aot/*.log
-            artifacts/native-aot-protobuf/*.txt
-            artifacts/native-aot-protobuf/*.diff
-            artifacts/native-aot-protobuf/*.log
-            artifacts/compiled-model/*.log
-
-  # The Marten package in an application of its own published with native AOT
-  # (tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Marten): a Marten document
-  # store against the PostgreSQL service container below, run once under the JIT
-  # and once as the native binary, as the job above runs its applications. Its
-  # publish warns for Marten, JasperFx, Weasel and FastExpressionCompiler
-  # themselves: those warnings, listed, are expected; any other, or any difference
-  # between the two outputs, fails the job. A job of its own, so that the required
-  # check above keeps its duration: the native AOT compiler alone takes about 20
-  # minutes over Marten, on one core, and the script took 17.5 to 24 minutes on a
-  # warm 4-core machine, where the job above takes about 6. The runner restores
-  # and builds from nothing first, so 45 minutes leaves about half again over the
-  # slowest run measured. Never a required check (ADR 0013 makes it a release gate):
-  # a red run shows on the pull request without blocking the merge.
-  native-aot-marten:
-    name: native AOT (Marten)
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    # The server the Marten application stores its documents in, the image the
-    # integration suite starts, ready before the first step.
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # MinVer runs when the projects under src/ build, and reads the tag
-          # history, which a shallow clone does not have.
-          fetch-depth: 0
-          persist-credentials: false
-
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      # What the native AOT compiler links with on Linux. The runner image ships
-      # both; they are installed only if it no longer does.
-      - name: Native toolchain
-        run: |
-          if ! command -v clang > /dev/null || ! dpkg -s zlib1g-dev > /dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install --yes --no-install-recommends clang zlib1g-dev
-          fi
-
-      # The script fails on any warning the project's aot-warnings.allowed does not
-      # list, and records the size of the binary in the job summary.
-      - name: Marten application
-        env:
-          NATIVE_AOT_POSTGRES: Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres
-        run: .github/scripts/native-aot.sh artifacts/native-aot-marten tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Marten
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: native-aot-marten
-          path: |
-            artifacts/native-aot-marten/*.txt
-            artifacts/native-aot-marten/*.diff
-            artifacts/native-aot-marten/*.log
+  # The jobs too slow for every pull request (heavy.yml): native AOT, native AOT
+  # (Marten), the integration suite and compat (.NET 11), on the commit this run
+  # tests, when the plan calls them. Never on a push: heavy.yml runs on main's
+  # pushes by itself, where a newer push cancels an older one's jobs.
+  heavy:
+    name: heavy
+    needs: plan
+    if: needs.plan.outputs.heavy == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/heavy.yml
+    with:
+      coverage: true
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   # The documentation site, built as deploy-docs.yml builds it and deployed by
   # nobody. ci.yml deploys nothing since preview.yml took the site over, so a broken
@@ -429,30 +226,43 @@ jobs:
 
   # The required check "build and test" of the "Default" ruleset on main, by its name (ADR 0013): it reports the jobs it
   # needs as one, so that the ruleset names a single check of this workflow. It runs whatever happened to them, and
-  # fails unless each one succeeded: a job that failed, was cancelled or was skipped fails it, where a required check
-  # skipped by its own `if` would read as a success. A job that must block a merge goes into `needs`, never into the
-  # ruleset. Once ADR 0013's plan lands, the gate also needs it and passes a job the plan left out of its `expected`
-  # list. Renaming the job leaves every pull request waiting for a check that never reports.
+  # fails unless the plan succeeded and each job of the plan's `expected` list succeeded: a job of that list that
+  # failed, was cancelled or was skipped fails it, where a required check skipped by its own `if` would read as a
+  # success. It passes a job the plan left out, which the job's own `if` skips. A job that must block a merge goes into
+  # `needs`, and into the plan's `expected` when it runs, never into the ruleset. Renaming the job leaves every pull
+  # request waiting for a check that never reports.
   gate:
     name: build and test
     if: always()
-    needs: [build, native-aot]
+    needs: [plan, build, heavy]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
     steps:
-      - name: Every job it needs succeeded
+      - name: Every job the plan expects succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
+          EXPECTED: ${{ needs.plan.outputs.expected }}
         run: |
           set -euo pipefail
-          # With no job to read, the check below would pass anything.
-          if ! jq -e 'length > 0' <<< "$NEEDS" > /dev/null; then
-            echo "::error::The gate needs no job." >&2
+          plan="$(jq -r '.plan.result // "missing"' <<< "$NEEDS")"
+          if [[ "$plan" != success ]]; then
+            echo "::error::The plan did not succeed ($plan)." >&2
             exit 1
           fi
-          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
-          failed="$(jq -r '[to_entries[] | select(.value.result != "success") | "\(.key) (\(.value.result))"] | join(", ")' <<< "$NEEDS")"
+          # With no job to read, the check below would pass anything.
+          if ! jq -e 'type == "array" and length > 0 and all(.[]; type == "string")' <<< "$EXPECTED" > /dev/null 2>&1; then
+            echo "::error::The plan expects no job, or not as a JSON array of names: '$EXPECTED'." >&2
+            exit 1
+          fi
+          jq -r --argjson expected "$EXPECTED" \
+            'to_entries[] | "\(.key): \(.value.result)\(if .key == "plan" or (.key | IN($expected[])) then "" else " (not expected)" end)"' <<< "$NEEDS"
+          unknown="$(jq -r --argjson expected "$EXPECTED" '. as $needs | [$expected[] | select($needs[.] == null)] | join(", ")' <<< "$NEEDS")"
+          if [[ -n "$unknown" ]]; then
+            echo "::error::The plan expects a job the gate does not need: $unknown." >&2
+            exit 1
+          fi
+          failed="$(jq -r --argjson expected "$EXPECTED" '[to_entries[] | select(.key | IN($expected[])) | select(.value.result != "success") | "\(.key) (\(.value.result))"] | join(", ")' <<< "$NEEDS")"
           if [[ -n "$failed" ]]; then
             echo "::error::Not successful: $failed." >&2
             exit 1
