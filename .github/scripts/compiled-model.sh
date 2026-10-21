@@ -9,9 +9,9 @@
 #   jit      The same model and build, then a run: a round trip through SQL Server, started in a container (Docker),
 #            which fails on a value read back different from the one written.
 #   aot      The model `optimize --nativeaot` writes, with the queries of the project precompiled. The project is
-#            published with native AOT and fails on a trimming or AOT warning about this library's code; Entity Framework
-#            Core's own, and its dependencies', are expected. The binary is not run: two bugs of Entity Framework Core
-#            stop its queries.
+#            published with native AOT and fails on a trimming or AOT warning about this library's code; Entity
+#            Framework Core's own, and its dependencies', are expected. The binary is not run: two bugs of Entity
+#            Framework Core stop its queries.
 #
 # The model is written under artifacts/compiled-model/, never committed. `optimize` connects to no database. Run it
 # from anywhere in the repository.
@@ -38,7 +38,7 @@ out="$PWD/artifacts/compiled-model/$model"
 rm -rf "$out"
 dotnet tool restore
 # `dotnet ef` reads the project's metadata before it builds, which needs its assets file: restore the project here
-# rather than rely on a solution restore run before, which the build job has and the native AOT job has not.
+# rather than rely on a solution restore run before, which ci.yml's build job has and heavy.yml's jobs have not.
 dotnet restore "$project"
 
 # The queries are precompiled once, for the relaxed context: they are the same calls for both, and a second run would

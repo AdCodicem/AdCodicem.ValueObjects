@@ -23,9 +23,10 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
 - Transitive pinning is off, so the packages' dependency floors meet the next major as an application's would.
 - Its SDK and its .NET 11 packages are bumped by hand, together. Npgsql's provider pins EF Core exactly, so EF Core follows
   Npgsql's release candidate, not the SDK's: bump them in the same change.
-- `Swashbuckle/` is a second project, excluded from the main one's sources (`DefaultItemExcludes`): Swashbuckle 10 fails on
-  the `Microsoft.OpenApi` 3 that `Microsoft.AspNetCore.OpenApi` 11 brings. `compat (.NET 11)` runs both, against the
-  packages the build job packed; documents are awaited with a timeout.
+- `Swashbuckle/` is a second project, excluded from the main one's sources (`DefaultItemExcludes`): Swashbuckle 10 fails
+  on the `Microsoft.OpenApi` 3 that `Microsoft.AspNetCore.OpenApi` 11 brings. `compat (.NET 11)` runs both, against the
+  packages `heavy.yml`'s caller packed or, on `main` and a pull request, its own `pack for compat` job; documents are
+  awaited with a timeout.
 - This is the only place EF Core 11, JSON Patch 11, MVC 11 and Components 11 run, so it is where a member removed or an
   `Internal` type changed upstream shows. It pins the .NET 11 side of the DataAnnotations hosts (`{Attribute}_Error`
   keys, an attribute's exception propagated, the member alone as display name) and of Blazor (messages read off the
@@ -52,5 +53,6 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
   Kafka client's native library.
 - The namespace rule of the root `CLAUDE.md` holds here too: `AdCodicem.ValueObjects.CompatTests` is an
   `AdCodicem.ValueObjects.*` namespace.
-- `compat (.NET 11)` is not a required check and never becomes one: ADR 0013 makes it a gate of every preview, once
-  .NET 11 ships, and of every stable release. No coverage measures it.
+- `compat (.NET 11)` is a job of `heavy.yml`, not a required check, and never becomes one (ADR 0013). It gates every
+  stable release (`compat-blocks: true`), and every preview once .NET 11 ships; until then, and on `main` and a pull
+  request labelled `ci:heavy`, it only informs. No coverage measures it.

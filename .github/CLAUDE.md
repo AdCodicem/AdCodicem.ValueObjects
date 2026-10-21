@@ -14,9 +14,10 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   commit that releases anything, the next patch). It needs `fetch-depth: 0`.
 - MinVer receives it through `MINVERVERSIONOVERRIDE`. An empty override silently falls back to MinVer's own version,
   which `scripts/verify-packages.sh` refuses (only `X.Y.Z-preview.N` passes unless `ALLOW_ANY_VERSION=true`).
-- Order: the four suites run on that exact commit; a job of its own packs `src/`; the `publish` job rechecks the set
-  (`verify-packages.sh`) and nuget.org (`preview-gate.sh --recheck`) before logging in, so re-running an old run cannot
-  publish a stale version, attests, then pushes.
+- Order: the unit, generator and RDG suites run on that exact commit; a job of its own packs `src/`; `heavy.yml` runs on
+  that commit too, its compat job installing the packed set by the artifact's id; the `publish` job, which needs all of
+  them, rechecks the set (`verify-packages.sh`) and nuget.org (`preview-gate.sh --recheck`) before logging in, so
+  re-running an old run cannot publish a stale version, attests, then pushes.
 - `scripts/push-packages.sh` pushes dependencies first and only what nuget.org lacks, in up to three passes, then waits
   until nuget.org lists every package. A push stopped midway is completed by those passes, by **Re-run failed jobs**, or
   by the next run (`repair`).
@@ -25,6 +26,9 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 
 ## Stable releases (`release.yml`)
 
+- `heavy.yml` runs on the dispatched commit and the packages the `pack` job uploaded, compat blocking
+  (`compat-blocks: true`), and the `release` job needs it: it may run without it only on a dry run or when nothing was
+  packed, the two cases that skip it. The `nuget-stable` reviewer is asked once it has passed.
 - Dispatch `preview.yml` first and start the release once that run is green: the `was it previewed` job
   (`preview-gate.sh --report`) only warns, never blocks, when the release ships package inputs no nuget.org version
   carries.
@@ -84,20 +88,37 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - Trusted Publishing is keyed on a workflow file and an environment (`preview.yml` with `nuget`, `release.yml` with
   `nuget-stable`): change the nuget.org policy before renaming either file or moving its publish job.
 - Required checks are job names: `build and test` (`ci.yml`), `workflows` and `conventional commits` (`lint.yml`). Never
-  rename them without updating the `Default` ruleset. `native AOT` left the ruleset once `build and test` needed it.
-  `compat (.NET 11)` and `native AOT (Marten)`, the Marten application's job of its own beside `native AOT` (Marten's
-  native AOT compiler alone takes about 20 minutes), never join it: ADR 0013 moves them, with `native AOT`, to the jobs
-  that gate a preview and a stable release.
-- `build and test` is `ci.yml`'s `gate` job, an aggregator (ADR 0013): `if: always()` and `needs` on `build` (the build,
-  the four suites, the pack and their checks) and `native-aot`, failing unless each one succeeded. Never give it an `if`
-  that can skip it, or let it pass a job that failed or was cancelled: a required check that is skipped reads as a
-  success. Once ADR 0013's plan lands, the gate also needs it and passes a job the plan left out of `expected`.
-- A job that must block a merge goes into the `gate` job's `needs`, never into the `Default` ruleset: a check per job
-  would touch the ruleset at every rename (ADR 0013, Rejected).
+  rename them without updating the `Default` ruleset. No job of `heavy.yml` is one, nor ever becomes one (ADR 0013).
+- `build and test` is `ci.yml`'s `gate` job, an aggregator (ADR 0013): `if: always()` and `needs` on `plan`, `build`
+  (the build, three suites, the compiled model, the pack and their checks) and `heavy`, failing unless the plan
+  succeeded and each job of its `expected` output succeeded. Never give it an `if` that can skip it, or let it pass an
+  expected job that failed, was cancelled or was skipped: a required check that is skipped reads as a success.
+- A job that must block a merge goes into the `gate` job's `needs`, and into `scripts/ci-plan.sh`'s `expected` whenever
+  it runs, never into the `Default` ruleset: a check per job would touch the ruleset at every rename (ADR 0013,
+  Rejected).
+- `heavy.yml` holds `native AOT`, `native AOT (Marten)`, `integration tests` (with `compiled-model.sh jit`, the SQL
+  Server round trip) and `compat (.NET 11)`. It runs by itself on every push to `main` and on dispatch, and is called
+  by `ci.yml` when `ci-plan.sh` says so (a pull request labelled `ci:heavy`, or one Dependabot opens on a
+  `dependabot/nuget/` branch, every heavy job for now), and by `preview.yml` and `release.yml` before their publish
+  job. `ci.yml` never calls it on a push: heavy.yml's own push run is the one main gets.
+- `heavy.yml`'s jobs set their concurrency each, `heavy-<github.ref on a push, the run's id otherwise>-<job>`, so that
+  a push to `main` cancels only an older push's heavy jobs: in a called workflow `github.workflow` is the caller's name,
+  and a workflow-level group could match the caller's.
+- `ci-plan.sh` reads the labels from the event, as the run starts: a `ci:heavy` label added later is seen by the next
+  push, never by **Re-run jobs**. It only raises a notice when a pull request changes what only `heavy.yml` runs
+  (`tests/NativeAot/`, `tests/Compat/`, the integration suite, `samples/`, `native-aot.sh`, `compiled-model.sh`,
+  `heavy.yml`, Markdown aside).
+- compat only informs, `continue-on-error`, unless the caller passes `compat-blocks: true`: `release.yml` does,
+  `preview.yml` once .NET 11 ships (`docs/maintaining.md`). With no `packages-artifact-id`, it installs what its own
+  `pack for compat` job packed from the same commit (`heavy-packages`); a caller's packages come by the artifact's id,
+  never by name.
+- A run's artifacts share one namespace with the workflows it calls: `ci.yml`'s `packages` and `test-results`,
+  `heavy.yml`'s `native-aot`, `native-aot-marten`, `integration-test-results`, `heavy-packages` and
+  `compat-test-results`. A name used twice fails the second upload.
 - No workflow but `ci.yml` names a job `build and test` (`preview.yml` and `release.yml` run theirs as `suites`): a
   dispatch from a pull request's branch would report a check of that name on its head commit, and a skipped one reads
   as a success.
-- After a red `build` or `native AOT`, **Re-run failed jobs** re-runs `build and test` with it; after a cancelled run,
+- After a red `build` or `heavy` job, **Re-run failed jobs** re-runs `build and test` with it; after a cancelled run,
   re-run all jobs or push again. A re-run of a green run keeps the previous `build and test` until the jobs it needs
   end.
 - `scripts/ecmascript-patterns.mjs`, run by `ci.yml`'s `documentation site` job, holds the Blazor package's pattern
