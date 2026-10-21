@@ -19,8 +19,9 @@ npm run build       # production build; fails on a broken internal link
   reference included, written wholesale by `.github/scripts/docs-snapshot.sh` in `release.yml`'s pack job and committed
   by semantic-release. Never add or remove an entry by hand. Edit a released page only to correct an error that misleads
   users of that release, and land the same fix in `docs/`, or the next snapshot of the line discards it.
-- Pull requests build the site without deploying it in `ci.yml`'s `documentation site` job, through
-  `.github/actions/build-site`, the action `deploy-docs.yml` builds with, so a broken link fails there.
+- A pull request changing `website/`, `docs/docfx/`, the action or a project under `src/` builds the site without
+  deploying it in `ci.yml`'s `documentation site` job, through `.github/actions/build-site`, the action
+  `deploy-docs.yml` builds with, so a broken link fails there; every push to `main` builds it too.
 - Keep each `<c>` of an XML doc comment on one line: DocFX writes it as a `<code>` over a line break, which MDX closes
   early, and the build then warns for the API page ("No "p" element in scope but a "p" end tag seen").
 - Every ```` ```csharp ```` block of `docs/` (and the homepage example, `docs/_homepage-example.md`) is compiled by

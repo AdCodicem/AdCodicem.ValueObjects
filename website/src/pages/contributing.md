@@ -75,11 +75,14 @@ A pull request lands with *Rebase and merge*, so that each of its commits reache
 at most 100 commits: past that it refuses, and its web UI blames conflicts that do not exist. Keep a pull request to
 100 commits or fewer, and split larger work into pull requests stacked on one another.
 
-Three checks must pass before a pull request merges: **build and test**, which fails unless the build, the unit,
-generator and RDG suites, the compiled model and the pack succeed; **workflows**, which runs
-[actionlint](https://github.com/rhysd/actionlint) over every workflow, including those that never run on a pull request;
-and **conventional commits**, which checks every commit message of the pull request. CI also builds this site, in a job
-that does not block the merge.
+Three checks must pass before a pull request merges: **build and test**, which fails unless every job the run's plan
+selects succeeds; **workflows**, which runs [actionlint](https://github.com/rhysd/actionlint) over every workflow,
+including those that never run on a pull request; and **conventional commits**, which checks every commit message of
+the pull request. The plan reads the files a pull request changes: a change to a package runs the unit tests of its
+family and of the families that depend on it, a change to the core packages every family and the generator suite, and
+the build, the RDG suite, the compiled model and the pack run when their inputs change; a change to the documentation
+runs the tests that read it, and a change to a workflow, a global build file or a file no rule names, everything. CI
+also builds this site when a change reaches it, in a job that does not block the merge.
 
 The heavy jobs run after the merge, before every preview and stable release, and on a pull request labelled `ci:heavy`,
 where **build and test** waits for them: **native AOT**, which publishes an application using every AOT-compatible
@@ -130,7 +133,8 @@ npm start          # local dev server with hot reload
 npm run build      # production build, fails on a broken internal link
 ```
 
-Every pull request builds the site the same way, without deploying it, so a broken link fails there.
+A pull request that changes the site, or a package whose API it documents, builds the site the same way, without
+deploying it, so a broken link fails there.
 
 This page is the one part of the site that is not versioned: it describes how to work on `main`, whichever
 release you are reading about.

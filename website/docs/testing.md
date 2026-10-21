@@ -62,7 +62,7 @@ Four suites, each with a distinct job:
   refused with its code, in each culture the renderer calls for and in French from a resource, and the text it writes
   reads back in every culture .NET lists, those whose calendar is not the Gregorian one included; the static and the
   prerendered pages of the Razor fixture are served over TestHost, the framework's own messages pinned, and the patterns
-  an input writes for browsers are checked against .NET here and against Node in the documentation site's job.
+  an input writes for browsers are checked against .NET here and against Node in the build job.
   System.CommandLine commands parsed and invoked in process read every sample value object through an option, its
   nullable type, a list and an argument, the text of each instance and of each edge of its rules reading back to it and
   each value its rules rule out refused with its code on the parse error, every known value completed as text that
@@ -204,8 +204,8 @@ of AOT compatibility is run, not only analysed.
 The second holds an Entity Framework Core context mapping every value object the conventions map, required and
 optional, a generic one, an identifier as the key and collections of them, `Guid` and `int` keys it generates and a
 `Guid` key it refuses to add unset, beside a strict context, both filtering on `.Value` and adding the CHECK
-constraints from the rules. `dotnet ef dbcontext optimize` writes its compiled model on every pull request, which the
-project then builds on; with the heavy jobs, the integration job takes it on a round trip through SQL Server, whose
+constraints from the rules. `dotnet ef dbcontext optimize` writes its compiled model on every pull request reaching it, which
+the project then builds on; with the heavy jobs, the integration job takes it on a round trip through SQL Server, whose
 tables `EnsureCreated` creates with the constraints, a row SQL writes breaking a rule refused with the rule's code, and
 the native AOT job writes the model for native AOT, with its queries precompiled, and publishes it.
 [Compiled models](./how-to/ef-core.md#compiled-models) says what holds there.
@@ -286,13 +286,14 @@ test for a new rule: prove it holds on both paths, not just the one that's conve
 
 ## Coverage
 
-Every pull request reports its coverage through Codecov: 95 % of the lines it changes, and the project's
-coverage down by half a point at most. The integration suite reports with the heavy jobs, after the merge or on a
-pull request labelled `ci:heavy`. That is a floor; the aim is everything that can be covered, under a rule
-that keeps the number honest — a defensive branch no test reaches stays, a private member is covered through its
-callers or not at all, and code is removed only when no input can reach it. The rule, and the two things the
-figure cannot show (a package no test loads, and the code the generator emits into the consumer's assembly), are
-on the [Contributing](/contributing) page.
+Every pull request reports its coverage through Codecov: 95 % of the lines it changes, and the project's coverage
+down by half a point at most. A pull request runs the unit tests of the package families it changes, and uploads
+their coverage under each family's flag; the families it does not run keep their coverage from the commit before.
+The integration suite reports with the heavy jobs, after the merge or on a pull request labelled `ci:heavy`. That is
+a floor; the aim is everything that can be covered, under a rule that keeps the number honest — a defensive branch
+no test reaches stays, a private member is covered through its callers or not at all, and code is removed only when
+no input can reach it. The rule, and the two things the figure cannot show (a package no test loads, and the code
+the generator emits into the consumer's assembly), are on the [Contributing](/contributing) page.
 
 ## Stack
 

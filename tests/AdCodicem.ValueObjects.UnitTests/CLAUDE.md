@@ -24,6 +24,14 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   `LanguageModels/` (Microsoft.Extensions.AI, Model Context Protocol as `Mcp*`),
   `Logging/` (Serilog, Microsoft.Gen.Logging redaction), `SchemaGeneration/` (NJsonSchema, Confluent),
   `DataAnnotations/`, `TestData/` (the sampler and its three adapters), `XmlSerialization/`, `Identifiers/`.
+- Each top-level folder belongs to the CI families `.github/ci-families.json` maps it to (`unit.folders`), which a pull
+  request changing it runs, each family through `--filter-query` values on the namespaces of its folders (ADR 0013).
+  A new folder goes there with a query in its family's `unit` list, `/*/(AdCodicem.ValueObjects.UnitTests.F)|(…F.*)`,
+  or the plan fails. A file declares the namespace of its folder, the root namespace at the suite's root, which the
+  plan checks. A file at the root selects every family with a class there (`core`, `serialization`, `observability`,
+  `testdata`); a helper several families' tests use goes into `unit.shared`, which selects every family. `Web/` and
+  `Persistence/` hold two families each, told apart by class name (`NSwag*`, `Newtonsoft*`, `Swashbuckle*`; `Dapper*`,
+  `*MongoDb*`, `Marten*`, `PcrePattern*`), the folder's first family taking the rest.
 - `EmitCompilerGeneratedFiles` is on: generated sources land under `artifacts/obj/AdCodicem.ValueObjects.UnitTests/…/generated/`
   — read them when diagnosing emission.
 - Fixtures the test assembly cannot hold, because the generator runs on it and its module initializer has run before any
