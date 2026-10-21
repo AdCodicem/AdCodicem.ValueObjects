@@ -25,7 +25,7 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
   Npgsql's release candidate, not the SDK's: bump them in the same change.
 - `Swashbuckle/` is a second project, excluded from the main one's sources (`DefaultItemExcludes`): Swashbuckle 10 fails
   on the `Microsoft.OpenApi` 3 that `Microsoft.AspNetCore.OpenApi` 11 brings. `compat (.NET 11)` runs both, against the
-  packages `heavy.yml`'s caller packed or, on `main` and a pull request, its own `pack for compat` job; documents are
+  packages `heavy.yml`'s caller packed or, on `main` and a pull request, the ones the job packs itself; documents are
   awaited with a timeout.
 - This is the only place EF Core 11, JSON Patch 11, MVC 11 and Components 11 run, so it is where a member removed or an
   `Internal` type changed upstream shows. It pins the .NET 11 side of the DataAnnotations hosts (`{Attribute}_Error`

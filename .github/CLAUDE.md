@@ -108,16 +108,19 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   push, never by **Re-run jobs**. It only raises a notice when a pull request changes what only `heavy.yml` runs
   (`tests/NativeAot/`, `tests/Compat/`, the integration suite, `samples/`, `native-aot.sh`, `compiled-model.sh`,
   `heavy.yml`, Markdown aside).
-- compat only informs, `continue-on-error`, unless the caller passes `compat-blocks: true`: `release.yml` does,
-  `preview.yml` once .NET 11 ships (`docs/maintaining.md`). With no `packages-artifact-id`, it installs what its own
-  `pack for compat` job packed from the same commit (`heavy-packages`); a caller's packages come by the artifact's id,
-  never by name.
+- compat only informs unless the caller passes `compat-blocks: true`: `release.yml` does, `preview.yml` once .NET 11
+  ships (`docs/maintaining.md`). Informing, its test steps take `continue-on-error` and a warning says it failed, so the
+  job stays green: how a caller reads a job that fails under job-level `continue-on-error` is not documented. With no
+  `packages-artifact-id`, it packs the commit under test itself; a caller's packages come by the artifact's id, never
+  by name, and never with an empty id, which downloads every artifact of the run.
+- Every job of `heavy.yml` runs, its conditions on its steps: a called job skipped by its own `if` can skip the
+  caller's jobs that need the call even when the rest succeeded (a GitHub bug), and `preview.yml` would publish
+  nothing. `preview.yml`'s `publish` and `release.yml`'s `release` jobs check `needs.heavy.result` explicitly.
 - A run's artifacts share one namespace with the workflows it calls: `ci.yml`'s `packages` and `test-results`,
-  `heavy.yml`'s `native-aot`, `native-aot-marten`, `integration-test-results`, `heavy-packages` and
-  `compat-test-results`. A name used twice fails the second upload.
+  `heavy.yml`'s `native-aot`, `native-aot-marten`, `integration-test-results` and `compat-test-results`, uploaded with
+  `overwrite: true` for **Re-run all jobs**. Another job's name used twice fails the second upload.
 - No workflow but `ci.yml` names a job `build and test` (`preview.yml` and `release.yml` run theirs as `suites`): a
-  dispatch from a pull request's branch would report a check of that name on its head commit, and a skipped one reads
-  as a success.
+  ruleset matches a check by its name, and GitHub advises job names unique across workflows.
 - After a red `build` or `heavy` job, **Re-run failed jobs** re-runs `build and test` with it; after a cancelled run,
   re-run all jobs or push again. A re-run of a green run keeps the previous `build and test` until the jobs it needs
   end.

@@ -252,9 +252,11 @@ jobs:
   publish:
     name: publish to nuget.org
     needs: [plan, test, pack, heavy]
-    # No status function, so success() is implied: plan, test, pack and heavy
-    # must all have succeeded.
-    if: needs.plan.outputs.mode != 'none'
+    # Every job it needs must have succeeded, checked by name: heavy is a called
+    # workflow, whose jobs the implied success() reads one by one.
+    if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.mode != 'none' &&
+      needs.test.result == 'success' && needs.pack.result == 'success' && needs.heavy.result == 'success' }}
     runs-on: ubuntu-latest
     # The push, then up to 30 minutes for nuget.org to list it.
     timeout-minutes: 60
