@@ -89,11 +89,28 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   `nuget-stable`): change the nuget.org policy before renaming either file or moving its publish job.
 - Required checks are job names: `build and test` (`ci.yml`), `workflows` and `conventional commits` (`lint.yml`). Never
   rename them without updating the `Default` ruleset. No job of `heavy.yml` is one, nor ever becomes one (ADR 0013).
-- `build and test` is `ci.yml`'s `gate` job, an aggregator (ADR 0013): `if: always()` and `needs` on `plan`, `build`
-  (the build, three suites, the compiled model, the pack and their checks) and `heavy`, failing unless the plan
-  succeeded and each job of its `expected` output succeeded; a job left out of `expected` may be skipped, never failed
-  or cancelled. Never give it an `if` that can skip it, or let it pass an expected job that failed, was cancelled or
-  was skipped: a required check that is skipped reads as a success.
+- `build and test` is `ci.yml`'s `gate` job, an aggregator (ADR 0013): `if: always()` and `needs` on `plan`, `format`,
+  `build` (the build, what the plan selects of the three suites, the compiled model, the patterns for browsers, the
+  pack and their checks), `release-tooling` and `heavy`, failing unless the plan succeeded and each job of its
+  `expected` output succeeded; `expected` always lists `plan`, and a job left out of it may be skipped, never failed or
+  cancelled. Never give it an `if` that can skip it, or let it pass an expected job that failed, was cancelled or was
+  skipped: a required check that is skipped reads as a success.
+- `scripts/ci-plan.sh` plans each run from `ci-families.json` (its header holds the rules): a push to `main` runs
+  everything; a pull request runs the families and lanes the files of its merge commit select, those under `src/`
+  through `dotnet-affected` (`.config/dotnet-tools.json`, installed alone into a folder of its own, since
+  `dotnet tool restore` would fetch DocFX's 100 MB), which `--graph-needed` tells the workflow to install the SDK for.
+  A file no rule names runs everything, so a new kind of file is safe before it is classified; give it a rule when it
+  should not. Any change to `Directory.Packages.props` runs everything: `dotnet-affected` misses a transitive pin no
+  project references, and Dependabot's NuGet pull requests wait for `heavy.yml` anyway. `preview.yml` and
+  `release.yml` never call `ci.yml`: they run every suite whole.
+- Every run first checks `ci-families.json`, without a build: every project under `src/` and every top-level folder
+  of the unit suite in a family, every file of the suite in the namespace of its folder, every folder a family's query
+  names selecting that family, and `codecov.yml`'s flags as `ci-plan.sh --codecov-flags` prints them.
+  `scripts/unit-families-check.sh`, when every family runs, holds the built suite to the families' filters.
+- A pull request's unit report is uploaded once per family that ran, by the `coverage` matrix job, under that
+  family's flag, and the generator and RDG reports under theirs: Codecov drops a carried-forward upload whole when an
+  upload sharing any of its flags arrives, so an upload carrying several flags would lose the other families' lines on
+  the next commit. `scripts/coverage-modules.sh` takes the run's families.
 - A job that must block a merge goes into the `gate` job's `needs`, and into `scripts/ci-plan.sh`'s `expected` whenever
   it runs, never into the `Default` ruleset: a check per job would touch the ruleset at every rename (ADR 0013,
   Rejected).
@@ -118,7 +135,8 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - Every job of `heavy.yml` runs, its conditions on its steps: a called job skipped by its own `if` can skip the
   caller's jobs that need the call even when the rest succeeded (a GitHub bug), and `preview.yml` would publish
   nothing. `preview.yml`'s `publish` and `release.yml`'s `release` jobs check `needs.heavy.result` explicitly.
-- A run's artifacts share one namespace with the workflows it calls: `ci.yml`'s `packages` and `test-results`,
+- A run's artifacts share one namespace with the workflows it calls: `ci.yml`'s `packages`, `coverage` and
+  `test-results`,
   `heavy.yml`'s `native-aot`, `native-aot-marten`, `integration-test-results` and `compat-test-results`, uploaded with
   `overwrite: true` for **Re-run all jobs**. Another job's name used twice fails the second upload.
 - No workflow but `ci.yml` names a job `build and test` (`preview.yml` and `release.yml` run theirs as `suites`): a
@@ -126,8 +144,8 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - After a red `build` or `heavy` job, **Re-run failed jobs** re-runs `build and test` with it; after a cancelled run,
   re-run all jobs or push again. A re-run of a green run keeps the previous `build and test` until the jobs it needs
   end.
-- `scripts/ecmascript-patterns.mjs`, run by `ci.yml`'s `documentation site` job, holds the Blazor package's pattern
-  table (`tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json`) to Node's v-flag engine, as
-  `EcmaScriptPatternTests` holds it to .NET: change both together.
+- `scripts/ecmascript-patterns.mjs`, run by `ci.yml`'s `build` job when the `text` family runs, holds the Blazor
+  package's pattern table (`tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json`) to Node's v-flag
+  engine, as `EcmaScriptPatternTests` holds it to .NET: change both together.
 - `deploy-docs.yml` is `workflow_call` only, called by `preview.yml` and `release.yml`: redeploy the site by dispatching
   `preview.yml`.

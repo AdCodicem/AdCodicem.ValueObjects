@@ -14,6 +14,7 @@ Accepted.
   jobs before it publishes.
 - Amends [ADR-0006](0006-coverage-is-a-signal-not-a-goal.md) in its second phase: the unit suite splits into a test
   project per family, where ADR-0006 rejected a fourth test suite.
+- Built up to phase A, which differs from the text below on the points of [Phase A as built](#phase-a-as-built).
 
 ## Context
 
@@ -243,3 +244,34 @@ Documentation must follow:
 
 On a pull request that changes one of the eight lines that only the integration suite covers, those lines count as
 missed in `codecov/patch`. No ruleset requires that check.
+
+## Phase A as built
+
+The plan, the families, the gate and the coverage flags are built as decided, with these differences:
+
+- The documentation lane runs the tests that read the repository, not the nine classes: the trait sits on
+  `DocumentationSnippetTests` and `SkillCoverageTests`, whose every test reads it, and on the nine other tests that
+  do. That is 92 tests in about 20 seconds, against 483 in 51 for the nine classes. `DocumentationTraitTests` follows
+  each test's IL to the class's `RepositoryRoot()` or `SkillDirectory()` and fails on a reading test without the trait
+  or a marked test that reads nothing.
+- Any change to `Directory.Packages.props` runs everything, not only one outside its `<PackageVersion>` elements.
+  `dotnet-affected` answers "nothing affected" for a pinned transitive package no project references, which a
+  Dependabot security update adds, and the shipped-dependencies check must run on it. Dependabot's NuGet pull requests,
+  which make nearly every such change, wait for `heavy.yml` anyway.
+- A file at the unit suite's root selects every family with a class in the root namespace (`core`, `serialization`,
+  `observability`, `testdata`), since a file there may declare a class of any of them, and a helper several families'
+  tests use selects every family (`unit.shared`). A file of the suite declares the namespace of its folder, which the
+  plan checks, so that the folder a change selects and the namespace a family filters on agree.
+- The generator suite also runs in full when `dotnet-affected` marks it (a change to protobuf-net, which it
+  references), the RDG suite when it marks that, and the compiled model when its own inputs change.
+- When every family runs, so after every merge, `unit-families-check.sh` lists the built suite through every family's
+  filter and fails on a test none of them selects.
+- Only a push to `main` selects everything as an event: `ci.yml` is neither dispatched nor called, and `preview.yml`
+  and `release.yml` run every suite whole themselves.
+- `ci.yml` uploads coverage from a matrix job, one upload per flag: Codecov drops a carried-forward upload whole when
+  an upload sharing one of its flags arrives, so a report uploaded once under several family flags would lose the
+  other families' lines on the next commit.
+- The release tooling runs `next-version.mjs` once, in a `release tooling` job the gate needs, until ADR-0012's trains
+  exist.
+- `coverage-modules.sh` also fails a project of the run's families with no line covered: `RuntimeClosingTests` loads
+  nearly every package to read its IL, which reports it without exercising it.

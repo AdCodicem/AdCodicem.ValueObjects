@@ -49,16 +49,17 @@ dotnet test --project tests/AdCodicem.ValueObjects.RdgTests
 # One test: xunit.v3 on Microsoft Testing Platform; wildcards, not substrings
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests --filter-method "*The_name_of_the_test*"
 
-# Formatting, as CI runs it, before the build. Never plain `dotnet format`: its `analyzers` step runs without the
-# generator's assembly and reports ASP0020 and compile errors for members the generator does emit.
-dotnet format AdCodicem.ValueObjects.slnx whitespace --verify-no-changes
-dotnet format AdCodicem.ValueObjects.slnx style --verify-no-changes
+# Formatting, as CI runs it: whitespace in every .cs file, no project loaded. The build enforces the style rules. Never
+# plain `dotnet format`: its `analyzers` step runs without the generator's assembly and reports ASP0020 and compile
+# errors for members the generator does emit.
+dotnet format whitespace . --folder --verify-no-changes
 
 # Pack as CI does: through the solution filter, never the whole solution
 dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 
 actionlint                                   # as lint.yml's `workflows` job: 1.7.12, shellcheck on PATH
-node .github/scripts/ecmascript-patterns.mjs # Blazor's pattern table in Node's v-flag engine (`documentation site` job)
+node .github/scripts/ecmascript-patterns.mjs # Blazor's pattern table in Node's v-flag engine (`build` job, for `text`)
+EVENT_NAME=push .github/scripts/ci-plan.sh   # checks .github/ci-families.json against the repository, then plans
 
 # Benchmarks: a quiet machine; absolute timings are not comparable across runs
 cd benchmarks/AdCodicem.ValueObjects.Benchmarks && dotnet run -c Release -- --filter '*WrapperCost*'
@@ -82,9 +83,9 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   never delete it, or `build(pack)!` and `docs(readme)!` fall back to a patch.
 - The thirty-eight packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
   supported in the same packages. ADR 0012 replaces the one version with two trains (core, satellites), accepted but
-  not built yet, so the one version holds. ADR 0013 targets the CI: its heavy jobs are built (`heavy.yml`, after the
-  merge and before a release), its pull-request families not yet, so a pull request still builds and tests everything
-  else.
+  not built yet, so the one version holds. ADR 0013 targets the CI: its heavy jobs run after the merge and before a
+  release (`heavy.yml`), and a pull request runs the families of `.github/ci-families.json` and the lanes the files it
+  changes select (`.github/scripts/ci-plan.sh`; phase A, one unit-test assembly filtered per family).
 
 ## Architecture
 
@@ -260,6 +261,9 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 - **`src/AdCodicem.ValueObjects.Packages.slnf` lists every project under `src/`.** Previews and releases pack through it,
   so a project left out never ships; `ci.yml` fails when a packable project is missing. It sits under `src/` because
   `dotnet format` and `dotnet sln` refuse two solution files in one folder.
+- **`.github/ci-families.json` puts every project under `src/` and every top-level folder of the unit suite in a
+  family**, or the plan fails every run: add a new project or folder there, and replace `codecov.yml`'s flags between
+  its `ci-families` markers with what `.github/scripts/ci-plan.sh --codecov-flags` prints (`.github/CLAUDE.md`).
 - **Anything that changes a package's bytes or metadata is a `preview-gate.sh` input**, or it never reaches a preview;
   **a dependency added to a shipped package goes into `.github/shipped-dependencies`** in the same pull request, or CI
   fails. Both: `.github/CLAUDE.md`.
@@ -295,6 +299,10 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   sample API of `samples/` end to end. Needs Docker. CI runs it in `heavy.yml`, never on a pull request but one
   labelled `ci:heavy` or a Dependabot NuGet update: run it locally when a change reaches a store.
 - **RdgTests**: minimal API endpoints whose binding the Request Delegate Generator writes.
+- A pull request runs the unit tests of the families it changes, each a `--filter-query` of `.github/ci-families.json`
+  on the namespaces of its folders: a file of the unit suite declares the namespace of its folder, which the plan
+  checks. A test of the generator suite reading the repository carries `[Trait("Reads", "Documentation")]`, which runs
+  it on a pull request changing only the documentation (`DocumentationTraitTests` holds it).
 - `tests/NativeAot` holds applications CI publishes natively and compares with the JIT (`heavy.yml`'s `native AOT` job,
   and its `native AOT (Marten)` job for Marten's);
   `tests/Compat` installs the packed packages on the .NET 11 release candidate, outside the solution.
@@ -317,8 +325,11 @@ The aim is 100 % of each pull request's patch, as Codecov counts it (ADR 0006 ho
   adds and no input can take partial (the default arm of an exhaustive switch, a `?.` on a value never `null`).
 - Remove code only when no input can reach it, never because no test does. A defensive branch stays. A public member
   nothing calls is a question for the maintainer.
+- Codecov takes one flag per family, plus `generator`, `rdg` and `integration`, each carried forward: a pull request
+  uploads the flags of what it ran, and the others keep the coverage of its parent commit, so the patch is measured by
+  the families that ran (`codecov.yml`).
 - Blind spots: a package no test loads is missing from the report rather than at 0 %, which
-  `.github/scripts/coverage-modules.sh` fails; the code the generator emits lives in the unit test assembly, which is not
-  measured, and is audited by hand. The integration suite reports from `heavy.yml`, so on a pull request that is not
-  labelled `ci:heavy` the lines only it covers (the SQL Server and PostgreSQL branches of the EF Core CHECK constraints)
-  count as missed.
+  `.github/scripts/coverage-modules.sh` fails, as it fails a package of the run's families with no line covered; the
+  code the generator emits lives in the unit test assembly, which is not measured, and is audited by hand. The
+  integration suite reports from `heavy.yml`, so on a pull request that is not labelled `ci:heavy` the lines only it
+  covers (the SQL Server and PostgreSQL branches of the EF Core CHECK constraints) count as missed.

@@ -71,6 +71,12 @@ offering the higher one as the latest prerelease until a higher version ships.
   that broke it; it also holds back the next preview, which runs the same jobs. Label a pull request `ci:heavy`, then
   push to it, when it touches native AOT, a store, the sample API or the island; the label is read when a run starts, so
   **Re-run jobs** does not see it.
+- **On a pull request**, `ci.yml` runs what its `plan` job picks from the files it changes (ADR 0013,
+  `.github/scripts/ci-plan.sh`): the unit tests of the package families those files reach, the suites, the compiled
+  model, the pack and the site only when their inputs change; the plan's summary on the run page lists what it picked
+  and why. A push to `main` runs everything. A pull request adding a project under `src/` or a folder to the unit suite
+  adds it to `.github/ci-families.json`, and replaces `codecov.yml`'s flags between its `ci-families` markers with what
+  `.github/scripts/ci-plan.sh --codecov-flags` prints, or the plan fails.
 - **Before a stable release**, dispatch `preview.yml` if package inputs changed since the last preview, and start the
   release once that run is green (see [Cutting a stable release](#cutting-a-stable-release)).
 - **After merging a security update of a dependency the packages ship**, dispatch `preview.yml` rather than wait for
@@ -420,7 +426,7 @@ none, so the score climbs as new releases replace them rather than all at once.
 | **`nuget` environment** — deployment branches limited to `main`, no required reviewer | Settings → Environments | `preview.yml`'s publish job. A required reviewer here would hold every weekly preview until someone clicks; use `nuget-stable` for that instead. |
 | **`nuget-stable` environment** — deployment branches limited to `main`, required reviewer(s) | Settings → Environments | `release.yml`'s release job. This is the approval gate: `workflow_dispatch` starts the workflow, but the job waits for a reviewer before the OIDC exchange and `npx semantic-release` run. |
 | `RELEASE_APP_CLIENT_ID` (variable) and `RELEASE_APP_PRIVATE_KEY` (secret) on `nuget-stable` | Settings → Environments → `nuget-stable` | `release.yml`, to push the release commit and tag past the ruleset on `main` as a GitHub App. See [Repository settings](#github-settings) for creating the App. |
-| `CODECOV_TOKEN` | codecov.io → link the repository, then Settings → Secrets → Actions | The coverage uploads of `ci.yml`'s build job, and of `heavy.yml`'s integration job on `main` and on a pull request labelled `ci:heavy`, which `ci.yml` hands the secret to. A public repository uploads without it — CI run 128 logged `Token length: 0` and the report still arrived —, so the secret is read only if it exists, which a private repository, or Codecov refusing tokenless uploads, would need. `fail_ci_if_error: false` keeps CI green when an upload is refused. Codecov posts `codecov/patch` and `codecov/project` on each pull request, against the floors in `codecov.yml` ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
+| `CODECOV_TOKEN` | codecov.io → link the repository, then Settings → Secrets → Actions | The coverage uploads of `ci.yml`'s `coverage` job, one per Codecov flag of what the run tested, and of `heavy.yml`'s integration job on `main` and on a pull request labelled `ci:heavy`, which `ci.yml` hands the secret to. A public repository uploads without it — CI run 128 logged `Token length: 0` and the report still arrived —, so the secret is read only if it exists, which a private repository, or Codecov refusing tokenless uploads, would need. `fail_ci_if_error: false` keeps CI green when an upload is refused. Codecov posts `codecov/patch` and `codecov/project` on each pull request, against the floors in `codecov.yml` ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
 
 Trusted Publishing is set at the account level on nuget.org, not per package, and a policy names a workflow file
 and an environment: a run of any other file, or of the same file in another environment, is refused at the OIDC

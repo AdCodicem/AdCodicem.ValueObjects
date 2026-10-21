@@ -102,10 +102,11 @@ NATIVE_AOT_POSTGRES="Host=localhost;Port=5432;Database=postgres;Username=postgre
 
 - `compiled-model.sh compile|jit|aot` writes the model with `dotnet ef dbcontext optimize` under
   `artifacts/compiled-model/`, never committed, and builds on it. `compile` stops there, in `ci.yml`'s build job, on
-  every pull request: a model that no longer compiles is what this caught. `jit`, the same model, takes a round trip
-  through SQL Server in `heavy.yml`'s integration job; `aot`, written with its queries precompiled, is published by its
-  native AOT job and never run (two EF Core bugs stop its queries); it fails on a warning about this library's code
-  only. `compile` and `jit` write the same folder, `jit/`, which `-p:CompiledModel=jit` compiles in.
+  every pull request reaching EF Core or the model's own inputs: a model that no longer compiles is what this caught.
+  `jit`, the same model, takes a round trip through SQL Server in `heavy.yml`'s integration job; `aot`, written with
+  its queries precompiled, is published by its native AOT job and never run (two EF Core bugs stop its queries); it
+  fails on a warning about this library's code only. `compile` and `jit` write the same folder, `jit/`, which
+  `-p:CompiledModel=jit` compiles in.
 - A change to a convention shows in the model `optimize` writes, never in a publish warning: EF Core builds no model
   natively, so the AOT compiler drops the conventions.
 - `ShopContext.OnConfiguring` calls `UseValueObjectQueries()` and `UseValueObjectCheckErrors()`, so the design-time
