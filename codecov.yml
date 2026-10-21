@@ -18,3 +18,120 @@ ignore:
   - "tests/**"
   - "samples/**"
   - "benchmarks/**"
+
+# A pull request runs the unit tests of the families it changes (ADR 0013), and ci.yml uploads the unit report once per
+# family that ran, under that family's flag: each upload keeps the lines of its flag's paths, and the flags that did not
+# upload carry forward from the parent commit. One flag per upload, never several: a carried-forward upload is dropped
+# whole when an upload sharing one of its flags arrives, and would take the other families' lines with it. A push to
+# main runs every family, and so refreshes every flag. The generator and RDG suites upload when they run, the
+# integration suite from heavy.yml, each over src/.
+flag_management:
+  default_rules:
+    carryforward: true
+  individual_flags:
+    # BEGIN ci-families: the output of .github/scripts/ci-plan.sh --codecov-flags, which the plan checks
+    - name: core
+      paths:
+        - src/AdCodicem.ValueObjects/
+        - src/AdCodicem.ValueObjects.Generators/
+        - src/AdCodicem.ValueObjects.CodeFixes/
+        - src/AdCodicem.ValueObjects.Abstractions/
+        - src/AdCodicem.ValueObjects.Json/
+        - src/AdCodicem.ValueObjects.Identifiers/
+        - src/AdCodicem.ValueObjects.Testing.Data/
+        - src/Shared/TypeNames.cs
+        - src/Shared/ValueObjectPatternSyntax.cs
+        - src/Shared/ValueObjectResourceMessages.cs
+        - src/Shared/ValueObjectSchemaKeywords.cs
+    - name: aspnet
+      paths:
+        - src/AdCodicem.ValueObjects.AspNetCore.Http/
+        - src/AdCodicem.ValueObjects.AspNetCore/
+        - src/AdCodicem.ValueObjects.OpenApi/
+        - src/Shared/ValueObjectLocalizedMessages.AspNetCore.cs
+        - src/Shared/ValueObjectLocalizedMessages.cs
+        - src/Shared/ValueObjectOpenApiSchema.cs
+        - src/Shared/ValueObjectRefusals.cs
+        - src/Shared/ValueObjectSchemaKeywords.cs
+    - name: efcore
+      paths:
+        - src/AdCodicem.ValueObjects.EntityFrameworkCore/
+        - src/AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore/
+        - src/Shared/KnownValueSpellings.cs
+        - src/Shared/TypeNames.cs
+        - src/Shared/ValueObjectPatternSyntax.cs
+    - name: data
+      paths:
+        - src/AdCodicem.ValueObjects.Dapper/
+        - src/AdCodicem.ValueObjects.MongoDB/
+        - src/AdCodicem.ValueObjects.Identifiers.MongoDB/
+        - src/AdCodicem.ValueObjects.Marten/
+        - src/Shared/KnownValueSpellings.cs
+        - src/Shared/TypeNames.cs
+        - src/Shared/ValueObjectPatternSyntax.cs
+    - name: serialization
+      paths:
+        - src/AdCodicem.ValueObjects.NewtonsoftJson/
+        - src/AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson/
+        - src/AdCodicem.ValueObjects.Swashbuckle/
+        - src/AdCodicem.ValueObjects.NJsonSchema/
+        - src/AdCodicem.ValueObjects.MessagePack/
+        - src/AdCodicem.ValueObjects.ProtobufNet/
+        - src/AdCodicem.ValueObjects.Grpc/
+        - src/Shared/TypeNames.cs
+        - src/Shared/ValueObjectOpenApiSchema.cs
+        - src/Shared/ValueObjectSchemaKeywords.cs
+    - name: orleans
+      paths:
+        - src/AdCodicem.ValueObjects.Orleans/
+    - name: hosts
+      paths:
+        - src/AdCodicem.ValueObjects.AzureFunctions/
+        - src/AdCodicem.ValueObjects.AzureFunctions.AspNetCore/
+        - src/AdCodicem.ValueObjects.Wolverine.Http/
+        - src/Shared/TypeNames.cs
+        - src/Shared/ValueObjectBindingText.cs
+        - src/Shared/ValueObjectLocalizedMessages.AspNetCore.cs
+        - src/Shared/ValueObjectLocalizedMessages.cs
+        - src/Shared/ValueObjectRefusals.cs
+    - name: graphql
+      paths:
+        - src/AdCodicem.ValueObjects.HotChocolate/
+        - src/AdCodicem.ValueObjects.HotChocolate.Data/
+        - src/Shared/ValueObjectLocalizedMessages.cs
+        - src/Shared/ValueObjectSchemaKeywords.cs
+    - name: text
+      paths:
+        - src/AdCodicem.ValueObjects.Blazor/
+        - src/AdCodicem.ValueObjects.CommandLine/
+        - src/AdCodicem.ValueObjects.CsvHelper/
+        - src/Shared/TypeNames.cs
+        - src/Shared/ValueObjectLocalizedMessages.cs
+        - src/Shared/ValueObjectPatternSyntax.cs
+        - src/Shared/ValueObjectResourceMessages.cs
+        - src/Shared/ValueObjectText.cs
+    - name: observability
+      paths:
+        - src/AdCodicem.ValueObjects.Serilog/
+        - src/AdCodicem.ValueObjects.AI/
+        - src/AdCodicem.ValueObjects.ModelContextProtocol/
+        - src/AdCodicem.ValueObjects.FluentValidation/
+        - src/Shared/ValueObjectArgumentRejection.cs
+        - src/Shared/ValueObjectArguments.cs
+    - name: testdata
+      paths:
+        - src/AdCodicem.ValueObjects.Testing/
+        - src/AdCodicem.ValueObjects.AutoFixture/
+        - src/AdCodicem.ValueObjects.Bogus/
+        - src/AdCodicem.ValueObjects.FsCheck/
+        - src/Shared/TypeNames.cs
+    # END ci-families
+    - name: generator
+      paths:
+        - src/
+    - name: rdg
+      paths:
+        - src/
+    - name: integration
+      paths:
+        - src/
