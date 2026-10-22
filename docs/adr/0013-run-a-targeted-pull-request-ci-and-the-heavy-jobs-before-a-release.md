@@ -252,8 +252,12 @@ The plan, the families, the gate and the coverage flags are built as decided, wi
 - The documentation lane runs the tests that read the repository, not the nine classes: the trait sits on
   `DocumentationSnippetTests` and `SkillCoverageTests`, whose every test reads it, and on the nine other tests that
   do. That is 92 tests in about 20 seconds, against 483 in 51 for the nine classes. `DocumentationTraitTests` follows
-  each test's IL to the class's `RepositoryRoot()` or `SkillDirectory()` and fails on a reading test without the trait
-  or a marked test that reads nothing.
+  each test's IL, its data and its fixtures to a `RepositoryRoot()` or `SkillDirectory()`, or a method looking for
+  `AdCodicem.ValueObjects.slnx`, and fails on a reading test without the trait or a marked test that reads nothing.
+- A folder of the unit suite maps to every family whose tests it holds or serves, not to exactly one: `Web/` and
+  `Persistence/` hold two families each, told apart by class name, `DataAnnotations/` and `Identifiers/` serve other
+  families' tests, `Domain/` and `GeneratedSurface/` every family. The plan checks that every family whose query names
+  a folder is among the folder's.
 - Any change to `Directory.Packages.props` runs everything, not only one outside its `<PackageVersion>` elements.
   `dotnet-affected` answers "nothing affected" for a pinned transitive package no project references, which a
   Dependabot security update adds, and the shipped-dependencies check must run on it. Dependabot's NuGet pull requests,
@@ -265,8 +269,8 @@ The plan, the families, the gate and the coverage flags are built as decided, wi
   module initializer. A file of
   the suite declares the namespace of its folder, and a family's query on a folder takes its sub-namespaces too, both of
   which the plan checks, so that the folder a change selects and the namespaces a family filters on agree.
-- `testdata` depends on `core`: the `core` flag covers `Testing.Data`, whose sampler only `testdata`'s tests reach, so a
-  `core` upload without them would replace the carried-forward lines with misses.
+- `testdata` depends on `core`: the `core` flag covers `Testing.Data`, part of whose sampler only `testdata`'s tests
+  reach, so a `core` upload without them would replace the carried-forward lines with misses.
 - `heavy.yml` and `native-aot.sh` only raise the notice asking for `ci:heavy`: nothing in them builds. `tests/Compat/`
   is formatted, not built, since no solution holds it. The workflows and
   scripts `ci.yml` never runs are named one by one, so that a new one runs everything until it gets a rule.

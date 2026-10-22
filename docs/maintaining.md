@@ -83,13 +83,13 @@ offering the higher one as the latest prerelease until a higher version ships.
   Monday, and consider a release: previews receive no fixes of their own (`SECURITY.md`). A release is possible only
   if the update landed as `fix(deps)` ([Dependabot](#dependabot)): a `chore(deps)` commit gives semantic-release
   nothing to release.
-- **When an advisory is published on a package of the NuGet graph**, every restore turns red once nuget.org's audit data
-  carries it, on `main`, on every pull request and in `preview.yml`, and in the island for a stable package it takes,
-  but not for a release candidate's build ([below](#the-net-compatibility-island)): NuGetAudit reads every package of
-  the graph, transitive ones included, from level `low`, and its warnings (`NU1901` to `NU1904`) are errors here, as
-  every warning is (`TreatWarningsAsErrors`). nuget.org updates those files a few times a day at most, after GitHub's
-  advisory database, so the Dependabot alerts and the push message show the advisory first: fix it then, before restores
-  fail ([Dependabot](#dependabot)).
+- **When an advisory is published on a package of the NuGet graph**, every restore turns red once nuget.org's audit
+  data carries it, on `main`, on every pull request that builds and in `preview.yml`, and in the island for a stable
+  package it takes, but not for a release candidate's build ([below](#the-net-compatibility-island)): NuGetAudit reads
+  every package of the graph, transitive ones included, from level `low`, and its warnings (`NU1901` to `NU1904`) are
+  errors here, as every warning is (`TreatWarningsAsErrors`). nuget.org updates those files a few times a day at most,
+  after GitHub's advisory database, so the Dependabot alerts and the push message show the advisory first: fix it
+  then, before restores fail ([Dependabot](#dependabot)).
 - **On Microsoft's patch day**, the second Tuesday of the month, move the framework's patch by hand, in one commit:
   every Microsoft `PackageVersion` on the current patch, 10.0.13 today, `dotnet-ef` with them, the
   `Microsoft.Extensions.Options` and `Microsoft.Extensions.DependencyInjection.Abstractions` pins among them. The
@@ -426,7 +426,7 @@ none, so the score climbs as new releases replace them rather than all at once.
 | **`nuget` environment** — deployment branches limited to `main`, no required reviewer | Settings → Environments | `preview.yml`'s publish job. A required reviewer here would hold every weekly preview until someone clicks; use `nuget-stable` for that instead. |
 | **`nuget-stable` environment** — deployment branches limited to `main`, required reviewer(s) | Settings → Environments | `release.yml`'s release job. This is the approval gate: `workflow_dispatch` starts the workflow, but the job waits for a reviewer before the OIDC exchange and `npx semantic-release` run. |
 | `RELEASE_APP_CLIENT_ID` (variable) and `RELEASE_APP_PRIVATE_KEY` (secret) on `nuget-stable` | Settings → Environments → `nuget-stable` | `release.yml`, to push the release commit and tag past the ruleset on `main` as a GitHub App. See [Repository settings](#github-settings) for creating the App. |
-| `CODECOV_TOKEN` | codecov.io → link the repository, then Settings → Secrets → Actions | The coverage uploads of `ci.yml`'s `coverage` job, one per Codecov flag of what the run tested, and of `heavy.yml`'s integration job on `main` and on a pull request labelled `ci:heavy`, which `ci.yml` hands the secret to. A public repository uploads without it — CI run 128 logged `Token length: 0` and the report still arrived —, so the secret is read only if it exists, which a private repository, or Codecov refusing tokenless uploads, would need. `fail_ci_if_error: false` keeps CI green when an upload is refused. Codecov posts `codecov/patch` and `codecov/project` on each pull request, against the floors in `codecov.yml` ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
+| `CODECOV_TOKEN` | codecov.io → link the repository, then Settings → Secrets → Actions | The coverage uploads of `ci.yml`'s `coverage` job, one per Codecov flag of what the run tested, and of `heavy.yml`'s integration job on `main` and on a pull request labelled `ci:heavy`, which `ci.yml` hands the secret to. A public repository uploads without it — CI run 128 logged `Token length: 0` and the report still arrived —, so the secret is read only if it exists, which a private repository, or Codecov refusing tokenless uploads, would need. `fail_ci_if_error: false` keeps CI green when an upload is refused. Codecov posts `codecov/patch` and `codecov/project` on each pull request that uploads coverage, against the floors in `codecov.yml` ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
 
 Trusted Publishing is set at the account level on nuget.org, not per package, and a policy names a workflow file
 and an environment: a run of any other file, or of the same file in another environment, is refused at the OIDC
