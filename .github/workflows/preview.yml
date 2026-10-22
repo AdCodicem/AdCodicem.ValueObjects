@@ -195,6 +195,7 @@ jobs:
     timeout-minutes: 20
     outputs:
       ids: ${{ steps.pack.outputs.ids }}
+      packages: ${{ steps.pack.outputs.packages }}
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       sha256: ${{ steps.pack.outputs.sha256 }}
     steps:
@@ -217,19 +218,41 @@ jobs:
       - name: Pack
         id: pack
         env:
+          REF: ${{ needs.plan.outputs.ref }}
           VERSION: ${{ needs.plan.outputs.version }}
           RELEASE_TYPE: ${{ needs.plan.outputs.release-type }}
           LAST_RELEASE: ${{ needs.plan.outputs.last-release }}
         run: |
           set -euo pipefail
+          # A repair packs the commit a partial version came from, with that
+          # commit's scripts, which before the release trains take none of the
+          # arguments below: its own run completes it instead.
+          if [[ ! -f .github/scripts/release-trains.mjs ]]; then
+            echo "::error::$REF predates the release trains: complete $VERSION with Re-run failed jobs on the publish job of the run that stopped midway (docs/maintaining.md)." >&2
+            exit 1
+          fi
           RELEASE_PACKAGE_IDS="$(.github/scripts/package-ids.sh | paste -sd ' ' -)"
           export RELEASE_PACKAGE_IDS
-          .github/scripts/release-pack.sh "$VERSION" "$RELEASE_TYPE" "$LAST_RELEASE"
-          .github/scripts/verify-packages.sh artifacts/packages "$VERSION" "$RELEASE_PACKAGE_IDS"
-          echo "ids=$RELEASE_PACKAGE_IDS" >> "$GITHUB_OUTPUT"
+          # Every release train at the one version, until each computes its own
+          # (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).
+          listed="$(node .github/scripts/release-trains.mjs trains)"
+          mapfile -t trains < <(cut -d' ' -f1 <<<"$listed")
+          pack=() versions=()
+          for train in "${trains[@]}"; do
+            pack+=("$train=$VERSION:$RELEASE_TYPE:$LAST_RELEASE")
+            versions+=("$train=$VERSION")
+          done
+          .github/scripts/release-pack.sh "${pack[@]}"
+          # shellcheck disable=SC2086 # one id per word
+          PACKAGES="$(node .github/scripts/release-trains.mjs versions "${versions[*]}" $RELEASE_PACKAGE_IDS | paste -sd ' ' -)"
+          .github/scripts/verify-packages.sh artifacts/packages "$PACKAGES"
           # The digests travel as a job output, which only this job writes: the
           # publish job checks the artifact against them before attesting it.
-          echo "sha256=$(cd artifacts/packages && sha256sum -- *.*nupkg | base64 -w0)" >> "$GITHUB_OUTPUT"
+          {
+            echo "ids=$RELEASE_PACKAGE_IDS"
+            echo "packages=$PACKAGES"
+            echo "sha256=$(cd artifacts/packages && sha256sum -- *.*nupkg | base64 -w0)"
+          } >> "$GITHUB_OUTPUT"
 
       # Named after the version, so that the files of a run can be found again.
       # The publish job downloads it by the id this step returns, not by name:
@@ -294,18 +317,17 @@ jobs:
           path: packages
 
       # nuget.org takes no package back, so the whole set is checked once more,
-      # as it is about to be pushed: the bytes the pack job produced, one
-      # version of the X.Y.Z-preview.N shape, every packable project and
-      # nothing else.
+      # as it is about to be pushed: the bytes the pack job produced, each at
+      # its train's version of the X.Y.Z-preview.N shape, every packable
+      # project and nothing else.
       - name: Check the set
         env:
-          VERSION: ${{ needs.plan.outputs.version }}
-          IDS: ${{ needs.pack.outputs.ids }}
+          PACKAGES: ${{ needs.pack.outputs.packages }}
           SHA256: ${{ needs.pack.outputs.sha256 }}
         run: |
           set -euo pipefail
           base64 -d <<<"$SHA256" | (cd packages && sha256sum --check --strict)
-          .github/scripts/verify-packages.sh packages "$VERSION" "$IDS"
+          .github/scripts/verify-packages.sh packages "$PACKAGES"
 
       # "Re-run failed jobs" on an old run reuses its plan. If nuget.org has
       # moved on since -- a later run published a newer commit -- pushing this
@@ -354,7 +376,8 @@ jobs:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
           NUGET_LIST_TIMEOUT: 1800
           VERSION: ${{ needs.plan.outputs.version }}
-        run: .github/scripts/push-packages.sh packages "$VERSION"
+          IDS: ${{ needs.pack.outputs.ids }}
+        run: .github/scripts/push-packages.sh packages "$VERSION" "$IDS"
 
   # Every run that decided redeploys /docs/preview/, publishing or not, labelled
   # with the version on nuget.org that describes the commit it builds -- and none

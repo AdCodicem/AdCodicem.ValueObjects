@@ -42,7 +42,7 @@
       "@semantic-release/exec",
       {
         "prepareCmd": "test \"$PACKED_VERSION\" = '${nextRelease.version}' || { echo \"::error::semantic-release computed ${nextRelease.version}, but the pack job packed '$PACKED_VERSION'.\" >&2; exit 1; }",
-        "publishCmd": ".github/scripts/push-packages.sh artifacts/packages '${nextRelease.version}'"
+        "publishCmd": ".github/scripts/push-packages.sh artifacts/packages '${nextRelease.version}' \"$RELEASE_PACKAGE_IDS\""
       }
     ],
     [

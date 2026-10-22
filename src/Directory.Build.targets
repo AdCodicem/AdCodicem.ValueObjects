@@ -1,0 +1,15 @@
+<Project>
+
+  <!--
+    Before MinVer stamps a version, refuse what would stamp it silently wrong (src/Directory.Build.props, ADR 0012):
+    a project no train holds; MINVERVERSIONOVERRIDE, or MinVerVersionOverride as a property, which would give every
+    train one version; RELEASE_TRAIN_VERSIONS naming no version for the project's train, which MinVer would fill from
+    the tags.
+  -->
+  <Target Name="_CheckReleaseTrain" BeforeTargets="MinVer">
+    <Error Condition="'$(ReleaseTrain)' == ''" Text="$(MSBuildProjectName) rides no release train: src/release-trains.json names it nowhere and no train takes the others (&quot;projects&quot;: &quot;*&quot;)." />
+    <Error Condition="'$(_InheritedMinVerVersionOverride)' != ''" Text="MinVerVersionOverride is set to '$(_InheritedMinVerVersionOverride)' (MINVERVERSIONOVERRIDE or -p:), one version for every train: set RELEASE_TRAIN_VERSIONS=&quot;core=&lt;version&gt; satellites=&lt;version&gt;&quot; instead." />
+    <Error Condition="'$(RELEASE_TRAIN_VERSIONS)' != '' and '$(_ReleaseTrainVersion)' == ''" Text="RELEASE_TRAIN_VERSIONS ('$(RELEASE_TRAIN_VERSIONS)') names no version for the $(ReleaseTrain) train of $(MSBuildProjectName)." />
+  </Target>
+
+</Project>
