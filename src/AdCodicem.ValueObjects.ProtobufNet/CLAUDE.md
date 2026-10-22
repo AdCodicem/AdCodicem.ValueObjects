@@ -1,7 +1,7 @@
 # AdCodicem.ValueObjects.ProtobufNet
 
 User-facing behaviour: `website/docs/how-to/protobuf-net.md`. Tests: `BinarySerialization/Proto*` and `CodeFirstGrpc*` of
-the unit suite, `tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet`.
+`tests/AdCodicem.ValueObjects.UnitTests.Serialization`, `tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet`.
 
 ## Models and serializers
 

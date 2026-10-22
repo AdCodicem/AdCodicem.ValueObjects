@@ -14,7 +14,8 @@ Accepted.
   jobs before it publishes.
 - Amends [ADR-0006](0006-coverage-is-a-signal-not-a-goal.md) in its second phase: the unit suite splits into a test
   project per family, where ADR-0006 rejected a fourth test suite.
-- Built up to phase A, which differs from the text below on the points of [Phase A as built](#phase-a-as-built).
+- Built through phase B, which differs from the text below on the points of [Phase A as built](#phase-a-as-built)
+  and [Phase B as built](#phase-b-as-built).
 
 ## Context
 
@@ -287,3 +288,74 @@ The plan, the families, the gate and the coverage flags are built as decided, wi
   exist.
 - `coverage-modules.sh` also fails a project of the run's families with no line covered: `RuntimeClosingTests` loads
   nearly every package to read its IL, which reports it without exercising it.
+
+## Phase B as built
+
+The unit suite is split as decided: a test project per family, behind the plan's `families` matrix, each with its own
+`InternalsVisibleTo` entry in `src/Directory.Build.props`, a package input, so the next preview publishes with no change
+of behaviour. Four points of [Phase A as built](#phase-a-as-built) go with the `--filter-query` of each family: the
+folders mapped to families, the rule for the files at the suite's root with the plan's checks of each file's namespace
+and each family's query, `testdata`'s dependency on `core` and `unit-families-check.sh`. The differences:
+
+- `core` keeps the original project, `tests/AdCodicem.ValueObjects.UnitTests`, home of the sources every project
+  shares; each other family's is `tests/AdCodicem.ValueObjects.UnitTests.<Family>`, named in `families.<family>.tests`
+  of `.github/ci-families.json`. Every project imports `tests/UnitTests.props`, which links into every other one, from
+  core's folder and at the same paths, `Domain/`, the base of `GeneratedSurface/`, `TestData/Declared.cs`,
+  `RuntimeClosingTests.cs` and `DescriptorTests.Registered.cs`, so that each value object lives in the assembly whose
+  tests use it.
+- Every family moved at once, not `orleans`, `hosts` and `graphql` first. The projects share one root namespace and the
+  folders keep their names, so no test was renamed: the eleven listings hold the 7,305 test names of the one assembly,
+  the eleven runs its 7,324 cases, 143 skipped (7,334 since `Every_rejection_carries_an_error_code` runs in each
+  project), and their reports together cover the same 8,645 lines of `src/` and the same branches.
+- Roslyn 5.0.0 goes to the Wolverine.Http fixture application alone, not to the Orleans and Wolverine projects. The
+  Orleans project reaches `Microsoft.CodeAnalysis.Common` 5.0.0 through `Microsoft.Orleans.Serialization` and references
+  no `Microsoft.CodeAnalysis.CSharp`, whose 4.14.0 would refuse it (NU1608); the Hosts project references the fixture
+  with `ReferenceOutputAssembly="false"`, which brings none of its packages. Every other project compiling C# at run
+  time takes 4.14.0, the generator's: the Data project's `MartenCompiledQueryDiagnosticTests` now runs `VO0048`'s
+  analyzer on the compiler it is built against, and NSwag's client and the code Wolverine writes compile on it.
+- `dependsOn` and the folder map are gone. `dotnet-affected` marks each family's unit project, which selects its family:
+  a package selects the families whose projects reach it (`graphql`'s references EF Core, `hosts`' Swashbuckle), and a
+  file each family whose project holds, links or imports it; a project under `src/` still selects its family, and one
+  of `core` every family. `dotnet-affected` 7.0.1 was checked on this layout first. It follows linked `Compile` and
+  `EmbeddedResource` items, an imported props file and the props it imports, a reference with
+  `OutputItemType="Analyzer"` (a change to the generator marks every project), one with
+  `ReferenceOutputAssembly="false"` (a change to the Wolverine.Http fixture marks the Hosts project), and `None` items:
+  a `CLAUDE.md` marks its project, which is why the plan puts it back to the base first.
+- A helper several families' tests use lives in the project of its family, in core's when core's tests use it, and each
+  other project needing it links it at the same path, so that a resource keeps its name. A file of tests is never
+  linked, or its tests would run twice, but `RuntimeClosingTests.cs` and `DescriptorTests.Registered.cs`, which each
+  project runs over its own family's packages and its own registry; the plan checks every `Compile` item taken from
+  another project's folder, a contract class counting as tests.
+- The cross-package guards no longer run whole with every family. The hub of `GeneratedSurface/`, which held every
+  family's checks, is split into partial parts: `Sample.cs`, the base every other project links, core's
+  `Sample.Core.cs`, and in each other family's project but `testdata`'s a `GeneratedSurface/Sample.<Family>.cs`
+  declaring its checks and their overrides. `RuntimeClosingTests` runs in every project over its own family's packages,
+  read from the family table `tests/UnitTests.props` embeds, so that a package added to a family needs no row.
+  `DescriptorTests` stays in `core` but for `Every_rejection_carries_an_error_code`, its sweep of
+  `ValueObjectRegistry.GetRegistered()`: a project's registry holds only the value objects its own module initializer
+  registers, so the sweep moved to `DescriptorTests.Registered.cs`, which every project compiles, or about 77 types of
+  the other families' tests would go unswept.
+- The sampler's own tests moved to `core`, the family of `Testing.Data`, with its check of every sample: `core`'s report
+  covers `Testing.Data` by itself, and `testdata` no longer depends on `core`.
+- Each project restores its own package graph: the Data project resolves Npgsql 9.0.4, the version Marten asks for,
+  where the one assembly resolved 10.0.3 through the Entity Framework Core provider, as the EfCore project still does.
+- Each `unit (<family>)` job restores, builds and tests its family's project alone, and holds its report to the family's
+  packages, the generator and the code fix aside (`coverage-modules.sh <report> <family>`); `build` holds those two to
+  the generator suite's report (`--generator`). The `coverage` job uploads every unit report of the run under each
+  family flag that ran, one upload per flag: other families' tests reach a family's lines too (the core packages, the
+  copies of `src/Shared/`, Swashbuckle from `hosts`), and phase A's one report carried them, so the flags keep phase A's
+  carry-forward semantics.
+- The `build` job builds the plan's `build` list through a solution filter written to the runner's temporary folder:
+  the projects `dotnet-affected` marks but the unit suite's, the generator and RDG suites when they run, and every
+  project of the solution but the unit suite's when everything runs.
+- The plan's checks of the table replace `unit-families-check.sh`, without a build: every family's `tests` is a project,
+  every `tests/AdCodicem.ValueObjects.UnitTests*/` project is a family's, and every project but `tests/Compat/`'s is in
+  `AdCodicem.ValueObjects.slnx`, where `dotnet-affected` looks for the projects a change marks. `preview.yml` and
+  `release.yml` run each family's project in turn, and fail once all have run when any failed.
+- Locally, on four vCPUs, each project's tests ran with coverage, as CI runs them, in 5 to 24 seconds, core's in 11,
+  against 75 for the one assembly. CI's durations, and the median of 2.4 minutes the replay estimated, are to be read
+  off the first runs.
+- On a push to `main` every family runs: the eleven unit jobs start beside `format`, `build`, `release tooling` and
+  `documentation site`, `heavy.yml`'s four jobs, `lint.yml`'s two (`conventional commits` runs on a pull request only)
+  and `scorecards.yml`'s one, and thirteen coverage uploads follow. That passes the twenty concurrent jobs of GitHub's
+  free plan the Decision counted on staying under, so some jobs may queue.

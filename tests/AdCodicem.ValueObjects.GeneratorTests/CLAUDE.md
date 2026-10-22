@@ -23,7 +23,8 @@ The generator, every diagnostic, the analyzers and code fixes, incremental cachi
   compiled against the 4.14 pins.
 - `MartenCompiledQueryAnalyzerTests` compiles against stand-ins of Marten's compiled-query interfaces, `[MartenIgnore]`
   and JasperFx's attributes under their real names (`MartenReferences`): the real Marten would bring JasperFx's source
-  generators and Marten's graph into a project on the 4.14 pins. The unit suite checks the names against Marten itself.
+  generators and Marten's graph into a project on the 4.14 pins. The unit suite's Data project checks the names against
+  Marten itself (`Persistence/MartenCompiledQueryDiagnosticTests`).
 - `withLoggingGenerator: true` runs Microsoft.Gen.Logging, which the `CopyLoggingGenerator` target copies from the
   pinned Microsoft.Extensions.Telemetry.Abstractions; `GeneratorRun.LoggingSource` holds what it wrote and
   `LoggingSnippets.LoggedTags` reads its tags. `DataClassificationAnalyzerTests` and `CopyClassificationCodeFixTests`

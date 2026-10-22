@@ -2,9 +2,9 @@
 
   <!--
     Value objects generated into an assembly marked [assembly: ValueObjectXmlSerialization], one for each underlying
-    type: opting the unit test assembly in would change every value object of its Domain/ folder. Beside them, value
-    objects written by hand that implement IXmlSerializable through ValueObjectXml, with schemas the generator never
-    writes.
+    type: opting a unit project's assembly in would change every value object of Domain/ it compiles. Beside them,
+    value objects written by hand that implement IXmlSerializable through ValueObjectXml, with schemas the generator
+    never writes.
   -->
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.Fixtures.XmlSerialization</RootNamespace>

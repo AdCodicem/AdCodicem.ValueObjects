@@ -1,9 +1,10 @@
 # AdCodicem.ValueObjects.HotChocolate.Data — filtering
 
-User-facing behaviour: `website/docs/how-to/graphql.md`. Tests: `GraphQLFilteringTests` and `GraphQLFilteringParity` of
-the unit suite (EF Core on SQLite and in memory), `HotChocolateFilteringTests` of the integration suite. AOT-compatible
-itself, but out of `tests/NativeAot`: HotChocolate.Data closes `FilterExpressionBuilder.CreateAndConvertParameter<T>` and
-`Enumerable.Contains<T>` over the member's type at run time, which have no native code for a struct.
+User-facing behaviour: `website/docs/how-to/graphql.md`. Tests: `GraphQLFilteringTests` and `GraphQLFilteringParity` in
+`GraphQL/` of `tests/AdCodicem.ValueObjects.UnitTests.GraphQL` (EF Core on SQLite and in memory),
+`HotChocolateFilteringTests` of the integration suite. AOT-compatible itself, but out of `tests/NativeAot`:
+HotChocolate.Data closes `FilterExpressionBuilder.CreateAndConvertParameter<T>` and `Enumerable.Contains<T>` over the
+member's type at run time, which have no native code for a struct.
 
 ## Binding a value object to its operation type
 

@@ -1,10 +1,10 @@
 # AdCodicem.ValueObjects.Wolverine.Http
 
-User-facing behaviour: `website/docs/how-to/wolverine.md`. Tests: the unit suite's `WolverineHttp/` (in process, without
-Roslyn: the helpers over `DefaultHttpContext`, the strategy over real chains, the code Wolverine writes, compiled, and
-the OpenAPI documents) and `WolverineHttpEndToEndTests`, which starts
-`tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WolverineHttp` as a child process; natively,
-`tests/NativeAot/AdCodicem.ValueObjects.NativeAot` in static mode.
+User-facing behaviour: `website/docs/how-to/wolverine.md`. Tests: `WolverineHttp/` of
+`tests/AdCodicem.ValueObjects.UnitTests.Hosts` (in process, without Wolverine's runtime compiler: the helpers over
+`DefaultHttpContext`, the strategy over real chains, the code Wolverine writes, compiled, and the OpenAPI documents) and
+`WolverineHttpEndToEndTests`, which starts `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WolverineHttp` as a child
+process; natively, `tests/NativeAot/AdCodicem.ValueObjects.NativeAot` in static mode.
 
 ## Wolverine's code generation
 
@@ -82,9 +82,11 @@ the OpenAPI documents) and `WolverineHttpEndToEndTests`, which starts
   an empty `JasperFx.Generated.DiscoveredEventModels` lands in the assembly.
 - Dynamic mode needs WolverineFx.RuntimeCompilation, whose JasperFx.RuntimeCompiler 5.0.0 asks for Roslyn 5.0.0 and its
   Workspaces: the fixture application alone references it, through conditional `PackageVersion`s keyed on its project
-  name. The unit suite runs Wolverine in `TypeLoadMode.Auto` without it (chains, ApiExplorer, documents and
-  `DynamicCodeBuilder.GenerateAllCode()` work; a request would fail), and every test building a host joins the
-  `WolverineHttpHosts` collection, run alone: `GenerateAllCode()` turns JasperFx's static
+  name. `tests/AdCodicem.ValueObjects.UnitTests.Hosts` builds the fixture without referencing its assembly
+  (`ReferenceOutputAssembly="false"`), so none of those packages reach it: it runs Wolverine in `TypeLoadMode.Auto`
+  without the runtime compiler (chains, ApiExplorer, documents and `DynamicCodeBuilder.GenerateAllCode()` work; a
+  request would fail), compiles the code Wolverine writes on `Microsoft.CodeAnalysis.CSharp` 4.14.0, and every test
+  building a host joins the `WolverineHttpHosts` collection, run alone: `GenerateAllCode()` turns JasperFx's static
   `DynamicCodeBuilder.WithinCodegenCommand` on while it runs.
 - `GenerateAllCode()` writes the endpoint registry twice (two collections hold it): a test compiling the code compiles
   each file once, as `codegen write`'s second copy overwrites the first on disk.

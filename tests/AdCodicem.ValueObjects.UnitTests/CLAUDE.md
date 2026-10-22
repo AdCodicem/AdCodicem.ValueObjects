@@ -1,189 +1,190 @@
 # AdCodicem.ValueObjects.UnitTests
 
-The behaviour of generated code, over the value objects of `Domain/`, and of every package called directly. The traps of
-a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's conventions.
+The unit suite is eleven projects, one per CI family of `.github/ci-families.json`, which names each in
+`families.<f>.tests` (ADR 0013). This one is the core family's: the behaviour of generated code over the value objects
+of `Domain/`, the JSON package, the identifiers, the test-data sampler, DataAnnotations and XML serialization. It is
+also the home of the sources every project shares, linked from here. Each other project has a `CLAUDE.md` of its own
+with its family's traps, and a package's traps are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's
+conventions.
 
 ## Layout
 
+- The projects, each `tests/<name>/<name>.csproj`, and the folders each holds, named apart from the packages and
+  libraries they test (root `CLAUDE.md`):
+  - core, `AdCodicem.ValueObjects.UnitTests`: tests at its root (`DescriptorTests`, `RuntimeClosingTests`, …),
+    `DataAnnotations/`, `Identifiers/`, `XmlSerialization/`, `TestData/` (the sampler's own tests, Testing.Data being a
+    core project), `Domain/` and `GeneratedSurface/`; `Persistence/` and `Web/` hold only helpers, which others link.
+  - aspnet, `.AspNet`: `Web/` (MVC, minimal APIs, OpenAPI, problem details, DataAnnotations through hosts).
+  - efcore, `.EfCore`: `Persistence/` (Entity Framework Core and its identifiers, SQL patterns).
+  - data, `.Data`: `Persistence/` (Dapper, MongoDB, Marten as `Marten*`, PCRE patterns as `PcrePattern*`).
+  - serialization, `.Serialization`: `BinarySerialization/` (MessagePack; protobuf-net as `Proto*`; gRPC as
+    `CodeFirstGrpc*` and `ContractFirstGrpc*`), `SchemaGeneration/` (NJsonSchema, Confluent), `Web/` (Newtonsoft.Json
+    formatters and JSON Patch, Swashbuckle, NSwag) and `NewtonsoftJsonTests.cs` at its root.
+  - orleans, `.Orleans`: `Grains/`.
+  - hosts, `.Hosts`: `Functions/` (Azure Functions), `WolverineHttp/` (Wolverine.Http, never `Wolverine/`).
+  - graphql, `.GraphQL`: `GraphQL/` (HotChocolate, HotChocolate.Data).
+  - text, `.Text`: `Forms/` (Blazor), `Cli/` (System.CommandLine), `Csv/` (CsvHelper).
+  - observability, `.Observability`: `LanguageModels/` (Microsoft.Extensions.AI, Agent Framework, Model Context
+    Protocol as `Mcp*`), `Logging/` (Serilog, Microsoft.Gen.Logging's redaction), `FluentValidation*.cs` at its root.
+  - testdata, `.TestData`: the contract kit's contracts and `PropertyTests.cs` at its root, `TestData/` (AutoFixture,
+    Bogus, FsCheck).
+- Every project's `RootNamespace` is `AdCodicem.ValueObjects.UnitTests`, and a file declares the namespace of its
+  folder, the root namespace at a project's root: a test's name does not depend on the project holding it, and a
+  folder in several projects (`Web/`, `Persistence/`) is one namespace.
+- Every project imports `tests/UnitTests.props`: the root namespace, the generated sources on disk, references to
+  Abstractions (alias `abstractions`), Identifiers, Json, Testing.Data (alias `testingdata`), the generator as an
+  analyzer and Microsoft.Extensions.Compliance.Abstractions, global usings of `AdCodicem.ValueObjects`,
+  `AdCodicem.ValueObjects.Annotations` and `AdCodicem.ValueObjects.UnitTests.Domain`, and `.github/ci-families.json`
+  embedded as `ci-families.json`.
+- Into every project but this one, `tests/UnitTests.props` links from this folder, at the same paths, `Domain/**`,
+  `GeneratedSurface/Sample.cs`, `GeneratedSurface/Samples.cs`, `GeneratedSurface/NumericSample.cs`,
+  `TestData/Declared.cs`, `RuntimeClosingTests.cs` and `DescriptorTests.Registered.cs`: every value object lives in the
+  assembly whose tests use it, and its module initializer has run before any of them.
 - `Domain/`: the suite's value objects. `Domain/UnderlyingTypes.cs` declares one per underlying type and per option or
-  hook the rest leaves out; it is linked by the integration suite and `tests/NativeAot`, so a change there changes them.
+  hook the rest leaves out; the integration suite and `tests/NativeAot` link it too, so a change there changes them.
   `Domain/HandWritten/`: value objects written by hand, the only way to reach the interface defaults and the registry's
   reflection fallback (`HandWrittenCode.cs`, `HandWrittenLink.cs` and `UnregisteredCode.cs` are linked by
   `tests/NativeAot` too, and `HandWrittenCode.cs` by the Functions and Wolverine.Http fixtures of `tests/Fixtures`).
-- `GeneratedSurface/` runs every emitted member family on every sample, so nothing the generator emits only compiles, and
-  holds every sample to each integration. To add an integration: declare an abstract check on `Sample`
-  (`GeneratedSurface/Sample.cs`), implement it in `Sample<TSelf, TValue>` by calling an `…Parity` helper kept in the
-  integration's own folder (`Forms/FormsParity.cs`, `BinarySerialization/ProtoParity.cs`, …), and add a theory over
-  every sample.
-- Folders, named apart from the packages and libraries they test (root `CLAUDE.md`): `Web/` (MVC, minimal APIs, OpenAPI,
-  Swashbuckle, NSwag, JSON Patch, DataAnnotations through hosts), `Persistence/` (EF Core, Dapper, MongoDB, Marten as
-  `Marten*`),
-  `BinarySerialization/` (MessagePack; protobuf-net as `Proto*`; gRPC as `CodeFirstGrpc*` and `ContractFirstGrpc*`),
-  `Grains/` (Orleans), `GraphQL/` (HotChocolate, HotChocolate.Data), `Forms/` (Blazor), `Cli/` (System.CommandLine),
-  `Csv/` (CsvHelper), `Functions/` (Azure Functions), `WolverineHttp/` (Wolverine.Http, never `Wolverine/`),
-  `LanguageModels/` (Microsoft.Extensions.AI, Model Context Protocol as `Mcp*`),
-  `Logging/` (Serilog, Microsoft.Gen.Logging redaction), `SchemaGeneration/` (NJsonSchema, Confluent),
-  `DataAnnotations/`, `TestData/` (the sampler and its three adapters), `XmlSerialization/`, `Identifiers/`.
-- Each top-level folder belongs to the CI families `.github/ci-families.json` maps it to (`unit.folders`), which a pull
-  request changing it runs, each family through `--filter-query` values on the namespaces of its folders (ADR 0013).
-  A new folder goes there with a query in its family's `unit` list, `/*/(AdCodicem.ValueObjects.UnitTests.F)|(…F.*)`,
-  or the plan fails. A file declares the namespace of its folder, the root namespace at the suite's root, which the
-  plan checks. A `.cs` file of tests at the root selects every family with a class there (`core`, `serialization`,
-  `observability`, `testdata`); a helper several families' tests use goes into `unit.shared`, which selects every
-  family, as a root file holding no test, any other root file and any `[assembly:]` or `[module:]` attribute or module
-  initializer do. `Web/`
-  and `Persistence/` hold two families each, told apart by class name (`NSwag*`, `Newtonsoft*`, `Swashbuckle*`;
-  `Dapper*`, `*MongoDb*`, `Marten*`, `PcrePattern*`), the folder's first family taking the rest.
-- `EmitCompilerGeneratedFiles` is on: generated sources land under `artifacts/obj/AdCodicem.ValueObjects.UnitTests/…/generated/`
-  — read them when diagnosing emission.
-- Fixtures the test assembly cannot hold, because the generator runs on it and its module initializer has run before any
-  test, are in `tests/Fixtures/` (`tests/Fixtures/CLAUDE.md`).
+- A helper several projects use lives in one project's folder and each other project needing it links it in its
+  csproj, at the same path, so that a resource keeps its name. It lives here when core's tests use it or no one family
+  owns it (`CodeCarrying.cs`, `WithoutDynamicCode.cs`, `DataAnnotations/Annotated.cs`,
+  `Identifiers/DeterministicEntropy.cs`, `Persistence/NonUnicodeValueObjects.cs`, `Web/ValidationMessages.*`,
+  `Web/SparseMessages.*`, `TestData/SamplerFixtures.cs`, `TestData/UnboundedDecimal.cs`), otherwise in its family's
+  (the AspNet project's `Web/ProblemReading.cs`, `Web/AnnotatedModels.cs`, `Web/OpenApiDocument.cs` and
+  `Web/ProbeController.cs`; the Data project's `Persistence/MongoDbShapedCode.cs`). Grep `Link=` before editing one.
+- A file of tests is never linked, or its tests would run in two projects, but `RuntimeClosingTests.cs` and
+  `DescriptorTests.Registered.cs`, which each project runs over its own family (its packages' IL, its registry's value
+  objects). The plan fails a `Compile` item (in `tests/UnitTests.props` or a project's csproj, whatever its `Link`)
+  that matches no file, or that is taken from another project's folder and holds `[Fact]`, `[Theory]` or a
+  `ValueObjectContract<…>` class.
+- A change to a project's files runs its family; one to a file several projects link or import (`tests/UnitTests.props`,
+  `Domain/`, a linked helper) runs each of their families, dotnet-affected following linked items and imports. Core's
+  family also runs the generator suite in full, aspnet's the RDG suite, efcore's the compiled model
+  (`.github/scripts/ci-plan.sh`'s header).
+- `EmitCompilerGeneratedFiles` is on: generated sources land under `artifacts/obj/<project>/generated/` — read them when
+  diagnosing emission.
+- Fixtures a test assembly cannot hold, because the generator runs on it and its module initializer has run before any
+  test, are in `tests/Fixtures/` (`tests/Fixtures/CLAUDE.md`); each project references those it needs, this one
+  `Untouched`, `WithoutGenerator`, `WithoutJson` and `XmlSerialization`.
+
+## The generated surface
+
+- `GeneratedSurface/` runs every emitted member family on every sample, so nothing the generator emits only compiles,
+  and holds every sample to each integration. `Sample.cs` is the base the other projects link, `Samples.cs` the samples,
+  `Sample.Core.cs` core's checks (the emitted members, DataAnnotations, `[NotDefault]`, the sampler's
+  `DrawsValuesItsRulesAccept`). Each other family but testdata declares its abstract checks and their overrides
+  together in its own project's `GeneratedSurface/Sample.<Family>.cs`, which only its tests call.
+- To add an integration, in its family's project: declare an abstract check on `Sample` and its override in
+  `Sample<TSelf, TValue>`, in `GeneratedSurface/Sample.<Family>.cs`, calling an `…Parity` helper kept in the
+  integration's own folder (the Text project's `Forms/FormsParity.cs`, the Serialization project's
+  `BinarySerialization/ProtoParity.cs`, …), and add a theory over `Samples.Names`
+  (`[MemberData(nameof(Samples.Names), MemberType = typeof(Samples))]`) to a test class of that folder (as the Orleans
+  project's `Grains/OrleansCodecTests` does). Core's theories are in `GeneratedSurface/GeneratedSurfaceTests.cs`; the
+  Text project's three, in a `GeneratedSurfaceTests` part of its own (`GeneratedSurface/GeneratedSurfaceTests.Text.cs`).
+
+## Adding a folder or a project
+
+- A new folder goes into its family's project; nothing maps it, since a change to the project's files selects its
+  family.
+- A new family's project is `tests/<name>/<name>.csproj`, `<name>` being `AdCodicem.ValueObjects.UnitTests.<Name>`; it
+  imports `..\UnitTests.props` and references its family's packages. Then, or the plan fails:
+  - name it in the family's `tests` in `.github/ci-families.json`: every `tests/AdCodicem.ValueObjects.UnitTests*/`
+    project must be one family's, and each family's `tests` such a project;
+  - add it to `AdCodicem.ValueObjects.slnx`, where dotnet-affected looks for the projects a change marks;
+  - replace `codecov.yml`'s flags between its `ci-families` markers with what
+    `.github/scripts/ci-plan.sh --codecov-flags` prints.
+- Give a new project an `InternalsVisibleTo` entry in `src/Directory.Build.props`, beside the eleven: the plan does not
+  check it, and it is a package input (`preview-gate.sh`), so the next preview publishes.
+- A family's report must cover a line of each of its packages with code of its own but the generator and the code fix
+  (`.github/scripts/coverage-modules.sh`): `RuntimeClosingTests` loads each, which reports it but covers nothing.
+
+## Commands
+
+```bash
+# One family's project; core's is tests/AdCodicem.ValueObjects.UnitTests.
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text
+# Every family, as previews and releases run them: each one runs, and xargs fails when any failed.
+jq -r '.families[].tests' .github/ci-families.json | xargs -I{} dotnet test --project tests/{} -c Release
+# One test, on the project holding it: wildcards, not substrings.
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Orleans --filter-method "*The_name_of_the_test*"
+```
+
+`dotnet test -c Release` runs every test project of the solution, the integration suite included (Docker).
 
 ## Which value object a test uses
 
-- The registry is process-wide and `TryResolve` keeps what it resolves: never resolve a hand-written type other tests share
-  (`HandWrittenCode`, `HandWrittenLink`, `UnregisteredCode`, …) through a boxed path (a `Type`-form attribute,
-  `[NotDefault]`, the Functions converter, a HotChocolate scalar, an adapter), or it is registered for every later test.
-- On a boxed path, use `Declared<TDeclaration, TValue>` (`TestData/SamplerFixtures.cs`) over a declaration the test owns,
-  or close a generic one (`Reference<TOwner>` in `Domain/DeclarationContexts.cs`, `HandWrittenTag<T>`,
-  `HandWrittenId<TProfile>`) over a marker type private to the test, so the registration it causes is its own.
+- The registry keeps what `TryResolve` resolves for the life of the process: never resolve a hand-written type other
+  tests share (`HandWrittenCode`, `HandWrittenLink`, `UnregisteredCode`, …) through a boxed path (a `Type`-form
+  attribute, `[NotDefault]`, the Functions converter, a HotChocolate scalar, an adapter), or it is registered for every
+  later test of the project.
+- On a boxed path, use `Declared<TDeclaration, TValue>` (`TestData/Declared.cs`, which every other project links) over a
+  declaration the test owns, or close a generic one (`Reference<TOwner>` in `Domain/DeclarationContexts.cs`,
+  `HandWrittenTag<T>`, `HandWrittenId<TProfile>`) over a marker type private to the test, so the registration it causes
+  is its own.
 - `UnregisteredCode` stays resolved by nothing: it is the "nothing registered" case here and in native AOT.
 - An assertion on "every registered type" (the Serilog option, the FsCheck merge) relies only on `Domain/` types or on a
   fresh `AssemblyLoadContext` copy of `Fixtures.Untouched`: other modules' initializers may not have run yet.
-- A value object that trips a generator warning cannot be silenced with `#pragma`: write it by hand, as
-  `Persistence/MongoDbShapedCode.cs`'s `ShapedCode<TShape>` does for a pattern under `IgnoreCase`, `Multiline` or
-  `IgnorePatternWhitespace`.
+- A value object that trips a generator warning cannot be silenced with `#pragma`: write it by hand, as the Data
+  project's `Persistence/MongoDbShapedCode.cs` does with `ShapedCode<TShape>` for a pattern under `IgnoreCase`,
+  `Multiline` or `IgnorePatternWhitespace`.
 - A test-owned value object declaring `Unicode = false` holds its text to ASCII (an anchored pattern of ASCII classes, a
-  closed set of ASCII known values compared ordinally, or a normalizer or validator hook), or the suite fails on `VO0047`.
-- Every value object of `Domain/` gets a `ValueObjectContract` overriding `DerivesRejectedValues` to return `true` (the
-  exceptions are in the root `CLAUDE.md`).
+  closed set of ASCII known values compared ordinally, or a normalizer or validator hook), or the build fails on
+  `VO0047`.
+- Every value object of `Domain/` gets a `ValueObjectContract` overriding `DerivesRejectedValues` to return `true`, in
+  the contract files at the root of `tests/AdCodicem.ValueObjects.UnitTests.TestData` (the exceptions are in the root
+  `CLAUDE.md`).
 - A test constructing `default(T)` on purpose takes a targeted `#pragma warning disable VO0010` with a comment; one
-  misusing a DataAnnotations attribute on purpose, `VO0039` or `VO0040`; a Marten compiled query holding a single value
-  object on purpose, `VO0048`, around the member alone. The package's build props are not imported here,
-  so `VO0042` never fires.
+  misusing a DataAnnotations attribute on purpose, `VO0039` or `VO0040`. No project imports the `AdCodicem.ValueObjects`
+  package's build props (the generator is referenced as an analyzer), so `VO0042` never fires.
 
 ## Process-wide state
 
-- MongoDB: every test class goes through the one static, strict registration of `Persistence/MongoDb.cs`
-  (`ValueObjectBson.Register`, then `EntityIdBson.Register`). Another trust or representation means a serializer built by
-  hand, a class map of the test's own or a fresh `BsonSerializerRegistry`, which the package's internal checks take as a
-  parameter; a test of `Register` refusing goes through `MongoDbStartUpTests`' fresh copies of the driver, loaded into an
-  `AssemblyLoadContext` of their own. A test of an id generator registered or kept closes `HandWrittenId<TProfile>` over
-  a profile of its own. A query's `ToString()` reports a refused translation instead of throwing it: a test of a refused
-  query constant renders a `Builders` filter.
-- protobuf-net: `RuntimeTypeModel.Default` is registered once, strict (`BinarySerialization/ProtoDefaultModel.cs`); every
-  other test builds a model of its own (`ProtoWire.Model`). Never put `[ProtoContract]` on a `Domain/` type, since
-  protobuf-net honours it on every model: the attribute-route value objects are the tests' own (`ProtoSku`,
-  `ProtoTicket`, `ProtoBareCode`, the bare `[ProtoContract]` trap, under `#pragma warning disable VO0043`). Test contracts
-  carry no `[ProtoMember]` initializer (`PBN0022`); the default-model test suppresses `PBN3010`; the one Google.Protobuf
-  message of `CodeFirstGrpcContracts.cs` suppresses `PBN2008`.
-- MessagePack: a `[MessagePackObject]` holding a value object of this assembly needs
-  `[assembly: MessagePackAssumedFormattable(...)]` (`BinarySerialization/MessagePackAssumptions.cs`).
-- FluentValidation's language manager is global: such tests join the `FluentValidationGlobalOptions` collection and restore
-  what they set.
-- EF Core builds a model once per context type: each model shape gets a context type of its own.
-- Orleans: serializers are built per test configuration (`Grains/OrleansWire`), none process-wide; `OrleansParity`
-  checks each sample through `AddValueObjects()` strict and `AddValueObject<TSelf, TValue>(trusted: true)`, a serializer
-  per type built once. Grain calls go through `GrainCluster`, one in-process cluster per test class (about 1.5 s the
-  first time, 0.3 s after); a test needing another configuration starts its own with `GrainCluster.StartAsync` and
-  disposes of it. A generic value object or one written by hand that a boxed path resolves is closed over a marker or a
-  declaration of the test's own (`OrleansCodecOwner`, `OrleansCodeDeclaration`, …).
-- Marten: `Persistence/MartenHarness` builds stores over a port nothing listens on (`Unreachable`, `AutoCreate.None`)
-  and reads Marten's SQL (`ToCommand`), compiled-query plans and DDL without a connection; PostgreSQL runs in the
-  integration suite. Weasel's `PostgresqlProvider.Instance` mappings, which `UseValueObjects()` fills, are process-wide,
-  so a store of a test without the package fails at execution rather than at parsing for any value object another test
-  taught: assert what Marten refuses without the package on a value object no store of the suite is taught, and close a
-  generic or hand-written one the boxed path resolves over a declaration of the test's own (`MartenCodeDeclaration`,
-  `MartenStaticDeclaration`, …). An inline array in a `Contains` fails inside Marten (`MemoryExtensions.Contains`):
-  hold the values in a static field.
-- Wolverine.Http: `WolverineHttp/WolverineHttpHost` maps the endpoint types a test names, in `TypeLoadMode.Auto` and
-  without Wolverine's runtime compiler, which this project does not reference: chains, ApiExplorer, documents and the
-  code Wolverine writes are there, a request is not. Every test building a host joins the `WolverineHttpHosts`
-  collection, run alone, since `GenerateCodeAsync` turns JasperFx's static `DynamicCodeBuilder.WithinCodegenCommand` on
-  while it runs; such a host serves no request afterwards. Requests go through the fixture application
-  (`WolverineHttpEndToEndTests`, below). Wolverine scans this assembly: name an endpoint type apart
-  (`Wolverine…Endpoints`) and list it in `Map`, and keep endpoint classes public and static.
-- `RuntimeFeature.IsDynamicCodeSupported` is read once per process: `WithoutDynamicCode` (at the suite's root) runs a test
-  again in a child process whose runtime configuration turns dynamic code off. Such a test creates no NSubstitute proxy
-  and no EF Core context, neither of which works there.
+- Each project runs in a test process of its own, so what is process-wide (the registry, MongoDB.Driver's serializers
+  and id generators, protobuf-net's default model, FluentValidation's language manager, Weasel's mappings, JasperFx's
+  codegen flag, `EF.IsDesignTime`) is shared by one family's tests only. The registry's rules are under
+  [Which value object a test uses](#which-value-object-a-test-uses) above; the rules for each of the others are in the
+  `CLAUDE.md` of the project whose tests touch it.
+- `RuntimeFeature.IsDynamicCodeSupported` is read once per process: `WithoutDynamicCode` (`WithoutDynamicCode.cs`,
+  linked by the Data, Orleans, Hosts, GraphQL and Text projects) runs a test again in a child process whose runtime
+  configuration turns dynamic code off. Such a test creates no NSubstitute proxy and no EF Core context, neither of
+  which works there.
 
 ## Cultures and messages
 
-- Never rely on the ambient culture: CI runs in the invariant culture, a developer's machine may not. A test depending on
-  one sets `CurrentCulture` and `CurrentUICulture`, and gives them back.
+- Never rely on the ambient culture: CI runs in the invariant culture, a developer's machine may not. A test depending
+  on one sets `CurrentCulture` and `CurrentUICulture`, and gives them back.
 - Localised messages are asserted in fr-FR (a decimal comma, a day-first date, `;` between known values) from
   `Web/ValidationMessages.fr.resx`, the French example of the errors reference word for word, and
-  `Web/SparseMessages.fr.resx`, French alone, so that another culture keeps English.
-- A resource type's namespace is the root namespace followed by its folder, or every key reads as missing, with no error.
+  `Web/SparseMessages.fr.resx`, French alone, so that another culture keeps English. Both live here with their types,
+  and the AspNet, Hosts, GraphQL and Text projects link both, the Serialization project `ValidationMessages` alone, at
+  the same paths.
+- A resource type's namespace is the root namespace followed by its folder, or every key reads as missing, with no
+  error: hence a linked resource keeps its path.
 
-## Harnesses and suite settings
+## Settings and core's own traps
 
-- Blazor: `Forms/FormsHarness` adds the services before `SetRendererInfo`: bUnit throws `MissingRendererInfoException`
-  when a component reads `RendererInfo` first, and refuses a service added once the renderer is asked for.
-  `Forms/EcmaScriptPatterns.json` is held to .NET here and to Node by `.github/scripts/ecmascript-patterns.mjs`: change
-  both together.
-- System.CommandLine: `Cli/` parses through `Command.Parse` and invokes through `InvocationConfiguration` with writers
-  of its own (`CliHarness.Invoke`), never the console; `CliHarness.Refusals` reads each parse error with its code and
-  type. A `RootCommand` is named after the test host, so a test asserting an error that names the command parses a
-  `Command("app")`. A command with subcommands and no action answers "Required command was not provided.".
-  System.CommandLine converts a parent command's arguments, and its options neither `Recursive` nor with a default
-  value, only at `GetValue`; the walk's validator reads them when a subcommand is invoked, so a test of
-  System.CommandLine's own behaviour there configures its symbols with `AcceptValueObject` alone and walks no command.
-- CsvHelper: `Csv/CsvHarness` reads and writes through `StringReader` and `StringWriter`, a context per read or write,
-  so nothing is process-wide; its configuration ends lines with `\n`. A single-column row whose field is empty text is a
-  blank line, which CsvHelper skips: put the value after a `Line` column (`CsvLine<T>`) or quote it. A refused text is
-  written with `CsvHarness.Field`, so that CsvHelper quotes it. A `Csv/` file aliases `CsvHelper.MissingFieldException`,
-  which meets `System.MissingFieldException`, and never imports `System.ComponentModel` beside
-  `CsvHelper.Configuration.Attributes` (two `TypeConverterAttribute`s). A generated value object's `IsDefault` is an
-  explicit implementation: read it through `CsvHarness.IsUninitialized()`.
-- HotChocolate: `GraphQL/GraphQLHarness` builds executors in process. The project sets `HotChocolateImplicitUsings` to
-  `disable`. `ScopedFilterQuery` has no projection (a `[UseProjection]` field beside a named convention fails the schema).
-- `RegisteredAsciiDeclaration` is the one schema written by hand that a test resolves through the registry.
-- Orleans: Microsoft.Orleans.TestingHost brings Orleans' code generator, its analyzers and global usings of `Orleans`,
-  `Orleans.Hosting` and `Orleans.Runtime` into this project (through Microsoft.Orleans.Sdk): a type of the suite named
-  like a public type of those namespaces is ambiguous (CS0104), so name it apart. Its generated `ApplicationPart` list
-  is how a test cluster finds the fixture's grains. Orleans' `Deserialize<T>` returns `[MaybeNull]`: read a holder
-  through `OrleansWire.Read<T>`. Bytes no serializer writes are crafted field by field through `OrleansWire.Craft`; a
-  writer applies its own type filters, so bytes naming a type the reader must refuse go through `Craft(services, …)`
-  over services allowing that type.
-- Roslyn: this project takes `Microsoft.CodeAnalysis.CSharp` 5.0.0 (`Directory.Packages.props`), which NSwag's client
-  and the code Wolverine writes compile with, since Orleans brings `Microsoft.CodeAnalysis.Common` 5.0.0; the generator
-  and GeneratorTests stay on 4.14. `CSharp.Workspaces` stays on 4.14.0 here: the Wolverine.Http fixture takes 5.0.0
-  through a pin of its own, and its reference (`ReferenceOutputAssembly="false"`) brings none of its packages here.
-- Wolverine.Http end to end: `WolverineHttpEndToEndTests` starts
-  `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WolverineHttp` with the `dotnet` host three times at once (lenient,
-  strict, French), from the folder the `WolverineHttpApplication` assembly metadata names, and reads the JSON line each
-  request is answered with, keyed by its label; a label the fixture's script changes must change here too. About 7 s,
-  Roslyn compiling the endpoints in each child. The children run with `CORECLR_ENABLE_PROFILING=0`: the coverage
-  collector follows a child through that profiler, and merging the fixture's report lost hits of the packages both
-  processes load (`ValueObjectRefusals.Body.cs` read as missed).
-- Marten's compiled-query diagnostic: `Persistence/MartenCompiledQueryDiagnosticTests` runs `VO0048`'s analyzer, loaded
-  from the generator's assembly that the `CopyValueObjectAnalyzers` target copies to `analyzers/`, over a snippet
-  compiled against the trusted platform assemblies; this project's Roslyn 5 runs the analyzer built against 4.14, as
-  the SDK's compiler does.
-- `NSwag.OpenApiDocument` meets the suite's `Web.OpenApiDocument`: alias it (`NSwagOpenApiDocument`, as
-  `NSwagDocumentTests` does).
-- MCP: `LanguageModels/McpHarness` runs a server and the SDK's client over a pair of pipes. Experimental-API diagnostics
-  (`MEAI001`, `MCPEXP002`) are suppressed around the one statement needing them.
-- Azure Functions: `Functions/FunctionsDoubles.cs` writes `FunctionContext`, `FunctionDefinition` and `BindingContext`
-  (public abstract classes); the worker's internal `IFunctionBindingsFeature` is a substitute.
-- Swashbuckle and NSwag documents are awaited with a timeout (`SwashbuckleDocuments.BuildAsync` in
-  `Web/SwashbuckleDocument.cs`), so a schema-filter hang fails the test, not the job's time limit.
-- `Persistence/EntityFrameworkCoreCheckErrorTests.cs` stands for the path only `SaveChangesFailed` sees by throwing
-  SQLite's error from `DataReaderClosing`; the integration suite runs it for real.
-- Confluent's serdes run over an NSubstitute `ISchemaRegistryClient`, no registry server; `librdkafka.redist` is referenced
-  with `ExcludeAssets="native;build"` (about 125 MB less output: the serdes never load it).
-- Logging: the suite references Microsoft.Extensions.Telemetry and the Redaction fixture, so its project sets
-  `DisableMicrosoftExtensionsLoggingSourceGenerator` back to `false` and removes the package's analyzers after
-  `ResolveReferences` (`KeepTheDefaultLoggingGenerator`); without both, Microsoft.Gen.Logging would pass `PageNumber` as
-  text and `SerilogMicrosoftExtensionsLoggingTests` would fail.
+- Roslyn: every project compiling C# at run time takes `Microsoft.CodeAnalysis.CSharp` 4.14.0, the API the generator is
+  built against (`Directory.Packages.props`): the Data project for `VO0048`'s analyzer, the Serialization project for
+  NSwag's client, the Hosts project for the code Wolverine writes. The Orleans project references none, since
+  Microsoft.Orleans.Serialization brings `Microsoft.CodeAnalysis.Common` 5.0.0 there (NU1608 otherwise); the
+  Wolverine.Http fixture alone takes 5.0.0, through pins of its own.
+- This project takes the ASP.NET Core shared framework (`BadHttpRequestException` for `ErrorCodeCarrierTests`, the
+  generic host `DataAnnotationsHostTests` and `AnyEntityIdTests` bind options through), FsCheck for
+  `ErrorCodeCarrierTests`' properties, LateApexEarlySpeed.Json.Schema, which checks written JSON against the exported
+  schema, and CommunityToolkit.Mvvm, whose `ObservableValidator` runs `[ParsesAs]` and `[NotDefault]` in
+  `DataAnnotations/`.
 - Shared-source copies: the contracts' `ValueObjectPatternSyntax` is named through `extern alias abstractions`,
-  Testing.Data's types through `testingdata`, the CsvHelper package's `GregorianCultures` through `csvhelper`; every
-  other copy through its package's API (`src/Shared/CLAUDE.md`).
-- `DescriptorTests.cs` covers the boxed path the rest of the suite never reaches; `RuntimeClosingTests.cs` holds the
-  allow-list of runtime-closing calls.
-- Property tests (`PropertyTests.cs`) run the laws `IValueObject<TSelf, TValue>` states in prose. A property conditioned on
-  "the value was accepted" passes vacuously unless the generator produces accepted values, so each counts how often it
-  reached that branch and asserts on it; a range generator biases towards the sampler's `Boundaries` and
-  `RejectedValues`, since a wide type never lands on its edge by chance. After changing a generator, re-run the mutations
-  its commit message records before trusting the green.
+  Testing.Data's types through `testingdata` (both set by `tests/UnitTests.props`), the CsvHelper package's
+  `GregorianCultures` through `csvhelper` in the Text project; every other copy through its package's API
+  (`src/Shared/CLAUDE.md`).
+- `DescriptorTests.cs` covers the boxed path the rest of the suite never reaches, and stays here but for its sweep of
+  `ValueObjectRegistry.GetRegistered()`, `Every_rejection_carries_an_error_code`, in `DescriptorTests.Registered.cs`,
+  which every project compiles: a project's registry holds only the value objects its own module initializer
+  registers, so each project sweeps its own.
+- `RuntimeClosingTests.cs`, compiled by every project, reads the IL of its own family's packages: its rows are the
+  `projects` of the family whose `tests` is the assembly's name in the embedded table, but `NoRuntimeCode`
+  (`AdCodicem.ValueObjects`, the generator, the code fix). `Allowed` is the allow-list (Abstractions,
+  AspNetCore.NewtonsoftJson, EntityFrameworkCore), and a key naming no project of the table throws. A package added to
+  a family is read with no row to write, so the family's project must reference it (`Assembly.Load`).
+- `RegisteredAsciiDeclaration` (`Persistence/NonUnicodeValueObjects.cs`, linked by the EfCore and Data projects) is the
+  one schema written by hand that a test resolves through the registry.

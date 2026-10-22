@@ -85,9 +85,10 @@ Targets `netstandard2.0`, ships inside the `AdCodicem.ValueObjects` package (not
   `HasAttribute` calls `MemberInfo.IsDefined`, which ignores `inherit` on a property): the walk skips what an override
   replaces, before reading its attributes.
 - The remedy follows Marten 9.50's parameter finders (`string`, `Guid`, `int`, `long`, `float`, `decimal`, `DateTime`,
-  `DateTimeOffset`), which the unit suite's `MartenInternalsTests` pins: a Marten release binding another type fails
-  there first, and the message then names it. Never name a widening Marten matches by value: a `float` member against a
-  `double`, or a `bool` computed from an `int` member, makes Marten answer every call with the first call's value.
+  `DateTimeOffset`), which `Persistence/MartenInternalsTests` of `tests/AdCodicem.ValueObjects.UnitTests.Data` pins: a
+  Marten release binding another type fails there first, and the message then names it. Never name a widening Marten
+  matches by value: a `float` member against a `double`, or a `bool` computed from an `int` member, makes Marten answer
+  every call with the first call's value.
 - Marten's finder writes a member's value as it stands, never through the package: the `DateTimeOffset` form says to
   set it in UTC, since Npgsql refuses any other offset (the integration suite pins the refusal).
 - The collection form names an array or a list (`IList<T>`): `CompiledQueryPlan.sortMembers` hands the package no other
@@ -103,6 +104,6 @@ Targets `netstandard2.0`, ships inside the `AdCodicem.ValueObjects` package (not
   generated value object meets (`Create`): a value object written by hand failing one gets the clause anyway, whose
   collection form binds all the same. Marten reads no `.Value` of an identity (pinned too), so the clause names a
   collection.
-- Its test (`MartenCompiledQueryAnalyzerTests`) compiles against stand-ins of Marten's types; the unit suite's
-  `MartenCompiledQueryDiagnosticTests` runs the copy the compiler ran over it against the real Marten, which checks the
-  names.
+- Its test (`MartenCompiledQueryAnalyzerTests`) compiles against stand-ins of Marten's types;
+  `Persistence/MartenCompiledQueryDiagnosticTests` of `tests/AdCodicem.ValueObjects.UnitTests.Data` runs the copy the
+  compiler ran over it against the real Marten, which checks the names.

@@ -1,7 +1,8 @@
 # AdCodicem.ValueObjects.AspNetCore.Http — minimal API problem details
 
-Tests: `Web/` of the unit suite (reflection-based binding) and `tests/AdCodicem.ValueObjects.RdgTests` (the Request
-Delegate Generator's binding). The filter runs natively: the `native AOT` job guards it.
+Tests: `Web/` of `tests/AdCodicem.ValueObjects.UnitTests.AspNet` (reflection-based binding) and
+`tests/AdCodicem.ValueObjects.RdgTests` (the Request Delegate Generator's binding). The filter runs natively: the
+`native AOT` job guards it.
 
 - A minimal API convention runs before the binder describes the parameters, so `WithValueObjectProblemDetails` reads
   them in its filter factory, from the `IParameterBindingMetadata` both binders add to the endpoint's metadata: the

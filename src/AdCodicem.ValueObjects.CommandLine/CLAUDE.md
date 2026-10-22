@@ -1,8 +1,8 @@
 # AdCodicem.ValueObjects.CommandLine — System.CommandLine options and arguments
 
-User-facing behaviour: `website/docs/how-to/files-and-command-line.md`. Tests: `Cli/` of the unit suite (commands parsed
-and invoked in process), `Cli.cs` of `tests/NativeAot`, and the island's `CommandLineTests.cs` on System.CommandLine
-3.0.
+User-facing behaviour: `website/docs/how-to/files-and-command-line.md`. Tests: `Cli/` of
+`tests/AdCodicem.ValueObjects.UnitTests.Text` (commands parsed and invoked in process), `Cli.cs` of `tests/NativeAot`,
+and the island's `CommandLineTests.cs` on System.CommandLine 3.0.
 
 ## What System.CommandLine does around the parser
 
@@ -86,4 +86,5 @@ and invoked in process), `Cli.cs` of `tests/NativeAot`, and the island's `Comman
   `CaptureRemainingTokens`, `RootCommand.HelpName`) and runs the package as built: the island pins the 3.0 side, and
   Dependabot ignores the majors.
 - The namespace hides a root `CommandLine` namespace (CommandLineParser's), never `System.CommandLine` (root
-  `CLAUDE.md`): the unit-suite folder is `Cli/` and the native application's class `Cli`.
+  `CLAUDE.md`): the folder of `tests/AdCodicem.ValueObjects.UnitTests.Text` is `Cli/` and the native application's
+  class `Cli`.

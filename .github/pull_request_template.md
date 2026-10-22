@@ -4,7 +4,9 @@
 
 ## Checklist
 
-- [ ] `dotnet test --project tests/AdCodicem.ValueObjects.UnitTests` and `dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests` pass (the integration suite needs Docker).
+- [ ] The unit projects of the families you changed (`dotnet test --project tests/<tests>`, each family's `tests` in
+      `.github/ci-families.json`) and `dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests` pass (the
+      integration suite needs Docker).
 - [ ] Codecov's patch check holds, under the rule in `docs/adr/0006-coverage-is-a-signal-not-a-goal.md`: what stays
       uncovered is a defensive branch, a compiler branch or a private member no input reaches, and the pull request says so.
 - [ ] A change to the surface a consumer writes against — an option on `[ValueObject<T>]` or `[EntityId]`, a hook

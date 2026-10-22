@@ -29,7 +29,10 @@ Claude Code loads a nested `CLAUDE.md` when it reads a file under its folder.
   AzureFunctions, AzureFunctions.AspNetCore, Wolverine.Http, HotChocolate, HotChocolate.Data, Blazor, CommandLine,
   CsvHelper, NJsonSchema, Swashbuckle, AutoFixture, Bogus, FsCheck; `src/Shared/CLAUDE.md` for the source files several
   packages link.
-- `tests/<Suite>/CLAUDE.md` for each of the four suites, plus `tests/NativeAot/`, `tests/Compat/`, `tests/Fixtures/`.
+- `tests/<Suite>/CLAUDE.md` for the generator, RDG and integration suites and for each of the unit suite's eleven
+  projects, plus `tests/NativeAot/`, `tests/Compat/`, `tests/Fixtures/`. Core's,
+  `tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`, holds the conventions of the whole unit suite, but Claude Code
+  loads it only under core's folder: read it before editing another family's project.
 - `.github/CLAUDE.md` for workflows, scripts, Dependabot and release mechanics; `website/CLAUDE.md` for the site.
 - Record a new trap in the nearest of these files; at the root only when it crosses packages. One rule per bullet: the
   fact or the instruction, then why in one clause, with exact identifiers. Where a document already explains it, keep
@@ -40,14 +43,18 @@ Claude Code loads a nested `CLAUDE.md` when it reads a file under its folder.
 
 ```bash
 dotnet build -c Release
-dotnet test -c Release                                              # all four suites
+dotnet test -c Release                                              # every suite, the eleven unit projects included
 # One suite. --project is required: on a bare directory dotnet test prints a hint and exits 0, which reads as a pass.
-dotnet test --project tests/AdCodicem.ValueObjects.UnitTests
 dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests
 dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests # needs Docker
 dotnet test --project tests/AdCodicem.ValueObjects.RdgTests
-# One test: xunit.v3 on Microsoft Testing Platform; wildcards, not substrings
-dotnet test --project tests/AdCodicem.ValueObjects.UnitTests --filter-method "*The_name_of_the_test*"
+# One family's project of the unit suite (`tests` in .github/ci-families.json): core's, or another family's
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text
+# Every family's project, as previews and releases run them: each one runs, and xargs fails when any failed
+jq -r '.families[].tests' .github/ci-families.json | xargs -I{} dotnet test --project tests/{} -c Release
+# One test, on its family's project: xunit.v3 on Microsoft Testing Platform; wildcards, not substrings
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text --filter-method "*The_name_of_the_test*"
 
 # Formatting, as CI runs it: whitespace in every .cs file, no project loaded. The build enforces the style rules. Never
 # plain `dotnet format`: its `analyzers` step runs without the generator's assembly and reports ASP0020 and compile
@@ -58,7 +65,7 @@ dotnet format whitespace . --folder --verify-no-changes
 dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 
 actionlint                                   # as lint.yml's `workflows` job: 1.7.12, shellcheck on PATH
-node .github/scripts/ecmascript-patterns.mjs # Blazor's pattern table in Node's v-flag engine (`build` job, for `text`)
+node .github/scripts/ecmascript-patterns.mjs # Blazor's pattern table in Node's v-flag engine (`unit (text)` job)
 EVENT_NAME=push .github/scripts/ci-plan.sh   # checks .github/ci-families.json against the repository, then plans
 
 # Benchmarks: a quiet machine; absolute timings are not comparable across runs
@@ -85,7 +92,7 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   supported in the same packages. ADR 0012 replaces the one version with two trains (core, satellites), accepted but
   not built yet, so the one version holds. ADR 0013 targets the CI: its heavy jobs run after the merge and before a
   release (`heavy.yml`), and a pull request runs the families of `.github/ci-families.json` and the lanes the files it
-  changes select (`.github/scripts/ci-plan.sh`; phase A, one unit-test assembly filtered per family).
+  changes select (`.github/scripts/ci-plan.sh`; phase B, one unit-test project per family, each in a job of its own).
 
 ## Architecture
 
@@ -121,7 +128,10 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   cannot run for a struct. An entity identifier has its own `EntityIdDescriptor.Accept(IEntityIdVisitor<TResult>)`.
 - `RuntimeClosingTests` reads every package's IL and fails on a runtime-closing call outside its allow-list (the
   registry's reflection fallback, EF Core's converter of a `TSelf?` property or element, the JSON Patch dictionary
-  adapter). The test is the source of truth; a new entry needs a reason there.
+  adapter). Every project of the unit suite compiles it (core holds it, `tests/UnitTests.props` links it into the others
+  and embeds `.github/ci-families.json` into all of them), and each project reads its own family's packages from that
+  table: a package added to a family needs no row, only a reference from the family's project (`Assembly.Load`). Its
+  `Allowed` dictionary, in core's `RuntimeClosingTests.cs`, is the source of truth; a new entry needs a reason there.
 - Code that only asks "is this a value object" calls `ValueObjectRegistry.IsValueObject` and resolves nothing (Serilog,
   AI, MCP, the EF Core `.Value` translator, JSON Patch, the System.CommandLine walk, the CsvHelper factory's
   `CanCreate`).
@@ -239,18 +249,29 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   the top of the file, or `global::X` in a body. For the same reason, never name a test folder, namespace or class after
   a library or a package (`Blazor`, `AI`, `HotChocolate`, `NJsonSchema`, `NSwag`, `Confluent`, `Azure`, `ProtoBuf`,
   `ProtobufNet`, `Grpc`, `Orleans`, `ModelContextProtocol`, `MessagePack`, `CommandLine`, `CsvHelper`, `Marten`,
-  `Wolverine`, …): the unit suite's folders are named apart (`tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`).
-- **A file of `src/Shared/` linked into two assemblies the unit suite sees is two internal types**, both visible through
-  `InternalsVisibleTo`, so a test naming one is CS0433. Change a shared description once, there; the table of files,
-  linking projects and how tests reach each copy is in `src/Shared/CLAUDE.md`.
+  `Wolverine`, …): the folders of the unit suite's eleven projects, all under its root namespace, are named apart
+  (`tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`).
+- **A file of `src/Shared/` linked into two assemblies a project of the unit suite references is two internal types**,
+  both visible through `InternalsVisibleTo`, so a test naming one is CS0433: each project sees the copies its
+  references bring, those `tests/UnitTests.props` gives every project included (Abstractions, Identifiers, Json,
+  Testing.Data). Change a shared description once, there; the table of files, linking projects and how tests reach
+  each copy is in `src/Shared/CLAUDE.md`.
 - **Some state is process-wide and cached for good**: `ValueObjectRegistry` (`TryResolve` keeps what it resolves),
   MongoDB.Driver's serializer registry and id generators, protobuf-net's `RuntimeTypeModel.Default`, FluentValidation's
-  language manager. A suite registers such state once, strict, before any test; a test needing another configuration
-  builds its own, and never resolves a hand-written type other tests share.
-- **A test file linked into another project changes it too**: the unit suite's `Domain/UnderlyingTypes.cs` is linked by
+  language manager. A test process (a suite, or one project of the unit suite) registers such state once, strict,
+  before any test; a test needing another configuration builds its own, and never resolves a hand-written type other
+  tests share.
+- **A test file linked into another project changes it too**: `tests/UnitTests.props` compiles `Domain/**`, the hub of
+  `GeneratedSurface/` (`Sample.cs`, `Samples.cs`, `NumericSample.cs`), `TestData/Declared.cs`,
+  `RuntimeClosingTests.cs` and `DescriptorTests.Registered.cs` of core's `tests/AdCodicem.ValueObjects.UnitTests` into
+  every other unit project, and a unit project's `.csproj` links each helper of another project it uses, at the same
+  path, so that a resource keeps its name (core's `Web/ValidationMessages.*`, `Web/ProblemReading.cs` of
+  `tests/AdCodicem.ValueObjects.UnitTests.AspNet`, …). Beyond the unit suite, `Domain/UnderlyingTypes.cs` is linked by
   the integration suite and `tests/NativeAot`, three files of `Domain/HandWritten/` (`HandWrittenCode.cs`,
   `HandWrittenLink.cs`, `UnregisteredCode.cs`) by `tests/NativeAot`, and `HandWrittenCode.cs` by the Functions and
-  Wolverine.Http fixtures of `tests/Fixtures` too. Grep `Link=` before editing one.
+  Wolverine.Http fixtures of `tests/Fixtures` too. Grep `Link=` before editing one. Link a file of helpers only: a
+  linked test runs in both projects, and the plan fails any but `RuntimeClosingTests.cs` and
+  `DescriptorTests.Registered.cs`, which each project runs over its own family's packages and its own registry.
 - **Native AOT compatibility is per package** (`IsAotCompatible`, true by default in `Directory.Build.props`).
   `tests/NativeAot` references every package that claims it, but HotChocolate (its framework warns on its own publish
   and starts natively only rooted), HotChocolate.Data (its filtering of a struct has no native code), ProtobufNet and
@@ -261,23 +282,29 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 - **`src/AdCodicem.ValueObjects.Packages.slnf` lists every project under `src/`.** Previews and releases pack through it,
   so a project left out never ships; `ci.yml` fails when a packable project is missing. It sits under `src/` because
   `dotnet format` and `dotnet sln` refuse two solution files in one folder.
-- **`.github/ci-families.json` puts every project under `src/` and every top-level folder of the unit suite in a
-  family**, or the plan fails every run: add a new project or folder there, and replace `codecov.yml`'s flags between
-  its `ci-families` markers with what `.github/scripts/ci-plan.sh --codecov-flags` prints (`.github/CLAUDE.md`).
+- **`.github/ci-families.json` puts every project under `src/` and every project of the unit suite in one family**
+  (`projects`, `tests`), or the plan fails every run. A new project under `src/` joins a family, whose project
+  references it, and `AdCodicem.ValueObjects.slnx`, which the plan holds every tracked project but `tests/Compat/`'s to;
+  a new family brings a project of its own, which imports `tests/UnitTests.props` and joins the solution and the
+  `InternalsVisibleTo` list of `src/Directory.Build.props`. Then replace `codecov.yml`'s flags between its `ci-families`
+  markers with what `.github/scripts/ci-plan.sh --codecov-flags` prints (`.github/CLAUDE.md`).
 - **Anything that changes a package's bytes or metadata is a `preview-gate.sh` input**, or it never reaches a preview;
   **a dependency added to a shipped package goes into `.github/shipped-dependencies`** in the same pull request, or CI
   fails. Both: `.github/CLAUDE.md`.
 - **Two Roslyn versions, both in `Directory.Packages.props`.** `Microsoft.CodeAnalysis.CSharp` 4.14.0 is the API the
   generator is built against, the oldest compiler a consumer may use: never raise it to follow a dependency. The unit
-  suite takes 5.0.0, through a second `PackageVersion` conditioned on `$(MSBuildProjectName)`, since Orleans brings
-  `Microsoft.CodeAnalysis.Common` 5.0.0 there (NU1608 otherwise), and so does the Wolverine.Http fixture application,
-  with `Microsoft.CodeAnalysis.CSharp.Workspaces` 5.0.0 too, which Wolverine's runtime compiler asks for (NU1109
-  otherwise); a reference with `ReferenceOutputAssembly="false"` brings none of them into the unit suite.
-  `Microsoft.CodeAnalysis.Analyzers` sits at Orleans' floor, 5.9.0, and transitive pinning lists it in the Orleans
-  package's nuspec (`.github/shipped-dependencies`).
+  suite's projects take it too; only the Wolverine.Http fixture application takes 5.0.0, with
+  `Microsoft.CodeAnalysis.CSharp.Workspaces` 5.0.0, through a second `PackageVersion` of each conditioned on
+  `$(MSBuildProjectName)`, since Wolverine's runtime compiler asks for both (NU1109 otherwise); its reference from
+  `tests/AdCodicem.ValueObjects.UnitTests.Hosts` (`ReferenceOutputAssembly="false"`) brings none of them there. The
+  Orleans project reaches `Microsoft.CodeAnalysis.Common` 5.0.0 through Orleans and references no
+  `Microsoft.CodeAnalysis.CSharp`, whose 4.14.0 refuses that Common (NU1608). `Microsoft.CodeAnalysis.Analyzers` sits
+  at Orleans' floor, 5.9.0, and transitive pinning lists it in the Orleans package's nuspec
+  (`.github/shipped-dependencies`).
 - **Required checks are job names**: `build and test` (`ci.yml`), `workflows` and `conventional commits` (`lint.yml`).
   Renaming one leaves every pull request waiting for a check that never reports. `build and test` is `ci.yml`'s
-  aggregator (`gate`) over the jobs its plan expects (`.github/CLAUDE.md`). The heavy jobs never become one:
+  aggregator (`gate`) over the jobs its plan expects, among `plan`, `format`, `unit` (a job per family, reported as
+  `unit (<family>)`), `build`, `release-tooling` and `heavy` (`.github/CLAUDE.md`). The heavy jobs never become one:
   `native AOT`, `native AOT (Marten)`, `integration tests` and `compat (.NET 11)` run in `heavy.yml`, after every push
   to `main`, before every preview and stable release, and on a pull request labelled `ci:heavy` or a Dependabot NuGet
   update (ADR 0013). Label a pull request that touches native AOT, a store or the next .NET, then push.
@@ -292,26 +319,32 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 ## Testing
 
 - **UnitTests**: the behaviour of generated code, over the value objects of `Domain/`, and of every package called
-  directly.
+  directly, in eleven projects, one per family of `.github/ci-families.json`: core's
+  `tests/AdCodicem.ValueObjects.UnitTests`, which holds `Domain/` and the sources `tests/UnitTests.props` links into
+  the others, and `tests/AdCodicem.ValueObjects.UnitTests.<Family>` for each other family (`AspNet`, `EfCore`, `Data`,
+  `Serialization`, `Orleans`, `Hosts`, `GraphQL`, `Text`, `Observability`, `TestData`). Each runs as a process of its
+  own, under the one root namespace, so a test keeps its name whichever project holds it.
 - **GeneratorTests**: the generator, every diagnostic, the analyzers and code fixes, incremental caching, and every
   published C# snippet.
 - **IntegrationTests**: PostgreSQL, SQL Server, MongoDB and the Azure Functions host through Testcontainers, and the
   sample API of `samples/` end to end. Needs Docker. CI runs it in `heavy.yml`, never on a pull request but one
   labelled `ci:heavy` or a Dependabot NuGet update: run it locally when a change reaches a store.
 - **RdgTests**: minimal API endpoints whose binding the Request Delegate Generator writes.
-- A pull request runs the unit tests of the families it changes, each a `--filter-query` of `.github/ci-families.json`
-  on the namespaces of its folders: a file of the unit suite declares the namespace of its folder, which the plan
-  checks. A test of the generator suite reading the repository carries `[Trait("Reads", "Documentation")]`, which runs
-  it on a pull request changing only the documentation (`DocumentationTraitTests` holds it).
+- A pull request runs the unit projects of the families its files select (`.github/scripts/ci-plan.sh`): the family of
+  each package `dotnet-affected` marks, every family for one of core, and each family whose project it marks, through
+  what that project references, links or imports. Each runs in a job of its own, `unit (<family>)`, which restores,
+  builds and tests that project alone. A test of the generator suite reading the repository carries
+  `[Trait("Reads", "Documentation")]`, which runs it on a pull request changing only the documentation
+  (`DocumentationTraitTests` holds it).
 - `tests/NativeAot` holds applications CI publishes natively and compares with the JIT (`heavy.yml`'s `native AOT` job,
   and its `native AOT (Marten)` job for Marten's);
   `tests/Compat` installs the packed packages on the .NET 11 release candidate, outside the solution.
 - Stack: xUnit v3 (`TestContext.Current.CancellationToken`), AwesomeAssertions, NSubstitute, Testcontainers. Versions
   live in `Directory.Packages.props`, never in a `.csproj`; `tests/Compat` has its own.
-- `AdCodicem.ValueObjects.Testing` ships the contract kit (`ValueObjectContract`). Add a contract with each value object
-  added to `Domain/`, overriding `DerivesRejectedValues` to return `true`. The exceptions are `Floor` and `Celsius`,
-  whose formatted text does not parse back, and the private `Strongbox.Secret` and `Archive.Shelf`
-  (`DeclarationContextTests` covers them).
+- `AdCodicem.ValueObjects.Testing` ships the contract kit (`ValueObjectContract`). Add a contract, in
+  `tests/AdCodicem.ValueObjects.UnitTests.TestData`, with each value object added to `Domain/`, overriding
+  `DerivesRejectedValues` to return `true`. The exceptions are `Floor` and `Celsius`, whose formatted text does not
+  parse back, and the private `Strongbox.Secret` and `Archive.Shelf` (core's `DeclarationContextTests` covers them).
 
 ### Coverage
 
@@ -326,11 +359,13 @@ The aim is 100 % of each pull request's patch, as Codecov counts it (ADR 0006 ho
 - Remove code only when no input can reach it, never because no test does. A defensive branch stays. A public member
   nothing calls is a question for the maintainer.
 - Codecov takes one flag per family, plus `generator`, `rdg` and `integration`, each carried forward: a pull request
-  uploads the flags of what it ran, and the others keep the coverage of its parent commit, so the patch is measured by
-  the families that ran (`codecov.yml`).
+  uploads the flags of what it ran, each family's with every unit report of the run, so that the lines of its packages
+  another family's tests reach still count, and the others keep the coverage of its parent commit, so the patch is
+  measured by the families that ran (`codecov.yml`).
 - Blind spots: a package no test loads is missing from the report rather than at 0 %, which
-  `.github/scripts/coverage-modules.sh` fails, as it fails a package of the run's families with no line covered; the
-  code the generator emits lives in the unit test assembly, which is not measured, and is audited by hand. The
-  integration suite reports from `heavy.yml`, and its flag carries forward: on a pull request that is not labelled
-  `ci:heavy`, the lines only it covers (the SQL Server and PostgreSQL branches of the EF Core CHECK constraints) keep
-  the parent commit's coverage, and those the pull request changes count as missed in `codecov/patch`.
+  `.github/scripts/coverage-modules.sh` fails, as it fails a package with no line covered, in each `unit (<family>)`
+  job for its family's packages in its project's report (in `build`, for the generator and the code fix in the
+  generator suite's); the code the generator emits lives in the unit test assemblies, which are not measured, and is
+  audited by hand. The integration suite reports from `heavy.yml`, and its flag carries forward: on a pull request that
+  is not labelled `ci:heavy`, the lines only it covers (the SQL Server and PostgreSQL branches of the EF Core CHECK
+  constraints) keep the parent commit's coverage, and those the pull request changes count as missed in `codecov/patch`.

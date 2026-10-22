@@ -15,8 +15,8 @@ Real servers through Testcontainers, and the sample API of `samples/` end to end
   three once `2022-latest` and `2025-latest` carry the fix (SQL Server 2022 CU29, 2025 CU12).
 - Assert column types against `information_schema` (`format_type` for a PostgreSQL array, whose element length only it
   shows), never against what EF Core says it mapped.
-- `Domain/UnderlyingTypes.cs` is linked from the unit suite: a value object added there is stored through a real MongoDB
-  too.
+- `Domain/UnderlyingTypes.cs` is linked from the unit suite's core project, `tests/AdCodicem.ValueObjects.UnitTests`: a
+  value object added there is stored through a real MongoDB too.
 - MongoDB.Driver's registry is process-wide: every MongoDB test class goes through `MongoDbFixture`'s one static, strict
   registration (`ValueObjectBson.Register`, then `EntityIdBson.Register`) before it touches the driver.
 - Marten (`MartenTests.cs`): each test builds its store in a schema of its own on the class's PostgreSQL container, and

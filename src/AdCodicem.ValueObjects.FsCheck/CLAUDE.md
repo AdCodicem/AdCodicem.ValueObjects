@@ -1,7 +1,8 @@
 # AdCodicem.ValueObjects.FsCheck
 
-User-facing limits: `website/docs/how-to/test-value-objects.md`. Tests: `TestData/FsCheckTests.cs`, `ShrinkTests.cs`, and
-`PropertyTests.cs`, which draws through `ValueObjectArbitrary`.
+User-facing limits: `website/docs/how-to/test-value-objects.md`. Tests: `TestData/FsCheckTests.cs` and
+`PropertyTests.cs`, which draws through `ValueObjectArbitrary`, of `tests/AdCodicem.ValueObjects.UnitTests.TestData`,
+and the sampler's `TestData/ShrinkTests.cs` of `tests/AdCodicem.ValueObjects.UnitTests`.
 
 - `MergeValueObjects` merges what the assembly's generated registration lists, never the constructions of a generic value
   object nor a hand-written type nothing registered, which `MergeValueObject<TSelf, TValue>` merges one by one. Never scan

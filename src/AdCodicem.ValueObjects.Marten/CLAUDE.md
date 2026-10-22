@@ -1,7 +1,8 @@
 # AdCodicem.ValueObjects.Marten
 
-User-facing behaviour: `website/docs/how-to/marten.md`. Tests: the unit suite's `Persistence/Marten*.cs` (offline: SQL,
-compiled-query previews, DDL) and `tests/AdCodicem.ValueObjects.IntegrationTests/MartenTests.cs` (PostgreSQL); natively,
+User-facing behaviour: `website/docs/how-to/marten.md`. Tests: `Persistence/Marten*.cs` of
+`tests/AdCodicem.ValueObjects.UnitTests.Data` (offline: SQL, compiled-query previews, DDL) and
+`tests/AdCodicem.ValueObjects.IntegrationTests/MartenTests.cs` (PostgreSQL); natively,
 `tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Marten`.
 
 ## Marten's internals

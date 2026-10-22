@@ -1,8 +1,9 @@
 # AdCodicem.ValueObjects.Orleans
 
-User-facing behaviour: `website/docs/how-to/orleans.md`. Tests: `Grains/` of the unit suite (serializers built in
-process, an in-process cluster through `GrainCluster`), over the grains and holders of
-`tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Grains`, and the compatibility island's `OrleansTests.cs`.
+User-facing behaviour: `website/docs/how-to/orleans.md`. Tests: `Grains/` of
+`tests/AdCodicem.ValueObjects.UnitTests.Orleans` (serializers built in process, an in-process cluster through
+`GrainCluster`), over the grains and holders of `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Grains`, and the
+compatibility island's `OrleansTests.cs`.
 
 ## Codecs and registration
 
@@ -63,11 +64,12 @@ process, an in-process cluster through `GrainCluster`), over the grains and hold
   typed `object` only.
 - `Microsoft.Orleans.Serialization` lists Roslyn 5 packages its assembly never loads, and
   `Microsoft.CodeAnalysis.Analyzers` 5.9.0: the central pin sits there, and transitive pinning makes it a dependency of
-  this package (`.github/shipped-dependencies`); the generator stays on its own Roslyn (root `CLAUDE.md`).
+  this package (`.github/shipped-dependencies`); the generator stays on its own Roslyn (root `CLAUDE.md`), and
+  `tests/AdCodicem.ValueObjects.UnitTests.Orleans` references no `Microsoft.CodeAnalysis.CSharp` (its `CLAUDE.md`).
 - Orleans' code generator, its analyzers and global usings of `Orleans`, `Orleans.Hosting` and `Orleans.Runtime` reach
   any project referencing `Microsoft.Orleans.TestingHost` (and, by their nuspecs, `Server` and `Client`), through
-  `Microsoft.Orleans.Sdk`'s `include="All"` dependencies and `buildTransitive` targets, the unit suite included (its
-  `CLAUDE.md`).
+  `Microsoft.Orleans.Sdk`'s `include="All"` dependencies and `buildTransitive` targets,
+  `tests/AdCodicem.ValueObjects.UnitTests.Orleans` included (its `CLAUDE.md`).
 - The namespace hides the root `Orleans` namespace (root `CLAUDE.md`): name Orleans' types through usings, or an alias
   where a qualified name is needed; `{global::Orleans…}` inside an interpolated string is CS0103, the colon starting a
   format.

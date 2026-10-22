@@ -1,8 +1,8 @@
 # AdCodicem.ValueObjects.ModelContextProtocol
 
-User-facing behaviour: `website/docs/how-to/language-models.md`. Tests: `LanguageModels/Mcp*` of the unit suite, a server
-in process over a pair of pipes against the SDK's own client (`McpHarness`). The argument check is shared with the AI
-package (`src/Shared/ValueObjectArguments.cs`).
+User-facing behaviour: `website/docs/how-to/language-models.md`. Tests: `LanguageModels/Mcp*` of
+`tests/AdCodicem.ValueObjects.UnitTests.Observability`, a server in process over a pair of pipes against the SDK's own
+client (`McpHarness`). The argument check is shared with the AI package (`src/Shared/ValueObjectArguments.cs`).
 
 - A refused argument is a tool execution error (`isError: true`) whose text carries the code, and whose structured
   content is `{"error":"invalid_argument",…}` when the tool declares no output schema.

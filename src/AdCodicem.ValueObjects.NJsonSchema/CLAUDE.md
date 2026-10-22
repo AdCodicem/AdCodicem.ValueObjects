@@ -1,8 +1,8 @@
 # AdCodicem.ValueObjects.NJsonSchema — NJsonSchema, NSwag, Confluent's serdes
 
 User-facing behaviour: `website/docs/how-to/openapi.md`, `messaging.md`. Tests: `SchemaGeneration/` and `Web/NSwag*` of
-the unit suite. Not AOT-compatible. Floor: NJsonSchema 11.6.1, which NSwag 14.7 asks for; Confluent's serdes take 11.0.2
-or later.
+`tests/AdCodicem.ValueObjects.UnitTests.Serialization`. Not AOT-compatible. Floor: NJsonSchema 11.6.1, which NSwag 14.7
+asks for; Confluent's serdes take 11.0.2 or later.
 
 - `AddValueObjects()` on any `JsonSchemaGeneratorSettings` wraps `settings.ReflectionService` in
   `ValueObjectReflectionService`, which answers a value object, nullable unwrapped, as an object without members, so that

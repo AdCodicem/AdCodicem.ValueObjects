@@ -71,8 +71,9 @@
     <!-- The Marten package's floor, the version it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); Marten 10 is a decision, not a bump.
          JasperFx, JasperFx.Events, Weasel and Npgsql come with it and are pinned by nothing here: a pin would make them
-         dependencies of the package. Marten asks for Npgsql 9.0.4, which the suites resolve at 10.0.3 through the Entity
-         Framework Core provider. -->
+         dependencies of the package. Marten asks for Npgsql 9.0.4, which the unit suite's data project,
+         tests/AdCodicem.ValueObjects.UnitTests.Data, resolves; the integration suite resolves it at 10.0.3 through the
+         Entity Framework Core provider. -->
     <PackageVersion Include="Marten" Version="9.50.3" />
     <!-- The MessagePack package's floors, the versions it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). MessagePack 3 lifts the 2.5.302 the
@@ -210,9 +211,10 @@
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.13" />
     <!-- The .NET client the unit suite connects to a hub through, over TestHost; no package under src/ references it. -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
-    <!-- bUnit's renderer, which the unit suite's Forms/ drives the Blazor package's input through, as a test of an
-         application's form does; no package under src/ references it. It asks for Components 10.0.10, which the pin of
-         Microsoft.AspNetCore.Components.Web lifts, and the suite loads the shared framework's Components assemblies. -->
+    <!-- bUnit's renderer, which Forms/ of tests/AdCodicem.ValueObjects.UnitTests.Text drives the Blazor package's input
+         through, as a test of an application's form does; no package under src/ references it. It asks for Components
+         10.0.10, which the pin of Microsoft.AspNetCore.Components.Web lifts, and the project loads the shared
+         framework's Components assemblies. -->
     <PackageVersion Include="bunit" Version="2.11.3" />
     <!-- ObservableValidator, the view model base that validates DataAnnotations attributes as a property is set, which
          the unit suite runs [ParsesAs] and [NotDefault] through; no package under src/ references it. -->
