@@ -185,7 +185,7 @@
     <!-- bUnit's renderer, which Forms/ drives the Blazor package's input through, as an application's test of a form does;
          the static and prerendered pages of the Razor fixture are served over TestHost instead. -->
     <PackageReference Include="bunit" />
-    <!-- The patterns the Blazor package writes for browsers, which ci.yml's documentation site job checks under Node too. -->
+    <!-- The patterns the Blazor package writes for browsers, which ci.yml's build job checks under Node too, for the text family. -->
     <None Update="Forms\EcmaScriptPatterns.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

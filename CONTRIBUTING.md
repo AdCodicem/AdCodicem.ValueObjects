@@ -86,9 +86,9 @@ pip install pre-commit && pre-commit install
    web UI reports that as a conflict that does not exist. Split larger work into pull requests stacked on one
    another.
 4. Add or update tests. The four suites have distinct jobs, described in
-   [Testing](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/testing); a defect confined to the descriptor
-   is invisible to the typed-path unit tests, so check which surface your change actually touches.
-   Codecov reports on each pull request: 95 % of the lines it changes covered, the project's coverage down by half
+   [Testing](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/testing); a defect confined to the descriptor is
+   invisible to the typed-path unit tests, so check which surface your change actually touches. Codecov reports on
+   each pull request that runs the suites: 95 % of the lines it changes covered, the project's coverage down by half
    a point at most. That is a floor, and 100 % of the patch is the aim — but coverage is a signal, not a goal: a
    defensive branch no test reaches stays, a private member is covered through its callers or not at all, and code
    goes only when no input can reach it. The full rule is in

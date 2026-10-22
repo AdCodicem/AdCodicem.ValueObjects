@@ -39,13 +39,14 @@ Testcontainers, so they need a Docker daemon; the Functions host's image exists 
 ## Coverage
 
 CI uploads to [Codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects) the coverage of the suites a pull
-request runs, the unit suite's under the flag of each package family that ran, and the integration suite's with the
-heavy jobs, after the merge or on a pull request labelled `ci:heavy`, so that the few lines only that suite covers count
-as missed on any other pull request. The flags a pull request does not upload carry forward from the commit before it,
-and one that runs no test uploads nothing. Codecov reports on each pull request against two floors set in
-`codecov.yml`: 95 % of the lines the pull request changes, a partial line counting as missed, and the project's coverage
-down by half a point at most. Only `src/` is measured. The floor is not the aim; 100 % of each patch is, under a rule
-that keeps the number honest
+request runs: the unit suite's under the flag of each package family that ran, the generator and RDG suites' when they
+run in full, and the integration suite's with the heavy jobs, after the merge or on a pull request labelled
+`ci:heavy`. The flags a pull request does not upload carry forward from the commit before it, so the lines only the
+integration suite covers keep their coverage, and those the pull request changes count as missed in the patch. A pull
+request that runs only the tests reading the documentation, or no test, uploads nothing, and Codecov does not report
+on it. Otherwise it reports against two floors set in `codecov.yml`: 95 % of the lines the pull request changes, a
+partial line counting as missed, and the project's coverage down by half a point at most. Only `src/` is measured. The
+floor is not the aim; 100 % of each patch is, under a rule that keeps the number honest
 ([ADR-0006](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0006-coverage-is-a-signal-not-a-goal.md)):
 
 - every member that is not private is covered as far as it can be — through a natural input where one reaches it

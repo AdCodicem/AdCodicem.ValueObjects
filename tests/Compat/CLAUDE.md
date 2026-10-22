@@ -16,7 +16,8 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
 
 - Invisible to the root tooling: its own `global.json` (the RC SDK CI installs exactly; `rollForward: latestFeature` lets a
   later 11.0 SDK run it locally), `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props` and
-  `nuget.config`, in no solution. The root build, `dotnet format`, coverage and Dependabot never see it. Run it from this
+  `nuget.config`, in no solution. The root build, coverage and Dependabot never see it; `ci.yml`'s format job
+  (`dotnet format whitespace . --folder`) checks its `.cs` files against the root `.editorconfig`. Run it from this
   folder: from the root, the root `global.json` selects SDK 10 and the build stops.
 - Tools that walk the repository do see it: CodeQL downloads its SDK, and GitHub's dependency submission restores it with
   SDK 10 from the root, which is why its project files leave themselves empty on an SDK that cannot target `net11.0`.
