@@ -258,10 +258,16 @@ The plan, the families, the gate and the coverage flags are built as decided, wi
   `dotnet-affected` answers "nothing affected" for a pinned transitive package no project references, which a
   Dependabot security update adds, and the shipped-dependencies check must run on it. Dependabot's NuGet pull requests,
   which make nearly every such change, wait for `heavy.yml` anyway.
-- A file at the unit suite's root selects every family with a class in the root namespace (`core`, `serialization`,
-  `observability`, `testdata`), since a file there may declare a class of any of them, and a helper several families'
-  tests use selects every family (`unit.shared`). A file of the suite declares the namespace of its folder, which the
-  plan checks, so that the folder a change selects and the namespace a family filters on agree.
+- A `.cs` file at the unit suite's root selects every family with a class in the root namespace (`core`,
+  `serialization`, `observability`, `testdata`), since a file there may declare a class of any of them. Every family
+  runs for a helper several families' tests use (`unit.shared`), for any other file at the root, such as a test
+  configuration, and for a file declaring an `[assembly:]` or `[module:]` attribute or a module initializer. A file of
+  the suite declares the namespace of its folder, and a family's query on a folder takes its sub-namespaces too, both of
+  which the plan checks, so that the folder a change selects and the namespaces a family filters on agree.
+- `testdata` depends on `core`: the `core` flag covers `Testing.Data`, whose sampler only `testdata`'s tests reach, so a
+  `core` upload without them would replace the carried-forward lines with misses.
+- `heavy.yml` and `native-aot.sh` only raise the notice asking for `ci:heavy`: nothing in them builds. The workflows and
+  scripts `ci.yml` never runs are named one by one, so that a new one runs everything until it gets a rule.
 - The generator suite also runs in full when `dotnet-affected` marks it (a change to protobuf-net, which it
   references), the RDG suite when it marks that, and the compiled model when its own inputs change.
 - When every family runs, so after every merge, `unit-families-check.sh` lists the built suite through every family's

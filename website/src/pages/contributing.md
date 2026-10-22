@@ -38,10 +38,11 @@ Testcontainers, so they need a Docker daemon; the Functions host's image exists 
 
 ## Coverage
 
-CI uploads the coverage of the unit, generator and RDG suites to
-[Codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects) on every pull request, and the integration suite's
-with the heavy jobs, after the merge or on a pull request labelled `ci:heavy`, so that the few lines only that suite
-covers count as missed on any other pull request. Codecov reports on each pull request against two floors set in
+CI uploads to [Codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects) the coverage of the suites a pull
+request runs, the unit suite's under the flag of each package family that ran, and the integration suite's with the
+heavy jobs, after the merge or on a pull request labelled `ci:heavy`, so that the few lines only that suite covers count
+as missed on any other pull request. The flags a pull request does not upload carry forward from the commit before it,
+and one that runs no test uploads nothing. Codecov reports on each pull request against two floors set in
 `codecov.yml`: 95 % of the lines the pull request changes, a partial line counting as missed, and the project's coverage
 down by half a point at most. Only `src/` is measured. The floor is not the aim; 100 % of each patch is, under a rule
 that keeps the number honest
@@ -81,7 +82,7 @@ including those that never run on a pull request; and **conventional commits**, 
 the pull request. The plan reads the files a pull request changes: a change to a package runs the unit tests of its
 family and of the families that depend on it, a change to the core packages every family and the generator suite, and
 the build, the RDG suite, the compiled model and the pack run when their inputs change; a change to the documentation
-runs the tests that read it, and a change to a workflow, a global build file or a file no rule names, everything. CI
+runs the tests that read it, and a change to `ci.yml`, a global build file or a file no rule names, everything. CI
 also builds this site when a change reaches it, in a job that does not block the merge.
 
 The heavy jobs run after the merge, before every preview and stable release, and on a pull request labelled `ci:heavy`,
