@@ -104,7 +104,7 @@ jobs:
           echo "preview=$version" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      # The steps ci.yml also runs on every pull request, with the label.
+      # The steps ci.yml also runs on a pull request reaching the site, with the label.
       - name: Build the site
         uses: ./.github/actions/build-site
         with:

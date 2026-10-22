@@ -1,4 +1,4 @@
-# The documentation site as deploy-docs.yml deploys it and as ci.yml checks it on every pull request: one
+# The documentation site as deploy-docs.yml deploys it and as ci.yml checks it on a pull request reaching it: one
 # set of steps, so that what a pull request builds is what a deployment builds.
 #
 # The caller checks the repository out first, with its tag history (fetch-depth: 0): MinVer runs when DocFX

@@ -28,15 +28,15 @@
 # A push to main runs everything. A pull request runs what the files its merge commit changes against the base branch
 # (its first parent, hence a checkout depth of 2) select, each file by the first rule below that matches it:
 #   none           CLAUDE.md files, docs/ but docs/docfx/, Markdown outside src/, website/ and skills/ but README.md,
-#                  the repository's own settings and templates, the workflows and scripts ci.yml never runs; only
-#                  lint.yml checks them.
+#                  the repository's own settings and templates, and the workflows and scripts ci.yml never runs, each
+#                  by name, so that a new one runs everything until it is given a rule; only lint.yml checks them.
 #   documentation  README.md, website/docs/ and skills/value-objects/: the generator suite's tests that read them,
 #                  [Trait("Reads", "Documentation")]. README.md is also packed, website/docs/ also built into the site.
 #   site           website/, docs/docfx/ and the action that builds the site: the job "documentation site".
 #   everything     what every project or job reads: Directory.Build.*, Directory.Packages.props, global.json,
 #                  nuget.config, .editorconfig, .gitattributes, the solution files, the local tools, ci.yml, this
-#                  script, the family table, coverage-modules.sh, codecov.yml, tests/Directory.Build.*, and any path no
-#                  rule names.
+#                  script, the family table, coverage-modules.sh, unit-families-check.sh, codecov.yml,
+#                  tests/Directory.Build.*, and any path no rule names.
 #   release        package.json, its lock file, .releaserc.json and next-version.mjs: the job "release tooling".
 #   pack           icon.png, .github/shipped-dependencies and the scripts that check the packed set.
 #   src            src/: the projects dotnet-affected (.config/dotnet-tools.json) marks changed or affected, through
@@ -46,14 +46,17 @@
 #                  project item counts, so README.md, icon.png and every CLAUDE.md are first put back as the base branch
 #                  has them: every package packs the first two and globs the third. Any exit of the tool but 0, and 166
 #                  for "nothing affected", runs everything.
-#   unit           the unit suite: a folder selects the families of unit.folders, a file at its root every family with
-#                  a class in the root namespace, a file of unit.shared every family.
+#   unit           the unit suite: a file of a folder selects the families of unit.folders, a .cs file at its root
+#                  every family with a class in the root namespace, and every family a file of unit.shared, any other
+#                  file at its root (a test configuration), or a .cs file declaring something of the whole assembly
+#                  (an [assembly:] or [module:] attribute, a module initializer) before or after the change.
 #   generator      the generator suite, in full.
 #   rdg            the Request Delegate Generator suite.
 #   fixtures       tests/Fixtures/ but the Functions fixture: every family of the unit suite, which loads them.
 #   heavy          what only heavy.yml runs (tests/NativeAot/, tests/Compat/, the integration suite and its Functions
 #                  fixture, samples/, native-aot.sh, compiled-model.sh, heavy.yml): a notice asks for the ci:heavy
-#                  label, the code is built, and the compiled model's own inputs also generate and compile it.
+#                  label; the code among them is built, and the compiled model's own inputs, tests/NativeAot/'s
+#                  Directory.Build.props and compiled-model.sh also generate and compile the model.
 #   build          benchmarks/: built.
 # Then a family selects every family whose dependsOn names it; core runs the generator suite in full, aspnet the RDG
 # suite, efcore the compiled model, text the patterns written for browsers; any affected project under src/ packs and
@@ -183,10 +186,14 @@ check_table() {
         | [scan(($ns | gsub("\\."; "\\.")) + "\\.([A-Za-z0-9_]+)") | .[0]] | unique[]
         | select($family != null and (($folders[.] // []) as $mapped | ($mapped == "*" or ($mapped | index($family))) | not))
         | "a query of \($family) filters on the folder \(.), whose unit.folders entry does not select \($family)"),
+      ($queries[] | .query | . as $query
+        | [scan(($ns | gsub("\\."; "\\.")) + "\\.([A-Za-z0-9_]+)") | .[0]] | unique[]
+        | . as $folder | select($query | contains("(" + $ns + "." + $folder + ".*)") | not)
+        | "the query \($query) filters on the folder \(.) without its sub-namespaces, (\($ns).\(.).*)"),
       ($folders | keys[] | . as $folder
         | select([$queries[].query | test(($ns | gsub("\\."; "\\.")) + "\\." + $folder + "\\b")] | any | not)
         | "no query filters on the folder \($folder)")
-  ' "$table")"
+  ' "$table")" || fail "$table: its queries could not be read."
   [[ -z "$errors" ]] || fail "$table: $(paste -sd ';' <<<"$errors" | sed 's/;/; /g')."
 
   if ! diff <(codecov_flags) <(sed -n '/# BEGIN ci-families/,/# END ci-families/{//!p;}' codecov.yml) > /dev/null; then
@@ -262,16 +269,21 @@ rule() {
       .github/actionlint.yaml | .github/requirements/*) echo none ;;
     .github/workflows/ci.yml) echo everything ;;
     .github/workflows/heavy.yml) echo heavy-notice ;;
-    .github/workflows/*) echo none ;;
+    .github/workflows/benchmarks.yml | .github/workflows/dependabot-auto-merge.yml | \
+      .github/workflows/deploy-docs.yml | .github/workflows/lint.yml | .github/workflows/preview.yml | \
+      .github/workflows/release.yml | .github/workflows/scorecards.yml | .github/workflows/stale.yml) echo none ;;
     .github/actions/build-site/* | .github/scripts/docfx-postprocess.py) echo site ;;
-    .github/ci-families.json | .github/scripts/ci-plan.sh | .github/scripts/coverage-modules.sh) echo everything ;;
+    .github/ci-families.json | .github/scripts/ci-plan.sh | .github/scripts/coverage-modules.sh | \
+      .github/scripts/unit-families-check.sh) echo everything ;;
     .github/scripts/native-aot.sh) echo heavy-notice ;;
     .github/scripts/compiled-model.sh) echo compiled-model ;;
     .github/scripts/ecmascript-patterns.mjs) echo text ;;
     .github/scripts/next-version.mjs) echo release ;;
     .github/shipped-dependencies | .github/scripts/verify-packages.sh | .github/scripts/package-ids.sh | \
       .github/scripts/shipped-dependencies-check.sh) echo pack ;;
-    .github/scripts/*) echo none ;;
+    .github/scripts/dependabot-commit-type.sh | .github/scripts/docs-snapshot.sh | \
+      .github/scripts/package-assemblies.sh | .github/scripts/preview-gate.sh | .github/scripts/push-packages.sh | \
+      .github/scripts/release-pack.sh | .github/scripts/semver.jq) echo none ;;
     package.json | package-lock.json | .releaserc.json) echo release ;;
     website/*) echo site ;;
     Directory.Build.* | Directory.Packages.props | global.json | nuget.config | .editorconfig | .gitattributes | \
@@ -284,8 +296,8 @@ rule() {
     tests/AdCodicem.ValueObjects.RdgTests/*) echo rdg ;;
     tests/AdCodicem.ValueObjects.IntegrationTests/* | tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Functions/*) echo heavy ;;
     tests/Fixtures/*) echo fixtures ;;
-    tests/NativeAot/AdCodicem.ValueObjects.CompiledModel/* | tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Domain/*)
-      echo compiled-model ;;
+    tests/NativeAot/AdCodicem.ValueObjects.CompiledModel/* | \
+      tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Domain/* | tests/NativeAot/Directory.*) echo compiled-model ;;
     tests/NativeAot/* | tests/Compat/* | samples/*) echo heavy ;;
     benchmarks/*) echo build ;;
     *) echo unknown ;;
@@ -294,7 +306,7 @@ rule() {
 
 # The families a file of the unit suite selects.
 unit_families() {
-  local relative="${1#"$unit_suite/"}" shared
+  local path="$1" relative="${1#"$unit_suite/"}" shared
   while IFS= read -r shared; do
     # shellcheck disable=SC2053 # a glob of the table
     if [[ "$relative" == $shared ]]; then
@@ -302,6 +314,18 @@ unit_families() {
       return
     fi
   done < <(jq -r '.unit.shared[]' "$table")
+  # What applies to the whole assembly, as the base has it or as the change leaves it, applies to every test. Read
+  # whole first: grep -q would close a pipe early, which pipefail reports as a failure.
+  local versions
+  versions="$(git show "HEAD:$path" 2> /dev/null || true; git show "HEAD^1:$path" 2> /dev/null || true)"
+  if [[ "$relative" == *.cs ]] && grep -qE '^[[:space:]]*\[(assembly|module):|ModuleInitializer' <<<"$versions"; then
+    every_family=true
+    return
+  fi
+  if [[ "$relative" != */* && "$relative" != *.cs ]]; then
+    every_family=true
+    return
+  fi
   if [[ "$relative" != */* ]]; then
     local name
     for name in "${root_families[@]}"; do family[$name]=1; done
@@ -404,6 +428,12 @@ if [[ "$graph" == true ]]; then
     "$tools/dotnet-affected" --from HEAD^1 --filter-file-path AdCodicem.ValueObjects.slnx --format json \
       --output-dir "$tools" --output-name affected >&2 || status=$?
   fi
+  if (( status == 0 )) && [[ -f "$tools/affected.json" ]] &&
+    ! jq -e 'type == "array" and all(.[]; (.Name | type) == "string" and (.FilePath | type) == "string" and
+      (.FilePath | startswith("/")))' "$tools/affected.json" > /dev/null 2>&1; then
+    # A report of another shape would read as nothing affected.
+    status=65
+  fi
   if (( status == 0 )) && [[ -f "$tools/affected.json" ]]; then
     mapfile -t affected < <(jq -r --arg src "$PWD/src/" '.[] | select(.FilePath | startswith($src)) | .Name' \
       "$tools/affected.json" | LC_ALL=C sort -u)
@@ -416,8 +446,9 @@ if [[ "$graph" == true ]]; then
       esac
     done < <(jq -r '.[].Name' "$tools/affected.json")
   elif (( status != 166 )); then
-    echo "::warning::dotnet-affected could not be installed or failed (exit code $status): everything runs." >&2
-    run_everything "dotnet-affected could not be installed or failed (exit code $status)"
+    reason="dotnet-affected could not be installed, failed or wrote a report of another shape (status $status)"
+    echo "::warning::$reason: everything runs." >&2
+    run_everything "$reason"
   fi
 fi
 
