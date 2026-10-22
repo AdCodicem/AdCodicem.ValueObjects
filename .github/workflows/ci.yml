@@ -249,18 +249,6 @@ jobs:
           --report-trx --report-trx-filename generator.trx
           --coverage --coverage-output-format cobertura --coverage-output generator.cobertura.xml
 
-      # The generator and the code fix, which no unit test loads: in the generator suite's report.
-      - name: The generator and the code fix are measured
-        if: needs.plan.outputs.generator == 'full'
-        run: |
-          set -euo pipefail
-          mapfile -t reports < <(find . -name generator.cobertura.xml -not -path '*/In/*')
-          if (( ${#reports[@]} != 1 )); then
-            echo "::error::Expected one generator.cobertura.xml, found ${#reports[@]}." >&2
-            exit 1
-          fi
-          .github/scripts/coverage-modules.sh "${reports[0]}" --generator
-
       # The tests that read README.md, website/docs/ and skills/value-objects/, which DocumentationTraitTests holds to
       # the trait. No coverage: a partial report under the generator flag would replace the whole suite's.
       - name: Generator tests that read the documentation
@@ -307,6 +295,19 @@ jobs:
             **/rdg.cobertura.xml
             !**/In/**
           if-no-files-found: error
+
+      # The generator and the code fix, which no unit test loads, in the generator suite's report: after the RDG suite,
+      # the compiled model and the upload, so that a failure here hides none of them and the reports still reach Codecov.
+      - name: The generator and the code fix are measured
+        if: needs.plan.outputs.generator == 'full'
+        run: |
+          set -euo pipefail
+          mapfile -t reports < <(find . -name generator.cobertura.xml -not -path '*/In/*')
+          if (( ${#reports[@]} != 1 )); then
+            echo "::error::Expected one generator.cobertura.xml, found ${#reports[@]}." >&2
+            exit 1
+          fi
+          .github/scripts/coverage-modules.sh "${reports[0]}" --generator
 
       # The packable projects under src/ only, through the solution filter preview.yml and
       # release.yml pack with, restored here, since the build restores only what the plan
@@ -366,7 +367,8 @@ jobs:
   coverage:
     name: coverage (${{ matrix.flag }})
     needs: [plan, unit, build]
-    if: ${{ !cancelled() && needs.plan.outputs.coverage != '[]' }}
+    # A failed plan writes no output, which fromJSON could not read.
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.coverage != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

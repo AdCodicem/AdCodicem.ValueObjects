@@ -153,9 +153,11 @@ check_table() {
     <(sed -n -E 's/.*<Project Path="([^"]*)".*/\1/p' "$solution" | LC_ALL=C sort) | paste -sd ' ' -)"
   [[ -z "$missing" ]] || fail "$solution does not hold $missing: add each project to the solution."
 
-  # A source a project of the unit suite links from another's folder holds no test, or the test would run in both:
-  # RuntimeClosingTests.cs alone, whose rows are each project's own family's packages. $(UnitTestsSources) is the core
-  # project's folder; any other path is relative to the project's own.
+  # A source a project of the unit suite compiles from another's folder holds no test, or the test would run in both:
+  # but the two that every project runs over its own family, RuntimeClosingTests.cs (the IL of the family's packages)
+  # and DescriptorTests.Registered.cs (the value objects the project's registry holds). Every Compile item counts,
+  # whatever its Link and its layout; $(UnitTestsSources) is the core project's folder, any other path is relative to
+  # the item's file.
   local file include path source
   shopt -s globstar nullglob
   for file in tests/UnitTests.props tests/AdCodicem.ValueObjects.UnitTests*/*.csproj; do
@@ -173,12 +175,14 @@ check_table() {
       (( ${#sources[@]} > 0 )) || fail "$file links $include, which matches no file."
       for source in "${sources[@]}"; do
         [[ -f "$source" ]] || fail "$file links $include, which matches no file."
-        [[ "$(basename "$source")" == RuntimeClosingTests.cs ]] && continue
-        if grep -qE '\[(Fact|Theory)\b' "$source"; then
+        [[ "$file" == *.csproj && "$(realpath -m "$source")" == "$(realpath -m "$(dirname "$file")")"/* ]] && continue
+        case "$(basename "$source")" in RuntimeClosingTests.cs | DescriptorTests.Registered.cs) continue ;; esac
+        if grep -qE '\[(Fact|Theory)\b|:[[:space:]]*ValueObjectContract<' "$source"; then
           fail "$file links $source, which holds tests: they would run in two projects. Link a file of helpers only."
         fi
       done
-    done < <(sed -n -E 's/.*<Compile Include="([^"]*)"[^>]*Link=.*/\1/p' "$file")
+    done < <(tr '\r\n' '  ' < "$file" | grep -oE '<Compile[[:space:]][^>]*>' |
+      sed -n -E 's/.*[[:space:]]Include="([^"]*)".*/\1/p' | tr ';' '\n')
   done
   shopt -u globstar nullglob
 
@@ -379,6 +383,8 @@ if [[ "$graph" == true ]]; then
   version="$(jq -r '.tools["dotnet-affected"].version // empty' .config/dotnet-tools.json)"
   [[ -n "$version" ]] || fail ".config/dotnet-tools.json pins no version of dotnet-affected."
   tools="$(mktemp -d)"
+  # 110 MB a local run would otherwise leave behind.
+  trap 'rm -rf -- "$tools"' EXIT
   # Into a folder of its own: `dotnet tool restore` would download every tool of the manifest, DocFX's 100 MB among them.
   status=0
   dotnet tool install dotnet-affected --version "$version" --tool-path "$tools" > /dev/null || status=$?
