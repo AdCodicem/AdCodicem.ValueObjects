@@ -10,11 +10,13 @@ namespace AdCodicem.ValueObjects.GeneratorTests;
 /// class, and no other test does.
 /// </summary>
 /// <remarks>
-/// A pull request that changes only <c>README.md</c>, <c>website/docs/</c> or <c>skills/value-objects/</c> runs the tests
-/// of this suite carrying the trait, and none other (<c>.github/scripts/ci-plan.sh</c>): a test reading those files
-/// without it would let such a pull request break it unseen. A test reads the repository through a
-/// <c>RepositoryRoot()</c> or <c>SkillDirectory()</c> of its own class, which this follows the test's IL to, through
-/// what the test calls within its class, its data member and the state machine of an asynchronous one.
+/// A pull request that changes only <c>README.md</c>, <c>website/docs/</c> or <c>skills/value-objects/</c> runs the
+/// tests of this suite carrying the trait, and none other (<c>.github/scripts/ci-plan.sh</c>): a test reading those
+/// files without it would let such a pull request break it unseen. A test reads the repository through a method named
+/// <c>RepositoryRoot()</c> or <c>SkillDirectory()</c>, which this follows the test's IL to: through every method of
+/// this assembly it calls, the state machine of an asynchronous or iterator one, its data (a <c>[MemberData]</c>
+/// method, property or field, of its class or of another, or a <c>[ClassData]</c> class), and its class's constructors
+/// and type initializer, which xUnit runs for it.
 /// </remarks>
 public sealed class DocumentationTraitTests
 {
@@ -41,7 +43,8 @@ public sealed class DocumentationTraitTests
         var marked = tests.Where(static test => Marked(test)).Select(Name).Order(StringComparer.Ordinal).ToList();
 
         reading.Should().HaveCountGreaterThan(20, "the walk must keep finding the tests that read the repository");
-        marked.Should().Equal(reading);
+        reading.Except(marked).Should().BeEmpty("these tests read the repository: mark each [Trait(\"Reads\", \"Documentation\")]");
+        marked.Except(reading).Should().BeEmpty("these tests read nothing of the repository: drop their trait");
     }
 
     private static string Name(MethodInfo method) => $"{method.DeclaringType!.Name}.{method.Name}";
@@ -50,22 +53,41 @@ public sealed class DocumentationTraitTests
         => test.GetCustomAttributes<TraitAttribute>().Concat(test.DeclaringType!.GetCustomAttributes<TraitAttribute>())
             .Any(static trait => trait is { Name: "Reads", Value: "Documentation" });
 
-    /// <summary>Whether the test, its data and what they call within its class reach a reader of the repository.</summary>
+    /// <summary>Whether the test, its data, its class's set-up or what they call reach a reader of the repository.</summary>
     private static bool Reads(MethodInfo test)
     {
         var type = test.DeclaringType!;
+        var module = type.Module;
         var pending = new Stack<MethodBase>([test]);
+        PushSetUp(pending, type);
         foreach (var data in test.GetCustomAttributes<MemberDataAttribute>())
         {
-            if (type.GetMethod(data.MemberName, Declared) is { } method)
+            var owner = data.MemberType ?? type;
+            foreach (var member in owner.GetMember(data.MemberName, Declared | BindingFlags.FlattenHierarchy))
+            {
+                switch (member)
+                {
+                    case MethodInfo method:
+                        pending.Push(method);
+                        break;
+                    case PropertyInfo { GetMethod: { } getter }:
+                        pending.Push(getter);
+                        break;
+                    case FieldInfo:
+                        PushSetUp(pending, owner);
+                        break;
+                }
+            }
+        }
+
+        foreach (var data in test.GetCustomAttributes<ClassDataAttribute>())
+        {
+            foreach (var method in data.Class.GetMethods(Declared))
             {
                 pending.Push(method);
             }
 
-            if (type.GetProperty(data.MemberName, Declared)?.GetMethod is { } getter)
-            {
-                pending.Push(getter);
-            }
+            PushSetUp(pending, data.Class);
         }
 
         var seen = new HashSet<MethodBase>();
@@ -81,14 +103,14 @@ public sealed class DocumentationTraitTests
                 return true;
             }
 
-            if (method.GetCustomAttribute<AsyncStateMachineAttribute>()?.StateMachineType.GetMethod("MoveNext", Declared) is { } moveNext)
+            if (method.GetCustomAttribute<StateMachineAttribute>()?.StateMachineType.GetMethod("MoveNext", Declared) is { } moveNext)
             {
                 pending.Push(moveNext);
             }
 
             foreach (var callee in Callees(method))
             {
-                if (callee.DeclaringType is { } owner && (owner == type || IsNestedIn(owner, type)))
+                if (Readers.Contains(callee.Name) || callee.Module == module)
                 {
                     pending.Push(callee);
                 }
@@ -98,17 +120,18 @@ public sealed class DocumentationTraitTests
         return false;
     }
 
-    private static bool IsNestedIn(Type type, Type outer)
+    /// <summary>What runs before a test of the type: its constructors and its type initializer.</summary>
+    private static void PushSetUp(Stack<MethodBase> pending, Type type)
     {
-        for (var current = type.DeclaringType; current is not null; current = current.DeclaringType)
+        foreach (var constructor in type.GetConstructors(Declared))
         {
-            if (current == outer)
-            {
-                return true;
-            }
+            pending.Push(constructor);
         }
 
-        return false;
+        if (type.TypeInitializer is { } initializer)
+        {
+            pending.Push(initializer);
+        }
     }
 
     /// <summary>The methods a method's IL calls or loads, as the unit suite's <c>RuntimeClosingTests</c> reads them.</summary>
