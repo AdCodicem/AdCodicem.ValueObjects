@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The graphql family's unit tests (.github/ci-families.json): AdCodicem.ValueObjects.HotChocolate and
+    AdCodicem.ValueObjects.HotChocolate.Data, whose filtering runs over Entity Framework Core on SQLite.
+  -->
+  <Import Project="..\UnitTests.props" />
+
+  <PropertyGroup>
+    <!-- HotChocolate.AspNetCore adds global usings of HotChocolate's namespaces under ImplicitUsings, whose
+         DefaultValueAttribute, Path and Tag would collide with the suite's own names in every file: GraphQL/ names
+         HotChocolate's types through usings of its own. -->
+    <HotChocolateImplicitUsings>disable</HotChocolateImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.HotChocolate\AdCodicem.ValueObjects.HotChocolate.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.HotChocolate.Data\AdCodicem.ValueObjects.HotChocolate.Data.csproj" />
+    <!-- The model GraphQL/ filters over, on SQLite. -->
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Generated value objects beside a query type HotChocolate's source generator binds, whose generated module this
+         assembly would otherwise get (tests/Fixtures/Directory.Build.props). -->
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.GraphQL\AdCodicem.ValueObjects.Fixtures.GraphQL.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- What an application serves a HotChocolate schema through, its HTTP endpoint, over TestHost; HotChocolate.Data,
+         whose filtering and sorting GraphQL/ drives the HotChocolate.Data package through, comes with that package, and
+         SQLite runs the filters of the model. -->
+    <PackageReference Include="HotChocolate.AspNetCore" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+  </ItemGroup>
+
+  <!-- The sources of other families' folders this project compiles too, at the same path, so that a resource keeps
+       its name. -->
+  <ItemGroup>
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\Web\SparseMessages.cs" Link="Web\SparseMessages.cs" />
+    <EmbeddedResource Include="..\AdCodicem.ValueObjects.UnitTests\Web\SparseMessages.fr.resx" Link="Web\SparseMessages.fr.resx" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\Web\ValidationMessages.cs" Link="Web\ValidationMessages.cs" />
+    <EmbeddedResource Include="..\AdCodicem.ValueObjects.UnitTests\Web\ValidationMessages.fr.resx" Link="Web\ValidationMessages.fr.resx" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\TestData\UnboundedDecimal.cs" Link="TestData\UnboundedDecimal.cs" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\WithoutDynamicCode.cs" Link="WithoutDynamicCode.cs" />
+  </ItemGroup>
+
+</Project>

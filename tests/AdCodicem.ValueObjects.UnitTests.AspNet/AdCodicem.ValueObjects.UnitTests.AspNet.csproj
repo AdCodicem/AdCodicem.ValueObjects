@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The aspnet family's unit tests (.github/ci-families.json): MVC, minimal APIs, OpenAPI and the problem details of
+    AdCodicem.ValueObjects.AspNetCore.Http, AdCodicem.ValueObjects.AspNetCore and AdCodicem.ValueObjects.OpenApi.
+  -->
+  <Import Project="..\UnitTests.props" />
+
+  <PropertyGroup>
+    <!-- Microsoft.AspNetCore.OpenApi's generator reaches this project through the OpenApi project and intercepts
+         AddOpenApi; the package's build targets, which allow its interceptors, come only with a direct reference. -->
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore.Http\AdCodicem.ValueObjects.AspNetCore.Http.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore\AdCodicem.ValueObjects.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.OpenApi\AdCodicem.ValueObjects.OpenApi.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Hand-written value objects annotated where the generator does not run. -->
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutGenerator\AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- An in-memory server, so that the ASP.NET Core and OpenAPI integrations are driven by real requests without
+         a socket. The sample's end-to-end flows stay in the integration suite. -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+
+  <!-- The sources of other families' folders this project compiles too, at the same path, so that a resource keeps
+       its name. -->
+  <ItemGroup>
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\DataAnnotations\Annotated.cs" Link="DataAnnotations\Annotated.cs" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\Web\SparseMessages.cs" Link="Web\SparseMessages.cs" />
+    <EmbeddedResource Include="..\AdCodicem.ValueObjects.UnitTests\Web\SparseMessages.fr.resx" Link="Web\SparseMessages.fr.resx" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\Web\ValidationMessages.cs" Link="Web\ValidationMessages.cs" />
+    <EmbeddedResource Include="..\AdCodicem.ValueObjects.UnitTests\Web\ValidationMessages.fr.resx" Link="Web\ValidationMessages.fr.resx" />
+  </ItemGroup>
+
+</Project>

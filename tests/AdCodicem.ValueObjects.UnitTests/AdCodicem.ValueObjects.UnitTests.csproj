@@ -1,230 +1,39 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <RootNamespace>AdCodicem.ValueObjects.UnitTests</RootNamespace>
-
-    <!-- Generated sources land on disk so they can be read, diffed and reviewed like any other code. -->
-    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
-
-    <!-- Microsoft.AspNetCore.OpenApi's generator reaches this project through the OpenApi project and intercepts
-         AddOpenApi; the package's build targets, which allow its interceptors, come only with a direct reference. -->
-    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
-
-    <!-- HotChocolate.AspNetCore adds global usings of HotChocolate's namespaces under ImplicitUsings, whose
-         DefaultValueAttribute, Path and Tag would collide with the suite's own names in every file: GraphQL/ names
-         HotChocolate's types through usings of its own. -->
-    <HotChocolateImplicitUsings>disable</HotChocolateImplicitUsings>
-
-    <!-- Microsoft.Extensions.Telemetry, which Logging/ redacts through, and the Redaction fixture bring
-         Microsoft.Gen.Logging, whose build targets set this to true and drop Microsoft.Extensions.Logging's own
-         [LoggerMessage] generator, which SerilogMicrosoftExtensionsLoggingTests runs a method through: kept, with the
-         KeepTheDefaultLoggingGenerator target below. -->
-    <DisableMicrosoftExtensionsLoggingSourceGenerator>false</DisableMicrosoftExtensionsLoggingSourceGenerator>
-  </PropertyGroup>
+  <!--
+    The core family's unit tests (.github/ci-families.json): the generated code over the value objects of Domain/,
+    the contracts, the JSON package, the identifiers, the test-data sampler, DataAnnotations and XML serialization. It
+    holds the sources every project of the suite compiles: Domain/, the hub of GeneratedSurface/ and the helpers core's
+    tests share with other families, which tests/UnitTests.props and each project link.
+  -->
+  <Import Project="..\UnitTests.props" />
 
   <ItemGroup>
-    <!-- Under an alias too: the reader of a .NET pattern, src/Shared/ValueObjectPatternSyntax.cs, is compiled into the
-         contracts and into the MongoDB package, and its tests name the contracts' copy through the alias. -->
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" Aliases="global,abstractions" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Testing\AdCodicem.ValueObjects.Testing.csproj" />
-    <!-- Under an alias too: src/Shared/TypeNames.cs is compiled into the sampler, into each of its library adapters and
-         into the Entity Framework Core package, and its tests name the sampler's copy through the alias. -->
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Testing.Data\AdCodicem.ValueObjects.Testing.Data.csproj" Aliases="global,testingdata" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AutoFixture\AdCodicem.ValueObjects.AutoFixture.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Bogus\AdCodicem.ValueObjects.Bogus.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FsCheck\AdCodicem.ValueObjects.FsCheck.csproj" />
-    <!-- The integrations, whose behaviour is tested here directly; the integration suite keeps what only a real
-         database or a real HTTP pipeline can confirm (docs/adr/0006-coverage-is-a-signal-not-a-goal.md). -->
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AI\AdCodicem.ValueObjects.AI.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore\AdCodicem.ValueObjects.AspNetCore.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore.Http\AdCodicem.ValueObjects.AspNetCore.Http.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson\AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AzureFunctions\AdCodicem.ValueObjects.AzureFunctions.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AzureFunctions.AspNetCore\AdCodicem.ValueObjects.AzureFunctions.AspNetCore.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Blazor\AdCodicem.ValueObjects.Blazor.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.CommandLine\AdCodicem.ValueObjects.CommandLine.csproj" />
-    <!-- Under an alias too: src/Shared/ValueObjectText.cs is compiled into the Blazor, System.CommandLine and CsvHelper
-         packages, and the test of its Gregorian cultures names the CsvHelper package's copy through the alias. -->
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.CsvHelper\AdCodicem.ValueObjects.CsvHelper.csproj" Aliases="global,csvhelper" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Dapper\AdCodicem.ValueObjects.Dapper.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Grpc\AdCodicem.ValueObjects.Grpc.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.HotChocolate\AdCodicem.ValueObjects.HotChocolate.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.HotChocolate.Data\AdCodicem.ValueObjects.HotChocolate.Data.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.MongoDB\AdCodicem.ValueObjects.Identifiers.MongoDB.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Marten\AdCodicem.ValueObjects.Marten.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.MessagePack\AdCodicem.ValueObjects.MessagePack.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.ModelContextProtocol\AdCodicem.ValueObjects.ModelContextProtocol.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.MongoDB\AdCodicem.ValueObjects.MongoDB.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.NewtonsoftJson\AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.NJsonSchema\AdCodicem.ValueObjects.NJsonSchema.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.OpenApi\AdCodicem.ValueObjects.OpenApi.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Orleans\AdCodicem.ValueObjects.Orleans.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.ProtobufNet\AdCodicem.ValueObjects.ProtobufNet.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Serilog\AdCodicem.ValueObjects.Serilog.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Swashbuckle\AdCodicem.ValueObjects.Swashbuckle.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Wolverine.Http\AdCodicem.ValueObjects.Wolverine.Http.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- Value objects this assembly cannot hold: one in a module no test has touched yet, hand-written ones
-         annotated where the generator does not run, generated ones in an assembly that does not reference the JSON
-         package, generated ones in an assembly that opts into XML serialization, and generated ones beside a query type
-         HotChocolate's source generator binds, whose generated module this assembly would otherwise get
-         (tests/Fixtures/Directory.Build.props); the Blazor forms written in Razor markup, which the Razor compiler
-         builds in a project of its own, so that this one stays on Microsoft.NET.Sdk; [LoggerMessage] methods
-         Microsoft.Gen.Logging writes, beside value objects classified as personal data, which this assembly's generator
-         would otherwise write; and grains, grain interfaces and [GenerateSerializer] holders Orleans' code generator
-         writes codecs and proxies for, declared as an application declares them, without the Orleans package. -->
+    <!-- Value objects this assembly cannot hold: one in a module no test has touched yet, hand-written ones annotated
+         where the generator does not run, generated ones in an assembly that does not reference the JSON package,
+         and generated ones in an assembly that opts into XML serialization (tests/Fixtures/CLAUDE.md). -->
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Untouched\AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutGenerator\AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutJson\AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.XmlSerialization\AdCodicem.ValueObjects.Fixtures.XmlSerialization.csproj" />
-    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.GraphQL\AdCodicem.ValueObjects.Fixtures.GraphQL.csproj" />
-    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Blazor\AdCodicem.ValueObjects.Fixtures.Blazor.csproj" />
-    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Redaction\AdCodicem.ValueObjects.Fixtures.Redaction.csproj" />
-    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Grains\AdCodicem.ValueObjects.Fixtures.Grains.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The Wolverine.Http application WolverineHttp/WolverineHttpEndToEndTests.cs starts as a child process: built with
-         this project, never loaded by it, and found where the build writes it. Wolverine's dynamic mode compiles the
-         endpoints' code with Roslyn 5.0.0 and its Workspaces, which that project takes through conditional pins of its
-         own (Directory.Packages.props); a reference that does not reference its assembly brings none of its packages
-         here. -->
-    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WolverineHttp\AdCodicem.ValueObjects.Fixtures.WolverineHttp.csproj"
-                      ReferenceOutputAssembly="false" />
-    <AssemblyMetadata Include="WolverineHttpApplication" Value="$(ArtifactsPath)/bin/AdCodicem.ValueObjects.Fixtures.WolverineHttp/$(Configuration.ToLowerInvariant())" />
+    <!-- What ASP.NET Core's shared framework holds of core's tests: BadHttpRequestException, whose code
+         ErrorCodeCarrierTests reads, and the generic host and configuration DataAnnotationsHostTests and
+         AnyEntityIdTests bind options through. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Property-based testing, in PropertyTests.cs, and the libraries the test-data packages are driven through, in
-         TestData/. Deliberately the bare FsCheck package, as the FsCheck package depends on, and not FsCheck.Xunit,
-         whose xunit.extensibility.execution [2.4.1, 3.0.0) dependency conflicts with xunit.v3; the properties run from
-         plain [Fact]s through Check(Config) instead. -->
+    <!-- The properties of ErrorCodeCarrierTests, from plain [Fact]s through Check(Config). -->
     <PackageReference Include="FsCheck" />
-    <PackageReference Include="AutoFixture" />
-    <PackageReference Include="Bogus" />
     <!-- A JSON Schema validator, which checks that what the serializer writes is what the exported schema describes. -->
     <PackageReference Include="LateApexEarlySpeed.Json.Schema" />
-    <!-- A provider, so that a DbContext can build the model the Entity Framework Core conventions shape; building it
-         opens no connection. SQLite in memory, which needs no server, runs what only an engine shows: of a primitive
-         collection of value objects, the JSON it stores, the queries over its elements and change tracking; the keys
-         SQLite generates; `.Value` translated to the column; and the CHECK constraints written from the rules,
-         accepting and refusing rows. The in-memory provider, which is not relational, generates no integer key. What a
-         real server makes of them stays in the integration suite. -->
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
-    <!-- An in-memory server, so that the ASP.NET Core and OpenAPI integrations are driven by real requests without
-         a socket. The sample's end-to-end flows stay in the integration suite. -->
-    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
-    <!-- The .NET client of a SignalR hub, which the MessagePack package's hub protocol helper is tested through, end to
-         end, over TestHost. -->
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
-    <!-- DataClassificationAttribute, which a value object of Domain/ derives to be classified as personal data. -->
-    <PackageReference Include="Microsoft.Extensions.Compliance.Abstractions" />
-    <!-- EnableRedaction() and the redactors an application registers, which Logging/ runs the Redaction fixture's
-         [LoggerMessage] methods through, as an application does. -->
-    <PackageReference Include="Microsoft.Extensions.Telemetry" />
-    <PackageReference Include="Microsoft.Extensions.Compliance.Redaction" />
-    <!-- What an application writes Serilog events with: the compact JSON formatter, Serilog.Expressions' filters and
-         templates, and the Microsoft.Extensions.Logging provider, which LogInformation and [LoggerMessage] calls go
-         through. -->
-    <PackageReference Include="Serilog.Formatting.Compact" />
-    <PackageReference Include="Serilog.Expressions" />
-    <PackageReference Include="Serilog.Extensions.Logging" />
-    <!-- What an application calls tools and reads structured output through: FunctionInvokingChatClient and
-         ChatResponse<T>, and the OpenAI adapter, whose strict-mode request LanguageModels/ captures through a handler of
-         its own, with no network. -->
-    <PackageReference Include="Microsoft.Extensions.AI" />
-    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
-    <!-- Agent Framework, whose ChatClientAgent calls the same tools through FunctionInvokingChatClient, and whose
-         RunAsync<T> builds a response format no schema option reaches. -->
-    <PackageReference Include="Microsoft.Agents.AI" />
-    <!-- What an application serves a HotChocolate schema through, its HTTP endpoint, over TestHost; HotChocolate.Data,
-         whose filtering and sorting GraphQL/ drives the HotChocolate.Data package through, comes with that package. -->
-    <PackageReference Include="HotChocolate.AspNetCore" />
-    <!-- ObservableValidator, the view model base of CommunityToolkit.Mvvm, which validates the DataAnnotations attributes of
-         a property as it is set and keeps the results it reports; DataAnnotations/ runs [ParsesAs] and [NotDefault]
+    <!-- ObservableValidator, the view model base of CommunityToolkit.Mvvm, which validates the DataAnnotations attributes
+         of a property as it is set and keeps the results it reports; DataAnnotations/ runs [ParsesAs] and [NotDefault]
          through it. -->
     <PackageReference Include="CommunityToolkit.Mvvm" />
-    <!-- NSwag's document generation over TestHost and its C# client generator, whose client Roslyn compiles, and
-         Confluent's JSON serdes over a substitute registry client, which SchemaGeneration/ and Web/ drive the NJsonSchema
-         package through; the Kafka client's native library, which the serdes never load, is left out of the output, its
-         Windows copies included. -->
-    <PackageReference Include="NSwag.AspNetCore" />
-    <PackageReference Include="NSwag.CodeGeneration.CSharp" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-    <PackageReference Include="Confluent.SchemaRegistry.Serdes.Json" />
-    <PackageReference Include="librdkafka.redist" ExcludeAssets="native;build" />
-    <!-- A protobuf-net.Grpc server and Grpc.AspNetCore's, over TestHost, and the .NET client their client factory brings,
-         which the protobuf-net package's code-first binder and the gRPC package are tested through, end to end, the
-         contract-first service's messages compiled by Grpc.Tools from BinarySerialization/ContractFirstGrpc.proto; the
-         gRPC package brings Grpc.StatusProto, which reads the google.rpc.Status a refusal is answered with, as a client
-         does. -->
-    <PackageReference Include="protobuf-net.Grpc.AspNetCore" />
-    <PackageReference Include="Grpc.AspNetCore" />
-    <!-- An in-process Orleans cluster, a silo and its client talking over localhost through the same serializer, which
-         Grains/ calls the fixture's grains through. Through Microsoft.Orleans.Sdk it brings Orleans' code generator, whose
-         output lists the fixture as an application part, its analyzers, and global usings of Orleans, Orleans.Hosting and
-         Orleans.Runtime; and through Microsoft.Orleans.Serialization Microsoft.CodeAnalysis.Common 5.0.0, which is why
-         this project alone takes Microsoft.CodeAnalysis.CSharp 5.0.0 (Directory.Packages.props). -->
-    <PackageReference Include="Microsoft.Orleans.TestingHost" />
   </ItemGroup>
-
-  <ItemGroup>
-    <!-- bUnit's renderer, which Forms/ drives the Blazor package's input through, as an application's test of a form does;
-         the static and prerendered pages of the Razor fixture are served over TestHost instead. -->
-    <PackageReference Include="bunit" />
-    <!-- The patterns the Blazor package writes for browsers, which ci.yml's build job checks under Node too, for the text family. -->
-    <None Update="Forms\EcmaScriptPatterns.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Protobuf Include="BinarySerialization\ContractFirstGrpc.proto" GrpcServices="Both" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Using Include="AdCodicem.ValueObjects" />
-    <Using Include="AdCodicem.ValueObjects.Annotations" />
-    <Using Include="AdCodicem.ValueObjects.UnitTests.Domain" />
-  </ItemGroup>
-
-  <!--
-    Microsoft.Gen.Logging, which Microsoft.Extensions.Telemetry.Abstractions brings whatever ExcludeAssets says, would
-    write this assembly's [LoggerMessage] methods beside Microsoft.Extensions.Logging's generator (CS0757), and pass a
-    value object of this assembly as its text, where SerilogMicrosoftExtensionsLoggingTests expects the value object:
-    its analyzers are removed once the references are resolved, and the property above keeps the default generator,
-    which the package's own target would remove too, leaving none (CS8795). The methods it writes are the Redaction
-    fixture's.
-  -->
-  <Target Name="KeepTheDefaultLoggingGenerator" AfterTargets="ResolveReferences">
-    <ItemGroup>
-      <Analyzer Remove="@(Analyzer)" Condition="'%(Analyzer.NuGetPackageId)' == 'Microsoft.Extensions.Telemetry.Abstractions'" />
-    </ItemGroup>
-  </Target>
-
-  <!--
-    The generator's own assembly, which the compiler runs over this project as an analyzer and this project does not
-    reference, copied next to the tests: Persistence/MartenCompiledQueryDiagnosticTests loads MartenCompiledQueryAnalyzer
-    from it and runs it over a compiled query declared against the real Marten.
-  -->
-  <Target Name="CopyValueObjectAnalyzers" AfterTargets="ResolveReferences" BeforeTargets="AssignTargetPaths">
-    <ItemGroup>
-      <_ValueObjectAnalyzers Include="@(Analyzer)" Condition="'%(Filename)' == 'AdCodicem.ValueObjects.Generators'" />
-      <None Include="@(_ValueObjectAnalyzers)" Link="analyzers\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    </ItemGroup>
-    <Error Condition="'@(_ValueObjectAnalyzers)' == ''"
-           Text="The generator's AdCodicem.ValueObjects.Generators.dll was not found among this project's analyzers." />
-  </Target>
 
 </Project>

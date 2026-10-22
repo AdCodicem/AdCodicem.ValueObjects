@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The orleans family's unit tests (.github/ci-families.json): AdCodicem.ValueObjects.Orleans, through serializers
+    built per test and an in-process cluster.
+  -->
+  <Import Project="..\UnitTests.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Orleans\AdCodicem.ValueObjects.Orleans.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Grains, grain interfaces and [GenerateSerializer] holders Orleans' code generator writes codecs and proxies for,
+         declared as an application declares them, without the Orleans package. -->
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Grains\AdCodicem.ValueObjects.Fixtures.Grains.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- An in-process Orleans cluster, a silo and its client talking over localhost through the same serializer, which
+         Grains/ calls the fixture's grains through. Through Microsoft.Orleans.Sdk it brings Orleans' code generator, whose
+         output lists the fixture as an application part, its analyzers, and global usings of Orleans, Orleans.Hosting and
+         Orleans.Runtime; and through Microsoft.Orleans.Serialization Microsoft.CodeAnalysis.Common 5.0.0, beside which
+         this project references no Microsoft.CodeAnalysis.CSharp (Directory.Packages.props). -->
+    <PackageReference Include="Microsoft.Orleans.TestingHost" />
+  </ItemGroup>
+
+  <!-- The sources of other families' folders this project compiles too, at the same path, so that a resource keeps
+       its name. -->
+  <ItemGroup>
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\WithoutDynamicCode.cs" Link="WithoutDynamicCode.cs" />
+  </ItemGroup>
+
+</Project>

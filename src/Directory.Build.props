@@ -51,6 +51,16 @@
        (docs/adr/0006-coverage-is-a-signal-not-a-goal.md), and only these assemblies exist to do it. -->
   <ItemGroup>
     <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests.AspNet" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests.EfCore" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests.Data" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests.Serialization" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests.Orleans" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests.Hosts" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests.GraphQL" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests.Text" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests.Observability" />
+    <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests.TestData" />
     <InternalsVisibleTo Include="AdCodicem.ValueObjects.GeneratorTests" />
     <InternalsVisibleTo Include="AdCodicem.ValueObjects.IntegrationTests" />
   </ItemGroup>

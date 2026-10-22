@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 
 namespace AdCodicem.ValueObjects.UnitTests;
 
@@ -14,7 +15,8 @@ namespace AdCodicem.ValueObjects.UnitTests;
 /// visitor instead. The native AOT application notices a return to <c>MakeGenericType</c> in the packages it references,
 /// whose native binary then fails where the JIT run does not. It cannot reference the ASP.NET Core and Entity Framework
 /// Core packages, which are not AOT-compatible and are built with the trimming and AOT analyzers off, and a closing by
-/// reflection behaves the same as one through the visitor under the JIT: there, this test is what notices it.
+/// reflection behaves the same as one through the visitor under the JIT: there, this test is what notices it. Every
+/// project of the unit suite compiles this file and reads its own family's packages.
 /// </remarks>
 public sealed class RuntimeClosingTests
 {
@@ -26,78 +28,76 @@ public sealed class RuntimeClosingTests
         .Select(static field => (OpCode)field.GetValue(null)!)
         .ToDictionary(static opCode => opCode.Value);
 
-    /// <summary>
-    /// Gets each package, with the calls closing a generic at run time it is allowed: one line per method and API.
-    /// </summary>
-    public static TheoryData<string, string[]> Packages => new()
+    /// <summary>The calls closing a generic at run time a package is allowed, one line per method and API; any other, none.</summary>
+    private static readonly Dictionary<string, string[]> Allowed = new(StringComparer.Ordinal)
     {
         // The registry describes by reflection a value object nothing registered, which only the JIT can do: a
         // construction of a generic value object it was never told about, or a value object written by hand.
-        {
-            "AdCodicem.ValueObjects.Abstractions",
-            [
-                "ValueObjectRegistry.BuildByReflection calls MethodInfo.MakeGenericMethod",
-                "ValueObjectRegistry.BuildByReflection calls Type.MakeGenericType",
-                "ValueObjectRegistry.Describe calls Activator.CreateInstance",
-            ]
-        },
-        { "AdCodicem.ValueObjects.AI", [] },
-        { "AdCodicem.ValueObjects.AspNetCore", [] },
-        { "AdCodicem.ValueObjects.AspNetCore.Http", [] },
+        ["AdCodicem.ValueObjects.Abstractions"] =
+        [
+            "ValueObjectRegistry.BuildByReflection calls MethodInfo.MakeGenericMethod",
+            "ValueObjectRegistry.BuildByReflection calls Type.MakeGenericType",
+            "ValueObjectRegistry.Describe calls Activator.CreateInstance",
+        ],
 
         // The JSON Patch adapter of a dictionary keyed by value objects, or holding them, closed over the dictionary's two
         // types as JSON Patch's own AdapterFactory closes its adapter over the same types: a visitor would name the value
         // object, never the dictionary's other type. MVC's JSON Patch runs in no native binary.
-        {
-            "AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson",
-            [
-                "ValueObjectAdapterFactory.Create calls Activator.CreateInstance",
-                "ValueObjectAdapterFactory.Create calls Type.MakeGenericType",
-            ]
-        },
-        { "AdCodicem.ValueObjects.AutoFixture", [] },
-        { "AdCodicem.ValueObjects.AzureFunctions", [] },
-        { "AdCodicem.ValueObjects.AzureFunctions.AspNetCore", [] },
-        { "AdCodicem.ValueObjects.Blazor", [] },
-        { "AdCodicem.ValueObjects.Bogus", [] },
-        { "AdCodicem.ValueObjects.CommandLine", [] },
-        { "AdCodicem.ValueObjects.CsvHelper", [] },
-        { "AdCodicem.ValueObjects.Dapper", [] },
+        ["AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson"] =
+        [
+            "ValueObjectAdapterFactory.Create calls Activator.CreateInstance",
+            "ValueObjectAdapterFactory.Create calls Type.MakeGenericType",
+        ],
 
         // The converter of a TSelf? property, or of such an element of a collection over text, which C# names only under a
         // constraint a visitor cannot prove, closed over the visitor's own type arguments while a model is built, which
         // Entity Framework Core never does under native AOT.
-        {
-            "AdCodicem.ValueObjects.EntityFrameworkCore",
-            [
-                "ConverterTypes.Optional calls Type.MakeGenericType",
-                "GenericValueObjectConvention.PropertyConversion.Visit calls Activator.CreateInstance",
-            ]
-        },
-        { "AdCodicem.ValueObjects.FluentValidation", [] },
-        { "AdCodicem.ValueObjects.FsCheck", [] },
-        { "AdCodicem.ValueObjects.Grpc", [] },
-        { "AdCodicem.ValueObjects.HotChocolate", [] },
-        { "AdCodicem.ValueObjects.HotChocolate.Data", [] },
-        { "AdCodicem.ValueObjects.Identifiers", [] },
-        { "AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore", [] },
-        { "AdCodicem.ValueObjects.Identifiers.MongoDB", [] },
-        { "AdCodicem.ValueObjects.Json", [] },
-        { "AdCodicem.ValueObjects.Marten", [] },
-        { "AdCodicem.ValueObjects.MessagePack", [] },
-        { "AdCodicem.ValueObjects.ModelContextProtocol", [] },
-        { "AdCodicem.ValueObjects.MongoDB", [] },
-        { "AdCodicem.ValueObjects.NewtonsoftJson", [] },
-        { "AdCodicem.ValueObjects.NJsonSchema", [] },
-        { "AdCodicem.ValueObjects.OpenApi", [] },
-        { "AdCodicem.ValueObjects.Orleans", [] },
-        { "AdCodicem.ValueObjects.ProtobufNet", [] },
-        { "AdCodicem.ValueObjects.Serilog", [] },
-        { "AdCodicem.ValueObjects.Swashbuckle", [] },
-        { "AdCodicem.ValueObjects.Testing", [] },
-        { "AdCodicem.ValueObjects.Testing.Data", [] },
-        { "AdCodicem.ValueObjects.Wolverine.Http", [] },
+        ["AdCodicem.ValueObjects.EntityFrameworkCore"] =
+        [
+            "ConverterTypes.Optional calls Type.MakeGenericType",
+            "GenericValueObjectConvention.PropertyConversion.Visit calls Activator.CreateInstance",
+        ],
     };
+
+    /// <summary>
+    /// The projects no application loads: the meta-package, which holds no code, and the generator and the code fix, which
+    /// only a compiler runs.
+    /// </summary>
+    private static readonly string[] NoRuntimeCode =
+        ["AdCodicem.ValueObjects", "AdCodicem.ValueObjects.Generators", "AdCodicem.ValueObjects.CodeFixes"];
+
+    /// <summary>
+    /// Gets each package of the CI family whose tests this assembly holds, with the calls closing a generic at run time it
+    /// is allowed: the projects the family table lists (.github/ci-families.json, which tests/UnitTests.props embeds), so
+    /// that every package is read by its family's project, which references it, and a package added to a family is read
+    /// with no line to write here.
+    /// </summary>
+    public static TheoryData<string, string[]> Packages
+    {
+        get
+        {
+            var assembly = typeof(RuntimeClosingTests).Assembly;
+            using var table = JsonDocument.Parse(assembly.GetManifestResourceStream("ci-families.json")!);
+            var families = table.RootElement.GetProperty("families").EnumerateObject().Select(static family => family.Value).ToList();
+            var named = families.SelectMany(Projects).ToHashSet(StringComparer.Ordinal);
+            if (Allowed.Keys.Concat(NoRuntimeCode).FirstOrDefault(project => !named.Contains(project)) is { } stale)
+            {
+                throw new InvalidOperationException($"{stale} is no project of .github/ci-families.json.");
+            }
+
+            var rows = new TheoryData<string, string[]>();
+            var own = families.Single(family => family.GetProperty("tests").GetString() == assembly.GetName().Name);
+            foreach (var package in Projects(own).Except(NoRuntimeCode, StringComparer.Ordinal).Order(StringComparer.OrdinalIgnoreCase))
+            {
+                rows.Add(package, Allowed.GetValueOrDefault(package, []));
+            }
+
+            return rows;
+
+            static IEnumerable<string> Projects(JsonElement family)
+                => family.GetProperty("projects").EnumerateArray().Select(static project => project.GetString()!);
+        }
+    }
 
     /// <summary>
     /// A package closes a generic at run time only where it is known to, and the lines of the three packages that do show

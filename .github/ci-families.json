@@ -22,6 +22,7 @@
   "families": {
     "core": {
       "train": "core",
+      "tests": "AdCodicem.ValueObjects.UnitTests",
       "projects": [
         "AdCodicem.ValueObjects",
         "AdCodicem.ValueObjects.Generators",
@@ -42,6 +43,7 @@
     },
     "aspnet": {
       "train": "core",
+      "tests": "AdCodicem.ValueObjects.UnitTests.AspNet",
       "projects": [
         "AdCodicem.ValueObjects.AspNetCore.Http",
         "AdCodicem.ValueObjects.AspNetCore",
@@ -54,6 +56,7 @@
     },
     "efcore": {
       "train": "core",
+      "tests": "AdCodicem.ValueObjects.UnitTests.EfCore",
       "projects": [
         "AdCodicem.ValueObjects.EntityFrameworkCore",
         "AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore"
@@ -65,6 +68,7 @@
     },
     "data": {
       "train": "satellites",
+      "tests": "AdCodicem.ValueObjects.UnitTests.Data",
       "projects": [
         "AdCodicem.ValueObjects.Dapper",
         "AdCodicem.ValueObjects.MongoDB",
@@ -78,6 +82,7 @@
     },
     "serialization": {
       "train": "satellites",
+      "tests": "AdCodicem.ValueObjects.UnitTests.Serialization",
       "projects": [
         "AdCodicem.ValueObjects.NewtonsoftJson",
         "AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson",
@@ -97,6 +102,7 @@
     },
     "orleans": {
       "train": "satellites",
+      "tests": "AdCodicem.ValueObjects.UnitTests.Orleans",
       "projects": [
         "AdCodicem.ValueObjects.Orleans"
       ],
@@ -107,6 +113,7 @@
     },
     "hosts": {
       "train": "satellites",
+      "tests": "AdCodicem.ValueObjects.UnitTests.Hosts",
       "projects": [
         "AdCodicem.ValueObjects.AzureFunctions",
         "AdCodicem.ValueObjects.AzureFunctions.AspNetCore",
@@ -120,6 +127,7 @@
     },
     "graphql": {
       "train": "satellites",
+      "tests": "AdCodicem.ValueObjects.UnitTests.GraphQL",
       "projects": [
         "AdCodicem.ValueObjects.HotChocolate",
         "AdCodicem.ValueObjects.HotChocolate.Data"
@@ -131,6 +139,7 @@
     },
     "text": {
       "train": "satellites",
+      "tests": "AdCodicem.ValueObjects.UnitTests.Text",
       "projects": [
         "AdCodicem.ValueObjects.Blazor",
         "AdCodicem.ValueObjects.CommandLine",
@@ -145,6 +154,7 @@
     },
     "observability": {
       "train": "satellites",
+      "tests": "AdCodicem.ValueObjects.UnitTests.Observability",
       "projects": [
         "AdCodicem.ValueObjects.Serilog",
         "AdCodicem.ValueObjects.AI",
@@ -160,6 +170,7 @@
     },
     "testdata": {
       "train": "satellites",
+      "tests": "AdCodicem.ValueObjects.UnitTests.TestData",
       "projects": [
         "AdCodicem.ValueObjects.Testing",
         "AdCodicem.ValueObjects.AutoFixture",

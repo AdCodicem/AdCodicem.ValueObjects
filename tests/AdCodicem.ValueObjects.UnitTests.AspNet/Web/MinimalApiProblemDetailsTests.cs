@@ -593,12 +593,3 @@ public sealed class MinimalApiProblemDetailsTests(
         return await ProblemReading.ReadProblemAsync(response);
     }
 }
-
-/// <summary>A serializer context that knows the validation problem, and not the <see cref="JsonElement"/> of its codes.</summary>
-[JsonSerializable(typeof(HttpValidationProblemDetails))]
-internal sealed partial class ProblemOnlyJsonContext : JsonSerializerContext;
-
-/// <summary>A serializer context that knows the validation problem and the <see cref="JsonElement"/> of its codes.</summary>
-[JsonSerializable(typeof(HttpValidationProblemDetails))]
-[JsonSerializable(typeof(JsonElement))]
-internal sealed partial class ProblemJsonContext : JsonSerializerContext;

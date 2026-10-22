@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The text family's unit tests (.github/ci-families.json): AdCodicem.ValueObjects.Blazor,
+    AdCodicem.ValueObjects.CommandLine and AdCodicem.ValueObjects.CsvHelper, which share src/Shared/ValueObjectText.cs.
+  -->
+  <Import Project="..\UnitTests.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Blazor\AdCodicem.ValueObjects.Blazor.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.CommandLine\AdCodicem.ValueObjects.CommandLine.csproj" />
+    <!-- Under an alias too: src/Shared/ValueObjectText.cs is compiled into the Blazor, System.CommandLine and CsvHelper
+         packages, and the test of its Gregorian cultures names the CsvHelper package's copy through the alias. -->
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.CsvHelper\AdCodicem.ValueObjects.CsvHelper.csproj" Aliases="global,csvhelper" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Blazor forms written in Razor markup, which the Razor compiler builds in a project of its own, so that this
+         one stays on Microsoft.NET.Sdk. -->
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Blazor\AdCodicem.ValueObjects.Fixtures.Blazor.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- bUnit's renderer, which Forms/ drives the Blazor package's input through, as an application's test of a form does;
+         the static and prerendered pages of the Razor fixture are served over TestHost instead. -->
+    <PackageReference Include="bunit" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <!-- The patterns the Blazor package writes for browsers, which ci.yml checks under Node too. -->
+    <None Update="Forms\EcmaScriptPatterns.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The sources of other families' folders this project compiles too, at the same path, so that a resource keeps
+       its name. -->
+  <ItemGroup>
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\Web\SparseMessages.cs" Link="Web\SparseMessages.cs" />
+    <EmbeddedResource Include="..\AdCodicem.ValueObjects.UnitTests\Web\SparseMessages.fr.resx" Link="Web\SparseMessages.fr.resx" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\Web\ValidationMessages.cs" Link="Web\ValidationMessages.cs" />
+    <EmbeddedResource Include="..\AdCodicem.ValueObjects.UnitTests\Web\ValidationMessages.fr.resx" Link="Web\ValidationMessages.fr.resx" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\WithoutDynamicCode.cs" Link="WithoutDynamicCode.cs" />
+  </ItemGroup>
+
+</Project>

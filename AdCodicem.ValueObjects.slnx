@@ -43,6 +43,16 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AdCodicem.ValueObjects.UnitTests/AdCodicem.ValueObjects.UnitTests.csproj" />
+    <Project Path="tests/AdCodicem.ValueObjects.UnitTests.AspNet/AdCodicem.ValueObjects.UnitTests.AspNet.csproj" />
+    <Project Path="tests/AdCodicem.ValueObjects.UnitTests.EfCore/AdCodicem.ValueObjects.UnitTests.EfCore.csproj" />
+    <Project Path="tests/AdCodicem.ValueObjects.UnitTests.Data/AdCodicem.ValueObjects.UnitTests.Data.csproj" />
+    <Project Path="tests/AdCodicem.ValueObjects.UnitTests.Serialization/AdCodicem.ValueObjects.UnitTests.Serialization.csproj" />
+    <Project Path="tests/AdCodicem.ValueObjects.UnitTests.Orleans/AdCodicem.ValueObjects.UnitTests.Orleans.csproj" />
+    <Project Path="tests/AdCodicem.ValueObjects.UnitTests.Hosts/AdCodicem.ValueObjects.UnitTests.Hosts.csproj" />
+    <Project Path="tests/AdCodicem.ValueObjects.UnitTests.GraphQL/AdCodicem.ValueObjects.UnitTests.GraphQL.csproj" />
+    <Project Path="tests/AdCodicem.ValueObjects.UnitTests.Text/AdCodicem.ValueObjects.UnitTests.Text.csproj" />
+    <Project Path="tests/AdCodicem.ValueObjects.UnitTests.Observability/AdCodicem.ValueObjects.UnitTests.Observability.csproj" />
+    <Project Path="tests/AdCodicem.ValueObjects.UnitTests.TestData/AdCodicem.ValueObjects.UnitTests.TestData.csproj" />
     <Project Path="tests/AdCodicem.ValueObjects.IntegrationTests/AdCodicem.ValueObjects.IntegrationTests.csproj" />
     <Project Path="tests/AdCodicem.ValueObjects.GeneratorTests/AdCodicem.ValueObjects.GeneratorTests.csproj" />
     <Project Path="tests/AdCodicem.ValueObjects.RdgTests/AdCodicem.ValueObjects.RdgTests.csproj" />

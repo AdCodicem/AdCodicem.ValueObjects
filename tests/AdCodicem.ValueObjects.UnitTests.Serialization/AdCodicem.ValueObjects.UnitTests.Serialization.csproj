@@ -1,0 +1,75 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The serialization family's unit tests (.github/ci-families.json): Newtonsoft.Json and JSON Patch, Swashbuckle,
+    NSwag and NJsonSchema with Confluent's serdes, MessagePack, protobuf-net and gRPC.
+  -->
+  <Import Project="..\UnitTests.props" />
+
+  <PropertyGroup>
+    <!-- Microsoft.AspNetCore.OpenApi's generator reaches this project through the OpenApi project and intercepts
+         AddOpenApi; the package's build targets, which allow its interceptors, come only with a direct reference. -->
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.NewtonsoftJson\AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson\AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Swashbuckle\AdCodicem.ValueObjects.Swashbuckle.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.NJsonSchema\AdCodicem.ValueObjects.NJsonSchema.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.MessagePack\AdCodicem.ValueObjects.MessagePack.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.ProtobufNet\AdCodicem.ValueObjects.ProtobufNet.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Grpc\AdCodicem.ValueObjects.Grpc.csproj" />
+    <!-- The hosts the documents and the formatters are read through. -->
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore.Http\AdCodicem.ValueObjects.AspNetCore.Http.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AspNetCore\AdCodicem.ValueObjects.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.OpenApi\AdCodicem.ValueObjects.OpenApi.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A value object in a module no test has touched yet. -->
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Untouched\AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- An in-memory server, so that the documents and the formatters are driven by real requests without a socket. -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <!-- The .NET client of a SignalR hub, which the MessagePack package's hub protocol helper is tested through, end to
+         end, over TestHost. -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <!-- NSwag's document generation over TestHost and its C# client generator, whose client Roslyn compiles, and
+         Confluent's JSON serdes over a substitute registry client, which SchemaGeneration/ and Web/ drive the NJsonSchema
+         package through; the Kafka client's native library, which the serdes never load, is left out of the output, its
+         Windows copies included. -->
+    <PackageReference Include="NSwag.AspNetCore" />
+    <PackageReference Include="NSwag.CodeGeneration.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Confluent.SchemaRegistry.Serdes.Json" />
+    <PackageReference Include="librdkafka.redist" ExcludeAssets="native;build" />
+    <!-- A protobuf-net.Grpc server and Grpc.AspNetCore's, over TestHost, and the .NET client their client factory brings,
+         which the protobuf-net package's code-first binder and the gRPC package are tested through, end to end, the
+         contract-first service's messages compiled by Grpc.Tools from BinarySerialization/ContractFirstGrpc.proto; the
+         gRPC package brings Grpc.StatusProto, which reads the google.rpc.Status a refusal is answered with, as a client
+         does. -->
+    <PackageReference Include="protobuf-net.Grpc.AspNetCore" />
+    <PackageReference Include="Grpc.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="BinarySerialization\ContractFirstGrpc.proto" GrpcServices="Both" />
+  </ItemGroup>
+
+  <!-- The sources of other families' folders this project compiles too, at the same path, so that a resource keeps
+       its name. -->
+  <ItemGroup>
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\CodeCarrying.cs" Link="CodeCarrying.cs" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\DataAnnotations\Annotated.cs" Link="DataAnnotations\Annotated.cs" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests.AspNet\Web\AnnotatedModels.cs" Link="Web\AnnotatedModels.cs" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests.AspNet\Web\OpenApiDocument.cs" Link="Web\OpenApiDocument.cs" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests.AspNet\Web\ProbeController.cs" Link="Web\ProbeController.cs" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests.AspNet\Web\ProblemReading.cs" Link="Web\ProblemReading.cs" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\Web\ValidationMessages.cs" Link="Web\ValidationMessages.cs" />
+    <EmbeddedResource Include="..\AdCodicem.ValueObjects.UnitTests\Web\ValidationMessages.fr.resx" Link="Web\ValidationMessages.fr.resx" />
+  </ItemGroup>
+
+</Project>
