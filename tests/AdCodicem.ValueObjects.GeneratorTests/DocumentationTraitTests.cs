@@ -14,11 +14,14 @@ namespace AdCodicem.ValueObjects.GeneratorTests;
 /// tests of this suite carrying the trait, and none other (<c>.github/scripts/ci-plan.sh</c>): a test reading those
 /// files without it would let such a pull request break it unseen. A test reads the repository through a method named
 /// <c>RepositoryRoot()</c> or <c>SkillDirectory()</c>, or one looking for <c>AdCodicem.ValueObjects.slnx</c>, which
-/// this follows the test's IL to. It walks every method of this assembly the test reaches: what it calls, the state
-/// machine of an asynchronous or iterator one, the implementations of an interface or virtual method of this assembly,
-/// and the type initializer of a type whose static field it reads or whose initializer is explicit. It starts from the
-/// test, its data (a <c>[MemberData]</c> method, property or field of its class, a base class or another type, a
-/// <c>[ClassData]</c> class), its class's constructors, and the class, collection and assembly fixtures xUnit builds.
+/// this follows the test's IL to, for each class xUnit runs a test in, its inherited tests included. It walks every
+/// method of this assembly the test reaches: what it calls, the state machine of an asynchronous or iterator one, the
+/// override the test's class runs of one of its virtual methods, the implementations of any other interface or virtual
+/// method of this assembly, and the type initializer of a type whose static field it reads or whose initializer is
+/// explicit. It starts from the test, its data (a <c>[MemberData]</c> method, property or field of its class, a base
+/// class or another type, a <c>[ClassData]</c> class, an attribute of this assembly on it), and what xUnit runs around
+/// it for its class and for the class, collection and assembly fixtures it builds: their constructors and their
+/// <c>InitializeAsync</c>, <c>DisposeAsync</c> and <c>Dispose</c>.
 /// </remarks>
 public sealed class DocumentationTraitTests
 {
@@ -39,43 +42,43 @@ public sealed class DocumentationTraitTests
     [Fact]
     public void Every_test_reading_the_repository_carries_the_trait_and_no_other_does()
     {
+        // As xUnit runs them: each class it can run, a static one included, with the test methods it inherits.
         var tests = Types
-            .Where(static type => !type.IsDefined(typeof(CompilerGeneratedAttribute)))
-            .SelectMany(static type => type.GetMethods(Declared))
-            .Where(static method => method.IsDefined(typeof(FactAttribute), inherit: true))
+            .Where(static type => type.IsClass && (!type.IsAbstract || type.IsSealed) && !type.IsDefined(typeof(CompilerGeneratedAttribute)))
+            .SelectMany(static type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
+                .Where(static method => method.IsDefined(typeof(FactAttribute), inherit: true))
+                .Select(method => new Test(type, method)))
             .ToList();
 
         var readers = tests.Select(static test => (Test: test, Reader: Reader(test))).Where(static found => found.Reader is not null).ToList();
-        var reading = readers.Select(static found => Name(found.Test)).ToHashSet(StringComparer.Ordinal);
-        var marked = tests.Where(static test => Marked(test)).Select(Name).ToHashSet(StringComparer.Ordinal);
+        var reading = readers.Select(static found => found.Test).ToHashSet();
+        var marked = tests.Where(static test => test.Marked).ToHashSet();
 
         reading.Should().HaveCountGreaterThan(20, "the walk must keep finding the tests that read the repository");
-        var unmarked = readers.Where(found => !marked.Contains(Name(found.Test)))
-            .Select(static found => $"{Name(found.Test)} (through {Name(found.Reader!)})").Order(StringComparer.Ordinal).ToList();
-        var stale = marked.Except(reading).Order(StringComparer.Ordinal).ToList();
+        var unmarked = readers.Where(found => !marked.Contains(found.Test))
+            .Select(static found => $"{found.Test} (through {Name(found.Reader!)})").Order(StringComparer.Ordinal).ToList();
+        var stale = marked.Except(reading).Select(static test => test.ToString()).Order(StringComparer.Ordinal).ToList();
         unmarked.Should().BeEmpty("these tests read the repository, so each needs [Trait(\"Reads\", \"Documentation\")]: {0}", string.Join(", ", unmarked));
         stale.Should().BeEmpty("these tests read nothing of the repository, so none needs the trait: {0}", string.Join(", ", stale));
     }
 
-    private static string Name(MethodBase method) => $"{method.DeclaringType!.Name}.{method.Name}";
+    private static string Name(MethodBase method) => $"{TypeName(method.DeclaringType!)}.{method.Name}";
 
-    private static bool Marked(MethodInfo test)
-        => test.GetCustomAttributes<TraitAttribute>().Concat(test.DeclaringType!.GetCustomAttributes<TraitAttribute>())
-            .Any(static trait => trait is { Name: "Reads", Value: "Documentation" });
+    private static string TypeName(Type type) => type.FullName![(type.Namespace is { } name ? name.Length + 1 : 0)..];
 
     /// <summary>The method through which the test, its data, its class's set-up or what they reach read it.</summary>
-    private static MethodBase? Reader(MethodInfo test)
+    private static MethodBase? Reader(Test test)
     {
-        var type = test.DeclaringType!;
-        var walk = new Walk();
-        walk.Push(test);
-        walk.PushConstruction(type);
+        var type = test.Class;
+        var walk = new Walk(type);
+        walk.Push(test.Method);
+        walk.PushSetUp(type);
         foreach (var fixture in Fixtures(type))
         {
-            walk.PushConstruction(fixture);
+            walk.PushSetUp(fixture);
         }
 
-        foreach (var data in test.GetCustomAttributes<MemberDataAttribute>())
+        foreach (var data in test.Method.GetCustomAttributes<MemberDataAttribute>())
         {
             foreach (var member in Member(data.MemberType ?? type, data.MemberName))
             {
@@ -94,14 +97,26 @@ public sealed class DocumentationTraitTests
             }
         }
 
-        foreach (var data in test.GetCustomAttributes<ClassDataAttribute>())
+        foreach (var data in test.Method.GetCustomAttributes<ClassDataAttribute>())
         {
             foreach (var method in data.Class.GetMethods(Declared))
             {
                 walk.Push(method);
             }
 
-            walk.PushConstruction(data.Class);
+            walk.PushSetUp(data.Class);
+        }
+
+        // An attribute of this assembly on the test, such as a data attribute of its own, runs when xUnit reads it.
+        foreach (var attribute in test.Method.GetCustomAttributes(inherit: true).Select(static attribute => attribute.GetType())
+            .Where(static attribute => attribute.Module == typeof(DocumentationTraitTests).Module))
+        {
+            foreach (var method in attribute.GetMethods(Declared))
+            {
+                walk.Push(method);
+            }
+
+            walk.PushSetUp(attribute);
         }
 
         return walk.Reader();
@@ -127,7 +142,10 @@ public sealed class DocumentationTraitTests
         var collections = type.GetCustomAttributes<CollectionAttribute>().ToList();
         var definitions = Types.Where(definition => definition.GetCustomAttributes<CollectionDefinitionAttribute>()
             .Any(attribute => collections.Any(collection => collection.Type == definition
-                || (collection.Name is { } name && attribute.Name == name))));
+                || (collection.Name is { } name && attribute.Name == name))))
+            .Concat(type.GetCustomAttributes(inherit: true).Select(static attribute => attribute.GetType())
+                .Where(static attribute => attribute.IsGenericType && attribute.GetGenericTypeDefinition() == typeof(CollectionAttribute<>))
+                .Select(static attribute => attribute.GetGenericArguments()[0]));
         var fixtures = new[] { type }.Concat(definitions)
             .SelectMany(static owner => owner.GetInterfaces())
             .Where(static contract => contract.IsGenericType
@@ -136,10 +154,22 @@ public sealed class DocumentationTraitTests
         return fixtures.Concat(type.Assembly.GetCustomAttributes<AssemblyFixtureAttribute>().Select(static fixture => fixture.AssemblyFixtureType));
     }
 
+    /// <summary>A test as xUnit runs it: the class it runs in, which may inherit the method, and the method.</summary>
+    private sealed record Test(Type Class, MethodInfo Method)
+    {
+        /// <summary>Whether the method or the class it runs in carries the trait.</summary>
+        public bool Marked => Method.GetCustomAttributes<TraitAttribute>().Concat(Class.GetCustomAttributes<TraitAttribute>())
+            .Any(static trait => trait is { Name: "Reads", Value: "Documentation" });
+
+        public override string ToString() => $"{TypeName(Class)}.{Method.Name}";
+    }
+
     /// <summary>The methods a test reaches, walked until one of them reads the repository.</summary>
-    private sealed class Walk
+    private sealed class Walk(Type concrete)
     {
         private static readonly Dictionary<MethodBase, MethodBase[]> ImplementationsOf = [];
+
+        private static readonly Type[] Lifecycles = [typeof(IAsyncLifetime), typeof(IAsyncDisposable), typeof(IDisposable)];
 
         private readonly Module module = typeof(DocumentationTraitTests).Module;
         private readonly Stack<MethodBase> pending = new();
@@ -147,9 +177,23 @@ public sealed class DocumentationTraitTests
 
         public void Push(MethodBase method) => pending.Push(method);
 
-        /// <summary>What constructing the type runs: its constructors, and its explicit type initializer.</summary>
-        public void PushConstruction(Type type)
+        /// <summary>
+        /// What xUnit runs around a test of the type, or of a fixture: its constructors, its explicit type initializer,
+        /// and its InitializeAsync, DisposeAsync and Dispose.
+        /// </summary>
+        public void PushSetUp(Type type)
         {
+            if (!type.IsInterface)
+            {
+                foreach (var lifecycle in Lifecycles.Where(lifecycle => lifecycle.IsAssignableFrom(type)))
+                {
+                    foreach (var method in type.GetInterfaceMap(lifecycle).TargetMethods)
+                    {
+                        pending.Push(method);
+                    }
+                }
+            }
+
             // Instance constructors only: with BindingFlags.Static, GetConstructors returns the type initializer too.
             foreach (var constructor in type.GetConstructors(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
             {
@@ -204,6 +248,13 @@ public sealed class DocumentationTraitTests
                                 PushInitializer(declaring);
                             }
 
+                            // A virtual method of the test's own class runs as the class xUnit runs the test in has it.
+                            if (OnTheTestClass(callee) is { } resolved)
+                            {
+                                pending.Push(resolved);
+                                break;
+                            }
+
                             foreach (var implementation in Implementations(callee))
                             {
                                 pending.Push(implementation);
@@ -214,6 +265,31 @@ public sealed class DocumentationTraitTests
                             PushInitializer(owner);
                             break;
                     }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>The override the test's class runs of a virtual method of it or of a base class, if the method is one.</summary>
+        private MethodInfo? OnTheTestClass(MethodBase method)
+        {
+            if (method is not MethodInfo { IsVirtual: true, DeclaringType: { } owner } virtualMethod || !owner.IsAssignableFrom(concrete))
+            {
+                return null;
+            }
+
+            if (owner.IsInterface)
+            {
+                var map = concrete.GetInterfaceMap(owner);
+                return map.TargetMethods.Where((_, index) => map.InterfaceMethods[index] == virtualMethod).FirstOrDefault();
+            }
+
+            for (Type? current = concrete; current is not null; current = current.BaseType)
+            {
+                if (current.GetMethods(Declared).FirstOrDefault(candidate => candidate.GetBaseDefinition() == virtualMethod.GetBaseDefinition()) is { } found)
+                {
+                    return found;
                 }
             }
 
