@@ -82,15 +82,17 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   Mechanics: `.github/CLAUDE.md`; runbook: `docs/maintaining.md`; reasoning: ADR 0003 and 0009.
 - The commit type sets the next version (Conventional Commits, `.releaserc.json`): `feat` a minor, `fix` and `perf` a
   patch; `chore`, `ci`, `test`, `docs`, `refactor` nothing, except `build(pack)` and `docs(readme)`, rated a patch
-  because the package metadata and the README (the nuget.org page) ship inside every `.nupkg`. Scope such a commit
-  that way, or it waits for the next `feat` or `fix`.
+  because the package metadata and a package's README (its nuget.org page) ship inside the `.nupkg`: the main package
+  carries `src/AdCodicem.ValueObjects/README.md`, every other `src/PackageReadme.md`. No package carries the
+  repository's `README.md`, so a change to it is plain `docs`. Scope such a commit that way, or it waits for the next
+  `feat` or `fix`.
 - While the major is 0, a breaking change (`!`, or a `BREAKING CHANGE:` footer) releases a minor: a minor may break,
   deprecate or remove public API, and a deprecation reads "any minor version may remove it before 1.0.0", never "the
   next major version". At 1.0, replace the first `releaseRules` entry with `{ "breaking": true, "release": "major" }`,
   never delete it, or `build(pack)!` and `docs(readme)!` fall back to a patch.
 - The thirty-eight packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
   supported in the same packages. ADR 0012 replaces the one version with two trains (core, satellites), built up to
-  phase 1a: `src/release-trains.json` lists them, and `RELEASE_TRAIN_VERSIONS` (`core=X satellites=Y`) gives each its
+  phase 1b: `src/release-trains.json` lists them, and `RELEASE_TRAIN_VERSIONS` (`core=X satellites=Y`) gives each its
   version, which the workflows still set alike, so the one version holds. ADR 0013 targets the CI: its heavy jobs run
   after the merge and before a release (`heavy.yml`), and a pull request runs the families of
   `.github/ci-families.json` and the lanes the files it changes select (`.github/scripts/ci-plan.sh`; phase B, one
@@ -296,6 +298,10 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   MSBuild expansion in a string: `.github/scripts/release-trains.mjs check` refuses them (`.github/CLAUDE.md`). Never
   set `MINVERVERSIONOVERRIDE`: the build refuses it, since it would give every train one version; set
   `RELEASE_TRAIN_VERSIONS` instead.
+- **Every dependency on one of our own packages is bounded** by the next version that may break it (ADR 0012):
+  `[V, 0.(m+1).0)` while it is 0.x, `[V, (M+1).0.0)` from 1.0, closed at `-0` in a prerelease package.
+  `src/Directory.Build.targets` rewrites the bare floor `dotnet pack` writes, after NuGet's private
+  `_GetProjectReferenceVersions`, and `verify-packages.sh` refuses any other range, so a renamed target fails the check.
 - **Anything that changes a package's bytes or metadata is a `preview-gate.sh` input**, or it never reaches a preview;
   **a dependency added to a shipped package goes into `.github/shipped-dependencies`** in the same pull request, or CI
   fails. Both: `.github/CLAUDE.md`.

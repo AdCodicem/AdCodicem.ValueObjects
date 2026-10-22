@@ -26,6 +26,9 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   `artifacts/packages` and may share a number. `scripts/release-pack.sh` takes `<train>=<version>:<type>[:<last>]` per
   train of `src/release-trains.json`, each train held to its own baseline; `scripts/verify-packages.sh` the
   `<id>=<version>` pairs `release-trains.mjs versions` prints; `scripts/push-packages.sh` the ids of one version.
+- `scripts/verify-packages.sh` also reads each nuspec's dependencies on `AdCodicem.ValueObjects*`: each must be a
+  package of the set, at `[V, upper)`, V its version in the set and upper the next that may break it (`-0` closing a
+  prerelease's). Every run packs every train, so no dependency of ours points outside the set.
 - `scripts/push-packages.sh` pushes dependencies first and only what nuget.org lacks, in up to three passes, then waits
   until nuget.org lists every package. A push stopped midway is completed by those passes, by **Re-run failed jobs**, or
   by the next run (`repair`).
@@ -61,8 +64,8 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 
 ## Package inputs and shipped dependencies
 
-- `scripts/preview-gate.sh`'s `inputs` lists what changes a package: `src/` (the solution filter included;
-  `src/**/AnalyzerReleases.*.md` and `src/**/CLAUDE.md` excluded), `README.md`, `icon.png`, the root
+- `scripts/preview-gate.sh`'s `inputs` lists what changes a package: `src/` (the solution filter and the package
+  READMEs included; `src/**/AnalyzerReleases.*.md` and `src/**/CLAUDE.md` excluded), `icon.png`, the root
   `Directory.Build.*` files, `global.json`, `nuget.config`, `.gitattributes`, `scripts/release-pack.sh`, and
   `Directory.Packages.props`: any change outside its `<PackageVersion>` elements, and the `<PackageVersion>` of any
   package in the restore graph of `src/`, build-time ones included (MinVer, SourceLink, PolySharp, Roslyn). That is wider

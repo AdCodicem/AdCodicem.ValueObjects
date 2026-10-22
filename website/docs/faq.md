@@ -26,9 +26,9 @@ that run on older frameworks.
 ### Will there be a package per EF Core or .NET version?
 
 No. The thirty-eight packages share one version, driven by their own API and not by the framework's, and a framework's
-next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
-them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
-major in a release that says so, and an application on the older one keeps the version before.
+next major is supported by the same packages: their dependencies on the frameworks are minimums with no upper bound,
+and a CI job runs them on the next .NET before it ships. If a new major ever breaks what a package calls, the package
+moves to that major in a release that says so, and an application on the older one keeps the version before.
 [ADR-0010](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md) has the reasoning.
 
 ### Is it ready for production?
