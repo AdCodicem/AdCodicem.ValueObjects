@@ -33,6 +33,8 @@ Its rules are declared once, and reach JSON, EF Core, model binding, the OpenAPI
 through the packages of the same name.
 
 - Documentation: <https://adcodicem.github.io/AdCodicem.ValueObjects/>
-- Every package, and what each integrates: <https://adcodicem.github.io/AdCodicem.ValueObjects/docs/packages>
+- Every released package, and what each integrates: <https://adcodicem.github.io/AdCodicem.ValueObjects/docs/packages>
+- Every package of the next version, previews included:
+  <https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/packages>
 - Changes: <https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.md>
 - Source and issues: <https://github.com/AdCodicem/AdCodicem.ValueObjects>

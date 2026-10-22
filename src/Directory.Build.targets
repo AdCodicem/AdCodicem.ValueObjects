@@ -39,4 +39,25 @@
     </ItemGroup>
   </Target>
 
+  <!--
+    A package with no README of its own carries src/PackageReadme.md with its id and description in place of
+    {{PackageId}} and {{Description}} (ADR 0012): nuget.org shows a package's README instead of its description, never
+    both, so the README says what the package adds. Description is final only here, after the project file. Its
+    Markdown characters become character references, or nuget.org would read [ParsesAs] as a link and <TSelf, TValue> as
+    HTML: a backslash escape would not survive, as WriteLinesToFile turns a backslash into a slash on Linux, as in a
+    path. verify-packages.sh refuses a package whose README does not open with its id.
+  -->
+  <Target Name="_WritePackageReadme" BeforeTargets="_GetPackageFiles" Condition="'$(IsPackable)' == 'true' and !Exists('$(MSBuildProjectDirectory)/README.md')">
+    <PropertyGroup>
+      <_PackageReadme>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'README.md'))</_PackageReadme>
+      <_PackageReadmeDescription>$(Description.Replace('&amp;', '&amp;amp;').Replace('&lt;', '&amp;lt;').Replace('&gt;', '&amp;gt;').Replace('[', '&amp;#91;').Replace(']', '&amp;#93;').Replace('_', '&amp;#95;').Replace('*', '&amp;#42;').Replace('`', '&amp;#96;').Replace('\', '&amp;#92;'))</_PackageReadmeDescription>
+      <_PackageReadmeText>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)PackageReadme.md').Replace('{{PackageId}}', '$(PackageId)').Replace('{{Description}}', '$(_PackageReadmeDescription)'))</_PackageReadmeText>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_PackageReadme)" Lines="$([MSBuild]::Escape($(_PackageReadmeText)))" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <None Include="$(_PackageReadme)" Pack="true" PackagePath="README.md" />
+      <FileWrites Include="$(_PackageReadme)" />
+    </ItemGroup>
+  </Target>
+
 </Project>
