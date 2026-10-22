@@ -104,7 +104,7 @@ which checks every commit message of the pull request. The plan reads the files 
 ([ADR-0013](docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)): a change to a
 package runs the unit tests of its family and of the families that depend on it, a change to the core packages every
 family and the generator suite, and the build, the RDG suite, the compiled model and the pack run when their inputs
-change; a change to the documentation runs the generator suite's tests that read it, and a change to a workflow, a
+change; a change to the documentation runs the generator suite's tests that read it, and a change to `ci.yml`, a
 global build file or a file no rule names, everything. Its summary on the run page lists what it picked. `ci.yml`
 also builds the documentation site when a change reaches it, in a job that is worth a look when red but does not block
 the merge.

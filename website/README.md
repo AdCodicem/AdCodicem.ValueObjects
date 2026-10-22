@@ -144,10 +144,11 @@ To redeploy the site by hand, dispatch `preview.yml` from `main` (**Actions → 
 input changed since the last preview, that run publishes one first. A documentation change merged to `main` therefore
 goes live at the next Monday's run, or at once by dispatching it.
 
-`ci.yml`'s **documentation site** job builds the site on every pull request and on `main`, and deploys nothing: a
-broken link fails the pull request instead of the next deployment. It builds through `.github/actions/build-site`,
-the composite action `deploy-docs.yml` builds with, so what a pull request builds is what a deployment builds, except
-for the label: nothing deploys that build, so its preview reads `Preview`.
+`ci.yml`'s **documentation site** job builds the site on a pull request changing it or a package whose API it
+documents, and on `main`, and deploys nothing: a broken link fails the pull request instead of the next deployment.
+It builds through `.github/actions/build-site`, the composite action `deploy-docs.yml` builds with, so what a pull
+request builds is what a deployment builds, except for the label: nothing deploys that build, so its preview reads
+`Preview`.
 
 Deployments queue in the `pages` concurrency group (`queue: max`), in the order they arrive, and none is
 dropped. Each one writes `deployment.json` at the root of the site, and the next one reads it back. When the

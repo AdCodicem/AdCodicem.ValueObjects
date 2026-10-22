@@ -6,7 +6,7 @@ namespace AdCodicem.ValueObjects.UnitTests.Forms;
 
 /// <summary>
 /// The <c>pattern</c> attribute the Blazor package writes for a .NET pattern, pinned in <c>EcmaScriptPatterns.json</c>,
-/// whose texts .NET is held to here and a JavaScript engine in ci.yml's documentation site job
+/// whose texts .NET is held to here and a JavaScript engine in ci.yml's build job, when the text family runs
 /// (<c>.github/scripts/ecmascript-patterns.mjs</c>): a pattern is written only where a browser reads it as .NET does.
 /// </summary>
 public sealed class EcmaScriptPatternTests

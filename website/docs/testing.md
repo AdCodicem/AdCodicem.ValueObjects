@@ -286,14 +286,14 @@ test for a new rule: prove it holds on both paths, not just the one that's conve
 
 ## Coverage
 
-Every pull request reports its coverage through Codecov: 95 % of the lines it changes, and the project's coverage
-down by half a point at most. A pull request runs the unit tests of the package families it changes, and uploads
-their coverage under each family's flag; the families it does not run keep their coverage from the commit before.
-The integration suite reports with the heavy jobs, after the merge or on a pull request labelled `ci:heavy`. That is
-a floor; the aim is everything that can be covered, under a rule that keeps the number honest — a defensive branch
-no test reaches stays, a private member is covered through its callers or not at all, and code is removed only when
-no input can reach it. The rule, and the two things the figure cannot show (a package no test loads, and the code
-the generator emits into the consumer's assembly), are on the [Contributing](/contributing) page.
+A pull request that runs tests reports their coverage through Codecov: 95 % of the lines it changes, and the
+project's coverage down by half a point at most. It runs the unit tests of the package families it changes, and
+uploads their coverage under each family's flag; the families it does not run keep their coverage from the commit
+before. The integration suite reports with the heavy jobs, after the merge or on a pull request labelled `ci:heavy`.
+That is a floor; the aim is everything that can be covered, under a rule that keeps the number honest — a defensive
+branch no test reaches stays, a private member is covered through its callers or not at all, and code is removed
+only when no input can reach it. The rule, and the two things the figure cannot show (a package no test loads, and
+the code the generator emits into the consumer's assembly), are on the [Contributing](/contributing) page.
 
 ## Stack
 
