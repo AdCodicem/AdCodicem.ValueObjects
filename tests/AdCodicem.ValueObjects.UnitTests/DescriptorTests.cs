@@ -17,7 +17,7 @@ namespace AdCodicem.ValueObjects.UnitTests;
 /// drops on the floor is invisible to the strongly typed tests and yet visible to every consumer, so the
 /// descriptor deserves coverage of its own.
 /// </remarks>
-public sealed class DescriptorTests
+public sealed partial class DescriptorTests
 {
     private static ValueObjectDescriptor Descriptor<T>()
     {
@@ -81,24 +81,6 @@ public sealed class DescriptorTests
         parsed.Should().BeTrue();
         validation.IsValid.Should().BeTrue();
         result.Should().Be(Iban.Create("FR7630006000011234567890189"));
-    }
-
-    [Fact]
-    public void Every_rejection_carries_an_error_code()
-    {
-        // Consumers turn these codes into ProblemDetails, so a rejection without one surfaces to an API client
-        // as a null. Sweep every registered type rather than trusting the handful spelled out above.
-        foreach (var descriptor in ValueObjectRegistry.GetRegistered())
-        {
-            descriptor.TryParse(" an unlikely value ", CultureInfo.InvariantCulture, out _, out var validation);
-
-            if (!validation.IsValid)
-            {
-                validation.ErrorCode.Should().NotBeNullOrEmpty(
-                    "'{0}' must say why it rejected a value",
-                    descriptor.ValueObjectType.Name);
-            }
-        }
     }
 
     /// <summary>

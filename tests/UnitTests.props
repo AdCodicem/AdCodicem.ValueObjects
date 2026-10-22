@@ -37,8 +37,9 @@
   <!--
     What every other project compiles from the core project's folder, under the same paths: the value objects of Domain/;
     the hub of GeneratedSurface/, which each family's part, GeneratedSurface/Sample.<Family>.cs, completes with its
-    checks; Declared<TDeclaration, TValue>, which a test closes over a declaration of its own; and RuntimeClosingTests,
-    the one linked file holding a test, which reads the IL of the packages of the project's own family alone.
+    checks; Declared<TDeclaration, TValue>, which a test closes over a declaration of its own; and the two linked files
+    holding tests, each over the project's own family: RuntimeClosingTests, which reads the IL of its packages alone,
+    and DescriptorTests' sweep of the value objects the project registers.
   -->
   <ItemGroup Condition="'$(MSBuildProjectName)' != 'AdCodicem.ValueObjects.UnitTests'">
     <Compile Include="$(UnitTestsSources)Domain\**\*.cs" Link="Domain\%(RecursiveDir)%(Filename)%(Extension)" />
@@ -47,6 +48,7 @@
     <Compile Include="$(UnitTestsSources)GeneratedSurface\NumericSample.cs" Link="GeneratedSurface\NumericSample.cs" />
     <Compile Include="$(UnitTestsSources)TestData\Declared.cs" Link="TestData\Declared.cs" />
     <Compile Include="$(UnitTestsSources)RuntimeClosingTests.cs" Link="RuntimeClosingTests.cs" />
+    <Compile Include="$(UnitTestsSources)DescriptorTests.Registered.cs" Link="DescriptorTests.Registered.cs" />
   </ItemGroup>
 
   <!-- The family table, which RuntimeClosingTests reads the packages of this project's family from. -->
