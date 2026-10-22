@@ -26,11 +26,13 @@ ignore:
 # main runs every family, and so refreshes every flag. The generator and RDG suites upload when they run, the
 # integration suite from heavy.yml, each over src/.
 flag_management:
+  # Each flag carries forward by its own entry, so that a flag that leaves this list stops being carried forward.
   default_rules:
-    carryforward: true
+    carryforward: false
   individual_flags:
     # BEGIN ci-families: the output of .github/scripts/ci-plan.sh --codecov-flags, which the plan checks
     - name: core
+      carryforward: true
       paths:
         - src/AdCodicem.ValueObjects/
         - src/AdCodicem.ValueObjects.Generators/
@@ -44,6 +46,7 @@ flag_management:
         - src/Shared/ValueObjectResourceMessages.cs
         - src/Shared/ValueObjectSchemaKeywords.cs
     - name: aspnet
+      carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.AspNetCore.Http/
         - src/AdCodicem.ValueObjects.AspNetCore/
@@ -54,6 +57,7 @@ flag_management:
         - src/Shared/ValueObjectRefusals.cs
         - src/Shared/ValueObjectSchemaKeywords.cs
     - name: efcore
+      carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.EntityFrameworkCore/
         - src/AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore/
@@ -61,6 +65,7 @@ flag_management:
         - src/Shared/TypeNames.cs
         - src/Shared/ValueObjectPatternSyntax.cs
     - name: data
+      carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.Dapper/
         - src/AdCodicem.ValueObjects.MongoDB/
@@ -70,6 +75,7 @@ flag_management:
         - src/Shared/TypeNames.cs
         - src/Shared/ValueObjectPatternSyntax.cs
     - name: serialization
+      carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.NewtonsoftJson/
         - src/AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson/
@@ -82,9 +88,11 @@ flag_management:
         - src/Shared/ValueObjectOpenApiSchema.cs
         - src/Shared/ValueObjectSchemaKeywords.cs
     - name: orleans
+      carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.Orleans/
     - name: hosts
+      carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.AzureFunctions/
         - src/AdCodicem.ValueObjects.AzureFunctions.AspNetCore/
@@ -95,12 +103,14 @@ flag_management:
         - src/Shared/ValueObjectLocalizedMessages.cs
         - src/Shared/ValueObjectRefusals.cs
     - name: graphql
+      carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.HotChocolate/
         - src/AdCodicem.ValueObjects.HotChocolate.Data/
         - src/Shared/ValueObjectLocalizedMessages.cs
         - src/Shared/ValueObjectSchemaKeywords.cs
     - name: text
+      carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.Blazor/
         - src/AdCodicem.ValueObjects.CommandLine/
@@ -111,6 +121,7 @@ flag_management:
         - src/Shared/ValueObjectResourceMessages.cs
         - src/Shared/ValueObjectText.cs
     - name: observability
+      carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.Serilog/
         - src/AdCodicem.ValueObjects.AI/
@@ -119,6 +130,7 @@ flag_management:
         - src/Shared/ValueObjectArgumentRejection.cs
         - src/Shared/ValueObjectArguments.cs
     - name: testdata
+      carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.Testing/
         - src/AdCodicem.ValueObjects.AutoFixture/
@@ -127,11 +139,14 @@ flag_management:
         - src/Shared/TypeNames.cs
     # END ci-families
     - name: generator
+      carryforward: true
       paths:
         - src/
     - name: rdg
+      carryforward: true
       paths:
         - src/
     - name: integration
+      carryforward: true
       paths:
         - src/

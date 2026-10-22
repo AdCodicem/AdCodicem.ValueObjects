@@ -86,7 +86,8 @@
 # A summary goes to $GITHUB_STEP_SUMMARY when Actions sets it.
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
+# -P: the physical path, which dotnet-affected reports the projects under, even through a symbolic link.
+cd -P "$(dirname "$0")/../.."
 
 table=.github/ci-families.json
 unit_suite=tests/AdCodicem.ValueObjects.UnitTests
@@ -103,6 +104,7 @@ codecov_flags() {
   local family project shared
   while IFS= read -r family; do
     echo "    - name: $family"
+    echo "      carryforward: true"
     echo "      paths:"
     while IFS= read -r project; do
       echo "        - src/$project/"
@@ -333,8 +335,10 @@ unit_families() {
     return
   fi
   # At the root: a file that is no source, such as a test configuration, applies to every test, and a source holding no
-  # test is a helper, which any folder's tests may use without an import.
-  if [[ "$relative" != */* ]] && { [[ "$relative" != *.cs ]] || ! grep -qE '\[(Fact|Theory)' <<<"$versions"; }; then
+  # test, neither a [Fact] or [Theory] nor a contract inheriting the kit's, is a helper, which any folder's tests may use
+  # without an import.
+  if [[ "$relative" != */* ]] &&
+    { [[ "$relative" != *.cs ]] || ! grep -qE '\[(Fact|Theory)|:[[:space:]]*ValueObjectContract<' <<<"$versions"; }; then
     every_family=true
     return
   fi
@@ -371,6 +375,12 @@ case "$event" in
       echo "::warning::The files this pull request changes could not be read (the checkout needs a depth of 2)." >&2
       run_everything "the files this pull request changes could not be read"
     fi
+    # Codecov reads codecov.yml from the pull request's own head, the merge commit's second parent: one branched before
+    # the family flags would take each targeted upload whole and carry nothing forward, so it runs everything.
+    head_codecov="$(git show HEAD^2:codecov.yml 2> /dev/null || true)"
+    if git rev-parse -q --verify HEAD^2 > /dev/null && ! grep -q '# BEGIN ci-families' <<<"$head_codecov"; then
+      run_everything "the pull request's head has no family flags in codecov.yml: merge main into it to run its families"
+    fi
     ;;
   push)
     heavy_reason="heavy.yml runs on this push itself"
@@ -382,6 +392,8 @@ case "$event" in
 esac
 
 for path in "${changed[@]}"; do
+  # The format job checks every .cs file of the repository, whichever rule the file falls under.
+  [[ "$path" == *.cs ]] && format=true
   case "$(rule "$path")" in
     none) ;;
     readme) documentation=true; pack=true ;;
