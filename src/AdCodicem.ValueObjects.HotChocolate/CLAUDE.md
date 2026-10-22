@@ -1,8 +1,9 @@
 # AdCodicem.ValueObjects.HotChocolate — scalars
 
-User-facing behaviour: `website/docs/how-to/graphql.md`. Tests: `GraphQL/` of the unit suite (`GraphQLHarness`, executors
-built in process). AOT-compatible itself, but out of `tests/NativeAot`: HotChocolate's own publish warns (IL2104,
-IL3053, IL3000, IL3002) and its binary starts only with HotChocolate.Types and the application rooted.
+User-facing behaviour: `website/docs/how-to/graphql.md`. Tests: `GraphQL/` of
+`tests/AdCodicem.ValueObjects.UnitTests.GraphQL` (`GraphQLHarness`, executors built in process). AOT-compatible itself,
+but out of `tests/NativeAot`: HotChocolate's own publish warns (IL2104, IL3053, IL3000, IL3002) and its binary starts
+only with HotChocolate.Types and the application rooted.
 
 ## Schema building
 
@@ -52,4 +53,5 @@ IL3053, IL3000, IL3002) and its binary starts only with HotChocolate.Types and t
   ambiguous with `System.IO.Path` (alias it), and `HotChocolate.Types` holds a `Tag`.
 - HotChocolate.AspNetCore adds global usings of `HotChocolate`, `HotChocolate.Types`, `HotChocolate.Types.Relay` and
   `GreenDonut` under `ImplicitUsings`, whose `DefaultValueAttribute` collides with `System.ComponentModel`'s: a project
-  referencing it sets `HotChocolateImplicitUsings` to `disable`, as the unit suite does.
+  referencing it sets `HotChocolateImplicitUsings` to `disable`, as `tests/AdCodicem.ValueObjects.UnitTests.GraphQL`
+  does.

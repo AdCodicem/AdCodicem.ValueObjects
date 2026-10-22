@@ -12,12 +12,18 @@ about the library's own suites.
 
 Four suites, each with a distinct job:
 
-- **UnitTests** — behaviour of generated code, and of every integration package called directly. The sample
-  value objects declare each of the 22 underlying types and each option and hook at least once, so that what the
-  generator emits for every one of them runs rather than only compiles. Generated sources are emitted to disk
+- **UnitTests** — behaviour of generated code, and of every integration package called directly, in eleven projects,
+  one per package family of `.github/ci-families.json`, each of which CI runs in a job of its own
+  ([ADR-0013](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)):
+  `tests/AdCodicem.ValueObjects.UnitTests` for the core packages, and `tests/AdCodicem.ValueObjects.UnitTests.<Family>`
+  for each other family (`AspNet`, `EfCore`, `Data`, `Serialization`, `Orleans`, `Hosts`, `GraphQL`, `Text`,
+  `Observability`, `TestData`); every other project compiles the sample value objects from the core project's folder,
+  and each runs as a test process of its own. The sample value objects declare each of the 22 underlying types and
+  each option and hook at least once, so that what the generator emits for every one of them runs rather than only
+  compiles. Generated sources are emitted to disk
   during the build, so they can be read when diagnosing a failure instead of decompiled from memory. Value
   objects written by hand reach what the generator always replaces, such as the default members of the
-  contracts, and eight small fixture assemblies hold what the test assembly cannot: a generated value object whose
+  contracts, and eight small fixture assemblies hold what a test assembly cannot: a generated value object whose
   module has not been used yet, annotated value objects in an assembly the generator does not run on,
   generated value objects in an assembly that does not reference the JSON package, generated value objects of
   every underlying type in an assembly that opts into XML serialization, generated value objects beside a query
@@ -62,7 +68,8 @@ Four suites, each with a distinct job:
   refused with its code, in each culture the renderer calls for and in French from a resource, and the text it writes
   reads back in every culture .NET lists, those whose calendar is not the Gregorian one included; the static and the
   prerendered pages of the Razor fixture are served over TestHost, the framework's own messages pinned, and the patterns
-  an input writes for browsers are checked against .NET here and against Node in the build job.
+  an input writes for browsers are checked against .NET here and against Node in the text family's job,
+  `unit (text)`.
   System.CommandLine commands parsed and invoked in process read every sample value object through an option, its
   nullable type, a list and an argument, the text of each instance and of each edge of its rules reading back to it and
   each value its rules rule out refused with its code on the parse error, every known value completed as text that
@@ -232,7 +239,8 @@ through the warnings the project lists, and fails on any other, this library's i
 
 ## The compatibility island
 
-The four suites build and test the source. One more project tests the packages: `tests/Compat`, outside the solution,
+The four suites, fourteen test projects of the solution, build and test the source. One more project tests the
+packages: `tests/Compat`, outside the solution,
 installs the thirty-eight packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
@@ -287,13 +295,14 @@ test for a new rule: prove it holds on both paths, not just the one that's conve
 ## Coverage
 
 A pull request reports the coverage of the suites it runs through Codecov: 95 % of the lines it changes, and the
-project's coverage down by half a point at most. It runs the unit tests of the package families it changes, and
-uploads their coverage under each family's flag; the families it does not run keep their coverage from the commit
-before, and one that runs only the tests reading the documentation, or no test, uploads nothing. The integration
-suite reports with the heavy jobs, after the merge or on a pull request labelled `ci:heavy`. That is a floor; the
-aim is everything that can be covered, under a rule that keeps the number honest — a defensive branch no test
-reaches stays, a private member is covered through its callers or not at all, and code is removed only when no input
-can reach it. The rule, and the two things the figure cannot show (a package no test loads, and the code the
+project's coverage down by half a point at most. It runs the unit project of each package family it changes, each in
+a job of its own, and uploads the reports of all of them under each of those families' flags, a flag keeping the lines
+of its own packages, those another family's tests reach included; the families it does not run keep their coverage
+from the commit before, and one that runs only the tests reading the documentation, or no test, uploads nothing. The
+integration suite reports with the heavy jobs, after the merge or on a pull request labelled `ci:heavy`. That is a
+floor; the aim is everything that can be covered, under a rule that keeps the number honest — a defensive branch no
+test reaches stays, a private member is covered through its callers or not at all, and code is removed only when no
+input can reach it. The rule, and the two things the figure cannot show (a package no test loads, and the code the
 generator emits into the consumer's assembly), are on the [Contributing](/contributing) page.
 
 ## Stack
@@ -304,8 +313,12 @@ xUnit v3, AwesomeAssertions, NSubstitute, FsCheck, Testcontainers.
 
 ```bash
 dotnet build -c Release
-dotnet test -c Release                                    # all four suites
-dotnet test --project tests/AdCodicem.ValueObjects.UnitTests         # behaviour of generated code
+dotnet test -c Release                                    # every suite, the unit suite's eleven projects included
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests         # the core family's project of the unit suite
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text    # another family's
+# Every family's project of the unit suite (`tests` in .github/ci-families.json), as previews and releases run them:
+# each one runs, and xargs fails when any failed
+jq -r '.families[].tests' .github/ci-families.json | xargs -I{} dotnet test --project tests/{} -c Release
 dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests    # the generator itself
 dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests  # needs Docker
 dotnet test --project tests/AdCodicem.ValueObjects.RdgTests          # minimal APIs through the RDG
@@ -327,8 +340,8 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
 .github/scripts/compiled-model.sh jit
 .github/scripts/compiled-model.sh aot
 
-# One test (Microsoft Testing Platform: a wildcard pattern, not a substring)
-dotnet test --project tests/AdCodicem.ValueObjects.UnitTests --filter-method "*The_name_of_the_test*"
+# One test, on the project of its family (Microsoft Testing Platform: a wildcard pattern, not a substring)
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text --filter-method "*The_name_of_the_test*"
 ```
 
 `TreatWarningsAsErrors` is on repository-wide, so a warning fails the build before it reaches any of the four

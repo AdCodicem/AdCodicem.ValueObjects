@@ -1,12 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    A Wolverine.Http application in Wolverine's dynamic mode, which the unit suite builds without referencing it and
-    starts as a child process (WolverineHttp/WolverineHttpEndToEndTests.cs): Wolverine writes each endpoint's code at
-    startup, the package's reads and refusal frame included, and compiles it with WolverineFx.RuntimeCompilation, over
-    TestHost. It answers a fixed script of requests and writes each answer as a JSON line. Its own process, because the
-    runtime compiler brings Roslyn 5.0.0 with Microsoft.CodeAnalysis.CSharp.Workspaces, which the conditional pins of
-    Directory.Packages.props give this project alone.
+    A Wolverine.Http application in Wolverine's dynamic mode, which the Hosts project of the unit suite,
+    tests/AdCodicem.ValueObjects.UnitTests.Hosts, builds without referencing it and starts as a child process (its
+    WolverineHttp/WolverineHttpEndToEndTests.cs): Wolverine writes each endpoint's code at startup, the package's reads
+    and refusal frame included, and compiles it with WolverineFx.RuntimeCompilation, over TestHost. It answers a fixed
+    script of requests and writes each answer as a JSON line. Its own process, because the runtime compiler brings
+    Roslyn 5.0.0 with Microsoft.CodeAnalysis.CSharp.Workspaces, which the conditional pins of Directory.Packages.props
+    give this project alone.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -42,7 +43,7 @@
 
   <ItemGroup>
     <!-- A value object written by hand, which nothing registers: the generated code names it, as any other. In this
-         process, not the unit suite's. -->
+         process, not the Hosts project's. -->
     <Compile Include="..\..\AdCodicem.ValueObjects.UnitTests\Domain\HandWritten\HandWrittenCode.cs" Link="HandWrittenCode.cs" />
   </ItemGroup>
 

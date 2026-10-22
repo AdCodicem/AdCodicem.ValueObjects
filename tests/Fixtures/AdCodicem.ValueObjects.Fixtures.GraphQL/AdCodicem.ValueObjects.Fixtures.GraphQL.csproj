@@ -2,9 +2,9 @@
 
   <!--
     A [QueryType] HotChocolate's source generator binds at compile time, with value objects declared beside it, in an
-    assembly of its own, so that the unit test assembly gets no generated module and none of its analyzers. It does not
-    reference the HotChocolate package: an application's domain declares its queries without it, and the composition
-    root adds AddValueObjects().
+    assembly of its own, so that the GraphQL project's assembly, tests/AdCodicem.ValueObjects.UnitTests.GraphQL, gets
+    no generated module and none of its analyzers. It does not reference the HotChocolate package: an application's
+    domain declares its queries without it, and the composition root adds AddValueObjects().
   -->
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.Fixtures.GraphQL</RootNamespace>

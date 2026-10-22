@@ -1,7 +1,8 @@
 # AdCodicem.ValueObjects.Blazor — the input component
 
-User-facing behaviour: `website/docs/how-to/blazor.md`. Tests: `Forms/` of the unit suite through bUnit, over the Razor
-forms of `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Blazor`; `HtmlRenderer` in `tests/NativeAot` and the island.
+User-facing behaviour: `website/docs/how-to/blazor.md`. Tests: `Forms/` of `tests/AdCodicem.ValueObjects.UnitTests.Text`
+through bUnit, over the Razor forms of `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Blazor`; `HtmlRenderer` in
+`tests/NativeAot` and the island.
 
 ## What the framework does before the input runs
 
@@ -38,8 +39,9 @@ forms of `tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Blazor`; `HtmlRenderer`
   `maxlength`, `minlength` and `pattern`; the pattern through `EcmaScriptPattern`, for the `v` flag a browser compiles it
   with as `^(?:…)$`, only for a pattern each of whose top-level alternatives is anchored at both ends, with `\d`, `\w`,
   `\s` and `\p{…}` listed from .NET's tables and nothing that can match half of a surrogate pair. Its table,
-  `Forms/EcmaScriptPatterns.json`, is held to .NET by the unit suite and to Node by
-  `.github/scripts/ecmascript-patterns.mjs`: change both together.
+  `Forms/EcmaScriptPatterns.json` of `tests/AdCodicem.ValueObjects.UnitTests.Text`, is held to .NET by
+  `EcmaScriptPatternTests` and to Node by `.github/scripts/ecmascript-patterns.mjs`, which `ci.yml`'s `unit (text)` job
+  runs: change both together.
 - Messages: `AddValueObjectInputs(options => options.UseResource<T>())`, which registers `AddLocalization()` itself, read
   through the component's injected services in the current UI culture.
 

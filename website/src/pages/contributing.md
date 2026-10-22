@@ -22,12 +22,17 @@ website/      this documentation site
 
 ```bash
 dotnet build
-dotnet test --project tests/AdCodicem.ValueObjects.UnitTests        # no Docker needed
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests        # the core family's unit tests, no Docker needed
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text   # another family's, no Docker needed
+jq -r '.families[].tests' .github/ci-families.json | xargs -I{} dotnet test --project tests/{}   # every family's
 dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests   # no Docker needed
 dotnet test --project tests/AdCodicem.ValueObjects.RdgTests         # no Docker needed
 dotnet test                                                          # everything, Docker required
-dotnet pack -c Release
+dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages   # the packable projects only
 ```
+
+The unit suite is eleven projects, one per package family of `.github/ci-families.json` (its `tests`): a test runs
+from the project of its family, and CI runs each family's project in a job of its own.
 
 Integration tests start PostgreSQL, SQL Server and MongoDB, and the Azure Functions host beside Azurite, through
 Testcontainers, so they need a Docker daemon; the Functions host's image exists for amd64 alone.
@@ -39,14 +44,15 @@ Testcontainers, so they need a Docker daemon; the Functions host's image exists 
 ## Coverage
 
 CI uploads to [Codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects) the coverage of the suites a pull
-request runs: the unit suite's under the flag of each package family that ran, the generator and RDG suites' when they
-run in full, and the integration suite's with the heavy jobs, after the merge or on a pull request labelled
-`ci:heavy`. The flags a pull request does not upload carry forward from the commit before it, so the lines only the
-integration suite covers keep their coverage, and those the pull request changes count as missed in the patch. A pull
-request that runs only the tests reading the documentation, or no test, uploads nothing, and Codecov does not report
-on it. Otherwise it reports against two floors set in `codecov.yml`: 95 % of the lines the pull request changes, a
-partial line counting as missed, and the project's coverage down by half a point at most. Only `src/` is measured. The
-floor is not the aim; 100 % of each patch is, under a rule that keeps the number honest
+request runs: the unit suite's under the flag of each package family that ran, each upload carrying the reports of
+every family that ran, so that a family's packages keep the lines another family's tests reach; the generator and RDG
+suites' when they run in full; and the integration suite's with the heavy jobs, after the merge or on a pull request
+labelled `ci:heavy`. The flags a pull request does not upload carry forward from the commit before it, so the lines
+only the integration suite covers keep their coverage, and those the pull request changes count as missed in the
+patch. A pull request that runs only the tests reading the documentation, or no test, uploads nothing, and Codecov
+does not report on it. Otherwise it reports against two floors set in `codecov.yml`: 95 % of the lines the pull
+request changes, a partial line counting as missed, and the project's coverage down by half a point at most. Only
+`src/` is measured. The floor is not the aim; 100 % of each patch is, under a rule that keeps the number honest
 ([ADR-0006](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0006-coverage-is-a-signal-not-a-goal.md)):
 
 - every member that is not private is covered as far as it can be — through a natural input where one reaches it
@@ -58,8 +64,10 @@ floor is not the aim; 100 % of each patch is, under a rule that keeps the number
 - a public member nothing calls is a question for the maintainer, not a removal.
 
 Two things the figure cannot show. A package no test loads is missing from the report rather than at 0 %, so CI
-fails when a project under `src/` is in no report. And the code the generator emits lands in the consumer's
-assembly, outside what Codecov measures: the emitters are counted, what they produce is audited by hand.
+fails a family's unit job when a package of its family is missing from its report or has no line covered there, and
+the job running the generator suite when the generator or the code fix is. And the code the generator emits lands in
+the consumer's assembly, outside what Codecov measures: the emitters are counted, what they produce is audited by
+hand.
 
 ## Commit hygiene
 
@@ -81,10 +89,11 @@ Three checks must pass before a pull request merges: **build and test**, which f
 selects succeeds; **workflows**, which runs [actionlint](https://github.com/rhysd/actionlint) over every workflow,
 including those that never run on a pull request; and **conventional commits**, which checks every commit message of
 the pull request. The plan reads the files a pull request changes: a change to a package runs the unit tests of its
-family and of the families that depend on it, a change to the core packages every family and the generator suite, and
-the build, the RDG suite, the compiled model and the pack run when their inputs change; a change to the documentation
-runs the tests that read it, and a change to `ci.yml`, a global build file or a file no rule names, everything. CI
-also builds this site when a change reaches it, in a job that does not block the merge.
+family and of every family whose projects reference it, a change to a file of the unit suite the families whose
+projects hold or link it, a change to the core packages every family and the generator suite, and the build, the RDG
+suite, the compiled model and the pack run when their inputs change; a change to the documentation runs the tests
+that read it, and a change to `ci.yml`, a global build file or a file no rule names, everything. CI also builds this
+site when a change reaches it, in a job that does not block the merge.
 
 The heavy jobs run after the merge, before every preview and stable release, and on a pull request labelled `ci:heavy`,
 where **build and test** waits for them: **native AOT**, which publishes an application using every AOT-compatible

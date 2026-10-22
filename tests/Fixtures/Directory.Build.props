@@ -1,9 +1,10 @@
 <Project>
   <!--
-    Assemblies the unit suite loads to reach what its own assembly cannot, because the generator runs on that one and
-    its module initializer has always run by the time a test does, and the Functions application the integration suite
-    runs in the Azure Functions host's container. They are neither test projects nor packages, so they skip
-    tests/Directory.Build.props and import the repository's settings directly.
+    Assemblies the projects of the unit suite load to reach what their own assemblies cannot, because the generator runs
+    on each and its module initializer has always run by the time a test does (tests/Fixtures/CLAUDE.md says which
+    project references which), the Wolverine.Http application the Hosts project starts as a child process, and the
+    Functions application the integration suite runs in the Azure Functions host's container. They are neither test
+    projects nor packages, so they skip tests/Directory.Build.props and import the repository's settings directly.
   -->
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../../'))" />
 

@@ -17,8 +17,9 @@ namespace AdCodicem.ValueObjects.GeneratorTests;
 /// Marten's interfaces and its <c>[MartenIgnore]</c> are matched by full metadata name, so the snippets compile against
 /// stand-ins declared under their real names in an assembly of their own (<see cref="MartenReferences"/>), as
 /// <see cref="SerializerContractAnalyzerTests"/> declares the serializers' attributes: the real Marten brings its own source
-/// generators and a dependency graph into a project held to the generator's Roslyn. The unit suite runs the analyzer over
-/// the real Marten (<c>Persistence/MartenCompiledQueryDiagnosticTests</c>), which checks the names.
+/// generators and a dependency graph into a project held to the generator's Roslyn. The unit suite's Data project runs
+/// the analyzer over the real Marten (<c>Persistence/MartenCompiledQueryDiagnosticTests</c> of
+/// <c>tests/AdCodicem.ValueObjects.UnitTests.Data</c>), which checks the names.
 /// </para>
 /// <para>
 /// The analyzer runs over the compilation with the generator's output, as the compiler does, so that a value object of

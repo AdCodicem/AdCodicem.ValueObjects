@@ -1,7 +1,8 @@
 # AdCodicem.ValueObjects.AzureFunctions — the input converter
 
-User-facing behaviour: `website/docs/how-to/azure.md`. Tests: `Functions/` of the unit suite, over `ConverterContext`s it
-writes, and the real host in the integration suite. Not AOT-compatible.
+User-facing behaviour: `website/docs/how-to/azure.md`. Tests: `Functions/` of
+`tests/AdCodicem.ValueObjects.UnitTests.Hosts`, over `ConverterContext`s it writes, and the real host in the integration
+suite. Not AOT-compatible.
 
 - The converter and the ASP.NET Core package's middleware parse through `ValueObjectBindingText`
   (`src/Shared/ValueObjectBindingText.cs`), so the middleware parses a parameter again exactly as the converter did.

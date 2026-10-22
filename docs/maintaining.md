@@ -72,11 +72,17 @@ offering the higher one as the latest prerelease until a higher version ships.
   push to it, when it touches native AOT, a store, the sample API or the island; the label is read when a run starts, so
   **Re-run jobs** does not see it.
 - **On a pull request**, `ci.yml` runs what its `plan` job picks from the files it changes (ADR 0013,
-  `.github/scripts/ci-plan.sh`): the unit tests of the package families those files reach, the suites, the compiled
-  model, the pack and the site only when their inputs change; the plan's summary on the run page lists what it picked
-  and why. A push to `main` runs everything. A pull request adding a project under `src/` or a folder to the unit suite
-  adds it to `.github/ci-families.json`, and replaces `codecov.yml`'s flags between its `ci-families` markers with what
-  `.github/scripts/ci-plan.sh --codecov-flags` prints, or the plan fails.
+  `.github/scripts/ci-plan.sh`): the unit tests of the package families those files reach, each family's project of
+  the unit suite in a job of its own, the generator and RDG suites, the compiled model, the pack and the site only when
+  their inputs change; the plan's summary on the run page lists what it picked and why. A push to `main` runs
+  everything. A pull request adding a project adds it to `AdCodicem.ValueObjects.slnx`. One under `src/` also goes into
+  a family's `projects` in `.github/ci-families.json`, and that family's project of the unit suite references it; a new
+  family's project, `tests/AdCodicem.ValueObjects.UnitTests.<Name>`, imports `..\UnitTests.props`
+  (`tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`) and goes into the family's `tests` and the `InternalsVisibleTo`
+  entries of `src/Directory.Build.props`. Either then replaces `codecov.yml`'s flags between its `ci-families` markers
+  with what `.github/scripts/ci-plan.sh --codecov-flags` prints, or the plan fails; the plan checks neither the import
+  nor the `InternalsVisibleTo` entry, and the entry changes every package's bytes (`src/Directory.Build.props` is a
+  package input), so the next preview publishes. A folder added to a project of the unit suite needs none of this.
 - **Before a stable release**, dispatch `preview.yml` if package inputs changed since the last preview, and start the
   release once that run is green (see [Cutting a stable release](#cutting-a-stable-release)).
 - **After merging a security update of a dependency the packages ship**, dispatch `preview.yml` rather than wait for
@@ -96,22 +102,21 @@ offering the higher one as the latest prerelease until a higher version ships.
   `dotnet` group cannot: Entity Framework Core's and SignalR's packages pull in the `Microsoft.Extensions.Options` of
   their own patch, which the pin holds back, so their update fails its restore with NU1109 ([Dependabot](#dependabot)).
   Type it `fix(deps)` when a shipped package's floor moves.
-- **When an Orleans minor raises its Roslyn floors**, move the Roslyn pins with it by hand.
+- **When an Orleans minor raises its Roslyn floors**, move the Analyzers pin with it by hand.
   `Microsoft.Orleans.Serialization` lists `Microsoft.CodeAnalysis.Analyzers`, which the central pin must reach (NU1109
-  below it, and no pull request), and `Microsoft.CodeAnalysis.Common`, which the unit suite's
-  `Microsoft.CodeAnalysis.CSharp` must equal (NU1608 otherwise); the generator's `Microsoft.CodeAnalysis.CSharp` 4.14.0
-  stays where it is. The 5.0.0 `Microsoft.CodeAnalysis.CSharp` entry is shared by the unit suite and the Wolverine.Http
-  fixture application, whose JasperFx.RuntimeCompiler pins its Roslyn exactly (next bullet): moving it moves both, so
-  move the fixture's `CSharp.Workspaces` entry and its `WolverineFx.RuntimeCompilation` to a Roslyn that matches, or
-  split the condition into an entry per project. The Analyzers pin is a dependency of the Orleans package, so the
-  commit is `fix(deps)`.
+  below it, and no pull request), and `Microsoft.CodeAnalysis.Common`, which no pin follows: no project reaching
+  Orleans references `Microsoft.CodeAnalysis.CSharp`, whose 4.14.0 would refuse that Common (NU1608). Keep it so: a
+  test of `tests/AdCodicem.ValueObjects.UnitTests.Orleans` compiling C# would need a `Microsoft.CodeAnalysis.CSharp`
+  equal to Orleans' Common, through an entry conditioned on that project, which an Orleans minor would then move. The
+  generator's `Microsoft.CodeAnalysis.CSharp` 4.14.0 stays where it is. The Analyzers pin is a dependency of the
+  Orleans package, so the commit is `fix(deps)`.
 - **When a WolverineFx.RuntimeCompilation update asks for a later Roslyn**, move the Wolverine.Http fixture
   application's two conditional `PackageVersion`s, `Microsoft.CodeAnalysis.CSharp` and `CSharp.Workspaces`, with it by
-  hand: its JasperFx.RuntimeCompiler asks for both at its Roslyn exactly (NU1109 below it, and no pull request). The
-  `Microsoft.CodeAnalysis.CSharp` entry is the unit suite's too, which must equal Orleans'
-  `Microsoft.CodeAnalysis.Common` (previous bullet): split its condition into an entry per project rather than move the
-  unit suite past Orleans. They reach no package, so the commit is `chore(deps)`. The island pins
-  `WolverineFx.RuntimeCompilation` at the version of the package's `WolverineFx.Http` floor: move it with the floor.
+  hand: its JasperFx.RuntimeCompiler asks for both at its Roslyn exactly (NU1109 below it, and no pull request). Both
+  entries are the fixture's alone, and the Hosts project of the unit suite references the fixture with
+  `ReferenceOutputAssembly="false"`, which brings neither there. They reach no package, so the commit is
+  `chore(deps)`. The island pins `WolverineFx.RuntimeCompilation` at the version of the package's `WolverineFx.Http`
+  floor: move it with the floor.
 - **After 60 days without activity in the repository**, GitHub disables the schedule of a public repository's
   workflow. Turn it back on with `gh workflow enable preview.yml`.
 - **Failures of a scheduled run are notified to whoever last changed its cron line**, not to whoever dispatches it.
@@ -217,7 +222,7 @@ to `CHANGELOG.md` for a preview, which has no release of its own (`src/Directory
 |---|---|---|
 | Allow auto-merge | Settings → General → Pull Requests | `dependabot-auto-merge.yml` runs green and merges nothing. |
 | Squash merging allowed, with the pull request title as its default commit message, beside rebase merging | Settings → General → Pull Requests | A Dependabot pull request retitled `fix(deps)` lands as Dependabot's `chore(deps)` commit and releases nothing. Rebase merging stays the way every other pull request lands. |
-| Required status checks **`build and test`** (`ci.yml`), **`workflows`** and **`conventional commits`** (`lint.yml`), and no code coverage rule | Settings → Rules → Rulesets → `Default` (id 23842638) | Auto-merge can merge a red build, or one that breaks native AOT, and a red `fix(deps)` would then release a broken patch. The checks are job names: renaming any of these jobs leaves every pull request waiting for a check that never reports. **`build and test`** is `ci.yml`'s aggregator, which fails unless its plan and every job the plan expects succeeded: `format`, the `build` job (the build, the suites, the compiled model and the pack the plan selects), `release tooling` when the release tooling changes, and `heavy.yml` on a pull request labelled `ci:heavy` or a Dependabot NuGet update ([ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)). A job that must block a merge goes into its `needs`, never into this list. The jobs of `heavy.yml` (`native AOT`, `native AOT (Marten)`, `integration tests`, `compat (.NET 11)`) never join them: they run after the merge, and gate every stable release, and every preview but compat, which gates previews once .NET 11 ships. No workflow reports coverage to GitHub, so a code coverage rule would measure nothing: Codecov's `codecov/patch` and `codecov/project` are the coverage signal ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
+| Required status checks **`build and test`** (`ci.yml`), **`workflows`** and **`conventional commits`** (`lint.yml`), and no code coverage rule | Settings → Rules → Rulesets → `Default` (id 23842638) | Auto-merge can merge a red build, or one that breaks native AOT, and a red `fix(deps)` would then release a broken patch. The checks are job names: renaming any of these jobs leaves every pull request waiting for a check that never reports. **`build and test`** is `ci.yml`'s aggregator, which fails unless its plan and every job the plan expects succeeded: `format`, a `unit (<family>)` job per family the plan selects, the `build` job (the build, the generator and RDG suites, the compiled model and the pack the plan selects), `release tooling` when the release tooling changes, and `heavy.yml` on a pull request labelled `ci:heavy` or a Dependabot NuGet update ([ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)). A job that must block a merge goes into its `needs`, never into this list. The jobs of `heavy.yml` (`native AOT`, `native AOT (Marten)`, `integration tests`, `compat (.NET 11)`) never join them: they run after the merge, and gate every stable release, and every preview but compat, which gates previews once .NET 11 ships. No workflow reports coverage to GitHub, so a code coverage rule would measure nothing: Codecov's `codecov/patch` and `codecov/project` are the coverage signal ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
 | Allow GitHub Actions to create and approve pull requests | Settings → Actions → General | Not needed for auto-merge, but required if a workflow is ever made to open PRs. |
 | Discussions | Settings → General → Features | `.github/DISCUSSION_TEMPLATE/q-a.yml` and the issue-template link to Discussions go nowhere. |
 | Pages source: GitHub Actions | Settings → Pages | `deploy-docs.yml` uploads an artifact that is never served. |
@@ -347,14 +352,15 @@ Without them the release job stops at its first step, before anything is publish
   fails the job, naming the warning; move the list with the update when the warning is Marten's own, never one of this
   library's code.
 - **Marten's internals.** The Marten package reaches Marten's internal list of value types through `[UnsafeAccessor]`,
-  keeps every value object out of it so that Marten refuses a compiled query taking one, lists its nullable type for
-  the duplicated field, which finds a value type by the type its member reports, and binds a compiled query's
-  collections through Marten's planning steps; the unit suite's `MartenInternalsTests` pins each. A Marten update
-  failing it moved one of them: adapt the package in the same pull request
-  (`src/AdCodicem.ValueObjects.Marten/CLAUDE.md`), never silence the test. The same class pins the member types Marten
-  binds in a compiled query and its refusal of an identity's `Value`, which `VO0048`'s message rests on: when one of
-  those fails, adapt the message in `src/AdCodicem.ValueObjects.Generators/Analyzers/MartenCompiledQueryAnalyzer.cs`
-  and the forms the Marten guide, the diagnostics reference and the skill list.
+  keeps every value object out of it so that Marten refuses a compiled query taking one, lists its nullable type for the
+  duplicated field, which finds a value type by the type its member reports, and binds a compiled query's collections
+  through Marten's planning steps; `MartenInternalsTests`, in `Persistence/` of
+  `tests/AdCodicem.ValueObjects.UnitTests.Data`, pins each. A Marten update failing it moved one of them: adapt the
+  package in the same pull request (`src/AdCodicem.ValueObjects.Marten/CLAUDE.md`), never silence the test. The same
+  class pins the member types Marten binds in a compiled query and its refusal of an identity's `Value`, which
+  `VO0048`'s message rests on: when one of those fails, adapt the message in
+  `src/AdCodicem.ValueObjects.Generators/Analyzers/MartenCompiledQueryAnalyzer.cs` and the forms the Marten guide, the
+  diagnostics reference and the skill list.
 - **Wolverine and the native AOT job.** The main application of `tests/NativeAot` serves Wolverine.Http endpoints in
   Wolverine's static mode, over the code `native-aot.sh` has `codegen write` write into `artifacts/wolverine-codegen`
   before both runs, never committed. A Wolverine update that changes what that code needs shows there: in the codegen
@@ -478,9 +484,10 @@ so it has no version to move at a release candidate. Dependabot never sees the i
 - **When .NET 12 previews arrive**, moving the island to the next major, or adding a second one, is a decision of its
   own. Renaming the job changes the name of its check, which no ruleset requires.
 - **`librdkafka.redist` moves with `Confluent.SchemaRegistry.Serdes.Json`**, in the island as in the repository's
-  `Directory.Packages.props`, where Dependabot's `dotnet` group moves them together: the island and the unit suite
-  reference the Kafka client's native library only to leave it out of their output, and `Confluent.Kafka` asks for its
-  own version of it or later, so a pin left behind fails the restore (NU1605).
+  `Directory.Packages.props`, where Dependabot's `dotnet` group moves them together: the island and the unit suite's
+  `tests/AdCodicem.ValueObjects.UnitTests.Serialization` reference the Kafka client's native library only to leave it
+  out of their output, and `Confluent.Kafka` asks for its own version of it or later, so a pin left behind fails the
+  restore (NU1605).
 
 Two services walk the repository rather than the solution, and do see it. CodeQL's default setup downloads every SDK
 a `global.json` names, the island's release candidate included, and analyses its code. GitHub's automatic dependency

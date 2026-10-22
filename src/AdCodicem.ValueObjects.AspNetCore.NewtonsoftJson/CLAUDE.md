@@ -1,7 +1,8 @@
 # AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson — MVC on Newtonsoft.Json, JSON Patch
 
-Tests: `Web/NewtonsoftJson*` and `Web/NewtonsoftJsonPatchTests.cs` of the unit suite, `JsonPatchParity` over every
-sample; the compatibility island runs MVC and JSON Patch 11.
+Tests: `Web/NewtonsoftJson*` and `Web/NewtonsoftJsonPatchTests.cs` of
+`tests/AdCodicem.ValueObjects.UnitTests.Serialization`, `JsonPatchParity` over every sample; the compatibility island
+runs MVC and JSON Patch 11.
 
 ## Input formatter
 

@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <!--
-    Forms written in Razor markup, which the unit suite renders through bUnit, through HtmlRenderer and, for the static
-    and prerendered pages, over TestHost: the Razor compiler infers an InputValueObject's type from @bind-Value here as in
-    an application, while the unit suite stays on Microsoft.NET.Sdk. The pages bind value objects declared beside them,
+    Forms written in Razor markup, which the Text project of the unit suite,
+    tests/AdCodicem.ValueObjects.UnitTests.Text, renders through bUnit, through HtmlRenderer and, for the static and
+    prerendered pages, over TestHost: the Razor compiler infers an InputValueObject's type from @bind-Value here as in
+    an application, while that project stays on Microsoft.NET.Sdk. The pages bind value objects declared beside them,
     which the framework's static form mapping reads before any component runs.
   -->
   <PropertyGroup>

@@ -1,7 +1,8 @@
 # AdCodicem.ValueObjects.Grpc
 
 User-facing behaviour: `website/docs/how-to/grpc.md`. Tests: `ContractFirstGrpc*`, `ValueObjectExceptionInterceptorTests`
-and `ValueObjectBadRequestTests` of the unit suite; a contract-first service over Kestrel in `tests/NativeAot`.
+and `ValueObjectBadRequestTests` in `BinarySerialization/` of `tests/AdCodicem.ValueObjects.UnitTests.Serialization`; a
+contract-first service over Kestrel in `tests/NativeAot`.
 
 - `ValueObjectExceptionInterceptor` answers a `ValueObjectException` carrying a code that escapes a handler with
   `INVALID_ARGUMENT` and a `google.rpc.ErrorInfo` written through Grpc.StatusProto (reason `ToUpperSnakeCase(code)`,

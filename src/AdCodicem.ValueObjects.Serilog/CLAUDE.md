@@ -11,6 +11,7 @@
   `Serilog.Capturing.IsStructureValueSupported` to false under `PublishTrimmed`, which `PublishAot` implies, so a native
   binary logs `{@object}` as its `ToString()`, and a bare `Int128` as its text (`website/docs/how-to/logging.md`). The
   native AOT application sets the same switch for its JIT run.
-- Serilog.Expressions warns under native AOT (IL2104, IL3053): it stays in the unit suite, out of `tests/NativeAot`.
+- Serilog.Expressions warns under native AOT (IL2104, IL3053): it stays in
+  `tests/AdCodicem.ValueObjects.UnitTests.Observability`, out of `tests/NativeAot`.
 - The namespace hides the root `Serilog` namespace (root `CLAUDE.md`); a file importing `Serilog` beside
   `Microsoft.Extensions.Logging` aliases one `ILogger` (CS0104).

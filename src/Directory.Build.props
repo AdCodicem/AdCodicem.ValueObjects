@@ -47,7 +47,9 @@
     </PropertyGroup>
   </Target>
 
-  <!-- The three shared suites, not one per package: an internal member no input reaches is tested directly
+  <!-- The unit suite's eleven projects, one per family of .github/ci-families.json
+       (docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md), and the generator and
+       integration suites, not one per package: an internal member no input reaches is tested directly
        (docs/adr/0006-coverage-is-a-signal-not-a-goal.md), and only these assemblies exist to do it. -->
   <ItemGroup>
     <InternalsVisibleTo Include="AdCodicem.ValueObjects.UnitTests" />

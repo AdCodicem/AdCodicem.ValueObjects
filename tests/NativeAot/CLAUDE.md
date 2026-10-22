@@ -33,9 +33,9 @@ NATIVE_AOT_POSTGRES="Host=localhost;Port=5432;Database=postgres;Username=postgre
   ProtobufNet, Marten (an application of its own, below), Orleans (Orleans 10.4 does not start natively:
   `src/AdCodicem.ValueObjects.Orleans/CLAUDE.md`) and CsvHelper (its record API has no native code:
   `src/AdCodicem.ValueObjects.CsvHelper/CLAUDE.md`), serving a contract-first gRPC service over Kestrel's cleartext
-  HTTP/2 too. Its value objects are in `AdCodicem.ValueObjects.NativeAot.Domain`, which links the unit suite's
-  `Domain/UnderlyingTypes.cs` and opts into XML serialization, which nothing calls, as a guard that the emission adds no
-  warning.
+  HTTP/2 too. Its value objects are in `AdCodicem.ValueObjects.NativeAot.Domain`, which links
+  `Domain/UnderlyingTypes.cs` of the unit suite's core project (`tests/AdCodicem.ValueObjects.UnitTests`) and opts into
+  XML serialization, which nothing calls, as a guard that the emission adds no warning.
 - A value object added to `UnderlyingTypes.cs`, or registered by the application, goes into `AppJsonContext` with its
   underlying type, or the script reports it missing. An underlying type no other value object has also needs its texts in
   `Underlying.cs`; a value object whose rules accept none of its underlying type's texts needs one it accepts and one it
@@ -44,8 +44,9 @@ NATIVE_AOT_POSTGRES="Host=localhost;Port=5432;Database=postgres;Username=postgre
 - `Annotations.cs` builds its `ValidationContext` with a display name: that is the one constructor that is not
   `RequiresUnreferencedCode`. The body type `AddValidation()` checks is public, since .NET 10's validation generator
   describes public types only and never validates an internal body.
-- It links hand-written value objects from `Domain/HandWritten/`, registered without a converter so the JSON factory's
-  general-purpose converter runs natively, and `UnregisteredCode`, registered by nothing, which must stay refused.
+- It links hand-written value objects from the core project's `Domain/HandWritten/`, registered without a converter so
+  the JSON factory's general-purpose converter runs natively, and `UnregisteredCode`, registered by nothing, which must
+  stay refused.
 - `Cli.cs` parses a System.CommandLine command holding an option of every registered value object, of its nullable type
   and of an array of it, and fails a line where an accepted text reads otherwise than `TryParse`, or a refusal carries
   another code, or an invocation runs the action of a refused line, the command's options refused under its subcommand

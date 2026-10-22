@@ -25,8 +25,9 @@
 #
 # Every run first checks .github/ci-families.json against the repository, without a build: every project under src/
 # in exactly one family, every project of the unit suite a family's, every project but tests/Compat/'s in the solution,
-# no file of tests linked into a second project but RuntimeClosingTests.cs, and codecov.yml's flags as --codecov-flags
-# prints them. So every test belongs to one family, and runs in its project alone.
+# no file of tests (a [Fact], a [Theory] or a contract class) compiled into a second project but RuntimeClosingTests.cs
+# and DescriptorTests.Registered.cs, which every project runs over its own family, and codecov.yml's flags as
+# --codecov-flags prints them. So every other test belongs to one family, and runs in its project alone.
 #
 # A push to main runs everything. A pull request runs what the files its merge commit changes against the base branch
 # (its first parent, hence a checkout depth of 2) select, each file by the first rule below that matches it:

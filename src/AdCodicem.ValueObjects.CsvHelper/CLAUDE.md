@@ -1,8 +1,8 @@
 # AdCodicem.ValueObjects.CsvHelper — CsvHelper columns
 
-User-facing behaviour: `website/docs/how-to/files-and-command-line.md` (CsvHelper). Tests: `Csv/` of the unit suite
-(reads and writes in memory through `CsvHarness`, a context per read or write), and the island's `CsvHelperTests.cs`.
-Out of `tests/NativeAot`.
+User-facing behaviour: `website/docs/how-to/files-and-command-line.md` (CsvHelper). Tests: `Csv/` of
+`tests/AdCodicem.ValueObjects.UnitTests.Text` (reads and writes in memory through `CsvHarness`, a context per read or
+write), and the island's `CsvHelperTests.cs`. Out of `tests/NativeAot`.
 
 ## When CsvHelper reads its converter cache
 
@@ -90,6 +90,6 @@ Out of `tests/NativeAot`.
   run natively through the factory. The package stays out of `tests/NativeAot`; its no-dynamic-code path runs in
   `WithoutDynamicCodeCsvTests`.
 - The namespace hides the root `CsvHelper` namespace (root `CLAUDE.md`): name CsvHelper's types through usings at the
-  top of a file. In the unit suite, `CsvHelper.MissingFieldException` meets `System.MissingFieldException` (alias it),
-  and a file importing `CsvHelper.Configuration.Attributes` never imports `System.ComponentModel` (two
-  `TypeConverterAttribute`s).
+  top of a file. In `tests/AdCodicem.ValueObjects.UnitTests.Text`, `CsvHelper.MissingFieldException` meets
+  `System.MissingFieldException` (alias it), and a file importing `CsvHelper.Configuration.Attributes` never imports
+  `System.ComponentModel` (two `TypeConverterAttribute`s).

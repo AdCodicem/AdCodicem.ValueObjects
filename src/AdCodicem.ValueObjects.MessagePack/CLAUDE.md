@@ -1,7 +1,7 @@
 # AdCodicem.ValueObjects.MessagePack
 
-User-facing behaviour: `website/docs/how-to/messagepack.md`. Tests: `BinarySerialization/` of the unit suite, directly and
-through a SignalR hub over TestHost.
+User-facing behaviour: `website/docs/how-to/messagepack.md`. Tests: `BinarySerialization/` of
+`tests/AdCodicem.ValueObjects.UnitTests.Serialization`, directly and through a SignalR hub over TestHost.
 
 - Reads are strict unless the resolver is trusted (`WithValueObjects(trusted: true)`, `UseValueObjects(trusted: true)`),
   since the bytes may come from another service. A `nil` is refused whatever the trust. A refusal is a
@@ -9,7 +9,8 @@ through a SignalR hub over TestHost.
 - MessagePack's nuspec takes `MessagePackAnalyzer` with `include="All"`, so its analyzer and source generator reach every
   project referencing this package, by project reference too: `MsgPack003` fails the build of a `[MessagePackObject]`
   holding a value object of the same assembly, which `[assembly: MessagePackAssumedFormattable(typeof(T))]` fixes, as the
-  guide tells an application to. The unit suite (`BinarySerialization/MessagePackAssumptions.cs`) and the island do so.
+  guide tells an application to. `tests/AdCodicem.ValueObjects.UnitTests.Serialization`
+  (`BinarySerialization/MessagePackAssumptions.cs`) and the island do so.
 - Not AOT-compatible, and out of `tests/NativeAot`: MessagePack 3.1 has no trimming annotation (a native publish warns
   IL2104 and IL3053 for the whole assembly), builds the formatters of a `Nullable<T>`, a collection or a dictionary by
   reflection, which fails natively for any struct, and SignalR's MessagePack hub protocol needs dynamic code.

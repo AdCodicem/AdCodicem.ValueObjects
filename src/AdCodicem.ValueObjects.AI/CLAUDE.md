@@ -1,7 +1,8 @@
 # AdCodicem.ValueObjects.AI — Microsoft.Extensions.AI
 
-User-facing behaviour: `website/docs/how-to/language-models.md`. Tests: `LanguageModels/` of the unit suite (a scripted
-`IChatClient`, no network). The argument check is shared with the MCP package (`src/Shared/ValueObjectArguments.cs`).
+User-facing behaviour: `website/docs/how-to/language-models.md`. Tests: `LanguageModels/` of
+`tests/AdCodicem.ValueObjects.UnitTests.Observability` (a scripted `IChatClient`, no network). The argument check is
+shared with the MCP package (`src/Shared/ValueObjectArguments.cs`).
 
 - It calls no `TryResolve`: it tells a value-object parameter by `ValueObjectRegistry.IsValueObject` and reads each
   argument through the contract the tool's serializer options hold, the one the tool's own binding reads it through.

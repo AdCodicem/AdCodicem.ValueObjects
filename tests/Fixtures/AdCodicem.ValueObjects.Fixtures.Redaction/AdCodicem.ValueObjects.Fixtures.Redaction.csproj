@@ -1,10 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    [LoggerMessage] methods Microsoft.Gen.Logging writes, in an assembly of its own, so that the unit test assembly keeps
-    Microsoft.Extensions.Logging's generator: Microsoft.Extensions.Telemetry.Abstractions hands [LoggerMessage] to
-    Microsoft.Gen.Logging in every project it reaches. The analyzers of the generator run on it, so its build holds the
-    correct methods to VO0045 and VO0046, and the two that pin the logging generator's defects silence them.
+    [LoggerMessage] methods Microsoft.Gen.Logging writes, in an assembly of its own, so that the Observability project's
+    assembly, tests/AdCodicem.ValueObjects.UnitTests.Observability, keeps Microsoft.Extensions.Logging's generator:
+    Microsoft.Extensions.Telemetry.Abstractions hands [LoggerMessage] to Microsoft.Gen.Logging in every project it
+    reaches. The analyzers of the generator run on it, so its build holds the correct methods to VO0045 and VO0046, and
+    the two that pin the logging generator's defects silence them.
   -->
   <PropertyGroup>
     <RootNamespace>AdCodicem.ValueObjects.Fixtures.Redaction</RootNamespace>

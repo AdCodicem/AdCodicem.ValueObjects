@@ -1,8 +1,9 @@
 # AdCodicem.ValueObjects.EntityFrameworkCore
 
-User-facing behaviour: `website/docs/how-to/ef-core.md`. Tests: `Persistence/` of the unit suite (models built on Npgsql,
-which opens no connection, and SQLite in memory), the integration suite on PostgreSQL and SQL Server, the compiled model
-of `tests/NativeAot`, and EF Core 11 in the island.
+User-facing behaviour: `website/docs/how-to/ef-core.md`. Tests: `Persistence/` of
+`tests/AdCodicem.ValueObjects.UnitTests.EfCore` (models built on Npgsql, which opens no connection, and SQLite in
+memory), the integration suite on PostgreSQL and SQL Server, the compiled model of `tests/NativeAot`, and EF Core 11 in
+the island.
 
 ## Built against EF Core 10, run under 11
 
@@ -72,7 +73,8 @@ of `tests/NativeAot`, and EF Core 11 in the island.
   else (a table-valued function's element, a column an optional navigation joins in, a `COALESCE`, a `CASE`) gets a
   `CAST` to the same store type. Never cast a table's column: SQL Server then scans its index. Npgsql infers an `unnest`
   array's mapping from the columns referencing its element and fails on a re-typed one (`ArgumentException` inside a
-  `TargetInvocationException`), which the unit suite's Npgsql text pins. EF Core 11 leaves the no-op casts out.
+  `TargetInvocationException`), which the Npgsql text of `ValueObjectQueryTests` pins. EF Core 11 leaves the no-op
+  casts out.
 - A translated, projected `.Value` is read from the column as SQL reads it, which a strict context does not validate.
 - `dotnet ef dbcontext optimize --precompile-queries` bakes the translator's SQL in: the design-time options must call
   `UseValueObjectQueries()` too, or the precompilation fails on that query.
