@@ -52,9 +52,10 @@ public sealed partial class DocumentationSnippetTests
     /// <summary>Snippets of the skill, as (repository-relative file, index within it).</summary>
     public static TheoryData<string, int> SkillSnippets() => Enumerate(SkillFiles());
 
-    /// <summary>Snippets of the README and the documentation site.</summary>
+    /// <summary>Snippets of the repository's README, the packages' READMEs and the documentation site.</summary>
     public static TheoryData<string, int> DocumentationSnippets()
-        => Enumerate(["README.md", .. DocumentationSite()]);
+        => Enumerate(
+            ["README.md", "src/AdCodicem.ValueObjects/README.md", "src/PackageReadme.md", .. DocumentationSite()]);
 
     [Theory]
     [MemberData(nameof(SkillSnippets))]

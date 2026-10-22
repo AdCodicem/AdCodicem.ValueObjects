@@ -80,7 +80,9 @@ fail() {
 }
 
 # What can change the bytes or the metadata of a package, apart from Directory.Packages.props,
-# which is filtered below. Not docs/ or website/, which no package carries; not LICENSE, which
+# which is filtered below. Not docs/ or website/, which no package carries; not the repository's
+# README.md, which no package carries either: each carries src/PackageReadme.md, or a README of
+# its own under src/ (ADR 0012); not LICENSE, which
 # PackageLicenseExpression replaces; not .editorconfig, nor the analyzer release-tracking files
 # under src/, which change diagnostics only, nor the CLAUDE.md files under src/, which no package
 # carries, both excluded at the end; not the solution, which selects
@@ -89,7 +91,6 @@ fail() {
 # line.
 inputs=(
   src
-  README.md
   icon.png
   Directory.Build.props
   Directory.Build.targets
