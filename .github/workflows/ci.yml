@@ -320,19 +320,38 @@ jobs:
       # The solution filter cannot glob: a project added under src/ and left out of it would
       # be missing from every preview and release. Caught here, on the pull request that adds
       # it, rather than when a preview or a release packs.
+      # Each package at the version MinVer gave its release train, read off its file, one
+      # version per train; and the train of each as MSBuild reads src/release-trains.json,
+      # which decides its version, equal to release-trains.mjs's reading, which decides the
+      # trains a commit releases (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).
       - name: Every packable project is packed
         if: needs.plan.outputs.pack == 'true'
         run: |
           set -euo pipefail
           shopt -s nullglob
-          main=(artifacts/packages/AdCodicem.ValueObjects.[0-9]*.nupkg)
-          if (( ${#main[@]} != 1 )); then
-            echo "::error::Expected one AdCodicem.ValueObjects package, found ${#main[@]}." >&2
+          trains="$(.github/scripts/package-ids.sh --trains)"
+          if ! diff <(cut -d' ' -f1 <<<"$trains" | xargs node .github/scripts/release-trains.mjs trains-of) <(echo "$trains"); then
+            echo "::error::release-trains.mjs (<) and MSBuild (>) read src/release-trains.json differently." >&2
             exit 1
           fi
-          version="$(basename "${main[0]}" .nupkg)"
-          version="${version#AdCodicem.ValueObjects.}"
-          ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "$version" "$(.github/scripts/package-ids.sh)"
+          pairs=()
+          declare -A train_version=()
+          while read -r id train; do
+            files=(artifacts/packages/"$id".[0-9]*.nupkg)
+            if (( ${#files[@]} != 1 )); then
+              echo "::error::Expected one $id package, found ${#files[@]}." >&2
+              exit 1
+            fi
+            version="$(basename "${files[0]}" .nupkg)"
+            version="${version#"$id".}"
+            if [[ -v "train_version[$train]" && "${train_version[$train]}" != "$version" ]]; then
+              echo "::error::$id is at $version, another package of the $train train at ${train_version[$train]}." >&2
+              exit 1
+            fi
+            train_version[$train]="$version"
+            pairs+=("$id=$version")
+          done <<<"$trains"
+          ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "${pairs[*]}"
 
       # .github/shipped-dependencies decides which Dependabot updates land as
       # fix(deps) and release (dependabot-auto-merge.yml): it has to name every
@@ -451,6 +470,11 @@ jobs:
 
       - name: Next version
         run: node .github/scripts/next-version.mjs
+
+      # Which train a project rides, and every shape of src/release-trains.json
+      # MSBuild's reading could get wrong.
+      - name: Release trains
+        run: node --test .github/scripts/release-trains.test.mjs
 
   # The jobs too slow for every pull request (heavy.yml): native AOT, native AOT
   # (Marten), the integration suite and compat (.NET 11), on the commit this run

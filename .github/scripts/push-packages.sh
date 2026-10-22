@@ -2,7 +2,10 @@
 # Pushes to nuget.org whatever of this version it does not have yet, dependencies
 # first, and optionally waits until nuget.org serves all of it.
 #
-# Usage: push-packages.sh <packages-dir> <version>
+# Usage: push-packages.sh <packages-dir> <version> <ids>
+#   <ids>: the space- or newline-separated ids of the packages to push, each <id>.<version>.nupkg in <packages-dir>:
+#   the set is named, never globbed by version, since the release trains share a folder and may share a number
+#   (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).
 # Needs NUGET_API_KEY (the short-lived key NuGet/login exchanged for the job's
 # OIDC token).
 #   NUGET_PUSH_ATTEMPTS   passes over the set before giving up (default 3)
@@ -46,6 +49,7 @@ set -euo pipefail
 
 packages_dir="${1:?packages directory required}"
 version="${2:?version required}"
+push_ids="${3:?package ids required}"
 : "${NUGET_API_KEY:?NUGET_API_KEY required}"
 source_url="${NUGET_SOURCE:-https://api.nuget.org/v3/index.json}"
 flat_container="${NUGET_FLAT_CONTAINER:-https://api.nuget.org/v3-flatcontainer}"
@@ -59,9 +63,12 @@ lower_version="${version,,}"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-shopt -s nullglob
-packages=("$packages_dir"/*."$version".nupkg)
-(( ${#packages[@]} > 0 )) || { echo "::error::No package of $version in $packages_dir." >&2; exit 1; }
+packages=()
+for id in $push_ids; do
+  [[ -f "$packages_dir/$id.$version.nupkg" ]] || { echo "::error::$packages_dir holds no $id.$version.nupkg." >&2; exit 1; }
+  packages+=("$packages_dir/$id.$version.nupkg")
+done
+(( ${#packages[@]} > 0 )) || { echo "::error::No package of $version to push." >&2; exit 1; }
 
 # --- order: every package after the packages of this set it depends on --------------------------
 # A dependency is looked up in an array keyed by the lowercased ID, since NuGet IDs ignore case, and

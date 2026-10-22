@@ -85,6 +85,7 @@ jobs:
       release: ${{ steps.next.outputs.release_type != '' }}
       version: ${{ steps.next.outputs.next_version }}
       ids: ${{ steps.pack.outputs.ids }}
+      packages: ${{ steps.pack.outputs.packages }}
       packages-artifact-id: ${{ steps.upload-packages.outputs.artifact-id }}
       packages-sha256: ${{ steps.pack.outputs.sha256 }}
       documentation-artifact-id: ${{ steps.upload-documentation.outputs.artifact-id }}
@@ -134,11 +135,25 @@ jobs:
           set -euo pipefail
           RELEASE_PACKAGE_IDS="$(.github/scripts/package-ids.sh | paste -sd ' ' -)"
           export RELEASE_PACKAGE_IDS
-          .github/scripts/release-pack.sh "$VERSION" "$RELEASE_TYPE" "$LAST_RELEASE"
-          ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "$VERSION" "$RELEASE_PACKAGE_IDS"
-          echo "ids=$RELEASE_PACKAGE_IDS" >> "$GITHUB_OUTPUT"
+          # Every release train at the one version, until each computes its own
+          # (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).
+          listed="$(node .github/scripts/release-trains.mjs trains)"
+          mapfile -t trains < <(cut -d' ' -f1 <<<"$listed")
+          pack=() versions=()
+          for train in "${trains[@]}"; do
+            pack+=("$train=$VERSION:$RELEASE_TYPE:$LAST_RELEASE")
+            versions+=("$train=$VERSION")
+          done
+          .github/scripts/release-pack.sh "${pack[@]}"
+          # shellcheck disable=SC2086 # one id per word
+          PACKAGES="$(node .github/scripts/release-trains.mjs versions "${versions[*]}" $RELEASE_PACKAGE_IDS | paste -sd ' ' -)"
+          ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "$PACKAGES"
           # The digests travel as job outputs, which only this job writes.
-          echo "sha256=$(cd artifacts/packages && sha256sum -- *.*nupkg | base64 -w0)" >> "$GITHUB_OUTPUT"
+          {
+            echo "ids=$RELEASE_PACKAGE_IDS"
+            echo "packages=$PACKAGES"
+            echo "sha256=$(cd artifacts/packages && sha256sum -- *.*nupkg | base64 -w0)"
+          } >> "$GITHUB_OUTPUT"
 
       # Freezes website/docs/ as this release's documentation, generated API
       # reference included (docs/adr/0005-version-the-documentation-site.md),
@@ -307,14 +322,13 @@ jobs:
       - name: Check what the pack job produced
         if: needs.pack.outputs.release == 'true'
         env:
-          VERSION: ${{ needs.pack.outputs.version }}
-          IDS: ${{ needs.pack.outputs.ids }}
+          PACKAGES: ${{ needs.pack.outputs.packages }}
           PACKAGES_SHA256: ${{ needs.pack.outputs.packages-sha256 }}
           DOCUMENTATION_SHA256: ${{ needs.pack.outputs.documentation-sha256 }}
         run: |
           set -euo pipefail
           base64 -d <<<"$PACKAGES_SHA256" | (cd artifacts/packages && sha256sum --check --strict)
-          ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "$VERSION" "$IDS"
+          ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "$PACKAGES"
           base64 -d <<<"$DOCUMENTATION_SHA256" | sha256sum --check --strict
           rm -rf website/versioned_docs website/versioned_sidebars
           tar -xf documentation.tar -C website
