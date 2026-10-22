@@ -5,7 +5,7 @@
     next .NET major. Deliberately no import of the repository's Directory.Build.props, whose settings describe the
     code that is packed (net10.0, trimming and AOT analysers, the artifacts folder, the package metadata), not an
     application that consumes it. This folder has its own global.json, nuget.config and Directory.Packages.props for
-    the same reason, and is in no solution: the root build, `dotnet format` and the suites never see it.
+    the same reason, and is in no solution: the root build and the suites never see it, ci.yml's whitespace check does.
   -->
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>

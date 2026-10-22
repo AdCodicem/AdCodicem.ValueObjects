@@ -331,5 +331,6 @@ The aim is 100 % of each pull request's patch, as Codecov counts it (ADR 0006 ho
 - Blind spots: a package no test loads is missing from the report rather than at 0 %, which
   `.github/scripts/coverage-modules.sh` fails, as it fails a package of the run's families with no line covered; the
   code the generator emits lives in the unit test assembly, which is not measured, and is audited by hand. The
-  integration suite reports from `heavy.yml`, so on a pull request that is not labelled `ci:heavy` the lines only it
-  covers (the SQL Server and PostgreSQL branches of the EF Core CHECK constraints) count as missed.
+  integration suite reports from `heavy.yml`, and its flag carries forward: on a pull request that is not labelled
+  `ci:heavy`, the lines only it covers (the SQL Server and PostgreSQL branches of the EF Core CHECK constraints) keep
+  the parent commit's coverage, and those the pull request changes count as missed in `codecov/patch`.
