@@ -20,10 +20,14 @@
 # so that the workflow installs it only then. --codecov-flags prints the flags of the families, which codecov.yml holds
 # between its two "ci-families" markers.
 #
+# A pull request's plan with files under src/ puts README.md, icon.png and the CLAUDE.md files it changes back to the
+# base in the checkout: plan locally in a scratch clone.
+#
 # Every run first checks .github/ci-families.json against the repository, without a build: every project under src/
 # in exactly one family, every top-level folder of the unit suite mapped, every file of the unit suite declaring the
-# namespace of its folder (the root namespace at the root), every folder a query names mapped to the query's family,
-# and codecov.yml's flags as --codecov-flags prints them. So no test can fall outside every family's filter.
+# namespace of its folder (the root namespace at the root), every folder a query names mapped to the query's family
+# and taken with its sub-namespaces, and codecov.yml's flags as --codecov-flags prints them. So no test can fall outside
+# every family's filter.
 #
 # A push to main runs everything. A pull request runs what the files its merge commit changes against the base branch
 # (its first parent, hence a checkout depth of 2) select, each file by the first rule below that matches it:
@@ -46,17 +50,19 @@
 #                  project item counts, so README.md, icon.png and every CLAUDE.md are first put back as the base branch
 #                  has them: every package packs the first two and globs the third. Any exit of the tool but 0, and 166
 #                  for "nothing affected", runs everything.
-#   unit           the unit suite: a file of a folder selects the families of unit.folders, a .cs file at its root
-#                  every family with a class in the root namespace, and every family a file of unit.shared, any other
-#                  file at its root (a test configuration), or a .cs file declaring something of the whole assembly
-#                  (an [assembly:] or [module:] attribute, a module initializer) before or after the change.
+#   unit           the unit suite: a file of a folder selects the families of unit.folders, a .cs file of tests at its
+#                  root every family with a class in the root namespace, and every family a file of unit.shared, any
+#                  other file at its root (a helper, a test configuration), or a .cs file declaring something of the
+#                  whole assembly (an [assembly:] or [module:] attribute, a module initializer) before or after the
+#                  change.
 #   generator      the generator suite, in full.
 #   rdg            the Request Delegate Generator suite.
 #   fixtures       tests/Fixtures/ but the Functions fixture: every family of the unit suite, which loads them.
 #   heavy          what only heavy.yml runs (tests/NativeAot/, tests/Compat/, the integration suite and its Functions
 #                  fixture, samples/, native-aot.sh, compiled-model.sh, heavy.yml): a notice asks for the ci:heavy
-#                  label; the code among them is built, and the compiled model's own inputs, tests/NativeAot/'s
-#                  Directory.Build.props and compiled-model.sh also generate and compile the model.
+#                  label; the code among them is built (tests/Compat/, which no solution holds, is only formatted), and
+#                  the compiled model's own inputs, tests/NativeAot/'s Directory.Build.props and compiled-model.sh
+#                  also generate and compile the model.
 #   build          benchmarks/: built.
 # Then a family selects every family whose dependsOn names it; core runs the generator suite in full, aspnet the RDG
 # suite, efcore the compiled model, text the patterns written for browsers; any affected project under src/ packs and
@@ -69,7 +75,8 @@
 #   heavy           true when the run calls heavy.yml
 #   expected        the JSON array of the jobs of ci.yml the gate requires to succeed; it passes any other job it needs
 #                   that was skipped
-#   dotnet          true when the jobs format and build run
+#   format          true when the job format runs: with build, and for tests/Compat/, which no solution holds
+#   dotnet          true when the job build runs
 #   families        the JSON array of the families whose unit tests run, and whose projects coverage-modules.sh checks
 #   unit-filter     the JSON array of the unit suite's --filter-query values, empty when every family runs
 #   generator       full, documentation or none
@@ -103,7 +110,8 @@ codecov_flags() {
     while IFS= read -r shared; do
       echo "        - src/Shared/$shared"
     done < <(jq -r --arg family "$family" '.families[$family].projects[] | "src/\(.)/\(.).csproj"' "$table" |
-      xargs grep -ho 'Include="\.\.\\Shared\\[^"]*"' | sed 's/^Include="\.\.\\Shared\\//; s/"$//' | LC_ALL=C sort -u)
+      xargs grep -hoE 'Include="\.\.[\\/]Shared[\\/][^"]*"' | sed -E 's#^Include="\.\.[\\/]Shared[\\/]##; s#"$##; s#\\#/#g' |
+      LC_ALL=C sort -u)
   done < <(jq -r '.families | keys_unsorted[]' "$table")
 }
 
@@ -138,7 +146,7 @@ check_table() {
   [[ -z "$extra" ]] || fail "$table names $extra, which is no project under src/."
 
   listed="$(jq -r '.unit.folders | keys[]' "$table" | LC_ALL=C sort -u)"
-  actual="$(git ls-files "$unit_suite" | sed "s|^$unit_suite/||" | awk -F/ 'NF > 1 { print $1 }' | LC_ALL=C sort -u)"
+  actual="$(git -c core.quotePath=false ls-files "$unit_suite" | sed "s|^$unit_suite/||" | awk -F/ 'NF > 1 { print $1 }' | LC_ALL=C sort -u)"
   missing="$(LC_ALL=C comm -13 <(echo "$listed") <(echo "$actual") | paste -sd ' ' -)"
   extra="$(LC_ALL=C comm -23 <(echo "$listed") <(echo "$actual") | paste -sd ' ' -)"
   [[ -z "$missing" ]] || fail "$table maps no family to $missing of $unit_suite: add each folder to unit.folders."
@@ -146,7 +154,7 @@ check_table() {
 
   local shared file matched
   local -a suite_files
-  mapfile -t suite_files < <(git ls-files "$unit_suite" | sed "s|^$unit_suite/||")
+  mapfile -t suite_files < <(git -c core.quotePath=false ls-files "$unit_suite" | sed "s|^$unit_suite/||")
   while IFS= read -r shared; do
     matched=false
     for file in "${suite_files[@]}"; do
@@ -174,7 +182,7 @@ check_table() {
       fi
       fail "$file declares the namespace $namespace, where its folder filters on $expected."
     done < <(sed -n -E 's/^namespace[[:space:]]+([A-Za-z0-9_.]+).*/\1/p' "$file")
-  done < <(git ls-files "$unit_suite/*.cs")
+  done < <(git -c core.quotePath=false ls-files "$unit_suite/*.cs")
 
   # A query naming a folder's namespace belongs to a family that a change to the folder selects, and every folder is
   # named by a query.
@@ -241,6 +249,7 @@ pack=false
 site=false
 release=false
 dotnet=false
+format=false
 src_paths=()
 heavy_inputs=()
 
@@ -298,7 +307,8 @@ rule() {
     tests/Fixtures/*) echo fixtures ;;
     tests/NativeAot/AdCodicem.ValueObjects.CompiledModel/* | \
       tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Domain/* | tests/NativeAot/Directory.*) echo compiled-model ;;
-    tests/NativeAot/* | tests/Compat/* | samples/*) echo heavy ;;
+    tests/Compat/*) echo heavy-format ;;
+    tests/NativeAot/* | samples/*) echo heavy ;;
     benchmarks/*) echo build ;;
     *) echo unknown ;;
   esac
@@ -322,7 +332,9 @@ unit_families() {
     every_family=true
     return
   fi
-  if [[ "$relative" != */* && "$relative" != *.cs ]]; then
+  # At the root: a file that is no source, such as a test configuration, applies to every test, and a source holding no
+  # test is a helper, which any folder's tests may use without an import.
+  if [[ "$relative" != */* ]] && { [[ "$relative" != *.cs ]] || ! grep -qE '\[(Fact|Theory)' <<<"$versions"; }; then
     every_family=true
     return
   fi
@@ -353,7 +365,7 @@ case "$event" in
       heavy=true
       heavy_reason="Dependabot updates a NuGet package, and auto-merge lands it with nobody reading it"
     fi
-    if diff="$(git diff --name-only --no-renames HEAD^1 HEAD 2> /dev/null)"; then
+    if diff="$(git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD 2> /dev/null)"; then
       mapfile -t changed < <(grep . <<<"$diff" || true)
     else
       echo "::warning::The files this pull request changes could not be read (the checkout needs a depth of 2)." >&2
@@ -385,6 +397,7 @@ for path in "${changed[@]}"; do
     rdg) rdg=true ;;
     fixtures) every_family=true ;;
     heavy) heavy_inputs+=("$path"); dotnet=true ;;
+    heavy-format) heavy_inputs+=("$path"); format=true ;;
     heavy-notice) heavy_inputs+=("$path") ;;
     compiled-model) heavy_inputs+=("$path"); compiled_model=true; dotnet=true ;;
     text) family[text]=1 ;;
@@ -405,10 +418,14 @@ fi
 affected=()
 if [[ "$graph" == true ]]; then
   dotnet=true
-  # Put back what every project globs or packs, so that only the project's own inputs mark it.
+  # Put back what every project globs or packs, so that only the project's own inputs mark it. This rewrites the
+  # checkout, which a runner discards: a local run refuses a file it would lose changes of.
   for path in "${changed[@]}"; do
     case "$path" in
       README.md | icon.png | CLAUDE.md | */CLAUDE.md)
+        if [[ -z "${GITHUB_ACTIONS:-}" && -n "$(git status --porcelain -- "$path")" ]]; then
+          fail "$path has uncommitted changes, which the plan would overwrite: commit them, or plan in a scratch clone."
+        fi
         if git cat-file -e "HEAD^1:$path" 2> /dev/null; then
           git checkout -q HEAD^1 -- "$path"
         else
@@ -523,7 +540,9 @@ coverage="$(jq -c --arg generator "$generator" --arg rdg "$rdg" \
   <<<"$families")"
 
 expected='["plan"'
-[[ "$dotnet" == true ]] && expected+=',"format","build"'
+[[ "$dotnet" == true ]] && format=true
+[[ "$format" == true ]] && expected+=',"format"'
+[[ "$dotnet" == true ]] && expected+=',"build"'
 [[ "$heavy" == true ]] && expected+=',"heavy"'
 [[ "$release" == true ]] && expected+=',"release-tooling"'
 expected+=']'
@@ -535,6 +554,7 @@ fi
 {
   echo "heavy=$heavy"
   echo "expected=$expected"
+  echo "format=$format"
   echo "dotnet=$dotnet"
   echo "families=$families"
   echo "unit-filter=$unit_filter"

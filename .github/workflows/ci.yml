@@ -35,6 +35,7 @@ jobs:
     outputs:
       heavy: ${{ steps.plan.outputs.heavy }}
       expected: ${{ steps.plan.outputs.expected }}
+      format: ${{ steps.plan.outputs.format }}
       dotnet: ${{ steps.plan.outputs.dotnet }}
       families: ${{ steps.plan.outputs.families }}
       unit-filter: ${{ steps.plan.outputs.unit-filter }}
@@ -72,15 +73,15 @@ jobs:
         id: plan
         run: .github/scripts/ci-plan.sh
 
-  # Whitespace, in every .cs file of the repository, tests/Compat/ included, against .editorconfig. --folder loads no
-  # project, so it needs no restore and runs beside the build; the style pass does not run, since
-  # EnforceCodeStyleInBuild already fails the build on the style rules (Directory.Build.props). Never `analyzers`: its
-  # workspace cannot run the generator before the build, and reports ASP0020 against every minimal API endpoint binding
-  # a value object.
+  # Whitespace, in every .cs file of the repository, tests/Compat/ included, against .editorconfig: with every build,
+  # and alone for tests/Compat/, which no solution holds. --folder loads no project, so it needs no restore and runs
+  # beside the build; the style pass does not run, since EnforceCodeStyleInBuild already fails the build on the style
+  # rules (Directory.Build.props). Never `analyzers`: its workspace cannot run the generator before the build, and
+  # reports ASP0020 against every minimal API endpoint binding a value object.
   format:
     name: format
     needs: plan
-    if: needs.plan.outputs.dotnet == 'true'
+    if: needs.plan.outputs.format == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
