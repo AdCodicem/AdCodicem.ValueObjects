@@ -5,16 +5,17 @@
     "a project of the unit suite to none. coverage-modules.sh reads the projects, RuntimeClosingTests the projects of its",
     "own family, which tests/UnitTests.props embeds; codecov.yml's flags are generated from them (ci-plan.sh",
     "--codecov-flags).",
-    "families.<name>.train: its release train (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).",
     "families.<name>.tests: its project of the unit suite, tests/<tests>/<tests>.csproj, which a change to any of its",
     "inputs selects, through dotnet-affected: its own files, the sources it links, what it references and imports. One",
     "per family, and every project of the suite is one family's.",
     "families.<name>.projects: the projects under src/, by folder name. Each is in exactly one family, whose project",
-    "of the unit suite tests it, and whose RuntimeClosingTests reads the IL of each but those no application loads."
+    "of the unit suite tests it, and whose RuntimeClosingTests reads the IL of each but those no application loads.",
+    "The projects of a family all ride one release train of src/release-trains.json",
+    "(docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md), the one list of trains,",
+    "which the plan checks."
   ],
   "families": {
     "core": {
-      "train": "core",
       "tests": "AdCodicem.ValueObjects.UnitTests",
       "projects": [
         "AdCodicem.ValueObjects",
@@ -27,7 +28,6 @@
       ]
     },
     "aspnet": {
-      "train": "core",
       "tests": "AdCodicem.ValueObjects.UnitTests.AspNet",
       "projects": [
         "AdCodicem.ValueObjects.AspNetCore.Http",
@@ -36,7 +36,6 @@
       ]
     },
     "efcore": {
-      "train": "core",
       "tests": "AdCodicem.ValueObjects.UnitTests.EfCore",
       "projects": [
         "AdCodicem.ValueObjects.EntityFrameworkCore",
@@ -44,7 +43,6 @@
       ]
     },
     "data": {
-      "train": "satellites",
       "tests": "AdCodicem.ValueObjects.UnitTests.Data",
       "projects": [
         "AdCodicem.ValueObjects.Dapper",
@@ -54,7 +52,6 @@
       ]
     },
     "serialization": {
-      "train": "satellites",
       "tests": "AdCodicem.ValueObjects.UnitTests.Serialization",
       "projects": [
         "AdCodicem.ValueObjects.NewtonsoftJson",
@@ -67,14 +64,12 @@
       ]
     },
     "orleans": {
-      "train": "satellites",
       "tests": "AdCodicem.ValueObjects.UnitTests.Orleans",
       "projects": [
         "AdCodicem.ValueObjects.Orleans"
       ]
     },
     "hosts": {
-      "train": "satellites",
       "tests": "AdCodicem.ValueObjects.UnitTests.Hosts",
       "projects": [
         "AdCodicem.ValueObjects.AzureFunctions",
@@ -83,7 +78,6 @@
       ]
     },
     "graphql": {
-      "train": "satellites",
       "tests": "AdCodicem.ValueObjects.UnitTests.GraphQL",
       "projects": [
         "AdCodicem.ValueObjects.HotChocolate",
@@ -91,7 +85,6 @@
       ]
     },
     "text": {
-      "train": "satellites",
       "tests": "AdCodicem.ValueObjects.UnitTests.Text",
       "projects": [
         "AdCodicem.ValueObjects.Blazor",
@@ -100,7 +93,6 @@
       ]
     },
     "observability": {
-      "train": "satellites",
       "tests": "AdCodicem.ValueObjects.UnitTests.Observability",
       "projects": [
         "AdCodicem.ValueObjects.Serilog",
@@ -110,7 +102,6 @@
       ]
     },
     "testdata": {
-      "train": "satellites",
       "tests": "AdCodicem.ValueObjects.UnitTests.TestData",
       "projects": [
         "AdCodicem.ValueObjects.Testing",
