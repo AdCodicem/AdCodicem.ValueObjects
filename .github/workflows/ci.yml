@@ -105,6 +105,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.dotnet == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     outputs:
@@ -204,12 +205,17 @@ jobs:
       # Delegate Generator writes it. Coverage from the unit suite alone would flatter the descriptor, which is exactly
       # where defects have hidden before. The integration suite's report, against real engines, comes from heavy.yml,
       # for the same commit on main.
+      # Not the copies --report-trx attaches under TestResults/<run>/In/.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         id: coverage
         if: needs.plan.outputs.coverage != '[]'
         with:
+          # "Re-run all jobs" uploads the same name again in the same run.
+          overwrite: true
           name: coverage
-          path: '**/*.cobertura.xml'
+          path: |
+            **/*.cobertura.xml
+            !**/In/**
           if-no-files-found: error
 
       # An assembly no test loads is absent from the reports rather than at 0 %, and
@@ -260,6 +266,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
+          overwrite: true
           name: test-results
           path: '**/*.trx'
           if-no-files-found: ignore
@@ -267,6 +274,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: needs.plan.outputs.pack == 'true'
         with:
+          overwrite: true
           name: packages
           path: artifacts/packages/*.*nupkg
 
@@ -309,7 +317,8 @@ jobs:
             generator | rdg) name="$FLAG.cobertura.xml" ;;
             *) name=unit.cobertura.xml ;;
           esac
-          mapfile -t reports < <(find "$REPORTS" -name "$name")
+          # The report itself, not a copy --report-trx attached under TestResults/<run>/In/.
+          mapfile -t reports < <(find "$REPORTS" -name "$name" -not -path '*/In/*')
           if (( ${#reports[@]} != 1 )); then
             echo "::error::Expected one $name for the $FLAG flag, found ${#reports[@]}." >&2
             exit 1

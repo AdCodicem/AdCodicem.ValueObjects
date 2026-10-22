@@ -8,7 +8,7 @@
 // The table is the one EcmaScriptPatternTests pins: each .NET pattern, the attribute the package writes for it, or null
 // where it writes none, and texts .NET accepts and refuses. The unit test checks the written attribute and .NET's
 // verdicts; this script checks that every attribute written compiles, accepts each text .NET accepts and refuses each
-// text .NET refuses. ci.yml's documentation site job runs it, where Node is installed for the site.
+// text .NET refuses. ci.yml's build job runs it when the text family runs, on the Node the site builds with.
 import { readFileSync } from "node:fs";
 
 const table = process.argv[2] ?? "tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json";

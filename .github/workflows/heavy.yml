@@ -212,7 +212,7 @@ jobs:
   # Azurite, which run the Functions application the build writes for the
   # worker's bindings. Then the compiled model that `dotnet ef dbcontext
   # optimize` writes, taken on a round trip through SQL Server; ci.yml's build
-  # job compiles the same model on every pull request.
+  # job compiles the same model on a pull request reaching EF Core or it.
   integration:
     name: integration tests
     runs-on: ubuntu-latest

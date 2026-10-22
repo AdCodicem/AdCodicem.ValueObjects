@@ -8,7 +8,7 @@
     "families.<name>.train: its release train (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).",
     "families.<name>.dependsOn: the families whose change selects this one beyond what the project graph says, because",
     "this family's tests run their code (GraphQL filtering runs over EF Core, Wolverine.Http's documents over",
-    "Swashbuckle).",
+    "Swashbuckle), or cover lines of its flag that only they reach (TestData/ runs core's Testing.Data sampler).",
     "families.<name>.unit: the unit suite's --filter-query values of the family, ORed: the namespace of each of its",
     "folders and its sub-namespaces, and, for the root namespace, Web/ and Persistence/, which hold several families, the",
     "classes of the family by name; core and aspnet and efcore take what the others leave there.",
@@ -47,7 +47,7 @@
       ],
       "dependsOn": [],
       "unit": [
-        "/*/AdCodicem.ValueObjects.UnitTests.Web/(!NSwag*)&(!Newtonsoft*)&(!Swashbuckle*)"
+        "/*/(AdCodicem.ValueObjects.UnitTests.Web)|(AdCodicem.ValueObjects.UnitTests.Web.*)/(!NSwag*)&(!Newtonsoft*)&(!Swashbuckle*)"
       ]
     },
     "efcore": {
@@ -58,7 +58,7 @@
       ],
       "dependsOn": [],
       "unit": [
-        "/*/AdCodicem.ValueObjects.UnitTests.Persistence/(!Dapper*)&(!*MongoDb*)&(!Marten*)&(!PcrePattern*)"
+        "/*/(AdCodicem.ValueObjects.UnitTests.Persistence)|(AdCodicem.ValueObjects.UnitTests.Persistence.*)/(!Dapper*)&(!*MongoDb*)&(!Marten*)&(!PcrePattern*)"
       ]
     },
     "data": {
@@ -71,7 +71,7 @@
       ],
       "dependsOn": [],
       "unit": [
-        "/*/AdCodicem.ValueObjects.UnitTests.Persistence/(Dapper*)|(*MongoDb*)|(Marten*)|(PcrePattern*)"
+        "/*/(AdCodicem.ValueObjects.UnitTests.Persistence)|(AdCodicem.ValueObjects.UnitTests.Persistence.*)/(Dapper*)|(*MongoDb*)|(Marten*)|(PcrePattern*)"
       ]
     },
     "serialization": {
@@ -90,7 +90,7 @@
         "/*/AdCodicem.ValueObjects.UnitTests/NewtonsoftJson*",
         "/*/(AdCodicem.ValueObjects.UnitTests.BinarySerialization)|(AdCodicem.ValueObjects.UnitTests.BinarySerialization.*)",
         "/*/(AdCodicem.ValueObjects.UnitTests.SchemaGeneration)|(AdCodicem.ValueObjects.UnitTests.SchemaGeneration.*)",
-        "/*/AdCodicem.ValueObjects.UnitTests.Web/(NSwag*)|(Newtonsoft*)|(Swashbuckle*)"
+        "/*/(AdCodicem.ValueObjects.UnitTests.Web)|(AdCodicem.ValueObjects.UnitTests.Web.*)/(NSwag*)|(Newtonsoft*)|(Swashbuckle*)"
       ]
     },
     "orleans": {
@@ -164,7 +164,7 @@
         "AdCodicem.ValueObjects.Bogus",
         "AdCodicem.ValueObjects.FsCheck"
       ],
-      "dependsOn": [],
+      "dependsOn": ["core"],
       "unit": [
         "/*/AdCodicem.ValueObjects.UnitTests/(*Contract)|(ContractKitTests)|(PropertyTests)",
         "/*/(AdCodicem.ValueObjects.UnitTests.TestData)|(AdCodicem.ValueObjects.UnitTests.TestData.*)"
