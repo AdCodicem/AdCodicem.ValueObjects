@@ -47,8 +47,19 @@ jobs:
       - name: Build
         run: dotnet build --no-restore -c Release
 
+      # Each family's project of the unit suite (.github/ci-families.json), whole: every one runs, and the step fails when
+      # any failed.
       - name: Unit tests
-        run: dotnet test --project tests/AdCodicem.ValueObjects.UnitTests --no-build -c Release
+        run: |
+          set -uo pipefail
+          failed=()
+          while IFS= read -r name; do
+            dotnet test --project "tests/$name" --no-build -c Release || failed+=("$name")
+          done < <(jq -r '.families[].tests' .github/ci-families.json)
+          if (( ${#failed[@]} > 0 )); then
+            echo "::error::Not successful: ${failed[*]}." >&2
+            exit 1
+          fi
 
       - name: Generator tests
         run: dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests --no-build -c Release

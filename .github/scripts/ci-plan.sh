@@ -24,10 +24,9 @@
 # base in the checkout: plan locally in a scratch clone.
 #
 # Every run first checks .github/ci-families.json against the repository, without a build: every project under src/
-# in exactly one family, every top-level folder of the unit suite mapped, every file of the unit suite declaring the
-# namespace of its folder (the root namespace at the root), every folder a query names mapped to the query's family
-# and taken with its sub-namespaces, and codecov.yml's flags as --codecov-flags prints them. So no test can fall outside
-# every family's filter.
+# in exactly one family, every project of the unit suite a family's, every project but tests/Compat/'s in the solution,
+# no file of tests linked into a second project but RuntimeClosingTests.cs, and codecov.yml's flags as --codecov-flags
+# prints them. So every test belongs to one family, and runs in its project alone.
 #
 # A push to main runs everything. A pull request runs what the files its merge commit changes against the base branch
 # (its first parent, hence a checkout depth of 2) select, each file by the first rule below that matches it:
@@ -39,34 +38,31 @@
 #   site           website/, docs/docfx/ and the action that builds the site: the job "documentation site".
 #   everything     what every project or job reads: Directory.Build.*, Directory.Packages.props, global.json,
 #                  nuget.config, .editorconfig, .gitattributes, the solution files, the local tools, ci.yml, this
-#                  script, the family table, coverage-modules.sh, unit-families-check.sh, codecov.yml,
-#                  tests/Directory.Build.*, and any path no rule names.
+#                  script, the family table, coverage-modules.sh, codecov.yml, tests/Directory.Build.*, and any path
+#                  no rule names.
 #   release        package.json, its lock file, .releaserc.json and next-version.mjs: the job "release tooling".
 #   pack           icon.png, .github/shipped-dependencies and the scripts that check the packed set.
-#   src            src/: the projects dotnet-affected (.config/dotnet-tools.json) marks changed or affected, through
-#                  their references, the files of src/Shared/ they link and the files they import, each selecting its
-#                  family, and a project of core every family, since every test runs the generator's output and the
-#                  registry; the generator suite, the RDG suite and the compiled model when it marks them. Every
-#                  project item counts, so README.md, icon.png and every CLAUDE.md are first put back as the base branch
-#                  has them: every package packs the first two and globs the third. Any exit of the tool but 0, and 166
-#                  for "nothing affected", runs everything.
-#   unit           the unit suite: a file of a folder selects the families of unit.folders, a .cs file of tests at its
-#                  root every family with a class in the root namespace, and every family a file of unit.shared, any
-#                  other file at its root (a helper, a test configuration), or a .cs file declaring something of the
-#                  whole assembly (an [assembly:] or [module:] attribute, a module initializer) before or after the
-#                  change.
+#   graph          src/, the unit suite's projects and tests/UnitTests.props, which they import, tests/Fixtures/ but
+#                  the Functions fixture, and the .NET code of the rules below: the projects dotnet-affected
+#                  (.config/dotnet-tools.json) marks changed or affected, through their references, the files they
+#                  link (src/Shared/, the unit suite's shared sources) and the files they import. A project under src/
+#                  selects its family, and a project of core every family, since every test runs the generator's output
+#                  and the registry; a family's project of the unit suite selects that family; the generator suite,
+#                  the RDG suite and the compiled model run when it marks them, and the job "build" builds every
+#                  project it marks but the unit suite's, which each family's job builds. Every project item counts, so
+#                  README.md, icon.png and every CLAUDE.md are first put back as the base branch has them: every package
+#                  packs the first two and every project globs the third. Any exit of the tool but 0, and 166 for
+#                  "nothing affected", runs everything.
 #   generator      the generator suite, in full.
 #   rdg            the Request Delegate Generator suite.
-#   fixtures       tests/Fixtures/ but the Functions fixture: every family of the unit suite, which loads them.
 #   heavy          what only heavy.yml runs (tests/NativeAot/, tests/Compat/, the integration suite and its Functions
 #                  fixture, samples/, native-aot.sh, compiled-model.sh, heavy.yml): a notice asks for the ci:heavy
 #                  label; the code among them is built (tests/Compat/, which no solution holds, is only formatted), and
 #                  the compiled model's own inputs, tests/NativeAot/'s Directory.Build.props and compiled-model.sh
 #                  also generate and compile the model.
 #   build          benchmarks/: built.
-# Then a family selects every family whose dependsOn names it; core runs the generator suite in full, aspnet the RDG
-# suite, efcore the compiled model, text the patterns written for browsers; any affected project under src/ packs and
-# builds the site; any .NET lane formats and builds.
+# Then core runs the generator suite in full, aspnet the RDG suite, efcore the compiled model; any affected project
+# under src/ packs and builds the site; any .NET lane formats.
 #
 # heavy.yml runs on a pull request labelled ci:heavy, or one Dependabot opened to update a NuGet package, since
 # auto-merge then lands it with nobody reading it. Otherwise it runs after the merge, on its own push to main.
@@ -77,10 +73,13 @@
 #                   that was skipped
 #   format          true when the job format runs: with build, and for tests/Compat/, which no solution holds
 #   dotnet          true when the job build runs
-#   families        the JSON array of the families whose unit tests run, and whose projects coverage-modules.sh checks
-#   unit-filter     the JSON array of the unit suite's --filter-query values, empty when every family runs
+#   families        the JSON array of the families whose project of the unit suite the job unit builds and runs, one
+#                   job each, and whose projects coverage-modules.sh checks in its report
+#   build           the JSON array of the projects the job build builds, through a solution filter: what dotnet-affected
+#                   marks but the unit suite's projects, and the suites the run selects; every project of the solution
+#                   but the unit suite's when everything runs
 #   generator       full, documentation or none
-#   rdg, compiled-model, ecmascript, pack, site, release
+#   rdg, compiled-model, pack, site, release
 #                   true when the lane runs
 #   coverage        the JSON array of the Codecov flags the run uploads, one upload each
 # A summary goes to $GITHUB_STEP_SUMMARY when Actions sets it.
@@ -90,8 +89,7 @@ set -euo pipefail
 cd -P "$(dirname "$0")/../.."
 
 table=.github/ci-families.json
-unit_suite=tests/AdCodicem.ValueObjects.UnitTests
-unit_namespace=AdCodicem.ValueObjects.UnitTests
+solution=AdCodicem.ValueObjects.slnx
 
 fail() {
   echo "::error::$*" >&2
@@ -120,22 +118,15 @@ codecov_flags() {
 check_table() {
   local errors
   errors="$(jq -r '
-    (.families | keys) as $families
-    | (if (.families | type) != "object" or (.families | length) == 0 then "families is empty" else empty end),
+    (if (.families | type) != "object" or (.families | length) == 0 then "families is empty" else empty end),
       (.families | to_entries[] | .key as $family | .value
         | (if (.train | IN("core", "satellites")) then empty else "\($family): train is neither core nor satellites" end),
+          (if (.tests | type) == "string" and (.tests | test("^AdCodicem\\.ValueObjects\\.UnitTests(\\.[A-Za-z]+)?$"))
+           then empty else "\($family): tests names no project of the unit suite" end),
           (if (.projects | type) == "array" and (.projects | length) > 0 and all(.projects[]; type == "string")
-           then empty else "\($family): projects is not a list of names" end),
-          (.dependsOn[] | select(IN($families[]) | not) | "\($family): dependsOn names no family, \(.)"),
-          (if (.unit | type) == "array" and (.unit | length) > 0 and all(.unit[]; type == "string" and startswith("/"))
-           then empty else "\($family): unit is not a list of queries" end)),
-      (if (.guards | length) > 0 and all(.guards[]; type == "string" and startswith("/")) then empty
-       else "guards is not a list of queries" end),
-      (.unit.folders | to_entries[]
-        | select(.value != "*" and ((.value | type) != "array" or (.value | length) == 0 or any(.value[]; IN($families[]) | not)))
-        | "unit.folders.\(.key) is neither \"*\" nor a list of families"),
-      (if all(.unit.shared[]; type == "string") then empty else "unit.shared is not a list of paths" end),
-      ([.families[].projects[]] | group_by(.)[] | select(length > 1) | "\(.[0]) is in \(length) families")
+           then empty else "\($family): projects is not a list of names" end)),
+      ([.families[].projects[]] | group_by(.)[] | select(length > 1) | "\(.[0]) is in \(length) families"),
+      ([.families[].tests] | group_by(.)[] | select(length > 1) | "\(.[0]) is the project of \(length) families")
   ' "$table")" || fail "$table is not the family table ci-plan.sh reads."
   [[ -z "$errors" ]] || fail "$table: $(paste -sd ';' <<<"$errors" | sed 's/;/; /g')."
 
@@ -147,64 +138,49 @@ check_table() {
   [[ -z "$missing" ]] || fail "$table puts no family over $missing: add each project under src/ to one family."
   [[ -z "$extra" ]] || fail "$table names $extra, which is no project under src/."
 
-  listed="$(jq -r '.unit.folders | keys[]' "$table" | LC_ALL=C sort -u)"
-  actual="$(git -c core.quotePath=false ls-files "$unit_suite" | sed "s|^$unit_suite/||" | awk -F/ 'NF > 1 { print $1 }' | LC_ALL=C sort -u)"
+  # Every project of the unit suite is one family's.
+  listed="$(jq -r '.families[].tests' "$table" | LC_ALL=C sort -u)"
+  actual="$(for project in tests/AdCodicem.ValueObjects.UnitTests*/*.csproj; do basename "$project" .csproj; done |
+    LC_ALL=C sort -u)"
   missing="$(LC_ALL=C comm -13 <(echo "$listed") <(echo "$actual") | paste -sd ' ' -)"
   extra="$(LC_ALL=C comm -23 <(echo "$listed") <(echo "$actual") | paste -sd ' ' -)"
-  [[ -z "$missing" ]] || fail "$table maps no family to $missing of $unit_suite: add each folder to unit.folders."
-  [[ -z "$extra" ]] || fail "$table maps $extra, which is no folder of $unit_suite."
+  [[ -z "$missing" ]] || fail "$table gives no family the unit suite's $missing: name each project in a family's tests."
+  [[ -z "$extra" ]] || fail "$table names $extra, which is no project tests/<name>/<name>.csproj."
 
-  local shared file matched
-  local -a suite_files
-  mapfile -t suite_files < <(git -c core.quotePath=false ls-files "$unit_suite" | sed "s|^$unit_suite/||")
-  while IFS= read -r shared; do
-    matched=false
-    for file in "${suite_files[@]}"; do
-      # shellcheck disable=SC2053 # a glob of the table
-      if [[ "$file" == $shared ]]; then
-        matched=true
-        break
-      fi
-    done
-    [[ "$matched" == true ]] || fail "$table: unit.shared names $shared, which matches no file of $unit_suite."
-  done < <(jq -r '.unit.shared[]' "$table")
+  # Every project but tests/Compat/'s, which no solution holds, is in the solution, where dotnet-affected looks for the
+  # projects a change marks: one left out would be selected by no change to its own files.
+  missing="$(LC_ALL=C comm -23 <(git -c core.quotePath=false ls-files '*.csproj' | grep -v '^tests/Compat/' | LC_ALL=C sort) \
+    <(sed -n -E 's/.*<Project Path="([^"]*)".*/\1/p' "$solution" | LC_ALL=C sort) | paste -sd ' ' -)"
+  [[ -z "$missing" ]] || fail "$solution does not hold $missing: add each project to the solution."
 
-  # A class sits in the namespace of its folder, which the families' queries filter on: one in another namespace would
-  # be selected by the path of its file and filtered by its namespace, so the two must agree.
-  local relative expected namespace
-  while IFS= read -r file; do
-    relative="${file#"$unit_suite/"}"
-    while IFS= read -r namespace; do
-      if [[ "$relative" == */* ]]; then
-        expected="$unit_namespace.${relative%%/*}"
-        [[ "$namespace" == "$expected" || "$namespace" == "$expected".* ]] && continue
+  # A source a project of the unit suite links from another's folder holds no test, or the test would run in both:
+  # RuntimeClosingTests.cs alone, whose rows are each project's own family's packages. $(UnitTestsSources) is the core
+  # project's folder; any other path is relative to the project's own.
+  local file include path source
+  shopt -s globstar nullglob
+  for file in tests/UnitTests.props tests/AdCodicem.ValueObjects.UnitTests*/*.csproj; do
+    while IFS= read -r include; do
+      path="${include//\\//}"
+      # shellcheck disable=SC2016 # the MSBuild property, as the file writes it
+      if [[ "$path" == '$(UnitTestsSources)'* ]]; then
+        # shellcheck disable=SC2016 # the MSBuild property, as the file writes it
+        path="tests/AdCodicem.ValueObjects.UnitTests/${path#'$(UnitTestsSources)'}"
       else
-        expected="$unit_namespace"
-        [[ "$namespace" == "$expected" ]] && continue
+        path="$(dirname "$file")/$path"
       fi
-      fail "$file declares the namespace $namespace, where its folder filters on $expected."
-    done < <(sed -n -E 's/^namespace[[:space:]]+([A-Za-z0-9_.]+).*/\1/p' "$file")
-  done < <(git -c core.quotePath=false ls-files "$unit_suite/*.cs")
-
-  # A query naming a folder's namespace belongs to a family that a change to the folder selects, and every folder is
-  # named by a query.
-  errors="$(jq -r --arg ns "$unit_namespace" '
-    .unit.folders as $folders
-    | ([.families | to_entries[] | .key as $family | .value.unit[] | {family: $family, query: .}]
-       + [.guards[] | {family: null, query: .}]) as $queries
-    | ($queries[] | .family as $family | .query
-        | [scan(($ns | gsub("\\."; "\\.")) + "\\.([A-Za-z0-9_]+)") | .[0]] | unique[]
-        | select($family != null and (($folders[.] // []) as $mapped | ($mapped == "*" or ($mapped | index($family))) | not))
-        | "a query of \($family) filters on the folder \(.), whose unit.folders entry does not select \($family)"),
-      ($queries[] | .query | . as $query
-        | [scan(($ns | gsub("\\."; "\\.")) + "\\.([A-Za-z0-9_]+)") | .[0]] | unique[]
-        | . as $folder | select($query | contains("(" + $ns + "." + $folder + ".*)") | not)
-        | "the query \($query) filters on the folder \(.) without its sub-namespaces, (\($ns).\(.).*)"),
-      ($folders | keys[] | . as $folder
-        | select([$queries[].query | test(($ns | gsub("\\."; "\\.")) + "\\." + $folder + "\\b")] | any | not)
-        | "no query filters on the folder \($folder)")
-  ' "$table")" || fail "$table: its queries could not be read."
-  [[ -z "$errors" ]] || fail "$table: $(paste -sd ';' <<<"$errors" | sed 's/;/; /g')."
+      # shellcheck disable=SC2206 # the item's own glob, as MSBuild expands it
+      local -a sources=($path)
+      (( ${#sources[@]} > 0 )) || fail "$file links $include, which matches no file."
+      for source in "${sources[@]}"; do
+        [[ -f "$source" ]] || fail "$file links $include, which matches no file."
+        [[ "$(basename "$source")" == RuntimeClosingTests.cs ]] && continue
+        if grep -qE '\[(Fact|Theory)\b' "$source"; then
+          fail "$file links $source, which holds tests: they would run in two projects. Link a file of helpers only."
+        fi
+      done
+    done < <(sed -n -E 's/.*<Compile Include="([^"]*)"[^>]*Link=.*/\1/p' "$file")
+  done
+  shopt -u globstar nullglob
 
   if ! diff <(codecov_flags) <(sed -n '/# BEGIN ci-families/,/# END ci-families/{//!p;}' codecov.yml) > /dev/null; then
     fail "codecov.yml's flags differ from $table: replace the lines between its ci-families markers with the output of .github/scripts/ci-plan.sh --codecov-flags."
@@ -236,9 +212,6 @@ if ! jq -e 'type == "array" and all(.[]; type == "string")' <<<"$labels" > /dev/
 fi
 
 mapfile -t all_families < <(jq -r '.families | keys_unsorted[]' "$table")
-mapfile -t root_families < <(jq -r --arg ns "$unit_namespace" \
-  '.families | to_entries[] | select(any(.value.unit[]; startswith("/*/" + $ns + "/"))) | .key' "$table")
-
 declare -A family=()
 everything=false
 everything_reason=''
@@ -252,7 +225,7 @@ site=false
 release=false
 dotnet=false
 format=false
-src_paths=()
+graph_paths=()
 heavy_inputs=()
 
 run_everything() {
@@ -284,8 +257,7 @@ rule() {
       .github/workflows/deploy-docs.yml | .github/workflows/lint.yml | .github/workflows/preview.yml | \
       .github/workflows/release.yml | .github/workflows/scorecards.yml | .github/workflows/stale.yml) echo none ;;
     .github/actions/build-site/* | .github/scripts/docfx-postprocess.py) echo site ;;
-    .github/ci-families.json | .github/scripts/ci-plan.sh | .github/scripts/coverage-modules.sh | \
-      .github/scripts/unit-families-check.sh) echo everything ;;
+    .github/ci-families.json | .github/scripts/ci-plan.sh | .github/scripts/coverage-modules.sh) echo everything ;;
     .github/scripts/native-aot.sh) echo heavy-notice ;;
     .github/scripts/compiled-model.sh) echo compiled-model ;;
     .github/scripts/ecmascript-patterns.mjs) echo text ;;
@@ -301,12 +273,12 @@ rule() {
       AdCodicem.ValueObjects.slnx | src/AdCodicem.ValueObjects.Packages.slnf | .config/dotnet-tools.json | \
       codecov.yml | tests/Directory.Build.*) echo everything ;;
     icon.png) echo pack ;;
-    src/*) echo src ;;
-    "$unit_suite"/*) echo unit ;;
+    src/* | tests/UnitTests.props | tests/AdCodicem.ValueObjects.UnitTests/* | tests/AdCodicem.ValueObjects.UnitTests.*/*)
+      echo graph ;;
     tests/AdCodicem.ValueObjects.GeneratorTests/*) echo generator ;;
     tests/AdCodicem.ValueObjects.RdgTests/*) echo rdg ;;
     tests/AdCodicem.ValueObjects.IntegrationTests/* | tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Functions/*) echo heavy ;;
-    tests/Fixtures/*) echo fixtures ;;
+    tests/Fixtures/*) echo graph ;;
     tests/NativeAot/AdCodicem.ValueObjects.CompiledModel/* | \
       tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Domain/* | tests/NativeAot/Directory.*) echo compiled-model ;;
     tests/Compat/*) echo heavy-format ;;
@@ -314,46 +286,6 @@ rule() {
     benchmarks/*) echo build ;;
     *) echo unknown ;;
   esac
-}
-
-# The families a file of the unit suite selects.
-unit_families() {
-  local path="$1" relative="${1#"$unit_suite/"}" shared
-  while IFS= read -r shared; do
-    # shellcheck disable=SC2053 # a glob of the table
-    if [[ "$relative" == $shared ]]; then
-      every_family=true
-      return
-    fi
-  done < <(jq -r '.unit.shared[]' "$table")
-  # What applies to the whole assembly, as the base has it or as the change leaves it, applies to every test. Read
-  # whole first: grep -q would close a pipe early, which pipefail reports as a failure.
-  local versions
-  versions="$(git show "HEAD:$path" 2> /dev/null || true; git show "HEAD^1:$path" 2> /dev/null || true)"
-  if [[ "$relative" == *.cs ]] && grep -qE '^[[:space:]]*\[(assembly|module):|ModuleInitializer' <<<"$versions"; then
-    every_family=true
-    return
-  fi
-  # At the root: a file that is no source, such as a test configuration, applies to every test, and a source holding no
-  # test, neither a [Fact] or [Theory] nor a contract inheriting the kit's, is a helper, which any folder's tests may use
-  # without an import.
-  if [[ "$relative" != */* ]] &&
-    { [[ "$relative" != *.cs ]] || ! grep -qE '\[(Fact|Theory)|:[[:space:]]*ValueObjectContract<' <<<"$versions"; }; then
-    every_family=true
-    return
-  fi
-  if [[ "$relative" != */* ]]; then
-    local name
-    for name in "${root_families[@]}"; do family[$name]=1; done
-    return
-  fi
-  local selected
-  selected="$(jq -c --arg folder "${relative%%/*}" '.unit.folders[$folder] // "*"' "$table")"
-  if [[ "$selected" == '"*"' ]]; then
-    every_family=true
-    return
-  fi
-  while IFS= read -r name; do family[$name]=1; done < <(jq -r '.[]' <<<"$selected")
 }
 
 heavy=false
@@ -403,23 +335,21 @@ for path in "${changed[@]}"; do
     everything) run_everything "$path is read by every project or job" ;;
     release) release=true ;;
     pack) pack=true ;;
-    src) src_paths+=("$path") ;;
-    unit) unit_families "$path" ;;
-    generator) generator_full=true ;;
-    rdg) rdg=true ;;
-    fixtures) every_family=true ;;
-    heavy) heavy_inputs+=("$path"); dotnet=true ;;
+    graph) graph_paths+=("$path") ;;
+    generator) graph_paths+=("$path"); generator_full=true ;;
+    rdg) graph_paths+=("$path"); rdg=true ;;
+    heavy) graph_paths+=("$path"); heavy_inputs+=("$path") ;;
     heavy-format) heavy_inputs+=("$path"); format=true ;;
     heavy-notice) heavy_inputs+=("$path") ;;
-    compiled-model) heavy_inputs+=("$path"); compiled_model=true; dotnet=true ;;
+    compiled-model) graph_paths+=("$path"); heavy_inputs+=("$path"); compiled_model=true ;;
     text) family[text]=1 ;;
-    build) dotnet=true ;;
+    build) graph_paths+=("$path") ;;
     *) run_everything "no rule of ci-plan.sh names $path" ;;
   esac
 done
 
 graph=false
-if [[ "$everything" == false && ${#src_paths[@]} -gt 0 ]]; then
+if [[ "$everything" == false && ${#graph_paths[@]} -gt 0 ]]; then
   graph=true
 fi
 if [[ "$mode" == --graph-needed ]]; then
@@ -428,8 +358,8 @@ if [[ "$mode" == --graph-needed ]]; then
 fi
 
 affected=()
+marked=()
 if [[ "$graph" == true ]]; then
-  dotnet=true
   # Put back what every project globs or packs, so that only the project's own inputs mark it. This rewrites the
   # checkout, which a runner discards: a local run refuses a file it would lose changes of.
   for path in "${changed[@]}"; do
@@ -466,6 +396,9 @@ if [[ "$graph" == true ]]; then
   if (( status == 0 )) && [[ -f "$tools/affected.json" ]]; then
     mapfile -t affected < <(jq -r --arg src "$PWD/src/" '.[] | select(.FilePath | startswith($src)) | .Name' \
       "$tools/affected.json" | LC_ALL=C sort -u)
+    # Every project it marks, by its path in the repository, and the unit suite's, which select their families.
+    mapfile -t marked < <(jq -r --arg root "$PWD/" '.[] | .FilePath | select(startswith($root)) | ltrimstr($root)' \
+      "$tools/affected.json" | LC_ALL=C sort -u)
     # The suites and the compiled model, through what they reference: protobuf-net for the generator suite.
     while IFS= read -r project; do
       case "$project" in
@@ -473,6 +406,8 @@ if [[ "$graph" == true ]]; then
         AdCodicem.ValueObjects.RdgTests) rdg=true ;;
         AdCodicem.ValueObjects.CompiledModel) compiled_model=true ;;
       esac
+      name="$(jq -r --arg project "$project" '.families | to_entries[] | select(.value.tests == $project) | .key' "$table")"
+      [[ -n "$name" ]] && family[$name]=1
     done < <(jq -r '.[].Name' "$tools/affected.json")
   elif (( status != 166 )); then
     reason="dotnet-affected could not be installed, failed or wrote a report of another shape (status $status)"
@@ -504,18 +439,6 @@ if [[ "$every_family" == true ]]; then
   for name in "${all_families[@]}"; do family[$name]=1; done
 fi
 
-# A family selects every family that depends on it, until none is added.
-added=true
-while [[ "$added" == true ]]; do
-  added=false
-  while IFS=$'\t' read -r name dependency; do
-    if [[ -n "${family[$dependency]:-}" && -z "${family[$name]:-}" ]]; then
-      family[$name]=1
-      added=true
-    fi
-  done < <(jq -r '.families | to_entries[] | .key as $family | .value.dependsOn[] | "\($family)\t\(.)"' "$table")
-done
-
 selected=()
 for name in "${all_families[@]}"; do
   [[ -n "${family[$name]:-}" ]] && selected+=("$name")
@@ -524,8 +447,6 @@ done
 [[ -n "${family[core]:-}" ]] && generator_full=true
 [[ -n "${family[aspnet]:-}" ]] && rdg=true
 [[ -n "${family[efcore]:-}" ]] && compiled_model=true
-ecmascript=false
-[[ -n "${family[text]:-}" ]] && ecmascript=true
 
 generator=none
 if [[ "$generator_full" == true ]]; then
@@ -534,19 +455,22 @@ elif [[ "$documentation" == true ]]; then
   generator=documentation
 fi
 
-if (( ${#selected[@]} > 0 )) || [[ "$generator" != none || "$rdg" == true || "$compiled_model" == true ||
-  "$pack" == true ]]; then
+# What the job build builds: every project of the solution but the unit suite's when everything runs, otherwise what
+# dotnet-affected marks but the unit suite's, and the suites the run selects; each family's job builds its own project.
+mapfile -t unit_projects < <(jq -r '.families[].tests | "tests/\(.)/\(.).csproj"' "$table")
+if [[ "$everything" == true ]]; then
+  mapfile -t marked < <(sed -n -E 's/.*<Project Path="([^"]*)".*/\1/p' "$solution")
+fi
+[[ "$generator" != none ]] && marked+=(tests/AdCodicem.ValueObjects.GeneratorTests/AdCodicem.ValueObjects.GeneratorTests.csproj)
+[[ "$rdg" == true ]] && marked+=(tests/AdCodicem.ValueObjects.RdgTests/AdCodicem.ValueObjects.RdgTests.csproj)
+build="$(printf '%s\n' "${marked[@]}" | LC_ALL=C sort -u |
+  jq -Rsc --args 'split("\n") | map(select(length > 0)) - $ARGS.positional' "${unit_projects[@]}")"
+
+if [[ "$build" != '[]' || "$generator" != none || "$rdg" == true || "$compiled_model" == true || "$pack" == true ]]; then
   dotnet=true
 fi
 
 families="$(printf '%s\n' "${selected[@]}" | jq -R . | jq -sc 'map(select(length > 0))')"
-if (( ${#selected[@]} == ${#all_families[@]} )); then
-  unit_filter='[]'
-elif (( ${#selected[@]} > 0 )); then
-  unit_filter="$(jq -c --argjson families "$families" '[.families[$families[]].unit[], .guards[]]' "$table")"
-else
-  unit_filter='[]'
-fi
 coverage="$(jq -c --arg generator "$generator" --arg rdg "$rdg" \
   '. + (if $generator == "full" then ["generator"] else [] end) + (if $rdg == "true" then ["rdg"] else [] end)' \
   <<<"$families")"
@@ -554,6 +478,7 @@ coverage="$(jq -c --arg generator "$generator" --arg rdg "$rdg" \
 expected='["plan"'
 [[ "$dotnet" == true ]] && format=true
 [[ "$format" == true ]] && expected+=',"format"'
+(( ${#selected[@]} > 0 )) && expected+=',"unit"'
 [[ "$dotnet" == true ]] && expected+=',"build"'
 [[ "$heavy" == true ]] && expected+=',"heavy"'
 [[ "$release" == true ]] && expected+=',"release-tooling"'
@@ -569,11 +494,10 @@ fi
   echo "format=$format"
   echo "dotnet=$dotnet"
   echo "families=$families"
-  echo "unit-filter=$unit_filter"
+  echo "build=$build"
   echo "generator=$generator"
   echo "rdg=$rdg"
   echo "compiled-model=$compiled_model"
-  echo "ecmascript=$ecmascript"
   echo "pack=$pack"
   echo "site=$site"
   echo "release=$release"
@@ -596,15 +520,15 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
       echo "- the unit suite: every family"
     elif (( ${#selected[@]} > 0 )); then
       # shellcheck disable=SC2016 # the backticks are Markdown
-      echo "- the unit suite: $(printf '`%s` ' "${selected[@]}")and the guards"
+      echo "- the unit suite: $(printf '`%s` ' "${selected[@]}" | sed 's/ $//')"
     else
       echo "- the unit suite: no family"
     fi
+    echo "- the job build: $(jq -r 'if length == 0 then "nothing to build" else "\(length) project(s)" end' <<<"$build")"
     echo "- the generator suite: $generator"
     lanes=()
     [[ "$rdg" == true ]] && lanes+=("the RDG suite")
     [[ "$compiled_model" == true ]] && lanes+=("the compiled model")
-    [[ "$ecmascript" == true ]] && lanes+=("the patterns written for browsers")
     [[ "$pack" == true ]] && lanes+=("the pack and its checks")
     [[ "$site" == true ]] && lanes+=("the documentation site")
     [[ "$release" == true ]] && lanes+=("the release tooling")
