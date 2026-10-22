@@ -15,6 +15,7 @@ Accepted.
   at its own version, the core first, rather than every package at one.
 - The CI that gates each release is
   [ADR-0013](0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md).
+- Built up to phase 1a, which differs from the text below on the points of [Phase 1a as built](#phase-1a-as-built).
 
 ## Context
 
@@ -276,3 +277,34 @@ The contract kit's kernel adds a package, so there are thirty-nine.
 
 The 1.0 of the core is a release of its own, after the first release under this record and after the core's public API
 is tracked. Until then, an API that is not yet ready for the 1.0 promise carries `[Experimental]`.
+
+## Phase 1a as built
+
+The build is phased as ADR-0013's was, each phase leaving `main` releasable. Phase 1a builds the list, its two readers
+and the interfaces every later phase needs, while every train still gets one version: the workflows set
+`RELEASE_TRAIN_VERSIONS` with the same version for each train, and the tag prefix stays `v` for all, until phase 2
+places the trains apart. The differences:
+
+- The core's list names twelve projects, not ten packages: `AdCodicem.ValueObjects.Generators` and
+  `AdCodicem.ValueObjects.CodeFixes` are not packable, but the main package carries both inside it, and their assembly
+  must carry the core's version. "Every other packable project rides the satellites" reads as every other project.
+- MSBuild reads the list with a regular expression after all: the innermost object holding the project's name as a
+  string, which holds whatever the order of the keys, the objection to the rejected option. MSBuild has no JSON
+  parser, and `System.Text.Json` is refused in a property function (MSB4212). `release-trains.mjs check` refuses
+  every shape the expression could misread: a train's object holding another object, a name in two trains, a brace or
+  an MSBuild expansion (`$(`, `@(`, `%(`, `%XX`) in a string. It also refuses a stale name, a `PackageId` (the list
+  names packages by project) and a core project referencing another train. The plan runs it on every run, and
+  `ci.yml`'s pack check compares MSBuild's reading (`package-ids.sh --trains`) with the module's.
+- `.github/ci-families.json` loses its `train` field, a second registry that nothing read; the plan instead fails a
+  family whose projects ride two trains.
+- `RELEASE_TRAIN_VERSIONS` replaces `MINVERVERSIONOVERRIDE` by refusing it: `src/Directory.Build.targets` fails any
+  build or pack where `MinVerVersionOverride` comes from the environment or a global property, or where
+  `RELEASE_TRAIN_VERSIONS` names no version for the project's train, rather than let MinVer give every train one
+  version or fall back to the tags. An evaluation alone (`-getProperty`) runs no target and is not refused.
+- The package validation baseline is per train (`ReleaseBaselineVersions`, `core=X satellites=Y`). `release-pack.sh`
+  takes `<train>=<version>:<type>[:<last>]` for every train and checks that every package is at its train's version.
+  `verify-packages.sh` takes `<id>=<version>` pairs, and `push-packages.sh` the ids of one version, so that no script
+  globs a folder by one version: on the first run after phase 2 both trains compute `0.3.0`.
+- The compatibility island keeps no list of the trains: `tests/Compat/Directory.Packages.props` pins every package
+  `artifacts/packages` holds at exactly the version in its file name, and `heavy.yml` passes no version.
+

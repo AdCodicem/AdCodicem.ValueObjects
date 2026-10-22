@@ -12,13 +12,20 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - The version: `scripts/next-version.mjs` runs semantic-release's commit analyzer with `.releaserc.json`, without a
   token, and suffixes `-preview.<commits since the last stable tag>` (`0.3.0-preview.172` leads to `0.3.0`; with no
   commit that releases anything, the next patch). It needs `fetch-depth: 0`.
-- MinVer receives it through `MINVERVERSIONOVERRIDE`. An empty override silently falls back to MinVer's own version,
-  which `scripts/verify-packages.sh` refuses (only `X.Y.Z-preview.N` passes unless `ALLOW_ANY_VERSION=true`).
+- MinVer receives it through `RELEASE_TRAIN_VERSIONS` (`core=X satellites=Y`, every train at that one version until
+  each computes its own, ADR 0012), which `src/Directory.Build.props` turns into each project's `MinVerVersionOverride`.
+  The build refuses `MINVERVERSIONOVERRIDE`, one version for every train, and a train the variable leaves out
+  (`src/Directory.Build.targets`); `scripts/verify-packages.sh` refuses any version but `X.Y.Z-preview.N` unless
+  `ALLOW_ANY_VERSION=true`.
 - Order: the `suites` job runs every family's project of the unit suite, then the generator and RDG suites, on that
   exact commit; a job of its own packs `src/`; `heavy.yml` runs on that commit too, its compat job installing the
   packed set by the artifact's id; the `publish` job, which needs all of them, rechecks the set (`verify-packages.sh`)
   and nuget.org (`preview-gate.sh --recheck`) before logging in, so re-running an old run cannot publish a stale
   version, attests, then pushes.
+- The scripts name every package by id and version, never by a glob of one version: the trains share
+  `artifacts/packages` and may share a number. `scripts/release-pack.sh` takes `<train>=<version>:<type>[:<last>]` per
+  train of `src/release-trains.json`, each train held to its own baseline; `scripts/verify-packages.sh` the
+  `<id>=<version>` pairs `release-trains.mjs versions` prints; `scripts/push-packages.sh` the ids of one version.
 - `scripts/push-packages.sh` pushes dependencies first and only what nuget.org lacks, in up to three passes, then waits
   until nuget.org lists every package. A push stopped midway is completed by those passes, by **Re-run failed jobs**, or
   by the next run (`repair`).
@@ -39,7 +46,7 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   refuses to go on unless its version is the one packed, writes `CHANGELOG.md`, commits it with the snapshot, tags,
   pushes through `push-packages.sh`, and the site is redeployed. No build code runs beside the NuGet key, the App token
   or the OIDC token.
-- MinVer and semantic-release read the same `v*` tags; `MINVERVERSIONOVERRIDE` hands MinVer the stable version.
+- MinVer and semantic-release read the same `v*` tags; `RELEASE_TRAIN_VERSIONS` hands MinVer the stable version.
 - The GitHub Release links every package to nuget.org from `RELEASE_PACKAGE_IDS`, which the pack job evaluates with
   `scripts/package-ids.sh` and passes in semantic-release's starting environment: the body renders from it, so a prepare
   step cannot feed it. `release-pack.sh` fails before any push when the packed set differs from it.
@@ -117,8 +124,16 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   `AdCodicem.ValueObjects.slnx`, where `dotnet-affected` looks; every `Compile` item of `tests/UnitTests.props` or of a
   unit project's `.csproj`, whatever its `Link`, matching a file; no source taken from another project's folder holding
   a `[Fact]`, a `[Theory]` or a `ValueObjectContract<…>` class, since its tests would run in two projects, but
-  `RuntimeClosingTests.cs` and `DescriptorTests.Registered.cs`, which every project runs over its own family; and
-  `codecov.yml`'s flags as `ci-plan.sh --codecov-flags` prints them.
+  `RuntimeClosingTests.cs` and `DescriptorTests.Registered.cs`, which every project runs over its own family;
+  `src/release-trains.json` as `scripts/release-trains.mjs check` holds it, and each family's projects on one release
+  train; and `codecov.yml`'s flags as `ci-plan.sh --codecov-flags` prints them.
+- `src/release-trains.json` is the one list of release trains (ADR 0012), read twice: by MSBuild, at evaluation, with
+  a regular expression that holds whatever the order of the keys (`src/Directory.Build.props`), and as JSON by
+  `scripts/release-trains.mjs` (Node built-ins only: the plan job runs the runner's Node). `check` refuses every shape
+  the expression could misread (a nested object, a name in two trains, a brace or an MSBuild expansion in a string),
+  a stale name, a `PackageId`, and a core project referencing another train; `ci.yml`'s pack check compares the two
+  readings (`package-ids.sh --trains`), and `release tooling` runs `release-trains.test.mjs`. The list is a property
+  function's read, invisible to `dotnet-affected`, so the plan runs everything for it.
 - The `coverage` matrix job, which the gate does not need, downloads the `coverage-*` artifacts
   (`coverage-unit-<family>`, `coverage-build`) and uploads one flag each: every unit report of the run under each
   family that ran, so that the lines of a family's packages another family's tests reach still count, and the

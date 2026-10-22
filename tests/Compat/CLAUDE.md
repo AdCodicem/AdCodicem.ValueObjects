@@ -1,17 +1,20 @@
 # tests/Compat — the .NET compatibility island
 
-The thirty-eight packages exactly as packed, installed from `artifacts/packages` at one fresh version into `net11.0`
-applications on the .NET 11 release candidate. It checks the packages, not the code. Runbook:
+The thirty-eight packages exactly as packed, installed from `artifacts/packages`, each at the version in its file
+name, into `net11.0` applications on the .NET 11 release candidate. It checks the packages, not the code. Runbook:
 `docs/maintaining.md`, "The .NET compatibility island".
 
 ```bash
-# From the repository root: pack at a fresh version, since NuGet reuses whatever ~/.nuget/packages holds at a version it has seen
+# From the repository root: pack into an empty folder at a fresh version, every release train at it, since NuGet reuses
+# whatever ~/.nuget/packages holds at a version it has seen, and the island installs every package the folder holds
 v=0.0.0-compat.$(date +%s)
-MINVERVERSIONOVERRIDE=$v dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
+rm -rf artifacts/packages
+RELEASE_TRAIN_VERSIONS="core=$v satellites=$v" \
+  dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 # Then from this folder
-cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj -p:AdCodicemVersion=$v
+cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj
 # Without Docker, add --filter-not-trait "Requires=Docker": the container tests fail rather than skip
-dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj -p:AdCodicemVersion=$v   # no Docker
+dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj   # no Docker
 ```
 
 - Invisible to the root tooling: its own `global.json` (the RC SDK CI installs exactly; `rollForward: latestFeature` lets a
