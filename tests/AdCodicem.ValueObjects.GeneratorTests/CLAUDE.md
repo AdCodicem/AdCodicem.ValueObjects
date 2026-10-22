@@ -45,7 +45,8 @@ The generator, every diagnostic, the analyzers and code fixes, incremental cachi
   `[DataContract]`, `[XmlType]` and `[Serializable]` come with the framework.
 - `SkillCoverageTests` reads the shipped assemblies and fails when an option, a hook, a diagnostic or an error code is
   missing from `skills/value-objects/`: add the entry it names.
-- A test reading a file of the repository, through a `RepositoryRoot()` or `SkillDirectory()` of its class, carries
+- A test reading a file of the repository, through a `RepositoryRoot()` or `SkillDirectory()` of any type or a method
+  looking for `AdCodicem.ValueObjects.slnx`, from its body, its data, its class's set-up or a fixture, carries
   `[Trait("Reads", "Documentation")]`, on itself or its class: a pull request changing only `README.md`,
   `website/docs/` or `skills/value-objects/` runs those tests alone (`.github/scripts/ci-plan.sh`), and
   `DocumentationTraitTests` fails on a reading test without the trait or a marked test that reads nothing.

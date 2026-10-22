@@ -13,9 +13,11 @@
     "folders and its sub-namespaces, and, for the root namespace, Web/ and Persistence/, which hold several families, the",
     "classes of the family by name; core and aspnet and efcore take what the others leave there.",
     "guards: the cross-package guards, run with any family: GeneratedSurface, DescriptorTests and RuntimeClosingTests.",
-    "unit.folders: the families a change to a top-level folder of the unit suite selects; '*' selects every family. A",
-    "change to a file at the suite's root selects every family with a class in the root namespace, since a file there",
-    "may declare a class of any of them; unit.shared lists the files used across families, which select every family."
+    "unit.folders: the families a change to a top-level folder of the unit suite selects, every family whose tests it",
+    "holds or serves; '*' selects every family. A .cs file of tests at the suite's root selects every family with a",
+    "class in the root namespace, since a file there may declare a class of any of them; unit.shared lists the files",
+    "used across families, which select every family, as any other file at the root (a helper holding no test, a test",
+    "configuration) and a file declaring an [assembly:] or [module:] attribute or a module initializer do."
   ],
   "families": {
     "core": {
