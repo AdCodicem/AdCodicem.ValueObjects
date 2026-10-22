@@ -22,7 +22,10 @@ reason and the package inputs that changed:
   time.
 - **repair**: a previous push stopped midway, so nuget.org has the base version for some packages only. The run
   packs that commit again at that version, tests included, and pushes only the missing packages. Whatever `HEAD`
-  changed since waits for the next run, so dispatch again once the repair is green.
+  changed since waits for the next run, so dispatch again once the repair is green. A version packed before the release
+  trains (ADR 0012) cannot be repaired by a later run, whose pack step takes arguments that commit's scripts do not:
+  the pack job fails and says so. Complete it with **Re-run failed jobs** on the publish job of the run that stopped
+  midway, as below.
 - **none**: nothing that ships changed. The tests, the pack and the push are skipped.
 
 Whatever it decided, a run whose jobs all succeeded redeploys the site, labelled with the version on nuget.org that

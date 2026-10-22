@@ -89,10 +89,12 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   next major version". At 1.0, replace the first `releaseRules` entry with `{ "breaking": true, "release": "major" }`,
   never delete it, or `build(pack)!` and `docs(readme)!` fall back to a patch.
 - The thirty-eight packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
-  supported in the same packages. ADR 0012 replaces the one version with two trains (core, satellites), accepted but
-  not built yet, so the one version holds. ADR 0013 targets the CI: its heavy jobs run after the merge and before a
-  release (`heavy.yml`), and a pull request runs the families of `.github/ci-families.json` and the lanes the files it
-  changes select (`.github/scripts/ci-plan.sh`; phase B, one unit-test project per family, each in a job of its own).
+  supported in the same packages. ADR 0012 replaces the one version with two trains (core, satellites), built up to
+  phase 1a: `src/release-trains.json` lists them, and `RELEASE_TRAIN_VERSIONS` (`core=X satellites=Y`) gives each its
+  version, which the workflows still set alike, so the one version holds. ADR 0013 targets the CI: its heavy jobs run
+  after the merge and before a release (`heavy.yml`), and a pull request runs the families of
+  `.github/ci-families.json` and the lanes the files it changes select (`.github/scripts/ci-plan.sh`; phase B, one
+  unit-test project per family, each in a job of its own).
 
 ## Architecture
 
@@ -288,6 +290,12 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   a new family brings a project of its own, which imports `tests/UnitTests.props` and joins the solution and the
   `InternalsVisibleTo` list of `src/Directory.Build.props`. Then replace `codecov.yml`'s flags between its `ci-families`
   markers with what `.github/scripts/ci-plan.sh --codecov-flags` prints (`.github/CLAUDE.md`).
+- **`src/release-trains.json` puts every project under `src/` in one release train** (ADR 0012): the core names its
+  projects, the generator and the code fix the main package carries included, and every other project rides the
+  train of `"*"`. MSBuild reads it at evaluation by a regular expression, so never a nested object, a brace or an
+  MSBuild expansion in a string: `.github/scripts/release-trains.mjs check` refuses them (`.github/CLAUDE.md`). Never
+  set `MINVERVERSIONOVERRIDE`: the build refuses it, since it would give every train one version; set
+  `RELEASE_TRAIN_VERSIONS` instead.
 - **Anything that changes a package's bytes or metadata is a `preview-gate.sh` input**, or it never reaches a preview;
   **a dependency added to a shipped package goes into `.github/shipped-dependencies`** in the same pull request, or CI
   fails. Both: `.github/CLAUDE.md`.
