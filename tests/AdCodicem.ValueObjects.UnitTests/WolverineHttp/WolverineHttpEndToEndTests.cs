@@ -358,7 +358,7 @@ public sealed record WolverineHttpAnswer(string Request, int? Status, string Bod
     /// <param name="refusals">The members refused, each with its code and its message.</param>
     public void ShouldRefuse(params (string Member, string Code, string Message)[] refusals)
     {
-        var problem = Web.MinimalApiProblemDetailsTests.ProblemOf(Status ?? 0, Body);
+        var problem = Web.ProblemReading.ProblemOf(Status ?? 0, Body);
         problem.Should().Be(new Web.ReadProblem(
             refusals.ToDictionary(static refusal => refusal.Member, static refusal => new[] { refusal.Message }),
             refusals.ToDictionary(static refusal => refusal.Member, static refusal => refusal.Code)));
@@ -371,7 +371,7 @@ public sealed record WolverineHttpAnswer(string Request, int? Status, string Bod
     /// <param name="code">The code of its first refusal.</param>
     /// <param name="messages">Its messages, in order.</param>
     public void ShouldRefuse(string member, string code, params string[] messages)
-        => Web.MinimalApiProblemDetailsTests.ProblemOf(Status ?? 0, Body).Should().Be(new Web.ReadProblem(
+        => Web.ProblemReading.ProblemOf(Status ?? 0, Body).Should().Be(new Web.ReadProblem(
             new() { [member] = messages },
             new() { [member] = code }));
 }

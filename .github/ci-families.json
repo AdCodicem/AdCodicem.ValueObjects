@@ -203,7 +203,8 @@
       "AdCodicem.ValueObjects.UnitTests.csproj",
       "CodeCarrying.cs",
       "WithoutDynamicCode.cs",
-      "TestData/SamplerFixtures.cs",
+      "TestData/Declared.cs",
+      "Web/ProblemReading.cs",
       "Web/SparseMessages.*",
       "Web/ValidationMessages.*"
     ]

@@ -41,7 +41,7 @@ public static class FunctionsParity
         var expected = TSelf.TryParse(literal, CultureInfo.InvariantCulture, out var quoted) ? quoted : small;
         (await ConvertAsync(typeof(TSelf), literal)).Value.Should().Be(expected, "{0} binds {1}", name, literal);
 
-        var (message, code) = MinimalApiProblemDetailsTests.Refusal<TSelf, TValue>(refused);
+        var (message, code) = ProblemReading.Refusal<TSelf, TValue>(refused);
         var refusal = await ConvertAsync(typeof(TSelf), refused);
         refusal.Status.Should().Be(ConversionStatus.Failed, "{0} refuses '{1}'", name, refused);
         refusal.Error!.Message.Should().Be($"The value is not a valid {TypeNames.Of(typeof(TSelf))}: {message} ({code})");

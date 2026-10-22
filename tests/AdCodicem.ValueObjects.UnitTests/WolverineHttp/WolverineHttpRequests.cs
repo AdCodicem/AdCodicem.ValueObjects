@@ -61,7 +61,7 @@ internal static class WolverineHttpRequests
     {
         (await ValueObjectHttpBinding.TryAnswerRefusalsAsync(request)).Should().BeTrue("the request was refused");
 
-        return MinimalApiProblemDetailsTests.ProblemOf(request.Response.StatusCode, await BodyAsync(request));
+        return ProblemReading.ProblemOf(request.Response.StatusCode, await BodyAsync(request));
     }
 
     /// <summary>Reads what a request's response holds.</summary>

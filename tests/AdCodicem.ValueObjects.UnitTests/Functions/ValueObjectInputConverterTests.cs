@@ -249,7 +249,7 @@ public sealed class ValueObjectInputConverterTests
         refusal.InnerException.Should().BeNull();
         refusal.Message.Should().NotContain("5000");
 
-        var (message, code) = MinimalApiProblemDetailsTests.Refusal<CustomerId, Guid>("not-a-guid");
+        var (message, code) = ProblemReading.Refusal<CustomerId, Guid>("not-a-guid");
         (await ConvertAsync<CustomerId>("not-a-guid")).Error!.Message.Should().Be($"The value is not a valid CustomerId: {message} ({code})");
         (await ConvertAsync<Ordering.OrderReference>("ab")).Error!.Message
             .Should().StartWith("The value is not a valid Ordering.OrderReference: ", "a nested type is named as C# names it");

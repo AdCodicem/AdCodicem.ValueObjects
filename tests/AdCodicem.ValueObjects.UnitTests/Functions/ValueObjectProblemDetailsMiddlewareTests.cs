@@ -143,7 +143,7 @@ public sealed class ValueObjectProblemDetailsMiddlewareTests
 
         request.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
         request.Response.ContentType.Should().Be("application/problem+json");
-        var (message, code) = MinimalApiProblemDetailsTests.Refusal<CustomerId, Guid>("not-a-guid");
+        var (message, code) = ProblemReading.Refusal<CustomerId, Guid>("not-a-guid");
         JsonSerializer.Serialize(JsonDocument.Parse(body).RootElement).Should().Be(JsonSerializer.Serialize(new Dictionary<string, object>
         {
             ["type"] = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
@@ -192,9 +192,9 @@ public sealed class ValueObjectProblemDetailsMiddlewareTests
         await FunctionsHttp.Middleware().RefuseAsync(invocation);
 
         (await FunctionsHttp.AnswerAsync(invocation, request)).Should().Be(Problem(
-            ("id", MinimalApiProblemDetailsTests.Refusal<CustomerId, Guid>("not-a-guid")),
+            ("id", ProblemReading.Refusal<CustomerId, Guid>("not-a-guid")),
             ("qty", ("The value must be less than or equal to 1000.", ValueObjectErrorCodes.OutOfRange)),
-            ("cc", MinimalApiProblemDetailsTests.Refusal<EmailAddress, string>(string.Empty)),
+            ("cc", ProblemReading.Refusal<EmailAddress, string>(string.Empty)),
             ("reference", ("The value must be at most 12 characters long.", ValueObjectErrorCodes.TooLong)),
             ("ticket", ("A ticket holds ASCII letters only.", ValueObjectErrorCodes.InvalidFormat)),
             ("silent", ("The value is not a valid HandWrittenId<SilentFunctionsProfile>.", ValueObjectErrorCodes.NotParsable))));
