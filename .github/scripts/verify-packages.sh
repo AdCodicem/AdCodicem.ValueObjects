@@ -14,7 +14,8 @@
 # (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). Every dependency on one of our
 # own packages must be bounded by the next version that may break it, its floor the version of that package in the
 # set: [V, 0.(m+1).0) while it is 0.x, [V, (M+1).0.0) from its 1.0, closed at -0 when the depending package is a
-# prerelease (src/Directory.Build.targets).
+# prerelease (src/Directory.Build.targets). Every package's README, its nuget.org page, must open with its own id and
+# keep no {{placeholder}} of src/PackageReadme.md, which _WritePackageReadme fills.
 set -euo pipefail
 
 packages_dir="${1:?packages directory required}"
@@ -64,6 +65,13 @@ for id in "${!expected[@]}"; do
   declared="$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' <<<"$nuspec" | head -n 1)"
   if [[ "$declared" != "${expected[$id]}" ]]; then
     echo "::error::$(basename "$package") declares version '$declared'." >&2
+    status=1
+  fi
+  readme="$(unzip -p "$package" README.md 2> /dev/null || true)"
+  heading="$(head -n 1 <<<"$readme")"
+  if [[ "${heading%$'\r'}" != "# $id" || "$readme" == *'{{'* ]]; then
+    echo "::error::$(basename "$package") carries no README of its own: it must open with '# $id' and keep no" \
+      "{{placeholder}} (src/PackageReadme.md, filled by _WritePackageReadme in src/Directory.Build.targets)." >&2
     status=1
   fi
   suffix=""
