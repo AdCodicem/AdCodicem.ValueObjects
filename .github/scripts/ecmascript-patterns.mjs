@@ -3,15 +3,15 @@
 // attribute of an input: new RegExp("^(?:" + pattern + ")$", "v"), the v flag the HTML standard compiles it with.
 //
 // Usage: node .github/scripts/ecmascript-patterns.mjs [table]
-//        (default tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json)
+//        (default tests/AdCodicem.ValueObjects.UnitTests.Text/Forms/EcmaScriptPatterns.json)
 //
 // The table is the one EcmaScriptPatternTests pins: each .NET pattern, the attribute the package writes for it, or null
 // where it writes none, and texts .NET accepts and refuses. The unit test checks the written attribute and .NET's
 // verdicts; this script checks that every attribute written compiles, accepts each text .NET accepts and refuses each
-// text .NET refuses. ci.yml's build job runs it when the text family runs, on the Node the site builds with.
+// text .NET refuses. ci.yml's unit job of the text family runs it, on the Node the site builds with.
 import { readFileSync } from "node:fs";
 
-const table = process.argv[2] ?? "tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json";
+const table = process.argv[2] ?? "tests/AdCodicem.ValueObjects.UnitTests.Text/Forms/EcmaScriptPatterns.json";
 const entries = JSON.parse(readFileSync(table, "utf8"));
 let failures = 0;
 let checked = 0;

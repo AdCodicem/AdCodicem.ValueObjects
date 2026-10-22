@@ -19,12 +19,13 @@ ignore:
   - "samples/**"
   - "benchmarks/**"
 
-# A pull request runs the unit tests of the families it changes (ADR 0013), and ci.yml uploads the unit report once per
-# family that ran, under that family's flag: each upload keeps the lines of its flag's paths, and the flags that did not
-# upload carry forward from the parent commit. One flag per upload, never several: a carried-forward upload is dropped
-# whole when an upload sharing one of its flags arrives, and would take the other families' lines with it. A push to
-# main runs every family, and so refreshes every flag. The generator and RDG suites upload when they run, the
-# integration suite from heavy.yml, each over src/.
+# A pull request runs the unit tests of the families it changes (ADR 0013), one project each, and ci.yml uploads every
+# unit report of the run once per family that ran, under that family's flag: each upload keeps the lines of its flag's
+# paths, those another family's tests reach included, and the flags that did not upload carry forward from the parent
+# commit. One flag per upload, never several: a carried-forward upload is dropped whole when an upload sharing one of
+# its flags arrives, and would take the other families' lines with it. A push to main runs every family, and so
+# refreshes every flag. The generator and RDG suites upload when they run, the integration suite from heavy.yml, each
+# over src/.
 flag_management:
   # Each flag carries forward by its own entry, so that a flag that leaves this list stops being carried forward.
   default_rules:

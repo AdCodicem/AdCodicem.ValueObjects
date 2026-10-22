@@ -25,7 +25,7 @@ env:
 jobs:
   # What this run builds and tests, and which of its jobs the gate holds to success (ADR 0013): on a pull request, the
   # families of .github/ci-families.json and the lanes the files it changes select, through dotnet-affected for the
-  # files under src/; on a push to main, everything. .github/scripts/ci-plan.sh has the rules, and checks the family
+  # projects' files, the unit suite's included; on a push to main, everything. .github/scripts/ci-plan.sh has the rules, and checks the family
   # table against the repository first. The depth of 2 gives it the merge commit's parents, against which it reads the
   # files a pull request changes; the SDK is installed only when the plan asks dotnet-affected.
   plan:
@@ -38,11 +38,10 @@ jobs:
       format: ${{ steps.plan.outputs.format }}
       dotnet: ${{ steps.plan.outputs.dotnet }}
       families: ${{ steps.plan.outputs.families }}
-      unit-filter: ${{ steps.plan.outputs.unit-filter }}
+      build: ${{ steps.plan.outputs.build }}
       generator: ${{ steps.plan.outputs.generator }}
       rdg: ${{ steps.plan.outputs.rdg }}
       compiled-model: ${{ steps.plan.outputs.compiled-model }}
-      ecmascript: ${{ steps.plan.outputs.ecmascript }}
       pack: ${{ steps.plan.outputs.pack }}
       site: ${{ steps.plan.outputs.site }}
       release: ${{ steps.plan.outputs.release }}
@@ -98,9 +97,113 @@ jobs:
       - name: Whitespace
         run: dotnet format whitespace . --folder --verify-no-changes --verbosity minimal
 
-  # The build, and what the plan selects of the three suites, the compiled model, the patterns written for browsers
-  # and the pack. Reported as "build"; the required check "build and test" is the aggregator at the end of this file,
-  # which needs this job. The integration suite runs in heavy.yml.
+  # Each family's project of the unit suite (ADR 0013), in a job of its own: it restores and builds that project's graph
+  # alone, runs its tests with coverage, and holds the report to the family's projects. The text family's job also
+  # checks the patterns the Blazor package writes for browsers under Node. Reported as "unit (<family>)"; the gate needs
+  # the matrix as one job.
+  unit:
+    name: unit (${{ matrix.family }})
+    needs: plan
+    if: needs.plan.outputs.families != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        family: ${{ fromJSON(needs.plan.outputs.families) }}
+    env:
+      FAMILY: ${{ matrix.family }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # MinVer derives the version of the projects under src/ from the tag history, which a shallow clone does not
+          # have.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The family's project, tests/<tests>/<tests>.csproj, of the family table.
+      - name: Project
+        id: project
+        run: |
+          set -euo pipefail
+          name="$(jq -er --arg family "$FAMILY" '.families[$family].tests' .github/ci-families.json)"
+          echo "path=tests/$name/$name.csproj" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: matrix.family == 'text'
+        with:
+          node-version: lts/*
+
+      # The pattern attribute the Blazor package writes for an input, which a
+      # browser compiles with the v flag: the table EcmaScriptPatternTests pins,
+      # checked in a JavaScript engine, the Node the documentation site builds with.
+      - name: Check the patterns written for browsers
+        if: matrix.family == 'text'
+        run: node .github/scripts/ecmascript-patterns.mjs tests/AdCodicem.ValueObjects.UnitTests.Text/Forms/EcmaScriptPatterns.json
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        env:
+          PROJECT: ${{ steps.project.outputs.path }}
+        run: dotnet restore "$PROJECT"
+
+      - name: Build
+        env:
+          PROJECT: ${{ steps.project.outputs.path }}
+        run: dotnet build "$PROJECT" --no-restore -c Release
+
+      - name: Unit tests
+        env:
+          PROJECT: ${{ steps.project.outputs.path }}
+        run: >-
+          dotnet test --project "$PROJECT"
+          --no-build -c Release
+          --report-trx --report-trx-filename "unit.$FAMILY.trx"
+          --coverage --coverage-output-format cobertura --coverage-output "unit.$FAMILY.cobertura.xml"
+
+      # The report, for the coverage job, which uploads every unit report of the run under each family's flag. Not the
+      # copies --report-trx attaches under TestResults/<run>/In/.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          # "Re-run all jobs" uploads the same name again in the same run.
+          overwrite: true
+          name: coverage-unit-${{ matrix.family }}
+          path: |
+            **/unit.${{ matrix.family }}.cobertura.xml
+            !**/In/**
+          if-no-files-found: error
+
+      # An assembly no test loads is absent from a report rather than at 0 %, and
+      # Codecov then leaves its lines out of the project's figure. Every project
+      # of the family, in the report of its tests, after the report is kept, so
+      # that it still reaches Codecov when this step fails.
+      - name: Every package of the family is measured
+        run: |
+          set -euo pipefail
+          mapfile -t reports < <(find . -name "unit.$FAMILY.cobertura.xml" -not -path '*/In/*')
+          if (( ${#reports[@]} != 1 )); then
+            echo "::error::Expected one unit.$FAMILY.cobertura.xml, found ${#reports[@]}." >&2
+            exit 1
+          fi
+          .github/scripts/coverage-modules.sh "${reports[0]}" "$FAMILY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          overwrite: true
+          name: test-results-unit-${{ matrix.family }}
+          path: '**/unit.${{ matrix.family }}.trx'
+          if-no-files-found: ignore
+
+  # What the plan selects beyond the unit suite: the projects dotnet-affected marks but the unit suite's, which the unit
+  # jobs build, through a solution filter, then the generator and RDG suites, the compiled model and the pack. Reported
+  # as "build"; the required check "build and test" is the aggregator at the end of this file, which needs this job. The
+  # integration suite runs in heavy.yml.
   build:
     name: build
     needs: plan
@@ -109,58 +212,34 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-    outputs:
-      coverage: ${{ steps.coverage.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # MinVer derives the version from the tag history, which a shallow clone does not have.
           fetch-depth: 0
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: needs.plan.outputs.ecmascript == 'true'
-        with:
-          node-version: lts/*
-
-      # The pattern attribute the Blazor package writes for an input, which a
-      # browser compiles with the v flag: the table EcmaScriptPatternTests pins,
-      # checked in a JavaScript engine, the Node the documentation site builds with.
-      - name: Check the patterns written for browsers
-        if: needs.plan.outputs.ecmascript == 'true'
-        run: node .github/scripts/ecmascript-patterns.mjs tests/AdCodicem.ValueObjects.UnitTests/Forms/EcmaScriptPatterns.json
-
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
 
-      - name: Restore
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --no-restore -c Release
-
-      # The families' --filter-query values, which xUnit ORs, the guards' among them; no filter when every family runs.
-      - name: Unit tests
-        if: needs.plan.outputs.families != '[]'
+      # The projects of the plan's `build` output, as a filter of the solution in the runner's temporary folder: every
+      # project but the unit suite's when everything runs.
+      - name: Projects
+        if: needs.plan.outputs.build != '[]'
         env:
-          UNIT_FILTER: ${{ needs.plan.outputs.unit-filter }}
+          PROJECTS: ${{ needs.plan.outputs.build }}
         run: |
           set -euo pipefail
-          filter=()
-          while IFS= read -r query; do
-            filter+=(--filter-query "$query")
-          done < <(jq -r '.[]' <<< "$UNIT_FILTER")
-          dotnet test --project tests/AdCodicem.ValueObjects.UnitTests \
-            --no-build -c Release \
-            --report-trx --report-trx-filename unit.trx \
-            --coverage --coverage-output-format cobertura --coverage-output unit.cobertura.xml \
-            "${filter[@]}"
+          jq -n --arg solution "$GITHUB_WORKSPACE/AdCodicem.ValueObjects.slnx" --argjson projects "$PROJECTS" \
+            '{solution: {path: $solution, projects: $projects}}' > "$RUNNER_TEMP/build.slnf"
 
-      # When every family runs, so after every merge: the families' filters and the guards' together list every test of
-      # the suite, so that a query written wrong cannot leave a test out of every pull request that runs its family.
-      - name: Every unit test belongs to a family
-        if: needs.plan.outputs.families != '[]' && needs.plan.outputs.unit-filter == '[]'
-        run: .github/scripts/unit-families-check.sh
+      - name: Restore
+        if: needs.plan.outputs.build != '[]'
+        run: dotnet restore "$RUNNER_TEMP/build.slnf"
+
+      - name: Build
+        if: needs.plan.outputs.build != '[]'
+        run: dotnet build "$RUNNER_TEMP/build.slnf" --no-restore -c Release
 
       - name: Generator tests
         if: needs.plan.outputs.generator == 'full'
@@ -169,6 +248,18 @@ jobs:
           --no-build -c Release
           --report-trx --report-trx-filename generator.trx
           --coverage --coverage-output-format cobertura --coverage-output generator.cobertura.xml
+
+      # The generator and the code fix, which no unit test loads: in the generator suite's report.
+      - name: The generator and the code fix are measured
+        if: needs.plan.outputs.generator == 'full'
+        run: |
+          set -euo pipefail
+          mapfile -t reports < <(find . -name generator.cobertura.xml -not -path '*/In/*')
+          if (( ${#reports[@]} != 1 )); then
+            echo "::error::Expected one generator.cobertura.xml, found ${#reports[@]}." >&2
+            exit 1
+          fi
+          .github/scripts/coverage-modules.sh "${reports[0]}" --generator
 
       # The tests that read README.md, website/docs/ and skills/value-objects/, which DocumentationTraitTests holds to
       # the trait. No coverage: a partial report under the generator flag would replace the whole suite's.
@@ -201,43 +292,29 @@ jobs:
         if: needs.plan.outputs.compiled-model == 'true'
         run: .github/scripts/compiled-model.sh compile
 
-      # The reports of the suites that ran, for the coverage job, which uploads them once per Codecov flag. The three
-      # suites cover genuinely different surfaces: the typed path, the generator, and minimal API binding as the Request
-      # Delegate Generator writes it. Coverage from the unit suite alone would flatter the descriptor, which is exactly
-      # where defects have hidden before. The integration suite's report, against real engines, comes from heavy.yml,
-      # for the same commit on main.
-      # Not the copies --report-trx attaches under TestResults/<run>/In/.
+      # The generator and RDG reports, for the coverage job, which uploads each under its own flag. The suites cover
+      # genuinely different surfaces from the unit suite's: the generator, and minimal API binding as the Request
+      # Delegate Generator writes it. The integration suite's report, against real engines, comes from heavy.yml, for
+      # the same commit on main. Not the copies --report-trx attaches under TestResults/<run>/In/.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        id: coverage
-        if: needs.plan.outputs.coverage != '[]'
+        if: needs.plan.outputs.generator == 'full' || needs.plan.outputs.rdg == 'true'
         with:
           # "Re-run all jobs" uploads the same name again in the same run.
           overwrite: true
-          name: coverage
+          name: coverage-build
           path: |
-            **/*.cobertura.xml
+            **/generator.cobertura.xml
+            **/rdg.cobertura.xml
             !**/In/**
           if-no-files-found: error
 
-      # An assembly no test loads is absent from the reports rather than at 0 %, and
-      # Codecov then leaves its lines out of the project's figure. Over the families
-      # that ran, after their reports are kept, so that the reports still reach
-      # Codecov when this step fails.
-      - name: Every shipped assembly is measured
-        if: needs.plan.outputs.families != '[]'
-        env:
-          FAMILIES: ${{ needs.plan.outputs.families }}
-        run: |
-          set -euo pipefail
-          mapfile -t families < <(jq -r '.[]' <<< "$FAMILIES")
-          .github/scripts/coverage-modules.sh "${families[@]}"
-
       # The packable projects under src/ only, through the solution filter preview.yml and
-      # release.yml pack with. Not --no-build: the generator is built into the main package
-      # through ResolveReferences during Pack, which trips NETSDK1085.
+      # release.yml pack with, restored here, since the build restores only what the plan
+      # selects. Not --no-build: the generator is built into the main package through
+      # ResolveReferences during Pack, which trips NETSDK1085.
       - name: Pack
         if: needs.plan.outputs.pack == 'true'
-        run: dotnet pack src/AdCodicem.ValueObjects.Packages.slnf --no-restore -c Release -o artifacts/packages
+        run: dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 
       # The solution filter cannot glob: a project added under src/ and left out of it would
       # be missing from every preview and release. Caught here, on the pull request that adds
@@ -279,14 +356,17 @@ jobs:
           name: packages
           path: artifacts/packages/*.*nupkg
 
-  # The reports, one upload per Codecov flag (codecov.yml): the unit report under each family that ran, each upload
-  # keeping the lines of its family's projects, and the generator and RDG reports under their own. The flags of what
-  # did not run carry forward from the parent commit. One flag per upload, since Codecov drops a carried-forward upload
-  # whole when an upload sharing any of its flags arrives. No check the gate needs: a failed upload blocks nothing.
+  # The reports, one upload per Codecov flag (codecov.yml): every unit report of the run under each family that ran,
+  # each upload keeping the lines of its family's projects, and the generator and RDG reports under their own. Every
+  # unit report, not the family's alone: the lines of a family's projects that another family's tests reach, and the
+  # copies of src/Shared/ another family's packages compile, stay counted, as they were in the one report of a single
+  # unit-test assembly. The flags of what did not run carry forward from the parent commit. One flag per upload, since
+  # Codecov drops a carried-forward upload whole when an upload sharing any of its flags arrives. No check the gate
+  # needs: a failed upload blocks nothing, and a flag missing a report of the run uploads nothing.
   coverage:
     name: coverage (${{ matrix.flag }})
-    needs: [plan, build]
-    if: ${{ !cancelled() && needs.plan.outputs.coverage != '[]' && needs.build.outputs.coverage != '' }}
+    needs: [plan, unit, build]
+    if: ${{ !cancelled() && needs.plan.outputs.coverage != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -301,35 +381,38 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      # By the artifact's id, never by name, and never with an empty id, which downloads every artifact of the run.
+      # The unit jobs' coverage-unit-<family> and the build's coverage-build, each in a folder of its own: a matrix job
+      # outputs no id per job, and the pattern names these artifacts alone, never an empty one, which downloads every
+      # artifact of the run.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          artifact-ids: ${{ needs.build.outputs.coverage }}
+          pattern: coverage-*
           path: ${{ runner.temp }}/coverage
 
-      - name: Pick the report
+      - name: Pick the reports
         id: report
         env:
           FLAG: ${{ matrix.flag }}
+          FAMILIES: ${{ needs.plan.outputs.families }}
           REPORTS: ${{ runner.temp }}/coverage
         run: |
           set -euo pipefail
           case "$FLAG" in
-            generator | rdg) name="$FLAG.cobertura.xml" ;;
-            *) name=unit.cobertura.xml ;;
+            generator | rdg) name="$FLAG.cobertura.xml"; expected=1 ;;
+            *) name='unit.*.cobertura.xml'; expected="$(jq length <<< "$FAMILIES")" ;;
           esac
-          # The report itself, not a copy --report-trx attached under TestResults/<run>/In/.
-          mapfile -t reports < <(find "$REPORTS" -name "$name" -not -path '*/In/*')
-          if (( ${#reports[@]} != 1 )); then
-            echo "::error::Expected one $name for the $FLAG flag, found ${#reports[@]}." >&2
+          # The reports themselves, not the copies --report-trx attached under TestResults/<run>/In/.
+          mapfile -t reports < <(find "$REPORTS" -name "$name" -not -path '*/In/*' | LC_ALL=C sort)
+          if (( ${#reports[@]} != expected )); then
+            echo "::error::Expected $expected report(s) $name for the $FLAG flag, found ${#reports[@]}: a job of the run kept none." >&2
             exit 1
           fi
-          echo "file=${reports[0]}" >> "$GITHUB_OUTPUT"
+          echo "files=$(IFS=,; echo "${reports[*]}")" >> "$GITHUB_OUTPUT"
 
       - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ${{ steps.report.outputs.file }}
+          files: ${{ steps.report.outputs.files }}
           disable_search: true
           flags: ${{ matrix.flag }}
           name: ${{ matrix.flag }}
@@ -423,7 +506,7 @@ jobs:
   gate:
     name: build and test
     if: always()
-    needs: [plan, format, build, release-tooling, heavy]
+    needs: [plan, format, unit, build, release-tooling, heavy]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
