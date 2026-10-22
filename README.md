@@ -935,12 +935,15 @@ without failing the build.
 
 ```
 src/          the shipped packages
-tests/        unit tests, generator tests, and integration tests on real database engines
+tests/        unit tests (a project per package family), generator tests, and integration tests on real database engines
   Compat/     the packed packages in .NET 11 applications, outside the solution
 samples/      a showcase API exercising the whole chain end to end
 benchmarks/   the measurements behind the design decisions above
 skills/       the agent skill, and the plugin manifest that distributes it
 ```
+
+The unit suite is eleven projects, one per package family of `.github/ci-families.json` (its `tests`): a test runs
+from the project of its family, and CI runs each family's project in a job of its own.
 
 Integration tests start PostgreSQL, SQL Server, MongoDB and the Azure Functions host through Testcontainers, so they
 need a Docker daemon.
@@ -949,10 +952,13 @@ need a Docker daemon.
 
 ```
 dotnet build
-dotnet test --project tests/AdCodicem.ValueObjects.UnitTests        # no Docker needed
-dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests  # no Docker needed
-dotnet test                                                    # everything, Docker required
-dotnet pack -c Release
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests        # the core family's unit tests, no Docker needed
+dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text   # another family's, no Docker needed
+jq -r '.families[].tests' .github/ci-families.json | xargs -I{} dotnet test --project tests/{}   # every family's
+dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests   # no Docker needed
+dotnet test --project tests/AdCodicem.ValueObjects.RdgTests         # no Docker needed
+dotnet test                                                          # everything, Docker required
+dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages   # the packable projects only
 ```
 
 Benchmarks are a separate run, and want a quiet machine:
