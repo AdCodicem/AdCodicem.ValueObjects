@@ -125,7 +125,8 @@ Run on Confluent.SchemaRegistry.Serdes.Json 2.16.0 over a substitute registry cl
   the key or the value type of a topic itself: it travels inside a message.
 - **What Confluent validates.** It runs NJsonSchema's validator with no format validator, so `format: email` checks
   nothing. That validator throws `InvalidCastException` on a JSON integer beyond the range of a `long`, whatever the
-  schema says, a `ulong` value object above `long.MaxValue` among them, with or without this package. It compares a
+  schema says, a `ulong` value object above `long.MaxValue` among them, with or without this package
+  (RicoSuter/NJsonSchema#568). It compares a
   closed set's values by their text, a real read as a `double`, so the `enum` of a closed set of decimals lists each as
   a double, `20.0` for `20.00`, and one no double holds rounded, `0.3333333333333333` for a third written to 28
   places, which the type refuses: give such a set values a double holds. An OpenAPI document, which no such validator

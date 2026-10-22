@@ -99,7 +99,8 @@ of `tests/NativeAot`, and EF Core 11 in the island.
 - `ValueObjectCheckErrorInterceptor` must stay both `IDbCommandInterceptor` and `ISaveChangesInterceptor`: EF Core calls
   `CommandFailed` only around `DbCommand.Execute*`, and an error raised while `ReaderModificationCommandBatch` consumes
   results (a later statement of a batch, `RETURNING` or `OUTPUT INSERTED` reading back a key, SQL Server's multi-row
-  `MERGE`, `UPDATE … OUTPUT 1`) reaches only `SaveChangesFailed`, inside the `DbUpdateException`.
+  `MERGE`, `UPDATE … OUTPUT 1`) reaches only `SaveChangesFailed`, inside the `DbUpdateException`
+  (dotnet/efcore#35229).
 - No interceptor sees an error raised while a query's rows are read: on SQL Server, `SqlQueryRaw` or `FromSqlRaw` over
   `OUTPUT` fails with 547 and no code, which the guide states and `ValueObjectCheckConstraints.TryGetCode` reads;
   PostgreSQL's and SQLite's `RETURNING` fail as the command runs.

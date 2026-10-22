@@ -877,9 +877,12 @@ found for input type type `Shop.Iban`.``), and an output value object is an obje
   `IncludeTextOperations()` and the default convention (else the schema fails: "no handler found"). Without the package,
   a filter names `value` and compares raw text, which EF Core translates only under `UseValueObjectQueries()`. Sorting
   and projections need nothing.
+- Declare a field filtered through a named convention after the default convention's fields (on a base query class, when
+  the query class derives one): declared first, it fails the schema at start, a type registered twice.
 - Native AOT: the packages' code is clean, but HotChocolate 16.6.8's binary needs
-  `<TrimmerRootAssembly Include="HotChocolate.Types" />` and the application's assembly rooted; take list arguments as
-  `List<T>`, `IReadOnlyList<T>` or arrays. HotChocolate.Data's filtering of a value object has no native code.
+  `<TrimmerRootAssembly Include="HotChocolate.Types" />`, and the application's assembly rooted when HotChocolate builds
+  its types by reflection (`AddQueryType<Query>()` over a plain class); take list arguments as `List<T>`,
+  `IReadOnlyList<T>` or arrays. HotChocolate.Data's filtering of a value object has no native code.
 - Not covered: HotChocolate 15 and earlier, `AnyEntityId`, Relay `[ID]` (on a filtered value object, HotChocolate's
   `IdOperationFilterInput` replaces the package's input, then fails), mutation conventions, subscriptions, Fusion,
   HotChocolate.Data's MongoDb, Marten and Raven providers, text operations in a named convention.

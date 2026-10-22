@@ -179,8 +179,9 @@ nothing public lets a package change that mapping. So in a static form:
 - **A refused value is answered with the framework's message**, "The value 'XX' is not valid for 'Account'.", which quotes
   the text and carries neither the rule's message nor its code, and the member it refused holds its default.
 - **An optional value object left empty is refused**, "The value '' is not valid for 'Optional'.": the framework maps
-  empty text to `null` only for primitive types, `DateOnly`, `TimeOnly` and `DateTimeOffset`, on purpose
-  (dotnet/aspnetcore#52499 and #60498).
+  empty text to `null` only for primitive types, `DateOnly`, `TimeOnly` and `DateTimeOffset`, and from .NET 11
+  `TimeSpan`, `Guid`, `Int128`, `UInt128` and `Half` (dotnet/aspnetcore#60498 and #66625). A custom `IParsable<T>`
+  struct has no way to map empty text to `null`, reported as dotnet/aspnetcore#69901.
 - **Accepted text binds**, normalized, and the invariant text the input writes reads back untouched: a date, a time, a
   duration and a number in a `fr-FR` page alike.
 

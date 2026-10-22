@@ -34,7 +34,8 @@
   validation) and wants it on the primary constructor's parameter, where neither OpenAPI generator reads a
   `[StringLength]`; .NET 10's validation generator describes public types only and turns an attribute's exception into a
   400 carrying its message, where .NET 11 lets it propagate and looks a message up under `{Attribute}_Error`; the
-  `[OptionsValidator]` validator names a member `Type.Member` on .NET 10 and the member alone on .NET 11. The island pins
+  `[OptionsValidator]` validator names a member `Type.Member` on .NET 10 and the member alone on .NET 11, a named
+  instance keeping `Name.Member` (dotnet/runtime#135978 asks whether that is intended). The island pins
   the .NET 11 side (`tests/Compat`).
 
 ## XML (`ValueObjectXml`, `XsdPattern`)

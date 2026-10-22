@@ -52,7 +52,9 @@ Targets `netstandard2.0`, ships inside the `AdCodicem.ValueObjects` package (not
   references included, whatever `ExcludeAssets` says: its `buildTransitive` props set
   `DisableMicrosoftExtensionsLoggingSourceGenerator`, and its Microsoft.Gen.Logging analyzer takes over.
 - The analyzer's `LoggedProperties` and `Expandable` follow Microsoft.Gen.Logging 10.11.0, read from its assembly, and
-  `GeneratorTests/LoggingGeneratorAssumptionsTests.cs` pins each behaviour. Gen.Logging:
+  `GeneratorTests/LoggingGeneratorAssumptionsTests.cs` pins each behaviour. Reported as dotnet/extensions#7855 (a type's
+  classification), #7856 (expansion and `Transitive`), #7857 (CS7036) and #7858 (a stack overflow on `Transitive`):
+  when one is fixed, the matching assumption test fails first. Gen.Logging:
   - reads a classification on a parameter or a property only, never on the type of a value it logs whole;
   - passes a value object of the same project as its `ToString()`, and expands one of another assembly, or written by
     hand, into its public properties under `[LogProperties]`, which then carry the type's classification alone;

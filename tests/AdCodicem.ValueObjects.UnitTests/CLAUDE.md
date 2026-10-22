@@ -137,7 +137,8 @@ a package are in its own `src/<Package>/CLAUDE.md`; this file holds the suite's 
   `CsvHelper.Configuration.Attributes` (two `TypeConverterAttribute`s). A generated value object's `IsDefault` is an
   explicit implementation: read it through `CsvHarness.IsUninitialized()`.
 - HotChocolate: `GraphQL/GraphQLHarness` builds executors in process. The project sets `HotChocolateImplicitUsings` to
-  `disable`. `ScopedFilterQuery` has no projection (a `[UseProjection]` field beside a named convention fails the schema).
+  `disable`. `ScopedFilterQuery` declares its default-convention field first: a named convention's field declared before
+  it fails the schema (ChilliCream/graphql-platform#10565).
 - `RegisteredAsciiDeclaration` is the one schema written by hand that a test resolves through the registry.
 - Orleans: Microsoft.Orleans.TestingHost brings Orleans' code generator, its analyzers and global usings of `Orleans`,
   `Orleans.Hosting` and `Orleans.Runtime` into this project (through Microsoft.Orleans.Sdk): a type of the suite named

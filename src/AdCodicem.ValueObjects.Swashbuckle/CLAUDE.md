@@ -13,6 +13,7 @@ The description it shares with the OpenAPI transformer is `src/Shared/ValueObjec
 - Swashbuckle creates its schema filters with `ActivatorUtilities` while it configures `SchemaGeneratorOptions`. A filter
   whose constructor takes `SchemaGeneratorOptions`, `ISchemaGenerator` or, from 10.3.0, `ISerializerDataContractResolver`
   has the options configured again from inside their own configuration, and the document request hangs, with no error,
-  once the container's `StackGuard` moves the recursion to a thread waiting on the first one's lock.
+  once the container's `StackGuard` moves the recursion to a thread waiting on the first one's lock
+  (domaindrivendev/Swashbuckle.AspNetCore#4207).
   `IOptions<SchemaGeneratorOptions>` alone is safe, its value read lazily. `ValueObjectSchemaFilter` takes the container
   and resolves both as it describes a schema: keep it so. Tests await every document with a timeout.

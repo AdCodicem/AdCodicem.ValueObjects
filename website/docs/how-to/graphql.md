@@ -367,7 +367,8 @@ operand is a `String`, never the value object: `FR` is no IBAN. They compare its
   convention found. Call `AddFiltering()` on the schema builder.`` The comparable operations work wherever the call
   stands.
 - **Cost.** HotChocolate's cost analysis weighs a `String` member's text operations as expensive, 20, through a flag that
-  is internal to it: the package's take the default cost of a filter operation, 10.
+  is internal to it: the package's take the default cost of a filter operation, 10
+  (ChilliCream/graphql-platform#10568).
 
 ### Names
 
@@ -452,7 +453,9 @@ without help, so CI publishes no HotChocolate application:
 
 - Its publish warns (`IL2104` for HotChocolate.Types and GreenDonut, `IL3053`, `IL3000`, `IL3002`).
 - Its binary aborts at start, `A suitable constructor for type 'HotChocolate.Fetching.DataLoaderRootFieldTypeInterceptor'
-  could not be located.`, unless HotChocolate.Types and the application's assembly are rooted:
+  could not be located.`, unless HotChocolate.Types is rooted (ChilliCream/graphql-platform#10566). An application whose
+  types HotChocolate builds by reflection, `AddQueryType<Query>()` over a plain class, roots its own assembly too, or
+  the schema finds no field:
 
   ```xml
   <ItemGroup>
@@ -492,8 +495,10 @@ missing native code. MethodInfo.MakeGenericMethod() is not compatible with AOT c
 - **A `[UseFiltering]` field returning value objects themselves**, `IQueryable<Iban>`, which keeps HotChocolate's
   inferred `IbanFilterInput { countryCode value }`: the argument's own type is no member a filter input holds. Nor a
   list of lists.
-- **A `[UseProjection]` field beside a field filtered through a named convention**, over a row holding an object of its
-  own: HotChocolate 16.6.8 fails such a schema at start, a type registered twice, with or without the package.
+- **A field filtered through a named convention declared before a field of the default convention**: HotChocolate
+  16.6.8 fails such a schema at start, a type registered twice, with or without the package
+  (ChilliCream/graphql-platform#10565). Declare the default convention's fields first; on a query class deriving
+  another, put the named convention's fields on the base class, since C# lists a derived class's members first.
 - **The built-in scalars.** A value object is always a scalar of its own; publishing `String!` or `UUID!` instead would
   change the wire form of three underlying types, HotChocolate's `DateTime` requiring an offset, its `Duration` being
   ISO 8601, and a `char`, an `Int128` or a `UInt128` having no built-in scalar at all.

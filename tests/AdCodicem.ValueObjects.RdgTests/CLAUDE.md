@@ -12,6 +12,7 @@ own project.
 - Only the RDG refuses no empty query text and takes an empty header for an absent one (`ProblemEndpoints.cs`). The
   problem details filter tells its endpoints by the `GeneratedCodeAttribute` the RDG adds to their metadata, which a test
   pins, so that an SDK dropping it fails here first.
-- `[AsParameters]` takes a class: the RDG of 10.0.12 does not compile a positional record of `string?` (CS8639), and
+- `[AsParameters]` takes a class: the RDG of 10.0.12 does not compile a positional record of `string?` (CS8639,
+  dotnet/aspnetcore#58953), and
   `Microsoft.AspNetCore.OpenApi` 10.0.12 fails the whole document for such a record with a validation attribute on a
   constructor parameter (dotnet/aspnetcore#65348). The guide uses `property:` there.
