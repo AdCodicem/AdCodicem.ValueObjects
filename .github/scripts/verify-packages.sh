@@ -11,7 +11,10 @@
 # Previews publish all the packages or none, so the set is checked as a whole: one id missing, one too many, or one
 # at another version stops the run before the first push, since nuget.org takes no package back. The pairs name each
 # file: the trains share the folder and may share a number
-# (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).
+# (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). Every dependency on one of our
+# own packages must be bounded by the next version that may break it, its floor the version of that package in the
+# set: [V, 0.(m+1).0) while it is 0.x, [V, (M+1).0.0) from its 1.0, closed at -0 when the depending package is a
+# prerelease (src/Directory.Build.targets).
 set -euo pipefail
 
 packages_dir="${1:?packages directory required}"
@@ -57,11 +60,39 @@ for id in "${!expected[@]}"; do
     status=1
     continue
   fi
-  declared="$(unzip -p "$package" '*.nuspec' | sed -n 's:.*<version>\(.*\)</version>.*:\1:p' | head -n 1)"
+  nuspec="$(unzip -p "$package" '*.nuspec')"
+  declared="$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' <<<"$nuspec" | head -n 1)"
   if [[ "$declared" != "${expected[$id]}" ]]; then
     echo "::error::$(basename "$package") declares version '$declared'." >&2
     status=1
   fi
+  suffix=""
+  [[ "${expected[$id]}" != *-* ]] || suffix="-0"
+  while read -r dependency range; do
+    [[ -n "$dependency" ]] || continue
+    floor="${expected[$dependency]:-}"
+    if [[ -z "$floor" ]]; then
+      echo "::error::$id depends on $dependency $range, which is not in the set." >&2
+      status=1
+      continue
+    fi
+    if [[ ! "$floor" =~ ^([0-9]+)\.([0-9]+)\. ]]; then
+      echo "::error::$dependency $floor is no version to bound." >&2
+      status=1
+      continue
+    fi
+    if (( BASH_REMATCH[1] == 0 )); then
+      upper="0.$(( BASH_REMATCH[2] + 1 )).0$suffix"
+    else
+      upper="$(( BASH_REMATCH[1] + 1 )).0.0$suffix"
+    fi
+    if [[ "$range" != "[$floor, $upper)" ]]; then
+      echo "::error::$id depends on $dependency $range, not [$floor, $upper):" \
+        "the version packed against, bounded by the next that may break it." >&2
+      status=1
+    fi
+  done < <(grep -oP '<dependency id="\KAdCodicem\.ValueObjects[^"]*" version="[^"]*' <<<"$nuspec" \
+    | sed 's/" version="/ /' || true)
 done
 
 if (( status == 0 )); then
