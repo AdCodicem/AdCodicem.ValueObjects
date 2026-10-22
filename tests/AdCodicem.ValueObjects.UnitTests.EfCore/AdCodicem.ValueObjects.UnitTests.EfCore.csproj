@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The efcore family's unit tests (.github/ci-families.json): AdCodicem.ValueObjects.EntityFrameworkCore and
+    AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.
+  -->
+  <Import Project="..\UnitTests.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore\AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A provider, so that a DbContext can build the model the Entity Framework Core conventions shape; building it
+         opens no connection. SQLite in memory, which needs no server, runs what only an engine shows: of a primitive
+         collection of value objects, the JSON it stores, the queries over its elements and change tracking; the keys
+         SQLite generates; `.Value` translated to the column; and the CHECK constraints written from the rules,
+         accepting and refusing rows. The in-memory provider, which is not relational, generates no integer key. What a
+         real server makes of them stays in the integration suite. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+  </ItemGroup>
+
+  <!-- The sources of other families' folders this project compiles too, at the same path, so that a resource keeps
+       its name. -->
+  <ItemGroup>
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests.Data\Persistence\MongoDbShapedCode.cs" Link="Persistence\MongoDbShapedCode.cs" />
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\Persistence\NonUnicodeValueObjects.cs" Link="Persistence\NonUnicodeValueObjects.cs" />
+  </ItemGroup>
+
+</Project>

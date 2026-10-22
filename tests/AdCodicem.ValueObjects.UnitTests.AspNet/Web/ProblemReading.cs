@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AdCodicem.ValueObjects.AspNetCore;
 using Microsoft.AspNetCore.Http;
 
@@ -56,3 +57,12 @@ public sealed record ReadProblem(Dictionary<string, string[]> Messages, Dictiona
     public override string ToString()
         => string.Join("; ", Messages.Select(entry => $"{entry.Key}: [{string.Join(" | ", entry.Value)}] {Codes.GetValueOrDefault(entry.Key)}"));
 }
+
+/// <summary>A serializer context that knows the validation problem, and not the <see cref="JsonElement"/> of its codes.</summary>
+[JsonSerializable(typeof(HttpValidationProblemDetails))]
+internal sealed partial class ProblemOnlyJsonContext : JsonSerializerContext;
+
+/// <summary>A serializer context that knows the validation problem and the <see cref="JsonElement"/> of its codes.</summary>
+[JsonSerializable(typeof(HttpValidationProblemDetails))]
+[JsonSerializable(typeof(JsonElement))]
+internal sealed partial class ProblemJsonContext : JsonSerializerContext;

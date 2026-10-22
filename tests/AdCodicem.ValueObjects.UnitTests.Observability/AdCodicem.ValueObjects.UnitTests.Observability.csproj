@@ -1,0 +1,68 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The observability family's unit tests (.github/ci-families.json): Serilog and Microsoft.Gen.Logging's redaction,
+    Microsoft.Extensions.AI, Agent Framework and the Model Context Protocol, and FluentValidation.
+  -->
+  <Import Project="..\UnitTests.props" />
+
+  <PropertyGroup>
+    <!-- Microsoft.Extensions.Telemetry, which Logging/ redacts through, and the Redaction fixture bring
+         Microsoft.Gen.Logging, whose build targets set this to true and drop Microsoft.Extensions.Logging's own
+         [LoggerMessage] generator, which SerilogMicrosoftExtensionsLoggingTests runs a method through: kept, with the
+         KeepTheDefaultLoggingGenerator target below. -->
+    <DisableMicrosoftExtensionsLoggingSourceGenerator>false</DisableMicrosoftExtensionsLoggingSourceGenerator>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Serilog\AdCodicem.ValueObjects.Serilog.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AI\AdCodicem.ValueObjects.AI.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.ModelContextProtocol\AdCodicem.ValueObjects.ModelContextProtocol.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A value object in a module no test has touched yet; generated ones in an assembly that does not reference the
+         JSON package; and [LoggerMessage] methods Microsoft.Gen.Logging writes, beside value objects classified as
+         personal data, which this assembly's generator would otherwise write. -->
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Untouched\AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WithoutJson\AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Redaction\AdCodicem.ValueObjects.Fixtures.Redaction.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- EnableRedaction() and the redactors an application registers, which Logging/ runs the Redaction fixture's
+         [LoggerMessage] methods through, as an application does. -->
+    <PackageReference Include="Microsoft.Extensions.Telemetry" />
+    <PackageReference Include="Microsoft.Extensions.Compliance.Redaction" />
+    <!-- What an application writes Serilog events with: the compact JSON formatter, Serilog.Expressions' filters and
+         templates, and the Microsoft.Extensions.Logging provider, which LogInformation and [LoggerMessage] calls go
+         through. -->
+    <PackageReference Include="Serilog.Formatting.Compact" />
+    <PackageReference Include="Serilog.Expressions" />
+    <PackageReference Include="Serilog.Extensions.Logging" />
+    <!-- What an application calls tools and reads structured output through: FunctionInvokingChatClient and
+         ChatResponse<T>, and the OpenAI adapter, whose strict-mode request LanguageModels/ captures through a handler of
+         its own, with no network. -->
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+    <!-- Agent Framework, whose ChatClientAgent calls the same tools through FunctionInvokingChatClient, and whose
+         RunAsync<T> builds a response format no schema option reaches. -->
+    <PackageReference Include="Microsoft.Agents.AI" />
+  </ItemGroup>
+
+  <!--
+    Microsoft.Gen.Logging, which Microsoft.Extensions.Telemetry.Abstractions brings whatever ExcludeAssets says, would
+    write this assembly's [LoggerMessage] methods beside Microsoft.Extensions.Logging's generator (CS0757), and pass a
+    value object of this assembly as its text, where SerilogMicrosoftExtensionsLoggingTests expects the value object:
+    its analyzers are removed once the references are resolved, and the property above keeps the default generator,
+    which the package's own target would remove too, leaving none (CS8795). The methods it writes are the Redaction
+    fixture's.
+  -->
+  <Target Name="KeepTheDefaultLoggingGenerator" AfterTargets="ResolveReferences">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="'%(Analyzer.NuGetPackageId)' == 'Microsoft.Extensions.Telemetry.Abstractions'" />
+    </ItemGroup>
+  </Target>
+
+</Project>

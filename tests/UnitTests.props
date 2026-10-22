@@ -1,0 +1,63 @@
+<Project>
+
+  <!--
+    What every project of the unit suite shares (docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md):
+    the core family's tests/AdCodicem.ValueObjects.UnitTests and the project of each other family of
+    .github/ci-families.json, which the plan selects and ci.yml builds and runs alone. One suite split by family: the same
+    root namespace, so that a test's name does not depend on the project holding it, and the same value objects, the
+    sources of Domain/ compiled into each project from the core project's folder, so that every value object lives in the
+    assembly whose tests use it and its module initializer has run before any of them.
+  -->
+  <PropertyGroup>
+    <RootNamespace>AdCodicem.ValueObjects.UnitTests</RootNamespace>
+
+    <!-- Generated sources land on disk so they can be read, diffed and reviewed like any other code. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
+
+    <UnitTestsSources>$(MSBuildThisFileDirectory)AdCodicem.ValueObjects.UnitTests\</UnitTestsSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Under an alias too: the reader of a .NET pattern, src/Shared/ValueObjectPatternSyntax.cs, is compiled into the
+         contracts and into the MongoDB package, and its tests name the contracts' copy through the alias. -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\AdCodicem.ValueObjects.Abstractions\AdCodicem.ValueObjects.Abstractions.csproj" Aliases="global,abstractions" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
+    <!-- Under an alias too: src/Shared/TypeNames.cs is compiled into the sampler, into each of its library adapters and
+         into the Entity Framework Core package, and its tests name the sampler's copy through the alias. -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\AdCodicem.ValueObjects.Testing.Data\AdCodicem.ValueObjects.Testing.Data.csproj" Aliases="global,testingdata" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\AdCodicem.ValueObjects.Generators\AdCodicem.ValueObjects.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <!-- DataClassificationAttribute, which a value object of Domain/ derives to be classified as personal data. -->
+    <PackageReference Include="Microsoft.Extensions.Compliance.Abstractions" />
+  </ItemGroup>
+
+  <!--
+    What every other project compiles from the core project's folder, under the same paths: the value objects of Domain/;
+    the hub of GeneratedSurface/, which each family's part, GeneratedSurface/Sample.<Family>.cs, completes with its
+    checks; Declared<TDeclaration, TValue>, which a test closes over a declaration of its own; and RuntimeClosingTests,
+    the one linked file holding a test, which reads the IL of the packages of the project's own family alone.
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'AdCodicem.ValueObjects.UnitTests'">
+    <Compile Include="$(UnitTestsSources)Domain\**\*.cs" Link="Domain\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="$(UnitTestsSources)GeneratedSurface\Sample.cs" Link="GeneratedSurface\Sample.cs" />
+    <Compile Include="$(UnitTestsSources)GeneratedSurface\Samples.cs" Link="GeneratedSurface\Samples.cs" />
+    <Compile Include="$(UnitTestsSources)GeneratedSurface\NumericSample.cs" Link="GeneratedSurface\NumericSample.cs" />
+    <Compile Include="$(UnitTestsSources)TestData\Declared.cs" Link="TestData\Declared.cs" />
+    <Compile Include="$(UnitTestsSources)RuntimeClosingTests.cs" Link="RuntimeClosingTests.cs" />
+  </ItemGroup>
+
+  <!-- The family table, which RuntimeClosingTests reads the packages of this project's family from. -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)..\.github\ci-families.json" LogicalName="ci-families.json" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="AdCodicem.ValueObjects" />
+    <Using Include="AdCodicem.ValueObjects.Annotations" />
+    <Using Include="AdCodicem.ValueObjects.UnitTests.Domain" />
+  </ItemGroup>
+
+</Project>

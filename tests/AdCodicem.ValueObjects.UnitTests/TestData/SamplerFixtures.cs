@@ -109,10 +109,6 @@ public readonly partial struct Price : IValueObjectMinimum<decimal>, IValueObjec
     public static decimal Maximum => 999.99m;
 }
 
-/// <summary>A decimal with no bound, drawn across the whole type.</summary>
-[ValueObject<decimal>]
-public readonly partial struct UnboundedDecimal;
-
 /// <summary>A decimal bounded at the extremes of the type, past which no step is taken.</summary>
 [ValueObject<decimal>]
 public readonly partial struct CappedDecimal : IValueObjectMinimum<decimal>, IValueObjectMaximum<decimal>

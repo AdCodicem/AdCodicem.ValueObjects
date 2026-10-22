@@ -12,15 +12,15 @@
 
   <ItemGroup Label="Source generators and analyzers">
     <!-- The Roslyn API the generator is built against, which sets the oldest compiler a consumer may use, and which the
-         generator tests compile snippets with. The unit suite takes 5.0.0: it compiles NSwag's client with Roslyn,
-         and it reaches Orleans, whose Microsoft.Orleans.Serialization brings Microsoft.CodeAnalysis.Common 5.0.0, which
-         CSharp 4.14.0 refuses (NU1608, an error here). So does the Wolverine.Http fixture application, whose
-         WolverineFx.RuntimeCompilation compiles the endpoints' generated code through JasperFx.RuntimeCompiler 5.0.0,
-         which asks for Microsoft.CodeAnalysis 5.0.0, CSharp 5.0.0 and, through the first, CSharp.Workspaces 5.0.0
-         exactly (NU1109 otherwise). Conditioned on the project rather than set by a VersionOverride, so that every
-         version stays in this file. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" Condition="'$(MSBuildProjectName)' != 'AdCodicem.ValueObjects.UnitTests' and '$(MSBuildProjectName)' != 'AdCodicem.ValueObjects.Fixtures.WolverineHttp'" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" Condition="'$(MSBuildProjectName)' == 'AdCodicem.ValueObjects.UnitTests' or '$(MSBuildProjectName)' == 'AdCodicem.ValueObjects.Fixtures.WolverineHttp'" />
+         generator tests compile snippets with, as the unit suite's projects compile NSwag's client, Marten's compiled
+         queries and the code Wolverine writes. The Orleans project reaches Microsoft.CodeAnalysis.Common 5.0.0 through
+         Microsoft.Orleans.Serialization, and references no CSharp, which 4.14.0 would refuse it beside (NU1608). The
+         Wolverine.Http fixture application takes 5.0.0: its WolverineFx.RuntimeCompilation compiles the endpoints'
+         generated code through JasperFx.RuntimeCompiler 5.0.0, which asks for Microsoft.CodeAnalysis 5.0.0, CSharp 5.0.0
+         and, through the first, CSharp.Workspaces 5.0.0 exactly (NU1109 otherwise). Conditioned on the project rather
+         than set by a VersionOverride, so that every version stays in this file. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" Condition="'$(MSBuildProjectName)' != 'AdCodicem.ValueObjects.Fixtures.WolverineHttp'" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" Condition="'$(MSBuildProjectName)' == 'AdCodicem.ValueObjects.Fixtures.WolverineHttp'" />
     <!-- The code fix, in an assembly of its own: RS1038 refuses Workspaces where an analyzer or a generator lives. The
          Wolverine.Http fixture application takes 5.0.0, as above. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" Condition="'$(MSBuildProjectName)' != 'AdCodicem.ValueObjects.Fixtures.WolverineHttp'" />

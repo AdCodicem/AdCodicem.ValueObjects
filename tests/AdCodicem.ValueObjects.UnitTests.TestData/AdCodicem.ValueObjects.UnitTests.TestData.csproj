@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The testdata family's unit tests (.github/ci-families.json): the contract kit of AdCodicem.ValueObjects.Testing,
+    the sampler's adapters for AutoFixture, Bogus and FsCheck, and the properties PropertyTests runs.
+  -->
+  <Import Project="..\UnitTests.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Testing\AdCodicem.ValueObjects.Testing.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AutoFixture\AdCodicem.ValueObjects.AutoFixture.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Bogus\AdCodicem.ValueObjects.Bogus.csproj" />
+    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.FsCheck\AdCodicem.ValueObjects.FsCheck.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A value object in a module no test has touched yet. -->
+    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.Untouched\AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Property-based testing, in PropertyTests.cs, and the libraries the test-data packages are driven through, in
+         TestData/. Deliberately the bare FsCheck package, as the FsCheck package depends on, and not FsCheck.Xunit,
+         whose xunit.extensibility.execution [2.4.1, 3.0.0) dependency conflicts with xunit.v3; the properties run from
+         plain [Fact]s through Check(Config) instead. -->
+    <PackageReference Include="FsCheck" />
+    <PackageReference Include="AutoFixture" />
+    <PackageReference Include="Bogus" />
+  </ItemGroup>
+
+  <!-- The sources of other families' folders this project compiles too, at the same path, so that a resource keeps
+       its name. -->
+  <ItemGroup>
+    <Compile Include="..\AdCodicem.ValueObjects.UnitTests\TestData\SamplerFixtures.cs" Link="TestData\SamplerFixtures.cs" />
+  </ItemGroup>
+
+</Project>
