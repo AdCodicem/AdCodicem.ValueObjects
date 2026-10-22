@@ -57,8 +57,10 @@ Every package targets `net10.0`, so it installs into a project on .NET 10 or any
 released together under one version number: reference the same version of each. Their dependencies on the
 frameworks and libraries they integrate are minimums with no upper bound, and the exact minimum of each is in the
 package's dependency list on nuget.org. Their dependencies on each other stop at the next version that may break
-them, `[0.3.0, 0.4.0)` while the major is 0 and `[1.2.0, 2.0.0)` from 1.0; NuGet does not enforce that range, and
-restores a project pairing versions outside it with warning NU1608. A framework's
+them, `[0.3.0, 0.4.0)` while the major is 0 and `[1.2.0, 2.0.0)` from 1.0. NuGet does not keep them consistent for
+you: two of these packages whose ranges do not overlap fail the restore with NU1107 or, depending on the order of the
+references, restore with warning NU1608; a package referenced directly above another's range restores with NU1608,
+and one pinned below a package's floor fails with NU1605. A framework's
 next major is supported by these same packages, never by a package per framework version
 ([ADR-0010](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)).
 
