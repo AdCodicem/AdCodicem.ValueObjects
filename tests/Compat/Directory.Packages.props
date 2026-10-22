@@ -10,47 +10,20 @@
     <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
 
-  <!-- Without a version, "[]" would fail even the restore of the empty project an older SDK sees (the project file
-       says why); Directory.Build.props stops a real restore that lacks one with the reason instead. -->
-  <ItemGroup Label="Under test, at exactly the version just packed" Condition="'$(AdCodicemVersion)' != ''">
-    <PackageVersion Include="AdCodicem.ValueObjects" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Abstractions" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.AI" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.AspNetCore" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.AspNetCore.Http" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.AutoFixture" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.AzureFunctions" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.AzureFunctions.AspNetCore" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Blazor" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Bogus" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.CommandLine" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.CsvHelper" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Dapper" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.EntityFrameworkCore" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.FluentValidation" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.FsCheck" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Grpc" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.HotChocolate" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.HotChocolate.Data" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Identifiers" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Identifiers.MongoDB" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Json" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Marten" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.MessagePack" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.ModelContextProtocol" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.MongoDB" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.NewtonsoftJson" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.NJsonSchema" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.OpenApi" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Orleans" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.ProtobufNet" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Serilog" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Swashbuckle" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Testing" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Testing.Data" Version="[$(AdCodicemVersion)]" />
-    <PackageVersion Include="AdCodicem.ValueObjects.Wolverine.Http" Version="[$(AdCodicemVersion)]" />
+  <!--
+    Under test, every package artifacts/packages holds, the one folder nuget.config takes them from, each at exactly
+    the version in its file name: the release trains give the packages two versions
+    (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md), and the island keeps no list
+    of which package rides which. Never a floating range: a package missing from the folder has no version here and
+    fails the restore (NU1010), a stale one is not taken in its place, and two files of one id fail it too (NU1506).
+    Directory.Build.props stops a restore that finds no package with the reason.
+  -->
+  <ItemGroup Label="Under test, each at exactly the version just packed">
+    <_PackedPackage Include="$(MSBuildThisFileDirectory)../../artifacts/packages/AdCodicem.ValueObjects*.nupkg" />
+    <_PackedPackage Update="@(_PackedPackage)"
+      PackageId="$([System.Text.RegularExpressions.Regex]::Replace('%(Filename)', '\.\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$', ''))"
+      Version="[$([System.Text.RegularExpressions.Regex]::Match('%(Filename)', '\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$').Value)]" />
+    <PackageVersion Include="@(_PackedPackage->'%(PackageId)')" />
   </ItemGroup>
 
   <!--
