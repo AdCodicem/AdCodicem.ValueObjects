@@ -70,7 +70,7 @@ public sealed class LocalizedMinimalApiProblemDetailsTests
 
         var problem = await GetProblemAsync(application.GetTestClient(), "/api/lines?quantity=5000&culture=en-US");
 
-        problem.Should().Be(Problem(("quantity", ValueObjectErrorCodes.OutOfRange, MinimalApiProblemDetailsTests.Refusal<Quantity, short>("5000").Message)));
+        problem.Should().Be(Problem(("quantity", ValueObjectErrorCodes.OutOfRange, ProblemReading.Refusal<Quantity, short>("5000").Message)));
     }
 
     /// <summary>
@@ -125,11 +125,11 @@ public sealed class LocalizedMinimalApiProblemDetailsTests
         (await GetProblemAsync(client, "/api/kept/scores?score=200")).Should().Be(Problem(
             ("score", ValueObjectErrorCodes.OutOfRange, "« score » doit valoir au plus 100.")));
         (await GetProblemAsync(client, "/api/english/scores?score=200")).Should().Be(Problem(
-            ("score", ValueObjectErrorCodes.OutOfRange, MinimalApiProblemDetailsTests.Refusal<Score, byte>("200").Message)));
+            ("score", ValueObjectErrorCodes.OutOfRange, ProblemReading.Refusal<Score, byte>("200").Message)));
         (await GetProblemAsync(client, "/api/english/scores")).Should().Be(Problem(
             ("score", ValueObjectErrorCodes.Required, "A value is required.")));
         (await GetProblemAsync(client, "/api/sparse/totals?total=-1&culture=en-US")).Should().Be(Problem(
-            ("total", ValueObjectErrorCodes.OutOfRange, MinimalApiProblemDetailsTests.Refusal<Amount, decimal>("-1").Message)));
+            ("total", ValueObjectErrorCodes.OutOfRange, ProblemReading.Refusal<Amount, decimal>("-1").Message)));
     }
 
     /// <summary>
@@ -228,7 +228,7 @@ public sealed class LocalizedMinimalApiProblemDetailsTests
         using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        return await MinimalApiProblemDetailsTests.ReadProblemAsync(response);
+        return await ProblemReading.ReadProblemAsync(response);
     }
 
     private static async Task<ReadProblem> PostProblemAsync(HttpClient client, string url, string json)
@@ -236,7 +236,7 @@ public sealed class LocalizedMinimalApiProblemDetailsTests
         using var body = new StringContent(json, Encoding.UTF8, "application/json");
         using var response = await client.PostAsync(url, body, TestContext.Current.CancellationToken);
 
-        return await MinimalApiProblemDetailsTests.ReadProblemAsync(response);
+        return await ProblemReading.ReadProblemAsync(response);
     }
 
     private static ReadProblem Problem(params (string Member, string Code, string Message)[] refusals)

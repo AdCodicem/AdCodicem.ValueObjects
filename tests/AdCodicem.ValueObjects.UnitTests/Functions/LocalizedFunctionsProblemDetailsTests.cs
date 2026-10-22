@@ -197,7 +197,7 @@ public sealed class LocalizedFunctionsProblemDetailsTests
         new()
         {
             ["qty"] = ["The value must be less than or equal to 1000."],
-            ["email"] = [MinimalApiProblemDetailsTests.Refusal<EmailAddress, string>("nope").Message],
+            ["email"] = [ProblemReading.Refusal<EmailAddress, string>("nope").Message],
             ["customer"] = ["A value is required."],
         },
         Codes());

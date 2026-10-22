@@ -35,7 +35,7 @@ public static class WolverineHttpParity
         ValueObjectHttpBinding.BindArray<TSelf, TValue>(accepted, "values", new StringValues([text, text])).Should().Equal(small, small);
         (await ValueObjectHttpBinding.TryAnswerRefusalsAsync(accepted)).Should().BeFalse("{0} accepts '{1}'", name, text);
 
-        var (message, code) = MinimalApiProblemDetailsTests.Refusal<TSelf, TValue>(refused);
+        var (message, code) = ProblemReading.Refusal<TSelf, TValue>(refused);
         var request = WolverineHttpRequests.Request();
         ValueObjectHttpBinding.BindNullable<TSelf, TValue>(request, "value", refused).Should().BeNull("{0} refuses '{1}'", name, refused);
         ValueObjectHttpBinding.BindArray<TSelf, TValue>(request, "values", new StringValues([text, refused])).Should().HaveCount(2);

@@ -134,20 +134,20 @@ public sealed class ModelBindingTests : IAsyncLifetime
 
         using var response = await _client.GetAsync($"/probe/batches{Query}", TestContext.Current.CancellationToken);
         using var minimalApiResponse = await minimalApi.Client.GetAsync($"/api/batches{Query}", TestContext.Current.CancellationToken);
-        var problem = await MinimalApiProblemDetailsTests.ReadProblemAsync(response);
+        var problem = await ProblemReading.ReadProblemAsync(response);
 
         problem.Messages.Should().BeEquivalentTo(
             new Dictionary<string, string[]>
             {
                 ["quantities"] =
                 [
-                    MinimalApiProblemDetailsTests.Refusal<Quantity, short>("-1").Message,
-                    MinimalApiProblemDetailsTests.Refusal<Quantity, short>("x").Message,
+                    ProblemReading.Refusal<Quantity, short>("-1").Message,
+                    ProblemReading.Refusal<Quantity, short>("x").Message,
                 ],
             },
             options => options.WithStrictOrdering());
         problem.Codes.Should().Equal(new Dictionary<string, string> { ["quantities"] = ValueObjectErrorCodes.OutOfRange });
-        problem.Should().Be(await MinimalApiProblemDetailsTests.ReadProblemAsync(minimalApiResponse));
+        problem.Should().Be(await ProblemReading.ReadProblemAsync(minimalApiResponse));
         (await _client.GetStringAsync("/probe/batches?quantities=1&quantities=2", TestContext.Current.CancellationToken)).Should().Be("2");
     }
 

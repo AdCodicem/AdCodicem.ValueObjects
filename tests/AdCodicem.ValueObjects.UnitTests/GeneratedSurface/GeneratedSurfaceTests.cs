@@ -5,7 +5,7 @@ namespace AdCodicem.ValueObjects.UnitTests.GeneratedSurface;
 /// (docs/adr/0006-coverage-is-a-signal-not-a-goal.md). The other test classes state the behaviour that matters to a
 /// consumer on one representative type; these make sure no emitted variant is only ever compiled.
 /// </summary>
-public class GeneratedSurfaceTests
+public partial class GeneratedSurfaceTests
 {
     public static TheoryData<string> Every => Samples.Names;
 
@@ -119,15 +119,6 @@ public class GeneratedSurfaceTests
     public void Every_known_value_is_detailed_in_the_schema_under_the_name_of_its_property(string type)
         => Samples.All[type].DetailsEachKnownValueInItsSchema();
 
-    /// <summary>
-    /// The test-data sampler draws a value of every underlying type, option and hook from the schema the generator writes,
-    /// and every value it draws is one the type accepts.
-    /// </summary>
-    [Theory]
-    [MemberData(nameof(Every))]
-    public void Every_value_object_is_drawn_as_values_its_rules_accept(string type)
-        => Samples.All[type].DrawsValuesItsRulesAccept();
-
     [Theory]
     [MemberData(nameof(Every))]
     public void Every_value_object_holds_text_to_its_rules_through_ParsesAs(string type)
@@ -137,21 +128,6 @@ public class GeneratedSurfaceTests
     [MemberData(nameof(Every))]
     public void Every_value_object_refuses_its_default_through_NotDefault(string type)
         => Samples.All[type].RefusesItsDefaultThroughNotDefault();
-
-    [Theory]
-    [MemberData(nameof(Every))]
-    public void Every_value_object_binds_through_a_Blazor_input(string type)
-        => Samples.All[type].BindsThroughABlazorInput();
-
-    [Theory]
-    [MemberData(nameof(Every))]
-    public void Every_value_object_reads_through_a_command_line_option(string type)
-        => Samples.All[type].ReadsThroughACommandLineOption();
-
-    [Theory]
-    [MemberData(nameof(Every))]
-    public void Every_value_object_round_trips_through_a_CSV_column(string type)
-        => Samples.All[type].RoundTripsThroughACsvColumn();
 
     [Theory]
     [MemberData(nameof(EveryArithmetic))]

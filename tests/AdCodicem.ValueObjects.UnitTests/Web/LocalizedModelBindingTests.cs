@@ -180,7 +180,7 @@ public sealed class LocalizedModelBindingTests : IAsyncLifetime
 
         (await GetProblemAsync(client, "/messages/total?total=-1")).Messages["total"].Should().Equal("« total » : de 0 à .");
         (await GetProblemAsync(client, "/messages/country?country=ZZ")).Messages["country"]
-            .Should().Equal(MinimalApiProblemDetailsTests.Refusal<CountryCode, string>("ZZ").Message);
+            .Should().Equal(ProblemReading.Refusal<CountryCode, string>("ZZ").Message);
 
         var malformed = () => client.GetAsync("/messages/total?total=abc", TestContext.Current.CancellationToken);
         await malformed.Should().ThrowAsync<FormatException>();
@@ -217,7 +217,7 @@ public sealed class LocalizedModelBindingTests : IAsyncLifetime
         (await PostProblemAsync(application.GetTestClient(), "/messages/orders", """{"reference":"x"}""")).Messages["$.reference"]
             .Should().Equal("« OrderReference » : au moins 3 caractères.");
         (await GetProblemAsync(english.GetTestClient(), "/messages/scores?score=200")).Messages["score"]
-            .Should().Equal(MinimalApiProblemDetailsTests.Refusal<Score, byte>("200").Message);
+            .Should().Equal(ProblemReading.Refusal<Score, byte>("200").Message);
         (await PostProblemAsync(english.GetTestClient(), "/messages/orders", """{"reference":"x"}""")).Messages["$.reference"]
             .Should().Equal("The value is not a valid OrderReference: The value must be at least 3 characters long.");
     }

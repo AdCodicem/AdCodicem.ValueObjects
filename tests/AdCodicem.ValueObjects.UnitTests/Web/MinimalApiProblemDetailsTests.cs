@@ -41,7 +41,7 @@ public sealed class MinimalApiProblemDetailsTests(
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
-        var (message, code) = Refusal<Iban, string>("XX!!");
+        var (message, code) = ProblemReading.Refusal<Iban, string>("XX!!");
         code.Should().Be(ValueObjectErrorCodes.TooShort);
         JsonSerializer.Serialize(JsonDocument.Parse(body).RootElement).Should().Be(JsonSerializer.Serialize(new Dictionary<string, object>
         {
@@ -60,7 +60,7 @@ public sealed class MinimalApiProblemDetailsTests(
     {
         var problem = await GetProblemAsync(throwOnBadRequest, "/api/lines?quantity=5000&country=ZZ");
 
-        problem.Should().Be(Problem(("quantity", Refusal<Quantity, short>("5000")), ("country", Refusal<CountryCode, string>("ZZ"))));
+        problem.Should().Be(Problem(("quantity", ProblemReading.Refusal<Quantity, short>("5000")), ("country", ProblemReading.Refusal<CountryCode, string>("ZZ"))));
         problem.Codes["quantity"].Should().Be(ValueObjectErrorCodes.OutOfRange);
         problem.Codes["country"].Should().Be(ValueObjectErrorCodes.NotAKnownValue);
     }
@@ -71,7 +71,7 @@ public sealed class MinimalApiProblemDetailsTests(
     {
         var problem = await GetProblemAsync(throwOnBadRequest, "/api/lines?quantity=abc");
 
-        problem.Should().Be(Problem(("quantity", Refusal<Quantity, short>("abc"))));
+        problem.Should().Be(Problem(("quantity", ProblemReading.Refusal<Quantity, short>("abc"))));
         problem.Codes["quantity"].Should().Be(ValueObjectErrorCodes.NotParsable);
     }
 
@@ -91,7 +91,7 @@ public sealed class MinimalApiProblemDetailsTests(
     {
         var problem = await GetProblemAsync(throwOnBadRequest, "/api/lines?quantity=5&country=");
 
-        problem.Should().Be(Problem(("country", Refusal<CountryCode, string>(string.Empty))));
+        problem.Should().Be(Problem(("country", ProblemReading.Refusal<CountryCode, string>(string.Empty))));
         problem.Codes["country"].Should().Be(ValueObjectErrorCodes.Required);
     }
 
@@ -99,7 +99,7 @@ public sealed class MinimalApiProblemDetailsTests(
     [MemberData(nameof(Modes))]
     public async Task A_value_object_is_listed_under_the_name_an_attribute_binds_it_from(bool throwOnBadRequest)
         => (await GetProblemAsync(throwOnBadRequest, "/api/named/1001?q=-1"))
-            .Should().Be(Problem(("n", Refusal<Quantity, short>("1001")), ("q", Refusal<Quantity, short>("-1"))));
+            .Should().Be(Problem(("n", ProblemReading.Refusal<Quantity, short>("1001")), ("q", ProblemReading.Refusal<Quantity, short>("-1"))));
 
     [Theory]
     [MemberData(nameof(Modes))]
@@ -111,9 +111,9 @@ public sealed class MinimalApiProblemDetailsTests(
         };
 
         (await SendForProblemAsync(throwOnBadRequest, request)).Should().Be(Problem(
-            ("number", Refusal<Quantity, short>("1001")),
-            ("amount", Refusal<Quantity, short>("-1")),
-            ("customer", Refusal<CustomerId, Guid>(Guid.Empty.ToString()))));
+            ("number", ProblemReading.Refusal<Quantity, short>("1001")),
+            ("amount", ProblemReading.Refusal<Quantity, short>("-1")),
+            ("customer", ProblemReading.Refusal<CustomerId, Guid>(Guid.Empty.ToString()))));
     }
 
     [Theory]
@@ -123,7 +123,7 @@ public sealed class MinimalApiProblemDetailsTests(
         using var refused = new HttpRequestMessage(HttpMethod.Get, "/api/customers/current") { Headers = { { "X-Customer", "nope" } } };
         using var absent = new HttpRequestMessage(HttpMethod.Get, "/api/customers/current");
 
-        (await SendForProblemAsync(throwOnBadRequest, refused)).Should().Be(Problem(("X-Customer", Refusal<CustomerId, Guid>("nope"))));
+        (await SendForProblemAsync(throwOnBadRequest, refused)).Should().Be(Problem(("X-Customer", ProblemReading.Refusal<CustomerId, Guid>("nope"))));
         (await SendForProblemAsync(throwOnBadRequest, absent)).Should().Be(Problem(("X-Customer", ("A value is required.", ValueObjectErrorCodes.Required))));
     }
 
@@ -141,14 +141,14 @@ public sealed class MinimalApiProblemDetailsTests(
         twice.Headers.TryAddWithoutValidation("X-Customer", [customer, customer]);
 
         (await GetProblemAsync(throwOnBadRequest, "/api/lines?quantity=5000&quantity=1"))
-            .Should().Be(Problem(("quantity", Refusal<Quantity, short>("5000,1"))));
+            .Should().Be(Problem(("quantity", ProblemReading.Refusal<Quantity, short>("5000,1"))));
         (await GetProblemAsync(throwOnBadRequest, "/api/lines?quantity=1&quantity=1"))
-            .Should().Be(Problem(("quantity", Refusal<Quantity, short>("1,1"))));
+            .Should().Be(Problem(("quantity", ProblemReading.Refusal<Quantity, short>("1,1"))));
         (await SendForProblemAsync(throwOnBadRequest, twice))
-            .Should().Be(Problem(("X-Customer", Refusal<CustomerId, Guid>($"{customer},{customer}"))));
+            .Should().Be(Problem(("X-Customer", ProblemReading.Refusal<CustomerId, Guid>($"{customer},{customer}"))));
         (await SendWithEmptyHeaderAsync(throwOnBadRequest, "/api/customers/current", "X-Customer"))
-            .Should().Be(Problem(("X-Customer", Refusal<CustomerId, Guid>(string.Empty))));
-        Refusal<Quantity, short>("5000,1").Code.Should().Be(ValueObjectErrorCodes.NotParsable, "the joined text is no short at all");
+            .Should().Be(Problem(("X-Customer", ProblemReading.Refusal<CustomerId, Guid>(string.Empty))));
+        ProblemReading.Refusal<Quantity, short>("5000,1").Code.Should().Be(ValueObjectErrorCodes.NotParsable, "the joined text is no short at all");
     }
 
     [Theory]
@@ -161,16 +161,16 @@ public sealed class MinimalApiProblemDetailsTests(
         };
 
         (await SendForProblemAsync(throwOnBadRequest, request)).Should().Be(Problem(
-            ("Page", Refusal<Quantity, short>("-1")),
-            ("c", Refusal<CountryCode, string>("ZZ")),
-            ("X-Customer", Refusal<CustomerId, Guid>(Guid.Empty.ToString()))));
+            ("Page", ProblemReading.Refusal<Quantity, short>("-1")),
+            ("c", ProblemReading.Refusal<CountryCode, string>("ZZ")),
+            ("X-Customer", ProblemReading.Refusal<CustomerId, Guid>(Guid.Empty.ToString()))));
     }
 
     [Theory]
     [MemberData(nameof(Modes))]
     public async Task The_settable_members_of_an_AsParameters_class_are_listed_under_their_names(bool throwOnBadRequest)
         => (await GetProblemAsync(throwOnBadRequest, "/api/filter?page=-1&country=ZZ"))
-            .Should().Be(Problem(("Page", Refusal<Quantity, short>("-1")), ("Country", Refusal<CountryCode, string>("ZZ"))));
+            .Should().Be(Problem(("Page", ProblemReading.Refusal<Quantity, short>("-1")), ("Country", ProblemReading.Refusal<CountryCode, string>("ZZ"))));
 
     /// <summary>
     /// Each refused element of an array is listed under its name, with the code of the first: the problem details map a
@@ -185,8 +185,8 @@ public sealed class MinimalApiProblemDetailsTests(
 
         problem.Messages.Should().BeEquivalentTo(new Dictionary<string, string[]>
         {
-            ["quantities"] = [Refusal<Quantity, short>("-1").Message, Refusal<Quantity, short>("x").Message, Refusal<Quantity, short>(string.Empty).Message],
-            ["c"] = [Refusal<CountryCode, string>("ZZ").Message],
+            ["quantities"] = [ProblemReading.Refusal<Quantity, short>("-1").Message, ProblemReading.Refusal<Quantity, short>("x").Message, ProblemReading.Refusal<Quantity, short>(string.Empty).Message],
+            ["c"] = [ProblemReading.Refusal<CountryCode, string>("ZZ").Message],
         }, options => options.WithStrictOrdering());
         problem.Codes.Should().Equal(new Dictionary<string, string>
         {
@@ -209,7 +209,7 @@ public sealed class MinimalApiProblemDetailsTests(
     public async Task An_array_named_like_a_route_parameter_is_reported_from_the_query_string(bool throwOnBadRequest)
     {
         (await GetProblemAsync(throwOnBadRequest, "/api/arrays/1?quantities=-1"))
-            .Should().Be(Problem(("quantities", Refusal<Quantity, short>("-1"))));
+            .Should().Be(Problem(("quantities", ProblemReading.Refusal<Quantity, short>("-1"))));
         (await GetStringAsync(throwOnBadRequest, "/api/arrays/-1?quantities=1&quantities=2")).Should().Be("2");
     }
 
@@ -217,7 +217,7 @@ public sealed class MinimalApiProblemDetailsTests(
     [MemberData(nameof(Modes))]
     public async Task A_construction_of_a_generic_value_object_is_reported_as_any_other(bool throwOnBadRequest)
         => (await GetProblemAsync(throwOnBadRequest, "/api/references/TOO-LONG-REFERENCE"))
-            .Should().Be(Problem(("reference", Refusal<Reference<SalesInvoice>, string>("TOO-LONG-REFERENCE"))));
+            .Should().Be(Problem(("reference", ProblemReading.Refusal<Reference<SalesInvoice>, string>("TOO-LONG-REFERENCE"))));
 
     /// <summary>
     /// A value object written by hand, which nothing registered, is described by reflection; one whose parser refuses
@@ -254,7 +254,7 @@ public sealed class MinimalApiProblemDetailsTests(
         }
 
         (await GetProblemAsync(throwOnBadRequest, "/api/mixed/abc?quantity=-1"))
-            .Should().Be(Problem(("quantity", Refusal<Quantity, short>("-1"))));
+            .Should().Be(Problem(("quantity", ProblemReading.Refusal<Quantity, short>("-1"))));
     }
 
     [Theory]
@@ -331,7 +331,7 @@ public sealed class MinimalApiProblemDetailsTests(
     public async Task A_refused_body_is_listed_under_its_JSON_path_in_Development()
     {
         using var response = await development.Client.PostAsJsonAsync("/api/orders", new { reference = "no" }, TestContext.Current.CancellationToken);
-        var problem = await ReadProblemAsync(response);
+        var problem = await ProblemReading.ReadProblemAsync(response);
 
         problem.Codes.Should().Equal(new Dictionary<string, string> { ["$.reference"] = ValueObjectErrorCodes.TooShort });
         problem.Messages["$.reference"].Should().ContainSingle().Which.Should().Contain("at least 3 characters").And.NotContain("\"no\"");
@@ -343,7 +343,7 @@ public sealed class MinimalApiProblemDetailsTests(
         using var content = new StringContent("""{"reference":12}""", Encoding.UTF8, "application/json");
         using var response = await development.Client.PostAsync("/api/orders", content, TestContext.Current.CancellationToken);
 
-        (await ReadProblemAsync(response)).Codes.Should().Equal(new Dictionary<string, string> { ["$.reference"] = ValueObjectErrorCodes.NotParsable });
+        (await ProblemReading.ReadProblemAsync(response)).Codes.Should().Equal(new Dictionary<string, string> { ["$.reference"] = ValueObjectErrorCodes.NotParsable });
     }
 
     [Fact]
@@ -351,7 +351,7 @@ public sealed class MinimalApiProblemDetailsTests(
     {
         using var response = await development.Client.PostAsJsonAsync("/api/bodies", "XX", TestContext.Current.CancellationToken);
 
-        (await ReadProblemAsync(response)).Codes.Should().Equal(new Dictionary<string, string> { ["$"] = ValueObjectErrorCodes.TooShort });
+        (await ProblemReading.ReadProblemAsync(response)).Codes.Should().Equal(new Dictionary<string, string> { ["$"] = ValueObjectErrorCodes.TooShort });
     }
 
     /// <summary>
@@ -400,7 +400,7 @@ public sealed class MinimalApiProblemDetailsTests(
     {
         using var response = await development.Client.PostAsJsonAsync("/api/placements?quantity=-1", new { reference = "no" }, TestContext.Current.CancellationToken);
 
-        (await ReadProblemAsync(response)).Codes.Should().Equal(new Dictionary<string, string>
+        (await ProblemReading.ReadProblemAsync(response)).Codes.Should().Equal(new Dictionary<string, string>
         {
             ["$.reference"] = ValueObjectErrorCodes.TooShort,
             ["quantity"] = ValueObjectErrorCodes.OutOfRange,
@@ -417,7 +417,7 @@ public sealed class MinimalApiProblemDetailsTests(
     public async Task Empty_text_is_not_reported_on_an_endpoint_the_Request_Delegate_Generator_wrote(bool throwOnBadRequest)
     {
         (await GetProblemAsync(throwOnBadRequest, "/api/generated?quantity=x&country=&quantities=&quantities=-1"))
-            .Should().Be(Problem(("quantity", Refusal<Quantity, short>("x")), ("quantities", Refusal<Quantity, short>("-1"))));
+            .Should().Be(Problem(("quantity", ProblemReading.Refusal<Quantity, short>("x")), ("quantities", ProblemReading.Refusal<Quantity, short>("-1"))));
 
         using (var response = await GetAsync(throwOnBadRequest, "/api/generated?quantity=5&country="))
         {
@@ -425,7 +425,7 @@ public sealed class MinimalApiProblemDetailsTests(
         }
 
         (await GetProblemAsync(throwOnBadRequest, "/api/tooled?quantity=5&country="))
-            .Should().Be(Problem(("country", Refusal<CountryCode, string>(string.Empty))));
+            .Should().Be(Problem(("country", ProblemReading.Refusal<CountryCode, string>(string.Empty))));
     }
 
     [Fact]
@@ -438,7 +438,7 @@ public sealed class MinimalApiProblemDetailsTests(
 
     [Fact]
     public async Task An_endpoint_covered_twice_answers_once()
-        => (await GetProblemAsync(false, "/api/twice/XX!!")).Should().Be(Problem(("iban", Refusal<Iban, string>("XX!!"))));
+        => (await GetProblemAsync(false, "/api/twice/XX!!")).Should().Be(Problem(("iban", ProblemReading.Refusal<Iban, string>("XX!!"))));
 
     /// <summary>
     /// The serializer applies the dictionary key policy of the HTTP JSON options to the keys of <c>errors</c>; the codes
@@ -458,7 +458,7 @@ public sealed class MinimalApiProblemDetailsTests(
         using var client = application.GetTestClient();
 
         using var response = await client.GetAsync("/api/lines?quantity=-1", TestContext.Current.CancellationToken);
-        var problem = await ReadProblemAsync(response);
+        var problem = await ProblemReading.ReadProblemAsync(response);
 
         problem.Messages.Keys.Should().Equal("QUANTITY");
         problem.Codes.Should().Equal(new Dictionary<string, string> { ["QUANTITY"] = ValueObjectErrorCodes.OutOfRange });
@@ -498,7 +498,7 @@ public sealed class MinimalApiProblemDetailsTests(
 
             using var response = await client.GetAsync("/api/lines?quantity=-1", TestContext.Current.CancellationToken);
 
-            (await ReadProblemAsync(response)).Should().Be(Problem(("quantity", Refusal<Quantity, short>("-1"))));
+            (await ProblemReading.ReadProblemAsync(response)).Should().Be(Problem(("quantity", ProblemReading.Refusal<Quantity, short>("-1"))));
         }
     }
 
@@ -510,30 +510,6 @@ public sealed class MinimalApiProblemDetailsTests(
 
         convention.Should().Throw<ArgumentNullException>().WithParameterName("builder");
         services.Should().Throw<ArgumentNullException>().WithParameterName("services");
-    }
-
-    /// <summary>Gets the message and the code a value object refuses text with, as the binder parses it.</summary>
-    internal static (string Message, string Code) Refusal<TSelf, TValue>(string text)
-        where TSelf : struct, IValueObject<TSelf, TValue>
-    {
-        TSelf.TryParse(text, CultureInfo.InvariantCulture, out _, out var validation).Should().BeFalse($"'{text}' is refused");
-
-        return (validation.ErrorMessage!, validation.ErrorCode!);
-    }
-
-    /// <summary>Gets the problem a request answers, read as the messages and the codes of each member.</summary>
-    internal static async Task<ReadProblem> ReadProblemAsync(HttpResponseMessage response)
-        => ProblemOf((int)response.StatusCode, await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-
-    /// <summary>Gets the problem a response answers, read as the messages and the codes of each member.</summary>
-    internal static ReadProblem ProblemOf(int status, string body)
-    {
-        status.Should().Be(StatusCodes.Status400BadRequest, body);
-        var problem = JsonDocument.Parse(body).RootElement;
-
-        return new ReadProblem(
-            problem.GetProperty("errors").Deserialize<Dictionary<string, string[]>>()!,
-            problem.GetProperty(ValueObjectProblemDetails.ExtensionName).Deserialize<Dictionary<string, string>>()!);
     }
 
     private static ReadProblem Problem(params (string Member, (string Message, string Code) Refusal)[] refusals)
@@ -588,7 +564,7 @@ public sealed class MinimalApiProblemDetailsTests(
     {
         using var response = await GetAsync(throwOnBadRequest, url);
 
-        return await ReadProblemAsync(response);
+        return await ProblemReading.ReadProblemAsync(response);
     }
 
     /// <summary>
@@ -607,36 +583,15 @@ public sealed class MinimalApiProblemDetailsTests(
             TestContext.Current.CancellationToken);
         using var reader = new StreamReader(context.Response.Body);
 
-        return ProblemOf(context.Response.StatusCode, await reader.ReadToEndAsync(TestContext.Current.CancellationToken));
+        return ProblemReading.ProblemOf(context.Response.StatusCode, await reader.ReadToEndAsync(TestContext.Current.CancellationToken));
     }
 
     private async Task<ReadProblem> SendForProblemAsync(bool throwOnBadRequest, HttpRequestMessage request)
     {
         using var response = await Client(throwOnBadRequest).SendAsync(request, TestContext.Current.CancellationToken);
 
-        return await ReadProblemAsync(response);
+        return await ProblemReading.ReadProblemAsync(response);
     }
-}
-
-/// <summary>The messages and the codes a validation problem lists for each member, compared as values.</summary>
-/// <param name="Messages">The <c>errors</c> member.</param>
-/// <param name="Codes">The <c>errorCodes</c> member.</param>
-public sealed record ReadProblem(Dictionary<string, string[]> Messages, Dictionary<string, string> Codes)
-{
-    /// <inheritdoc />
-    public bool Equals(ReadProblem? other)
-        => other is not null
-           && Messages.Count == other.Messages.Count
-           && Messages.All(entry => other.Messages.TryGetValue(entry.Key, out var messages) && messages.SequenceEqual(entry.Value))
-           && Codes.Count == other.Codes.Count
-           && Codes.All(entry => other.Codes.TryGetValue(entry.Key, out var code) && code == entry.Value);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => Codes.Count;
-
-    /// <inheritdoc />
-    public override string ToString()
-        => string.Join("; ", Messages.Select(entry => $"{entry.Key}: [{string.Join(" | ", entry.Value)}] {Codes.GetValueOrDefault(entry.Key)}"));
 }
 
 /// <summary>A serializer context that knows the validation problem, and not the <see cref="JsonElement"/> of its codes.</summary>

@@ -139,7 +139,7 @@ public class ModelBinderProviderTests
         await new ValueObjectModelBinder<Quantity, short>().BindModelAsync(context);
 
         context.ModelState["quantity"]!.Errors.Should().ContainSingle()
-            .Which.ErrorMessage.Should().Be(MinimalApiProblemDetailsTests.Refusal<Quantity, short>("5000").Message);
+            .Which.ErrorMessage.Should().Be(ProblemReading.Refusal<Quantity, short>("5000").Message);
     }
 
     private static IModelBinder? GetBinder(Type modelType)

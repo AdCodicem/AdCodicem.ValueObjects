@@ -234,7 +234,7 @@ internal static class FunctionsHttp
     {
         var body = await ExecuteAsync(invocation, request);
 
-        return MinimalApiProblemDetailsTests.ProblemOf(request.Response.StatusCode, body);
+        return ProblemReading.ProblemOf(request.Response.StatusCode, body);
     }
 
     /// <summary>Executes the result the middleware set on the request, and reads the body written.</summary>

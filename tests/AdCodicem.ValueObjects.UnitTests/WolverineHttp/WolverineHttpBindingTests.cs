@@ -98,7 +98,7 @@ public sealed class WolverineHttpBindingTests
         IsDefault<Quantity, short>(ValueObjectHttpBinding.Bind<Quantity, short>(request, "qty", "5000", required: true))
             .Should().BeTrue("the handler never sees it");
 
-        (await request.AnswerAsync()).Should().Be(Problem(("qty", MinimalApiProblemDetailsTests.Refusal<Quantity, short>("5000"))));
+        (await request.AnswerAsync()).Should().Be(Problem(("qty", ProblemReading.Refusal<Quantity, short>("5000"))));
         request.Response.ContentType.Should().StartWith("application/problem+json");
         ValueObjectProblemDetails.GetErrorCodes(request).Should().Equal(new Dictionary<string, string> { ["qty"] = ValueObjectErrorCodes.OutOfRange });
     }
@@ -136,7 +136,7 @@ public sealed class WolverineHttpBindingTests
 
         var empty = WolverineHttpRequests.Request();
         ValueObjectHttpBinding.BindNullable<CountryCode, string>(empty, "country", string.Empty).Should().BeNull();
-        (await empty.AnswerAsync()).Should().Be(Problem(("country", MinimalApiProblemDetailsTests.Refusal<CountryCode, string>(string.Empty))));
+        (await empty.AnswerAsync()).Should().Be(Problem(("country", ProblemReading.Refusal<CountryCode, string>(string.Empty))));
     }
 
     [Fact]
@@ -154,9 +154,9 @@ public sealed class WolverineHttpBindingTests
             {
                 ["qty"] =
                 [
-                    MinimalApiProblemDetailsTests.Refusal<Quantity, short>("5000").Message,
-                    MinimalApiProblemDetailsTests.Refusal<Quantity, short>("x").Message,
-                    MinimalApiProblemDetailsTests.Refusal<Quantity, short>(string.Empty).Message,
+                    ProblemReading.Refusal<Quantity, short>("5000").Message,
+                    ProblemReading.Refusal<Quantity, short>("x").Message,
+                    ProblemReading.Refusal<Quantity, short>(string.Empty).Message,
                 ],
             },
             new() { ["qty"] = ValueObjectErrorCodes.OutOfRange }));
@@ -164,7 +164,7 @@ public sealed class WolverineHttpBindingTests
         // A null element is parsed as empty text, whose message differs from a missing value's for a string.
         var texts = WolverineHttpRequests.Request();
         ValueObjectHttpBinding.BindArray<CountryCode, string>(texts, "countries", new StringValues(["fr", null]))[0].Should().Be(CountryCode.France);
-        (await texts.AnswerAsync()).Should().Be(Problem(("countries", MinimalApiProblemDetailsTests.Refusal<CountryCode, string>(string.Empty))));
+        (await texts.AnswerAsync()).Should().Be(Problem(("countries", ProblemReading.Refusal<CountryCode, string>(string.Empty))));
     }
 
     [Fact]
@@ -177,8 +177,8 @@ public sealed class WolverineHttpBindingTests
         ValueObjectHttpBinding.Bind<CountryCode, string>(request, "Country", "ZZ", required: true);
 
         (await request.AnswerAsync()).Should().Be(Problem(
-            ("quantity", MinimalApiProblemDetailsTests.Refusal<Quantity, short>("5000")),
-            ("country", MinimalApiProblemDetailsTests.Refusal<CountryCode, string>("ZZ"))));
+            ("quantity", ProblemReading.Refusal<Quantity, short>("5000")),
+            ("country", ProblemReading.Refusal<CountryCode, string>("ZZ"))));
     }
 
     [Fact]
@@ -206,7 +206,7 @@ public sealed class WolverineHttpBindingTests
     {
         var bare = WolverineHttpRequests.Bare();
         ValueObjectHttpBinding.Bind<Quantity, short>(bare, "qty", "5000", required: true);
-        (await bare.AnswerAsync()).Should().Be(Problem(("qty", MinimalApiProblemDetailsTests.Refusal<Quantity, short>("5000"))));
+        (await bare.AnswerAsync()).Should().Be(Problem(("qty", ProblemReading.Refusal<Quantity, short>("5000"))));
 
         var withoutPolicy = WolverineHttpRequests.Bare(static services => services.AddSingleton(new WolverineHttpOptions()));
         ValueObjectHttpBinding.Bind<Quantity, short>(withoutPolicy, "qty", null, required: true);
@@ -241,7 +241,7 @@ public sealed class WolverineHttpBindingTests
         ValueObjectHttpBinding.Bind<Quantity, short>(request, "absent", null, required: true);
 
         (await request.AnswerAsync()).Should().Be(Problem(
-            ("country", MinimalApiProblemDetailsTests.Refusal<CountryCode, string>("ZZ")),
+            ("country", ProblemReading.Refusal<CountryCode, string>("ZZ")),
             ("absent", ("A value is required.", ValueObjectErrorCodes.Required))));
     }
 
