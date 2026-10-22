@@ -83,7 +83,8 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 - The commit type sets the next version (Conventional Commits, `.releaserc.json`): `feat` a minor, `fix` and `perf` a
   patch; `chore`, `ci`, `test`, `docs`, `refactor` nothing, except `build(pack)` and `docs(readme)`, rated a patch
   because the package metadata and a package's README (its nuget.org page) ship inside the `.nupkg`: the main package
-  carries `src/AdCodicem.ValueObjects/README.md`, every other `src/PackageReadme.md`. No package carries the
+  carries `src/AdCodicem.ValueObjects/README.md`, every other `src/PackageReadme.md` with its own id and description
+  filled in (`_WritePackageReadme`, `src/Directory.Build.targets`). No package carries the
   repository's `README.md`, so a change to it is plain `docs`. Scope such a commit that way, or it waits for the next
   `feat` or `fix`.
 - While the major is 0, a breaking change (`!`, or a `BREAKING CHANGE:` footer) releases a minor: a minor may break,

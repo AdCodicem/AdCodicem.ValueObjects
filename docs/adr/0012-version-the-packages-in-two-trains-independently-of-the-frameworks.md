@@ -123,7 +123,8 @@ train by train, with no maintenance line.
   - the solution filter: the train of a project it adds or removes.
 
   Tests, documentation and workflows release nothing, and neither does the repository's `README.md`, which stops being
-  embedded. The main package carries a README of its own; every other package carries `src/PackageReadme.md`.
+  embedded. The main package carries a README of its own; every other package carries `src/PackageReadme.md`, filled
+  in with its id and description.
 
   The commit's type sets the release type in each train it touches, as `.releaserc.json` rates it. A releasing commit
   changes one train, `src/Shared` and the global inputs aside. A core pull request may carry, as separate commits, the
@@ -325,5 +326,9 @@ at one version. Where it differs from the text, or settles what the text leaves 
   only the documentation tests for it. A package README, `src/AdCodicem.ValueObjects/README.md` or
   `src/PackageReadme.md`, runs those tests and the pack, and the plan puts it back before dotnet-affected, as it does
   `icon.png`, so that it marks no project. `DocumentationSnippetTests` compiles the snippets of both.
-- `src/PackageReadme.md` names no package: nuget.org shows each package's description above it, and the page links to
-  the table of every package. `docs(readme)` keeps its patch, for a package README alone.
+- `src/PackageReadme.md` is a template: `_WritePackageReadme` fills in each package's id and description at pack
+  time, its Markdown characters written as character references. nuget.org shows a package's README instead of its
+  description, never both, so a README naming no package would leave 37 pages saying nothing of what each adds;
+  `verify-packages.sh` refuses a README that does not open with the package's id. Both READMEs link the table of the
+  released packages and the preview's, which lists the packages published as previews only. `docs(readme)` keeps its
+  patch, for a package README alone.

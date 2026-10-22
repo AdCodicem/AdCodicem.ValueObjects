@@ -28,7 +28,8 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   `<id>=<version>` pairs `release-trains.mjs versions` prints; `scripts/push-packages.sh` the ids of one version.
 - `scripts/verify-packages.sh` also reads each nuspec's dependencies on `AdCodicem.ValueObjects*`: each must be a
   package of the set, at `[V, upper)`, V its version in the set and upper the next that may break it (`-0` closing a
-  prerelease's). Every run packs every train, so no dependency of ours points outside the set.
+  prerelease's). Every run packs every train, so no dependency of ours points outside the set. Each package's README
+  must open with `# <id>` and keep no `{{placeholder}}` of `src/PackageReadme.md`.
 - `scripts/push-packages.sh` pushes dependencies first and only what nuget.org lacks, in up to three passes, then waits
   until nuget.org lists every package. A push stopped midway is completed by those passes, by **Re-run failed jobs**, or
   by the next run (`repair`).
