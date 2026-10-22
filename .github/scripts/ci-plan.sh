@@ -20,8 +20,8 @@
 # so that the workflow installs it only then. --codecov-flags prints the flags of the families, which codecov.yml holds
 # between its two "ci-families" markers.
 #
-# A pull request's plan with files under src/ puts README.md, icon.png and the CLAUDE.md files it changes back to the
-# base in the checkout: plan locally in a scratch clone.
+# A pull request's plan with files under src/ puts the package READMEs, icon.png and the CLAUDE.md files it changes
+# back to the base in the checkout: plan locally in a scratch clone.
 #
 # Every run first checks .github/ci-families.json against the repository, without a build: every project under src/
 # in exactly one family, every project of the unit suite a family's, every project but tests/Compat/'s in the solution,
@@ -35,8 +35,10 @@
 #   none           CLAUDE.md files, docs/ but docs/docfx/, Markdown outside src/, website/ and skills/ but README.md,
 #                  the repository's own settings and templates, and the workflows and scripts ci.yml never runs, each
 #                  by name, so that a new one runs everything until it is given a rule; only lint.yml checks them.
-#   documentation  README.md, website/docs/ and skills/value-objects/: the generator suite's tests that read them,
-#                  [Trait("Reads", "Documentation")]. README.md is also packed, website/docs/ also built into the site.
+#   documentation  README.md, the package READMEs (src/PackageReadme.md, src/AdCodicem.ValueObjects/README.md),
+#                  website/docs/ and skills/value-objects/: the generator suite's tests that read them,
+#                  [Trait("Reads", "Documentation")]. The package READMEs are also packed, website/docs/ also built
+#                  into the site.
 #   site           website/, docs/docfx/ and the action that builds the site: the job "documentation site".
 #   everything     what every project or job reads: Directory.Build.*, Directory.Packages.props, global.json,
 #                  nuget.config, .editorconfig, .gitattributes, the solution files, the local tools, ci.yml, this
@@ -54,9 +56,9 @@
 #                  and the registry; a family's project of the unit suite selects that family; the generator suite,
 #                  the RDG suite and the compiled model run when it marks them, and the job "build" builds every
 #                  project it marks but the unit suite's, which each family's job builds. Every project item counts, so
-#                  README.md, icon.png and every CLAUDE.md are first put back as the base branch has them: every package
-#                  packs the first two and every project globs the third. Any exit of the tool but 0, and 166 for
-#                  "nothing affected", runs everything.
+#                  the package READMEs, icon.png and every CLAUDE.md are first put back as the base branch has them:
+#                  the packages pack the first two and every project globs the third. Any exit of the tool but 0, and
+#                  166 for "nothing affected", runs everything.
 #   generator      the generator suite, in full.
 #   rdg            the Request Delegate Generator suite.
 #   heavy          what only heavy.yml runs (tests/NativeAot/, tests/Compat/, the integration suite and its Functions
@@ -258,7 +260,7 @@ run_everything() {
 rule() {
   case "$1" in
     CLAUDE.md | */CLAUDE.md) echo none; return ;;
-    README.md) echo readme; return ;;
+    README.md) echo documentation; return ;;
     src/* | website/* | skills/*) ;;
     *.md) echo none; return ;;
   esac
@@ -289,6 +291,7 @@ rule() {
       .github/scripts/release-pack.sh | .github/scripts/semver.jq) echo none ;;
     package.json | package-lock.json | .releaserc.json) echo release ;;
     website/*) echo site ;;
+    src/PackageReadme.md | src/AdCodicem.ValueObjects/README.md) echo readme ;;
     Directory.Build.* | Directory.Packages.props | global.json | nuget.config | .editorconfig | .gitattributes | \
       AdCodicem.ValueObjects.slnx | src/AdCodicem.ValueObjects.Packages.slnf | src/release-trains.json | \
       .config/dotnet-tools.json | codecov.yml | tests/Directory.Build.*) echo everything ;;
@@ -384,7 +387,7 @@ if [[ "$graph" == true ]]; then
   # checkout, which a runner discards: a local run refuses a file it would lose changes of.
   for path in "${changed[@]}"; do
     case "$path" in
-      README.md | icon.png | CLAUDE.md | */CLAUDE.md)
+      src/PackageReadme.md | src/AdCodicem.ValueObjects/README.md | icon.png | CLAUDE.md | */CLAUDE.md)
         if [[ -z "${GITHUB_ACTIONS:-}" && -n "$(git status --porcelain -- "$path")" ]]; then
           fail "$path has uncommitted changes, which the plan would overwrite: commit them, or plan in a scratch clone."
         fi

@@ -46,12 +46,17 @@
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" Condition="'$(GITHUB_ACTIONS)' == 'true'" />
   </ItemGroup>
 
-  <!-- A package README, preferring one written for the package and falling back to the repository's. -->
+  <!--
+    A package README: one written for the package (the main package's), else src/PackageReadme.md, which names no
+    package, packed as README.md. Never the repository's README.md, which every documentation change touches: a package
+    carries what it ships, so that a commit to the README releases no train
+    (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).
+  -->
   <ItemGroup Condition="Exists('README.md')">
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
   <ItemGroup Condition="!Exists('README.md')">
-    <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" PackagePath="/" />
+    <None Include="$(MSBuildThisFileDirectory)PackageReadme.md" Pack="true" PackagePath="README.md" />
   </ItemGroup>
 
   <ItemGroup>
