@@ -63,11 +63,13 @@ Version numbers and the changelog are computed from commit history, so commit me
 ```
 
 `feat` bumps the minor version, `fix` bumps the patch. `docs`, `refactor`, `test`, `chore` and `ci` trigger no
-release on their own, with two exceptions that bump the patch because they change what ships inside every
-package: `build(pack)` for the package metadata, and `docs(readme)` for the README, which is also each package's
-page on nuget.org. A breaking change is marked with `!` after the type, or a `BREAKING CHANGE:` footer. It bumps
-the minor while the version is 0.x, and the major from 1.0 on: before 1.0.0, a minor release may break, deprecate
-or remove part of the public API, and only from 1.0.0 on does a breaking change wait for a major.
+release on their own, with two exceptions that bump the patch because they change what ships inside the
+packages: `build(pack)` for the package metadata, and `docs(readme)` for a package's README, its page on nuget.org
+(`src/AdCodicem.ValueObjects/README.md` for the main package, `src/PackageReadme.md` for every other). No package
+carries the repository's `README.md`: a change to it is plain `docs`. A breaking change is marked with `!` after
+the type, or a `BREAKING CHANGE:` footer. It bumps the minor while the version is 0.x, and the major from 1.0 on:
+before 1.0.0, a minor release may break, deprecate or remove part of the public API, and only from 1.0.0 on does a
+breaking change wait for a major.
 
 ```
 feat(generator): emit a span-based TryParse for numeric underlying types

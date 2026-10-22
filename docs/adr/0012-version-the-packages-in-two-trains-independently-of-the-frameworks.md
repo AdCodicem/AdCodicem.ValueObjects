@@ -15,7 +15,8 @@ Accepted.
   at its own version, the core first, rather than every package at one.
 - The CI that gates each release is
   [ADR-0013](0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md).
-- Built up to phase 1a, which differs from the text below on the points of [Phase 1a as built](#phase-1a-as-built).
+- Built up to phase 1b, which differs from the text below on the points of [Phase 1a as built](#phase-1a-as-built)
+  and [Phase 1b as built](#phase-1b-as-built).
 
 ## Context
 
@@ -308,3 +309,21 @@ places the trains apart. The differences:
 - The compatibility island keeps no list of the trains: `tests/Compat/Directory.Packages.props` pins every package
   `artifacts/packages` holds at exactly the version in its file name, and `heavy.yml` passes no version.
 
+## Phase 1b as built
+
+Phase 1b bounds every dependency on one of our packages and gives the packages READMEs of their own, every train still
+at one version. Where it differs from the text, or settles what the text leaves open:
+
+- `verify-packages.sh` refuses a dependency on one of our packages unless that package is in the set and the range is
+  exactly `[V, upper)`, V its version in the set; it never accepts a version only nuget.org lists. Every run packs
+  every train (phase 2 repacks the train a run does not release, at its last version, rather than download it), so the
+  set holds every dependency, and a renamed NuGet target fails the check instead of shipping bare floors again.
+- `_BoundOwnPackageDependencies` rewrites `_ProjectReferencesWithVersions`, an item private to NuGet's pack targets,
+  after `_GetProjectReferenceVersions` fills it. Packed together, a satellite at `0.4.0-preview.3` asks for the core's
+  `[0.3.0-preview.11, 0.4.0-0)`, and one at `0.4.0` for `[1.2.0, 2.0.0)` of a core at `1.2.0`.
+- The repository's `README.md` leaves the package inputs now: `preview-gate.sh` no longer lists it, and the plan runs
+  only the documentation tests for it. A package README, `src/AdCodicem.ValueObjects/README.md` or
+  `src/PackageReadme.md`, runs those tests and the pack, and the plan puts it back before dotnet-affected, as it does
+  `icon.png`, so that it marks no project. `DocumentationSnippetTests` compiles the snippets of both.
+- `src/PackageReadme.md` names no package: nuget.org shows each package's description above it, and the page links to
+  the table of every package. `docs(readme)` keeps its patch, for a package README alone.
