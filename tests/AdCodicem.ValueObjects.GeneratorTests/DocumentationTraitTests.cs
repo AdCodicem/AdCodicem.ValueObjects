@@ -13,15 +13,19 @@ namespace AdCodicem.ValueObjects.GeneratorTests;
 /// A pull request that changes only <c>README.md</c>, <c>website/docs/</c> or <c>skills/value-objects/</c> runs the
 /// tests of this suite carrying the trait, and none other (<c>.github/scripts/ci-plan.sh</c>): a test reading those
 /// files without it would let such a pull request break it unseen. A test reads the repository through a method named
-/// <c>RepositoryRoot()</c> or <c>SkillDirectory()</c>, which this follows the test's IL to: through every method of
-/// this assembly it calls, the state machine of an asynchronous or iterator one, its data (a <c>[MemberData]</c>
-/// method, property or field, of its class or of another, or a <c>[ClassData]</c> class), and its class's constructors
-/// and type initializer, which xUnit runs for it.
+/// <c>RepositoryRoot()</c> or <c>SkillDirectory()</c>, or one looking for <c>AdCodicem.ValueObjects.slnx</c>, which
+/// this follows the test's IL to. It walks every method of this assembly the test reaches: what it calls, the state
+/// machine of an asynchronous or iterator one, the implementations of an interface or virtual method of this assembly,
+/// and the type initializer of a type whose static field it reads or whose initializer is explicit. It starts from the
+/// test, its data (a <c>[MemberData]</c> method, property or field of its class, a base class or another type, a
+/// <c>[ClassData]</c> class), its class's constructors, and the class, collection and assembly fixtures xUnit builds.
 /// </remarks>
 public sealed class DocumentationTraitTests
 {
     private const BindingFlags Declared =
         BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+
+    private const string RepositoryMarker = "AdCodicem.ValueObjects.slnx";
 
     private static readonly Dictionary<short, OpCode> OpCodesByValue = typeof(OpCodes)
         .GetFields(BindingFlags.Public | BindingFlags.Static)
@@ -30,51 +34,61 @@ public sealed class DocumentationTraitTests
 
     private static readonly string[] Readers = ["RepositoryRoot", "SkillDirectory"];
 
+    private static readonly Type[] Types = typeof(DocumentationTraitTests).Assembly.GetTypes();
+
     [Fact]
     public void Every_test_reading_the_repository_carries_the_trait_and_no_other_does()
     {
-        var tests = typeof(DocumentationTraitTests).Assembly.GetTypes()
+        var tests = Types
             .Where(static type => !type.IsDefined(typeof(CompilerGeneratedAttribute)))
             .SelectMany(static type => type.GetMethods(Declared))
             .Where(static method => method.IsDefined(typeof(FactAttribute), inherit: true))
             .ToList();
 
-        var reading = tests.Where(static test => Reads(test)).Select(Name).Order(StringComparer.Ordinal).ToList();
-        var marked = tests.Where(static test => Marked(test)).Select(Name).Order(StringComparer.Ordinal).ToList();
+        var readers = tests.Select(static test => (Test: test, Reader: Reader(test))).Where(static found => found.Reader is not null).ToList();
+        var reading = readers.Select(static found => Name(found.Test)).ToHashSet(StringComparer.Ordinal);
+        var marked = tests.Where(static test => Marked(test)).Select(Name).ToHashSet(StringComparer.Ordinal);
 
         reading.Should().HaveCountGreaterThan(20, "the walk must keep finding the tests that read the repository");
-        reading.Except(marked).Should().BeEmpty("these tests read the repository: mark each [Trait(\"Reads\", \"Documentation\")]");
-        marked.Except(reading).Should().BeEmpty("these tests read nothing of the repository: drop their trait");
+        var unmarked = readers.Where(found => !marked.Contains(Name(found.Test)))
+            .Select(static found => $"{Name(found.Test)} (through {Name(found.Reader!)})").Order(StringComparer.Ordinal).ToList();
+        var stale = marked.Except(reading).Order(StringComparer.Ordinal).ToList();
+        unmarked.Should().BeEmpty("these tests read the repository, so each needs [Trait(\"Reads\", \"Documentation\")]: {0}", string.Join(", ", unmarked));
+        stale.Should().BeEmpty("these tests read nothing of the repository, so none needs the trait: {0}", string.Join(", ", stale));
     }
 
-    private static string Name(MethodInfo method) => $"{method.DeclaringType!.Name}.{method.Name}";
+    private static string Name(MethodBase method) => $"{method.DeclaringType!.Name}.{method.Name}";
 
     private static bool Marked(MethodInfo test)
         => test.GetCustomAttributes<TraitAttribute>().Concat(test.DeclaringType!.GetCustomAttributes<TraitAttribute>())
             .Any(static trait => trait is { Name: "Reads", Value: "Documentation" });
 
-    /// <summary>Whether the test, its data, its class's set-up or what they call reach a reader of the repository.</summary>
-    private static bool Reads(MethodInfo test)
+    /// <summary>The method through which the test, its data, its class's set-up or what they reach read it.</summary>
+    private static MethodBase? Reader(MethodInfo test)
     {
         var type = test.DeclaringType!;
-        var module = type.Module;
-        var pending = new Stack<MethodBase>([test]);
-        PushSetUp(pending, type);
+        var walk = new Walk();
+        walk.Push(test);
+        walk.PushConstruction(type);
+        foreach (var fixture in Fixtures(type))
+        {
+            walk.PushConstruction(fixture);
+        }
+
         foreach (var data in test.GetCustomAttributes<MemberDataAttribute>())
         {
-            var owner = data.MemberType ?? type;
-            foreach (var member in owner.GetMember(data.MemberName, Declared | BindingFlags.FlattenHierarchy))
+            foreach (var member in Member(data.MemberType ?? type, data.MemberName))
             {
                 switch (member)
                 {
                     case MethodInfo method:
-                        pending.Push(method);
+                        walk.Push(method);
                         break;
                     case PropertyInfo { GetMethod: { } getter }:
-                        pending.Push(getter);
+                        walk.Push(getter);
                         break;
-                    case FieldInfo:
-                        PushSetUp(pending, owner);
+                    case FieldInfo field:
+                        walk.PushInitializer(field.DeclaringType!);
                         break;
                 }
             }
@@ -84,58 +98,185 @@ public sealed class DocumentationTraitTests
         {
             foreach (var method in data.Class.GetMethods(Declared))
             {
-                pending.Push(method);
+                walk.Push(method);
             }
 
-            PushSetUp(pending, data.Class);
+            walk.PushConstruction(data.Class);
         }
 
-        var seen = new HashSet<MethodBase>();
-        while (pending.TryPop(out var method))
+        return walk.Reader();
+    }
+
+    /// <summary>A member of the type or, as xUnit looks one up, of its nearest base type declaring it.</summary>
+    private static MemberInfo[] Member(Type type, string name)
+    {
+        for (Type? current = type; current is not null; current = current.BaseType)
         {
-            if (!seen.Add(method))
+            if (current.GetMember(name, Declared) is { Length: > 0 } found)
             {
-                continue;
+                return found;
+            }
+        }
+
+        return [];
+    }
+
+    /// <summary>The fixtures xUnit builds for a test of the type: its class's, collection's and assembly's.</summary>
+    private static IEnumerable<Type> Fixtures(Type type)
+    {
+        var collections = type.GetCustomAttributes<CollectionAttribute>().ToList();
+        var definitions = Types.Where(definition => definition.GetCustomAttributes<CollectionDefinitionAttribute>()
+            .Any(attribute => collections.Any(collection => collection.Type == definition
+                || (collection.Name is { } name && attribute.Name == name))));
+        var fixtures = new[] { type }.Concat(definitions)
+            .SelectMany(static owner => owner.GetInterfaces())
+            .Where(static contract => contract.IsGenericType
+                && (contract.GetGenericTypeDefinition() == typeof(IClassFixture<>) || contract.GetGenericTypeDefinition() == typeof(ICollectionFixture<>)))
+            .Select(static contract => contract.GetGenericArguments()[0]);
+        return fixtures.Concat(type.Assembly.GetCustomAttributes<AssemblyFixtureAttribute>().Select(static fixture => fixture.AssemblyFixtureType));
+    }
+
+    /// <summary>The methods a test reaches, walked until one of them reads the repository.</summary>
+    private sealed class Walk
+    {
+        private static readonly Dictionary<MethodBase, MethodBase[]> ImplementationsOf = [];
+
+        private readonly Module module = typeof(DocumentationTraitTests).Module;
+        private readonly Stack<MethodBase> pending = new();
+        private readonly HashSet<MethodBase> seen = [];
+
+        public void Push(MethodBase method) => pending.Push(method);
+
+        /// <summary>What constructing the type runs: its constructors, and its explicit type initializer.</summary>
+        public void PushConstruction(Type type)
+        {
+            // Instance constructors only: with BindingFlags.Static, GetConstructors returns the type initializer too.
+            foreach (var constructor in type.GetConstructors(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+            {
+                pending.Push(constructor);
             }
 
-            if (Readers.Contains(method.Name))
+            if (!type.Attributes.HasFlag(TypeAttributes.BeforeFieldInit))
             {
-                return true;
+                PushInitializer(type);
             }
+        }
 
-            if (method.GetCustomAttribute<StateMachineAttribute>()?.StateMachineType.GetMethod("MoveNext", Declared) is { } moveNext)
+        public void PushInitializer(Type type)
+        {
+            if (type.TypeInitializer is { } initializer)
             {
-                pending.Push(moveNext);
+                pending.Push(initializer);
             }
+        }
 
-            foreach (var callee in Callees(method))
+        public MethodBase? Reader()
+        {
+            while (pending.TryPop(out var method))
             {
-                if (Readers.Contains(callee.Name) || callee.Module == module)
+                if (!seen.Add(method))
                 {
-                    pending.Push(callee);
+                    continue;
+                }
+
+                if (Readers.Contains(method.Name))
+                {
+                    return method;
+                }
+
+                if (method.GetCustomAttribute<StateMachineAttribute>()?.StateMachineType.GetMethod("MoveNext", Declared) is { } moveNext)
+                {
+                    pending.Push(moveNext);
+                }
+
+                foreach (var operand in Operands(method))
+                {
+                    switch (operand)
+                    {
+                        case RepositoryMarker:
+                            return method;
+                        case MethodBase callee when Readers.Contains(callee.Name):
+                            return callee;
+                        case MethodBase callee when callee.Module == module && !IsTheWalk(callee.DeclaringType):
+                            pending.Push(callee);
+                            if (callee.DeclaringType is { } declaring && !declaring.Attributes.HasFlag(TypeAttributes.BeforeFieldInit))
+                            {
+                                PushInitializer(declaring);
+                            }
+
+                            foreach (var implementation in Implementations(callee))
+                            {
+                                pending.Push(implementation);
+                            }
+
+                            break;
+                        case FieldInfo { IsStatic: true, DeclaringType: { } owner } when owner.Module == module:
+                            PushInitializer(owner);
+                            break;
+                    }
                 }
             }
+
+            return null;
         }
 
-        return false;
+        /// <summary>Whether the type is this class or one of its own, which read IL, not the repository.</summary>
+        private static bool IsTheWalk(Type? type)
+        {
+            for (var current = type; current is not null; current = current.DeclaringType)
+            {
+                if (current == typeof(DocumentationTraitTests))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>The methods of this assembly an interface or virtual method of it dispatches to.</summary>
+        private static MethodBase[] Implementations(MethodBase method)
+        {
+            if (method is not MethodInfo { IsVirtual: true, DeclaringType: { } owner } virtualMethod)
+            {
+                return [];
+            }
+
+            if (ImplementationsOf.TryGetValue(method, out var known))
+            {
+                return known;
+            }
+
+            var found = new List<MethodBase>();
+            foreach (var type in Types.Where(type => type != owner && !type.IsInterface && owner.IsAssignableFrom(type)))
+            {
+                if (owner.IsInterface)
+                {
+                    try
+                    {
+                        var map = type.GetInterfaceMap(owner);
+                        found.AddRange(map.TargetMethods.Where((_, index) => map.InterfaceMethods[index] == virtualMethod));
+                    }
+                    catch (ArgumentException)
+                    {
+                        // An open generic type the map cannot read: none of them reads the repository.
+                    }
+                }
+                else
+                {
+                    found.AddRange(type.GetMethods(Declared).Where(candidate => candidate.GetBaseDefinition() == virtualMethod.GetBaseDefinition()));
+                }
+            }
+
+            return ImplementationsOf[method] = [.. found];
+        }
     }
 
-    /// <summary>What runs before a test of the type: its constructors and its type initializer.</summary>
-    private static void PushSetUp(Stack<MethodBase> pending, Type type)
-    {
-        foreach (var constructor in type.GetConstructors(Declared))
-        {
-            pending.Push(constructor);
-        }
-
-        if (type.TypeInitializer is { } initializer)
-        {
-            pending.Push(initializer);
-        }
-    }
-
-    /// <summary>The methods a method's IL calls or loads, as the unit suite's <c>RuntimeClosingTests</c> reads them.</summary>
-    private static IEnumerable<MethodBase> Callees(MethodBase method)
+    /// <summary>
+    /// The methods, static and instance fields and strings a method's IL names, read as the unit suite's
+    /// <c>RuntimeClosingTests</c> reads them.
+    /// </summary>
+    private static IEnumerable<object> Operands(MethodBase method)
     {
         if (method.GetMethodBody()?.GetILAsByteArray() is not { } il)
         {
@@ -149,22 +290,28 @@ public sealed class DocumentationTraitTests
             var value = il[offset] == 0xFE ? unchecked((short)(0xFE00 | il[offset + 1])) : il[offset];
             var opCode = OpCodesByValue[value];
             offset += opCode.Size;
-            if (opCode.OperandType == OperandType.InlineMethod)
+            object? operand = null;
+            try
             {
-                MethodBase? callee = null;
-                try
+                var token = opCode.OperandType is OperandType.InlineMethod or OperandType.InlineField or OperandType.InlineString
+                    ? BinaryPrimitives.ReadInt32LittleEndian(il.AsSpan(offset))
+                    : 0;
+                operand = opCode.OperandType switch
                 {
-                    callee = method.Module.ResolveMethod(BinaryPrimitives.ReadInt32LittleEndian(il.AsSpan(offset)), typeArguments, methodArguments);
-                }
-                catch (ArgumentException)
-                {
-                    // A method of a generic type the walk cannot close: none of them reads the repository.
-                }
+                    OperandType.InlineMethod => method.Module.ResolveMethod(token, typeArguments, methodArguments),
+                    OperandType.InlineField => method.Module.ResolveField(token, typeArguments, methodArguments),
+                    OperandType.InlineString => method.Module.ResolveString(token),
+                    _ => null,
+                };
+            }
+            catch (ArgumentException)
+            {
+                // A member of a generic type the walk cannot close: none of them reads the repository.
+            }
 
-                if (callee is not null)
-                {
-                    yield return callee;
-                }
+            if (operand is not null)
+            {
+                yield return operand;
             }
 
             offset += opCode.OperandType switch
