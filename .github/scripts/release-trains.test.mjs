@@ -329,7 +329,7 @@ test("a changed solution filter releases the trains of the projects it adds or r
   assert.deepEqual(solutionFilterTrains(m, null, filter(["Core.A"])), set("core", "satellites"));
   assert.deepEqual(solutionFilterTrains(m, filter(["Core.A"]), `\uFEFF${filter(["Core.A", "Sat"])}`), set("satellites"));
   // MSBuild reads comments and trailing commas there, which JSON refuses: every train, rather than a guess.
-  const commented = filter(["Core.A"]).replace("[", "[ // the packable projects\n");
+  const commented = `// the packable projects\n${filter(["Core.A"])}`;
   assert.deepEqual(solutionFilterTrains(m, filter(["Core.A"]), commented), set("core", "satellites"));
   assert.deepEqual(solutionFilterTrains(m, commented, filter(["Core.A"])), set("core", "satellites"));
   assert.deepEqual(trainsOfPath(m, "src/AdCodicem.ValueObjects.Packages.slnf", filter(["Core.A"]), filter([])), set("core"));
