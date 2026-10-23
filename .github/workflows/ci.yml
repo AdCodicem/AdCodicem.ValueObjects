@@ -471,10 +471,13 @@ jobs:
       - name: Next version
         run: node .github/scripts/next-version.mjs
 
-      # Which train a project rides, and every shape of src/release-trains.json
-      # MSBuild's reading could get wrong.
-      - name: Release trains
-        run: node --test .github/scripts/release-trains.test.mjs
+      # Every script's tests: which train a project rides and every shape of
+      # src/release-trains.json MSBuild's reading could get wrong, and the
+      # weekly list of the majors Dependabot holds back. The glob is quoted so
+      # that Node expands it: a directory argument fails from Node 21 on
+      # ("Cannot find module").
+      - name: Release scripts
+        run: node --test '.github/scripts/*.test.mjs'
 
   # The jobs too slow for every pull request (heavy.yml): native AOT, native AOT
   # (Marten), the integration suite and compat (.NET 11), on the commit this run
