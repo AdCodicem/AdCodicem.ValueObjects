@@ -19,6 +19,7 @@
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { withoutComments } from "./release-trains.mjs";
 
 const MAJOR = "version-update:semver-major";
 const MINOR = "version-update:semver-minor";
@@ -89,19 +90,6 @@ export function readIgnoreRules(text) {
       "every update of it, security fixes included: give it update-types");
   }
   return rules;
-}
-
-/** The text outside XML comments, scanned from each opening to its closing; throws on a comment never closed. */
-export function withoutComments(text, file) {
-  let kept = "";
-  let from = 0;
-  for (let start = text.indexOf("<!--"); start !== -1; start = text.indexOf("<!--", from)) {
-    const end = text.indexOf("-->", start + 4);
-    if (end === -1) throw new Error(`${file}: a comment opened at offset ${start} is never closed`);
-    kept += text.slice(from, start);
-    from = end + 3;
-  }
-  return kept + text.slice(from);
 }
 
 /** The PackageVersion entries of Directory.Packages.props, comments left out, each { id, version, condition }. */

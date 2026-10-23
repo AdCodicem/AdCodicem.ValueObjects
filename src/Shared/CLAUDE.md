@@ -3,6 +3,11 @@
 Each file here is compiled into every project that links it (`<Compile Include="..\Shared\…" Link=…>`), not built as a
 project. A change here changes every package in the table at once, which is the point: a description written once.
 
+- Link a file with one literal `<Compile Include="..\Shared\<file>" Link="Shared\<file>" />` on one line, never a
+  wildcard, a property, a `.` or `..` segment or an item spread over lines, and never through an `<Import>` or a
+  `Directory.Build.*` file of the project's folder: `release-trains.mjs check` refuses them, and any other `<Compile>`
+  reaching outside a project's folder, since the release trains a change here releases are read off those lines, in
+  older commits too (ADR 0012).
 - Two copies one test project sees through `InternalsVisibleTo` (`src/Directory.Build.props`, which names each unit
   project) are two internal types, so a test naming one is CS0433. A unit project sees the copies its references bring:
   those of Abstractions, Json and Testing.Data in every one (`tests/UnitTests.props`), another package's in the projects

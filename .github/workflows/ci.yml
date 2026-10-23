@@ -447,7 +447,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.release == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -471,9 +471,52 @@ jobs:
       - name: Next version
         run: node .github/scripts/next-version.mjs
 
-      # Every script's tests: which train a project rides and every shape of
-      # src/release-trains.json MSBuild's reading could get wrong, and the
-      # weekly list of the majors Dependabot holds back. The glob is quoted so
+      # Each release train's version, which nothing uses yet
+      # (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md):
+      # release-trains.mjs gives each commit the trains
+      # whose packages it changes, a <PackageVersion> those whose restore graph
+      # holds the package. Fails when a train has no stable tag merged here.
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore the packages
+        run: dotnet restore src/AdCodicem.ValueObjects.Packages.slnf
+
+      - name: Each train's version
+        run: node .github/scripts/next-version.mjs --trains
+
+      # A stable release cuts every train at one version until each computes
+      # its own, and release.yml's job "tag the other trains" places each
+      # train's tag beside the core's: a missing one would leave that train
+      # counting from an older release. From 0.2.1, the satellites' baseline.
+      - name: Every stable release tags each train
+        run: |
+          set -euo pipefail
+          listed="$(node .github/scripts/release-trains.mjs trains)"
+          status=0
+          while read -r tag; do
+            version="${tag#v}"
+            [[ "$(printf '%s\n' 0.2.1 "$version" | sort -V | head -n 1)" == 0.2.1 ]] || continue
+            commit="$(git rev-parse "$tag^{commit}")"
+            while read -r train prefix _; do
+              [[ "$train" != core ]] || continue
+              twin="$prefix$version"
+              if ! named="$(git rev-parse --quiet --verify "refs/tags/$twin^{commit}")"; then
+                echo "::error::$tag has no $twin: place it on $commit (git tag $twin \"$tag^{commit}\" && git push origin $twin, docs/maintaining.md)."
+                status=1
+              elif [[ "$named" != "$commit" ]]; then
+                echo "::error::$twin names $named, not $commit, the commit of $tag (docs/maintaining.md)."
+                status=1
+              fi
+            done <<<"$listed"
+          done < <(git tag --merged HEAD --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$')
+          exit "$status"
+
+      # Every script's tests: which train a project rides, every shape of
+      # src/release-trains.json MSBuild's reading could get wrong, which trains
+      # a change releases, and the weekly list of the majors Dependabot holds
+      # back. The glob is quoted so
       # that Node expands it: a directory argument fails from Node 21 on
       # ("Cannot find module").
       - name: Release scripts

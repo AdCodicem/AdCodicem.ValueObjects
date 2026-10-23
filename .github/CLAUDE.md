@@ -12,6 +12,15 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - The version: `scripts/next-version.mjs` runs semantic-release's commit analyzer with `.releaserc.json`, without a
   token, and suffixes `-preview.<commits since the last stable tag>` (`0.3.0-preview.172` leads to `0.3.0`; with no
   commit that releases anything, the next patch). It needs `fetch-depth: 0`.
+- `next-version.mjs --trains` adds each train's version, from its own last stable tag and the commits of its range
+  that release it, the line rule applied (ADR 0012), and writes a table to the job summary. Nothing reads it yet: the
+  `version` job of `preview.yml` and the `pack` job of `release.yml` run it after the one version, every step of it
+  `continue-on-error`, and `release tooling` runs it on a pull request, where it can fail the check. It reads the list
+  and the restore graph of the tree checked out (`release-trains.mjs readModel`,
+  `artifacts/obj/<project>/project.assets.json` after `dotnet restore src/AdCodicem.ValueObjects.Packages.slnf`), so
+  it computes `HEAD` only, and fails without the restore, or without a stable tag of each train merged
+  (`satellites-v0.2.1` on `68abdc7` is the satellites' baseline). Without `--trains` its output is today's six keys,
+  which the workflows read.
 - MinVer receives it through `RELEASE_TRAIN_VERSIONS` (`core=X satellites=Y`, every train at that one version until
   each computes its own, ADR 0012), which `src/Directory.Build.props` turns into each project's `MinVerVersionOverride`.
   The build refuses `MINVERVERSIONOVERRIDE`, one version for every train, and a train the variable leaves out
@@ -66,7 +75,8 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   puts `<train>-v<version>` (`satellites-v<version>`) on the commit `v<version>` names, through the API with the job's
   token, and fails when the tag already names another commit; `docs/maintaining.md` places it by hand. A tag is read
   through `repos/…/commits/<tag>` or `git rev-parse <tag>^{commit}`, never `git/ref`, which answers an annotated
-  tag's own object.
+  tag's own object. `release tooling` (`ci.yml`, step `Every stable release tags each train`) fails while a `v<version>`
+  from `0.2.1` on lacks its twin on the same commit.
 - `preview.yml` and `release.yml` share the workflow-level concurrency group `release` (`cancel-in-progress: false`,
   `queue: max`): a preview never decides, packs or pushes while a release tags and pushes, and a release waiting for
   the `nuget-stable` reviewer, a dry run included, holds every preview until it ends.
@@ -79,7 +89,11 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   `Directory.Packages.props`: any change outside its `<PackageVersion>` elements, and the `<PackageVersion>` of any
   package in the restore graph of `src/`, build-time ones included (MinVer, SourceLink, PolySharp, Roslyn). That is wider
   than `shipped-dependencies`, so a `chore(deps)` bump of MinVer still publishes a preview. Add anything else that
-  changes a package's bytes or metadata, or it never reaches a preview.
+  changes a package's bytes or metadata, or it never reaches a preview, and to `scripts/release-trains.mjs` as well
+  (`GLOBAL_INPUTS`, or a rule of `trainsOfPath`), which says which trains it releases: a drift test of
+  `release-trains.test.mjs` holds every tracked path to be an input of both or of neither, the two files read by
+  content (`Directory.Packages.props`, the solution filter) aside, so a change to `preview-gate.sh` runs
+  `release tooling`.
 - `shipped-dependencies` must match the packed nuspecs: `ci.yml` (`scripts/shipped-dependencies-check.sh`) fails on a
   nuspec dependency the list lacks or a line matching nothing. `dependabot-auto-merge.yml` retitles a pull request
   updating a listed dependency `fix(deps):`, or `fix(deps)!:` across a major. Dependabot pull requests are squash-merged,
@@ -160,6 +174,19 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   a stale name, a `PackageId`, and a core project referencing another train; `ci.yml`'s pack check compares the two
   readings (`package-ids.sh --trains`), and `release tooling` runs `release-trains.test.mjs`. The list is a property
   function's read, invisible to `dotnet-affected`, so the plan runs everything for it.
+- `release-trains.mjs` also says which trains a commit releases (ADR 0012), the first rule that matches winning: a
+  `CLAUDE.md` or `AnalyzerReleases.*.md` under `src/` none; a global input (`GLOBAL_INPUTS`, `nuget.config` in any case)
+  every train; a `<PackageVersion>` the trains whose restore graph holds its package, or the train of the project its
+  `'$(MSBuildProjectName)' == '<X>'` condition names (none for a project outside `src/`), any other change of
+  `Directory.Packages.props` every train; the solution filter the trains of the projects it adds or removes (every train
+  when it does not read as JSON); a `src/Shared/` file the trains linking it in the commit or its parent (every train
+  when none does), which is why `check` refuses a `<Compile>` reaching outside its project's folder (`..`, a property or
+  an item) but as one literal `<Compile Include="..\Shared\<file>" />` on one line, and an `<Import>` or a
+  `Directory.Build.*` file in a project's folder, since it reads a project's items off its csproj alone; a project's
+  folder its train; anything else under `src/` every train; the rest none. `commits <from> <to>` lists them;
+  `lint-commits`, in `lint.yml`'s `conventional commits` job (`continue-on-error`), reads no graph, shows `deps` for a
+  `<PackageVersion>`, and warns on a releasing commit whose project folders span two trains, `src/Shared/` and the
+  global inputs aside, a project the tree no longer holds counting with the train it rode in the commit's parent.
 - The `coverage` matrix job, which the gate does not need, downloads the `coverage-*` artifacts
   (`coverage-unit-<family>`, `coverage-build`) and uploads one flag each: every unit report of the run under each
   family that ran, so that the lines of a family's packages another family's tests reach still count, and the
