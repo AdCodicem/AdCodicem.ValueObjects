@@ -303,7 +303,8 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   `[V, 0.(m+1).0)` while it is 0.x, `[V, (M+1).0.0)` from 1.0, closed at `-0` in a prerelease package.
   `src/Directory.Build.targets` rewrites the bare floor `dotnet pack` writes, after NuGet's private
   `_GetProjectReferenceVersions`, and `verify-packages.sh` refuses any other range, so a renamed target fails the check.
-- **Anything that changes a package's bytes or metadata is a `preview-gate.sh` input**, or it never reaches a preview;
+- **Anything that changes a package's bytes or metadata is a `preview-gate.sh` input**, or it never reaches a preview,
+  and a path rule or `GLOBAL_INPUTS` entry of `release-trains.mjs`, which a drift test holds to the gate's inputs;
   **a dependency added to a shipped package goes into `.github/shipped-dependencies`** in the same pull request, or CI
   fails. Both: `.github/CLAUDE.md`.
 - **Two Roslyn versions, both in `Directory.Packages.props`.** `Microsoft.CodeAnalysis.CSharp` 4.14.0 is the API the

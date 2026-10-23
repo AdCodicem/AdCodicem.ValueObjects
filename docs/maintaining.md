@@ -66,6 +66,23 @@ the commits since the last stable tag: `0.3.0-preview.172` is the 172nd commit a
 After a feature is reverted the next preview can be lower than one already published; the plan warns, and NuGet keeps
 offering the higher one as the latest prerelease until a higher version ships.
 
+Beside it, the **compute the version** job's summary shows the version each release train would take on its own
+([ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)), which nothing uses yet:
+for each train, its last stable tag (`v<version>` for the core, `satellites-v<version>` for the satellites), how many
+commits since that tag release it, their release type, its next version and preview, and for the satellites the core
+they last released against and whether its line has moved since. A commit releases the trains whose packages it changes;
+a file of `src/Shared/`, the trains whose projects compiled it then. A changed `<PackageVersion>` releases the trains
+whose restore graph holds that package, read from the `dotnet restore` of the solution filter the step runs on the tree
+being released. Under Actions that graph holds SourceLink too, so a run on a laptop differs only on a SourceLink bump.
+`satellites-v0.2.1`, on the commit of `v0.2.1`, is the satellites' baseline: without it on GitHub, the step fails, as
+does **release tooling** on every pull request of the release lane. The same table shows in the release's **pack** job.
+
+On a pull request, **conventional commits** lists the trains each commit releases in its summary, and warns on a
+`feat`, `fix` or other releasing commit that changes the projects of two trains: each train would list it in its own
+changelog, under its own version. It is advice, not a gate: split such a commit when its parts stand on their own.
+Without a restore it cannot tell which trains a changed `<PackageVersion>` releases and shows `deps` instead, so a
+Dependabot `fix(deps)` commit never triggers it.
+
 ### Routines
 
 - **After a merge**, `heavy.yml` runs on `main`: native AOT, Marten's, the integration suite and the .NET 11 island,
@@ -182,7 +199,9 @@ tagged `v<version>`, so that each train's last stable tag names what nuget.org l
 or is skipped because semantic-release failed after tagging (below), use **Re-run failed jobs** where it failed, or
 place the tag by hand, on the commit `v<version>` names:
 `git tag satellites-v<version> "v<version>^{commit}" && git push origin satellites-v<version>`. It fails, rather than
-moves it, when such a tag already names another commit.
+moves it, when such a tag already names another commit. **release tooling** fails every pull request of the release
+lane while a stable release from `v0.2.1` on lacks its twin, or the twin names another commit; its error gives the
+same command.
 
 The pack job freezes the documentation on every run, the dry run included. A real run commits
 `website/versioned_docs/` along with the changelog, then redeploys the site from the new tag

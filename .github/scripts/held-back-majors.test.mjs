@@ -9,8 +9,9 @@ import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import {
-  heldBack, keyOf, matches, readIgnoreRules, readPackageVersions, scopeOf, withoutComments,
+  heldBack, keyOf, matches, readIgnoreRules, readPackageVersions, scopeOf,
 } from "./held-back-majors.mjs";
+import { withoutComments } from "./release-trains.mjs";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "held-back-majors.mjs");
 

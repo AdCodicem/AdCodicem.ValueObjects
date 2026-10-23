@@ -48,8 +48,10 @@ jobs:
     # The nuget environment deploys from main only. A dispatch from another
     # branch stops here, rather than after the tests.
     if: github.ref == 'refs/heads/main'
+    # The former 10 minutes, and as many as the steps of each train's version
+    # may take, so that none of them can hold the preview back.
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 22
     outputs:
       preview-version: ${{ steps.next.outputs.preview_version }}
       release-type: ${{ steps.next.outputs.release_type }}
@@ -76,6 +78,26 @@ jobs:
         run: |
           set -euo pipefail
           node .github/scripts/next-version.mjs | tee -a "$GITHUB_OUTPUT"
+
+      # Each release train's version, to the job summary only, beside the one
+      # version the preview still uses until each train computes its own
+      # (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).
+      # Every step may fail without holding the preview back.
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        continue-on-error: true
+        timeout-minutes: 5
+        with:
+          global-json-file: global.json
+
+      - name: Restore the packages
+        continue-on-error: true
+        timeout-minutes: 5
+        run: dotnet restore src/AdCodicem.ValueObjects.Packages.slnf
+
+      - name: Each train's version (not used yet)
+        continue-on-error: true
+        timeout-minutes: 2
+        run: node .github/scripts/next-version.mjs --trains
 
   plan:
     name: decide what to publish
