@@ -45,6 +45,11 @@ Targets `netstandard2.0`, ships inside the `AdCodicem.ValueObjects` package (not
   referencing the generator by project must `<Import>` that file itself, as RdgTests does, or the analyzer sees nothing.
 - `KnownValueMemberCodeFixProvider` (`src/AdCodicem.ValueObjects.CodeFixes`) rewrites the obsolete `[KnownValue]` constructor taking a name and a
   value (`VO0034`).
+- A satellite API an analyzer names in a string is checked against the satellite in its family's project of the unit
+  suite, since the core and the satellites release apart (ADR 0012): rename both in one pull request. Serialization's
+  `SerializerContractDiagnosticTests` runs `VO0043` over the real protobuf-net, MessagePack and Newtonsoft.Json;
+  Orleans' `Grains/OrleansRemedyNameTests` reads the analyzer's source, which that project cannot load; Data's
+  `Persistence/MartenCompiledQueryDiagnosticTests` builds `VO0048`'s message from the Marten package's names.
 
 ## The logging analyzer (`Analyzers/DataClassificationAnalyzer.cs`, `VO0045`, `VO0046`)
 
