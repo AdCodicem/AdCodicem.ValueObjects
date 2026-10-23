@@ -179,7 +179,8 @@ Until each release train computes a version of its own
 ([ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)), every train is released
 at one version, and the **tag the other trains** job puts `satellites-v<version>` on the commit semantic-release
 tagged `v<version>`, so that each train's last stable tag names what nuget.org last shipped of it. If that job fails,
-use **Re-run failed jobs**, or place the tag by hand, on the commit `v<version>` names:
+or is skipped because semantic-release failed after tagging (below), use **Re-run failed jobs** where it failed, or
+place the tag by hand, on the commit `v<version>` names:
 `git tag satellites-v<version> "v<version>^{commit}" && git push origin satellites-v<version>`. It fails, rather than
 moves it, when such a tag already names another commit.
 
@@ -203,12 +204,13 @@ semantic-release tags and pushes the changelog commit before it pushes the packa
 after them. `push-packages.sh` pushes in dependency order, with retries, so what reached nuget.org is a prefix of the
 set that can be restored; the rest is in the run's `release-packages` artifact. Push the missing packages by hand, in
 the order the log prints ("Push order: …"), then create the GitHub Release from the tag by hand, with that artifact's
-`.nupkg` and `.snupkg` files as its assets. That release carries no provenance attestation and cannot get one. The
-**attest provenance** job runs only when the release job reports a tag, which a failed semantic-release never does,
-and a re-run releases nothing. Only a run of `release.yml` signs as `release.yml`, which is what the
-`--signer-workflow` check in a release's notes requires. Say in its notes that it is not attested, rather than
-copying the verification commands a release normally carries. Until the release is complete, `preview.yml` refuses
-to publish ("complete it by hand").
+`.nupkg` and `.snupkg` files as its assets, and place `satellites-v<version>` by hand, as above: the **tag the other
+trains** job is skipped with the release job, and a re-run releases nothing. That release carries no provenance
+attestation and cannot get one. The **attest provenance** job runs only when the release job reports a tag, which a
+failed semantic-release never does, and a re-run releases nothing. Only a run of `release.yml` signs as `release.yml`,
+which is what the `--signer-workflow` check in a release's notes requires. Say in its notes that it is not attested,
+rather than copying the verification commands a release normally carries. Until the release is complete, `preview.yml`
+refuses to publish ("complete it by hand").
 
 The GitHub Release ends with a table linking each package to its version page on nuget.org, and carries the
 `.nupkg` and `.snupkg` files as assets, signed by a SLSA build provenance attestation that the **attest
