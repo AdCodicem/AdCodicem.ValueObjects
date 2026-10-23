@@ -471,11 +471,20 @@ jobs:
       - name: Next version
         run: node .github/scripts/next-version.mjs
 
+      # Every script's tests: which train a project rides, every shape of
+      # src/release-trains.json MSBuild's reading could get wrong, which trains
+      # a change releases, and the weekly list of the majors Dependabot holds
+      # back. Before the steps that read the tags and the restore, so that they
+      # report whatever those find. The glob is quoted so that Node expands it:
+      # a directory argument fails from Node 21 on ("Cannot find module").
+      - name: Release scripts
+        run: node --test '.github/scripts/*.test.mjs'
+
       # Each release train's version, which nothing uses yet
       # (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md):
-      # release-trains.mjs gives each commit the trains
-      # whose packages it changes, a <PackageVersion> those whose restore graph
-      # holds the package. Fails when a train has no stable tag merged here.
+      # release-trains.mjs gives each commit the trains whose packages it
+      # changes, a <PackageVersion> those whose restore graph holds the package.
+      # Fails when a train has no stable tag merged here.
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
@@ -512,15 +521,6 @@ jobs:
             done <<<"$listed"
           done < <(git tag --merged HEAD --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$')
           exit "$status"
-
-      # Every script's tests: which train a project rides, every shape of
-      # src/release-trains.json MSBuild's reading could get wrong, which trains
-      # a change releases, and the weekly list of the majors Dependabot holds
-      # back. The glob is quoted so
-      # that Node expands it: a directory argument fails from Node 21 on
-      # ("Cannot find module").
-      - name: Release scripts
-        run: node --test '.github/scripts/*.test.mjs'
 
   # The jobs too slow for every pull request (heavy.yml): native AOT, native AOT
   # (Marten), the integration suite and compat (.NET 11), on the commit this run
