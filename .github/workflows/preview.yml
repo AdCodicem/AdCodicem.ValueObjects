@@ -24,9 +24,11 @@ permissions:
 # their turn (queue: max) instead of replacing one another: by default a
 # dispatch from another branch, or a re-run of an older run, would cancel a
 # pending run on main. A stale run is stopped by the plan's ancestry check or
-# the publish job's recheck.
+# the publish job's recheck. The group is release.yml's too, so that a preview
+# never decides, packs or pushes while a stable release tags and pushes: a
+# release waiting for its reviewer, a dry run included, holds the Monday run.
 concurrency:
-  group: preview
+  group: release
   cancel-in-progress: false
   queue: max
 

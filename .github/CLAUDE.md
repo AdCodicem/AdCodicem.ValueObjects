@@ -62,6 +62,14 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   publication, which is why `.releaserc.json` overrides `successComment` to link to the tag.
 - `v0.1.0` is a baseline tag placed by hand, not a release (no `0.1.0` package exists): semantic-release ignores
   prerelease tags on a stable branch and would otherwise have started at `1.0.0`.
+- Until each train computes a version of its own, `tag the other trains` (needing `release`, and only once it released)
+  puts `<train>-v<version>` (`satellites-v<version>`) on the commit `v<version>` names, through the API with the job's
+  token, and fails when the tag already names another commit; `docs/maintaining.md` places it by hand. A tag is read
+  through `repos/…/commits/<tag>` or `git rev-parse <tag>^{commit}`, never `git/ref`, which answers an annotated
+  tag's own object.
+- `preview.yml` and `release.yml` share the workflow-level concurrency group `release` (`cancel-in-progress: false`,
+  `queue: max`): a preview never decides, packs or pushes while a release tags and pushes, and a release waiting for
+  the `nuget-stable` reviewer, a dry run included, holds every preview until it ends.
 
 ## Package inputs and shipped dependencies
 
@@ -96,7 +104,8 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   unpinned: GitHub rejects `@ref` on either.
 - actionlint is a downloaded binary, not an action: bump `ACTIONLINT_VERSION` and `ACTIONLINT_SHA256` together in
   `lint.yml`'s `workflows` job, the digest taken from the release's checksums file; Dependabot never updates it.
-  `actionlint.yaml` silences `queue: max`, which actionlint does not know yet, in `deploy-docs.yml` and `preview.yml`.
+  `actionlint.yaml` silences `queue: max`, which actionlint does not know yet, in `deploy-docs.yml`, `preview.yml` and
+  `release.yml`.
 - `release tooling` runs every `scripts/*.test.mjs` through a quoted glob, `node --test '.github/scripts/*.test.mjs'`,
   never a directory argument, which fails from Node 21 on ("Cannot find module"): a new script's tests need no step.
 - `held-back-majors.yml` (Mondays, before the preview) lists the majors Dependabot holds back:

@@ -10,3 +10,8 @@ paths:
       # The same key, at the workflow level
       # (docs/adr/0009-publish-previews-weekly-when-a-package-input-changed.md).
       - 'unexpected key "queue" for "concurrency" section'
+  .github/workflows/release.yml:
+    ignore:
+      # The same key, at the workflow level, the group preview.yml's
+      # (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).
+      - 'unexpected key "queue" for "concurrency" section'

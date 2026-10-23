@@ -16,6 +16,15 @@ on:
 permissions:
   contents: read
 
+# One run at a time, shared with preview.yml, never cut short: a preview
+# deciding or pushing while a release tags and pushes could read half of
+# either. A run waiting for the nuget-stable reviewer holds the group, a dry
+# run included, so approve or reject it promptly (docs/maintaining.md).
+concurrency:
+  group: release
+  cancel-in-progress: false
+  queue: max
+
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
@@ -454,6 +463,59 @@ jobs:
           cp "$BUNDLE" "$asset"
           gh release upload "$TAG" "$asset" --repo "$GITHUB_REPOSITORY" --clobber
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+
+  # Until each train computes a version of its own (ADR 0012), a stable release
+  # cuts every train at one version and semantic-release tags the core's,
+  # v<version>. Each other train's tag, <train>-v<version>, goes on the same
+  # commit, so that every train's last stable tag names what nuget.org last
+  # shipped of it, the baseline its own versions will count from. A job of its
+  # own: its failure holds back neither the attestation nor the site, and
+  # docs/maintaining.md places the tag by hand. No workflow runs on a tag.
+  tag-trains:
+    name: tag the other trains
+    needs: release
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.released == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      # Creates the tags, through the API.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          sparse-checkout: |
+            /.github/scripts/
+            /src/release-trains.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      # A tag is read through the commits endpoint, which resolves an annotated
+      # tag to its commit as it does a lightweight one; git/ref would answer
+      # the tag object's sha. One already there must name the release commit.
+      - name: Tag each other train on the release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          commit="$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)"
+          listed="$(node .github/scripts/release-trains.mjs trains)"
+          while read -r train prefix _; do
+            [[ "$train" != core ]] || continue
+            name="$prefix$VERSION"
+            if existing="$(gh api "repos/$GITHUB_REPOSITORY/commits/$name" --jq .sha 2> /dev/null)"; then
+              if [[ "$existing" != "$commit" ]]; then
+                echo "::error::$name points at $existing, not at $commit, the commit of $TAG." >&2
+                exit 1
+              fi
+              echo "$name already names $commit."
+            else
+              gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$name" -f "sha=$commit" > /dev/null
+              echo "Tagged $name on $commit, the commit of $TAG."
+            fi
+          done <<<"$listed"
 
   # The new snapshot only exists in the release commit, and the workflow was
   # dispatched from the commit before it, so the build is pointed at the tag:

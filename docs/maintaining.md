@@ -171,7 +171,17 @@ pack job, which holds no credential, packs only the packable projects under `src
 .NET 11 island over the packed packages, compat blocking the release whatever .NET 11 it targets, and is skipped on a
 dry run; the release
 job builds nothing, checks what the pack job produced against its digests, and pushes it. Count about 25 minutes
-before the `nuget-stable` reviewer is asked: Marten's native AOT job sets that time.
+before the `nuget-stable` reviewer is asked: Marten's native AOT job sets that time. Approve or reject a run promptly,
+a dry run included: `release.yml` and `preview.yml` share one concurrency group, so a run waiting for its reviewer
+holds the next preview, the Monday one included, until it ends.
+
+Until each release train computes a version of its own
+([ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)), every train is released
+at one version, and the **tag the other trains** job puts `satellites-v<version>` on the commit semantic-release
+tagged `v<version>`, so that each train's last stable tag names what nuget.org last shipped of it. If that job fails,
+use **Re-run failed jobs**, or place the tag by hand, on the commit `v<version>` names:
+`git tag satellites-v<version> "v<version>^{commit}" && git push origin satellites-v<version>`. It fails, rather than
+moves it, when such a tag already names another commit.
 
 The pack job freezes the documentation on every run, the dry run included. A real run commits
 `website/versioned_docs/` along with the changelog, then redeploys the site from the new tag
