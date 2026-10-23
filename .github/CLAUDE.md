@@ -102,10 +102,13 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - `held-back-majors.yml` (Mondays, before the preview) lists the majors Dependabot holds back:
   `scripts/held-back-majors.mjs` reads `dependabot.yml`'s ignore rules and the pins they match
   (`Directory.Packages.props`, `.config/dotnet-tools.json`, `package.json` at `package-lock.json`'s versions), against
-  nuget.org's and npm's newest stable version, and keeps one open issue, labelled `dependencies`, with the list. It
-  never fails on a finding, only on a failed lookup or a `dependabot.yml` shape its narrow reader does not know (an
-  ignore rule with a key other than `dependency-name` and `update-types`, by name alone, or under an entry with no
-  reader for its pins): give it a reader in the same change. A change to `dependabot.yml` runs `release tooling`,
+  nuget.org's and npm's newest stable version, and keeps one open issue, labelled `dependencies`, with the list and the
+  rules that match no pin. An edit notifies nobody, so it comments when the hidden marker on the report's first line,
+  each row keyed by its pin and the line it waits for, changes. It never fails on a finding, only on a failed lookup
+  or a `dependabot.yml` shape its narrow reader cannot place (an entry not opening with `package-ecosystem`, a key or
+  comment on the `ignore:` line, an ignore rule with a key other than `dependency-name` and `update-types`, by name
+  alone, or under an entry with no reader for its pins, or fewer rules read than `dependency-name` lines): give it a
+  reader in the same change. A change to `dependabot.yml` runs `release tooling`,
   whose tests read the repository's own file.
 - Trusted Publishing is keyed on a workflow file and an environment (`preview.yml` with `nuget`, `release.yml` with
   `nuget-stable`): change the nuget.org policy before renaming either file or moving its publish job.

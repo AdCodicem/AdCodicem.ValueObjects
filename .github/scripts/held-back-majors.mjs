@@ -27,8 +27,9 @@ const UPDATE_TYPES = [MAJOR, MINOR, "version-update:semver-patch"];
 /**
  * The ignore rules of dependabot.yml, each { ecosystem, directory, name, types, line }. A narrow reader of the file's
  * one shape: two-space indentation, an update entry opening with `- package-ecosystem:`, its keys four spaces in, an
- * ignore rule opening with `- dependency-name:` six spaces in, its update-types eight spaces in. Throws on anything
- * else under `ignore:`.
+ * ignore rule opening with `- dependency-name:` six spaces in, its update-types eight spaces in. Throws on any other
+ * shape of an entry's opening, of its ignore key or under it, and when it read fewer rules than the file names
+ * dependencies, so that no rule is skipped or filed under another entry.
  */
 export function readIgnoreRules(text) {
   const rules = [];
@@ -45,10 +46,15 @@ export function readIgnoreRules(text) {
     if (indent === 2 && (match = line.match(/^- package-ecosystem:\s*"?([^"\s]+)"?$/))) {
       entry = { ecosystem: match[1], directory: undefined };
       inIgnore = false;
+    } else if (indent === 2 && line.startsWith("-")) {
+      throw new Error(`${where}: an update entry must open with - package-ecosystem: "<ecosystem>", not ${line}`);
     } else if (indent <= 2) {
       entry = indent === 0 ? undefined : entry;
       inIgnore = false;
     } else if (entry && indent === 4) {
+      if (line.startsWith("-") || (/^(ignore|package-ecosystem)\b/.test(line) && line !== "ignore:")) {
+        throw new Error(`${where}: an update entry's key must read ignore: alone, or be another key, not ${line}`);
+      }
       inIgnore = line === "ignore:";
       if ((match = line.match(/^directory:\s*"?([^"\s]+)"?$/))) entry.directory = match[1];
     } else if (inIgnore && indent === 6) {
@@ -71,6 +77,11 @@ export function readIgnoreRules(text) {
     } else if (inIgnore) {
       throw new Error(`${where}: unexpected indentation under ignore: ${line}`);
     }
+  }
+  const named = lines.filter((line) => /^\s*-?\s*dependency-name:/.test(line)).length;
+  if (named !== rules.length) {
+    throw new Error(`dependabot.yml names ${named} dependencies in ignore rules, of which this reader read ` +
+      `${rules.length}`);
   }
   const nameOnly = rules.find((rule) => rule.types.length === 0);
   if (nameOnly) {
@@ -188,16 +199,24 @@ async function versionsOf(ecosystem, id, env) {
   return Object.keys((await fetchJson(`${base}/${id.replace("/", "%2f")}`)).versions ?? {});
 }
 
-/** The pins held back, each { ecosystem, id, pinned, newest, newestOnLine, held, scope }, in the file's order. */
+/**
+ * { rows, stale }: the pins held back, each { ecosystem, id, pinned, newest, newestOnLine, held, scope }, in the
+ * file's order, and the ignore rules that match no pin of their entry, each { ecosystem, name, line }.
+ */
 export async function findHeldBack(root, env = process.env) {
   const rules = readIgnoreRules(readFileSync(join(root, ".github/dependabot.yml"), "utf8"));
   const rows = [];
+  const stale = [];
   const entries = [...new Set(rules.map((rule) => `${rule.ecosystem} ${rule.directory}`))];
   for (const key of entries) {
     const [ecosystem, directory] = key.split(" ");
     const entryRules = rules.filter((rule) => rule.ecosystem === ecosystem && rule.directory === directory);
     const listed = new Map();
-    for (const pin of readPins(root, ecosystem, directory)) {
+    const pins = readPins(root, ecosystem, directory);
+    for (const rule of entryRules.filter((rule) => !pins.some((pin) => matches(rule.name, pin.id)))) {
+      stale.push({ ecosystem, name: rule.name, line: rule.line });
+    }
+    for (const pin of pins) {
       const types = entryRules.filter((rule) => matches(rule.name, pin.id)).flatMap((rule) => rule.types);
       if (!types.includes(MAJOR)) continue;
       const holdsMinor = types.includes(MINOR);
@@ -209,12 +228,33 @@ export async function findHeldBack(root, env = process.env) {
       }
     }
   }
-  return rows;
+  return { rows, stale };
 }
 
-/** The report: a heading, a sentence, and a table when anything is held back. */
-export function report(rows) {
-  const lines = ["## Dependency majors Dependabot holds back", ""];
+/**
+ * The line a held pin waits for: the newest version's major, or its major.minor when the minor is held. A row keeps
+ * its key while later versions arrive on that line, so that the issue says the list changed only when a pin or a
+ * line does.
+ */
+export const keyOf = (row) => {
+  const [major, minor = "0"] = row.newest.split(".");
+  return `${row.id}@${row.pinned}:${row.held === "minor" ? `${major}.${minor}` : major}`;
+};
+
+/**
+ * The report: a heading, a sentence, a table when anything is held back, the rules that match no pin, and a hidden
+ * marker of the rows' keys, which held-back-majors.yml compares with the issue's to comment when the list changed.
+ */
+export function report({ rows, stale = [] }) {
+  const marker = `<!-- held-back: ${rows.map(keyOf).sort().join(" ")} -->`;
+  const lines = [marker, "## Dependency majors Dependabot holds back", ""];
+  if (stale.length > 0) {
+    lines.push(
+      "Rules of `.github/dependabot.yml` that match no pin, which may be left over from a dependency removed since:",
+      "",
+      ...stale.map((rule) => `- ${rule.ecosystem} \`${rule.name}\` (line ${rule.line})`),
+      "");
+  }
   if (rows.length === 0) {
     lines.push("Dependabot holds back no major: every pin its ignore rules match is on its newest line.");
     return `${lines.join("\n")}\n`;
@@ -239,11 +279,15 @@ async function main(argv, env) {
     args.splice(0, 2);
   }
   if (args.length !== 1) throw new Error("usage: held-back-majors.mjs [--root <dir>] <report.md>");
-  const rows = await findHeldBack(root, env);
-  const text = report(rows);
+  const { rows, stale } = await findHeldBack(root, env);
+  const text = report({ rows, stale });
   writeFileSync(args[0], text);
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, text);
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `held=${rows.length}\n`);
+  for (const rule of stale) {
+    const where = `dependabot.yml:${rule.line}`;
+    console.log(`::warning title=Stale ignore rule::${rule.ecosystem} ${rule.name} (${where}) matches no pin`);
+  }
   for (const row of rows) {
     const held = `the ${row.held} is held back`;
     console.log(`::warning title=Held back::${row.id} ${row.pinned}: ${row.newest} is out (${held})`);

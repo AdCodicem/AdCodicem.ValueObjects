@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
-import { heldBack, matches, readIgnoreRules, readPackageVersions, scopeOf } from "./held-back-majors.mjs";
+import { heldBack, keyOf, matches, readIgnoreRules, readPackageVersions, scopeOf } from "./held-back-majors.mjs";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "held-back-majors.mjs");
 
@@ -60,7 +60,8 @@ const PROPS = `<Project>
 
 const TOOLS = { version: 1, isRoot: true, tools: { "local-tool": { version: "7.0.1", commands: ["local-tool"] } } };
 
-const MANIFEST = { name: "fixture", private: true, devDependencies: { preset: "^9.3.1", other: "^1.0.0" } };
+// The manifest asks for a range below the lock file's version, so that a row naming 9.3.1 proves the lock was read.
+const MANIFEST = { name: "fixture", private: true, devDependencies: { preset: "^9.0.0", other: "^1.0.0" } };
 const LOCK = {
   name: "fixture",
   lockfileVersion: 3,
@@ -209,6 +210,25 @@ describe("held-back-majors.mjs", () => {
     assert.match(result.output, /^held=2$/m);
   });
 
+  test("a rule matching no pin is listed apart, as possibly stale, and fails nothing", async () => {
+    defaults();
+    const extra = DEPENDABOT.replace(
+      '      - dependency-name: "local-tool"\n',
+      '      - dependency-name: "Removed.Package"\n        update-types: ["version-update:semver-major"]\n' +
+        '      - dependency-name: "local-tool"\n');
+    const result = await run(repository({ ".github/dependabot.yml": extra }));
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.report, /match no pin[\s\S]*- nuget `Removed\.Package` \(line \d+\)/);
+    assert.match(result.stdout, /::warning title=Stale ignore rule::nuget Removed\.Package/);
+  });
+
+  test("the report's first line keys each row by its pin and the line it waits for", async () => {
+    defaults();
+    const result = await run(repository());
+    assert.equal(result.report.split("\n")[0], "<!-- held-back: Contoso.Web@2.4.0:3 -->");
+    assert.equal(keyOf({ id: "R", pinned: "4.14.0", newest: "5.9.2", held: "minor" }), "R@4.14.0:5.9");
+  });
+
   test("a registry answering 500 fails the check", async () => {
     defaults();
     failing = "contoso.web";
@@ -265,13 +285,36 @@ describe("the readers", () => {
     assert.throws(() => readIgnoreRules(text), /semver-mayor is no update type/);
   });
 
-  test("the repository's own dependabot.yml reads, with its Roslyn rule holding the minor", () => {
+  test("the repository's own dependabot.yml reads whole, each rule under its entry", () => {
     const own = readFileSync(join(dirname(script), "../dependabot.yml"), "utf8");
     const rules = readIgnoreRules(own);
-    assert.ok(rules.length > 10);
+    assert.equal(rules.length, own.split("\n").filter((line) => /^\s*-?\s*dependency-name:/.test(line)).length);
     const roslyn = rules.find((rule) => rule.name === "Microsoft.CodeAnalysis.CSharp*");
     assert.deepEqual(roslyn.types, ["version-update:semver-major", "version-update:semver-minor"]);
+    const preset = rules.find((rule) => rule.name === "conventional-changelog-conventionalcommits");
+    assert.deepEqual([preset.ecosystem, preset.directory], ["npm", "/"]);
   });
+
+  // Shapes YAML takes as the same file, which this reader cannot place: each must fail, never drop or misfile a rule.
+  for (const [shape, from, to] of [
+    ["a comment after an entry's opening",
+      '  - package-ecosystem: "npm"\n',
+      '  - package-ecosystem: "npm" # tooling\n'],
+    ["an entry opening with another key",
+      '  - package-ecosystem: "npm"\n    directory: "/"\n',
+      '  - directory: "/"\n    package-ecosystem: "npm"\n'],
+    ["a comment after ignore:",
+      '    ignore:\n      - dependency-name: "preset"',
+      '    ignore: # tooling\n      - dependency-name: "preset"'],
+    ["a list at the key's own indentation",
+      '      - dependency-name: "preset"\n        update-types: ["version-update:semver-major"]\n',
+      '    - dependency-name: "preset"\n      update-types: ["version-update:semver-major"]\n'],
+  ]) {
+    test(`${shape} is refused`, () => {
+      assert.ok(DEPENDABOT.includes(from), shape);
+      assert.throws(() => readIgnoreRules(DEPENDABOT.replace(from, to)), /dependabot\.yml/);
+    });
+  }
 
   test("a commented-out PackageVersion is no pin", () => {
     assert.deepEqual(readPackageVersions(PROPS).map((pin) => pin.id),
