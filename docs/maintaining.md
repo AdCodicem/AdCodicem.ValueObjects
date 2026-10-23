@@ -274,8 +274,10 @@ Without them the release job stops at its first step, before anything is publish
   same families moving with them (`xunit.v3*`, `protobuf-net*`, `Microsoft.Azure.Functions.Worker*`,
   `ModelContextProtocol*`), and for the minors of `Microsoft.CodeAnalysis.CSharp*` too: its `major.minor` is the
   oldest compiler that loads the generator, which a minor raises as a major does (#190). Dependabot no longer proposes
-  those majors, so check the shipped dependencies for one before each stable release. A new major is supported by a
-  decision, a dependency floor or a target framework
+  those majors: `held-back-majors.yml` lists them every Monday, before the preview, in one open issue titled
+  "Dependency majors Dependabot holds back", against the newest stable version nuget.org or npm lists, and closes it
+  once nothing is held back. Its Roslyn rows (4.14.0, and the Wolverine.Http fixture's 5.0.0) stand by design. A new
+  major is supported by a decision, a dependency floor or a target framework
   ([ADR-0010](adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)), never by a bump. Dependabot's
   NuGet updater applies these rules to security updates too: a security fix that exists only on a new major of one of
   them opens no pull request, and its alert stays open. Treat it as a deliberate migration under ADR-0010. A fix on the

@@ -45,8 +45,9 @@
 #                  script, the family table, the list of release trains (which every project reads by a property
 #                  function, invisible to dotnet-affected) and release-trains.mjs, which this script runs,
 #                  coverage-modules.sh, codecov.yml, tests/Directory.Build.*, and any path no rule names.
-#   release        package.json, its lock file, .releaserc.json, next-version.mjs and release-trains.test.mjs: the job
-#                  "release tooling".
+#   release        package.json, its lock file, .releaserc.json, next-version.mjs, release-trains.test.mjs, and the
+#                  weekly list of held-back majors (held-back-majors.mjs, its test, and dependabot.yml, whose shape its
+#                  reader holds): the job "release tooling".
 #   pack           icon.png, .github/shipped-dependencies and the scripts that check the packed set.
 #   graph          src/, the unit suite's projects and tests/UnitTests.props, which they import, tests/Fixtures/ but
 #                  the Functions fixture, and the .NET code of the rules below: the projects dotnet-affected
@@ -270,20 +271,23 @@ rule() {
     website/docs/*) echo website-docs ;;
     skills/value-objects/*) echo documentation ;;
     LICENSE | .gitignore | .pre-commit-config.yaml | .claude-plugin/* | .github/ISSUE_TEMPLATE/* | \
-      .github/DISCUSSION_TEMPLATE/* | .github/CODEOWNERS | .github/FUNDING.yml | .github/dependabot.yml | \
-      .github/actionlint.yaml | .github/requirements/*) echo none ;;
+      .github/DISCUSSION_TEMPLATE/* | .github/CODEOWNERS | .github/FUNDING.yml | .github/actionlint.yaml | \
+      .github/requirements/*) echo none ;;
     .github/workflows/ci.yml) echo everything ;;
     .github/workflows/heavy.yml) echo heavy-notice ;;
     .github/workflows/benchmarks.yml | .github/workflows/dependabot-auto-merge.yml | \
-      .github/workflows/deploy-docs.yml | .github/workflows/lint.yml | .github/workflows/preview.yml | \
-      .github/workflows/release.yml | .github/workflows/scorecards.yml | .github/workflows/stale.yml) echo none ;;
+      .github/workflows/deploy-docs.yml | .github/workflows/held-back-majors.yml | .github/workflows/lint.yml | \
+      .github/workflows/preview.yml | .github/workflows/release.yml | .github/workflows/scorecards.yml | \
+      .github/workflows/stale.yml) echo none ;;
     .github/actions/build-site/* | .github/scripts/docfx-postprocess.py) echo site ;;
     .github/ci-families.json | .github/scripts/ci-plan.sh | .github/scripts/coverage-modules.sh | \
       .github/scripts/release-trains.mjs) echo everything ;;
     .github/scripts/native-aot.sh) echo heavy-notice ;;
     .github/scripts/compiled-model.sh) echo compiled-model ;;
     .github/scripts/ecmascript-patterns.mjs) echo text ;;
-    .github/scripts/next-version.mjs | .github/scripts/release-trains.test.mjs) echo release ;;
+    .github/scripts/next-version.mjs | .github/scripts/release-trains.test.mjs | \
+      .github/scripts/held-back-majors.mjs | .github/scripts/held-back-majors.test.mjs | \
+      .github/dependabot.yml) echo release ;;
     .github/shipped-dependencies | .github/scripts/verify-packages.sh | .github/scripts/package-ids.sh | \
       .github/scripts/shipped-dependencies-check.sh) echo pack ;;
     .github/scripts/dependabot-commit-type.sh | .github/scripts/docs-snapshot.sh | \

@@ -97,6 +97,16 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - actionlint is a downloaded binary, not an action: bump `ACTIONLINT_VERSION` and `ACTIONLINT_SHA256` together in
   `lint.yml`'s `workflows` job, the digest taken from the release's checksums file; Dependabot never updates it.
   `actionlint.yaml` silences `queue: max`, which actionlint does not know yet, in `deploy-docs.yml` and `preview.yml`.
+- `release tooling` runs every `scripts/*.test.mjs` through a quoted glob, `node --test '.github/scripts/*.test.mjs'`,
+  never a directory argument, which fails from Node 21 on ("Cannot find module"): a new script's tests need no step.
+- `held-back-majors.yml` (Mondays, before the preview) lists the majors Dependabot holds back:
+  `scripts/held-back-majors.mjs` reads `dependabot.yml`'s ignore rules and the pins they match
+  (`Directory.Packages.props`, `.config/dotnet-tools.json`, `package.json` at `package-lock.json`'s versions), against
+  nuget.org's and npm's newest stable version, and keeps one open issue, labelled `dependencies`, with the list. It
+  never fails on a finding, only on a failed lookup or a `dependabot.yml` shape its narrow reader does not know (an
+  ignore rule with a key other than `dependency-name` and `update-types`, by name alone, or under an entry with no
+  reader for its pins): give it a reader in the same change. A change to `dependabot.yml` runs `release tooling`,
+  whose tests read the repository's own file.
 - Trusted Publishing is keyed on a workflow file and an environment (`preview.yml` with `nuget`, `release.yml` with
   `nuget-stable`): change the nuget.org policy before renaming either file or moving its publish job.
 - Required checks are job names: `build and test` (`ci.yml`), `workflows` and `conventional commits` (`lint.yml`). Never
