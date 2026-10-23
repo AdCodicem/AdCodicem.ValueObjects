@@ -3,7 +3,8 @@
 The serialization family's unit tests (NewtonsoftJson, AspNetCore.NewtonsoftJson, Swashbuckle, NJsonSchema,
 MessagePack, ProtobufNet, Grpc), in `BinarySerialization/` (MessagePack; protobuf-net as `Proto*`; gRPC as
 `CodeFirstGrpc*` and `ContractFirstGrpc*`), `SchemaGeneration/` (NJsonSchema, Confluent), `Web/` (the Newtonsoft.Json
-formatters and JSON Patch, Swashbuckle, NSwag) and `NewtonsoftJsonTests.cs` at its root. The suite's conventions are in
+formatters and JSON Patch, Swashbuckle, NSwag), `NewtonsoftJsonTests.cs` at its root, and
+`SerializerContractDiagnosticTests.cs` beside it. The suite's conventions are in
 `tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`, each package's traps in its `src/<Package>/CLAUDE.md`.
 
 - protobuf-net: `RuntimeTypeModel.Default` is registered once, strict (`BinarySerialization/ProtoDefaultModel.cs`);
@@ -19,6 +20,10 @@ formatters and JSON Patch, Swashbuckle, NSwag) and `NewtonsoftJsonTests.cs` at i
 - `NSwag.OpenApiDocument` meets `Web.OpenApiDocument`, which this project links from the AspNet project: alias it
   (`NSwagOpenApiDocument`, as `Web/NSwagDocumentTests` does).
 - `Web/NSwagDocumentTests` compiles NSwag's C# client with `Microsoft.CodeAnalysis.CSharp` 4.14.0, the suite's Roslyn.
+- `SerializerContractDiagnosticTests` runs the generator and `VO0043`'s analyzer, loaded from the generator's assembly
+  that `CopyValueObjectAnalyzers` copies to `analyzers/`, as the Data project does, over value objects carrying each
+  serializer's attribute, and checks every satellite name the messages write against the satellite (`nameof`,
+  `typeof`): the analyzer rides the core's release train, the packages it names the satellites'.
 - Swashbuckle and NSwag documents are awaited with a timeout (`SwashbuckleDocuments.BuildAsync` in
   `Web/SwashbuckleDocument.cs`, `NSwagDocuments` in `Web/NSwagDocument.cs`), so a schema-filter hang fails the test,
   not the job's time limit.

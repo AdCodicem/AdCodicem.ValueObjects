@@ -21,4 +21,6 @@ package's traps in `src/AdCodicem.ValueObjects.Orleans/CLAUDE.md`.
   a type the reader must refuse go through `Craft(services, …)` over services allowing that type.
 - This project references no `Microsoft.CodeAnalysis.CSharp`: Microsoft.Orleans.Serialization brings
   `Microsoft.CodeAnalysis.Common` 5.0.0 here, beside which the 4.14.0 pin fails the restore (NU1608).
-- It links core's `WithoutDynamicCode.cs` (`Grains/OrleansWithoutDynamicCodeTests`).
+- It links core's `WithoutDynamicCode.cs` (`Grains/OrleansWithoutDynamicCodeTests`), and embeds the source of
+  `SerializerContractAnalyzer.cs`, which `Grains/OrleansRemedyNameTests` reads for the names `VO0043` writes of the
+  package: with no `Microsoft.CodeAnalysis.CSharp` here, it cannot load the analyzer.

@@ -72,4 +72,18 @@
     <EmbeddedResource Include="..\AdCodicem.ValueObjects.UnitTests\Web\ValidationMessages.fr.resx" Link="Web\ValidationMessages.fr.resx" />
   </ItemGroup>
 
+  <!--
+    The generator's own assembly, which the compiler runs over this project as an analyzer and this project does not
+    reference, copied next to the tests: SerializerContractDiagnosticTests loads the generator and
+    SerializerContractAnalyzer from it, and checks each satellite API the analyzer names against the satellite.
+  -->
+  <Target Name="CopyValueObjectAnalyzers" AfterTargets="ResolveReferences" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <_ValueObjectAnalyzers Include="@(Analyzer)" Condition="'%(Filename)' == 'AdCodicem.ValueObjects.Generators'" />
+      <None Include="@(_ValueObjectAnalyzers)" Link="analyzers\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+    <Error Condition="'@(_ValueObjectAnalyzers)' == ''"
+           Text="The generator's AdCodicem.ValueObjects.Generators.dll was not found among this project's analyzers." />
+  </Target>
+
 </Project>

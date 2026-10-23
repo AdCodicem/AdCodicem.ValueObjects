@@ -31,4 +31,11 @@
     <Compile Include="..\AdCodicem.ValueObjects.UnitTests\WithoutDynamicCode.cs" Link="WithoutDynamicCode.cs" />
   </ItemGroup>
 
+  <!-- The source of the analyzer that names this family's package in a remedy, which Grains/OrleansRemedyNameTests reads:
+       this project cannot load the analyzer, which needs Microsoft.CodeAnalysis.CSharp. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\src\AdCodicem.ValueObjects.Generators\Analyzers\SerializerContractAnalyzer.cs"
+                      LogicalName="SerializerContractAnalyzer.cs" />
+  </ItemGroup>
+
 </Project>

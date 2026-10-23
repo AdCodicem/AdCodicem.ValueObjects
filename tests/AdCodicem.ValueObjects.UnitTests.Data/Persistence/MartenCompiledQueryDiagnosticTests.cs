@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Reflection;
+using AdCodicem.ValueObjects.Marten;
 using Marten.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -81,14 +82,18 @@ public sealed class MartenCompiledQueryDiagnosticTests
         diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
         diagnostic.Location.SourceTree!.GetText(TestContext.Current.CancellationToken).ToString(diagnostic.Location.SourceSpan)
             .Should().Be("Id");
+        // The package and its registration the message names, which ride another release train than the analyzer's
+        // (ADR 0012): a rename there fails here.
+        var package = $"{typeof(ValueObjectStoreOptionsExtensions).Assembly.GetName().Name}'s "
+            + $"{nameof(ValueObjectStoreOptionsExtensions.UseValueObjects)}()";
         diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
             "'Id' of the compiled query 'MartenAccountsById' holds the value object 'CustomerId', which Marten refuses as a "
             + "parameter, or, once it takes the type for a document's identity, accepts and answers on every call with the "
             + "first call's value. Declare it as Guid and compare the value object's Value with it, x.Id.Value == Id, which "
-            + "needs AdCodicem.ValueObjects.Marten's UseValueObjects(), without which Marten reads a Value no document holds; "
+            + $"needs {package}, without which Marten reads a Value no document holds; "
             + "or, for a document's identity, whose Value Marten does not read, hold the values in an array or a list of the "
             + "value object (a type implementing IList<T>), read with Contains or IsOneOf, which "
-            + "AdCodicem.ValueObjects.Marten's UseValueObjects() binds on every call.");
+            + $"{package} binds on every call.");
     }
 
     /// <summary>Compiles a snippet against what this process runs on, this assembly among it, Marten included.</summary>
