@@ -8,7 +8,9 @@ import { dirname, join } from "node:path";
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
-import { heldBack, keyOf, matches, readIgnoreRules, readPackageVersions, scopeOf } from "./held-back-majors.mjs";
+import {
+  heldBack, keyOf, matches, readIgnoreRules, readPackageVersions, scopeOf, withoutComments,
+} from "./held-back-majors.mjs";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "held-back-majors.mjs");
 
@@ -319,6 +321,12 @@ describe("the readers", () => {
   test("a commented-out PackageVersion is no pin", () => {
     assert.deepEqual(readPackageVersions(PROPS).map((pin) => pin.id),
       ["Contoso.Data", "Contoso.Web", "Roslyn.Like", "Roslyn.Like", "Unruled"]);
+  });
+
+  test("a comment is left out whole, and one never closed is refused", () => {
+    assert.equal(withoutComments("a<!-- b <!-- c -->d<!---->e", "x"), "ade");
+    assert.throws(() => withoutComments("a<!-- b", "Directory.Packages.props"),
+      /a comment opened at offset 1 is never closed/);
   });
 
   test("a pattern's * is its only wildcard, and case is ignored", () => {

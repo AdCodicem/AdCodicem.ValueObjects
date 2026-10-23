@@ -91,11 +91,25 @@ export function readIgnoreRules(text) {
   return rules;
 }
 
+/** The text outside XML comments, scanned from each opening to its closing; throws on a comment never closed. */
+export function withoutComments(text, file) {
+  let kept = "";
+  let from = 0;
+  for (let start = text.indexOf("<!--"); start !== -1; start = text.indexOf("<!--", from)) {
+    const end = text.indexOf("-->", start + 4);
+    if (end === -1) throw new Error(`${file}: a comment opened at offset ${start} is never closed`);
+    kept += text.slice(from, start);
+    from = end + 3;
+  }
+  return kept + text.slice(from);
+}
+
 /** The PackageVersion entries of Directory.Packages.props, comments left out, each { id, version, condition }. */
 export function readPackageVersions(text) {
   const pins = [];
   const attribute = (attributes, name) => attributes.match(new RegExp(`\\b${name}="([^"]*)"`))?.[1];
-  for (const [, attributes] of text.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<PackageVersion\b([^>]*?)\/>/g)) {
+  const entries = withoutComments(text, "Directory.Packages.props").matchAll(/<PackageVersion\b([^>]*?)\/>/g);
+  for (const [, attributes] of entries) {
     const id = attribute(attributes, "Include");
     const version = attribute(attributes, "Version");
     if (!id || !version) {
@@ -196,7 +210,7 @@ async function versionsOf(ecosystem, id, env) {
     return (await fetchJson(`${base}/${id.toLowerCase()}/index.json`)).versions ?? [];
   }
   const base = (env.NPM_REGISTRY ?? "https://registry.npmjs.org").replace(/\/$/, "");
-  return Object.keys((await fetchJson(`${base}/${id.replace("/", "%2f")}`)).versions ?? {});
+  return Object.keys((await fetchJson(`${base}/${id.replaceAll("/", "%2f")}`)).versions ?? {});
 }
 
 /**
