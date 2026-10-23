@@ -87,7 +87,9 @@ offering the higher one as the latest prerelease until a higher version ships.
   nor the `InternalsVisibleTo` entry, and the entry changes every package's bytes (`src/Directory.Build.props` is a
   package input), so the next preview publishes. A folder added to a project of the unit suite needs none of this.
 - **Before a stable release**, dispatch `preview.yml` if package inputs changed since the last preview, and start the
-  release once that run is green (see [Cutting a stable release](#cutting-a-stable-release)).
+  release once that run is green (see [Cutting a stable release](#cutting-a-stable-release)). Read the open issue
+  "Dependency majors Dependabot holds back" too, for a major the release should support or say it does not
+  ([Dependabot](#dependabot)): its Roslyn rows stand by design.
 - **After merging a security update of a dependency the packages ship**, dispatch `preview.yml` rather than wait for
   Monday, and consider a release: previews receive no fixes of their own (`SECURITY.md`). A release is possible only
   if the update landed as `fix(deps)` ([Dependabot](#dependabot)): a `chore(deps)` commit gives semantic-release
