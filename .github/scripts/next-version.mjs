@@ -43,7 +43,10 @@
 // <train>_core_version, <train>_previous_core_version and <train>_line_moved;
 // trains, preview_versions, release_types, next_versions and last_versions
 // ("core=... satellites=..."); trains_json, all of it with the commits' hashes, on one
-// line. One line per train goes to stderr, and a table to $GITHUB_STEP_SUMMARY when set.
+// line, each train's notes beside its commits: the commits of its range attributed to it,
+// [skip release] ones included, which the analyzer never reads but the release notes list,
+// and the core's unowned, the commits of its range no train owns. One line per train goes
+// to stderr, and a table to $GITHUB_STEP_SUMMARY when set.
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
@@ -171,6 +174,7 @@ async function trainOutput() {
     const row = {
       train, tag: from.tag, last: from.version, type, next, height: count, preview: `${next}-preview.${count}`,
       commits: own.map(({ hash }) => hash), range: attributed.map(({ hash }) => hash),
+      notes: attributed.filter((commit) => commit.trains.has(train)).map(({ hash }) => hash),
     };
     if (train === "core") {
       row.unowned = attributed.filter((commit) => commit.trains.size === 0).map(({ hash }) => hash);
@@ -211,7 +215,7 @@ async function trainOutput() {
   keyed.next_versions = each((row) => row.next);
   keyed.last_versions = each((row) => row.last);
   keyed.trains_json = JSON.stringify(rows.map((row) => ({
-    ...row, type: row.type ?? "", commits: row.commits.join(" "), range: row.range.join(" "),
+    ...row, type: row.type ?? "", commits: row.commits.join(" "), range: row.range.join(" "), notes: row.notes.join(" "),
     ...(row.unowned ? { unowned: row.unowned.join(" ") } : {}),
   })));
 

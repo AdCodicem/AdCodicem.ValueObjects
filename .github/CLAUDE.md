@@ -138,6 +138,36 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   refuses to go on unless its version is the one packed, writes `CHANGELOG.md`, commits it with the snapshot, tags,
   pushes through `push-packages.sh`, and the site is redeployed. No build code runs beside the NuGet key, the App token
   or the OIDC token.
+- `CHANGELOG.md` and `CHANGELOG.satellites.md` open with their title, which ends with the line
+  `<!-- Releases are prepended below this line. -->`, every release below it. `.releaserc.json`'s `changelogTitle` is
+  `CHANGELOG.md`'s title, verbatim: `@semantic-release/changelog` keeps a title on top only when the file starts with
+  it, and otherwise writes the title, the notes, then the whole file. Change the title and the option together;
+  `release-train-plugin.test.mjs` holds them equal.
+- `scripts/release-train-plugin.mjs`, with `scripts/release-train.releaserc.json`, releases one train through
+  semantic-release (ADR 0012), from the plan the pack job computes with `next-version.mjs --trains`: its `trains_json`,
+  in a file `RELEASE_TRAIN_PLAN` names, the train in `RELEASE_TRAIN`, this run's earlier release commits in
+  `RELEASE_RUN_COMMITS` and the version packed in `PACKED_VERSION` (its header lists them, each required, an empty one
+  included). The lists travel in the file, never in a variable: every process semantic-release starts inherits its
+  environment, and Linux refuses to start one with a variable above 128 KiB, about 3,200 hashes. It fails when
+  semantic-release counts from another tag than the plan's, sees a commit the plan did not walk, its earlier release
+  commits aside, or does not see one the plan walked, a `[skip release]` one aside. The type is the plan's
+  (`release-trains.mjs releaseType`, the line rule included), the version must be the one packed, a dry run included,
+  and the train's changelog is written below its marker, refused with a release above it. The notes list the train's
+  commits, `[skip release]` ones included (the row's `notes`), the core's with the commits no train owns, their breaking
+  marks made plain since they ship in no package, and any other train's end with the core it is packed against. The
+  configuration's analyzer rules, the slot aside, and notes options are `.releaserc.json`'s, which the test holds; its
+  release commit is `chore(release): <tag> [skip ci]`, and its GitHub Release names the train's bundle
+  (`AdCodicem.ValueObjects.satellites.<version>.sigstore.json` for the satellites). A caller's options take precedence
+  over the file's (`tagFormat`, `dryRun`). No workflow runs it yet: `release.yml` will, once it releases each train on
+  its own.
+- `scripts/release-train-plugin.test.mjs` replays it in throwaway repositories (two trains at `0.2.1`, this repository's
+  scripts, configurations and changelogs, its `node_modules` linked, a bare remote), the plan computed there by
+  `next-version.mjs --trains`: a dry run per train of each history of its table (the analyzer's options, a train's own
+  breaking notes, `[skip release]` commits, and breaking commits no train owns, one of them reverted, among them), a
+  merge, a range of 3,300 commits, each refusal, and a real run of the core then the satellites. semantic-release runs
+  in a child process, since it hooks its process's standard streams, which carry `node:test`'s reports, with the
+  configuration minus its GitHub entry and an environment holding the plan alone, no CI variable. It also renders both
+  configurations' GitHub Release bodies.
 - `scripts/docs-snapshot.sh` takes the one version, or each train's (`core=X satellites=Y`: every train of
   `src/release-trains.json` once, each stable). The line it freezes is the core's, and the entry it writes in
   `website/released-versions.json` is that version or `{"core": X, "satellites": Y}`. `scripts/docs-snapshot.test.mjs`

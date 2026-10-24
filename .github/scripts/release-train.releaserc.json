@@ -1,0 +1,60 @@
+{
+  "branches": ["main"],
+  "tagFormat": "v${version}",
+  "plugins": [
+    [
+      "./.github/scripts/release-train-plugin.mjs",
+      {
+        "analyzer": {
+          "preset": "conventionalcommits",
+          "releaseRules": [
+            { "type": "build", "scope": "pack", "release": "patch" },
+            { "type": "docs", "scope": "readme", "release": "patch" }
+          ]
+        },
+        "notes": {
+          "preset": "conventionalcommits",
+          "presetConfig": {
+            "types": [
+              { "type": "feat", "section": "Features" },
+              { "type": "fix", "section": "Bug fixes" },
+              { "type": "perf", "section": "Performance" },
+              { "type": "build", "scope": "pack", "section": "Packaging" },
+              { "type": "docs", "section": "Documentation", "hidden": false },
+              { "type": "refactor", "section": "Refactoring", "hidden": false },
+              { "type": "test", "hidden": true },
+              { "type": "ci", "hidden": true },
+              { "type": "chore", "hidden": true }
+            ]
+          }
+        }
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "CHANGELOG.md",
+          "CHANGELOG.*.md",
+          "website/versions.json",
+          "website/released-versions.json",
+          "website/versioned_docs/**",
+          "website/versioned_sidebars/**"
+        ],
+        "message": "chore(release): ${nextRelease.gitTag} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "releaseBodyTemplate": "<% const budget = 100000; const file = env.RELEASE_TRAIN === \"core\" ? \"CHANGELOG.md\" : \"CHANGELOG.\" + env.RELEASE_TRAIN + \".md\"; let notes = nextRelease.notes; if (notes.length > budget) { notes = notes.slice(0, notes.lastIndexOf(\"\\n\", budget)) + \"\\n\\n…and more: the whole list is in [\" + file + \"](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/\" + nextRelease.gitTag + \"/\" + file + \").\\n\"; } %><%= notes %>\n<% const packageIds = (env.RELEASE_PACKAGE_IDS || \"\").split(/\\s+/).filter(Boolean); const bundle = env.RELEASE_TRAIN === \"core\" ? \"AdCodicem.ValueObjects\" : \"AdCodicem.ValueObjects.\" + env.RELEASE_TRAIN; const sample = env.RELEASE_TRAIN === \"core\" ? \"AdCodicem.ValueObjects.Json\" : packageIds[0]; if (packageIds.length) { %>\n### NuGet packages\n\n| Package | Version |\n| --- | --- |\n<% packageIds.forEach(function (id) { %>| `<%= id %>` | [<%= nextRelease.version %>](https://www.nuget.org/packages/<%= id %>/<%= nextRelease.version %>) |\n<% }); %>\nThe `.nupkg` and `.snupkg` files attached to this release carry a signed build provenance attestation (`<%= bundle %>.<%= nextRelease.version %>.sigstore.json`). To check one:\n\n```sh\ngh attestation verify <%= packageIds[0] %>.<%= nextRelease.version %>.nupkg --repo AdCodicem/AdCodicem.ValueObjects\n```\n\nThe assemblies inside the packages are attested too. nuget.org re-signs each `.nupkg`, which changes its digest, but leaves the assemblies as they were packed, so a package restored from nuget.org is checked through one of them:\n\n```sh\ngh attestation verify ~/.nuget/packages/<%= sample.toLowerCase() %>/<%= nextRelease.version %>/lib/net10.0/<%= sample %>.dll --repo AdCodicem/AdCodicem.ValueObjects --signer-workflow AdCodicem/AdCodicem.ValueObjects/.github/workflows/release.yml\n```\n<% } %>",
+        "assets": [
+          { "path": "artifacts/release/*.nupkg" },
+          { "path": "artifacts/release/*.snupkg" }
+        ],
+        "draftRelease": true,
+        "successCommentCondition": false
+      }
+    ]
+  ]
+}

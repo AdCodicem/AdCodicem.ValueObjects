@@ -32,9 +32,10 @@
 #
 # A push to main runs everything. A pull request runs what the files its merge commit changes against the base branch
 # (its first parent, hence a checkout depth of 2) select, each file by the first rule below that matches it:
-#   none           CLAUDE.md files, docs/ but docs/docfx/, Markdown outside src/, website/ and skills/ but README.md,
-#                  the repository's own settings and templates, and the workflows and scripts ci.yml never runs, each
-#                  by name, so that a new one runs everything until it is given a rule; only lint.yml checks them.
+#   none           CLAUDE.md files, docs/ but docs/docfx/, Markdown outside src/, website/ and skills/ but README.md
+#                  and the changelogs (CHANGELOG.md, CHANGELOG.<train>.md), the repository's own settings and
+#                  templates, and the workflows and scripts ci.yml never runs, each by name, so that a new one runs
+#                  everything until it is given a rule; only lint.yml checks them.
 #   documentation  README.md, the package READMEs (src/PackageReadme.md, src/AdCodicem.ValueObjects/README.md),
 #                  website/docs/ and skills/value-objects/: the generator suite's tests that read them,
 #                  [Trait("Reads", "Documentation")]. The package READMEs are also packed, website/docs/ also built
@@ -51,11 +52,12 @@
 #                  and whose inputs release-trains.test.mjs holds to the trains each path releases, that test,
 #                  docs-snapshot.sh, which docs-snapshot.test.mjs runs up to the entry it writes in
 #                  website/released-versions.json, that test, release-pack.sh, whose checks of what nuget.org holds
-#                  release-pack.test.mjs runs up to the pack, that test, and the weekly list of held-back majors
-#                  (held-back-majors.mjs, its test, and dependabot.yml, whose shape its reader holds): the job
-#                  "release tooling", which runs every .github/scripts/*.test.mjs. A project file under src/ runs it
-#                  too, beside its graph lane: release-trains.mjs compile-items holds what MSBuild compiles to the
-#                  trains.
+#                  release-pack.test.mjs runs up to the pack, that test, the release-train plugin, its configuration,
+#                  and the changelogs, whose shape and title release-train-plugin.test.mjs holds, that test, and the
+#                  weekly list of held-back majors (held-back-majors.mjs, its test, and dependabot.yml, whose shape its
+#                  reader holds): the job "release tooling", which runs every .github/scripts/*.test.mjs. A project
+#                  file under src/ runs it too, beside its graph lane: release-trains.mjs compile-items holds what
+#                  MSBuild compiles to the trains.
 #   pack           icon.png, .github/shipped-dependencies and the scripts that check the packed set.
 #   graph          src/, the unit suite's projects and tests/UnitTests.props, which they import, tests/Fixtures/ but
 #                  the Functions fixture, and the .NET code of the rules below: the projects dotnet-affected
@@ -270,6 +272,7 @@ rule() {
   case "$1" in
     CLAUDE.md | */CLAUDE.md) echo none; return ;;
     README.md) echo documentation; return ;;
+    CHANGELOG.md | CHANGELOG.*.md) echo release; return ;;
     src/* | website/* | skills/*) ;;
     *.md) echo none; return ;;
   esac
@@ -297,7 +300,8 @@ rule() {
       .github/scripts/semver.jq | .github/scripts/preview-gate.test.mjs | .github/scripts/held-back-majors.mjs | \
       .github/scripts/held-back-majors.test.mjs | .github/scripts/docs-snapshot.sh | \
       .github/scripts/docs-snapshot.test.mjs | .github/scripts/release-pack.sh | .github/scripts/release-pack.test.mjs | \
-      .github/dependabot.yml) echo release ;;
+      .github/scripts/release-train-plugin.mjs | .github/scripts/release-train.releaserc.json | \
+      .github/scripts/release-train-plugin.test.mjs | .github/dependabot.yml) echo release ;;
     .github/shipped-dependencies | .github/scripts/verify-packages.sh | .github/scripts/package-ids.sh | \
       .github/scripts/shipped-dependencies-check.sh) echo pack ;;
     .github/scripts/dependabot-commit-type.sh | .github/scripts/package-assemblies.sh | .github/scripts/push-packages.sh) \
