@@ -493,7 +493,7 @@ jobs:
       - name: Release scripts
         run: node --test '.github/scripts/*.test.mjs'
 
-      # Each release train's version, which nothing uses yet
+      # Each release train's version, which preview.yml publishes at
       # (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md):
       # release-trains.mjs gives each commit the trains whose packages it
       # changes, a <PackageVersion> those whose restore graph holds the package.
@@ -504,6 +504,17 @@ jobs:
 
       - name: Restore the packages
         run: dotnet restore src/AdCodicem.ValueObjects.Packages.slnf
+
+      # The attribution reads a project's items off its csproj, which
+      # release-trains.mjs check holds to one literal shape; MSBuild, which
+      # decides what ships, is the authority. Each project's evaluated Compile
+      # items (Release, each framework, after the restore) lie in its folder,
+      # artifacts/ or a NuGet package folder, or are src/Shared files its csproj
+      # links literally: an import or a condition compiling another file would
+      # ship a change no rule gives this project's train. An item a target adds,
+      # which evaluation does not see, release-trains.mjs check refuses.
+      - name: Every compiled file rides its project's train
+        run: node .github/scripts/release-trains.mjs compile-items
 
       - name: Each train's version
         run: node .github/scripts/next-version.mjs --trains

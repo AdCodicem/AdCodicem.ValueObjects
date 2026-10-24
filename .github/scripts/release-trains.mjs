@@ -13,21 +13,32 @@
 //                                 the restore graph a dotnet restore of the solution filter leaves in artifacts/obj
 //   lint-commits <from> <to>      the same table, without the graph, to the job summary when there is one, and a
 //                                 warning for each releasing commit changing the projects of two trains; exit 0
+//   compile-items                 evaluates every project with dotnet msbuild (-getItem:Compile, Release, after a
+//                                 dotnet restore of the solution filter) and refuses each Compile item outside its
+//                                 project's folder, artifacts/ and the NuGet package folders but a src/Shared file
+//                                 the csproj links literally; one line per item, exit 1
 //
 // --list reads another copy of the list (an older commit's, a test's); by default the one under src/ of the
-// repository this script is in. `check` reads the projects of the folder the list is in, `commits` and
-// `lint-commits` the projects and the history of the repository that folder is in, so a list they read sits in the
-// src/ folder of a tree.
+// repository this script is in. `check` reads the projects of the folder the list is in, `commits`, `lint-commits`
+// and `compile-items` the projects (and the first two the history) of the tree that folder is in, so a list they read
+// sits in the src/ folder of a tree.
 //
 // MSBuild reads the same file at evaluation (src/Directory.Build.props), with no JSON parser: a regular expression
 // finds the innermost object holding the project's name as a string. That holds whatever the order of the keys, as
 // long as a train's object holds no other object, a name sits in one train only and no string holds a brace, which
-// `check` makes sure of, so the two readers cannot disagree. ci.yml compares their answers at every pack. Node's
-// built-ins only, nothing newer than Node 20: the plan job runs the runner's own Node, with no npm install.
-import { execFileSync } from "node:child_process";
+// `check` makes sure of, so the two readers cannot disagree. ci.yml compares their answers at every pack. Which
+// files a project compiles, the attribution reads off its csproj's text, in any commit's tree, and `check` holds that
+// text to the one shape it reads, an escape (%2e%2e), which it could not read in an older commit's tree, and a Compile
+// item a target adds, which evaluation does not see, refused; `compile-items` asks MSBuild, which decides what ships,
+// of the tree checked out, as release tooling evaluates it, so that no construct the text rule cannot read (an import,
+// a condition) compiles there a file another train releases. Node's built-ins only, nothing newer than Node 20: the plan job runs the runner's own Node, with no npm
+// install.
+import { execFile, execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { availableParallelism } from "node:os";
+import { dirname, join, posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 const TRAIN_NAME = /^[a-z][a-z0-9-]*$/;
 /**
@@ -85,7 +96,11 @@ function* strings(value) {
   }
 }
 
-/** The projects under src/, each with what its csproj references and sets. */
+/** The src/Shared files a csproj text links, as 'src/Shared/<file>': every literal link, none crossing a line. */
+const sharedLinks = (text) => new Set([...text.matchAll(new RegExp(SHARED_LINK.source, "g"))]
+  .map(([, file]) => `src/Shared/${file.replaceAll("\\", "/")}`));
+
+/** The projects under src/, each with what its csproj references, links from src/Shared and sets. */
 function readProjects(src) {
   const projects = new Map();
   for (const entry of readdirSync(src, { withFileTypes: true })) {
@@ -96,7 +111,7 @@ function readProjects(src) {
       .map(([item]) => /\bInclude\s*=\s*"([^"]+)"/.exec(item)?.[1])
       .filter(Boolean)
       .map((include) => include.replaceAll("\\", "/").split("/").at(-1).replace(/\.csproj$/, ""));
-    projects.set(entry.name, { references, setsPackageId: /<PackageId\b/.test(text), text });
+    projects.set(entry.name, { references, links: sharedLinks(text), setsPackageId: /<PackageId\b/.test(text), text });
   }
   return projects;
 }
@@ -158,14 +173,24 @@ export function validate(text, src) {
     // train under a name the list does not know.
     if (setsPackageId) faults.push(`src/${project}/${project}.csproj sets a PackageId: the trains name packages by project`);
     // A project's folder releases its train, and a src/Shared file the trains whose items link it, read line by line
-    // in an older commit's tree too: an item compiling anything else outside the folder, through "..", a property or
-    // an item, would compile a change no rule gives this train.
+    // in an older commit's tree too: an item compiling anything else outside the folder, through "..", an escape
+    // MSBuild unescapes (%2e%2e), a property or an item, would compile a change no rule gives this train.
     for (const [item] of text.matchAll(startTag("Compile"))) {
       const include = /\bInclude\s*=\s*(["'])([\s\S]*?)\1/.exec(item)?.[2] ?? "";
-      if (/\.\.|[$@%]\(/.test(include) && !SHARED_LINK.test(item)) {
+      if (/\.\.|[$@%]\(|%[0-9A-Fa-f]{2}/.test(include) && !SHARED_LINK.test(item)) {
         faults.push(`src/${project}/${project}.csproj compiles ${JSON.stringify(item)}: an item compiles a file outside ` +
           'its project\'s folder only as one literal <Compile Include="..\\Shared\\<file>" ... /> on one line, which ' +
           "release-trains.mjs reads");
+      }
+    }
+    // A target adds its items when it runs, which neither this reading nor compile-items' evaluation sees: a Compile
+    // item, a CreateItem, or any task's Output into Compile. A target is its start tag, then "/>" or a body up to its
+    // own end tag.
+    const targets = /<Target\b(?:[^>"']|"[^"]*"|'[^']*')*?(?:\/>|>[\s\S]*?<\/Target\s*>)/g;
+    for (const [target] of text.matchAll(targets)) {
+      if (/<Compile\b|<CreateItem\b|\bItemName\s*=\s*["']\s*Compile\s*["']/i.test(target)) {
+        faults.push(`src/${project}/${project}.csproj adds Compile items in a target: the trains read a project's items ` +
+          "where MSBuild evaluates them");
       }
     }
     // Items are read off the csproj alone: an imported file could compile anything.
@@ -246,10 +271,11 @@ export function withoutComments(text, file) {
 }
 
 /**
- * The model of a tree: { model, projects, links, graph }. links maps 'src/Shared/<file>' to the trains of the projects
- * compiling it; graph maps each package id, lower-cased, to the trains of the projects whose restore graph holds it, or
- * is null when not asked for (graph: false), as lint.yml reads a pull request without restoring it. list is the train
- * list to read, the tree's own by default.
+ * The model of a tree: { model, projects, links, graph }. projects maps each project to what its csproj references,
+ * links (its literal src/Shared links, as 'src/Shared/<file>') and sets; links maps 'src/Shared/<file>' to the trains
+ * of the projects compiling it; graph maps each package id, lower-cased, to the trains of the projects whose restore
+ * graph holds it, or is null when not asked for (graph: false), as lint.yml reads a pull request without restoring it.
+ * list is the train list to read, the tree's own by default.
  */
 export function readModel(root, { graph = true, list = join(root, "src", "release-trains.json") } = {}) {
   const model = loadTrains(list);
@@ -280,8 +306,7 @@ const everyTrain = (m) => new Set(m.model.names);
 
 /** Adds to links the src/Shared files a project's csproj text compiles: every link, none crossing a line. */
 function addLinks(links, model, project, text) {
-  for (const [, file] of text.matchAll(new RegExp(SHARED_LINK.source, "g"))) {
-    const path = `src/Shared/${file.replaceAll("\\", "/")}`;
+  for (const path of sharedLinks(text)) {
     if (!links.has(path)) links.set(path, new Set());
     links.get(path).add(trainOf(model, project));
   }
@@ -616,7 +641,121 @@ export function lintSummary({ rows }) {
   return `${lines.join("\n")}\n`;
 }
 
-function main(argv) {
+// What MSBuild compiles (0012): the attribution gives a change under src/<P>/ the train of P, and a src/Shared file
+// the trains whose csproj links it literally, so a project compiling any other tracked file would ship a change that
+// need not release its train.
+
+/** The MSBuild properties `compile-items` asks of each evaluation, beside its Compile items. */
+const EVALUATED = ["NuGetPackageFolders", "TargetFramework", "TargetFrameworks"];
+
+/**
+ * Each Compile item MSBuild evaluates that the attribution does not give its project's train, as messages. evaluations
+ * maps each project of m.projects to MSBuild's answers (the JSON `dotnet msbuild <csproj> -getItem:Compile
+ * -getProperty:<each of EVALUATED>` prints), one per target framework. An item under src/ belongs to the project's own
+ * folder, or is a src/Shared file its csproj links literally (m.projects' links, as readModel reads them); any other
+ * lies under the repository's artifacts/ (generated) or a NuGet package folder (a package's, which a <PackageVersion>
+ * releases), a folder holding the repository excusing nothing. A project with no answer, an answer of another shape,
+ * one without a package folder (evaluated before its restore, which imports what the packages add) or a
+ * multi-targeting project's outer answer (which no framework's conditions reach) fails too. Paths are compared as
+ * MSBuild writes them, normalized, case included.
+ */
+export function compileItemFaults(m, root, evaluations) {
+  const slashed = (path) => posix.normalize(path.replaceAll("\\", "/"));
+  const folder = (path) => `${slashed(path).replace(/\/+$/, "")}/`;
+  const base = folder(root);
+  const faults = [];
+  for (const [project, { links = new Set() }] of m.projects) {
+    const csproj = `src/${project}/${project}.csproj`;
+    const answers = [evaluations.get(project)].flat().filter((answer) => answer !== undefined);
+    if (answers.length === 0) {
+      faults.push(`${csproj}: MSBuild evaluated none of its Compile items`);
+      continue;
+    }
+    for (const answer of answers) {
+      const items = answer?.Items?.Compile;
+      if (!Array.isArray(items) || !items.every((item) => typeof item?.FullPath === "string" && item.FullPath !== "")) {
+        faults.push(`${csproj}: MSBuild's answer holds no list of Compile items with their FullPath (-getItem:Compile)`);
+        continue;
+      }
+      const property = (name) => (typeof answer.Properties?.[name] === "string" ? answer.Properties[name].trim() : "");
+      if (property("TargetFrameworks") !== "" && property("TargetFramework") === "") {
+        faults.push(`${csproj}: MSBuild's answer is the outer evaluation of ${property("TargetFrameworks")}: evaluate each ` +
+          "framework (-p:TargetFramework=<framework>), whose conditions may compile other files");
+        continue;
+      }
+      const listed = property("NuGetPackageFolders").split(";").map((path) => path.trim()).filter(Boolean);
+      if (listed.length === 0) {
+        faults.push(`${csproj} was evaluated without a NuGet package folder: run dotnet restore ${SOLUTION_FILTER} first, ` +
+          "which imports what the packages compile");
+        continue;
+      }
+      const packages = listed.map(folder).filter((path) => !base.startsWith(path));
+      for (const { FullPath } of items) {
+        const path = slashed(FullPath);
+        const relative = path.startsWith(base) ? path.slice(base.length) : undefined;
+        if (relative?.startsWith("src/")) {
+          if (relative.startsWith(`src/${project}/`) || links.has(relative)) continue;
+          faults.push(relative.startsWith("src/Shared/")
+            ? `${csproj} compiles ${relative}, which no literal link of the csproj names: a project compiles a src/Shared ` +
+              'file only through one literal <Compile Include="..\\Shared\\<file>" ... /> on one line, which ' +
+              "release-trains.mjs reads"
+            : `${csproj} compiles ${relative}, outside its folder: a change to it would not release the ` +
+              `${trainOf(m.model, project)} train, which ships it`);
+          continue;
+        }
+        if (relative?.startsWith("artifacts/") || packages.some((packageFolder) => path.startsWith(packageFolder))) continue;
+        faults.push(`${csproj} compiles ${relative ?? path}, outside src/${project}/, artifacts/ and the NuGet package ` +
+          `folders: a change to it would not release the ${trainOf(m.model, project)} train, which ships it`);
+      }
+    }
+  }
+  return faults;
+}
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * MSBuild's answers for each project of a tree, as compileItemFaults reads them: an evaluation, no target run, at the
+ * configuration the workflows pack (Release), then one per framework for a project whose evaluation lists several. A
+ * few projects at a time; a failed evaluation, or one printing anything but JSON, throws.
+ */
+async function evaluateCompileItems(root, projects) {
+  const evaluate = async (csproj, properties = []) => {
+    const args = ["msbuild", csproj, "-nologo", "-p:Configuration=Release", ...properties, "-getItem:Compile",
+      ...EVALUATED.map((name) => `-getProperty:${name}`)];
+    let stdout;
+    try {
+      ({ stdout } = await execFileAsync("dotnet", args, {
+        cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, env: { ...process.env, DOTNET_NOLOGO: "true" },
+      }));
+    } catch (error) {
+      const output = `${error.stdout ?? ""}${error.stderr ?? ""}`.trim();
+      throw new Error(`dotnet ${args.join(" ")} failed: ${output || error.message}`);
+    }
+    try {
+      return JSON.parse(stdout);
+    } catch {
+      throw new Error(`dotnet ${args.join(" ")} printed no JSON: ${stdout.trim().split("\n", 1)[0]}`);
+    }
+  };
+  const evaluations = new Map();
+  const queue = [...projects];
+  const work = async () => {
+    for (let project = queue.shift(); project !== undefined; project = queue.shift()) {
+      const csproj = join("src", project, `${project}.csproj`);
+      const answer = await evaluate(csproj);
+      const frameworks = answer?.Properties?.TargetFramework === "" ?
+        String(answer.Properties.TargetFrameworks ?? "").split(";").map((name) => name.trim()).filter(Boolean) : [];
+      const answers = [];
+      for (const framework of frameworks) answers.push(await evaluate(csproj, [`-p:TargetFramework=${framework}`]));
+      evaluations.set(project, answers.length > 0 ? answers : [answer]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(queue.length, availableParallelism())) }, work));
+  return evaluations;
+}
+
+async function main(argv) {
   const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
   let list = join(repository, "src", "release-trains.json");
   const args = [...argv];
@@ -668,8 +807,19 @@ function main(argv) {
       for (const warning of lint.warnings) console.log(`::warning title=A commit releases two trains::${warning}.`);
       return 0;
     }
+    case "compile-items": {
+      const root = resolve(dirname(list), "..");
+      const m = readModel(root, { graph: false, list });
+      const faults = compileItemFaults(m, root, await evaluateCompileItems(root, [...m.projects.keys()]));
+      for (const fault of faults) console.error(`::error::${fault}.`);
+      if (faults.length > 0) return 1;
+      console.log(`Each of the ${m.projects.size} projects under src/ compiles only files of its folder, of artifacts/ ` +
+        "and of the NuGet package folders, and the src/Shared files its csproj links literally.");
+      return 0;
+    }
     default:
-      console.error("::error::release-trains.mjs takes check, trains, trains-of, versions, commits or lint-commits.");
+      console.error("::error::release-trains.mjs takes check, trains, trains-of, versions, commits, lint-commits or " +
+        "compile-items.");
       return 2;
   }
 }
@@ -678,11 +828,12 @@ function main(argv) {
 export const git = (cwd) => (...args) =>
   execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
 
+// No top-level await, so that the module stays synchronous for whatever imports it.
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try {
-    process.exitCode = main(process.argv.slice(2));
-  } catch (error) {
+  main(process.argv.slice(2)).then((code) => {
+    process.exitCode = code;
+  }, (error) => {
     console.error(`::error::${error.message}`);
     process.exitCode = 1;
-  }
+  });
 }

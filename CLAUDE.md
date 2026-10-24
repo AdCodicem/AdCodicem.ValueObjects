@@ -80,8 +80,9 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 ## Releases
 
 - Nothing you merge publishes. A preview comes from `preview.yml` (Mondays, or dispatched from `main`) when a package
-  input changed; a stable release from a manual `release.yml` dispatch the `nuget-stable` reviewer approves.
-  Mechanics: `.github/CLAUDE.md`; runbook: `docs/maintaining.md`; reasoning: ADR 0003 and 0009.
+  input changed, every release train at its own version, or none, the core pushed and listed before the satellites are
+  pushed; a stable release from a manual `release.yml` dispatch the `nuget-stable` reviewer approves. Mechanics:
+  `.github/CLAUDE.md`; runbook: `docs/maintaining.md`; reasoning: ADR 0003, 0009 and 0012.
 - The commit type sets the next version (Conventional Commits, `.releaserc.json`): `feat` a minor, `fix` and `perf` a
   patch; `chore`, `ci`, `test`, `docs`, `refactor` nothing, except `build(pack)` and `docs(readme)`, rated a patch
   because the package metadata and a package's README (its nuget.org page) ship inside the `.nupkg`: the main package
@@ -93,13 +94,14 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   deprecate or remove public API, and a deprecation reads "any minor version may remove it before 1.0.0", never "the
   next major version". At 1.0, replace the first `releaseRules` entry with `{ "breaking": true, "release": "major" }`,
   never delete it, or `build(pack)!` and `docs(readme)!` fall back to a patch.
-- The thirty-eight packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
-  supported in the same packages. ADR 0012 replaces the one version with two trains (core, satellites), built up to
-  phase 1b: `src/release-trains.json` lists them, and `RELEASE_TRAIN_VERSIONS` (`core=X satellites=Y`) gives each its
-  version, which the workflows still set alike, so the one version holds. ADR 0013 targets the CI: its heavy jobs run
-  after the merge and before a release (`heavy.yml`), and a pull request runs the families of
-  `.github/ci-families.json` and the lanes the files it changes select (`.github/scripts/ci-plan.sh`; phase B, one
-  unit-test project per family, each in a job of its own).
+- A stable release cuts the thirty-eight packages at one version, never aligned with .NET's or EF Core's; a framework's
+  next major is supported in the same packages. ADR 0012 replaces the one version with two trains (core, satellites):
+  `src/release-trains.json` lists them, and `RELEASE_TRAIN_VERSIONS` (`core=X satellites=Y`) gives each its version.
+  `preview.yml` gives each train its own (`next-version.mjs --trains`, checked train by train by `preview-gate.sh`);
+  `release.yml` still gives both one and tags each train on the release commit (`v<version>`, `satellites-v<version>`).
+  ADR 0013 targets the CI: its heavy jobs run after the merge and before a release (`heavy.yml`), and a pull request
+  runs the families of `.github/ci-families.json` and the lanes the files it changes select
+  (`.github/scripts/ci-plan.sh`; phase B, one unit-test project per family, each in a job of its own).
 
 ## Architecture
 

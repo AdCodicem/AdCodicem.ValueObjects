@@ -7,9 +7,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  analyzerRules, changelogOf, DEPENDENCIES, git, GLOBAL_INPUTS, lineOf, lintCommits, lintSummary, packageVersionTrains,
-  parseTrains, parseVersions, previousCoreVersion, readModel, releases, releaseType, restTrain, solutionFilterTrains,
-  tagPrefixOf, trainOf, trainsOfCommits, trainsOfPath, validate,
+  analyzerRules, changelogOf, compileItemFaults, DEPENDENCIES, git, GLOBAL_INPUTS, lineOf, lintCommits, lintSummary,
+  packageVersionTrains, parseTrains, parseVersions, previousCoreVersion, readModel, releases, releaseType, restTrain,
+  solutionFilterTrains, tagPrefixOf, trainOf, trainsOfCommits, trainsOfPath, validate,
 } from "./release-trains.mjs";
 
 const script = fileURLToPath(new URL("./release-trains.mjs", import.meta.url));
@@ -191,11 +191,32 @@ test("an item compiles a file outside its folder only as one literal src/Shared 
       '<Compile Include="../Shared/Deep/../../Core.A/A.cs" />',
       '<Compile Include="..\\Shared\\\\Text.cs" />',
       '<Compile Include="..\\Shared\\Text.cs " />',
+      // MSBuild unescapes %XX, so %2e%2e is a "..".
+      '<Compile Include="%2e%2e/Core.A/A.cs" />',
+      '<Compile Include="%2E%2E\\Shared\\Text.cs" Link="Shared\\Text.cs" />',
     ]) {
       items(item);
       assert.match(validate(LIST, root).join("\n"),
         /src\/Sat\/Sat\.csproj compiles .*: an item compiles a file outside its project's folder only as one literal/, item);
     }
+    // Nor through an item a target adds when it runs, which no evaluation shows.
+    for (const target of [
+      '</ItemGroup>\n  <Target Name="Add" BeforeTargets="BeforeCompile">\n    <ItemGroup>\n      <Compile Include="Local.cs" />\n    </ItemGroup>\n  </Target>\n  <ItemGroup>',
+      '</ItemGroup>\n  <Target Name="Add" BeforeTargets="CoreCompile">\n    <CreateItem Include="Local.cs"><Output TaskParameter="Include" ItemName="Compile" /></CreateItem>\n  </Target>\n  <ItemGroup>',
+      // After a self-closing element: the target ends at its own end tag, not at the first "/>".
+      '</ItemGroup>\n  <Target Name="Add" BeforeTargets="CoreCompile">\n    <Message Text="adding" />\n    <CreateItem Include="..\\Core.A\\A.cs"><Output TaskParameter="Include" ItemName="Compile" /></CreateItem>\n  </Target>\n  <ItemGroup>',
+      '</ItemGroup>\n  <Target Name="Add">\n    <Message Text="adding" />\n    <ItemGroup>\n      <Compile Include="Local.cs" />\n    </ItemGroup>\n  </Target>\n  <ItemGroup>',
+      // Any task's Output into Compile.
+      '</ItemGroup>\n  <Target Name="Add">\n    <ReadLinesFromFile File="extra.txt"><Output TaskParameter="Lines" ItemName="Compile" /></ReadLinesFromFile>\n  </Target>\n  <ItemGroup>',
+    ]) {
+      items(target);
+      assert.match(validate(LIST, root).join("\n"), /src\/Sat\/Sat\.csproj adds Compile items in a target/, target);
+    }
+    // A target that adds no Compile item is fine, and so is an empty one.
+    items('</ItemGroup>\n  <Target Name="Copy" AfterTargets="Build">\n    <Message Text="done" />\n  </Target>\n  <ItemGroup>');
+    assert.deepEqual(validate(LIST, root), []);
+    items('</ItemGroup>\n  <Target Name="Empty" />\n  <Compile Include="Local.cs" />\n  <ItemGroup>');
+    assert.deepEqual(validate(LIST, root), []);
     // Nor through a file MSBuild imports.
     items('<Compile Include="Local.cs" />\n  </ItemGroup>\n  <Import Project="Links.props" />\n  <ItemGroup>');
     assert.match(validate(LIST, root).join("\n"), /src\/Sat\/Sat\.csproj imports a file/);
@@ -205,6 +226,153 @@ test("an item compiles a file outside its folder only as one literal src/Shared 
   } finally {
     rmSync(root, { recursive: true });
   }
+});
+
+// What MSBuild compiles: compileItemFaults over answers shaped as `dotnet msbuild <csproj> -getItem:Compile
+// -getProperty:NuGetPackageFolders -getProperty:TargetFramework -getProperty:TargetFrameworks` prints them on this
+// repository, with no dotnet here.
+
+const NUGET = "/home/runner/.nuget/packages/";
+const SDK = "/usr/share/dotnet/sdk/10.0.100/Sdks/Microsoft.NET.Sdk/targets/";
+
+/** MSBuild's answer for one project: its Compile items at these full paths, and its properties. */
+const answer = (paths, properties = {}) => ({
+  Properties: { NuGetPackageFolders: NUGET, TargetFramework: "net10.0", TargetFrameworks: "", ...properties },
+  Items: {
+    Compile: paths.map((path) => ({
+      Identity: path.split(/[\\/]/).at(-1), FullPath: path, Extension: ".cs",
+      DefiningProjectFullPath: `${SDK}Microsoft.NET.Sdk.DefaultItems.props`,
+    })),
+  },
+});
+
+const unlinked = (csproj, file) => `${csproj} compiles src/Shared/${file}, which no literal link of the csproj names: a ` +
+  'project compiles a src/Shared file only through one literal <Compile Include="..\\Shared\\<file>" ... /> on one ' +
+  "line, which release-trains.mjs reads";
+const outsideFolder = (csproj, path, train = "satellites") => `${csproj} compiles ${path}, outside its folder: a change ` +
+  `to it would not release the ${train} train, which ships it`;
+const outside = (csproj, folder, path) => `${csproj} compiles ${path}, outside ${folder}, artifacts/ and the NuGet ` +
+  "package folders: a change to it would not release the satellites train, which ships it";
+const SAT = "src/Sat/Sat.csproj";
+
+/** A model by hand, Sat linking src/Shared/Text.cs literally and Core.A src/Shared/Core.cs. */
+const linkedModel = () => ({
+  model: parseTrains(LIST),
+  projects: new Map([
+    ["Core.A", { links: new Set(["src/Shared/Core.cs"]) }],
+    ["Core.B", { links: new Set() }],
+    ["Sat", { links: new Set(["src/Shared/Text.cs"]) }],
+  ]),
+});
+
+test("each Compile item MSBuild evaluates lies in its project's folder, artifacts/, a package folder or a literal link", () => {
+  const root = mkdtempSync(join(tmpdir(), "release-trains-"));
+  const csproj = (project, ...items) => {
+    mkdirSync(join(root, "src", project), { recursive: true });
+    writeFileSync(join(root, "src", project, `${project}.csproj`), ['<Project Sdk="Microsoft.NET.Sdk">', "  <ItemGroup>",
+      ...items.map((item) => `    ${item}`), "  </ItemGroup>", "</Project>"].join("\n"));
+  };
+  try {
+    csproj("Core.A", '<Compile Include="..\\Shared\\Core.cs" Link="Shared\\Core.cs" />');
+    csproj("Core.B");
+    // MSBuild unescapes %2e: the text rule reads no link there, nor in a wildcard.
+    csproj("Sat", '<Compile Include="..\\Shared\\Text.cs" Link="Shared\\Text.cs" />',
+      '<Compile Include="%2e%2e/Shared/Escaped.cs" />', '<Compile Include="..\\Shared\\Wild*.cs" />');
+    writeFileSync(join(root, "src", "release-trains.json"), LIST);
+    const m = readModel(root, { graph: false });
+    assert.deepEqual(m.projects.get("Sat").links, new Set(["src/Shared/Text.cs"]));
+    assert.deepEqual(m.projects.get("Core.A").links, new Set(["src/Shared/Core.cs"]));
+    const at = (path) => join(root, path);
+    const evaluations = new Map([
+      ["Core.A", answer([at("src/Core.A/A.cs"), at("src/Shared/Core.cs"), at("artifacts/obj/Core.A/release/Core.A.AssemblyInfo.cs")])],
+      ["Core.B", answer([])],
+      ["Sat", answer([
+        at("src/Sat/Sat.cs"),
+        at("src/Sat/Deep/Shared/Thing.cs"),
+        at("src/Shared/Text.cs"),
+        at("artifacts/obj/Sat/release/Sat.GlobalUsings.g.cs"),
+        `${NUGET}some.package/1.2.0/contentFiles/cs/net10.0/Content.cs`,
+      ])],
+    ]);
+    assert.deepEqual(compileItemFaults(m, root, evaluations), []);
+
+    evaluations.set("Sat", answer([
+      at("src/Sat/Sat.cs"),
+      at("src/Shared/Escaped.cs"),
+      at("src/Shared/Wild1.cs"),
+      at("src/Shared/Core.cs"),
+      at("src/Core.A/A.cs"),
+      at("src/Sat/../Core.B/B.cs"),
+      at("src/Sat.Other/Other.cs"),
+      at("src/Loose.cs"),
+      at("tests/Fixtures/Fixture.cs"),
+      "/elsewhere/Outside.cs",
+    ]));
+    assert.deepEqual(compileItemFaults(m, root, evaluations), [
+      unlinked(SAT, "Escaped.cs"),
+      unlinked(SAT, "Wild1.cs"),
+      // Linked literally, but by another project.
+      unlinked(SAT, "Core.cs"),
+      outsideFolder(SAT, "src/Core.A/A.cs"),
+      outsideFolder(SAT, "src/Core.B/B.cs"),
+      outsideFolder(SAT, "src/Sat.Other/Other.cs"),
+      outsideFolder(SAT, "src/Loose.cs"),
+      outside(SAT, "src/Sat/", "tests/Fixtures/Fixture.cs"),
+      outside(SAT, "src/Sat/", "/elsewhere/Outside.cs"),
+    ]);
+  } finally {
+    rmSync(root, { recursive: true });
+  }
+});
+
+test("compile-items fails closed on an answer it cannot read, and reads each framework's", () => {
+  const root = "/home/runner/work/repo";
+  const m = linkedModel();
+  const own = (project) => answer([`${root}/src/${project}/${project}.cs`]);
+  const faultsOf = (sat, coreA = own("Core.A")) => compileItemFaults(m, root,
+    new Map([["Core.A", coreA], ["Core.B", own("Core.B")], ["Sat", sat]].filter(([, value]) => value !== undefined)));
+  assert.deepEqual(faultsOf(own("Sat")), []);
+  for (const none of [undefined, []]) assert.deepEqual(faultsOf(none), [`${SAT}: MSBuild evaluated none of its Compile items`]);
+  for (const shape of [null, {}, { Items: {} }, { Items: { Compile: {} } }, { Items: { Compile: [{ Identity: "Sat.cs" }] } }]) {
+    assert.deepEqual(faultsOf(shape),
+      [`${SAT}: MSBuild's answer holds no list of Compile items with their FullPath (-getItem:Compile)`], JSON.stringify(shape));
+  }
+  // Before the restore, no nuget.g.props sets a package folder, nor imports what a package compiles.
+  for (const folders of ["", " ; ", undefined]) {
+    assert.match(faultsOf(answer([`${root}/src/Sat/Sat.cs`], { NuGetPackageFolders: folders })).join("\n"),
+      /^src\/Sat\/Sat\.csproj was evaluated without a NuGet package folder: run dotnet restore src\/AdCodicem\.ValueObjects\.Packages\.slnf/);
+  }
+  // A multi-targeting project's outer evaluation reaches no framework's conditions; each framework's answer counts.
+  const frameworks = "net10.0;net9.0";
+  assert.match(faultsOf(answer([`${root}/src/Sat/Sat.cs`], { TargetFramework: "", TargetFrameworks: frameworks })).join("\n"),
+    /^src\/Sat\/Sat\.csproj: MSBuild's answer is the outer evaluation of net10\.0;net9\.0: evaluate each framework/);
+  const framework = (name, path) => answer([`${root}/${path}`], { TargetFramework: name, TargetFrameworks: frameworks });
+  assert.deepEqual(faultsOf([framework("net10.0", "src/Sat/Sat.cs"), framework("net9.0", "src/Core.A/A.cs")]),
+    [outsideFolder(SAT, "src/Core.A/A.cs")]);
+  // Every package folder counts, but none inside src/, nor one holding the repository.
+  assert.deepEqual(faultsOf(answer([`${root}/src/Sat/Sat.cs`, "/opt/fallback/pkg/1.0.0/Content.cs"],
+    { NuGetPackageFolders: `${NUGET}; /opt/fallback` })), []);
+  assert.deepEqual(faultsOf(answer([`${root}/src/Core.A/packages/pkg/A.cs`], { NuGetPackageFolders: `${root}/src/Core.A/packages/` })),
+    [outsideFolder(SAT, "src/Core.A/packages/pkg/A.cs")]);
+  for (const folders of ["/", "/home/runner", `${root}/`]) {
+    assert.deepEqual(faultsOf(answer([`${root}/tests/X.cs`], { NuGetPackageFolders: `${folders};${NUGET}` })),
+      [outside(SAT, "src/Sat/", "tests/X.cs")], folders);
+  }
+  // A core project compiling a satellite's file is named with the core's train.
+  assert.deepEqual(faultsOf(own("Sat"), answer([`${root}/src/Sat/Sat.cs`])),
+    [outsideFolder("src/Core.A/Core.A.csproj", "src/Sat/Sat.cs", "core")]);
+});
+
+test("compile-items reads MSBuild's paths as Windows writes them too", () => {
+  const root = "C:\\work\\repo\\";
+  const nuget = "C:\\Users\\runner\\.nuget\\packages\\";
+  const windows = (...paths) => answer(paths, { NuGetPackageFolders: nuget });
+  const evaluations = new Map([
+    ["Core.A", windows(`${root}src\\Core.A\\A.cs`, `${root}src\\Shared\\Core.cs`)],
+    ["Core.B", windows(`${root}artifacts\\obj\\Core.B\\release\\Core.B.AssemblyInfo.cs`)],
+    ["Sat", windows(`${root}src\\Sat\\Sat.cs`, `${nuget}pkg\\1.0.0\\Content.cs`, `${root}src\\Shared\\Core.cs`)],
+  ]);
+  assert.deepEqual(compileItemFaults(linkedModel(), root, evaluations), [unlinked(SAT, "Core.cs")]);
 });
 
 test("versions give each project its train's, and refuse a train left out or unknown", () => {
@@ -230,7 +398,9 @@ test("the command line answers each command, and fails closed", () => {
     const missing = run("--list", at, "versions", "core=1.0.0", "Sat");
     assert.equal(missing.status, 1);
     assert.match(missing.stderr, /::error::no version for the satellites train/);
-    assert.equal(run("--list", at, "nothing").status, 2);
+    const unknown = run("--list", at, "nothing");
+    assert.equal(unknown.status, 2);
+    assert.match(unknown.stderr, /takes check, trains, trains-of, versions, commits, lint-commits or compile-items\./);
     writeFileSync(at, JSON.stringify({ core: { breaking: "minor", projects: ["Core.A"] } }));
     const broken = run("--list", at, "check");
     assert.equal(broken.status, 1);

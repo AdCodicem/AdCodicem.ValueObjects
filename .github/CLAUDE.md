@@ -6,40 +6,77 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 ## Previews (`preview.yml`)
 
 - Runs Mondays at 07:15 Europe/Paris and on dispatch from `main`; the `nuget` environment deploys from `main` only.
-- `scripts/preview-gate.sh` decides `publish`, `repair` or `none` against the version nuget.org has from the nearest
-  commit, and fails the run rather than guess when a lookup fails. All thirty-eight packages go out at one version, or
-  none.
+- `scripts/preview-gate.sh` decides `publish`, `repair` or `none` train by train, against the version nuget.org has of
+  each train from the nearest commit (its base), and fails the run rather than guess when a lookup fails; its header
+  holds its inputs and outputs. Every train goes out at its own version, every package of the train at that version, or
+  none (ADR 0012). The trains, their tag prefixes and breaking rules come from `release-trains.mjs trains`, the core
+  first; the IDs from `package-ids.sh --trains` at `HEAD`, an older commit's mapped through that commit's own list
+  (`release-trains.mjs --list <file> trains-of`, `HEAD`'s list for a commit from before it), as its pack read them. A
+  version a package was packed at on another train is no base of its new train, and a pushed version below one is
+  refused: ADR 0012 moves a package only once its new train's next version is above the package's last one.
+- One commit is repaired per run: when IDs a train's base commit packed lack its base version (a push stopped
+  midway), the gate repairs the base commit of the first such train, the core's first, and fails when another train
+  misses IDs at another commit ("complete <train> <version> by hand"). Each train missing IDs there is pushed at its
+  base version, which must be `X.Y.Z-preview.N`; every other train is packed there and never pushed, for the tests and
+  `verify-packages.sh`: at its base version when that commit packed it, the core otherwise at the floor of the repaired
+  packages' dependency on it (one floor, which nuget.org must have for every core ID), any other train at the core's
+  version, a placeholder.
+- A publish (a package input changed since any train's base, each train's own, since a revert can undo what lies
+  between two bases) pushes every train but one nuget.org already has
+  whole from `HEAD` at the version computed for it, which is packed again and not pushed. The `version` job runs
+  third-party JavaScript, so the gate takes only each train's release type from it: a pushed train's version must be
+  the one it recomputes from the train's last stable tag and the height since (`<prefix><last>..HEAD`), `major` is
+  refused while the train's `breaking` is `minor`, any train but the core is held to the line rule, and the version
+  must be new to nuget.org.
+- The gate fails when nuget.org has a stable version of a train above the train's newest tag merged into `HEAD` ("a
+  `<prefix><version>` tag is missing (a release without its twin tag?)"), since every version of the train would be
+  computed from the wrong release; a package moved into a train behind a stable version it already has fails the same
+  way. The remedy is in `docs/maintaining.md`.
 - `scripts/preview-gate.test.mjs` replays the gate against a throwaway repository and a flat container `node:http`
   serves on `127.0.0.1` (curl answers `000` for a `file://` URL), and holds its decisions as they are recorded there:
-  publish, none, repair with and without changes pending, each refusal of a decision, `--recheck` and `--report`. A
-  failed lookup (an HTTP error, a nuspec naming no commit, a commit the clone lacks) is not replayed, nor is a
-  `<PackageVersion>` change, which makes the gate restore. It needs `git`, `jq`, `curl`, `perl` and GNU `grep -P`, as
-  the gate does. Its one seam, `PACKAGE_IDS_SCRIPT`, replaces `package-ids.sh` (dotnet) by a stub reading
-  `src/ids.txt`, which the gate runs through `bash`: no workflow sets it, nor may, since the gate must read the IDs
-  `package-ids.sh` prints, the set `preview.yml`'s pack job publishes. A change to the gate's decisions changes those
-  recordings in the same pull request.
+  the one-version gate's, replayed with both trains twin-tagged at one version, then what deciding per train adds (a
+  train whole at `HEAD`, one train or both partial, partial at two commits, a stable release of both, one version
+  string packed from two commits, a missing twin tag, the line rule), each refusal of a decision, `--recheck` and
+  `--report`. A failed lookup (an HTTP error, a nuspec naming no commit, a commit the clone lacks) is not replayed, nor
+  is a `<PackageVersion>` change, which makes the gate restore. It needs `git`, `jq`, `curl`, `perl`, GNU `grep -P` and
+  `node`, as the gate does. Its one seam, `PACKAGE_IDS_SCRIPT`, replaces `package-ids.sh` (dotnet) by a stub reading
+  `src/ids.txt`, with `--trains` each ID on the train the tree's `src/release-trains.json` gives it, which the gate runs
+  through `bash`: no workflow sets it, nor may, since the gate must read the IDs `package-ids.sh` prints, the set
+  `preview.yml`'s pack job publishes. A change to the gate's decisions changes those recordings in the same pull request.
 - The version: `scripts/next-version.mjs` runs semantic-release's commit analyzer with `.releaserc.json`, without a
   token, and suffixes `-preview.<commits since the last stable tag>` (`0.3.0-preview.172` leads to `0.3.0`; with no
   commit that releases anything, the next patch). It needs `fetch-depth: 0`.
 - `next-version.mjs --trains` adds each train's version, from its own last stable tag and the commits of its range
-  that release it, the line rule applied (ADR 0012), and writes a table to the job summary. Nothing reads it yet: the
-  `version` job of `preview.yml` and the `pack` job of `release.yml` run it after the one version, every step of it
-  `continue-on-error`, and `release tooling` runs it on a pull request, where it can fail the check. It reads the list
-  and the restore graph of the tree checked out (`release-trains.mjs readModel`,
-  `artifacts/obj/<project>/project.assets.json` after `dotnet restore src/AdCodicem.ValueObjects.Packages.slnf`), so
-  it computes `HEAD` only, and fails without the restore, or without a stable tag of each train merged
-  (`satellites-v0.2.1` on `68abdc7` is the satellites' baseline). Without `--trains` its output is today's six keys,
-  which the workflows read.
-- MinVer receives it through `RELEASE_TRAIN_VERSIONS` (`core=X satellites=Y`, every train at that one version until
-  each computes its own, ADR 0012), which `src/Directory.Build.props` turns into each project's `MinVerVersionOverride`.
-  The build refuses `MINVERVERSIONOVERRIDE`, one version for every train, and a train the variable leaves out
+  that release it, the line rule applied (ADR 0012), and writes a table to the job summary. `preview.yml`'s `version`
+  job runs it, and the plan hands its `preview_versions` and `release_types` to the gate (`NEXT_VERSIONS`,
+  `RELEASE_TYPES`): on that critical path, neither the job's `setup-dotnet` nor its restore takes `continue-on-error`.
+  `release.yml`'s `pack` job runs it after the one version, in a `continue-on-error` step whose table nothing reads
+  yet, and `release tooling` runs it on a pull request, where it can fail the check. It reads the list and the restore
+  graph of the tree checked out (`release-trains.mjs readModel`, `artifacts/obj/<project>/project.assets.json` after
+  `dotnet restore src/AdCodicem.ValueObjects.Packages.slnf`), so it computes `HEAD` only, and fails without the
+  restore, or without a stable tag of each train merged (`satellites-v0.2.1` on `68abdc7` is the satellites'
+  baseline). Without `--trains` its output is today's six keys, which `release.yml` reads.
+- MinVer receives it through `RELEASE_TRAIN_VERSIONS` (`core=X satellites=Y`, which `release-pack.sh` sets: each
+  train's own version in a preview, every train at the one version in a stable release until `release.yml` versions
+  them apart, ADR 0012), which `src/Directory.Build.props` turns into each project's `MinVerVersionOverride`. The
+  build refuses `MINVERVERSIONOVERRIDE`, one version for every train, and a train the variable leaves out
   (`src/Directory.Build.targets`); `scripts/verify-packages.sh` refuses any version but `X.Y.Z-preview.N` unless
   `ALLOW_ANY_VERSION=true`.
 - Order: the `suites` job runs every family's project of the unit suite, then the generator and RDG suites, on that
-  exact commit; a job of its own packs `src/`; `heavy.yml` runs on that commit too, its compat job installing the
-  packed set by the artifact's id; the `publish` job, which needs all of them, rechecks the set (`verify-packages.sh`)
-  and nuget.org (`preview-gate.sh --recheck`) before logging in, so re-running an old run cannot publish a stale
-  version, attests, then pushes.
+  exact commit; a job of its own packs every train of `src/`, pushed or not, at the version the plan gives it;
+  `heavy.yml` runs on that commit too, its compat job installing the packed set by the artifact's id; the `publish`
+  job, which needs all of them, rechecks the set (`verify-packages.sh`) and nuget.org (`preview-gate.sh --recheck`:
+  each train's base still the plan's, or, for a train the run pushes, that version from that commit) before logging
+  in, so re-running an old run cannot publish a stale version, then copies the trains the plan pushes into `push/`,
+  attests `push/` alone, and pushes. A train nuget.org already has was attested by the run that pushed it, and a
+  placeholder is never pushed.
+- The core is pushed, and listed by nuget.org, before the satellites, which depend on it, are pushed: each train has a
+  `NuGet/login` step and a push step of its own (`NUGET_LIST_TIMEOUT` 1800), the core's first, each login just before
+  its push, since the key expires an hour after it is issued. So the plan job fails unless `release-trains.mjs trains`
+  lists exactly `core satellites`: a train added or renamed gets its steps there first, or it would be packed and never
+  pushed.
+- A dispatch with `publish` unticked rehearses a run: the plan, the suites, the pack and `heavy.yml` run, and the
+  `publish` and `docs` jobs are skipped (`github.event_name != 'workflow_dispatch' || inputs.publish`).
 - The scripts name every package by id and version, never by a glob of one version: the trains share
   `artifacts/packages` and may share a number. `scripts/release-pack.sh` takes `<train>=<version>:<type>[:<last>]` per
   train of `src/release-trains.json`, each train held to its own baseline; `scripts/verify-packages.sh` the
@@ -51,8 +88,8 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - `scripts/push-packages.sh` pushes dependencies first and only what nuget.org lacks, in up to three passes, then waits
   until nuget.org lists every package. A push stopped midway is completed by those passes, by **Re-run failed jobs**, or
   by the next run (`repair`).
-- Every run that decides, publishing or not, redeploys the site (`website/CLAUDE.md`); a run in which a job failed
-  deploys nothing.
+- Every run that decides, publishing or not, redeploys the site (`website/CLAUDE.md`), labelled with the core's
+  version (`docs-version`); a run in which a job failed, or a rehearsal, deploys nothing.
 
 ## Stable releases (`release.yml`)
 
@@ -213,6 +250,14 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   `lint-commits`, in `lint.yml`'s `conventional commits` job (`continue-on-error`), reads no graph, shows `deps` for a
   `<PackageVersion>`, and warns on a releasing commit whose project folders span two trains, `src/Shared/` and the
   global inputs aside, a project the tree no longer holds counting with the train it rode in the commit's parent.
+  That text rule is a fast first guard and MSBuild the authority, at `HEAD`: `compile-items`, in `release tooling` after
+  the restore (a project file under `src/` runs that job too, `ci-plan.sh`), evaluates each project's `Compile` items
+  (`dotnet msbuild -getItem:Compile`, Release, each framework) and fails on any outside `src/<P>/`, `artifacts/` and
+  the NuGet package folders but a `src/Shared/` file its csproj links literally, so that no import or condition compiles
+  there a file another train releases, the check itself being `compileItemFaults`, which the tests run on recorded
+  answers without dotnet. `check` also refuses an escape (`%2e%2e`) in a `Compile` item, which the text attribution of
+  an older commit's tree could not read, and a `Compile` item, a `CreateItem` or a task's `Output` into `Compile` inside
+  a `<Target>`, which evaluation does not see.
 - The `coverage` matrix job, which the gate does not need, downloads the `coverage-*` artifacts
   (`coverage-unit-<family>`, `coverage-build`) and uploads one flag each: every unit report of the run under each
   family that ran, so that the lines of a family's packages another family's tests reach still count, and the
@@ -260,5 +305,6 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   (`Forms/EcmaScriptPatterns.json` of `tests/AdCodicem.ValueObjects.UnitTests.Text`) to Node's v-flag engine, as
   `EcmaScriptPatternTests` holds it to .NET: change both together. A change to the script runs the `text` family.
 - `deploy-docs.yml` is `workflow_call` only, called by `preview.yml` and `release.yml`: redeploy the site by dispatching
-  `preview.yml`. It builds a commit of its caller's run, or a stable release's tag descending from it: the core's
-  `v<preview-version>`, or another train's `<train>-v<version>`, whose version need not be `preview-version`.
+  `preview.yml`, `publish` ticked. It builds a commit of its caller's run, or a stable release's tag descending from
+  it: the core's `v<preview-version>`, or another train's `<train>-v<version>`, whose version need not be
+  `preview-version`.

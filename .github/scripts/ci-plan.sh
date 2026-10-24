@@ -51,7 +51,9 @@
 #                  docs-snapshot.sh, which docs-snapshot.test.mjs runs up to the entry it writes in
 #                  website/released-versions.json, that test, and the weekly list of held-back majors
 #                  (held-back-majors.mjs, its test, and dependabot.yml, whose shape its reader holds): the job
-#                  "release tooling", which runs every .github/scripts/*.test.mjs.
+#                  "release tooling", which runs every .github/scripts/*.test.mjs. A project file under src/ runs it
+#                  too, beside its graph lane: release-trains.mjs compile-items holds what MSBuild compiles to the
+#                  trains.
 #   pack           icon.png, .github/shipped-dependencies and the scripts that check the packed set.
 #   graph          src/, the unit suite's projects and tests/UnitTests.props, which they import, tests/Fixtures/ but
 #                  the Functions fixture, and the .NET code of the rules below: the projects dotnet-affected
@@ -357,6 +359,9 @@ esac
 for path in "${changed[@]}"; do
   # The format job checks every .cs file of the repository, whichever rule the file falls under.
   [[ "$path" == *.cs ]] && format=true
+  # A project file decides what MSBuild compiles, which the job "release tooling" holds to the trains each change
+  # releases (release-trains.mjs compile-items); src/Directory.Build.* and the other imports run everything.
+  [[ "$path" == src/*.csproj ]] && release=true
   case "$(rule "$path")" in
     none) ;;
     readme) documentation=true; pack=true ;;
