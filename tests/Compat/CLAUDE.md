@@ -57,6 +57,9 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
   Kafka client's native library.
 - The namespace rule of the root `CLAUDE.md` holds here too: `AdCodicem.ValueObjects.CompatTests` is an
   `AdCodicem.ValueObjects.*` namespace.
+- Over packages a run packed at a version nuget.org has too (a train `release-pack.sh` packs again, `strict` or
+  `keep`, beside one that releases), run the island locally with `NUGET_PACKAGES` set to an empty folder: NuGet takes a
+  version `~/.nuget/packages` already holds, nuget.org's copy, whatever `nuget.config` maps. CI's runners start empty.
 - Packed without `RELEASE_TRAIN_VERSIONS` (`heavy.yml` with no caller's packages), the packages take each train's
   version from its own tags, and the pack stops when it finds none, so the checkout fetches them (`fetch-depth: 0`). A
   commit tagged stable for the satellites alone fails that pack with NU5104, since a stable satellite cannot depend on

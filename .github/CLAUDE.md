@@ -81,6 +81,39 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   `artifacts/packages` and may share a number. `scripts/release-pack.sh` takes `<train>=<version>:<type>[:<last>]` per
   train of `src/release-trains.json`, each train held to its own baseline; `scripts/verify-packages.sh` the
   `<id>=<version>` pairs `release-trains.mjs versions` prints; `scripts/push-packages.sh` the ids of one version.
+- `release-pack.sh`'s types: `major`, `minor` or `patch` a version nuget.org lacks for every package of the train, and
+  above every stable version one has. A plan made at the tip of `main` never gives another; one made below a release
+  published since does (a re-run of an older run, or a `release.yml` dispatch queued behind that release), and the
+  message names the tag when it finds one on a commit `HEAD` does not descend from. The other causes: a missing tag, or
+  a package moved in behind its last version (ADR 0012). `repair` is what `preview-gate.sh` gives a version nuget.org
+  has, partly or whole, or a train it packs beside a repair and never pushes, looked up nowhere and held to no baseline.
+  For a train that does not release while another does, its last release is packed again beside it, the version
+  `<last>`, read from its tag (`<prefix><last>`, which the clone must hold): a package that release shipped has its
+  project in the tag's tree, packable, on the train that commit's list gives it (`HEAD`'s for a commit from before the
+  list), and every one must list `<last>` on nuget.org, those `HEAD` no longer packs on the train included, or that
+  release stopped midway. `strict` is the core's: every package of it must list `<last>` too, a package that joined
+  since included, which only a release of the core publishes unless it moved in from a train that released that number,
+  and none may have a stable version above `<last>` (a core release cut after `HEAD`, which the message names, a missing
+  tag, or a move ADR 0012 refuses); it is held to exactly that release's API (`StrictBaselineTrains`, which
+  `src/Directory.Build.props` turns into `EnableStrictModeForBaselineValidation`), since the other trains are built
+  against it. `keep` is any other train's, with no baseline; a package that joined the train since passes. No workflow
+  passes `strict` or `keep` yet: `release.yml` will once it releases each train on its own.
+- `scripts/release-pack.test.mjs` replays those checks against the repository's projects and tags (strict and keep pack
+  again `v0.2.1` and `satellites-v0.2.1`) and a flat container `node:http` serves (`NUGET_FLAT_CONTAINER`), and stops
+  before `dotnet pack` (`RELEASE_PACK_CHECK_ONLY=true`), seams no workflow sets. A case needing other tags reads them
+  from a throwaway `GIT_DIR` that borrows the repository's objects: a release whose list put a satellite on the core,
+  one with a project since removed, one cut after `HEAD`, and the first release alone, for the cases about a version
+  nuget.org has, so that no release fetched later changes their message. Replayed: strict whole, partial, with a package
+  joined since, with one moved out since, with a stable version above `<last>`, behind a release cut after `HEAD`,
+  without `<last>`, and at a version other than it; keep whole with packages joined since, with one its list put on
+  another train, partial, with a package since removed, and without its tag; a version nuget.org lists and a stable
+  version above it, for a train held to a baseline and for one that is not, with the release's tag cut after `HEAD` and
+  merged into it, and a stable version between `<last>` and the version, which passes; a preview with a package new
+  since its baseline; a train none of whose packages has `<last>`; a repair; an HTTP error and an empty index; a set
+  other than `RELEASE_PACKAGE_IDS`, and none; no argument, and malformed, repeated, missing and unknown trains. Not
+  replayed: a list naming no train, a failed lookup in the walk of a tag's tree, a tag's list that cannot be read, and
+  everything from the pack on. It evaluates the projects, so `release tooling` installs the SDK before it runs the
+  scripts' tests.
 - `scripts/verify-packages.sh` also reads each nuspec's dependencies on `AdCodicem.ValueObjects*`: each must be a
   package of the set, at `[V, upper)`, V its version in the set and upper the next that may break it (`-0` closing a
   prerelease's). Every run packs every train, so no dependency of ours points outside the set. Each package's README
