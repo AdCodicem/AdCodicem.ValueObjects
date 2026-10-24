@@ -81,6 +81,32 @@ test("a project the list does not name rides the * train, by its exact name", ()
   assert.equal(trainOf(model, "Core"), "satellites");
 });
 
+// src/Directory.Build.props derives each project's MinVerTagPrefix from its train, as tagPrefixOf names that train's
+// tags: the two readings of a tag prefix must agree for any train a list may hold, in any order.
+test("MSBuild's tag prefix of a train is tagPrefixOf's", () => {
+  const props = readFileSync(join(src, "Directory.Build.props"), "utf8");
+  const prefixes = [...props.matchAll(/<MinVerTagPrefix( Condition="([^"]*)")?>([^<]*)<\/MinVerTagPrefix>/g)]
+    .map(([, , condition, value]) => ({ condition, value }));
+  assert.deepEqual(prefixes, [
+    { condition: undefined, value: "v" },
+    { condition: "'$(ReleaseTrain)' != 'core'", value: "$(ReleaseTrain)-v" },
+  ], "src/Directory.Build.props sets MinVerTagPrefix by this rule only; change the test with the rule");
+  const msbuildPrefixOf = (train) => {
+    let prefix;
+    for (const { condition, value } of prefixes) {
+      if (condition === undefined || train !== "core") prefix = value.replaceAll("$(ReleaseTrain)", train);
+    }
+    return prefix;
+  };
+  const model = parseTrains(JSON.stringify({
+    satellites: { projects: "*", breaking: "minor" },
+    "edge-2": { breaking: "major", projects: ["Edge"] },
+    core: { breaking: "minor", projects: ["Core.A"] },
+  }));
+  assert.deepEqual(model.names, ["core", "satellites", "edge-2"]);
+  for (const train of model.names) assert.equal(msbuildPrefixOf(train), tagPrefixOf(train), train);
+});
+
 test("the tags and changelogs follow the train", () => {
   assert.equal(tagPrefixOf("core"), "v");
   assert.equal(tagPrefixOf("satellites"), "satellites-v");

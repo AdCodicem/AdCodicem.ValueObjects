@@ -965,6 +965,10 @@ dotnet test                                                          # everythin
 dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages   # the packable projects only
 ```
 
+Without `RELEASE_TRAIN_VERSIONS`, which previews and releases set, a pack takes each release train's version from its
+own tags, `v<version>` for the core and `satellites-v<version>` for the satellites, and stops when it finds none: in a
+fork, fetch upstream's first (`git fetch upstream --tags`).
+
 Benchmarks are a separate run, and want a quiet machine:
 
 ```

@@ -19,7 +19,9 @@
     RELEASE_TRAIN_VERSIONS ("core=1.2.0 satellites=0.4.0") gives each train its version from outside, which MinVer
     takes as its override: it replaces MINVERVERSIONOVERRIDE, one version for every project, which
     src/Directory.Build.targets refuses, as it refuses a train left without a version. Without it, MinVer derives the
-    version from the tags.
+    version from the train's own tags: v<version> for the core, <train>-v<version> for any other, as tagPrefixOf in
+    .github/scripts/release-trains.mjs names them (ci.yml compares the two); src/Directory.Build.targets refuses a pack
+    that finds none of them.
   -->
   <PropertyGroup Label="Release train">
     <_ReleaseTrains>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)release-trains.json'))</_ReleaseTrains>
@@ -28,6 +30,8 @@
     <_InheritedMinVerVersionOverride>$(MinVerVersionOverride)</_InheritedMinVerVersionOverride>
     <_ReleaseTrainVersion Condition="'$(RELEASE_TRAIN_VERSIONS)' != ''">$([System.Text.RegularExpressions.Regex]::Match(' $(RELEASE_TRAIN_VERSIONS) ', '\s$(ReleaseTrain)=(\S+)\s').Groups[1].Value)</_ReleaseTrainVersion>
     <MinVerVersionOverride>$(_ReleaseTrainVersion)</MinVerVersionOverride>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerTagPrefix Condition="'$(ReleaseTrain)' != 'core'">$(ReleaseTrain)-v</MinVerTagPrefix>
   </PropertyGroup>
 
   <!--

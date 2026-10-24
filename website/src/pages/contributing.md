@@ -31,6 +31,10 @@ dotnet test                                                          # everythin
 dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages   # the packable projects only
 ```
 
+Without `RELEASE_TRAIN_VERSIONS`, which previews and releases set, a pack takes each release train's version from its
+own tags, `v<version>` for the core and `satellites-v<version>` for the satellites, and stops when it finds none: in a
+fork, fetch upstream's first (`git fetch upstream --tags`).
+
 The unit suite is eleven projects, one per package family of `.github/ci-families.json` (its `tests`): a test runs
 from the project of its family, and CI runs each family's project in a job of its own.
 

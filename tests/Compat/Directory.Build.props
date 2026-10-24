@@ -31,7 +31,7 @@
     than on a missing version for every package.
   -->
   <Target Name="_RequirePackedPackages" BeforeTargets="_GenerateRestoreProjectSpec;CollectPackageReferences" Condition="'@(_PackedPackage)' == '' and '$(CompatSdkMissing)' != 'true'">
-    <Error Text="artifacts/packages holds no AdCodicem.ValueObjects package: pack them there first, dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages, from the repository's root." />
+    <Error Text="artifacts/packages holds no AdCodicem.ValueObjects package: pack them there first, from the repository's root, as tests/Compat/CLAUDE.md does (RELEASE_TRAIN_VERSIONS=&quot;core=$v satellites=$v&quot; dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages); a pack without it reads each train's tags, so fetch them first (git fetch --tags)." />
   </Target>
 
 </Project>
