@@ -9,6 +9,15 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - `scripts/preview-gate.sh` decides `publish`, `repair` or `none` against the version nuget.org has from the nearest
   commit, and fails the run rather than guess when a lookup fails. All thirty-eight packages go out at one version, or
   none.
+- `scripts/preview-gate.test.mjs` replays the gate against a throwaway repository and a flat container `node:http`
+  serves on `127.0.0.1` (curl answers `000` for a `file://` URL), and holds its decisions as they are recorded there:
+  publish, none, repair with and without changes pending, each refusal of a decision, `--recheck` and `--report`. A
+  failed lookup (an HTTP error, a nuspec naming no commit, a commit the clone lacks) is not replayed, nor is a
+  `<PackageVersion>` change, which makes the gate restore. It needs `git`, `jq`, `curl`, `perl` and GNU `grep -P`, as
+  the gate does. Its one seam, `PACKAGE_IDS_SCRIPT`, replaces `package-ids.sh` (dotnet) by a stub reading
+  `src/ids.txt`, which the gate runs through `bash`: no workflow sets it, nor may, since the gate must read the IDs
+  `package-ids.sh` prints, the set `preview.yml`'s pack job publishes. A change to the gate's decisions changes those
+  recordings in the same pull request.
 - The version: `scripts/next-version.mjs` runs semantic-release's commit analyzer with `.releaserc.json`, without a
   token, and suffixes `-preview.<commits since the last stable tag>` (`0.3.0-preview.172` leads to `0.3.0`; with no
   commit that releases anything, the next patch). It needs `fetch-depth: 0`.
