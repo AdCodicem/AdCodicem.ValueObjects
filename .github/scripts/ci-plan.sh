@@ -40,7 +40,8 @@
 #                  [Trait("Reads", "Documentation")]. The package READMEs are also packed, website/docs/ also built
 #                  into the site.
 #   site           website/, docs/docfx/ and the action that builds the site: the job "documentation site".
-#   everything     what every project or job reads: Directory.Build.*, Directory.Packages.props, global.json,
+#   everything     what every project or job reads: Directory.Build.* (the root's and src/'s, which the release
+#                  scripts' tests and release-trains.mjs compile-items read too), Directory.Packages.props, global.json,
 #                  nuget.config, .editorconfig, .gitattributes, the solution files, the local tools, ci.yml, this
 #                  script, the family table, the list of release trains (which every project reads by a property
 #                  function, invisible to dotnet-affected) and release-trains.mjs, which this script runs,
@@ -304,7 +305,8 @@ rule() {
     package.json | package-lock.json | .releaserc.json) echo release ;;
     website/*) echo site ;;
     src/PackageReadme.md | src/AdCodicem.ValueObjects/README.md) echo readme ;;
-    Directory.Build.* | Directory.Packages.props | global.json | nuget.config | .editorconfig | .gitattributes | \
+    Directory.Build.* | src/Directory.Build.* | Directory.Packages.props | global.json | nuget.config | .editorconfig | \
+      .gitattributes | \
       AdCodicem.ValueObjects.slnx | src/AdCodicem.ValueObjects.Packages.slnf | src/release-trains.json | \
       .config/dotnet-tools.json | codecov.yml | tests/Directory.Build.*) echo everything ;;
     icon.png) echo pack ;;
