@@ -47,7 +47,7 @@ updates:
       dotnet:
         update-types: ["minor", "patch"]
     # A new major of a framework is supported by a decision -- a dependency floor
-    # or a target framework, docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md --
+    # or a target framework, docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md --
     # never by a bump. For NuGet these rules also hold back a security update that
     # exists only on a new major: its alert stays open, and the move is made as a
     # deliberate migration. One published on the current major still opens at once.

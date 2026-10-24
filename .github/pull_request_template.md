@@ -15,4 +15,4 @@
 - [ ] A new diagnostic is listed in `AnalyzerReleases.Unshipped.md`, or RS2008 fails the build.
 - [ ] A benchmark claim in the documentation still matches a run, or it was updated.
 - [ ] The pull request holds 100 commits or fewer (`git rev-list --count origin/main..HEAD`): GitHub rebases no more,
-      and *Rebase and merge* is how its commits reach the changelog.
+      and *Rebase and merge* is how each of its commits reaches its train's changelog.

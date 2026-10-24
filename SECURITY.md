@@ -2,11 +2,14 @@
 
 ## Supported versions
 
-Only the latest stable release receives security fixes. There is no
-maintenance branch: a fix ships in the next release, never as a patch to an
-earlier line, and a project held on an older framework major stays on the
-version before the packages moved past it
-([ADR-0010](docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)).
+The packages are released in two trains, the core and the satellites
+(`src/release-trains.json` names the core's projects). Only the latest stable
+release of each train receives security fixes: the core's `v<version>` and the
+satellites' `satellites-v<version>`. A fix in a file both trains compile ships
+in both. There is no maintenance branch: a fix ships in the next release, never
+as a patch to an earlier line, and a project held on an older framework major
+stays on the version before the packages moved past it
+([ADR-0012](docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)).
 Previews are not supported: they receive no fixes of their own, and a fix
 reaches them only as it reaches `main`, in the next weekly preview.
 

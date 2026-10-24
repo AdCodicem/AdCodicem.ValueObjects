@@ -85,9 +85,9 @@ installs a `pre-commit` and a `commit-msg` hook that also run in CI:
 - committed files must stay usable on a case-insensitive, no-symlink Windows checkout;
 - commit messages must follow [Conventional Commits](https://www.conventionalcommits.org/).
 
-A pull request lands with *Rebase and merge*, so that each of its commits reaches the changelog, and GitHub rebases
-at most 100 commits: past that it refuses, and its web UI blames conflicts that do not exist. Keep a pull request to
-100 commits or fewer, and split larger work into pull requests stacked on one another.
+A pull request lands with *Rebase and merge*, so that each of its commits reaches its train's changelog, and GitHub
+rebases at most 100 commits: past that it refuses, and its web UI blames conflicts that do not exist. Keep a pull
+request to 100 commits or fewer, and split larger work into pull requests stacked on one another.
 
 Three checks must pass before a pull request merges: **build and test**, which fails unless every job the run's plan
 selects succeeds; **workflows**, which runs [actionlint](https://github.com/rhysd/actionlint) over every workflow,
@@ -109,10 +109,19 @@ container, a job of its own since Marten takes about 20 minutes to compile nativ
 packages in .NET 11 applications. Ask for the label when your change touches native AOT, a store, the sample API or the
 next .NET, then push: the label is read when a run starts.
 
-Nothing you merge publishes a package by itself. A preview of every package goes to nuget.org each week in which
-something a package ships has changed, and a stable release is cut by hand; while the version is 0.x, a breaking
-change releases a minor, so a minor may break, deprecate or remove part of the public API; only from 1.0.0 on does
-a breaking change wait for a major.
+Nothing you merge publishes a package by itself. A preview goes to nuget.org each week in which something a package
+ships has changed, and a stable release is cut by hand. The packages ride two release trains, the core and the
+satellites, which `src/release-trains.json` defines, each with one version
+([ADR-0012](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)):
+each train's preview carries its own number, the same for both until the trains first part, and every package of a
+train is published at its train's number. While a train is 0.x, a breaking change releases a minor of that train, so
+a minor may break, deprecate or remove part of its public API; only from the train's 1.0.0 on does a breaking change
+wait for a major.
+
+Once each train releases on its own, a commit releases the trains whose package inputs it changes, each by its type
+(`.releaserc.json`); until then, a releasing commit releases both trains at one version. Either way, keep a releasing
+commit to one train, `src/Shared` and the global inputs aside, which `lint.yml` warns about otherwise, and land the
+satellite adaptations of a core change as separate commits.
 
 ## The agent skill
 

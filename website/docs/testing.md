@@ -241,8 +241,8 @@ through the warnings the project lists, and fails on any other, this library's i
 
 The four suites, fourteen test projects of the solution, build and test the source. One more project tests the
 packages: `tests/Compat`, outside the solution,
-installs the thirty-eight packages exactly as they were packed — from the folder the build packs into, at that one
-version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
+installs the thirty-eight packages exactly as they were packed — from the folder the build packs into, each at the
+version of its train, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
 PostgreSQL, collections of value objects, queries on `.Value`, CHECK constraints from the rules on SQLite and a pattern
