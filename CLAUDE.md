@@ -61,7 +61,9 @@ dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text --filter-metho
 # errors for members the generator does emit.
 dotnet format whitespace . --folder --verify-no-changes
 
-# Pack as CI does: through the solution filter, never the whole solution
+# Pack as CI does: through the solution filter, never the whole solution. Without RELEASE_TRAIN_VERSIONS each train's
+# version comes from its own tags (v<version>, satellites-v<version>), and the pack stops when it finds none: in a
+# fork, git fetch upstream --tags first
 dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 
 actionlint                                   # as lint.yml's `workflows` job: 1.7.12, shellcheck on PATH

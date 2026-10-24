@@ -38,6 +38,10 @@ dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text --filter-method "*The_name_of_the_test*"
 ```
 
+A pack (`dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages`) takes each release
+train's version from its own tags, `v<version>` for the core and `satellites-v<version>` for the satellites, and stops
+when it finds none. A fork has none until it fetches upstream's: `git fetch upstream --tags`.
+
 `TreatWarningsAsErrors` is on repository-wide — a warning fails the build, including in your editor.
 
 ## What a change usually touches

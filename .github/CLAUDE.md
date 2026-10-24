@@ -60,6 +60,16 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   pushes through `push-packages.sh`, and the site is redeployed. No build code runs beside the NuGet key, the App token
   or the OIDC token.
 - MinVer and semantic-release read the same `v*` tags; `RELEASE_TRAIN_VERSIONS` hands MinVer the stable version.
+- Without `RELEASE_TRAIN_VERSIONS` (`ci.yml`'s `build`, `heavy.yml`'s compat when no caller hands it packages, a local
+  pack), MinVer reads each project's train's tags: `src/Directory.Build.props` sets `MinVerTagPrefix` to `v` for the
+  core and `<train>-v` for any other, as `tagPrefixOf` in `scripts/release-trains.mjs` names them, and `ci.yml`'s
+  pack check compares the two (`package-ids.sh --prefixes`); the root `Directory.Build.props` keeps `v` for everything
+  outside `src/`. A pack that finds no tag of its train, and would ship `0.0.0-preview.0.<height>`, fails
+  (`_RefuseUntaggedVersion`, `src/Directory.Build.targets`), so every checkout that packs fetches the tags
+  (`fetch-depth: 0`).
+- A tag-derived pack of a commit tagged for one train only fails with NU5104 when that train's packages depend on the
+  core at a later prerelease (a stable package cannot): twin-tagged releases never meet it, and once the trains release
+  on commits of their own (ADR 0012), `[skip ci]` keeps CI off such a commit; never dispatch `heavy.yml` at its ref.
 - The GitHub Release links every package to nuget.org from `RELEASE_PACKAGE_IDS`, which the pack job evaluates with
   `scripts/package-ids.sh` and passes in semantic-release's starting environment: the body renders from it, so a prepare
   step cannot feed it. `release-pack.sh` fails before any push when the packed set differs from it.

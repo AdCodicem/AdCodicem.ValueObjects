@@ -13,6 +13,15 @@
   </Target>
 
   <!--
+    A pack whose version MinVer derived from no tag of its train (0.0.0-preview.0.<height>: a clone without the tags, a
+    fork that never fetched upstream's) is refused rather than shipped as the lowest version there is. A build never
+    packs, and an override (RELEASE_TRAIN_VERSIONS) is not derived.
+  -->
+  <Target Name="_RefuseUntaggedVersion" BeforeTargets="GenerateNuspec" DependsOnTargets="MinVer" Condition="'$(MinVerVersionOverride)' == ''">
+    <Error Condition="$(PackageVersion.StartsWith('0.0.0-'))" Text="$(MSBuildProjectName) would pack at $(PackageVersion): no $(MinVerTagPrefix)&lt;version&gt; tag is merged into HEAD. Fetch the tags (git fetch --tags, or fetch-depth: 0), or set RELEASE_TRAIN_VERSIONS." />
+  </Target>
+
+  <!--
     Every dependency on one of our own packages is bounded by the next version that may break it (ADR 0012):
     [V, 0.(m+1).0) while that package is 0.x, [V, (M+1).0.0) from its 1.0, V being the version packed against. A
     prerelease package closes the range at -0 ([1.2.0, 2.0.0-0)), which keeps a prerelease of the next breaking version

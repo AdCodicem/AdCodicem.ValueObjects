@@ -334,6 +334,16 @@ jobs:
             echo "::error::release-trains.mjs (<) and MSBuild (>) read src/release-trains.json differently." >&2
             exit 1
           fi
+          # The tags MinVer reads for each project, as src/Directory.Build.props derives them from its train, are
+          # those release-trains.mjs names that train's releases by.
+          declare -A prefix_of=()
+          while read -r train prefix _; do prefix_of[$train]="$prefix"; done < <(node .github/scripts/release-trains.mjs trains)
+          while read -r id train prefix; do
+            if [[ "${prefix_of[$train]:-}" != "$prefix" ]]; then
+              echo "::error::$id reads the tags $prefix<version>, but release-trains.mjs names the $train train's tags ${prefix_of[$train]:-(none)}<version>." >&2
+              exit 1
+            fi
+          done < <(.github/scripts/package-ids.sh --prefixes)
           pairs=()
           declare -A train_version=()
           while read -r id train; do

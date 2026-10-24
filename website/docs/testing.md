@@ -322,6 +322,8 @@ jq -r '.families[].tests' .github/ci-families.json | xargs -I{} dotnet test --pr
 dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests    # the generator itself
 dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests  # needs Docker
 dotnet test --project tests/AdCodicem.ValueObjects.RdgTests          # minimal APIs through the RDG
+# Without RELEASE_TRAIN_VERSIONS, each train's version comes from its own tags (v<version>, satellites-v<version>),
+# and the pack stops when it finds none: in a fork, git fetch upstream --tags first
 dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages   # the packable projects only
 
 # The compatibility island, from its own folder, with the .NET 11 SDK its global.json names. Pack into an empty
