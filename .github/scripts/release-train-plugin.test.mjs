@@ -213,6 +213,21 @@ test("the GitHub Release names each train's bundle and links each of its package
   assert.doesNotMatch(render("core", "AdCodicem.ValueObjects"), /and more/);
 });
 
+test("the one-version GitHub Release cuts long notes the same way", () => {
+  const body = entry(releaserc, "@semantic-release/github").releaseBodyTemplate;
+  const render = (notes) => template(body)({
+    nextRelease: { notes, version: "0.3.0", gitTag: "v0.3.0" }, env: { RELEASE_PACKAGE_IDS: "AdCodicem.ValueObjects AdCodicem.ValueObjects.Json" },
+  });
+  const short = render("## notes\n");
+  assert.ok(short.startsWith("## notes\n"));
+  assert.doesNotMatch(short, /and more/);
+  assert.match(short, /`AdCodicem\.ValueObjects\.0\.3\.0\.sigstore\.json`/);
+  const cut = render(`## [0.3.0]\n\n${"* a line of the notes, one of many, long enough to add up quickly\n".repeat(5000)}`);
+  assert.ok(cut.length < 125000, String(cut.length));
+  assert.ok(cut.includes("…and more: the whole list is in [CHANGELOG.md](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/v0.3.0/CHANGELOG.md)."));
+  assert.match(cut, /\| `AdCodicem\.ValueObjects\.Json` \|/);
+});
+
 test("each changelog opens with its title and the marker, which the one-version configuration's title is", () => {
   for (const file of ["CHANGELOG.md", "CHANGELOG.satellites.md"]) {
     const text = read(join(root, file));

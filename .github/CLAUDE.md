@@ -168,6 +168,10 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   in a child process, since it hooks its process's standard streams, which carry `node:test`'s reports, with the
   configuration minus its GitHub entry and an environment holding the plan alone, no CI variable. It also renders both
   configurations' GitHub Release bodies.
+- GitHub refuses a release body above 125,000 characters, and a train's notes grow with its range (about 160 characters
+  a commit, the core's carrying every commit no train owns): both configurations' `releaseBodyTemplate` cut the notes at
+  the last line below 100,000 characters and link the train's changelog at the tag, which holds them whole, as the
+  release commit's message does.
 - `scripts/docs-snapshot.sh` takes the one version, or each train's (`core=X satellites=Y`: every train of
   `src/release-trains.json` once, each stable). The line it freezes is the core's, and the entry it writes in
   `website/released-versions.json` is that version or `{"core": X, "satellites": Y}`. `scripts/docs-snapshot.test.mjs`
