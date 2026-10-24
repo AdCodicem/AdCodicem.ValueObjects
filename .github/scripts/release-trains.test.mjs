@@ -370,6 +370,7 @@ function repository() {
   run("config", "user.name", "Test");
   run("config", "commit.gpgsign", "false");
   run("config", "tag.gpgSign", "false");
+  run("config", "core.hooksPath", "/dev/null"); // no hook of the machine's runs here
   run("config", "log.showRoot", "false"); // git log --root lists the root commit's files whatever this says
   const write = (path, text) => {
     mkdirSync(dirname(join(root, path)), { recursive: true });

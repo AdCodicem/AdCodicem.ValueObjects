@@ -51,6 +51,12 @@
 # --report the same failure is a warning: release.yml runs this step with continue-on-error.
 #
 # NUGET_FLAT_CONTAINER overrides the feed, to replay a decision against a recorded state.
+#
+# PACKAGE_IDS_SCRIPT replaces package-ids.sh, which evaluates the projects with dotnet: a test seam
+# for preview-gate.test.mjs, which replays the gate against a throwaway repository and a local feed
+# (a change of a <PackageVersion> entry still restores with dotnet, which it does not replay). No
+# workflow sets it, nor may: the gate must read the IDs package-ids.sh prints, the set preview.yml's
+# pack job computes and publishes.
 set -euo pipefail
 
 report=false recheck=false
@@ -64,6 +70,7 @@ esac
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 scripts="$root/.github/scripts"
 feed="${NUGET_FLAT_CONTAINER:-https://api.nuget.org/v3-flatcontainer}"
+package_ids="${PACKAGE_IDS_SCRIPT:-$scripts/package-ids.sh}"
 output="${GITHUB_OUTPUT:-/dev/stdout}"
 summary="${GITHUB_STEP_SUMMARY:-/dev/stderr}"
 work="$(mktemp -d)"
@@ -155,11 +162,11 @@ record() { # <id>...: appends "<id> <versions...>" to $work/published for each I
 # to carry that commit's version.
 ids_at() {
   if [[ "$1" == "$(git rev-parse HEAD)" ]]; then
-    "$scripts/package-ids.sh"
+    bash "$package_ids"
   else
     rm -rf "$work/tree" && mkdir -p "$work/tree"
     git archive "$1" -- src Directory.Build.props Directory.Packages.props global.json | tar -x -C "$work/tree"
-    "$scripts/package-ids.sh" "$work/tree"
+    bash "$package_ids" "$work/tree"
   fi
 }
 
