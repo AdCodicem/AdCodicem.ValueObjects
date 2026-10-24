@@ -82,6 +82,9 @@ that describes the commit it builds. A run with a failed or cancelled job deploy
   with **Re-run failed jobs** on the publish job of the run that packed it, while its recheck passes, or by pushing its
   missing packages from that run's artifact by hand, dependencies first; the core first when the message says so. Then
   dispatch again: the next run repairs what is left, or publishes.
+- **The pack failed because a package "already has" the version "on nuget.org"**, or has a stable version at or above
+  it. The run was re-run after another one published its version, or after a release passed it: its plan is stale.
+  Dispatch again rather than re-running it.
 - **The plan failed because the version "is already on nuget.org (…), packed from another commit".** A preview left
   above a later, lower stable release, after a revert, holds the number this one computed. The next commit on `main`
   moves the number.
@@ -254,10 +257,23 @@ site:
 - the release commit contains `website/versioned_docs/version-<line>/api/`.
 
 If the pack or the snapshot fails, the pack job fails and the release job never starts, so nothing is published:
-correct it and dispatch again. If the release is published but its **publish documentation** job fails, use **Re-run
-failed jobs** on that run: it keeps the tag the release job computed. Dispatching **preview** from `main` works too:
-it redeploys the site, labelled with the version on nuget.org, once nuget.org lists the release; before that, its
-plan fails on purpose.
+correct it and dispatch again. Before it packs, `release-pack.sh` looks every package up on nuget.org, and fails when
+one already has the version computed for its train, or a stable version at or above it, which NuGet would keep
+offering. The cause is one of three:
+- the run was dispatched while another release ran, and queued behind it in the `release` group, or it re-runs an
+  older run: its commit lies below that release, and the message names the release's tag when it finds it. If that
+  release completed, dispatch again from `main` when it has more to release; if it stopped midway, complete it as
+  below first. Never place a tag that exists;
+- a release without its tag: place it on the commit its twin names
+  (`git tag satellites-v<version> "v<version>^{commit}"`, or `git tag v<version> "satellites-v<version>^{commit}"`)
+  and push it, as above;
+- a package moved into another train before that train's next version was above the package's last one, which
+  [ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md) refuses: revert the move
+  until then.
+
+If the release is published but its **publish documentation** job fails, use **Re-run failed jobs** on that run: it
+keeps the tag the release job computed. Dispatching **preview** from `main` works too: it redeploys the site, labelled
+with the version on nuget.org, once nuget.org lists the release; before that, its plan fails on purpose.
 
 If semantic-release fails in its publish step, after it has tagged, nothing completes the release by itself.
 semantic-release tags and pushes the changelog commit before it pushes the packages, and creates the GitHub Release

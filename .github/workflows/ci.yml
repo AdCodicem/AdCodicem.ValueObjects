@@ -481,15 +481,21 @@ jobs:
       - name: Next version
         run: node .github/scripts/next-version.mjs
 
+      # The SDK of global.json, which release-pack.test.mjs evaluates the
+      # projects with, and the restore below.
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
       # Every script's tests: which train a project rides, every shape of
       # src/release-trains.json MSBuild's reading could get wrong, which trains
       # a change releases, the preview gate's decisions against recorded
       # nuget.org states, the entry docs-snapshot.sh writes in
-      # website/released-versions.json, and the weekly list of the majors
-      # Dependabot holds back. Before the steps that read the tags and the
-      # restore, so that they report whatever those find. The glob is quoted so
-      # that Node expands it: a directory argument fails from Node 21 on
-      # ("Cannot find module").
+      # website/released-versions.json, the checks release-pack.sh makes of
+      # nuget.org before it packs, and the weekly list of the majors Dependabot
+      # holds back. Before the steps that read the tags and the restore, so that
+      # they report whatever those find. The glob is quoted so that Node expands
+      # it: a directory argument fails from Node 21 on ("Cannot find module").
       - name: Release scripts
         run: node --test '.github/scripts/*.test.mjs'
 
@@ -498,10 +504,6 @@ jobs:
       # release-trains.mjs gives each commit the trains whose packages it
       # changes, a <PackageVersion> those whose restore graph holds the package.
       # Fails when a train has no stable tag merged here.
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
       - name: Restore the packages
         run: dotnet restore src/AdCodicem.ValueObjects.Packages.slnf
 

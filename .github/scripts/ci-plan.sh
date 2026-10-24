@@ -49,7 +49,8 @@
 #                  preview-gate.sh and semver.jq, which preview-gate.test.mjs replays against recorded nuget.org states
 #                  and whose inputs release-trains.test.mjs holds to the trains each path releases, that test,
 #                  docs-snapshot.sh, which docs-snapshot.test.mjs runs up to the entry it writes in
-#                  website/released-versions.json, that test, and the weekly list of held-back majors
+#                  website/released-versions.json, that test, release-pack.sh, whose checks of what nuget.org holds
+#                  release-pack.test.mjs runs up to the pack, that test, and the weekly list of held-back majors
 #                  (held-back-majors.mjs, its test, and dependabot.yml, whose shape its reader holds): the job
 #                  "release tooling", which runs every .github/scripts/*.test.mjs. A project file under src/ runs it
 #                  too, beside its graph lane: release-trains.mjs compile-items holds what MSBuild compiles to the
@@ -294,11 +295,12 @@ rule() {
     .github/scripts/next-version.mjs | .github/scripts/release-trains.test.mjs | .github/scripts/preview-gate.sh | \
       .github/scripts/semver.jq | .github/scripts/preview-gate.test.mjs | .github/scripts/held-back-majors.mjs | \
       .github/scripts/held-back-majors.test.mjs | .github/scripts/docs-snapshot.sh | \
-      .github/scripts/docs-snapshot.test.mjs | .github/dependabot.yml) echo release ;;
+      .github/scripts/docs-snapshot.test.mjs | .github/scripts/release-pack.sh | .github/scripts/release-pack.test.mjs | \
+      .github/dependabot.yml) echo release ;;
     .github/shipped-dependencies | .github/scripts/verify-packages.sh | .github/scripts/package-ids.sh | \
       .github/scripts/shipped-dependencies-check.sh) echo pack ;;
-    .github/scripts/dependabot-commit-type.sh | .github/scripts/package-assemblies.sh | .github/scripts/push-packages.sh | \
-      .github/scripts/release-pack.sh) echo none ;;
+    .github/scripts/dependabot-commit-type.sh | .github/scripts/package-assemblies.sh | .github/scripts/push-packages.sh) \
+      echo none ;;
     package.json | package-lock.json | .releaserc.json) echo release ;;
     website/*) echo site ;;
     src/PackageReadme.md | src/AdCodicem.ValueObjects/README.md) echo readme ;;
