@@ -39,10 +39,13 @@
     "core=1.2.0 satellites=0.4.0", naming only the trains it validates), except one that nuget.org does not have at
     that version (a package added since), whose baseline would fail to restore. It passes the versions and the
     projects to leave out. They are named by project rather than by PackageId, which NuGet's pack targets only
-    default later in the evaluation.
+    default later in the evaluation. A train it packs again at its last release as strict (StrictBaselineTrains: the
+    core, while another train releases) is held to exactly that release's API, which the other trains were built
+    against; one packed again as keep has no baseline.
   -->
   <PropertyGroup Condition="'$(ReleaseBaselineVersions)' != '' and !$([System.String]::Copy(' $(ProjectsWithoutBaseline) ').Contains(' $(MSBuildProjectName) '))">
     <PackageValidationBaselineVersion>$([System.Text.RegularExpressions.Regex]::Match(' $(ReleaseBaselineVersions) ', '\s$(ReleaseTrain)=(\S+)\s').Groups[1].Value)</PackageValidationBaselineVersion>
+    <EnableStrictModeForBaselineValidation Condition="$([System.String]::Copy(' $(StrictBaselineTrains) ').Contains(' $(ReleaseTrain) '))">true</EnableStrictModeForBaselineValidation>
   </PropertyGroup>
 
   <ItemGroup>
