@@ -59,7 +59,9 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
   `AdCodicem.ValueObjects.*` namespace.
 - Packed without `RELEASE_TRAIN_VERSIONS` (`heavy.yml` with no caller's packages), the packages take each train's
   version from its own tags, and the pack stops when it finds none, so the checkout fetches them (`fetch-depth: 0`). A
-  commit tagged for one train only fails that pack with NU5104 (`.github/CLAUDE.md`): never dispatch `heavy.yml` there.
+  commit tagged stable for the satellites alone fails that pack with NU5104, since a stable satellite cannot depend on
+  the core's next prerelease (`.github/CLAUDE.md`): never dispatch `heavy.yml` there. One tagged for the core alone
+  packs.
 - `compat (.NET 11)` is a job of `heavy.yml`, not a required check, and never becomes one (ADR 0013). It gates every
   stable release (`compat-blocks: true`), and every preview once .NET 11 ships; until then, and on `main` and a pull
   request labelled `ci:heavy`, it only informs. No coverage measures it.
