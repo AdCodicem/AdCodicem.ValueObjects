@@ -13,9 +13,9 @@ import {adcodicem} from './src/prism-adcodicem';
 // The site is versioned (docs/adr/0005-version-the-documentation-site.md). website/docs/ is
 // the preview: it describes main, and preview.yml redeploys it every week and on dispatch,
 // after publishing a preview package when a package input changed. Each stable release freezes
-// it into versioned_docs/ through .github/scripts/docs-snapshot.sh, one entry per line of
-// versions -- 0.3.x while the major is 0, 1.x from 1.0 on -- replaced in place when that line
-// ships again.
+// it into versioned_docs/ through .github/scripts/docs-snapshot.sh, one entry per line of the
+// core's versions -- 0.3.x while the core's major is 0, 1.x from its 1.0 on -- replaced in place
+// when that line ships again, a release of the satellites alone included.
 function readJson<T>(file: string, fallback: T): T {
   const fullPath = path.join(__dirname, file);
   return fs.existsSync(fullPath) ? (JSON.parse(fs.readFileSync(fullPath, 'utf8')) as T) : fallback;
@@ -24,8 +24,24 @@ function readJson<T>(file: string, fallback: T): T {
 // Stable lines, newest first, as `docusaurus docs:version` records them. Absent until the
 // first stable release.
 const stableLines = readJson<string[]>('versions.json', []);
-// The exact release each line was last frozen at: {"0.3.x": "0.3.2"}.
-const releasedVersions = readJson<Record<string, string>>('released-versions.json', {});
+// The exact release each line was last frozen at, as .github/scripts/docs-snapshot.sh writes it: one version
+// ({"0.2.x": "0.2.1"}), or each release train's ({"0.3.x": {"core": "0.3.2", "satellites": "0.4.1"}}).
+type Released = string | Record<string, string>;
+const releasedVersions = readJson<Record<string, Released>>('released-versions.json', {});
+
+// What a line's entry names: its version, the one every train shipped, or each train's in turn
+// ("core 0.3.2, satellites 0.4.1").
+function describeLine(entry: Released): string {
+  if (typeof entry === 'string') {
+    return entry;
+  }
+  const versions = Object.values(entry);
+  return new Set(versions).size === 1
+    ? versions[0]
+    : Object.entries(entry)
+        .map(([train, version]) => `${train} ${version}`)
+        .join(', ');
+}
 const hasStable = stableLines.length > 0;
 
 // deploy-docs.yml sets this to the version its caller names, so the preview names the package it
@@ -90,7 +106,7 @@ function llmsTxt(): Plugin {
       const grouped = sections.map((section) => ({label: section.label, pages: section.ids.map(readPage)}));
       const pages = grouped.flatMap((section) => section.pages);
 
-      const release = line ? releasedVersions[line] ?? line : undefined;
+      const release = line ? (releasedVersions[line] ? describeLine(releasedVersions[line]) : line) : undefined;
       const scope = release
         ? `These pages describe ${release}, the latest stable release.`
         : 'No stable release exists yet: these pages describe the latest preview.';
@@ -277,7 +293,7 @@ const config: Config = {
             ...Object.fromEntries(
               stableLines.map((line) => [
                 line,
-                {label: releasedVersions[line] ? `${line} (${releasedVersions[line]})` : line, badge: true},
+                {label: releasedVersions[line] ? `${line} (${describeLine(releasedVersions[line])})` : line, badge: true},
               ]),
             ),
           },

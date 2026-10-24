@@ -68,6 +68,11 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   refuses to go on unless its version is the one packed, writes `CHANGELOG.md`, commits it with the snapshot, tags,
   pushes through `push-packages.sh`, and the site is redeployed. No build code runs beside the NuGet key, the App token
   or the OIDC token.
+- `scripts/docs-snapshot.sh` takes the one version, or each train's (`core=X satellites=Y`: every train of
+  `src/release-trains.json` once, each stable). The line it freezes is the core's, and the entry it writes in
+  `website/released-versions.json` is that version or `{"core": X, "satellites": Y}`. `scripts/docs-snapshot.test.mjs`
+  runs it with `DOCS_SNAPSHOT_ENTRY_ONLY=true`, which stops once that entry is written: no workflow sets it, since a
+  release commits the snapshot the rest of the script writes.
 - The core's MinVer and semantic-release read the same `v*` tags (`tagFormat` in `.releaserc.json`), each other
   train's MinVer its own (below); `RELEASE_TRAIN_VERSIONS` hands MinVer the stable version.
 - Without `RELEASE_TRAIN_VERSIONS` (`ci.yml`'s `build`, `heavy.yml`'s compat when no caller hands it packages, a local
@@ -255,4 +260,5 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   (`Forms/EcmaScriptPatterns.json` of `tests/AdCodicem.ValueObjects.UnitTests.Text`) to Node's v-flag engine, as
   `EcmaScriptPatternTests` holds it to .NET: change both together. A change to the script runs the `text` family.
 - `deploy-docs.yml` is `workflow_call` only, called by `preview.yml` and `release.yml`: redeploy the site by dispatching
-  `preview.yml`.
+  `preview.yml`. It builds a commit of its caller's run, or a stable release's tag descending from it: the core's
+  `v<preview-version>`, or another train's `<train>-v<version>`, whose version need not be `preview-version`.
