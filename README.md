@@ -132,55 +132,82 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 ## Supported frameworks
 
 Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-eight are
-released together under one version number: reference the same version of each. Their dependencies on the
-frameworks and libraries they integrate are minimums with no upper bound, and the exact minimum of each is in the
-package's dependency list on nuget.org. Their dependencies on each other stop at the next version that may break
-them, `[0.3.0, 0.4.0)` while the major is 0 and `[1.2.0, 2.0.0)` from 1.0. NuGet does not keep them consistent for
-you: a project mixing their versions fails the restore with NU1107 or NU1605, or restores with warning NU1608,
-depending on which of them it references directly and in what order. A framework's
-next major is supported by these same packages, never by a package per framework version
-([ADR-0010](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)).
+released in two trains, each under one version number:
 
-| Package | Target | Built and tested against | On the next .NET¹ |
-| --- | --- | --- | --- |
-| `AdCodicem.ValueObjects` | `net10.0` | the .NET 10 SDK | the .NET 11 SDK, whose compiler runs the generator |
-| `AdCodicem.ValueObjects.Abstractions` | `net10.0` | .NET 10 | .NET 11 |
-| `AdCodicem.ValueObjects.Json` | `net10.0` | .NET 10, source generation included | .NET 11, source generation included |
-| `AdCodicem.ValueObjects.EntityFrameworkCore` | `net10.0` | EF Core 10, on SQLite, PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
-| `AdCodicem.ValueObjects.AspNetCore` | `net10.0` | ASP.NET Core 10 | ASP.NET Core 11 |
-| `AdCodicem.ValueObjects.AspNetCore.Http` | `net10.0` | ASP.NET Core 10, reflection-based binding, the Request Delegate Generator and native AOT | ASP.NET Core 11 |
-| `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | `net10.0` | ASP.NET Core 10, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 10 | ASP.NET Core 11, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11 |
-| `AdCodicem.ValueObjects.OpenApi` | `net10.0` | ASP.NET Core 10, with `Microsoft.OpenApi` 2 | ASP.NET Core 11, with `Microsoft.OpenApi` 3 |
-| `AdCodicem.ValueObjects.Swashbuckle` | `net10.0` | Swashbuckle 10 on ASP.NET Core 10, with `Microsoft.OpenApi` 2 | Swashbuckle 10 on ASP.NET Core 11, with `Microsoft.OpenApi` 2 |
-| `AdCodicem.ValueObjects.NJsonSchema` | `net10.0` | NJsonSchema 11.6: NSwag 14.7 on ASP.NET Core 10, Confluent's JSON serdes 2.16 | NSwag 14.7 and Confluent's JSON serdes 2.16 on .NET 11 |
-| `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
-| `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
-| `AdCodicem.ValueObjects.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 7.0² | MongoDB.Driver 3.12 on .NET 11, on MongoDB 7.0² |
-| `AdCodicem.ValueObjects.Marten` | `net10.0` | Marten 9.50, on PostgreSQL 17, and native AOT | Marten 9.50 on .NET 11, on PostgreSQL 17 |
-| `AdCodicem.ValueObjects.MessagePack` | `net10.0` | MessagePack 3.1, with SignalR's MessagePack hub protocol 10 | MessagePack 3.1 on .NET 11, with the hub protocol 11 |
-| `AdCodicem.ValueObjects.ProtobufNet` | `net10.0` | protobuf-net 3.4 and protobuf-net.Grpc 1.3 over Grpc.AspNetCore 2.84, and protobuf-net's compile-time model under native AOT | protobuf-net 3.4 on .NET 11, a code-first call over TestHost |
-| `AdCodicem.ValueObjects.Grpc` | `net10.0` | Grpc.StatusProto 2.84, over Grpc.AspNetCore 2.84 and native AOT | a contract-first service over TestHost on .NET 11 |
-| `AdCodicem.ValueObjects.Orleans` | `net10.0` | Orleans 10.4, its serializer and an in-process cluster of one silo and of two, with its client | Orleans 10.4 on .NET 11, its serializer |
-| `AdCodicem.ValueObjects.HotChocolate` | `net10.0` | HotChocolate 16.6, in process and over ASP.NET Core | HotChocolate 16.6 on .NET 11 |
-| `AdCodicem.ValueObjects.HotChocolate.Data` | `net10.0` | HotChocolate.Data 16.6, over EF Core 10 on SQLite, PostgreSQL and SQL Server, and in memory | HotChocolate.Data 16.6 over EF Core 11 on SQLite |
-| `AdCodicem.ValueObjects.Blazor` | `net10.0` | Blazor 10 (`Microsoft.AspNetCore.Components.Web` 10), through bUnit, static rendering over TestHost and `HtmlRenderer` under native AOT | Components 11, through `HtmlRenderer` |
-| `AdCodicem.ValueObjects.CommandLine` | `net10.0` | System.CommandLine 2.0, commands parsed and invoked in process, and native AOT | System.CommandLine 3.0 (release candidate) on .NET 11 |
-| `AdCodicem.ValueObjects.CsvHelper` | `net10.0` | CsvHelper 33.1, files read and written in memory | CsvHelper 33.1 on .NET 11 |
-| `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
-| `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
-| `AdCodicem.ValueObjects.AI` | `net10.0` | Microsoft.Extensions.AI 10, with its OpenAI adapter in strict mode, and native AOT | Microsoft.Extensions.AI 10 on .NET 11 |
-| `AdCodicem.ValueObjects.ModelContextProtocol` | `net10.0` | ModelContextProtocol 2.2, in process over streams, and native AOT | ModelContextProtocol 2.2 on .NET 11 |
-| `AdCodicem.ValueObjects.AzureFunctions` | `net10.0` | Microsoft.Azure.Functions.Worker 2.52, in the Functions host's `dotnet-isolated` 10.0 image | Worker 2.52 on .NET 11 |
-| `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` | `net10.0` | the Functions ASP.NET Core integration 2.1, in the Functions host's `dotnet-isolated` 10.0 image | the integration 2.1 beside ASP.NET Core 11 |
-| `AdCodicem.ValueObjects.Wolverine.Http` | `net10.0` | Wolverine.Http 6.51, in dynamic mode over TestHost, and in static mode under native AOT | Wolverine.Http 6.51 on .NET 11, in dynamic mode over TestHost |
-| `AdCodicem.ValueObjects.Identifiers` | `net10.0` | .NET 10 | .NET 11 |
-| `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
-| `AdCodicem.ValueObjects.Identifiers.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 7.0² | MongoDB.Driver 3.12 on .NET 11, on MongoDB 7.0² |
-| `AdCodicem.ValueObjects.Testing` | `net10.0` | xUnit v3 4 | xUnit v3 4 on .NET 11 |
-| `AdCodicem.ValueObjects.Testing.Data` | `net10.0` | .NET 10 | .NET 11 |
-| `AdCodicem.ValueObjects.AutoFixture` | `net10.0` | AutoFixture 4.18 | AutoFixture 4.18 on .NET 11 |
-| `AdCodicem.ValueObjects.Bogus` | `net10.0` | Bogus 35 | Bogus 35 on .NET 11 |
-| `AdCodicem.ValueObjects.FsCheck` | `net10.0` | FsCheck 3 | FsCheck 3 on .NET 11 |
+- the core: `AdCodicem.ValueObjects` and the nine packages released with it, `AdCodicem.ValueObjects.Abstractions`,
+  `AdCodicem.ValueObjects.Json`, `AdCodicem.ValueObjects.Identifiers`, `AdCodicem.ValueObjects.Testing.Data`,
+  `AdCodicem.ValueObjects.AspNetCore`, `AdCodicem.ValueObjects.AspNetCore.Http`,
+  `AdCodicem.ValueObjects.EntityFrameworkCore`, `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` and
+  `AdCodicem.ValueObjects.OpenApi`;
+- the satellites: every other package, twenty-eight today.
+
+Reference every package of a train at that train's version; the table below gives the train of each package. The two
+trains carry the same version until they first part, and from then on they may differ. A project using Central
+Package Management writes one version property per train in its `Directory.Packages.props`:
+
+```xml
+<PropertyGroup>
+  <AdCodicemCoreVersion>0.2.1</AdCodicemCoreVersion>
+  <AdCodicemSatellitesVersion>0.2.1</AdCodicemSatellitesVersion>
+</PropertyGroup>
+<ItemGroup>
+  <PackageVersion Include="AdCodicem.ValueObjects" Version="$(AdCodicemCoreVersion)" />
+  <PackageVersion Include="AdCodicem.ValueObjects.EntityFrameworkCore" Version="$(AdCodicemCoreVersion)" />
+  <PackageVersion Include="AdCodicem.ValueObjects.Dapper" Version="$(AdCodicemSatellitesVersion)" />
+</ItemGroup>
+```
+
+The packages' dependencies on the frameworks and libraries they integrate are minimums with no upper bound, and the
+exact minimum of each is in the package's dependency list on nuget.org. Their dependencies on each other stop at the
+next version that may break them, within a train or across trains: `[0.3.0, 0.4.0)` while the major is 0 and
+`[1.2.0, 2.0.0)` from 1.0. NuGet does not keep them consistent for you: depending on which of them a project references
+directly and in what order, a mix of a train's versions fails the restore with NU1107 or NU1605, restores with warning
+NU1608, or restores without a word. A 2.0 prerelease of the core sorts below 2.0.0, so it falls inside a stable
+satellite's `[1.2.0, 2.0.0)` range and restores without a warning. A satellite depends on the core it was packed
+against, so updating a satellite usually updates the core too. A framework's next major is supported by these same
+packages, never by a package per framework version
+([ADR-0012](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)).
+
+| Package | Train | Target | Built and tested against | On the next .NET¹ |
+| --- | --- | --- | --- | --- |
+| `AdCodicem.ValueObjects` | `core` | `net10.0` | the .NET 10 SDK | the .NET 11 SDK, whose compiler runs the generator |
+| `AdCodicem.ValueObjects.Abstractions` | `core` | `net10.0` | .NET 10 | .NET 11 |
+| `AdCodicem.ValueObjects.Json` | `core` | `net10.0` | .NET 10, source generation included | .NET 11, source generation included |
+| `AdCodicem.ValueObjects.EntityFrameworkCore` | `core` | `net10.0` | EF Core 10, on SQLite, PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
+| `AdCodicem.ValueObjects.AspNetCore` | `core` | `net10.0` | ASP.NET Core 10 | ASP.NET Core 11 |
+| `AdCodicem.ValueObjects.AspNetCore.Http` | `core` | `net10.0` | ASP.NET Core 10, reflection-based binding, the Request Delegate Generator and native AOT | ASP.NET Core 11 |
+| `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson` | `satellites` | `net10.0` | ASP.NET Core 10, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 10 | ASP.NET Core 11, with `Microsoft.AspNetCore.Mvc.NewtonsoftJson` 11 |
+| `AdCodicem.ValueObjects.OpenApi` | `core` | `net10.0` | ASP.NET Core 10, with `Microsoft.OpenApi` 2 | ASP.NET Core 11, with `Microsoft.OpenApi` 3 |
+| `AdCodicem.ValueObjects.Swashbuckle` | `satellites` | `net10.0` | Swashbuckle 10 on ASP.NET Core 10, with `Microsoft.OpenApi` 2 | Swashbuckle 10 on ASP.NET Core 11, with `Microsoft.OpenApi` 2 |
+| `AdCodicem.ValueObjects.NJsonSchema` | `satellites` | `net10.0` | NJsonSchema 11.6: NSwag 14.7 on ASP.NET Core 10, Confluent's JSON serdes 2.16 | NSwag 14.7 and Confluent's JSON serdes 2.16 on .NET 11 |
+| `AdCodicem.ValueObjects.FluentValidation` | `satellites` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
+| `AdCodicem.ValueObjects.Dapper` | `satellites` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
+| `AdCodicem.ValueObjects.MongoDB` | `satellites` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 7.0² | MongoDB.Driver 3.12 on .NET 11, on MongoDB 7.0² |
+| `AdCodicem.ValueObjects.Marten` | `satellites` | `net10.0` | Marten 9.50, on PostgreSQL 17, and native AOT | Marten 9.50 on .NET 11, on PostgreSQL 17 |
+| `AdCodicem.ValueObjects.MessagePack` | `satellites` | `net10.0` | MessagePack 3.1, with SignalR's MessagePack hub protocol 10 | MessagePack 3.1 on .NET 11, with the hub protocol 11 |
+| `AdCodicem.ValueObjects.ProtobufNet` | `satellites` | `net10.0` | protobuf-net 3.4 and protobuf-net.Grpc 1.3 over Grpc.AspNetCore 2.84, and protobuf-net's compile-time model under native AOT | protobuf-net 3.4 on .NET 11, a code-first call over TestHost |
+| `AdCodicem.ValueObjects.Grpc` | `satellites` | `net10.0` | Grpc.StatusProto 2.84, over Grpc.AspNetCore 2.84 and native AOT | a contract-first service over TestHost on .NET 11 |
+| `AdCodicem.ValueObjects.Orleans` | `satellites` | `net10.0` | Orleans 10.4, its serializer and an in-process cluster of one silo and of two, with its client | Orleans 10.4 on .NET 11, its serializer |
+| `AdCodicem.ValueObjects.HotChocolate` | `satellites` | `net10.0` | HotChocolate 16.6, in process and over ASP.NET Core | HotChocolate 16.6 on .NET 11 |
+| `AdCodicem.ValueObjects.HotChocolate.Data` | `satellites` | `net10.0` | HotChocolate.Data 16.6, over EF Core 10 on SQLite, PostgreSQL and SQL Server, and in memory | HotChocolate.Data 16.6 over EF Core 11 on SQLite |
+| `AdCodicem.ValueObjects.Blazor` | `satellites` | `net10.0` | Blazor 10 (`Microsoft.AspNetCore.Components.Web` 10), through bUnit, static rendering over TestHost and `HtmlRenderer` under native AOT | Components 11, through `HtmlRenderer` |
+| `AdCodicem.ValueObjects.CommandLine` | `satellites` | `net10.0` | System.CommandLine 2.0, commands parsed and invoked in process, and native AOT | System.CommandLine 3.0 (release candidate) on .NET 11 |
+| `AdCodicem.ValueObjects.CsvHelper` | `satellites` | `net10.0` | CsvHelper 33.1, files read and written in memory | CsvHelper 33.1 on .NET 11 |
+| `AdCodicem.ValueObjects.NewtonsoftJson` | `satellites` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
+| `AdCodicem.ValueObjects.Serilog` | `satellites` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
+| `AdCodicem.ValueObjects.AI` | `satellites` | `net10.0` | Microsoft.Extensions.AI 10, with its OpenAI adapter in strict mode, and native AOT | Microsoft.Extensions.AI 10 on .NET 11 |
+| `AdCodicem.ValueObjects.ModelContextProtocol` | `satellites` | `net10.0` | ModelContextProtocol 2.2, in process over streams, and native AOT | ModelContextProtocol 2.2 on .NET 11 |
+| `AdCodicem.ValueObjects.AzureFunctions` | `satellites` | `net10.0` | Microsoft.Azure.Functions.Worker 2.52, in the Functions host's `dotnet-isolated` 10.0 image | Worker 2.52 on .NET 11 |
+| `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` | `satellites` | `net10.0` | the Functions ASP.NET Core integration 2.1, in the Functions host's `dotnet-isolated` 10.0 image | the integration 2.1 beside ASP.NET Core 11 |
+| `AdCodicem.ValueObjects.Wolverine.Http` | `satellites` | `net10.0` | Wolverine.Http 6.51, in dynamic mode over TestHost, and in static mode under native AOT | Wolverine.Http 6.51 on .NET 11, in dynamic mode over TestHost |
+| `AdCodicem.ValueObjects.Identifiers` | `core` | `net10.0` | .NET 10 | .NET 11 |
+| `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `core` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
+| `AdCodicem.ValueObjects.Identifiers.MongoDB` | `satellites` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 7.0² | MongoDB.Driver 3.12 on .NET 11, on MongoDB 7.0² |
+| `AdCodicem.ValueObjects.Testing` | `satellites` | `net10.0` | xUnit v3 4 | xUnit v3 4 on .NET 11 |
+| `AdCodicem.ValueObjects.Testing.Data` | `core` | `net10.0` | .NET 10 | .NET 11 |
+| `AdCodicem.ValueObjects.AutoFixture` | `satellites` | `net10.0` | AutoFixture 4.18 | AutoFixture 4.18 on .NET 11 |
+| `AdCodicem.ValueObjects.Bogus` | `satellites` | `net10.0` | Bogus 35 | Bogus 35 on .NET 11 |
+| `AdCodicem.ValueObjects.FsCheck` | `satellites` | `net10.0` | FsCheck 3 | FsCheck 3 on .NET 11 |
 
 ¹ On the .NET 11 release candidate, by a CI job that installs the packages into `net11.0` applications, the
 Swashbuckle package into one of its own: those of `main` after each push, a newer push cancelling an older one's run,
@@ -193,20 +220,30 @@ packages ran against MongoDB 8 until then.
 
 ## Versioning
 
-The packages follow semantic versioning from 1.0.0 on: from then, only a major version breaks the public API or
-removes a member. Before 1.0.0, the version is `0.<minor>.<patch>`, and a minor version may break part of the public
-API, or deprecate or remove part of it, without waiting for a major: read the
-[changelog](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.md) before taking a new minor. A
-patch never breaks anything, before 1.0.0 or after. A member deprecated rather than removed outright is reported by
-the compiler wherever it is used, with a diagnostic naming its replacement. A member that is read by nothing any more
-stays a while as a compile error that says what replaces it (`VO0021`, `VO0028`, `VO0034`, `VO0035`), and any minor
-version may then remove it.
+Each train follows semantic versioning from its own 1.0.0 on: from then, only a major version of the train breaks its
+public API or removes a member. Until then, the train's version is `0.<minor>.<patch>`, and a minor version of that
+train may break part of its public API, or deprecate or remove part of it, without waiting for a major. Before taking
+a new minor, read the changelog of the package's train:
+[`CHANGELOG.md`](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.md) for the core,
+[`CHANGELOG.satellites.md`](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.satellites.md)
+for the satellites (`CHANGELOG.md` up to their first release of their own). A patch never breaks anything, before
+1.0.0 or after.
+
+The core reaches 1.0 first; the satellites stay 0.x and reach 1.0 together, later. The satellites break when the
+core's line moves, the line being the core's major, or `0.<minor>` while the core is 0.x: a core release that moves
+its line comes with a satellites release, a breaking version of the satellites.
+
+A member deprecated rather than removed outright is reported by the compiler wherever it is used, with a diagnostic
+naming its replacement. A member that is read by nothing any more stays a while as a compile error that says what
+replaces it (`VO0021`, `VO0028`, `VO0034`, `VO0035`), and any minor version of its train may remove it before that
+train's 1.0.0.
 
 ## Trying a preview
 
-Between stable releases, a preview of every package is published to nuget.org when something a package ships has
-changed, checked every week. It carries the number of the release it leads to, `0.3.0-preview.172` for instance,
-and every package is published at that version:
+Between stable releases, previews are published to nuget.org when something a package ships has changed, checked
+every week. Each train's preview carries its own number: the version of the train's next release,
+then the number of commits since the train's last stable release, `0.3.0-preview.172` for instance. The two numbers
+are the same until the trains first part, and every package of a train is published at its train's number:
 
 ```
 dotnet add package AdCodicem.ValueObjects --prerelease

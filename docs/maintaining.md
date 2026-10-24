@@ -311,10 +311,10 @@ Without them the release job stops at its first step, before anything is publish
   "Dependency majors Dependabot holds back", against the newest stable version nuget.org or npm lists, and closes it
   once nothing is held back. Its Roslyn rows (4.14.0, and the Wolverine.Http fixture's 5.0.0) stand by design. A new
   major is supported by a decision, a dependency floor or a target framework
-  ([ADR-0010](adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)), never by a bump. Dependabot's
-  NuGet updater applies these rules to security updates too: a security fix that exists only on a new major of one of
-  them opens no pull request, and its alert stays open. Treat it as a deliberate migration under ADR-0010. A fix on the
-  current major opens at once.
+  ([ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)), never by a bump.
+  Dependabot's NuGet updater applies these rules to security updates too: a security fix that exists only on a new
+  major of one of them opens no pull request, and its alert stays open. Treat it as a deliberate migration under
+  ADR-0012. A fix on the current major opens at once.
 - **Families in groups of their own.** `xunit.v3*`, `Microsoft.CodeAnalysis*`, `HotChocolate*` and
   `ModelContextProtocol*` require one another at exactly one version, so a bump of some of them without the rest fails
   the restore with NU1608 (#189). Each family's minor and patch updates come in a pull request of their own, ahead of
@@ -487,7 +487,7 @@ preview ([Checking a run's provenance](#checking-a-runs-provenance)).
 `tests/Compat` installs the packages a commit packs into `net11.0` applications on the .NET 11 release candidate, and
 `heavy.yml`'s `compat (.NET 11)` job runs it after every push to `main`, before every preview and stable release, on
 the packages they publish, and on a pull request labelled `ci:heavy`
-([ADR-0010](adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md),
+([ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md),
 [ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)). It holds two projects: the
 main one, and `tests/Compat/Swashbuckle`, which installs `AdCodicem.ValueObjects.Swashbuckle` apart, since Swashbuckle
 10 fails on the `Microsoft.OpenApi` 3 the main project's `Microsoft.AspNetCore.OpenApi` 11 brings; the job runs both,

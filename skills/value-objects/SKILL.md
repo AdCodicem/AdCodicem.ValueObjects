@@ -18,6 +18,27 @@ compile error or dead code.
 dotnet add package AdCodicem.ValueObjects
 ```
 
+The packages ride two release trains, each at one version. Reference every package of a train at that train's
+version:
+
+- the core: `AdCodicem.ValueObjects`, `AdCodicem.ValueObjects.Abstractions`, `AdCodicem.ValueObjects.Json`,
+  `AdCodicem.ValueObjects.Identifiers`, `AdCodicem.ValueObjects.Testing.Data`, `AdCodicem.ValueObjects.AspNetCore`,
+  `AdCodicem.ValueObjects.AspNetCore.Http`, `AdCodicem.ValueObjects.EntityFrameworkCore`,
+  `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` and `AdCodicem.ValueObjects.OpenApi`;
+- the satellites: every other `AdCodicem.ValueObjects.*` package.
+
+Under Central Package Management, define `AdCodicemCoreVersion` and `AdCodicemSatellitesVersion` in a
+`<PropertyGroup>` of `Directory.Packages.props`, and give each package its train's property, never a version of its
+own:
+
+```xml
+<ItemGroup>
+  <PackageVersion Include="AdCodicem.ValueObjects" Version="$(AdCodicemCoreVersion)" />
+  <PackageVersion Include="AdCodicem.ValueObjects.EntityFrameworkCore" Version="$(AdCodicemCoreVersion)" />
+  <PackageVersion Include="AdCodicem.ValueObjects.MongoDB" Version="$(AdCodicemSatellitesVersion)" />
+</ItemGroup>
+```
+
 ## The shape
 
 ```csharp
