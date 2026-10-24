@@ -33,7 +33,8 @@
 //   height                  commits from last_tag to rev
 //   preview_version         <next_version>-preview.<height>
 //
-// --trains adds each release train's own version (0012), which nothing uses yet: the same
+// --trains adds each release train's own version (0012), which preview.yml's version job hands to
+// the gate (preview_versions, release_types) and release.yml only prints: the same
 // keys prefixed with the train's name (core_last_tag, satellites_next_version, ...), each
 // from the train's own last stable tag and the commits of its range that release it
 // (release-trains.mjs reads which, from the list and the restore graph of the tree being
@@ -217,7 +218,7 @@ async function trainOutput() {
   if (process.env.GITHUB_STEP_SUMMARY) {
     const cells = (values) => `| ${values.map((value) => value ?? "").join(" | ")} |`;
     const table = [
-      "### Each train's version (not used yet)",
+      "### Each train's version",
       "",
       cells(["Train", "Last tag", "Commits", "Range", "Type", "Next", "Preview", "Core version", "Previous core version", "Line moved"]),
       cells(Array(10).fill("---")),
