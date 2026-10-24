@@ -158,10 +158,10 @@ release you are reading about.
 
 `website/docs/` is the **preview**. It describes `main`, and `preview.yml` redeploys it under `/docs/preview/` every
 Monday and whenever it is dispatched, whether or not the run publishes a package, labelled with the version on
-nuget.org that describes it. A stable release freezes it into `website/versioned_docs/` — one entry per minor
-while the version is 0.x (`0.3.x`), one per major from 1.0 on (`1.x`) — and `/docs/` serves the newest of those. So
-a change to `website/docs/` reaches readers of the preview at the next `preview.yml` run, and readers of the stable
-documentation with the next release, not before. Until the first stable release exists, `/docs/` serves the
+nuget.org that describes it. A stable release freezes it into `website/versioned_docs/` — one entry per line of
+the core's versions, `0.3.x` while the core is 0.x and `1.x` from its 1.0 on, each naming the satellites version it
+describes — and `/docs/` serves the newest of those. So a change to `website/docs/` reaches readers of the preview
+at the next `preview.yml` run, and readers of the stable documentation with the next release, not before. Until the first stable release exists, `/docs/` serves the
 preview.
 
 The release workflow writes `versioned_docs/`, `versioned_sidebars/`, `versions.json` and
