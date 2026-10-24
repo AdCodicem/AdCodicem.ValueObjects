@@ -11,14 +11,16 @@ name: deploy docs
 # publish, so the preview documentation always describes a package someone can
 # install; dispatching preview.yml is how the site is redeployed by hand.
 # release.yml calls it after a stable release, with the tag whose commit carries
-# the new snapshot and the version it released.
+# the new snapshot (the core's v<version>, or another train's <train>-v<version>)
+# and the core's version, which labels the preview.
 on:
   workflow_call:
     inputs:
       ref:
         description: >-
           What to build: the full SHA of the commit the caller's run was started on or of one of its
-          ancestors, or v<preview-version>, the tag of a stable release that descends from that commit.
+          ancestors, or the tag of a stable release that descends from that commit: the core's
+          v<preview-version>, or another train's <train>-v<version>, with a stable preview-version.
         type: string
         required: true
       preview-version:
@@ -59,10 +61,11 @@ jobs:
       # builds only the commits its callers mean, and checks that itself rather
       # than trusting the ref it is given: the commit the run was started on or
       # one of its ancestors (preview.yml: HEAD, or the commit a repair
-      # completes), or the stable tag of the version being deployed, descending
-      # from it (release.yml: the release commit semantic-release pushed to
-      # main). Anything else, a pull request's head or another branch, stops
-      # here, before a line of it has run.
+      # completes), or a stable release's tag descending from it (release.yml:
+      # the release commit semantic-release pushed to main), the core's
+      # v<preview-version> or another train's <train>-v<version>. Anything else,
+      # a pull request's head or another branch, stops here, before a line of
+      # it has run.
       - name: Switch to the commit to build
         working-directory: ${{ github.workspace }}
         env:
@@ -74,12 +77,13 @@ jobs:
             commit="$(git rev-parse --verify --quiet "$REF^{commit}")" &&
             git merge-base --is-ancestor "$commit" "$GITHUB_SHA"; then
             echo "Building $commit, which is $GITHUB_SHA or one of its ancestors."
-          elif [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$REF" == "v$VERSION" ]] &&
+          elif [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
+            [[ "$REF" == "v$VERSION" || "$REF" =~ ^[a-z][a-z0-9-]*-v[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
             commit="$(git rev-parse --verify --quiet "refs/tags/$REF^{commit}")" &&
             git merge-base --is-ancestor "$GITHUB_SHA" "$commit"; then
             echo "Building $REF ($commit), which descends from $GITHUB_SHA."
           else
-            echo "::error::'$REF' is not $GITHUB_SHA, one of its ancestors, or the tag v$VERSION descending from it." >&2
+            echo "::error::'$REF' is not $GITHUB_SHA, one of its ancestors, or a stable release's tag descending from it: v$VERSION, or another train's <train>-v<version>, with a stable version to label the preview." >&2
             exit 1
           fi
           git checkout --quiet --detach "$commit"

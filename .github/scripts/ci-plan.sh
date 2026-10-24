@@ -47,9 +47,11 @@
 #                  coverage-modules.sh, codecov.yml, tests/Directory.Build.*, and any path no rule names.
 #   release        package.json, its lock file, .releaserc.json, next-version.mjs, release-trains.test.mjs,
 #                  preview-gate.sh and semver.jq, which preview-gate.test.mjs replays against recorded nuget.org states
-#                  and whose inputs release-trains.test.mjs holds to the trains each path releases, that test, and the
-#                  weekly list of held-back majors (held-back-majors.mjs, its test, and dependabot.yml, whose shape its
-#                  reader holds): the job "release tooling", which runs every .github/scripts/*.test.mjs.
+#                  and whose inputs release-trains.test.mjs holds to the trains each path releases, that test,
+#                  docs-snapshot.sh, which docs-snapshot.test.mjs runs up to the entry it writes in
+#                  website/released-versions.json, that test, and the weekly list of held-back majors
+#                  (held-back-majors.mjs, its test, and dependabot.yml, whose shape its reader holds): the job
+#                  "release tooling", which runs every .github/scripts/*.test.mjs.
 #   pack           icon.png, .github/shipped-dependencies and the scripts that check the packed set.
 #   graph          src/, the unit suite's projects and tests/UnitTests.props, which they import, tests/Fixtures/ but
 #                  the Functions fixture, and the .NET code of the rules below: the projects dotnet-affected
@@ -289,11 +291,11 @@ rule() {
     .github/scripts/ecmascript-patterns.mjs) echo text ;;
     .github/scripts/next-version.mjs | .github/scripts/release-trains.test.mjs | .github/scripts/preview-gate.sh | \
       .github/scripts/semver.jq | .github/scripts/preview-gate.test.mjs | .github/scripts/held-back-majors.mjs | \
-      .github/scripts/held-back-majors.test.mjs | .github/dependabot.yml) echo release ;;
+      .github/scripts/held-back-majors.test.mjs | .github/scripts/docs-snapshot.sh | \
+      .github/scripts/docs-snapshot.test.mjs | .github/dependabot.yml) echo release ;;
     .github/shipped-dependencies | .github/scripts/verify-packages.sh | .github/scripts/package-ids.sh | \
       .github/scripts/shipped-dependencies-check.sh) echo pack ;;
-    .github/scripts/dependabot-commit-type.sh | .github/scripts/docs-snapshot.sh | \
-      .github/scripts/package-assemblies.sh | .github/scripts/push-packages.sh | \
+    .github/scripts/dependabot-commit-type.sh | .github/scripts/package-assemblies.sh | .github/scripts/push-packages.sh | \
       .github/scripts/release-pack.sh) echo none ;;
     package.json | package-lock.json | .releaserc.json) echo release ;;
     website/*) echo site ;;
