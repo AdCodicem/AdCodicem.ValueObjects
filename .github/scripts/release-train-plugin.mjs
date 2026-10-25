@@ -10,7 +10,7 @@
 //                           [skip release] ones included), the core's unowned (the hashes no train owns, which its notes
 //                           carry), and any other train's coreVersion and previousCoreVersion (the core it is packed
 //                           against, and the one its last release was)
-//   RELEASE_RUN_COMMITS     the release commits this run made for the trains before this one, which no plan walked
+//   RELEASE_RUN_COMMITS     the release commits this run made for its other trains, which no plan walked
 //   PACKED_VERSION          the version the pack job packed the train at; empty when it packed it at nothing new
 // Every one must be set, an empty list or version included, so that a step never reads a variable the run forgot. The
 // lists travel in a file: a variable reaches every process semantic-release starts, and Linux refuses to start one

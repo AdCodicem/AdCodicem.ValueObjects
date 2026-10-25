@@ -493,7 +493,9 @@ jobs:
       # nuget.org states, the entry docs-snapshot.sh writes in
       # website/released-versions.json, the checks release-pack.sh makes of
       # nuget.org before it packs, each train's release through the
-      # release-train plugin in throwaway repositories, and the weekly list of
+      # release-train plugin in throwaway repositories, the driver that runs
+      # it per train, re-runs and half-done releases included, against a fake
+      # GitHub API, and the weekly list of
       # the majors Dependabot holds back. Before the steps that read the tags
       # and the restore, so that they report whatever those find. The glob is
       # quoted so that Node expands it: a directory argument fails from Node 21
