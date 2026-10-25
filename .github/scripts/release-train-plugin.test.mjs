@@ -399,6 +399,38 @@ test("a merge's commits are walked as the plan walked them, and a commit either 
   }
 });
 
+test("semantic-release lists every commit when two reads of git's output split a record's separator", async () => {
+  // git-log-parser cuts git log's output into commits with split2, which package.json overrides: split2 1.0.0 split
+  // each read alone, so a separator two reads cut joined two commits into one, and semantic-release lost the second
+  // (release run 12). The git put first on PATH writes the real one's output in two writes, cut inside the first
+  // separator.
+  const repo = repository();
+  const bin = mkdtempSync(join(tmpdir(), "release-train-git-"));
+  try {
+    repo.commit("fix(a): a core fix", { "src/Core.A/A.cs": "class A {}\n" });
+    repo.commit("fix(b): a satellite fix", { "src/Sat.B/B.cs": "class B {}\n" });
+    writeFileSync(join(bin, "git"), `#!${process.execPath}
+const { execFileSync } = require("node:child_process");
+const out = execFileSync("git", process.argv.slice(2), { env: { ...process.env, PATH: process.env.REAL_PATH } });
+const at = out.indexOf("==END==\\n");
+if (at < 0) {
+  process.stderr.write("git log wrote no ==END== separator\\n");
+  process.exit(1);
+}
+process.stdout.write(out.subarray(0, at + 4), () => setTimeout(() => process.stdout.write(out.subarray(at + 4)), 200));
+`, { mode: 0o755 });
+    const lib = join(dirname(fromRoot.resolve("semantic-release/package.json")), "lib", "git.js");
+    const { getCommits } = await import(pathToFileURL(lib).href);
+    const commits = await getCommits("v0.2.1", "HEAD",
+      { cwd: repo.root, env: { ...BASE, PATH: `${bin}:${BASE.PATH}`, REAL_PATH: BASE.PATH } });
+    assert.deepEqual(commits.map(({ hash }) => hash), repo.git("rev-list", "v0.2.1..HEAD").split("\n"));
+    assert.ok(commits.every(({ committerDate }) => !Number.isNaN(committerDate.getTime())));
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
+    repo.remove();
+  }
+});
+
 test("a release refuses a version other than the one packed, a plan it cannot read, and a changelog out of shape", async () => {
   const repo = repository();
   try {

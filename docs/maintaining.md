@@ -332,9 +332,9 @@ Then check three things:
   core's line moved since their last release, by a sentence naming the line it moved from;
 - both steps are green. "main moved since the dispatch" means a commit reached `main` after the dispatch: dispatch
   again. "semantic-release failed for the <train> train" comes with semantic-release's own error above it: a commit
-  the plan did not walk, a version other than the one packed, or a changelog out of shape. "… has no <tag> on
-  origin" names a release commit a run pushed without its tag: complete that run with **Re-run failed jobs** before
-  any new dispatch, which would release that version a second time.
+  the plan did not walk, or one it walked that semantic-release does not see, a version other than the one packed, or
+  a changelog out of shape. "… has no <tag> on origin" names a release commit a run pushed without its tag: complete
+  that run with **Re-run failed jobs** before any new dispatch, which would release that version a second time.
 
 Approve or reject the run promptly: like any dry run, it holds the `release` group. Once each train releases on its
 own, a re-run of a failed run (**Re-run failed jobs**) completes a train that run tagged, whatever `main` holds since,

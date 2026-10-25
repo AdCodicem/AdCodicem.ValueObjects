@@ -165,10 +165,16 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   scripts, configurations and changelogs, its `node_modules` linked, a bare remote), the plan computed there by
   `next-version.mjs --trains`: a dry run per train of each history of its table (the analyzer's options, a train's own
   breaking notes, `[skip release]` commits, and breaking commits no train owns, one of them reverted, among them), a
-  merge, a range of 3,300 commits, each refusal, and a real run of the core then the satellites. semantic-release runs
-  in a child process, since it hooks its process's standard streams, which carry `node:test`'s reports, with the
-  configuration minus its GitHub entry and an environment holding the plan alone, no CI variable. It also renders both
-  configurations' GitHub Release bodies.
+  merge, a range of 3,300 commits, a record separator two reads of `git log`'s output cut, each refusal, and a real run
+  of the core then the satellites. semantic-release runs in a child process, since it hooks its process's standard
+  streams, which carry `node:test`'s reports, with the configuration minus its GitHub entry and an environment holding
+  the plan alone, no CI variable. It also renders both configurations' GitHub Release bodies.
+- `package.json` overrides the `split2` of git-log-parser, through which semantic-release lists a range's commits
+  (`lib/git.js`, `getCommits`), with 4.x: split2 1.0.0, the one git-log-parser asks for (`~1.0.0`), splits each read of
+  `git log`'s output alone, so a record separator two reads cut joined two commits into one and semantic-release lost
+  the second, without a word, more often the longer the range and the busier the runner (release run 12's satellites,
+  which the plugin's range check refused). Keep the override while git-log-parser asks for 1.0.0; the plugin's test
+  cuts a separator between two writes of a `git` it puts first on `PATH`. `next-version.mjs` reads `git log -z` itself.
 - `scripts/release-train.mjs` releases one train through semantic-release's JavaScript API, from the plan, in the
   release job, the core first (its header holds its arguments, environment and outputs). A releasing train's
   `.nupkg` and `.snupkg` are staged in `artifacts/release/`, the folder the configuration's GitHub assets name, since
