@@ -98,7 +98,8 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   next major is supported in the same packages. ADR 0012 replaces the one version with two trains (core, satellites):
   `src/release-trains.json` lists them, and `RELEASE_TRAIN_VERSIONS` (`core=X satellites=Y`) gives each its version.
   `preview.yml` gives each train its own (`next-version.mjs --trains`, checked train by train by `preview-gate.sh`);
-  `release.yml` still gives both one and tags each train on the release commit (`v<version>`, `satellites-v<version>`).
+  `release.yml` still gives both one and tags each train on the release commit (`v<version>`, `satellites-v<version>`);
+  its `trains` input rehearses, as a dry run, the release of each train on its own (`.github/scripts/release-train.mjs`).
   ADR 0013 targets the CI: its heavy jobs run after the merge and before a release (`heavy.yml`), and a pull request
   runs the families of `.github/ci-families.json` and the lanes the files it changes select
   (`.github/scripts/ci-plan.sh`; phase B, one unit-test project per family, each in a job of its own).

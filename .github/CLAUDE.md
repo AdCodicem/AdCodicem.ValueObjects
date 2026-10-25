@@ -50,8 +50,9 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   that release it, the line rule applied (ADR 0012), and writes a table to the job summary. `preview.yml`'s `version`
   job runs it, and the plan hands its `preview_versions` and `release_types` to the gate (`NEXT_VERSIONS`,
   `RELEASE_TYPES`): on that critical path, neither the job's `setup-dotnet` nor its restore takes `continue-on-error`.
-  `release.yml`'s `pack` job runs it after the one version, in a `continue-on-error` step whose table nothing reads
-  yet, and `release tooling` runs it on a pull request, where it can fail the check. It reads the list and the restore
+  `release.yml`'s `pack` job runs it after the one version, in a `continue-on-error` step whose table nothing reads,
+  or, on a per-train run, in its `Release plan` step, whose plan the release job reads, and `release tooling` runs it
+  on a pull request, where it can fail the check. It reads the list and the restore
   graph of the tree checked out (`release-trains.mjs readModel`, `artifacts/obj/<project>/project.assets.json` after
   `dotnet restore src/AdCodicem.ValueObjects.Packages.slnf`), so it computes `HEAD` only, and fails without the
   restore, or without a stable tag of each train merged (`satellites-v0.2.1` on `68abdc7` is the satellites'
@@ -96,8 +97,8 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   and none may have a stable version above `<last>` (a core release cut after `HEAD`, which the message names, a missing
   tag, or a move ADR 0012 refuses); it is held to exactly that release's API (`StrictBaselineTrains`, which
   `src/Directory.Build.props` turns into `EnableStrictModeForBaselineValidation`), since the other trains are built
-  against it. `keep` is any other train's, with no baseline; a package that joined the train since passes. No workflow
-  passes `strict` or `keep` yet: `release.yml` will once it releases each train on its own.
+  against it. `keep` is any other train's, with no baseline; a package that joined the train since passes. Only
+  `release.yml`'s per-train rehearsal passes `strict` or `keep` yet, for a train its plan does not release.
 - `scripts/release-pack.test.mjs` replays those checks against the repository's projects and tags (strict and keep pack
   again `v0.2.1` and `satellites-v0.2.1`) and a flat container `node:http` serves (`NUGET_FLAT_CONTAINER`), and stops
   before `dotnet pack` (`RELEASE_PACK_CHECK_ONLY=true`), seams no workflow sets. A case needing other tags reads them
@@ -145,12 +146,12 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   `release-train-plugin.test.mjs` holds them equal.
 - `scripts/release-train-plugin.mjs`, with `scripts/release-train.releaserc.json`, releases one train through
   semantic-release (ADR 0012), from the plan the pack job computes with `next-version.mjs --trains`: its `trains_json`,
-  in a file `RELEASE_TRAIN_PLAN` names, the train in `RELEASE_TRAIN`, this run's earlier release commits in
-  `RELEASE_RUN_COMMITS` and the version packed in `PACKED_VERSION` (its header lists them, each required, an empty one
-  included). The lists travel in the file, never in a variable: every process semantic-release starts inherits its
-  environment, and Linux refuses to start one with a variable above 128 KiB, about 3,200 hashes. It fails when
-  semantic-release counts from another tag than the plan's, sees a commit the plan did not walk, its earlier release
-  commits aside, or does not see one the plan walked, a `[skip release]` one aside. The type is the plan's
+  in a file `RELEASE_TRAIN_PLAN` names, the train in `RELEASE_TRAIN`, the release commits this run made for its other
+  trains in `RELEASE_RUN_COMMITS` and the version packed in `PACKED_VERSION` (its header lists them, each required, an
+  empty one included). The lists travel in the file, never in a variable: every process semantic-release starts
+  inherits its environment, and Linux refuses to start one with a variable above 128 KiB, about 3,200 hashes. It fails
+  when semantic-release counts from another tag than the plan's, sees a commit the plan did not walk, this run's other
+  release commits aside, or does not see one the plan walked, a `[skip release]` one aside. The type is the plan's
   (`release-trains.mjs releaseType`, the line rule included), the version must be the one packed, a dry run included,
   and the train's changelog is written below its marker, refused with a release above it. The notes list the train's
   commits, `[skip release]` ones included (the row's `notes`), the core's with the commits no train owns, their breaking
@@ -158,8 +159,8 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   configuration's analyzer rules, the slot aside, and notes options are `.releaserc.json`'s, which the test holds; its
   release commit is `chore(release): <tag> [skip ci]`, and its GitHub Release names the train's bundle
   (`AdCodicem.ValueObjects.satellites.<version>.sigstore.json` for the satellites). A caller's options take precedence
-  over the file's (`tagFormat`, `dryRun`). No workflow runs it yet: `release.yml` will, once it releases each train on
-  its own.
+  over the file's (`tagFormat`, `dryRun`). `release.yml` runs it through `scripts/release-train.mjs`, as a dry run
+  only, until it releases each train on its own.
 - `scripts/release-train-plugin.test.mjs` replays it in throwaway repositories (two trains at `0.2.1`, this repository's
   scripts, configurations and changelogs, its `node_modules` linked, a bare remote), the plan computed there by
   `next-version.mjs --trains`: a dry run per train of each history of its table (the analyzer's options, a train's own
@@ -168,6 +169,58 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   in a child process, since it hooks its process's standard streams, which carry `node:test`'s reports, with the
   configuration minus its GitHub entry and an environment holding the plan alone, no CI variable. It also renders both
   configurations' GitHub Release bodies.
+- `scripts/release-train.mjs` releases one train through semantic-release's JavaScript API, from the plan, in the
+  release job, the core first (its header holds its arguments, environment and outputs). A releasing train's
+  `.nupkg` and `.snupkg` are staged in `artifacts/release/`, the folder the configuration's GitHub assets name, since
+  `@semantic-release/github` does not template their paths. semantic-release runs with the configuration spread
+  first, so that the driver's `tagFormat` and `dryRun` win, and `.releaserc.json`, which semantic-release still reads
+  beside it, must hold no key the configuration lacks. A releasing train must come out at the plan's version, its tag
+  on its release commit at `HEAD`, here and on origin, and a train the plan does not release must release nothing; a
+  releasing dry run semantic-release declines ("behind the remote") fails, since main moved.
+- The driver's sync, before semantic-release: every commit main holds since `RELEASE_REV`, the dispatched commit,
+  must be another train's release commit of the plan (`chore(release): <tag> [skip ci]`, one parent, touching only
+  the configuration's git assets), its tag on origin: an earlier train's, or, on a re-run, a later one's. The driver
+  hands them to the plugin as `RELEASE_RUN_COMMITS`. It
+  then restores `website/` and fast-forwards `HEAD`, since semantic-release declines a branch behind its remote, and
+  only then unpacks `documentation.tar`: a fast-forward refuses untracked files it would overwrite, and the first
+  train that releases commits the snapshot. Any other commit fails a releasing train ("main moved since the
+  dispatch"), and leaves one that releases nothing unrun, with a notice.
+- The driver's resume, before the sync, on a run that is not a dry run, for a releasing train: its tag on origin, or
+  its release commit on main untagged (semantic-release pushes the commit in prepare, then the tag), which the driver
+  tags and pushes, finishes the train whatever main holds since, without semantic-release, which would count from the
+  last tag merged and release the version again. The release commit must be this dispatch's: it descends from
+  `RELEASE_REV` past the other trains' release commits alone, and main holds it. Its GitHub Release is then
+  completed: done when published, or when the draft carries every staged file at its digest; a missing file, or one
+  not `uploaded`, is uploaded; a file at another digest, or a release commit another dispatch made, is another run's
+  and fails; with no release, `@semantic-release/github` drafts it with the release commit's notes. So
+  **Re-run failed jobs** completes a tagged train. git reads the token from its environment
+  (`GIT_CONFIG_*`, an extra header as `actions/checkout` writes it), never its command line.
+- Before either, a dry run included, the driver refuses a release commit of any train of the plan that the dispatched
+  commit holds untagged (since that train's last tag, its tag absent from origin): a dispatch from main after a run
+  stopped between its two pushes, which semantic-release would release a second time. Every train is checked, so that
+  the core's step refuses before any train is released. Re-run failed jobs on that run completes it.
+- `scripts/release-train.test.mjs` replays the driver in throwaway repositories whose origin,
+  `https://github.com/owner/repo.git`, git rewrites to a bare remote (`url.<remote>.insteadOf`), against a fake GitHub
+  API that `node:http` serves on `127.0.0.1`, with GitHub Actions' variables: a dry run of each train for three
+  histories, a real run of the core then the satellites and its re-run, a tag push refused once then resumed, a draft
+  missing a file, a file half uploaded, a file at another digest, a published release, a tag on another commit, a
+  release a later dispatch made, a new dispatch at the core's or the satellites' release commit left untagged, a merge
+  between the trains, a train that releases nothing past a merge, or re-run past a later train's release commit, the
+  documentation left unpacked before a fast-forward and a page it drops, a commit that only looks like a release
+  commit, tagged or not (it writes more, it is a merge, main does not hold it, the tag names another subject, two of
+  them), a tag the clone names elsewhere, a release that leaves no release commit, the version checks past a
+  configuration without the plugin, the token's header over HTTP, and each refusal of an argument, a plan or a
+  configuration. A re-run is the same clone
+  moved back to the dispatched commit with origin's tags only, as a fresh checkout is.
+- `release.yml`'s `trains` input rehearses the release of each train, and needs `dry_run`: the pack job's first step
+  fails otherwise, and the drivers always run with `--dry-run`. The pack job's `Release plan` step writes
+  `artifacts/plan/plan.json`, `next-version.mjs --trains`'s `trains_json` with each train's ids from
+  `package-ids.sh --trains`, uploaded as `release-plan` and checked in the release job against the digest the pack job
+  outputs: never a job output or a variable, which its lists of hashes outgrow. A releasing train is packed at its
+  next version; one that is not, at its last release again, `strict` for the core, `keep` for any other; the
+  documentation is frozen at each train's version. The release job leaves `documentation.tar` packed, checks that
+  `release-trains.mjs trains` lists `core satellites`, a step for each, and runs the driver for the core, then the
+  satellites, each step's summary showing the version and the notes. The one-version steps skip on such a run.
 - GitHub refuses a release body above 125,000 characters, and a train's notes grow with its range (about 160 characters
   a commit, the core's carrying every commit no train owns): both configurations' `releaseBodyTemplate` cut the notes at
   the last line below 100,000 characters and link the train's changelog at the tag, which holds them whole, as the
