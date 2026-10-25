@@ -253,15 +253,17 @@ jobs:
       # reference included (docs/adr/0005-version-the-documentation-site.md),
       # and hands over every file @semantic-release/git commits for it as one
       # archive, so that the release job replaces the folders whole. A
-      # per-train run names each train's version.
+      # per-train run names each train's version. Not in VERSION: MSBuild
+      # reads every environment variable as a property, and DocFX's restore
+      # refuses "core=X satellites=Y" as the projects' Version (MSB4181).
       - name: Freeze the documentation
         id: snapshot
         if: steps.next.outputs.release_type != '' || steps.plan.outputs.release == 'true'
         env:
-          VERSION: ${{ steps.next.outputs.next_version || steps.pack-trains.outputs.versions }}
+          DOCS_VERSION: ${{ steps.next.outputs.next_version || steps.pack-trains.outputs.versions }}
         run: |
           set -euo pipefail
-          .github/scripts/docs-snapshot.sh "$VERSION"
+          .github/scripts/docs-snapshot.sh "$DOCS_VERSION"
           tar -cf documentation.tar -C website versions.json released-versions.json versioned_docs versioned_sidebars
           echo "sha256=$(sha256sum documentation.tar | base64 -w0)" >> "$GITHUB_OUTPUT"
 

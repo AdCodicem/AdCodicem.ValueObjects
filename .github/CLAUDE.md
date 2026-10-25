@@ -291,6 +291,10 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 
 ## Workflows
 
+- Never name a step's environment variable after an MSBuild property (`VERSION`, `CONFIGURATION`, …) in a step that
+  runs MSBuild, `dotnet` or DocFX: MSBuild reads every environment variable as a property, so `VERSION=core=0.3.0
+  satellites=0.3.0` became the projects' `Version` and failed DocFX's restore with MSB4181 and no message (release.yml's
+  `Freeze the documentation` passes `DOCS_VERSION`).
 - Pin every third-party action to a commit SHA with the release as a same-line comment
   (`uses: actions/checkout@3d3c42e… # v7.0.1`): Dependabot derives the semver bump from the comment, and a pin without one
   falls out of the `actions` group and may auto-merge as a non-major. Dependabot's `github-actions` entry lists
