@@ -59,16 +59,19 @@ that describes the commit it builds. A run with a failed or cancelled job deploy
 - **The wait for nuget.org timed out.** The push succeeded, but nuget.org had not listed every package of the train,
   or served every symbol package, within 30 minutes; a timeout after the core's push leaves the satellites unpushed.
   Re-run the failed job once nuget.org has caught up; it pushes nothing that is already there, then what is left.
-- **A push answered 400, "The package manifest contains an invalid Version".** nuget.org refuses a version the
-  nuspec states, its own or a bound of a dependency: a prerelease of one label must start with a letter, or hold two
-  labels or more (SemVer 2.0). `verify-packages.sh` refuses such a set before any push, so this means the set was
-  packed by a commit from before that check, as `0.3.0-preview.403` was, whose own-package bounds ended in `-0`. The
-  gate's repair packs that commit again, with the same nuspecs, so complete the version by hand instead: download the
-  publish job's `packages-…` artifact, correct each missing package's nuspec (the bound to `-0.0`) inside its
-  `.nupkg`, then push them, dependencies first, with a short-lived nuget.org API key
-  (`NUGET_API_KEY=… .github/scripts/push-packages.sh <folder> <version> "<the train's ids>"`, which skips what
-  nuget.org has). The assemblies inside are those the run attested, so a restored DLL still verifies. Then dispatch
-  again.
+- **A push answered 400, "The package manifest contains an invalid Version".** nuget.org refuses a version the nuspec
+  states, its own or a bound of a dependency: a prerelease of one label must start with a letter, or hold two labels or
+  more (SemVer 2.0). `verify-packages.sh` refuses such a set before any push, so this means the set was packed by a
+  commit from before that check, as `0.3.0-preview.403` was, whose own-package bounds ended in `-0`. The gate's repair
+  packs that commit again, with the same nuspecs, which the publish job's **Check the set** then refuses ("states
+  version '…', which nuget.org refuses"), so complete the version by hand instead: download the run's `packages-…`
+  artifact; correct the bound to `-0.0` in the root nuspec of each missing package's `.nupkg` and `.snupkg`, since
+  nuget.org validates both; check the whole set with `.github/scripts/verify-packages.sh <folder> "<id>=<version> …"`,
+  every package of both trains; then push the missing ones, dependencies first, with a short-lived nuget.org API key
+  scoped to `AdCodicem.ValueObjects*`
+  (`NUGET_API_KEY=… NUGET_LIST_TIMEOUT=1800 .github/scripts/push-packages.sh <folder> <version> "<the train's ids>"`,
+  which skips what nuget.org has and waits until it lists the rest). The assemblies inside are those the run attested,
+  so a restored DLL still verifies. Then dispatch again.
 - **A symbol package is still missing.** Re-run the failed job, which pushes it. If nuget.org's validation rejected
   it, and e-mailed the account to say so, a re-run cannot help: the version stays without symbols, which blocks
   nothing, since the gate does not look for them. Uploading the `.snupkg` from the run's
