@@ -715,8 +715,8 @@ test("the satellites partial while the core's base is older: the core is packed 
       one("Sat.A", "0.2.2-preview.2", { commit: "C2", dependencies }));
     const env = next(["0.2.2-preview.2", "patch"]);
     // A dependency on another satellite says nothing of the core.
-    assertDecision(await gate(repo, at({ "Core.A": "[0.2.2-preview.1, 0.3.0-0)", "Core.B": "[0.2.2-preview.1, 0.3.0-0)",
-      "Sat.B": "[0.2.2-preview.2, 0.3.0-0)" }), { env }), {
+    assertDecision(await gate(repo, at({ "Core.A": "[0.2.2-preview.1, 0.3.0-0.0)", "Core.B": "[0.2.2-preview.1, 0.3.0-0.0)",
+      "Sat.B": "[0.2.2-preview.2, 0.3.0-0.0)" }), { env }), {
       mode: "repair", ref: "{C2}", docsVersion: "0.2.2-preview.1", pending: "false",
       reason: "Completing from {C2:7}: satellites 0.2.2-preview.2, missing for Sat.B.",
       trains: {
@@ -724,13 +724,13 @@ test("the satellites partial while the core's base is older: the core is packed 
         satellites: train("0.2.1", ["0.2.2-preview.2", "C2"], repaired("0.2.2-preview.2")),
       },
     });
-    assertRefusal(await gate(repo, at({ "Sat.B": "[0.2.2-preview.2, 0.3.0-0)" }), { env }),
+    assertRefusal(await gate(repo, at({ "Sat.B": "[0.2.2-preview.2, 0.3.0-0.0)" }), { env }),
       "core: the repaired packages name no dependency on the core, so the core they were packed against is unknown: " +
       "complete them by hand (docs/maintaining.md).");
-    assertRefusal(await gate(repo, at({ "Core.A": "[0.2.2-preview.1, 0.3.0-0)", "Core.B": "[0.2.2-preview.0, 0.3.0-0)" }), { env }),
+    assertRefusal(await gate(repo, at({ "Core.A": "[0.2.2-preview.1, 0.3.0-0.0)", "Core.B": "[0.2.2-preview.0, 0.3.0-0.0)" }), { env }),
       "core: the repaired packages were packed against several cores (0.2.2-preview.0 0.2.2-preview.1): complete them by " +
       "hand (docs/maintaining.md).");
-    assertRefusal(await gate(repo, at({ "Core.A": "[0.2.2-preview.5, 0.3.0-0)" }), { env }),
+    assertRefusal(await gate(repo, at({ "Core.A": "[0.2.2-preview.5, 0.3.0-0.0)" }), { env }),
       "core: the repaired packages were packed against core 0.2.2-preview.5, which nuget.org lacks for Core.A: complete " +
       "the core first (docs/maintaining.md).");
   });
@@ -745,7 +745,7 @@ test("a core package added after the repaired commit leaves the floor of the cor
     repo.commit("C3", { "src/release-trains.json": list({ projects: [...IDS.core, "Core.C"] }), "src/ids.txt": ids("Core.C"),
       "src/Core.C/C.cs": "class C {}\n" }, "feat: c");
     const state = and(every("0.2.1", "C0"), core("0.2.2-preview.1", "C1"),
-      one("Sat.A", "0.2.2-preview.2", { commit: "C2", dependencies: { "Core.A": "[0.2.2-preview.1, 0.3.0-0)" } }));
+      one("Sat.A", "0.2.2-preview.2", { commit: "C2", dependencies: { "Core.A": "[0.2.2-preview.1, 0.3.0-0.0)" } }));
     assertDecision(await gate(repo, state, { env: next(["0.3.0-preview.3", "minor"]) }), {
       mode: "repair", ref: "{C2}", docsRef: "{C2}", docsVersion: "0.2.2-preview.1", pending: "true",
       changed: ["src/Core.C/C.cs", "src/ids.txt", "src/release-trains.json"],

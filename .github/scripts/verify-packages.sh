@@ -13,13 +13,26 @@
 # file: the trains share the folder and may share a number
 # (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). Every dependency on one of our
 # own packages must be bounded by the next version that may break it, its floor the version of that package in the
-# set: [V, 0.(m+1).0) while it is 0.x, [V, (M+1).0.0) from its 1.0, closed at -0 when the depending package is a
-# prerelease (src/Directory.Build.targets). Every package's README, its nuget.org page, must open with its own id and
+# set: [V, 0.(m+1).0) while it is 0.x, [V, (M+1).0.0) from its 1.0, closed at -0.0 when the depending package is a
+# prerelease (src/Directory.Build.targets). Every version a nuspec states, its own and each bound of each dependency,
+# must be one nuget.org accepts: SemVer 2.0 as NuGet reads it (a prerelease of two labels or more, or build metadata),
+# or else its legacy pattern, digits then a prerelease starting with a letter, which a single-label prerelease such
+# as 0.4.0-0 fails (NuGetGallery's ManifestValidator answers 400 "invalid Version"). Every package's README, its nuget.org page, must open with its own id and
 # keep no {{placeholder}} of src/PackageReadme.md, which _WritePackageReadme fills.
 set -euo pipefail
 
 packages_dir="${1:?packages directory required}"
 pairs="${2:?package=version pairs required}"
+
+# Whether nuget.org accepts a version in a nuspec: SemVer 2.0 to NuGet (a prerelease of two labels or more, or build
+# metadata), or its legacy pattern.
+accepted_by_nuget_org() {
+  local version="$1" release=""
+  [[ "$version" != *+* ]] || return 0
+  [[ "$version" != *-* ]] || release="${version#*-}"
+  [[ "$release" != *.* ]] || return 0
+  [[ "$version" =~ ^[0-9]+(\.[0-9]+){0,3}(-[A-Za-z][0-9A-Za-z-]*)?$ ]]
+}
 
 declare -A expected=()
 status=0
@@ -67,6 +80,16 @@ for id in "${!expected[@]}"; do
     echo "::error::$(basename "$package") declares version '$declared'." >&2
     status=1
   fi
+  # Each version the nuspec states, its own and each bound of each dependency, every package's included.
+  while read -r stated; do
+    [[ -n "$stated" ]] || continue
+    if ! accepted_by_nuget_org "$stated"; then
+      echo "::error::$(basename "$package") states version '$stated', which nuget.org refuses: a single-label" \
+        "prerelease must start with a letter, or the prerelease must hold two labels (SemVer 2.0)." >&2
+      status=1
+    fi
+  done < <({ echo "$declared"; grep -oP '<dependency\b[^>]*\bversion="\K[^"]+' <<<"$nuspec" || true; } |
+    tr -d '[]()' | tr ',' '\n' | sed 's/^ *//; s/ *$//')
   readme="$(unzip -p "$package" README.md 2> /dev/null || true)"
   heading="$(head -n 1 <<<"$readme")"
   if [[ "${heading%$'\r'}" != "# $id" || "$readme" == *'{{'* ]]; then
@@ -75,7 +98,7 @@ for id in "${!expected[@]}"; do
     status=1
   fi
   suffix=""
-  [[ "${expected[$id]}" != *-* ]] || suffix="-0"
+  [[ "${expected[$id]}" != *-* ]] || suffix="-0.0"
   while read -r dependency range; do
     [[ -n "$dependency" ]] || continue
     floor="${expected[$dependency]:-}"

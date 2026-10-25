@@ -24,15 +24,16 @@
   <!--
     Every dependency on one of our own packages is bounded by the next version that may break it (ADR 0012):
     [V, 0.(m+1).0) while that package is 0.x, [V, (M+1).0.0) from its 1.0, V being the version packed against. A
-    prerelease package closes the range at -0 ([1.2.0, 2.0.0-0)), which keeps a prerelease of the next breaking version
-    out; a stable package cannot (NU5104). dotnet pack writes a ProjectReference as a bare floor; NuGet's pack targets
+    prerelease package closes the range at -0.0 ([1.2.0, 2.0.0-0.0)), which keeps every prerelease of the next breaking
+    version out; a stable package cannot (NU5104). Not at -0: nuget.org refuses a version whose prerelease is a single
+    label unless it starts with a letter, its legacy pattern, and -0.0, two labels, is SemVer 2.0 to it. dotnet pack writes a ProjectReference as a bare floor; NuGet's pack targets
     read ProjectVersion as a range, so it is rewritten once _GetProjectReferenceVersions has computed it. Those are
     private names of NuGet's: verify-packages.sh refuses a nuspec whose own dependency has no upper bound, so a renamed
     target fails the pack's check rather than ship bare floors again.
   -->
   <Target Name="_BoundOwnPackageDependencies" AfterTargets="_GetProjectReferenceVersions" Condition="'@(_ProjectReferencesWithVersions)' != ''">
     <PropertyGroup>
-      <_OwnUpperSuffix Condition="$(PackageVersion.Contains('-'))">-0</_OwnUpperSuffix>
+      <_OwnUpperSuffix Condition="$(PackageVersion.Contains('-'))">-0.0</_OwnUpperSuffix>
     </PropertyGroup>
     <ItemGroup>
       <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">

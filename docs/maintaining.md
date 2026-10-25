@@ -59,6 +59,16 @@ that describes the commit it builds. A run with a failed or cancelled job deploy
 - **The wait for nuget.org timed out.** The push succeeded, but nuget.org had not listed every package of the train,
   or served every symbol package, within 30 minutes; a timeout after the core's push leaves the satellites unpushed.
   Re-run the failed job once nuget.org has caught up; it pushes nothing that is already there, then what is left.
+- **A push answered 400, "The package manifest contains an invalid Version".** nuget.org refuses a version the
+  nuspec states, its own or a bound of a dependency: a prerelease of one label must start with a letter, or hold two
+  labels or more (SemVer 2.0). `verify-packages.sh` refuses such a set before any push, so this means the set was
+  packed by a commit from before that check, as `0.3.0-preview.403` was, whose own-package bounds ended in `-0`. The
+  gate's repair packs that commit again, with the same nuspecs, so complete the version by hand instead: download the
+  publish job's `packages-…` artifact, correct each missing package's nuspec (the bound to `-0.0`) inside its
+  `.nupkg`, then push them, dependencies first, with a short-lived nuget.org API key
+  (`NUGET_API_KEY=… .github/scripts/push-packages.sh <folder> <version> "<the train's ids>"`, which skips what
+  nuget.org has). The assemblies inside are those the run attested, so a restored DLL still verifies. Then dispatch
+  again.
 - **A symbol package is still missing.** Re-run the failed job, which pushes it. If nuget.org's validation rejected
   it, and e-mailed the account to say so, a re-run cannot help: the version stays without symbols, which blocks
   nothing, since the gate does not look for them. Uploading the `.snupkg` from the run's
@@ -190,8 +200,8 @@ job, dispatch it rather than wait for Monday, first with **publish** unticked, t
 1. every package is on nuget.org at its train's version, the one the plan's summary gives the train (*Packed at*),
    and the publish job's `core: push` step logged "nuget.org lists `<core version>` for every package" before its
    `satellites: push` step started, which logged the same of the satellites' version;
-2. a satellite's nuspec on nuget.org depends on the core at `[<core version>, <next core line>-0)`, for example
-   `[0.3.0-preview.<N>, 0.4.0-0)`;
+2. a satellite's nuspec on nuget.org depends on the core at `[<core version>, <next core line>-0.0)`, for example
+   `[0.3.0-preview.<N>, 0.4.0-0.0)`;
 3. an assembly of each train restored from nuget.org verifies, and the certificate comes from Sigstore's public-good
    instance:
 

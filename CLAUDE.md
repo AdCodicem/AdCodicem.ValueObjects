@@ -305,7 +305,9 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   set `MINVERVERSIONOVERRIDE`: the build refuses it, since it would give every train one version; set
   `RELEASE_TRAIN_VERSIONS` instead.
 - **Every dependency on one of our own packages is bounded** by the next version that may break it (ADR 0012):
-  `[V, 0.(m+1).0)` while it is 0.x, `[V, (M+1).0.0)` from 1.0, closed at `-0` in a prerelease package.
+  `[V, 0.(m+1).0)` while it is 0.x, `[V, (M+1).0.0)` from 1.0, closed at `-0.0` in a prerelease package: nuget.org
+  refuses `-0`, a one-label prerelease that does not start with a letter (`verify-packages.sh` refuses such a version
+  in any nuspec).
   `src/Directory.Build.targets` rewrites the bare floor `dotnet pack` writes, after NuGet's private
   `_GetProjectReferenceVersions`, and `verify-packages.sh` refuses any other range, so a renamed target fails the check.
 - **Anything that changes a package's bytes or metadata is a `preview-gate.sh` input**, or it never reaches a preview,

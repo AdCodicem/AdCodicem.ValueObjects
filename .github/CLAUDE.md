@@ -116,9 +116,12 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   everything from the pack on. It evaluates the projects, so `release tooling` installs the SDK before it runs the
   scripts' tests.
 - `scripts/verify-packages.sh` also reads each nuspec's dependencies on `AdCodicem.ValueObjects*`: each must be a
-  package of the set, at `[V, upper)`, V its version in the set and upper the next that may break it (`-0` closing a
-  prerelease's). Every run packs every train, so no dependency of ours points outside the set. Each package's README
-  must open with `# <id>` and keep no `{{placeholder}}` of `src/PackageReadme.md`.
+  package of the set, at `[V, upper)`, V its version in the set and upper the next that may break it (`-0.0` closing
+  a prerelease's). Every run packs every train, so no dependency of ours points outside the set. Every version a
+  nuspec states, its own and each bound of each dependency, must be one nuget.org accepts: SemVer 2.0 to NuGet (a
+  prerelease of two labels or more, or build metadata) or its legacy pattern (a one-label prerelease starting with a
+  letter); `-0` fails it, which nuget.org answers 400 "invalid Version". Each package's README must open with `# <id>`
+  and keep no `{{placeholder}}` of `src/PackageReadme.md`.
 - `scripts/push-packages.sh` pushes dependencies first and only what nuget.org lacks, in up to three passes, then waits
   until nuget.org lists every package. A push stopped midway is completed by those passes, by **Re-run failed jobs**, or
   by the next run (`repair`).

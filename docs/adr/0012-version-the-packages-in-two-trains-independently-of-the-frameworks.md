@@ -321,7 +321,12 @@ at one version. Where it differs from the text, or settles what the text leaves 
   set holds every dependency, and a renamed NuGet target fails the check instead of shipping bare floors again.
 - `_BoundOwnPackageDependencies` rewrites `_ProjectReferencesWithVersions`, an item private to NuGet's pack targets,
   after `_GetProjectReferenceVersions` fills it. Packed together, a satellite at `0.4.0-preview.3` asks for the core's
-  `[0.3.0-preview.11, 0.4.0-0)`, and one at `0.4.0` for `[1.2.0, 2.0.0)` of a core at `1.2.0`.
+  `[0.3.0-preview.11, 0.4.0-0.0)`, and one at `0.4.0` for `[1.2.0, 2.0.0)` of a core at `1.2.0`.
+- A prerelease closes its range at `-0.0`, not at the text's `-0`: nuget.org refuses a version whose prerelease is a
+  single label unless it starts with a letter, its legacy pattern (NuGetGallery's `ManifestValidator`, 400 "invalid
+  Version"), and `0.4.0-0.0`, two labels, is SemVer 2.0 to it, below every prerelease of the next line but `0.4.0-0`.
+  The first preview after phase 1b met it: `0.3.0-preview.403` reached nuget.org for Abstractions alone, which depends
+  on none of our packages. `verify-packages.sh` refuses a nuspec stating any version nuget.org would refuse.
 - The repository's `README.md` leaves the package inputs now: `preview-gate.sh` no longer lists it, and the plan runs
   only the documentation tests for it. A package README, `src/AdCodicem.ValueObjects/README.md` or
   `src/PackageReadme.md`, runs those tests and the pack, and the plan puts it back before dotnet-affected, as it does
