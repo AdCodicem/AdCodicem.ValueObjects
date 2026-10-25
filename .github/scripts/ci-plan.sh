@@ -53,7 +53,8 @@
 #                  docs-snapshot.sh, which docs-snapshot.test.mjs runs up to the entry it writes in
 #                  website/released-versions.json, that test, release-pack.sh, whose checks of what nuget.org holds
 #                  release-pack.test.mjs runs up to the pack, that test, the release-train plugin, its configuration,
-#                  and the changelogs, whose shape and title release-train-plugin.test.mjs holds, that test, and the
+#                  and the changelogs, whose shape and title release-train-plugin.test.mjs holds, that test, the
+#                  driver that releases a train through them, release-train.mjs, its test, and the
 #                  weekly list of held-back majors (held-back-majors.mjs, its test, and dependabot.yml, whose shape its
 #                  reader holds): the job "release tooling", which runs every .github/scripts/*.test.mjs. A project
 #                  file under src/ runs it too, beside its graph lane: release-trains.mjs compile-items holds what
@@ -301,7 +302,8 @@ rule() {
       .github/scripts/held-back-majors.test.mjs | .github/scripts/docs-snapshot.sh | \
       .github/scripts/docs-snapshot.test.mjs | .github/scripts/release-pack.sh | .github/scripts/release-pack.test.mjs | \
       .github/scripts/release-train-plugin.mjs | .github/scripts/release-train.releaserc.json | \
-      .github/scripts/release-train-plugin.test.mjs | .github/dependabot.yml) echo release ;;
+      .github/scripts/release-train-plugin.test.mjs | .github/scripts/release-train.mjs | \
+      .github/scripts/release-train.test.mjs | .github/dependabot.yml) echo release ;;
     .github/shipped-dependencies | .github/scripts/verify-packages.sh | .github/scripts/package-ids.sh | \
       .github/scripts/shipped-dependencies-check.sh) echo pack ;;
     .github/scripts/dependabot-commit-type.sh | .github/scripts/package-assemblies.sh | .github/scripts/push-packages.sh) \

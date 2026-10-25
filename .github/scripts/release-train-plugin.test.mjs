@@ -36,8 +36,10 @@ const LIST = JSON.stringify({
   core: { breaking: "minor", projects: ["Core.A"] },
   satellites: { breaking: "minor", projects: "*" },
 }, null, 2);
-// Nothing of the machine's environment but what git and node need: no CI variable, no GitHub token, no step summary.
-const BASE = { PATH: process.env.PATH, HOME: process.env.HOME, GIT_TERMINAL_PROMPT: "0" };
+// Nothing of the machine's environment but what git and node need: no CI variable, no GitHub token, no step summary,
+// and no git configuration of the machine's, its per-user ignore and attributes files ($XDG_CONFIG_HOME/git/) included.
+const BASE = { PATH: process.env.PATH, HOME: process.env.HOME, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_NOSYSTEM: "1", XDG_CONFIG_HOME: join(tmpdir(), "release-train-plugin-test-no-configuration") };
 
 /** A throwaway repository with both trains at 0.2.1 and a bare remote, removed by its remove(). */
 function repository() {
