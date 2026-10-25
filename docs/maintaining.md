@@ -309,6 +309,37 @@ match the packages it built. The links can answer 404 for a few minutes after th
 indexed the push. In the other direction, each package's release notes on nuget.org point to its GitHub Release, or
 to `CHANGELOG.md` for a preview, which has no release of its own (`src/Directory.Build.props`).
 
+### Rehearsing the release of each train
+
+Until `release.yml` releases each train on its own
+([ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)), that path runs as a
+rehearsal: run **Actions → release → Run workflow** with `dry_run` and `trains` both ticked (the pack job fails on
+`trains` alone). It runs on the current `main` what a release of each train will run, and writes nothing: no commit,
+tag, GitHub Release or push.
+- The pack job computes each train's version from its own tags (the table in its summary), then packs every train: a
+  train that releases at its next version, one that does not at its last release again, the core held to exactly
+  that release's API, any other train as it shipped. It fails as a stable release's pack does, with the causes and
+  remedies above, and also when nuget.org misses a package of the last release it packs again: complete that release
+  first.
+- Once the `nuget-stable` reviewer approves, the release job runs `release-train.mjs` for the core, then for the
+  satellites: a semantic-release dry run each, with the release App's token, which the GitHub plugin checks too. Each
+  step's summary shows the version semantic-release computed and the notes.
+
+Then check three things:
+- each train's version in its step's summary is the one in the pack job's table;
+- each train's notes list that train's commits alone, the core's with the documentation, site and decision commits no
+  train owns, and the satellites' end with "Packed against AdCodicem.ValueObjects <version>.", followed, when the
+  core's line moved since their last release, by a sentence naming the line it moved from;
+- both steps are green. "main moved since the dispatch" means a commit reached `main` after the dispatch: dispatch
+  again. "semantic-release failed for the <train> train" comes with semantic-release's own error above it: a commit
+  the plan did not walk, a version other than the one packed, or a changelog out of shape. "… has no <tag> on
+  origin" names a release commit a run pushed without its tag: complete that run with **Re-run failed jobs** before
+  any new dispatch, which would release that version a second time.
+
+Approve or reject the run promptly: like any dry run, it holds the `release` group. Once each train releases on its
+own, a re-run of a failed run (**Re-run failed jobs**) completes a train that run tagged, whatever `main` holds since,
+without releasing it again (`.github/CLAUDE.md`).
+
 ## GitHub settings
 
 | Setting | Where | Without it |

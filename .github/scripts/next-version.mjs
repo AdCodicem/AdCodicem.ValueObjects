@@ -34,7 +34,8 @@
 //   preview_version         <next_version>-preview.<height>
 //
 // --trains adds each release train's own version (0012), which preview.yml's version job hands to
-// the gate (preview_versions, release_types) and release.yml only prints: the same
+// the gate (preview_versions, release_types), and release.yml prints or, on a per-train run, writes
+// into the plan its release job reads (trains_json): the same
 // keys prefixed with the train's name (core_last_tag, satellites_next_version, ...), each
 // from the train's own last stable tag and the commits of its range that release it
 // (release-trains.mjs reads which, from the list and the restore graph of the tree being
