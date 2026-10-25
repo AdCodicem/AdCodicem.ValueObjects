@@ -402,15 +402,17 @@ test("a merge's commits are walked as the plan walked them, and a commit either 
 test("semantic-release lists every commit when two reads of git's output split a record's separator", async () => {
   // git-log-parser cuts git log's output into commits with split2, which package.json overrides: split2 1.0.0 split
   // each read alone, so a separator two reads cut joined two commits into one, and semantic-release lost the second
-  // (release run 12). The git put first on PATH writes the real one's output in two writes, cut inside the first
-  // separator.
+  // (release run 12). The git alone on PATH writes the real one's output in two writes, cut inside the first
+  // separator. Alone, so that a fake that cannot run (an interpreter path with a space, a temporary folder mounted
+  // noexec) fails the test rather than leaving the real git to answer in one read; getBuiltinModule, so that it runs
+  // as CommonJS or as a module, whatever package.json sits above the temporary folder.
   const repo = repository();
   const bin = mkdtempSync(join(tmpdir(), "release-train-git-"));
   try {
     repo.commit("fix(a): a core fix", { "src/Core.A/A.cs": "class A {}\n" });
     repo.commit("fix(b): a satellite fix", { "src/Sat.B/B.cs": "class B {}\n" });
     writeFileSync(join(bin, "git"), `#!${process.execPath}
-const { execFileSync } = require("node:child_process");
+const { execFileSync } = process.getBuiltinModule("node:child_process");
 const out = execFileSync("git", process.argv.slice(2), { env: { ...process.env, PATH: process.env.REAL_PATH } });
 const at = out.indexOf("==END==\\n");
 if (at < 0) {
@@ -422,7 +424,7 @@ process.stdout.write(out.subarray(0, at + 4), () => setTimeout(() => process.std
     const lib = join(dirname(fromRoot.resolve("semantic-release/package.json")), "lib", "git.js");
     const { getCommits } = await import(pathToFileURL(lib).href);
     const commits = await getCommits("v0.2.1", "HEAD",
-      { cwd: repo.root, env: { ...BASE, PATH: `${bin}:${BASE.PATH}`, REAL_PATH: BASE.PATH } });
+      { cwd: repo.root, env: { ...BASE, PATH: bin, REAL_PATH: BASE.PATH } });
     assert.deepEqual(commits.map(({ hash }) => hash), repo.git("rev-list", "v0.2.1..HEAD").split("\n"));
     assert.ok(commits.every(({ committerDate }) => !Number.isNaN(committerDate.getTime())));
   } finally {

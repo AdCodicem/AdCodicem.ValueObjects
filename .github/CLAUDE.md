@@ -174,7 +174,7 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   `git log`'s output alone, so a record separator two reads cut joined two commits into one and semantic-release lost
   the second, without a word, more often the longer the range and the busier the runner (release run 12's satellites,
   which the plugin's range check refused). Keep the override while git-log-parser asks for 1.0.0; the plugin's test
-  cuts a separator between two writes of a `git` it puts first on `PATH`. `next-version.mjs` reads `git log -z` itself.
+  cuts a separator between two writes of a `git` it puts alone on `PATH`. `next-version.mjs` reads `git log -z` itself.
 - `scripts/release-train.mjs` releases one train through semantic-release's JavaScript API, from the plan, in the
   release job, the core first (its header holds its arguments, environment and outputs). A releasing train's
   `.nupkg` and `.snupkg` are staged in `artifacts/release/`, the folder the configuration's GitHub assets name, since
