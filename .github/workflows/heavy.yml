@@ -2,8 +2,7 @@ name: heavy
 
 # The jobs too slow, or too far from what a pull request breaks, to run on every one of them
 # (docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md): the native AOT applications,
-# Marten's, about 20 minutes on its own, the integration suite against real servers, and the packages on the next .NET
-# major. It runs:
+# the integration suite against real servers, and the packages on the next .NET major. It runs:
 #   - on every push to main, a newer push cancelling the jobs of an older one, so that a regression shows within about
 #     twenty minutes of its merge;
 #   - on dispatch, from any branch;
@@ -48,13 +47,10 @@ env:
 
 jobs:
   # The packages that claim to be AOT-compatible, in an application published
-  # with native AOT (tests/NativeAot), all but the two HotChocolate packages, whose
-  # framework warns on its own publish and starts natively only rooted, and whose
-  # HotChocolate.Data filtering of a struct has no native code, the Orleans
-  # package, since Orleans does not start natively, the CsvHelper package,
-  # whose CsvHelper record API has no native code, the protobuf-net package,
-  # published in an application of its own, and the Marten package, which the
-  # next job publishes: the contracts, the generated code, the JSON package with
+  # with native AOT (tests/NativeAot), all but the HotChocolate package, whose
+  # framework warns on its own publish and starts natively only rooted, and the
+  # protobuf-net package, published in an application of its own: the
+  # contracts, the generated code, the JSON package with
   # a source-generated context and the JSON Schema it exports, the identifiers
   # and FluentValidation, every value object reached through the visitor its
   # descriptor accepts, and over Kestrel through the Request Delegate Generator,
@@ -63,9 +59,7 @@ jobs:
   # Protocol tools of a server in process, a contract-first gRPC service over
   # Kestrel's cleartext HTTP/2, and a Blazor form of every registered value
   # object through HtmlRenderer, whose framework's own two assembly-level
-  # warnings are listed as expected, a System.CommandLine command of every
-  # registered value object, and Wolverine.Http endpoints in Wolverine's static
-  # mode, over the code the script has codegen write first. The analyzers see
+  # warnings are listed as expected. The analyzers see
   # what each library calls; this runs it, once under the JIT and once as the
   # native binary, and a trimming or AOT warning, or any difference between the
   # two outputs, fails the job. Then protobuf-net's compile-time model, the same
@@ -131,78 +125,6 @@ jobs:
             artifacts/native-aot-protobuf/*.diff
             artifacts/native-aot-protobuf/*.log
             artifacts/compiled-model/*.log
-
-  # The Marten package in an application of its own published with native AOT
-  # (tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Marten): a Marten document
-  # store against the PostgreSQL service container below, run once under the JIT
-  # and once as the native binary, as the job above runs its applications. Its
-  # publish warns for Marten, JasperFx, Weasel and FastExpressionCompiler
-  # themselves: those warnings, listed, are expected; any other, or any difference
-  # between the two outputs, fails the job. A job of its own, beside the one
-  # above, which takes about 6 minutes: the native AOT compiler alone takes about
-  # 20 minutes over Marten, on one core, and the script took 17.5 to 24 minutes on
-  # a warm 4-core machine. The runner restores and builds from nothing first, so
-  # 45 minutes leaves about half again over the slowest run measured.
-  native-aot-marten:
-    name: native AOT (Marten)
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    concurrency:
-      group: heavy-${{ github.event_name == 'push' && github.ref || github.run_id }}-native-aot-marten
-      cancel-in-progress: ${{ github.event_name == 'push' }}
-    # The server the Marten application stores its documents in, the image the
-    # integration suite starts, ready before the first step.
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref }}
-          # MinVer runs when the projects under src/ build, and reads the tag
-          # history, which a shallow clone does not have.
-          fetch-depth: 0
-          persist-credentials: false
-
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      # What the native AOT compiler links with on Linux. The runner image ships
-      # both; they are installed only if it no longer does.
-      - name: Native toolchain
-        run: |
-          if ! command -v clang > /dev/null || ! dpkg -s zlib1g-dev > /dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install --yes --no-install-recommends clang zlib1g-dev
-          fi
-
-      # The script fails on any warning the project's aot-warnings.allowed does not
-      # list, and records the size of the binary in the job summary.
-      - name: Marten application
-        env:
-          NATIVE_AOT_POSTGRES: Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres
-        run: .github/scripts/native-aot.sh artifacts/native-aot-marten tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Marten
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          # "Re-run all jobs" uploads the same name again in the same run.
-          overwrite: true
-          name: native-aot-marten
-          path: |
-            artifacts/native-aot-marten/*.txt
-            artifacts/native-aot-marten/*.diff
-            artifacts/native-aot-marten/*.log
 
   # The integrations against real engines, started by Testcontainers on the
   # runner's Docker daemon: PostgreSQL, SQL Server, MongoDB, for the persistence
@@ -277,20 +199,15 @@ jobs:
   # Core 11 on SQLite, SQL Server and PostgreSQL, System.Text.Json source
   # generation, ASP.NET Core model binding, on System.Text.Json and on
   # Newtonsoft.Json, minimal API problem details, MongoDB.Driver on MongoDB 7.0,
-  # Marten 9.50 on PostgreSQL 17, its LINQ, a duplicated field and a compiled
-  # query's collection, MessagePack, with SignalR's MessagePack hub protocol over
-  # TestHost, protobuf-net and a protobuf-net.Grpc code-first service over
-  # TestHost, a contract-first gRPC service with the gRPC package's interceptor
-  # and collector over TestHost, Orleans' serializer, Serilog,
-  # Microsoft.Extensions.AI tools and structured output, Model Context Protocol
-  # tools over in-process streams, the Azure Functions worker's converter and
-  # problem details middleware, HotChocolate 16 scalars in process and
-  # HotChocolate.Data filters over Entity Framework Core 11 on SQLite, a Blazor
-  # input rendered by HtmlRenderer on the next major's Components,
-  # System.CommandLine 3.0's release candidate parsing options and arguments of
-  # value objects, CsvHelper 33.1 reading and writing value objects as columns,
-  # Wolverine.Http 6.51 endpoints in Wolverine's dynamic mode over TestHost, NSwag
-  # documents and Confluent's JSON serdes over NJsonSchema, the contract kit and
+  # MessagePack, with SignalR's MessagePack hub protocol over TestHost,
+  # protobuf-net and a protobuf-net.Grpc code-first service over TestHost, a
+  # contract-first gRPC service with the gRPC package's interceptor and collector
+  # over TestHost, Serilog, Microsoft.Extensions.AI tools and structured output,
+  # Model Context Protocol tools over in-process streams, the Azure Functions
+  # worker's converter and problem details middleware, HotChocolate 16 scalars in
+  # process, a Blazor input rendered by HtmlRenderer on the next major's
+  # Components, NSwag documents and Confluent's JSON serdes over NJsonSchema, the
+  # contract kit and
   # the test-data packages over AutoFixture, Bogus and FsCheck, and
   # Microsoft.AspNetCore.OpenApi 11 over Microsoft.OpenApi 3, and Swashbuckle 10
   # over Microsoft.OpenApi 2 in a project of its own. The island has its own

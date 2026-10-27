@@ -18,11 +18,11 @@ Tests: `Web/` of `tests/AdCodicem.ValueObjects.UnitTests.AspNet` (reflection-bas
   reflection and no `AddProblemDetails()`) rather than let each refusal end in a 500.
 - `ValueObjectProblemDetails` and `ValueObjectMessageOptions` live here under the namespace
   `AdCodicem.ValueObjects.AspNetCore`, which the MVC package shares and which forwards `ValueObjectProblemDetails`
-  (`TypeForwards.cs`): keep both the namespace and the forward. The Azure Functions ASP.NET Core and Wolverine.Http
-  packages reference them too.
+  (`TypeForwards.cs`): keep both the namespace and the forward. The Azure Functions ASP.NET Core package references
+  them too.
 - The refusal list and its validation problem are `src/Shared/ValueObjectRefusals.cs`, linked by the Azure Functions
-  ASP.NET Core and Wolverine.Http packages too; the refusal of a request body, which only this package answers, is its
-  `partial` part here (`Binding/ValueObjectRefusals.Body.cs`). Change the problem's shape there, once, for all three.
+  ASP.NET Core package too; the refusal of a request body, which only this package answers, is its `partial` part here
+  (`Binding/ValueObjectRefusals.Body.cs`). Change the problem's shape there, once, for both.
 - The messages a convention names belong to the endpoint's marker: a group's conventions run before the endpoint's own,
   so the last convention naming messages wins, and one without keeps them.
 - The exception handler runs outside `UseRequestLocalization()` in the usual order, whose culture is gone by then: it

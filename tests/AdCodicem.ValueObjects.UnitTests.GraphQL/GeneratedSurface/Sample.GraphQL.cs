@@ -2,8 +2,7 @@ using AdCodicem.ValueObjects.UnitTests.GraphQL;
 
 namespace AdCodicem.ValueObjects.UnitTests.GeneratedSurface;
 
-// The graphql family's part of Sample (GeneratedSurface/Sample.cs): the checks that hold every sample to HotChocolate
-// and HotChocolate.Data.
+// The graphql family's part of Sample (GeneratedSurface/Sample.cs): the check that holds every sample to HotChocolate.
 
 public abstract partial class Sample
 {
@@ -16,23 +15,9 @@ public abstract partial class Sample
     /// </summary>
     /// <returns>The check.</returns>
     public abstract Task AnswersARefusedGraphQLValueWithItsRuleAsync();
-
-    /// <summary>
-    /// Filters rows holding the value object through HotChocolate.Data with <c>AddValueObjectFiltering()</c>, in memory
-    /// and on Entity Framework Core over SQLite, and checks that its input is named after its scalar and holds the
-    /// comparable operations, or <c>eq</c> and <c>neq</c> over <see cref="bool"/>; that <c>eq</c>, <c>in</c> and <c>gt</c>
-    /// of each instance, or its <c>eq</c> alone over <see cref="bool"/>, written as the scalar's literal, find the rows the
-    /// instances' own equality and order find; and that SQLite, which a value object over a 128-bit integer skips, runs
-    /// <c>eq</c> as it runs the same comparison of a column of the underlying type, or refuses a comparison where it
-    /// refuses that one.
-    /// </summary>
-    /// <returns>The check.</returns>
-    public abstract Task FiltersThroughItsScalarAsItsUnderlyingValueAsync();
 }
 
 public partial class Sample<TSelf, TValue>
 {
     public override Task AnswersARefusedGraphQLValueWithItsRuleAsync() => GraphQLParity.CheckAsync<TSelf, TValue>(Small, Large, Refused);
-
-    public override Task FiltersThroughItsScalarAsItsUnderlyingValueAsync() => GraphQLFilteringParity.CheckAsync<TSelf, TValue>(Small, Large);
 }

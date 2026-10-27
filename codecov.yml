@@ -71,9 +71,7 @@ flag_management:
         - src/AdCodicem.ValueObjects.Dapper/
         - src/AdCodicem.ValueObjects.MongoDB/
         - src/AdCodicem.ValueObjects.Identifiers.MongoDB/
-        - src/AdCodicem.ValueObjects.Marten/
         - src/Shared/KnownValueSpellings.cs
-        - src/Shared/TypeNames.cs
         - src/Shared/ValueObjectPatternSyntax.cs
     - name: serialization
       carryforward: true
@@ -88,16 +86,11 @@ flag_management:
         - src/Shared/TypeNames.cs
         - src/Shared/ValueObjectOpenApiSchema.cs
         - src/Shared/ValueObjectSchemaKeywords.cs
-    - name: orleans
-      carryforward: true
-      paths:
-        - src/AdCodicem.ValueObjects.Orleans/
     - name: hosts
       carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.AzureFunctions/
         - src/AdCodicem.ValueObjects.AzureFunctions.AspNetCore/
-        - src/AdCodicem.ValueObjects.Wolverine.Http/
         - src/Shared/TypeNames.cs
         - src/Shared/ValueObjectBindingText.cs
         - src/Shared/ValueObjectLocalizedMessages.AspNetCore.cs
@@ -107,19 +100,14 @@ flag_management:
       carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.HotChocolate/
-        - src/AdCodicem.ValueObjects.HotChocolate.Data/
         - src/Shared/ValueObjectLocalizedMessages.cs
         - src/Shared/ValueObjectSchemaKeywords.cs
     - name: text
       carryforward: true
       paths:
         - src/AdCodicem.ValueObjects.Blazor/
-        - src/AdCodicem.ValueObjects.CommandLine/
-        - src/AdCodicem.ValueObjects.CsvHelper/
-        - src/Shared/TypeNames.cs
         - src/Shared/ValueObjectLocalizedMessages.cs
         - src/Shared/ValueObjectPatternSyntax.cs
-        - src/Shared/ValueObjectResourceMessages.cs
         - src/Shared/ValueObjectText.cs
     - name: observability
       carryforward: true

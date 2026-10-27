@@ -44,8 +44,7 @@
       "projects": [
         "AdCodicem.ValueObjects.Dapper",
         "AdCodicem.ValueObjects.MongoDB",
-        "AdCodicem.ValueObjects.Identifiers.MongoDB",
-        "AdCodicem.ValueObjects.Marten"
+        "AdCodicem.ValueObjects.Identifiers.MongoDB"
       ]
     },
     "serialization": {
@@ -60,33 +59,23 @@
         "AdCodicem.ValueObjects.Grpc"
       ]
     },
-    "orleans": {
-      "tests": "AdCodicem.ValueObjects.UnitTests.Orleans",
-      "projects": [
-        "AdCodicem.ValueObjects.Orleans"
-      ]
-    },
     "hosts": {
       "tests": "AdCodicem.ValueObjects.UnitTests.Hosts",
       "projects": [
         "AdCodicem.ValueObjects.AzureFunctions",
-        "AdCodicem.ValueObjects.AzureFunctions.AspNetCore",
-        "AdCodicem.ValueObjects.Wolverine.Http"
+        "AdCodicem.ValueObjects.AzureFunctions.AspNetCore"
       ]
     },
     "graphql": {
       "tests": "AdCodicem.ValueObjects.UnitTests.GraphQL",
       "projects": [
-        "AdCodicem.ValueObjects.HotChocolate",
-        "AdCodicem.ValueObjects.HotChocolate.Data"
+        "AdCodicem.ValueObjects.HotChocolate"
       ]
     },
     "text": {
       "tests": "AdCodicem.ValueObjects.UnitTests.Text",
       "projects": [
-        "AdCodicem.ValueObjects.Blazor",
-        "AdCodicem.ValueObjects.CommandLine",
-        "AdCodicem.ValueObjects.CsvHelper"
+        "AdCodicem.ValueObjects.Blazor"
       ]
     },
     "observability": {

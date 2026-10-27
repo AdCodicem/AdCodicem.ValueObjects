@@ -18,13 +18,7 @@ The generator, every diagnostic, the analyzers and code fixes, incremental cachi
 - The harness ignores CS1701 and CS1702, which the SDK passes as `/nowarn`, for protobuf-net's assemblies built against
   .NET 8. The project references `AdCodicem.ValueObjects.ProtobufNet` for `SerializerContractAnalyzerTests` and
   `SerializerContractCodeFixTests` alone (`VO0043`'s fix names its serializer); they declare the other serializers'
-  attributes under their real names in a stand-in assembly, and `AdCodicem.ValueObjects.Orleans`' registration, whose
-  reach `VO0043`'s remedy reads, as a stand-in too: the real package brings Orleans' Roslyn 5 graph into a project
-  compiled against the 4.14 pins.
-- `MartenCompiledQueryAnalyzerTests` compiles against stand-ins of Marten's compiled-query interfaces, `[MartenIgnore]`
-  and JasperFx's attributes under their real names (`MartenReferences`): the real Marten would bring JasperFx's source
-  generators and Marten's graph into a project on the 4.14 pins. The unit suite's Data project checks the names against
-  Marten itself (`Persistence/MartenCompiledQueryDiagnosticTests`).
+  attributes under their real names in a stand-in assembly.
 - `withLoggingGenerator: true` runs Microsoft.Gen.Logging, which the `CopyLoggingGenerator` target copies from the
   pinned Microsoft.Extensions.Telemetry.Abstractions; `GeneratorRun.LoggingSource` holds what it wrote and
   `LoggingSnippets.LoggedTags` reads its tags. `DataClassificationAnalyzerTests` and `CopyClassificationCodeFixTests`

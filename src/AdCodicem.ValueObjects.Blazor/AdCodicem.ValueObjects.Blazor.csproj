@@ -39,7 +39,7 @@
          compiles it in. -->
     <Compile Include="..\Shared\ValueObjectPatternSyntax.cs" Link="Shared\ValueObjectPatternSyntax.cs" />
     <!-- How the text of a value object is read and written for a person, a date in the Gregorian calendar whatever the
-         culture's, which the System.CommandLine package compiles too. -->
+         culture's. -->
     <Compile Include="..\Shared\ValueObjectText.cs" Link="Shared\ValueObjectText.cs" />
   </ItemGroup>
 

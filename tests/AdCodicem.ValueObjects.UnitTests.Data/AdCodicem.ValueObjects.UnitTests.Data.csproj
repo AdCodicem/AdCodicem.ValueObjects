@@ -2,8 +2,8 @@
 
   <!--
     The data family's unit tests (.github/ci-families.json): AdCodicem.ValueObjects.Dapper,
-    AdCodicem.ValueObjects.MongoDB, AdCodicem.ValueObjects.Identifiers.MongoDB and AdCodicem.ValueObjects.Marten, offline;
-    the integration suite runs them against the real engines.
+    AdCodicem.ValueObjects.MongoDB and AdCodicem.ValueObjects.Identifiers.MongoDB, offline; the integration suite runs
+    them against the real engines.
   -->
   <Import Project="..\UnitTests.props" />
 
@@ -11,18 +11,12 @@
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Dapper\AdCodicem.ValueObjects.Dapper.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.MongoDB\AdCodicem.ValueObjects.MongoDB.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Identifiers.MongoDB\AdCodicem.ValueObjects.Identifiers.MongoDB.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Marten\AdCodicem.ValueObjects.Marten.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Generated value objects in an assembly that opts into XML serialization, which MongoDbStartUpTests loads into a
          context of its own. -->
     <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.XmlSerialization\AdCodicem.ValueObjects.Fixtures.XmlSerialization.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- The compiler MartenCompiledQueryDiagnosticTests runs VO0048's analyzer through. -->
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
 
   <!-- The sources of other families' folders this project compiles too, at the same path, so that a resource keeps
@@ -33,19 +27,5 @@
     <Compile Include="..\AdCodicem.ValueObjects.UnitTests\Persistence\NonUnicodeValueObjects.cs" Link="Persistence\NonUnicodeValueObjects.cs" />
     <Compile Include="..\AdCodicem.ValueObjects.UnitTests\WithoutDynamicCode.cs" Link="WithoutDynamicCode.cs" />
   </ItemGroup>
-
-  <!--
-    The generator's own assembly, which the compiler runs over this project as an analyzer and this project does not
-    reference, copied next to the tests: Persistence/MartenCompiledQueryDiagnosticTests loads MartenCompiledQueryAnalyzer
-    from it and runs it over a compiled query declared against the real Marten.
-  -->
-  <Target Name="CopyValueObjectAnalyzers" AfterTargets="ResolveReferences" BeforeTargets="AssignTargetPaths">
-    <ItemGroup>
-      <_ValueObjectAnalyzers Include="@(Analyzer)" Condition="'%(Filename)' == 'AdCodicem.ValueObjects.Generators'" />
-      <None Include="@(_ValueObjectAnalyzers)" Link="analyzers\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    </ItemGroup>
-    <Error Condition="'@(_ValueObjectAnalyzers)' == ''"
-           Text="The generator's AdCodicem.ValueObjects.Generators.dll was not found among this project's analyzers." />
-  </Target>
 
 </Project>

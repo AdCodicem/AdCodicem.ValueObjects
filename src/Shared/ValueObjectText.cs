@@ -11,10 +11,8 @@ namespace AdCodicem.ValueObjects.Shared;
 /// <typeparam name="TSelf">The value object type.</typeparam>
 /// <typeparam name="TValue">Its underlying type.</typeparam>
 /// <remarks>
-/// This file is linked into the packages that read text a person typed or edited: the Blazor one, for the input of a form,
-/// the System.CommandLine one, for the options and arguments of a command, and the CsvHelper one, for the fields of a CSV
-/// file. Each compiles its own copy, and keeps the rules that are its own: what empty text means, and what text a default
-/// instance is written as. It reads no annotation and closes no generic type at run time, so it runs in a native binary.
+/// This file is linked into the package that reads text a person typed or edited, the Blazor one, for the input of a
+/// form, which keeps the rules that are its own: what empty text means, and what text a default instance is written as. It reads no annotation and closes no generic type at run time, so it runs in a native binary.
 /// </remarks>
 internal static class ValueObjectText<TSelf, TValue>
     where TSelf : struct, IValueObject<TSelf, TValue>

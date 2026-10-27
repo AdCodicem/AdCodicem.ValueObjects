@@ -5,7 +5,7 @@ namespace AdCodicem.ValueObjects.Shared;
 
 /// <summary>
 /// The refusal of a request body, which only the minimal API package answers: the refusal list itself is
-/// <c>src/Shared/ValueObjectRefusals.cs</c>, which the Azure Functions ASP.NET Core and Wolverine.Http packages link too.
+/// <c>src/Shared/ValueObjectRefusals.cs</c>, which the Azure Functions ASP.NET Core package links too.
 /// </summary>
 internal sealed partial class ValueObjectRefusals
 {

@@ -13,8 +13,8 @@ namespace AdCodicem.ValueObjects.AspNetCore;
 /// <c>ApiBehaviorOptions</c>, in <c>AdCodicem.ValueObjects.AspNetCore</c>, folds it into the RFC 9457 body as an
 /// <c>errorCodes</c> extension. A minimal API endpoint covered by
 /// <see cref="Http.ValueObjectEndpointConventionBuilderExtensions.WithValueObjectProblemDetails{TBuilder}(TBuilder)"/> writes the same
-/// member, so both answer a refused value object with one shape, and so do an Azure Functions HTTP trigger and a
-/// Wolverine.Http endpoint, through <c>UseValueObjectProblemDetails()</c> and <c>UseValueObjects()</c>.
+/// member, so both answer a refused value object with one shape, and so does an Azure Functions HTTP trigger, through
+/// <c>UseValueObjectProblemDetails()</c>.
 /// </para>
 /// <para>
 /// The type lives in <c>AdCodicem.ValueObjects.AspNetCore.Http</c>, which every application on ASP.NET Core can

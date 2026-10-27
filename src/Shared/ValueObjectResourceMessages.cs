@@ -10,10 +10,8 @@ namespace AdCodicem.ValueObjects.Shared;
 /// </summary>
 /// <remarks>
 /// This file is linked into the contracts, whose DataAnnotations attributes <c>[ParsesAs]</c> and <c>[NotDefault]</c> look
-/// a message up under the resource their <c>ErrorMessageResourceType</c> names alone, and into the System.CommandLine
-/// package, whose options and arguments look one up under the resource <c>UseResource&lt;T&gt;()</c> names: neither has
-/// services to resolve an <c>IStringLocalizerFactory</c> from, which <c>ValueObjectLocalizedMessages.cs</c> needs. Each
-/// compiles its own copy. It reads no annotation and closes no generic type at run time, so it runs in a native binary.
+/// a message up under the resource their <c>ErrorMessageResourceType</c> names alone: they have no services to resolve
+/// an <c>IStringLocalizerFactory</c> from, which <c>ValueObjectLocalizedMessages.cs</c> needs. It reads no annotation and closes no generic type at run time, so it runs in a native binary.
 /// </remarks>
 internal static class ValueObjectResourceMessages
 {

@@ -33,8 +33,7 @@ through bUnit, over the Razor forms of `tests/Fixtures/AdCodicem.ValueObjects.Fi
 - The round-trip text of a date is Gregorian whatever the culture, while `DateOnly`, `DateTime` and `DateTimeOffset`
   parse in the culture's calendar (`2000-01-01` is 543 years earlier in `th-TH`, 621 later in `fa-IR`, unreadable in
   `ar-SA`; fifteen cultures): the input reads a date with a copy of the culture set to `new GregorianCalendar()`, kept
-  for a read-only culture, in `src/Shared/ValueObjectText.cs`, which the System.CommandLine and CsvHelper packages link
-  too.
+  for a read-only culture, in `src/Shared/ValueObjectText.cs`.
 - Under `SchemaAttributes="true"`, off by default since a browser checks text before the normalizer runs, it writes
   `maxlength`, `minlength` and `pattern`; the pattern through `EcmaScriptPattern`, for the `v` flag a browser compiles it
   with as `^(?:…)$`, only for a pattern each of whose top-level alternatives is anchored at both ends, with `\d`, `\w`,

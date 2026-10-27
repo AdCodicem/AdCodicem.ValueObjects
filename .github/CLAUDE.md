@@ -7,7 +7,7 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 
 - Runs Mondays at 07:15 Europe/Paris and on dispatch from `main`; the `nuget` environment deploys from `main` only.
 - `scripts/preview-gate.sh` decides `publish`, `repair` or `none` against the version nuget.org has from the nearest
-  commit, and fails the run rather than guess when a lookup fails. All thirty-eight packages go out at one version, or
+  commit, and fails the run rather than guess when a lookup fails. All thirty-two packages go out at one version, or
   none. Its `abandoned` list names the partial previews no run can repair, never a base: `0.3.0-preview.403`, pushed
   for `Abstractions` alone by the release trains' last preview (ADR 0014). Add one only for such a version.
 - The version: `scripts/next-version.mjs` runs semantic-release's commit analyzer with `.releaserc.json`, without a
@@ -150,7 +150,7 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
 - A job that must block a merge goes into the `gate` job's `needs`, and into `scripts/ci-plan.sh`'s `expected` whenever
   it runs, never into the `Default` ruleset: a check per job would touch the ruleset at every rename (ADR 0013,
   Rejected).
-- `heavy.yml` holds `native AOT`, `native AOT (Marten)`, `integration tests` (with `compiled-model.sh jit`, the SQL
+- `heavy.yml` holds `native AOT`, `integration tests` (with `compiled-model.sh jit`, the SQL
   Server round trip) and `compat (.NET 11)`. It runs by itself on every push to `main` and on dispatch, and is called
   by `ci.yml` when `ci-plan.sh` says so (a pull request labelled `ci:heavy`, or one Dependabot opens on a
   `dependabot/nuget/` branch, every heavy job for now), and by `preview.yml` and `release.yml` before their publish
@@ -173,7 +173,7 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   nothing. `preview.yml`'s `publish` and `release.yml`'s `release` jobs check `needs.heavy.result` explicitly.
 - A run's artifacts share one namespace with the workflows it calls: `ci.yml`'s `coverage-unit-<family>` and
   `test-results-unit-<family>` (one per `unit` job), `coverage-build`, `test-results` and `packages`, `heavy.yml`'s
-  `native-aot`, `native-aot-marten`, `integration-test-results` and `compat-test-results`, uploaded with
+  `native-aot`, `integration-test-results` and `compat-test-results`, uploaded with
   `overwrite: true` for **Re-run all jobs**. Another job's name used twice fails the second upload, so a matrix job's
   names carry its family; the `coverage` job downloads `coverage-*` by pattern, a prefix no other artifact takes.
 - No workflow but `ci.yml` names a job `build and test` (`preview.yml` and `release.yml` run theirs as `suites`): a

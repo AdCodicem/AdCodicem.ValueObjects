@@ -22,9 +22,9 @@
     <Error Text="The compatibility island targets the next .NET major, which SDK $(NETCoreSdkVersion) cannot. Run it from tests/Compat, whose global.json selects the SDK it needs." />
   </Target>
 
-  <!-- All thirty-eight but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
+  <!-- All thirty-two but AdCodicem.ValueObjects.Swashbuckle, as a consumer installs them: the generator arrives with
        AdCodicem.ValueObjects and runs in this SDK's compiler, the integrations resolve their dependency floors against
-       the next major, HotChocolate.Types' and HotChocolate.Data's net11.0 assemblies among them. Swashbuckle 10 fails on
+       the next major, HotChocolate.Types' net11.0 assemblies among them. Swashbuckle 10 fails on
        the Microsoft.OpenApi 3 that Microsoft.AspNetCore.OpenApi 11 brings here, so the Swashbuckle package is installed by
        the project of Swashbuckle/. -->
   <ItemGroup Condition="'$(CompatSdkMissing)' != 'true'">
@@ -39,32 +39,26 @@
     <PackageReference Include="AdCodicem.ValueObjects.AzureFunctions.AspNetCore" />
     <PackageReference Include="AdCodicem.ValueObjects.Blazor" />
     <PackageReference Include="AdCodicem.ValueObjects.Bogus" />
-    <PackageReference Include="AdCodicem.ValueObjects.CommandLine" />
-    <PackageReference Include="AdCodicem.ValueObjects.CsvHelper" />
     <PackageReference Include="AdCodicem.ValueObjects.Dapper" />
     <PackageReference Include="AdCodicem.ValueObjects.EntityFrameworkCore" />
     <PackageReference Include="AdCodicem.ValueObjects.FluentValidation" />
     <PackageReference Include="AdCodicem.ValueObjects.FsCheck" />
     <PackageReference Include="AdCodicem.ValueObjects.Grpc" />
     <PackageReference Include="AdCodicem.ValueObjects.HotChocolate" />
-    <PackageReference Include="AdCodicem.ValueObjects.HotChocolate.Data" />
     <PackageReference Include="AdCodicem.ValueObjects.Identifiers" />
     <PackageReference Include="AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore" />
     <PackageReference Include="AdCodicem.ValueObjects.Identifiers.MongoDB" />
     <PackageReference Include="AdCodicem.ValueObjects.Json" />
-    <PackageReference Include="AdCodicem.ValueObjects.Marten" />
     <PackageReference Include="AdCodicem.ValueObjects.MessagePack" />
     <PackageReference Include="AdCodicem.ValueObjects.ModelContextProtocol" />
     <PackageReference Include="AdCodicem.ValueObjects.MongoDB" />
     <PackageReference Include="AdCodicem.ValueObjects.NewtonsoftJson" />
     <PackageReference Include="AdCodicem.ValueObjects.NJsonSchema" />
     <PackageReference Include="AdCodicem.ValueObjects.OpenApi" />
-    <PackageReference Include="AdCodicem.ValueObjects.Orleans" />
     <PackageReference Include="AdCodicem.ValueObjects.ProtobufNet" />
     <PackageReference Include="AdCodicem.ValueObjects.Serilog" />
     <PackageReference Include="AdCodicem.ValueObjects.Testing" />
     <PackageReference Include="AdCodicem.ValueObjects.Testing.Data" />
-    <PackageReference Include="AdCodicem.ValueObjects.Wolverine.Http" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CompatSdkMissing)' != 'true'">
@@ -79,9 +73,6 @@
          MessagePack itself, and its analyzer, come with AdCodicem.ValueObjects.MessagePack, at the package's floor. -->
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
-    <!-- System.CommandLine 3.0, the line the next major of .NET ships with, over the System.CommandLine package built
-         against 2.0. -->
-    <PackageReference Include="System.CommandLine" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CompatSdkMissing)' != 'true'">
@@ -116,9 +107,6 @@
     <PackageReference Include="protobuf-net.Grpc.AspNetCore" />
     <PackageReference Include="Grpc.AspNetCore" />
     <Protobuf Include="Protos/dispatch.proto" GrpcServices="Both" />
-    <!-- Wolverine's dynamic mode, which writes and compiles the endpoints' code, the package's reads included, at run
-         time; WolverineFx.Http comes with AdCodicem.ValueObjects.Wolverine.Http, at the package's floor. -->
-    <PackageReference Include="WolverineFx.RuntimeCompilation" />
   </ItemGroup>
 
   <ItemGroup>

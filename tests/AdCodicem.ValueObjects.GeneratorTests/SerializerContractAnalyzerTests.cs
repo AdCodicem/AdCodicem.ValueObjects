@@ -50,6 +50,9 @@ public sealed class SerializerContractAnalyzerTests
 
     private const string OrleansEffect = "Orleans writes it with no field and reads it back as a default instance";
 
+    private const string OrleansRemedy = "Remove the attribute, and give Orleans a surrogate holding the underlying value, "
+        + "with a converter that reads it back through TryCreate";
+
     private const string GenericRemedy = "An attribute cannot name a serializer through a type parameter: remove it, and "
         + "register each construction with AddValueObject<TSelf, TValue>() of AdCodicem.ValueObjects.ProtobufNet";
 
@@ -58,8 +61,7 @@ public sealed class SerializerContractAnalyzerTests
 
     [Theory]
     [InlineData("GenerateSerializer", "string", "VO0043",
-        OrleansEffect + ". Remove the attribute, reference AdCodicem.ValueObjects.Orleans and call AddValueObjects() on the "
-        + "serializer of every silo and client.")]
+        OrleansEffect + ". " + OrleansRemedy + ".")]
     [InlineData("DataContract(Name = \"sku\")", "string", "VO0043",
         "protobuf-net and MessagePack write it with no member and read it back as a default instance, and "
         + "DataContractSerializer refuses it once the assembly is opted into XML serialization. Remove the attribute: "
@@ -221,60 +223,35 @@ public sealed class SerializerContractAnalyzerTests
     }
 
     /// <summary>
-    /// <c>[GenerateSerializer]</c> gets the remedy its compilation allows: the package's registration when
-    /// <c>AdCodicem.ValueObjects.Orleans</c> is in reach, the package to reference otherwise, an <see langword="internal"/>
-    /// type of that name being out of reach. A generic value object gets the same remedy, since <c>AddValueObjects()</c>
-    /// serializes each construction.
+    /// <c>[GenerateSerializer]</c> gets one remedy, whatever the value object: Orleans needs a surrogate of the author's,
+    /// since no package of this repository registers value objects with its serializer.
     /// </summary>
     /// <param name="source">The declaration.</param>
-    /// <param name="package">The stand-in of the package referenced: none, a public one or an internal one.</param>
     /// <param name="type">The type the message names.</param>
-    /// <param name="reachable">Whether the remedy is the package's registration.</param>
     [Theory]
     [InlineData("""
         [ValueObject<string>]
         [GenerateSerializer]
         public readonly partial struct Sku;
-        """, "none", "Sku", false)]
-    [InlineData("""
-        [ValueObject<string>]
-        [GenerateSerializer]
-        public readonly partial struct Sku;
-        """, "public", "Sku", true)]
-    [InlineData("""
-        [ValueObject<string>]
-        [GenerateSerializer]
-        public readonly partial struct Sku;
-        """, "internal", "Sku", false)]
+        """, "Sku")]
     [InlineData("""
         [ValueObject<string>]
         [GenerateSerializer]
         public readonly partial struct Reference<TOwner>;
-        """, "public", "Reference<TOwner>", true)]
+        """, "Reference<TOwner>")]
     [InlineData("""
         [EntityId("ord")]
         [GenerateSerializer, Alias("ord")]
         public readonly partial struct OrderRef;
-        """, "none", "OrderRef", false)]
-    public async Task GenerateSerializer_is_reported_with_the_remedy_its_compilation_allows(string source, string package, string type, bool reachable)
+        """, "OrderRef")]
+    public async Task GenerateSerializer_is_reported_with_a_surrogate_as_its_remedy(string source, string type)
     {
-        var references = package switch
-        {
-            "public" => SerializerReferences.WithOrleansPackage,
-            "internal" => SerializerReferences.WithInternalOrleansPackage,
-            _ => SerializerReferences.WithPackage,
-        };
-
-        var diagnostics = await RunAsync(source, references);
+        var diagnostics = await RunAsync(source, SerializerReferences.WithPackage);
 
         var diagnostic = diagnostics.Should().ContainSingle().Subject;
         diagnostic.Id.Should().Be("VO0043");
         diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(
-            $"'{type}' carries [GenerateSerializer], so {OrleansEffect}. " + (reachable
-                ? "Remove the attribute: AddValueObjects() of AdCodicem.ValueObjects.Orleans serializes the value object as its "
-                    + "underlying value."
-                : "Remove the attribute, reference AdCodicem.ValueObjects.Orleans and call AddValueObjects() on the serializer "
-                    + "of every silo and client."));
+            $"'{type}' carries [GenerateSerializer], so {OrleansEffect}. {OrleansRemedy}.");
     }
 
     /// <summary>
@@ -1047,26 +1024,4 @@ internal static class SerializerReferences
     /// <summary>Gets <see cref="WithSerializers"/> and <c>AdCodicem.ValueObjects.ProtobufNet</c>.</summary>
     public static ImmutableArray<MetadataReference> WithPackage { get; } =
         WithSerializers.Add(MetadataReference.CreateFromFile(typeof(ValueObjectProtoSerializer<,>).Assembly.Location));
-
-    /// <summary>
-    /// Gets <see cref="WithPackage"/> and a stand-in of <c>AdCodicem.ValueObjects.Orleans</c>, whose registration
-    /// <c>VO0043</c> looks for: the real package brings Orleans' Roslyn 5 dependencies into a project compiled against the
-    /// generator's Roslyn.
-    /// </summary>
-    public static ImmutableArray<MetadataReference> WithOrleansPackage { get; } = WithPackage.Add(OrleansStandIn("public"));
-
-    /// <summary>Gets <see cref="WithPackage"/> and an assembly declaring the Orleans package's registration internal.</summary>
-    public static ImmutableArray<MetadataReference> WithInternalOrleansPackage { get; } = WithPackage.Add(OrleansStandIn("internal"));
-
-    private static PortableExecutableReference OrleansStandIn(string accessibility) => MetadataReference.CreateFromImage(GeneratorHarness.Emit(
-        $$"""
-        namespace AdCodicem.ValueObjects.Orleans
-        {
-            {{accessibility}} static class ValueObjectSerializerBuilderExtensions
-            {
-            }
-        }
-        """,
-        $"OrleansPackageStandIn{accessibility}",
-        GeneratorHarness.FrameworkReferences));
 }

@@ -9,7 +9,7 @@ namespace AdCodicem.ValueObjects.Annotations;
 /// <summary>
 /// What <see cref="ParsesAsAttribute"/> and <see cref="NotDefaultAttribute"/> share: finding the descriptor of a value
 /// object they name or check, and the messages of a refusal; the lookup of one in the resource an attribute names is
-/// <c>src/Shared/ValueObjectResourceMessages.cs</c>, which the System.CommandLine package compiles too.
+/// <c>src/Shared/ValueObjectResourceMessages.cs</c>.
 /// </summary>
 internal static class ValueObjectValidationAttributes
 {
