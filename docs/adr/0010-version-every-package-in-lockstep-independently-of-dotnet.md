@@ -4,10 +4,10 @@ Date: 2026-10-03
 
 ## Status
 
-Superseded by [ADR-0012](0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md): the packages are
-released in two trains. This record's ladder for a framework's next major, its compatibility island and its floors with
-no upper bound stand, restated there train by train. The body below is kept as the record of the decision as it was
-taken.
+Accepted again by [ADR-0014](0014-return-to-one-version-for-every-package.md), which withdraws
+[ADR-0012](0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)'s two release trains: every
+package is released at one version. ADR-0014 also keeps Dependabot's ignore rules, which ADR-0012 widened, and the
+README each package carries. The body below is kept as the record of the decision as it was taken.
 
 ## Context
 

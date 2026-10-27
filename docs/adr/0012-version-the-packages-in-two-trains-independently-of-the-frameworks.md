@@ -4,7 +4,12 @@ Date: 2026-10-19
 
 ## Status
 
-Accepted.
+Superseded by [ADR-0014](0014-return-to-one-version-for-every-package.md), which restores
+[ADR-0010](0010-version-every-package-in-lockstep-independently-of-dotnet.md)'s one version for every package. It was
+built up to a per-train preview and a rehearsal of each train's release, and taken out before any train released apart;
+ADR-0014 lists what was kept. The body below is kept as the record of the decision as it was taken.
+
+As it was accepted:
 
 - **Supersedes** [ADR-0010](0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its ladder for a
   framework's next major, its compatibility island and its floors with no upper bound on the frameworks stand, restated
@@ -15,8 +20,6 @@ Accepted.
   at its own version, the core first, rather than every package at one.
 - The CI that gates each release is
   [ADR-0013](0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md).
-- Built up to phase 1b, which differs from the text below on the points of [Phase 1a as built](#phase-1a-as-built)
-  and [Phase 1b as built](#phase-1b-as-built).
 
 ## Context
 
@@ -123,8 +126,7 @@ train by train, with no maintenance line.
   - the solution filter: the train of a project it adds or removes.
 
   Tests, documentation and workflows release nothing, and neither does the repository's `README.md`, which stops being
-  embedded. The main package carries a README of its own; every other package carries `src/PackageReadme.md`, filled
-  in with its id and description.
+  embedded. The main package carries a README of its own; every other package carries `src/PackageReadme.md`.
 
   The commit's type sets the release type in each train it touches, as `.releaserc.json` rates it. A releasing commit
   changes one train, `src/Shared` and the global inputs aside. A core pull request may carry, as separate commits, the
@@ -279,56 +281,3 @@ The contract kit's kernel adds a package, so there are thirty-nine.
 
 The 1.0 of the core is a release of its own, after the first release under this record and after the core's public API
 is tracked. Until then, an API that is not yet ready for the 1.0 promise carries `[Experimental]`.
-
-## Phase 1a as built
-
-The build is phased as ADR-0013's was, each phase leaving `main` releasable. Phase 1a builds the list, its two readers
-and the interfaces every later phase needs, while every train still gets one version: the workflows set
-`RELEASE_TRAIN_VERSIONS` with the same version for each train, and the tag prefix stays `v` for all, until phase 2
-places the trains apart. The differences:
-
-- The core's list names twelve projects, not ten packages: `AdCodicem.ValueObjects.Generators` and
-  `AdCodicem.ValueObjects.CodeFixes` are not packable, but the main package carries both inside it, and their assembly
-  must carry the core's version. "Every other packable project rides the satellites" reads as every other project.
-- MSBuild reads the list with a regular expression after all: the innermost object holding the project's name as a
-  string, which holds whatever the order of the keys, the objection to the rejected option. MSBuild has no JSON
-  parser, and `System.Text.Json` is refused in a property function (MSB4212). `release-trains.mjs check` refuses
-  every shape the expression could misread: a train's object holding another object, a name in two trains, a brace or
-  an MSBuild expansion (`$(`, `@(`, `%(`, `%XX`) in a string. It also refuses a stale name, a `PackageId` (the list
-  names packages by project) and a core project referencing another train. The plan runs it on every run, and
-  `ci.yml`'s pack check compares MSBuild's reading (`package-ids.sh --trains`) with the module's.
-- `.github/ci-families.json` loses its `train` field, a second registry that nothing read; the plan instead fails a
-  family whose projects ride two trains.
-- `RELEASE_TRAIN_VERSIONS` replaces `MINVERVERSIONOVERRIDE` by refusing it: `src/Directory.Build.targets` fails any
-  build or pack where `MinVerVersionOverride` comes from the environment or a global property, or where
-  `RELEASE_TRAIN_VERSIONS` names no version for the project's train, rather than let MinVer give every train one
-  version or fall back to the tags. An evaluation alone (`-getProperty`) runs no target and is not refused.
-- The package validation baseline is per train (`ReleaseBaselineVersions`, `core=X satellites=Y`). `release-pack.sh`
-  takes `<train>=<version>:<type>[:<last>]` for every train and checks that every package is at its train's version.
-  `verify-packages.sh` takes `<id>=<version>` pairs, and `push-packages.sh` the ids of one version, so that no script
-  globs a folder by one version: on the first run after phase 2 both trains compute `0.3.0`.
-- The compatibility island keeps no list of the trains: `tests/Compat/Directory.Packages.props` pins every package
-  `artifacts/packages` holds at exactly the version in its file name, and `heavy.yml` passes no version.
-
-## Phase 1b as built
-
-Phase 1b bounds every dependency on one of our packages and gives the packages READMEs of their own, every train still
-at one version. Where it differs from the text, or settles what the text leaves open:
-
-- `verify-packages.sh` refuses a dependency on one of our packages unless that package is in the set and the range is
-  exactly `[V, upper)`, V its version in the set; it never accepts a version only nuget.org lists. Every run packs
-  every train (phase 2 repacks the train a run does not release, at its last version, rather than download it), so the
-  set holds every dependency, and a renamed NuGet target fails the check instead of shipping bare floors again.
-- `_BoundOwnPackageDependencies` rewrites `_ProjectReferencesWithVersions`, an item private to NuGet's pack targets,
-  after `_GetProjectReferenceVersions` fills it. Packed together, a satellite at `0.4.0-preview.3` asks for the core's
-  `[0.3.0-preview.11, 0.4.0-0)`, and one at `0.4.0` for `[1.2.0, 2.0.0)` of a core at `1.2.0`.
-- The repository's `README.md` leaves the package inputs now: `preview-gate.sh` no longer lists it, and the plan runs
-  only the documentation tests for it. A package README, `src/AdCodicem.ValueObjects/README.md` or
-  `src/PackageReadme.md`, runs those tests and the pack, and the plan puts it back before dotnet-affected, as it does
-  `icon.png`, so that it marks no project. `DocumentationSnippetTests` compiles the snippets of both.
-- `src/PackageReadme.md` is a template: `_WritePackageReadme` fills in each package's id and description at pack
-  time, its Markdown characters written as character references. nuget.org shows a package's README instead of its
-  description, never both, so a README naming no package would leave 37 pages saying nothing of what each adds;
-  `verify-packages.sh` refuses a README that does not open with the package's id. Both READMEs link the table of the
-  released packages and the preview's, which lists the packages published as previews only. `docs(readme)` keeps its
-  patch, for a package README alone.
