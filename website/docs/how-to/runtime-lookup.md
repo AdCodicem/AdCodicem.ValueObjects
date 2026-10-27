@@ -63,17 +63,14 @@ object, since a struct type argument shares no code, and only for the visitors t
 Every integration that closes an adapter over a value object it knows only by its `Type` does so this way: the Dapper
 integration registers its handlers, the MongoDB provider builds the serializer the driver asks it for, the MessagePack
 resolver the formatter MessagePack asks it for, protobuf-net's `AddValueObjects` names the closed serializer type of each
-value object it registers, the Orleans package's selector the codec Orleans asks it for, the Marten package's member
-source the value-type member of each value object a query meets, the MVC model binder provider
+value object it registers, the MVC model binder provider
 creates its binders, the minimal API
 filter of `AdCodicem.ValueObjects.AspNetCore.Http` closes the check of each parameter it explains, the Azure Functions
 converter closes the conversion of each value object a parameter binds and its middleware the check of each it
-explains, the HotChocolate type discovery handler the scalar of each value object a schema meets, the HotChocolate.Data
-type interceptor the operations of each value-object member a filter input meets, the NJsonSchema
+explains, the HotChocolate type discovery handler the scalar of each value object a schema meets, the NJsonSchema
 package the converter that writes a value object's examples through the Newtonsoft.Json settings of a schema, the Blazor
-input the text adapters, plain and nullable, of the value object it binds, through a visitor that is not generic, the
-System.CommandLine symbols the parser of the value object their option or argument holds, in each of its shapes, the
-CsvHelper factory the converter of each value object a CsvHelper context meets, DataAnnotations' `[NotDefault]` its check of the default instance, once per type, the JSON converter factory closes the general-purpose converter it gives a value object written by hand, the test-data sampler's
+input the text adapters, plain and nullable, of the value object it binds, through a visitor that is not generic,
+DataAnnotations' `[NotDefault]` its check of the default instance, once per type, the JSON converter factory closes the general-purpose converter it gives a value object written by hand, the test-data sampler's
 `Next(descriptor)` draws a value, the AutoFixture customization answers a request, the Bogus extensions give a member a
 rule, FsCheck's `MergeValueObjects` merges an arbitrary, and the Entity Framework Core conventions map each value object
 and each entity identifier, while a model is built. One converter is the exception: that of an optional property,
@@ -81,9 +78,7 @@ and each entity identifier, while a model is built. One converter is the excepti
 `MakeGenericType`, over the type arguments the visitor received. Entity Framework Core builds no model under native AOT,
 so that never runs there. The JSON Patch adapter of a dictionary keyed by value objects or holding them, which
 `TryApplyTo` closes over the dictionary's two types as JSON Patch closes its own, is the other: a visitor names the value
-object, never the dictionary's other type, and MVC's JSON Patch runs in no native binary. The Wolverine.Http package
-needs no visitor: the code Wolverine generates for an endpoint names each value object, and calls its typed helpers over
-it.
+object, never the dictionary's other type, and MVC's JSON Patch runs in no native binary.
 
 An entity identifier's descriptor, from `EntityIdRegistry`, has the same way out: `EntityIdDescriptor.Accept` hands an
 `IEntityIdVisitor<TResult>` the identifier type, constrained to `IEntityId<TId>`, so the visitor reaches `TId.New()`.

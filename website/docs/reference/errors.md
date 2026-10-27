@@ -43,14 +43,10 @@ refuse a value: `AddValueObjects(messages => messages.UseResource<T>())` on MVC 
 ([ASP.NET Core](../how-to/aspnet-core.md#messages-in-the-applications-language)),
 `UseValueObjectProblemDetails(messages => messages.UseResource<T>())` on an Azure Functions HTTP trigger
 ([Azure](../how-to/azure.md#messages-in-the-requests-language)),
-`UseValueObjects(messages => messages.UseResource<T>())` on Wolverine.Http endpoints
-([Wolverine](../how-to/wolverine.md#messages-in-the-requests-language)),
 `AddValueObjects(options => options.UseResource<T>())`
 on a HotChocolate schema ([GraphQL](../how-to/graphql.md#messages-in-the-applications-language)),
 `AddValueObjectInputs(options => options.UseResource<T>())` for the inputs of a Blazor form
-([Blazor](../how-to/blazor.md#messages-in-the-applications-language)),
-`AcceptValueObjects(options => options.UseResource<T>())` on the options and arguments of a System.CommandLine command
-([System.CommandLine](../how-to/files-and-command-line.md#messages-in-the-applications-language)), FluentValidation's
+([Blazor](../how-to/blazor.md#messages-in-the-applications-language)), FluentValidation's
 `LanguageManager` under `MustParseAs`, `MustSatisfy` and `NotDefault`
 ([FluentValidation](../how-to/fluentvalidation.md#messages-in-another-language)), and `ErrorMessageResourceType` named
 alone on DataAnnotations' `[ParsesAs]` and `[NotDefault]`
@@ -69,7 +65,7 @@ A message quotes arguments the rules the type declares supply, through `ValueObj
 name, which FluentValidation quotes as a placeholder, and a position, which an `IStringLocalizer` formats with
 `string.Format`.
 
-| Code | Named (FluentValidation) | Positional (MVC, minimal APIs, Azure Functions, Wolverine.Http, HotChocolate, Blazor inputs, System.CommandLine, DataAnnotations) |
+| Code | Named (FluentValidation) | Positional (MVC, minimal APIs, Azure Functions, HotChocolate, Blazor inputs, DataAnnotations) |
 | --- | --- | --- |
 | Every code | `{PropertyName}`, `{ValueObject}` | `{0}`, the member |
 | `value_object.too_short` | `{MinLength}` | `{1}` |
@@ -79,14 +75,10 @@ name, which FluentValidation quotes as a placeholder, and a position, which an `
 
 - `{ValueObject}` is the name of the value object type, without the arity of a generic one: `Reference` for
   `Reference<PurchaseOrder>`. `{0}` is the member the refusal is listed under: the display name MVC gives it, the
-  name a minimal API value binds from, the name of the parameter of an Azure Functions HTTP trigger, the name a
-  Wolverine.Http value binds from (a header's name, `X-Customer`), the argument, the input field or the variable of a
-  GraphQL refusal (the scalar's name for a variable's default value, which HotChocolate
-  names no variable for, and for an operand of a HotChocolate.Data filter under `AddValueObjectFiltering()`, or any
-  input value `QuoteScalarNameIn` selects), the field of a refused output, the `DisplayName` of a Blazor input, or else its field's
-  name, the alias of a System.CommandLine option as typed or the name of an argument, followed by the token's position
-  from zero where the symbol received more than one, `--ibans[1]` for the second, and bare for one, the display name of
-  a member DataAnnotations validates, or, in
+  name a minimal API value binds from, the name of the parameter of an Azure Functions HTTP trigger, the argument, the
+  input field or the variable of a GraphQL refusal (the scalar's name for a variable's default value, which HotChocolate
+  names no variable for, or for any input value `QuoteScalarNameIn` selects), the field of a refused output, the
+  `DisplayName` of a Blazor input, or else its field's name, the display name of a member DataAnnotations validates, or, in
   a request body, the name of
   the value object, never the JSON path, which holds the key a dictionary keyed by a value object
   refused.
@@ -108,12 +100,10 @@ those the application's `RequestLocalizationOptions` choose from the request
 ([Azure](../how-to/azure.md#messages-in-the-requests-language)). A template quoting an argument its code does not
 supply is the application's error: an `IStringLocalizer` throws its `FormatException`, which the integrations let
 through, HotChocolate answering a field it fails with its own unexpected error, while FluentValidation leaves a
-placeholder it has no value for as it is. On MVC, minimal APIs, Azure Functions HTTP triggers and Wolverine.Http
-endpoints, a resource read without `builder.Services.AddLocalization()` throws an `InvalidOperationException` naming the
+placeholder it has no value for as it is. On MVC, minimal APIs and Azure Functions HTTP triggers, a resource read without `builder.Services.AddLocalization()` throws an `InvalidOperationException` naming the
 call; on HotChocolate, the request executor fails to start with that exception. `AddValueObjectInputs` registers the
 localization services itself, and a Blazor input whose options were configured by hand without them throws that
-exception from its change event. The System.CommandLine options and arguments, which have no services, read the resource
-through a `ResourceManager` over its type, as DataAnnotations does; a blank entry keeps the English message.
+exception from its change event.
 
 A French resource for the codes of the framework, as an example:
 
@@ -182,10 +172,7 @@ put the `catch (ValueObjectException)` first.
 
 The message of the exception names the type and the rule, never the value, on every path: a mistyped IBAN, email
 address or telephone number does not reach the logs, traces and error reports that record a message. The
-converters and the integrations name the type and the rule, and leave the value out, too. CsvHelper itself puts the
-refused field in `TypeConverterException.Text`, and the raw record at the end of its message, unless
-`ExceptionMessagesContainRawData` is false
-([CsvHelper](../how-to/files-and-command-line.md#what-a-refused-field-looks-like)).
+converters and the integrations name the type and the rule, and leave the value out, too.
 
 `AttemptedValue` does hold the value. An exception logger that records the public properties of an exception, as
 Serilog.Exceptions does, records it in clear. On a value object that holds personal data, classify the type with an
@@ -231,8 +218,7 @@ logging generator reads one on the parameter or the property only, which `VO0045
 
 The integrations on a boundary report a rejected value in their own terms, so the exception is reserved for code
 that treats a rejected value as a bug, for a strict EF Core read, and for an EF Core write
-[refusing a value](#a-value-refused-on-write); the Orleans package carries one a grain lets escape back to the caller of
-the grain, its code and type kept:
+[refusing a value](#a-value-refused-on-write):
 
 | Integration | A rejected value |
 | --- | --- |
@@ -247,10 +233,8 @@ the grain, its code and type kept:
 | Dapper | `DataException`, carrying the code in its `Data`, for a value it cannot convert, and for text read into a value object over another type, or a number or a `Guid` read into one over `string`, that the value object refuses. |
 | EF Core with `strict: true` | `ValueObjectException`, from `Create`, for a column or an element of a [collection](../how-to/ef-core.md#collections-of-value-objects): the query fails. |
 | MongoDB.Driver, through [`AdCodicem.ValueObjects.MongoDB`](../how-to/mongodb.md#reading) | `FormatException`, "The value read is not a valid Iban: …", carrying the code in its `Data`, for a value the type refuses unless the serializer is trusted, and, whatever the trust, for a BSON `null` or a value the serializer of the underlying type cannot read; inside the driver's own `FormatException`, naming the member and its class, when it reads a document. |
-| Marten, through [`AdCodicem.ValueObjects.Marten`](../how-to/marten.md#strict-reads-and-patching) | A document, an inline projection and a raw event query are read through the generated converter: its `ValueObjectJsonException`, "The value is not a valid PageNumber: …", as it is; `FetchStreamAsync` and `AggregateStreamAsync` around it, inside Marten's `EventDeserializationFailureException`. A value a query projects, `Select(x => x.Page)` or `MaxAsync(x => x.Page)`, is refused by the package with the same `ValueObjectJsonException` and code, its message naming the type as C# does (`Reference<PurchaseOrder>` where the converter writes `Reference`), inside a `TargetInvocationException` where the runtime supports no dynamic code, as under native AOT, since Marten then calls the read through reflection; an identity Marten projects, `Select(x => x.Id)`, is built through the type's `Create`, which throws `ValueObjectException`. Always: Marten has no trusted read. |
 | MessagePack, through [`AdCodicem.ValueObjects.MessagePack`](../how-to/messagepack.md#reading) | `MessagePackSerializationException`, "The value read is not a valid Iban: …", carrying the code in its `Data`, for a value the type refuses unless the formatter is trusted, and, whatever the trust, for a `nil` or a value the formatter of the underlying type cannot read; inside MessagePack's own `MessagePackSerializationException`, "Failed to deserialize … value.". A dictionary whose keys normalize to one value object fails with MessagePack's own `ArgumentException`, which carries no code and quotes the key ([value-object keys](../how-to/messagepack.md#security-and-value-object-keys)). Through [SignalR](../how-to/messagepack.md#signalr), the hub method is not invoked: the client gets a `HubException` that names neither the rule nor its code, and the server logs the binding failure at `Debug`, with the code in the exception's chain. |
 | protobuf-net, through [`AdCodicem.ValueObjects.ProtobufNet`](../how-to/protobuf-net.md#reading) | `ProtoException`, "The value read is not a valid Iban: …", carrying the code in its `Data`, for a value the type refuses unless the serializer is trusted, and, whatever the trust, for a value protobuf-net's serializer of the underlying type cannot read, "The protobuf value read cannot be read as Iban, a value object over String.", with `value_object.not_parsable`; protobuf-net lets it through as it is. A field the message leaves out is never read: the member holds the default instance, which no rule checked ([members a sender leaves out](../how-to/protobuf-net.md#members-a-sender-leaves-out)). Through a protobuf-net.Grpc [code-first service](../how-to/protobuf-net.md#code-first-grpc) whose configuration is `ValueObjectBinderConfiguration.ForServer`, a refused request is answered `INVALID_ARGUMENT`, with the message of the refusal and a `google.rpc.ErrorInfo` carrying the code; without it, `UNKNOWN`, "Exception was thrown by handler.". A reply the client's value objects refuse surfaces on the client as an `RpcException`, `INTERNAL`, whose inner `ProtoException` carries the code. |
-| An Orleans grain call, through [`AdCodicem.ValueObjects.Orleans`](../how-to/orleans.md#reading) | `SerializerException`, "The value read is not a valid Quantity: …", carrying the code in its `Data`, for a value the type refuses unless the codec is trusted, and, whatever the trust, for a `null`, with `value_object.required`, or a value Orleans' codec of the underlying type cannot read, "The Orleans value read cannot be read as Quantity, a value object over Int32.", with `value_object.not_parsable`. A refused request fails on the caller with the silo's exception, its code intact, and the grain is not invoked; a refused reply fails on the caller the same way ([refusals at the caller](../how-to/orleans.md#refusals-at-the-caller)). A member the message leaves out is never read: it holds the default instance, which no rule checked. A `ValueObjectException` a grain lets escape reaches the caller with its code and type, never its `AttemptedValue` ([from grain code](../how-to/orleans.md#a-valueobjectexception-from-grain-code)). |
 | A gRPC service's handler, through [`AdCodicem.ValueObjects.Grpc`](../how-to/grpc.md) | `ValueObjectBadRequest.ThrowIfAny()` throws an `RpcException`, `INVALID_ARGUMENT`, "The request holds values its value objects refuse.", whose `google.rpc.BadRequest` holds a field violation per refused value, its `reason` the code in upper snake case and its `description` the rule's message. A `ValueObjectException` that escapes a handler, contract-first or code-first, is answered by `ValueObjectExceptionInterceptor` with an `RpcException`, `INVALID_ARGUMENT`, with the exception's message and a `google.rpc.ErrorInfo` carrying the code; without it, `UNKNOWN`, "Exception was thrown by handler.". |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly marked `[assembly: ValueObjectXmlSerialization]` | `XmlException`, with the message of the rule and the line of the element, carrying the code in its `Data`, inside `XmlSerializer`'s `InvalidOperationException` ("There is an error in XML document …") or `DataContractSerializer`'s `SerializationException`: [XML](../how-to/xml.md#reading). |
 | A Model Context Protocol tool whose result holds a value its type refuses | The converter's `ValueObjectJsonException` reaches the SDK, which answers the call with `An error occurred invoking 'get_iban'.`, with or without `AdCodicem.ValueObjects.ModelContextProtocol`, which checks arguments, not results. |
@@ -259,21 +243,17 @@ the grain, its code and type kept:
 | A structured answer, read through `ChatResponse<T>.Result` | The converters' `ValueObjectJsonException`, whose code the application can ask again with ([structured output](../how-to/language-models.md#structured-output)). |
 | A Model Context Protocol tool argument, through [`AdCodicem.ValueObjects.ModelContextProtocol`](../how-to/language-models.md#a-refused-argument-as-a-tool-execution-error)'s `WithValueObjectTools` | Nothing is thrown: the server answers a tool execution error, `isError: true`, whose text is `Argument 'quantity' rejected (value_object.out_of_range): …`, and whose structured content is the object above when the tool declares no output schema, its code and message read the same way. Without the package, the SDK answers `An error occurred invoking 'place_order'.`, and the rule and its code are lost. |
 | An Azure Functions isolated worker binding, through [`AdCodicem.ValueObjects.AzureFunctions`](../how-to/azure.md#route-values-query-values-and-binding-data)'s `UseValueObjects()` | The converter fails the parameter with a `FormatException`, "The value is not a valid Quantity: The value must be less than or equal to 100. (value_object.out_of_range)", carrying the code in its `Data` and at the end of its message; the worker keeps that text alone, in a `FunctionInputConverterException` with no inner exception, which fails the invocation. Over HTTP, with [`UseValueObjectProblemDetails()`](../how-to/azure.md#problem-details-for-http-triggers) after `ConfigureFunctionsWebApplication()`, a validation problem carrying the code of each refused route or query value, and of a `[FromBody]` value object where the MVC package's `AddValueObjects()` reads the body; the middleware throws nothing of its own. Without the package, the worker's JSON conversion refuses the text, a valid `Guid` or date included, and the host logs the reader's message, which can quote part of the value: `'not-a-guid' is an invalid JSON literal`. |
-| A Wolverine.Http route, query, header or form value, through [`AdCodicem.ValueObjects.Wolverine.Http`](../how-to/wolverine.md#a-refused-value)'s `UseValueObjects()` | Nothing is thrown: the request is answered 400 with the validation problem a minimal API answers, every refused or absent value of the request at once, each under the name it binds from with the rule's message, never the text, and its code under `errorCodes`, also recorded on the request, where `ValueObjectProblemDetails.GetErrorCodes` reads it; an absent value that cannot be `null` is `value_object.required`, "A value is required.". No middleware method and no handler runs. A JSON body stays Wolverine's: its own 400, "Invalid JSON format", with the rule's message in `detail` and no code; and so do `[AsParameters]` members, which Wolverine binds itself, leniently or, under `RejectUnparseableQueryValues = true`, with its own 400 and no code. Misuse throws `InvalidOperationException`, which carries no code: from `MapWolverineEndpoints`, one name bound to two value objects in an endpoint, and HTTP JSON options that cannot write the validation problem (no reflection-based serialization and no `AddProblemDetails()`); from a refusal answered with the messages of a resource, `builder.Services.AddLocalization()` missing. Without the package, Wolverine answers a refused route value 404, binds a refused query value as the default instance under its default `RejectUnparseableQueryValues = false`, and an empty or absent one, or a refused, empty or absent header or form value, in either mode; `[FromQuery]` on a value object stops the application at startup, "Sequence contains no elements". |
 | A Kafka message, through Confluent's JSON serdes with the schema of [`AdCodicem.ValueObjects.NJsonSchema`](../how-to/messaging.md#kafka-with-confluents-schema-registry) | The package refuses nothing: `JsonDeserializer<T>` reads through the settings' `ValueObjectConverter`, whose `JsonSerializationException` carries the code in its `Data`, and `JsonSerializer<T>` refuses to write a value its type refuses the same way. Confluent's own `InvalidDataException`, "Schema validation failed for properties: […]", from the validation of a message against the registered schema, carries none. |
-| A GraphQL argument, input field or variable, through [`AdCodicem.ValueObjects.HotChocolate`](../how-to/graphql.md#a-refused-value)'s `AddValueObjects()`, or a filter operand, through [`AdCodicem.ValueObjects.HotChocolate.Data`](../how-to/graphql.md#filtering-and-sorting-with-hotchocolatedata)'s `AddValueObjectFiltering()` | `LeafCoercionException`, carrying the code in its `Data`, whose GraphQL error has the message of the rule, the code as `extensions.code`, and a `ValueObjectException` with the type and the code on `IError.Exception`: a field error at the argument's `inputPath`, a filter operand's at its operation, `["eq"]` or `["in", 1]`, a request error at the variable's `path`. A variable of another JSON kind is `value_object.not_parsable`; a literal of another kind and a `null` literal are its own validation errors, with no code, and a `null` variable its `HC0018`; a `null` text fragment of a filter is its `HC0026`, as for a `String` member, with no code. Without the package, a schema taking a value object as an argument does not start: ``No compatible constructor found for input type type `Shop.Iban`.``. |
+| A GraphQL argument, input field or variable, through [`AdCodicem.ValueObjects.HotChocolate`](../how-to/graphql.md#a-refused-value)'s `AddValueObjects()` | `LeafCoercionException`, carrying the code in its `Data`, whose GraphQL error has the message of the rule, the code as `extensions.code`, and a `ValueObjectException` with the type and the code on `IError.Exception`: a field error at the argument's `inputPath`, a request error at the variable's `path`. A variable of another JSON kind is `value_object.not_parsable`; a literal of another kind and a `null` literal are its own validation errors, with no code, and a `null` variable its `HC0018`. Without the package, a schema taking a value object as an argument does not start: ``No compatible constructor found for input type type `Shop.Iban`.``. |
 | A Blazor form's text, through [`AdCodicem.ValueObjects.Blazor`](../how-to/blazor.md#the-code)'s `InputValueObject` | Nothing is thrown: the refused text stays in the field, the rule's message goes under it through the form's `EditContext`, and `TryGetValueObjectErrorCode` reads the code; empty text a value object that cannot be `null` refuses is `value_object.required`. A type the registry does not describe, one that is no value object, or, where the runtime supports no dynamic code, a value object written by hand or a construction of a generic one that nothing registered, throws `InvalidOperationException` at the input's first render, naming the registration native AOT needs, which carries no code: it reports a misuse, never a broken rule. A statically rendered form is mapped by the framework first, which answers a refused value with its own message, quoting the text, and no code ([static rendering](../how-to/blazor.md#static-rendering)). |
-| A System.CommandLine option or argument, through [`AdCodicem.ValueObjects.CommandLine`](../how-to/files-and-command-line.md#what-a-refusal-looks-like)'s `AcceptValueObjects()` or `AcceptValueObject()` | Nothing is thrown: a parse error naming the option, by the alias typed, or the argument, and giving the rule's message, never the text, one per refused token, under its position when the symbol received more than one, the code and the type kept beside it, which `TryGetValueObjectErrorCode` and `TryGetValueObjectType` read; an invocation writes it to standard error, shows the help, and returns 1 without running the action. An option or an argument of a command above the subcommand invoked, which System.CommandLine reads only at `GetValue` unless the option is `Recursive` or either has a default value, is read while the subcommand is validated once `AcceptValueObjects()` reached it. `GetValue` on a refused symbol throws System.CommandLine's `InvalidOperationException`, built from the message alone, which carries no code: a parent command's symbol configured by `AcceptValueObject()` alone, under a subcommand no walk reached, gets there inside the action. Misuse throws `InvalidOperationException` when the symbol is configured, which carries no code: it reports a misuse, never a broken rule. `AcceptValueObject()` throws for a symbol whose type holds no value object, and for one that already has a `CustomParser`; both calls throw for a value object in a shape they do not read, and for a value object the registry cannot describe, naming the registration native AOT needs: where the runtime supports no dynamic code, a value object written by hand or a construction of a generic one that nothing registered, even beside a `CustomParser` of the application's own. System.CommandLine's own errors, an option `Required` and left out among them, carry no code. |
-| A CSV field, through [`AdCodicem.ValueObjects.CsvHelper`](../how-to/files-and-command-line.md#csvhelper)'s `AddValueObjects()` or `AddValueObject<TSelf, TValue>()` | CsvHelper's `TypeConverterException`, "The field is not a valid Iban: …", naming the type and the rule, never the field, carrying the code in its `Data`, which `GetRecords` lets through as it is and `ReadingExceptionOccurred` sees; an empty field, or one a short row lacks under `MissingFieldFound = null`, read into a value object that refuses empty text is `value_object.required`, "An empty field cannot be read as Iban; declare the member as a nullable Iban? instead."; a rule with an empty message gives "The field is not a valid Iban.", and so does a parser written by hand that refuses without a reason, with `value_object.not_parsable`. Its `Text` holds the field, empty text for one a short row lacks, unless `ExceptionMessagesContainRawData` is false, and CsvHelper's message ends with the raw record unless it is. A map's `Default(…, useOnConversionFailure: true)` reads the default instead, with no code, for a default of the value object or a `null` one for a nullable member. A type the factory cannot describe, a value object written by hand or a construction of a generic one nothing registered where the runtime supports no dynamic code, throws `InvalidOperationException` when CsvHelper first meets it, with no code: at header validation, as it is, and with no header inside a `ReaderException` per row; `WriteRecords` and `WriteRecord` wrap it in a `WriterException`, and `GetField<T>` and `WriteField<T>` throw it as it is. Without the package, a value object reads as a default instance, with nothing thrown, and through a class map CsvHelper's own `TypeConverterException`, "The conversion cannot be performed.", carries no code. |
 
 The other reads do not validate. EF Core by default, Dapper for a value the provider returns as the underlying type or
-as its date and time counterpart, a trusted MongoDB serializer, a trusted MessagePack formatter, a trusted protobuf-net
-serializer and a trusted Orleans codec build the value object with `CreateUnchecked`: they read what this application
+as its date and time counterpart, a trusted MongoDB serializer, a trusted MessagePack formatter and a trusted protobuf-net
+serializer build the value object with `CreateUnchecked`: they read what this application
 validated when it wrote it. A trusted MongoDB serializer still refuses a BSON `null` and a value the serializer of the
 underlying type cannot read, which no instance can hold, a trusted MessagePack formatter a `nil` and a value the
-formatter of the underlying type cannot read, a trusted protobuf-net serializer a value protobuf-net's serializer of the
-underlying type cannot read, and a trusted Orleans codec a `null` and a value Orleans' codec of the underlying type
-cannot read.
+formatter of the underlying type cannot read, and a trusted protobuf-net serializer a value protobuf-net's serializer of
+the underlying type cannot read.
 [EF Core](../how-to/ef-core.md#validation-on-read) says when to read strictly. A `.Value` an EF Core query projects
 under [`UseValueObjectQueries()`](../how-to/ef-core.md#the-value-in-a-query) is read from the column as it stands, in a
 strict context too: it builds no value object, so nothing validates it. A context whose options call it, started on a
@@ -304,13 +284,10 @@ without being validated again.
 | EF Core, an element of a collection of an optional value object over text (`List<Iban?>`) | Nothing is thrown: the element is stored as a JSON `null`, a `NULL` in a PostgreSQL array. |
 | EF Core, an element of a collection of an optional value object over a value type (`List<Quantity?>`) | As in a `List<Quantity>`: the `DbUpdateException` around the `ValueObjectException`. Entity Framework Core cannot write the `null` a converter would hand its JSON writer there. |
 | MongoDB.Driver, through [`AdCodicem.ValueObjects.MongoDB`](../how-to/mongodb.md#writing) | `BsonSerializationException`, with the same message: from `InsertOne`, `InsertMany` or `ReplaceOne`, inside the driver's own, which names the member; from an update or a query constant, as it is. An `Iban?` holding a default `Iban` is refused too; an `Iban?` holding nothing is written as `null`. Nothing is written. An update through `.Value`, `Update.Set(x => x.Page.Value, 0)`, writes the raw value unchecked: set the value object instead. |
-| Marten | The generated converter's `ValueObjectJsonException`, with the same message, from `SaveChangesAsync`: for a document, an event, and a `Patch<T>(…).Set(x => x.Page, …)` writing a default instance; a `TSelf?` holding nothing is written as `null`. |
 | MessagePack, through [`AdCodicem.ValueObjects.MessagePack`](../how-to/messagepack.md#writing) | `MessagePackSerializationException`, with the same message, inside MessagePack's own, "Failed to serialize … value.", from a value, a dictionary key, and an `Iban?` holding a default `Iban`; an `Iban?` holding nothing is written as `nil`. Through [SignalR](../how-to/messagepack.md#signalr), a .NET client's invocation throws it, and nothing is sent; a hub method's result fails to be written, the server logs it, and closes the connection. |
 | protobuf-net, through [`AdCodicem.ValueObjects.ProtobufNet`](../how-to/protobuf-net.md#writing) | `ProtoException`, with the same message, as it is: from a value, a nullable one holding a default instance, an element of a list and a dictionary key; a `TSelf?` holding nothing is written as nothing. Through a code-first gRPC service, a reply the server cannot write is answered `UNKNOWN`, "Exception was thrown by handler.". |
-| Orleans, through [`AdCodicem.ValueObjects.Orleans`](../how-to/orleans.md#writing) | `SerializerException`, with the same message, as it is: from an argument, a result, a member, an element or a member typed `object` holding one. A client sending one gets it before anything is sent; a grain returning one fails its reply. A call between two grains of one silo copies its arguments instead, so a default reaches the callee there ([local calls](../how-to/orleans.md#local-calls-and-default-instances)). |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly marked `[assembly: ValueObjectXmlSerialization]` | `XmlException`, "The value to write is not a valid Quantity: …", inside `XmlSerializer`'s `InvalidOperationException` ("There was an error generating the XML document.") or `DataContractSerializer`'s `SerializationException`. |
 | HotChocolate, through [`AdCodicem.ValueObjects.HotChocolate`](../how-to/graphql.md#a-refused-value) | The field's error, with the message of the rule and HotChocolate's own code, `EXEC_INVALID_LEAF_VALUE`; the `ValueObjectException` on `IError.Exception` keeps the rule's code. A real that is not finite is refused the same way, as no GraphQL Float holds it. |
-| CsvHelper, through [`AdCodicem.ValueObjects.CsvHelper`](../how-to/files-and-command-line.md#what-is-written) | `TypeConverterException`, with the same message, as it is: from `WriteRecords`, `WriteRecord` and `WriteField`, for a value and for a `TSelf?` holding a default instance; a `TSelf?` holding nothing is written as empty text, or as the first of its `NullValues`. The fields written before it stay in the writer's buffer, which disposing the writer flushes. |
 
 The message names the type and the rule, never the value, and each exception carries the code of the rule, as
 [below](#the-code-in-an-exception).
@@ -390,34 +367,6 @@ serializer does when an attribute names it on such a type. A `null` in a `List<I
 protobuf-net's `NullReferenceException`, as in a `List<int?>`, and a stream disposed while a value is read is the
 stream's `ObjectDisposedException`.
 
-`AdCodicem.ValueObjects.Orleans` lets through Orleans' own exceptions, which carry no code. A side without the package
-has no codec: Orleans' `CodecNotFoundException`, "Could not find a codec for type Shop.Sku.", which a silo in the
-`Development` environment throws as it starts, and otherwise at the first call, returned to the caller; a
-`ValueObjectCodec<TSelf, TValue>` an application registers by hand comes without the type filter, Orleans'
-`InvalidOperationException`, `Type "Shop.Quantity" is not allowed.`. Bytes cut short fail with the reader's
-`IndexOutOfRangeException`. A text a peer over the primitives repeats in its message, read into a `Sku?`, fails with
-Orleans' `ReferenceNotFoundException`, its codec of a nullable value reading a reference only as `null`
-([what a value object writes](../how-to/orleans.md#what-a-value-object-writes)). Two misuses, never a broken rule, are
-refused with a `NotSupportedException`: where the runtime supports no dynamic code, a value object nothing registered, a
-construction of a generic one or one written by hand, the message naming `AddValueObject<TSelf, TValue>()`; and on
-write, a member, an argument or a result typed as a subclass of `ValueObjectException`, which would arrive as a
-`ValueObjectException`, the message asking for `ValueObjectException` or `Exception`.
-
-`AdCodicem.ValueObjects.Marten` lets through Marten's own exceptions, which carry no code, as they are without the
-package: a member of the author's, `x.Iban.CountryCode`, is Marten's `BadLinqExpressionException`, and
-`x.Iban.Equals(iban)` its `NotSupportedException` ("Marten does not (yet) support Linq queries using the … Equals()
-method") ([what does not translate](../how-to/marten.md#what-translates)); a compiled query whose query type holds a
-single value object is its `InvalidCompiledQueryException` ("Members Iban Iban cannot be used as parameters to a
-compiled query"), which `VO0048` reports when the project builds, and a value-object identity Marten does not take for
-one its `InvalidDocumentException` when the document is first stored
-([identities](../how-to/marten.md#identities)). The package's own refusals of a misuse, never a
-broken rule, are `NotSupportedException`s too, told apart from Marten's by their messages: in a compiled query, values
-of a member read through a local of `QueryIs` or a constant collection beside such a member, a collection of nullable
-value objects, or a single value object of a type Marten lists as an identity, each message naming the query, the value
-object, the member and what to declare or read instead ([compiled queries](../how-to/marten.md#compiled-queries)); and,
-where the runtime supports no dynamic code, a value object nothing registered, a construction of a generic one or one
-written by hand, the message naming `ValueObjectRegistry.Register` and `UseValueObject<TSelf, TValue>()`.
-
 A log is no such write: nothing reads one back into a value object. The
 [Serilog integration](../how-to/logging.md#serilog) logs a default instance as the default of its underlying type,
 `0`, `""` or `false`, and throws nothing, whatever it logs.
@@ -457,36 +406,29 @@ reading English:
 | EF Core, an entity added without its `Guid` key, under `ConfigureValueObjects` | `InvalidOperationException`, `value_object.required` | In `Data` |
 | EF Core, a row a CHECK constraint from the rules refused, under `UseValueObjectCheckErrors()` | The provider's `SqlException`, `PostgresException` or `SqliteException`, inside the `DbUpdateException` of `SaveChanges`, as it is from `ExecuteUpdate`, raw SQL or a migration; on SQL Server, a raw query reading back the rows it writes, over `OUTPUT`, fails with an error that carries none, which `ValueObjectCheckConstraints.TryGetCode` reads | In `Data` |
 | MongoDB.Driver, a read or a refused write | `FormatException` on read, `BsonSerializationException` on write, inside the driver's exception of the same type, naming the member, when it reads or writes a document | In `Data` |
-| Marten, a read, a projected value or a refused write | `ValueObjectJsonException`, as it is, inside Marten's `EventDeserializationFailureException` for a stream, or inside a `TargetInvocationException` for a projected value where the runtime supports no dynamic code; `ValueObjectException` for an identity Marten projects | `ErrorCode`, beside `ValueObjectType`, and in `Data` |
 | MessagePack, a read or a refused write | `MessagePackSerializationException`, inside MessagePack's own of the same type when the serializer reads or writes a value | In `Data` |
 | protobuf-net, a read or a refused write | `ProtoException`, as it is | In `Data` |
-| Orleans, a read or a refused write | `SerializerException`, as it is, returned to the caller of a grain for a refused request | In `Data` |
-| Orleans, a `ValueObjectException` a grain lets escape | `ValueObjectException`, rebuilt on the caller without `AttemptedValue` | `ErrorCode` |
 | A protobuf-net.Grpc code-first service, a refused request, through `ValueObjectBinderConfiguration.ForServer` | `RpcException`, `INVALID_ARGUMENT`, whose trailers carry a `google.rpc.ErrorInfo` | The `ErrorInfo`'s `reason` and `metadata["code"]` on the client; `Data` on the server |
 | A gRPC handler's refusal, through `ValueObjectExceptionInterceptor` | `RpcException`, `INVALID_ARGUMENT`, whose trailers carry a `google.rpc.ErrorInfo` | As above |
 | A gRPC request's fields, through `ValueObjectBadRequest` | `RpcException`, `INVALID_ARGUMENT`, whose trailers carry a `google.rpc.BadRequest` | Each violation's `reason` on the client; the first code in `Data` on the server |
 | `XmlSerializer` and `DataContractSerializer`, in an assembly that opts into XML serialization | `XmlException`, inside the serializer's `InvalidOperationException` or `SerializationException` | In `Data` |
 | The Azure Functions converter | `FormatException`, whose text alone the worker keeps, in its `FunctionInputConverterException` | In `Data`, and at the end of the message |
-| The HotChocolate scalars, and the operands of a HotChocolate.Data filter | `LeafCoercionException`, whose GraphQL error carries a `ValueObjectException` on `IError.Exception` | In `Data`; the error's `Exception` in `ErrorCode`, and its `extensions.code` but for a refused output |
+| The HotChocolate scalars | `LeafCoercionException`, whose GraphQL error carries a `ValueObjectException` on `IError.Exception` | In `Data`; the error's `Exception` in `ErrorCode`, and its `extensions.code` but for a refused output |
 | DataAnnotations' throwing `Validator` methods, for a refusal of `[ParsesAs]` or `[NotDefault]` | `ValidationException`, which DataAnnotations raises around the result | `ErrorCode` of its `ValueObjectValidationResult` |
-| CsvHelper, a refused field or a refused write | `TypeConverterException`, a `CsvHelperException`, as it is | In `Data` |
 
 A Blazor input throws nothing for refused text, and so has no row here: the rule's message goes under the field, through
 the form's `EditContext`, and `TryGetValueObjectErrorCode` reads the code from it, as the table of rejected values under
-[`ValueObjectException`](#valueobjectexception) says. A System.CommandLine option or argument throws nothing for refused
-text either: the refusal is a parse error, whose code `TryGetValueObjectErrorCode` reads. Nor does a Wolverine.Http
-endpoint for a refused route, query, header or form value: the request is answered with the validation problem, its
-codes under `errorCodes` and recorded on the request for `ValueObjectProblemDetails.GetErrorCodes`.
+[`ValueObjectException`](#valueobjectexception) says.
 
 The code is the one the rule reports. A value that is not of the underlying type at all carries
 `value_object.not_parsable`: a JSON token of the wrong kind, a number the underlying type cannot hold, text not of its
 shape, a column the Dapper handler cannot convert, an XML element holding elements or no text of the underlying type, a
 BSON value of a type, or beyond a range, the serializer of the underlying type cannot read, a MessagePack value of
 another type, beyond a range, not of the underlying type's shape, or truncated, a protobuf field of another wire type,
-beyond a range, not of the underlying type's shape, of a negative length, or truncated, an Orleans field of another wire
-type or beyond a range. A `null` where a value object that cannot be `null` is expected carries
-`value_object.required`: a JSON `null`, a SQL `NULL`, a BSON `null`, a MessagePack `nil` or an Orleans `null` read into
-an `Iban` rather than an `Iban?`, an empty CSV field read into one, whatever its parser says of no text, an element
+beyond a range, not of the underlying type's shape, of a negative length, or truncated. A `null` where a value object
+that cannot be `null` is expected carries
+`value_object.required`: a JSON `null`, a SQL `NULL`, a BSON `null` or a MessagePack `nil` read into
+an `Iban` rather than an `Iban?`, an element
 marked `xsi:nil` that `XmlSerializer` hands a member that cannot be `null` (`DataContractSerializer` refuses that one
 itself, without a code). So does an entity [added without its key](#an-entity-added-without-its-key). The messages
 are the ones the exceptions carried before; where the System.Text.Json reader itself cannot read a token, as for a
@@ -524,20 +466,12 @@ filter of the application's own reads the code with `ValueObjectErrors.TryGetCod
 output refusal's included, whose `extensions.code` HotChocolate replaces with its own
 ([GraphQL](../how-to/graphql.md#a-refused-value)).
 
-The two HotChocolate packages refuse a schema they cannot serve at start, inside HotChocolate's `SchemaException`, with
+The HotChocolate package refuses a schema it cannot serve at start, inside HotChocolate's `SchemaException`, with
 exceptions that carry no code. Where the runtime supports no dynamic code, as under native AOT, the scalars refuse a
 value object written by hand, or a construction of a generic one, that nothing registered with a
 `NotSupportedException` naming `ValueObjectRegistry.Register<TSelf, TValue>(TSelf.Schema)` and
-`AddValueObjectScalar<TSelf, TValue>()`, and the HotChocolate.Data filters with one naming
-`BindValueObject<TSelf, TValue>()` beside them
-([GraphQL](../how-to/graphql.md#generic-value-objects-and-value-objects-written-by-hand-in-a-filter)).
-`ValueObjectTextOperationFilterInputType<TSelf>` bound to a value object that is not over `string` throws an
-`InvalidOperationException`, ``'Shop.Quantity' is not a value object over string``, and bound without
-`IncludeTextOperations()`, or in a named convention, meets HotChocolate's own ``For the field contains of type
-IbanOperationFilterInput was no handler found.`` ([binding by hand](../how-to/graphql.md#binding-by-hand)). A text
-operation run without `UseValueObjectQueries()` fails at its first query, never at start, with HotChocolate's
-"Unexpected Execution Error" around Entity Framework Core's "could not be translated"
-([the text operations](../how-to/graphql.md#the-text-operations-on-request)).
+`AddValueObjectScalar<TSelf, TValue>()`
+([GraphQL](../how-to/graphql.md#generic-value-objects-and-value-objects-written-by-hand)).
 
 A tool argument refused through `AdCodicem.ValueObjects.AI` throws nothing: the code is the `code` of the result the
 model reads ([language models](../how-to/language-models.md#a-refused-argument)). Where reflection-based serialization

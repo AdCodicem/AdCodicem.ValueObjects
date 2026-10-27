@@ -51,9 +51,8 @@ public partial class ApiJsonContext : JsonSerializerContext;
 ```
 
 It is declared at compile time, on the context, so there is nothing to remember when the options are built. It lives in
-the context's own options, though: a host given the context as a resolver alone, into options of its own, loses it, as
-Marten's `UseTypeInfoResolver(ApiJsonContext.Default)` does, writing every value object as `{}`; hand such a host
-`ApiJsonContext.Default.Options` ([Marten](./marten.md#the-serializer)).
+the context's own options, though: a host given the context as a resolver alone, into options of its own, loses it, and
+writes every value object as `{}`; hand such a host `ApiJsonContext.Default.Options`.
 
 The context lists the types the application serializes, value objects included, never their underlying types, which
 the generated converter reads itself. That holds for a host that reads a method's parameters through the options it is

@@ -2,7 +2,7 @@
 title: Use with GraphQL (HotChocolate)
 sidebar_label: GraphQL (HotChocolate)
 slug: /how-to/graphql
-description: Give every value object a GraphQL scalar of its own under HotChocolate 16, serialized as its underlying value and read through its rules, with a refused value answered with the rule's code under extensions.code, in the application's language if it asks, and filter on every value object in HotChocolate.Data through its scalar.
+description: Give every value object a GraphQL scalar of its own under HotChocolate 16, serialized as its underlying value and read through its rules, with a refused value answered with the rule's code under extensions.code, in the application's language if it asks.
 ---
 
 # Use with GraphQL (HotChocolate)
@@ -203,11 +203,6 @@ rather than after the value:
     .QuoteScalarNameIn(inputValue => inputValue.Coordinate.Name == "RangeInput"))
 ```
 
-The operations of a HotChocolate.Data filter are such inputs, and `AddValueObjectFiltering()` selects them itself
-([Filtering](#filtering-and-sorting-with-hotchocolatedata)): `« Iban »`, never `« eq »`. Only the message changes: the
-code, the `inputPath` and the `coordinate` stay HotChocolate's. A variable HotChocolate reads before any field, `eq: $v`,
-has no coordinate and keeps its name, `« v »`.
-
 The localizer comes from the application's services: without `services.AddLocalization()`, the request executor fails
 to start, naming the call, rather than the first refusal. The filter runs where the first `AddValueObjects` call
 registers it among the schema's error filters: one of the application's registered after it sees the localized
@@ -231,223 +226,10 @@ builder.Services.AddGraphQLServer()
 `AddValueObjects()` beside it. Its scalar wins for its type, its `name` over the options' `Name<TSelf>`, which names one
 added without a name.
 
-## Filtering and sorting with HotChocolate.Data
-
-```bash
-dotnet add package AdCodicem.ValueObjects.HotChocolate.Data
-```
-
-Without it, HotChocolate.Data has the same gap one level down. `[UseFiltering]` infers an input from the struct's public
-properties, `IbanFilterInput { countryCode: StringOperationFilterInput value: StringOperationFilterInput }`, so a filter
-names the wrapper, `where: { iban: { value: { eq: "…" } } }`, and compares raw text, which normalization never saw:
-`fr76 3000 …` finds nothing. Entity Framework Core translates that `value` only under `UseValueObjectQueries()`
-([Entity Framework Core](ef-core.md)), and fails the query otherwise.
-
-`AddValueObjectFiltering()`, after `AddFiltering()`, filters every value object a filter meets through the operations of
-its scalar, with no binding per type:
-
-```csharp skip
-builder.Services.AddGraphQLServer()
-    .AddQueryType<Query>()
-    .AddValueObjects()
-    .AddSorting()
-    .AddProjections()
-    .AddFiltering()
-    .AddValueObjectFiltering();   // after AddFiltering()
-```
-
-```graphql
-input AccountFilterInput {
-  iban: IbanOperationFilterInput
-  backup: EmailAddressOperationFilterInput            # EmailAddress?
-  ref: ReferenceOfPurchaseOrderOperationFilterInput   # Reference<PurchaseOrder>
-  previous: ListIbanOperationFilterInput              # List<Iban>: all, none, some, any
-  …
-}
-
-input IbanOperationFilterInput {
-  eq: Iban neq: Iban in: [Iban!] nin: [Iban!] gt: Iban ngt: Iban gte: Iban ngte: Iban lt: Iban nlt: Iban lte: Iban nlte: Iban
-}
-```
-
-### What it covers
-
-A type interceptor replaces the input HotChocolate.Data infers for a value-object member with the package's, closed over
-the value object through its descriptor's visitor:
-
-- a member of the value object's type or of its nullable type, and the elements of a list or an array of either, whose
-  list operations are HotChocolate's;
-- every filter input: those `[UseFiltering]` infers, a part of the row, a `FilterInputType<T>` of the application's own
-  for a field it does not type itself, a named convention, `AddFiltering("s")`, whose inputs keep HotChocolate's prefix,
-  `s_IbanOperationFilterInput`, and a `FilterConvention` subclass registered with `AddFiltering<TConvention>()`;
-- a construction of a generic value object and a value object written by hand, which the registry describes when the
-  filter meets them ([below](#generic-value-objects-and-value-objects-written-by-hand-in-a-filter)).
-
-It leaves alone what the application decides itself: a binding of its own, `BindRuntimeType<Quantity, QuantityEqOnly>()`,
-a field its filter types, `descriptor.Field(x => x.Qty).Type<QuantityEqOnly>()`, and HotChocolate's `[ID]`, whose
-`IdOperationFilterInput` replaces any other input.
-
-### The operations
-
-- **Every value object** gets `eq`, `neq`, `in`, `nin`, `gt`, `gte`, `lt`, `lte` and their negations, as HotChocolate's
-  comparable types do; a closed set keeps them, as its scalar is a String.
-- **A value object over `bool`** gets `eq` and `neq` alone, as HotChocolate gives a `bool`.
-- **An operand is nullable**, and `eq: null` finds the rows whose nullable member holds no value. An element of `in` or
-  `nin` is not, `in: [Iban!]`, unlike HotChocolate's `in: [Int]`: `or: [{ backup: { eq: null } }, { backup: { in: […] }
-  }]` finds both.
-
-HotChocolate.Data's own handlers read an operand through the scalar, so it is normalized and validated, and compare it
-with the member through the value object's operators, which Entity Framework Core translates to the column through its
-converter, with no `UseValueObjectQueries()`:
-
-| Filter | SQLite | PostgreSQL | SQL Server |
-| --- | --- | --- | --- |
-| `iban: { eq: "fr76 3000 6000 0112 3456 7890 189" }` | `"a"."Iban" = @p`, `@p='FR7630006000011234567890189'` | `a."Iban" = @p` | `[a].[Iban] = @p` |
-| `iban: { in: [ … ] }` | `"a"."Iban" IN (@p1, @p2)` | `a."Iban" = ANY (@p)` | `[a].[Iban] IN (@p1, @p2)` |
-| `qty: { gt: 5 }` | `"a"."Qty" > @p` | `a."Qty" > @p` | `[a].[Qty] > @p` |
-| `backup: { eq: null }` | `"a"."Backup" IS NULL` | `a."Backup" IS NULL` | `[a].[Backup] IS NULL` |
-| `previous: { some: { eq: "…" } }` | `@p IN (SELECT "p"."value" FROM json_each("a"."Previous") AS "p")` | `@p = ANY (a."Previous")` | `@p IN (SELECT [p].[value] FROM OPENJSON([a].[Previous]) WITH ([value] nvarchar(34) '$') AS [p])` |
-
-- **A comparison of text**, `gt: "DE89370400440532013000"`, compares the column under its collation, as for a `string`
-  column: SQL Server's default collation is case-insensitive, where the value object's own order, in memory, is ordinal.
-- **The provider's limits are the underlying type's.** SQLite translates no comparison of a `ulong`, a `TimeSpan` or a
-  `DateTimeOffset`, and the query fails with "Unexpected Execution Error", as the same comparison of a column of the
-  underlying type does. Npgsql refuses a `DateTime` operand without an offset against a `timestamp with time zone`
-  column: send it with `Z`.
-- **A value object written by hand needs its operators**, `==`, `!=`, `<`, `<=`, `>` and `>=`, which every generated one
-  has: without them, its `eq` and `gt` fail when they run, "The binary operator Equal is not defined for the types …",
-  while its `in`, which goes through its equality, answers.
-- **Sorting and projections need nothing.** `order: { iban: ASC }` is `ORDER BY` the column, a nullable member and a
-  generic construction included, in the database's collation, and `[UseProjection]` selects the columns of value objects,
-  with or without the package.
-
-A refused operand is the scalar's own refusal ([A refused value](#a-refused-value)): the rule's message and, under
-`extensions.code`, its code, at the operation HotChocolate names:
-
-```json
-{"message": "The value must be at least 15 characters long.", "path": ["accounts"],
- "extensions": {"code": "value_object.too_short", "inputPath": ["eq"], "coordinate": "IbanOperationFilterInput.eq", "fieldType": "Iban"}}
-```
-
-`inputPath` is `["in", 1]` for the second element of `in`, and `["w", "iban", "eq"]` for a variable `$w` holding the
-filter, which is then a request error with no `path`. A literal of another kind, `qty: { eq: "3" }`, is refused by
-HotChocolate's validation, with no rule's code. Under `UseResource<T>()`, the message quotes the scalar, never the
-operation: `« Iban » : au moins 15 caractères.` ([Messages](#messages-in-the-applications-language)).
-
-### The text operations, on request
-
-```csharp skip
-builder.Services.AddGraphQLServer()
-    .AddQueryType<Query>()
-    .AddValueObjects()
-    .AddFiltering()
-    .AddValueObjectFiltering(options => options.IncludeTextOperations());
-```
-
-Every value object over `string` then also gets `contains`, `startsWith` and `endsWith`, and their negations, whose
-operand is a `String`, never the value object: `FR` is no IBAN. They compare its underlying text, `IValueObject<string>.Value`:
-
-- **The fragment is compared as typed, never normalized**: a normalizer is written for a whole value, and one that pads,
-  prefixes or reformats would change a fragment's meaning. `contains: "fr76"` finds nothing on SQLite and PostgreSQL,
-  and finds the row on SQL Server, whose default collation is case-insensitive.
-- **Entity Framework Core translates them only under `UseValueObjectQueries()`**, as it does `.Value` of a value object
-  ([Entity Framework Core](ef-core.md)): `"a"."Iban" LIKE @p_startswith ESCAPE '\'` and `instr("a"."Iban", @p) > 0` on
-  SQLite, `a."Iban" LIKE @p_startswith` on PostgreSQL, `[a].[Iban] LIKE @p_startswith ESCAPE N'\'` on SQL Server, the
-  element of a list included. Without it, each fails at its first query, with "Unexpected Execution Error" around Entity
-  Framework Core's "could not be translated", never at start: the package does not reference Entity Framework Core, and
-  cannot tell.
-- **A nullable member is guarded**, and a negation finds the rows that hold no value, as `ncontains` does on a
-  `string?`: `"a"."Backup" IS NULL OR "a"."Backup" IS NULL OR instr("a"."Backup", @p) <= 0`. HotChocolate's own guard
-  repeats the test on the column, which costs nothing.
-- **A `null` fragment** is refused as HotChocolate refuses one for a `String` member, word for word, `HC0026`: "The
-  provided value for filter `contains` of type IbanOperationFilterInput is invalid. Null values are not supported.",
-  with no rule's code.
-- **They extend the default filter convention alone**, which `AddFiltering()` registers: a named convention keeps the
-  comparable operations, and the call has to follow `AddFiltering()`, or the schema fails at start, ``No default filter
-  convention found. Call `AddFiltering()` on the schema builder.`` The comparable operations work wherever the call
-  stands.
-- **Cost.** HotChocolate's cost analysis weighs a `String` member's text operations as expensive, 20, through a flag that
-  is internal to it: the package's take the default cost of a filter operation, 10.
-
-### Names
-
-The inputs are named after the scalar, `IbanOperationFilterInput` and `ListIbanOperationFilterInput`, so a scalar the
-options name, `Name<Iban>("BankAccount")`, names them `BankAccountOperationFilterInput` and
-`ListBankAccountOperationFilterInput`, and two value objects of one CLR name, whose scalars the application sets apart
-([Names and collisions](#names-and-collisions)), get two inputs, `CodeOperationFilterInput` and
-`ShippingCodeOperationFilterInput`. HotChocolate's own `ComparableOperationFilterInputType<TSelf>` is named after the CLR
-type, and fails such a schema: ``The name `ComparableCodeOperationFilterInput` was already registered by another type.``
-
-`AddValueObjectFiltering()` calls `AddValueObjects()`, whose scalars the operands are, and every call on one schema
-configures the same options, read when the schema is built.
-
-### Generic value objects and value objects written by hand in a filter
-
-A construction of a generic value object, `Reference<PurchaseOrder>`, and a value object written by hand that nothing
-registered are described by the registry the first time a filter meets them, as their scalars are, which takes dynamic
-code. Where the runtime has none, the interceptor refuses such a type at start with a `NotSupportedException` naming
-`ValueObjectRegistry.Register`, and the typed scalar and binding, which ask no registry:
-
-```csharp skip
-builder.Services.AddGraphQLServer()
-    .AddValueObjectScalar<Reference<PurchaseOrder>, string>()
-    .AddFiltering(convention => convention.AddDefaults().BindValueObject<Reference<PurchaseOrder>, string>())
-    .AddValueObjectFiltering();
-```
-
-`BindValueObject<TSelf, TValue>()` binds the value object and its nullable type to its comparable operations, named after
-its scalar, a list of them too; it also serves a convention the application configures itself. Its operands are the
-value object's scalar, so where the runtime has no dynamic code it needs `AddValueObjectScalar<TSelf, TValue>()` beside
-it, or the scalar handler refuses the type in its turn; `ValueObjectRegistry.Register<TSelf, TValue>(TSelf.Schema)` at
-start-up covers the scalar and the filter alike.
-
-### Binding by hand
-
-The schema types are public, `ValueObjectOperationFilterInputType<TSelf>`, and `ValueObjectTextOperationFilterInputType<TSelf>`
-for a value object over `string`: subclass one to narrow the operations of one value object, and bind it with
-`BindRuntimeType` for both the value object and its nullable type. HotChocolate looks a binding up by a member's exact
-type: bound for one form alone, the other form's member gets the package's input of the same name, and the schema does
-not start. The text type's `contains`, `startsWith` and `endsWith` run through the handlers
-`AddValueObjectFiltering(options => options.IncludeTextOperations())` adds to the default convention alone: bound
-without the option, or in a named convention, it fails the schema at start, ``For the field contains of type
-IbanOperationFilterInput was no handler found.``, and bound to a value object over another type, ``'Shop.Quantity' is
-not a value object over string``.
-
-```csharp skip
-builder.Services.AddGraphQLServer()
-    .AddFiltering(convention => convention.AddDefaults()
-        .BindRuntimeType<Iban, NarrowIban>()
-        .BindRuntimeType<Iban?, NarrowIban>())
-    .AddValueObjectFiltering();
-
-public class NarrowIban : ValueObjectOperationFilterInputType<Iban>
-{
-    protected override void Configure(IFilterInputTypeDescriptor descriptor)
-    {
-        base.Configure(descriptor);
-        descriptor.Ignore(DefaultFilterOperations.GreaterThan).Ignore(DefaultFilterOperations.NotGreaterThan);
-    }
-}
-```
-
-A subclass that names itself, `descriptor.Name("QuantityRange")`, keeps its name, and a list of it is named after it,
-`ListQuantityRange`.
-
-### Moving from the recipe
-
-Before the package, this guide bound each value object to HotChocolate's own comparable operations,
-`BindRuntimeType<Iban, ComparableOperationFilterInputType<Iban>>()`. A binding of the application's own wins, so those
-keep their inputs, `ComparableIbanOperationFilterInput`, beside the package's for every other member: remove the lines to
-let the package cover them too, a nullable member, which the recipe missed, included. The inputs are then renamed,
-`IbanOperationFilterInput`, which a client sees only where it declares a variable of that type itself; a variable typed
-as the whole filter, `AccountFilterInput`, keeps working.
-
 ## Native AOT
 
 The package is AOT-compatible: each scalar is closed over its value object through the descriptor's visitor, never with
-`MakeGenericType`, and its own code publishes with no warning. So is AdCodicem.ValueObjects.HotChocolate.Data's: its
-operation types are closed through the same visitor, and its type interceptor is created by a factory, whose
-constructor the AOT compiler keeps. HotChocolate 16.6.8 itself does not yet start natively
+`MakeGenericType`, and its own code publishes with no warning. HotChocolate 16.6.8 itself does not yet start natively
 without help, so CI publishes no HotChocolate application:
 
 - Its publish warns (`IL2104` for HotChocolate.Types and GreenDonut, `IL3053`, `IL3000`, `IL3002`).
@@ -470,30 +252,15 @@ those, or as an `IReadOnlyList<TSelf>`, which HotChocolate fills with a `List<TS
 construction of a generic one, or a value object written by hand, needs `AddValueObjectScalar` or
 `ValueObjectRegistry.Register`.
 
-HotChocolate.Data's filtering of a value object does not run natively, whatever the package does. With HotChocolate.Types,
-HotChocolate.Data and the package's assembly rooted, the schema builds and the text operations answer, but
-HotChocolate.Data closes generic methods over the member's type at run time, which have no native code for a struct:
-`'HotChocolate.Data.Filters.Expressions.FilterExpressionBuilder.CreateAndConvertParameter[Shop.Iban](System.Object)' is
-missing native code. MethodInfo.MakeGenericMethod() is not compatible with AOT compilation.`, the same for
-`Enumerable.Contains[Shop.Iban]`, and sorting fails on the `Expression<Func<T, Iban>>` it builds.
-
 ## Not covered
 
-- **HotChocolate 15 and earlier.** The packages are built against HotChocolate.Types 16.6.8 and HotChocolate.Data
-  16.6.8, their floors.
+- **HotChocolate 15 and earlier.** The package is built against HotChocolate.Types 16.6.8, its floor.
 - **`AnyEntityId`**, which is not a value object: HotChocolate still infers an input object type from it.
 - **Relay node identifiers**, `[ID]` and global object identification, mutation conventions, subscriptions, Fusion,
-  and HotChocolate's own OpenAPI and Model Context Protocol adapters: not run. `[ID]` on a value-object member of a
-  filtered type replaces the package's input with HotChocolate's `IdOperationFilterInput`, which HotChocolate then fails
-  to run: `Unable to convert type from Object to OrderId`.
-- **HotChocolate.Data's other providers**, HotChocolate.Data.MongoDb, Marten's and Raven's, which have handlers of their
-  own: the package covers the queryable provider, which Entity Framework Core and rows in memory go through.
-- **The text operations in a named convention**, which their handlers do not extend, and a `@cost` weight of their own.
-- **A `[UseFiltering]` field returning value objects themselves**, `IQueryable<Iban>`, which keeps HotChocolate's
-  inferred `IbanFilterInput { countryCode value }`: the argument's own type is no member a filter input holds. Nor a
-  list of lists.
-- **A `[UseProjection]` field beside a field filtered through a named convention**, over a row holding an object of its
-  own: HotChocolate 16.6.8 fails such a schema at start, a type registered twice, with or without the package.
+  and HotChocolate's own OpenAPI and Model Context Protocol adapters: not run.
+- **Filtering and sorting with HotChocolate.Data.** `[UseFiltering]` infers an input from the struct's public
+  properties, `IbanFilterInput { countryCode value }`, so a filter names the wrapper, `iban: { value: { eq: "…" } }`,
+  and compares raw text the normalizer never saw.
 - **The built-in scalars.** A value object is always a scalar of its own; publishing `String!` or `UUID!` instead would
   change the wire form of three underlying types, HotChocolate's `DateTime` requiring an offset, its `Duration` being
   ISO 8601, and a `char`, an `Int128` or a `UInt128` having no built-in scalar at all.

@@ -57,10 +57,8 @@ Keep the rules, delete the plumbing.
 | `Conversions.EfCoreValueConverter`, `HasVogenConversion()` | `ConfigureValueObjects(assembly)`, once |
 | `Conversions.DapperTypeHandler` | `ValueObjectDapper.AddValueObjectHandlers(assembly)`, once |
 | `Conversions.Bson`, `BsonSerializationRegisterFor….TryRegister()` | `ValueObjectBson.Register(assembly)`, once, after the `GuidSerializer`: [MongoDB](mongodb.md) |
-| Marten's `RegisterValueType(typeof(Iban))`, one per type | `AddMarten(…).UseValueObjects()`, once, which also binds a compiled query's collections and reads a projected value through the rules, and `VO0048` reports a value object a compiled query holds, which Marten answered with the first call's value: [Marten](marten.md) |
 | `Conversions.NewtonsoftJson` | `settings.AddValueObjects()`, which adds `ValueObjectConverter` to the serializer settings |
 | `Conversions.MessagePack` | `options.WithValueObjects()`, once, on the serializer options, which reads through the rules; `UseValueObjects()` for SignalR: [MessagePack and SignalR](messagepack.md) |
-| `Conversions.Orleans` | `AddValueObjects()`, once, on the serializer of every silo and client, which reads through the rules and carries a refusal's code back to the caller: [Orleans](orleans.md) |
 | `Conversions.XmlSerializable` | `[assembly: ValueObjectXmlSerialization]`, once for the assembly, which reads through the rules: [XML](xml.md) |
 | `new VogenTypesFactory()` in the options of a source-generated context | `[JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]` |
 | A length or pattern check inside `Validate` | `MinLength`, `MaxLength` on the attribute; a `[GeneratedRegex]` through `IValueObjectPatternValidator` |
@@ -114,7 +112,6 @@ Three differences to plan for:
 | `new OrderId.EfCoreValueConverter()`, one per type | `ConfigureValueObjects(assembly)`, once |
 | `.HasConversion(...).ValueGeneratedOnAdd()` on a key | [`HasValueObjectKeyGeneration()`](./ef-core.md#value-objects-as-keys), which keeps the provider's sequential GUIDs, or its identity column for an `int` or a `long` identifier; a `Guid` key left unset is refused |
 | `SqlMapper.AddTypeHandler(new OrderId.DapperTypeHandler())`, one per type | `ValueObjectDapper.AddValueObjectHandlers(assembly)`, once |
-| Marten's `RegisterValueType(typeof(OrderId))`, one per type | `AddMarten(…).UseValueObjects()`, once; an identity over a `Guid`, a `string`, an `int` or a `long` still works as one: [Marten](marten.md#identities) |
 | Converters passed to a source-generated context's options | `[JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]` |
 
 ```csharp

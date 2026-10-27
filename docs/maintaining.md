@@ -9,7 +9,7 @@ is on, so this list is worth checking if something looks wired up but never happ
 `preview.yml` publishes a preview of every package to nuget.org every Monday at 07:15, Paris time, and whenever it is
 dispatched (**Actions → preview → Run workflow**, from `main`: a dispatch from another branch stops at its first
 job). It publishes only when a package input changed since the version nuget.org has from the nearest commit, and
-then all thirty-eight packages at one version, or none.
+then all thirty-two packages at one version, or none.
 [ADR-0009](adr/0009-publish-previews-weekly-when-a-package-input-changed.md) has the reasoning.
 
 Each run says what it decided. The **compute the version** job prints the version semantic-release would give the
@@ -17,9 +17,8 @@ next release, and **decide what to publish** writes a summary, *Preview: publish
 reason and the package inputs that changed:
 
 - **publish**: the tests run on `HEAD`, the pack job packs it at `<next release>-preview.<commits since the last stable
-  tag>`, `heavy.yml` runs native AOT, Marten's and the integration suite on that commit, and the .NET 11 island over
-  those packages, and the publish job attests and pushes it. Count about 25 minutes, Marten's native AOT job setting the
-  time.
+  tag>`, `heavy.yml` runs native AOT and the integration suite on that commit, and the .NET 11 island over those
+  packages, and the publish job attests and pushes it.
 - **repair**: a previous push stopped midway, so nuget.org has the base version for some packages only. The run
   packs that commit again at that version, tests included, and pushes only the missing packages. Whatever `HEAD`
   changed since waits for the next run, so dispatch again once the repair is green.
@@ -30,7 +29,7 @@ describes the commit it builds. A run with a failed or cancelled job deploys not
 
 ### When a run is red
 
-- **A heavy job failed** (`heavy / native AOT`, `heavy / native AOT (Marten)`, `heavy / integration tests`): nothing was
+- **A heavy job failed** (`heavy / native AOT`, `heavy / integration tests`): nothing was
   published. The same job on `main`, run by `heavy.yml` after the merge, has usually shown it first. Fix it on `main`
   and dispatch again; **Re-run failed jobs** helps only with a job that died before its tests ran. A **repair** run
   tests the base commit, whose code no fix on `main` changes: complete that version instead, with **Re-run failed jobs**
@@ -65,7 +64,7 @@ offering the higher one as the latest prerelease until a higher version ships.
 
 ### Routines
 
-- **After a merge**, `heavy.yml` runs on `main`: native AOT, Marten's, the integration suite and the .NET 11 island,
+- **After a merge**, `heavy.yml` runs on `main`: native AOT, the integration suite and the .NET 11 island,
   which no pull request runs unless it is labelled `ci:heavy` or Dependabot opened it to update a NuGet package. A newer
   push cancels an older one's run, so a red run names the tip of the push it tested, which may be later than the commit
   that broke it; it also holds back the next preview, which runs the same jobs. Label a pull request `ci:heavy`, then
@@ -102,21 +101,6 @@ offering the higher one as the latest prerelease until a higher version ships.
   `dotnet` group cannot: Entity Framework Core's and SignalR's packages pull in the `Microsoft.Extensions.Options` of
   their own patch, which the pin holds back, so their update fails its restore with NU1109 ([Dependabot](#dependabot)).
   Type it `fix(deps)` when a shipped package's floor moves.
-- **When an Orleans minor raises its Roslyn floors**, move the Analyzers pin with it by hand.
-  `Microsoft.Orleans.Serialization` lists `Microsoft.CodeAnalysis.Analyzers`, which the central pin must reach (NU1109
-  below it, and no pull request), and `Microsoft.CodeAnalysis.Common`, which no pin follows: no project reaching
-  Orleans references `Microsoft.CodeAnalysis.CSharp`, whose 4.14.0 would refuse that Common (NU1608). Keep it so: a
-  test of `tests/AdCodicem.ValueObjects.UnitTests.Orleans` compiling C# would need a `Microsoft.CodeAnalysis.CSharp`
-  equal to Orleans' Common, through an entry conditioned on that project, which an Orleans minor would then move. The
-  generator's `Microsoft.CodeAnalysis.CSharp` 4.14.0 stays where it is. The Analyzers pin is a dependency of the
-  Orleans package, so the commit is `fix(deps)`.
-- **When a WolverineFx.RuntimeCompilation update asks for a later Roslyn**, move the Wolverine.Http fixture
-  application's two conditional `PackageVersion`s, `Microsoft.CodeAnalysis.CSharp` and `CSharp.Workspaces`, with it by
-  hand: its JasperFx.RuntimeCompiler asks for both at its Roslyn exactly (NU1109 below it, and no pull request). Both
-  entries are the fixture's alone, and the Hosts project of the unit suite references the fixture with
-  `ReferenceOutputAssembly="false"`, which brings neither there. They reach no package, so the commit is
-  `chore(deps)`. The island pins `WolverineFx.RuntimeCompilation` at the version of the package's `WolverineFx.Http`
-  floor: move it with the floor.
 - **After 60 days without activity in the repository**, GitHub disables the schedule of a public repository's
   workflow. Turn it back on with `gh workflow enable preview.yml`.
 - **Failures of a scheduled run are notified to whoever last changed its cron line**, not to whoever dispatches it.
@@ -128,7 +112,7 @@ offering the higher one as the latest prerelease until a higher version ships.
 The first time `preview.yml` publishes, and after any change to its publish job, dispatch it rather than wait for
 Monday, and check:
 
-1. the thirty-eight packages are on nuget.org at the version the run printed, and the publish job finished its wait for
+1. the thirty-two packages are on nuget.org at the version the run printed, and the publish job finished its wait for
    the listing;
 2. an assembly restored from nuget.org verifies, and the certificate comes from Sigstore's public-good instance:
 
@@ -162,11 +146,10 @@ previewed** job warns on the run page when the release ships package inputs that
 it never blocks the release, and it runs before the release job so that its warning is there when the `nuget-stable`
 reviewer approves. The **suites**, **pack** and **heavy** jobs must pass: the release job waits for all three. The
 pack job, which holds no credential, packs only the packable projects under `src/` and freezes the documentation;
-**heavy** runs `heavy.yml` on the same commit, native AOT, Marten's and the integration suite built from it and the
+**heavy** runs `heavy.yml` on the same commit, native AOT and the integration suite built from it and the
 .NET 11 island over the packed packages, compat blocking the release whatever .NET 11 it targets, and is skipped on a
 dry run; the release
-job builds nothing, checks what the pack job produced against its digests, and pushes it. Count about 25 minutes
-before the `nuget-stable` reviewer is asked: Marten's native AOT job sets that time.
+job builds nothing, checks what the pack job produced against its digests, and pushes it.
 
 The pack job freezes the documentation on every run, the dry run included. A real run commits
 `website/versioned_docs/` along with the changelog, then redeploys the site from the new tag
@@ -222,7 +205,7 @@ to `CHANGELOG.md` for a preview, which has no release of its own (`src/Directory
 |---|---|---|
 | Allow auto-merge | Settings → General → Pull Requests | `dependabot-auto-merge.yml` runs green and merges nothing. |
 | Squash merging allowed, with the pull request title as its default commit message, beside rebase merging | Settings → General → Pull Requests | A Dependabot pull request retitled `fix(deps)` lands as Dependabot's `chore(deps)` commit and releases nothing. Rebase merging stays the way every other pull request lands. |
-| Required status checks **`build and test`** (`ci.yml`), **`workflows`** and **`conventional commits`** (`lint.yml`), and no code coverage rule | Settings → Rules → Rulesets → `Default` (id 23842638) | Auto-merge can merge a red build, or one that breaks native AOT, and a red `fix(deps)` would then release a broken patch. The checks are job names: renaming any of these jobs leaves every pull request waiting for a check that never reports. **`build and test`** is `ci.yml`'s aggregator, which fails unless its plan and every job the plan expects succeeded: `format`, a `unit (<family>)` job per family the plan selects, the `build` job (the build, the generator and RDG suites, the compiled model and the pack the plan selects), `release tooling` when the release tooling changes, and `heavy.yml` on a pull request labelled `ci:heavy` or a Dependabot NuGet update ([ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)). A job that must block a merge goes into its `needs`, never into this list. The jobs of `heavy.yml` (`native AOT`, `native AOT (Marten)`, `integration tests`, `compat (.NET 11)`) never join them: they run after the merge, and gate every stable release, and every preview but compat, which gates previews once .NET 11 ships. No workflow reports coverage to GitHub, so a code coverage rule would measure nothing: Codecov's `codecov/patch` and `codecov/project` are the coverage signal ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
+| Required status checks **`build and test`** (`ci.yml`), **`workflows`** and **`conventional commits`** (`lint.yml`), and no code coverage rule | Settings → Rules → Rulesets → `Default` (id 23842638) | Auto-merge can merge a red build, or one that breaks native AOT, and a red `fix(deps)` would then release a broken patch. The checks are job names: renaming any of these jobs leaves every pull request waiting for a check that never reports. **`build and test`** is `ci.yml`'s aggregator, which fails unless its plan and every job the plan expects succeeded: `format`, a `unit (<family>)` job per family the plan selects, the `build` job (the build, the generator and RDG suites, the compiled model and the pack the plan selects), `release tooling` when the release tooling changes, and `heavy.yml` on a pull request labelled `ci:heavy` or a Dependabot NuGet update ([ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)). A job that must block a merge goes into its `needs`, never into this list. The jobs of `heavy.yml` (`native AOT`, `integration tests`, `compat (.NET 11)`) never join them: they run after the merge, and gate every stable release, and every preview but compat, which gates previews once .NET 11 ships. No workflow reports coverage to GitHub, so a code coverage rule would measure nothing: Codecov's `codecov/patch` and `codecov/project` are the coverage signal ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
 | Allow GitHub Actions to create and approve pull requests | Settings → Actions → General | Not needed for auto-merge, but required if a workflow is ever made to open PRs. |
 | Discussions | Settings → General → Features | `.github/DISCUSSION_TEMPLATE/q-a.yml` and the issue-template link to Discussions go nowhere. |
 | Pages source: GitHub Actions | Settings → Pages | `deploy-docs.yml` uploads an artifact that is never served. |
@@ -255,14 +238,10 @@ Without them the release job stops at its first step, before anything is publish
   both `npm` and the `github-actions` entries, so that a broken or compromised release has time to be pulled first.
   Security updates ignore the cooldown and open at once.
 - **No framework major.** Semver-major updates of `Microsoft.EntityFrameworkCore*`, `Microsoft.AspNetCore.*`,
-  `Microsoft.Extensions.*`, `Microsoft.OpenApi`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `HotChocolate*`,
-  `Microsoft.Orleans.*` and `NJsonSchema*`, whose packages share one version and move together, in the `dotnet` group
-  or, for Microsoft's patch, by hand ([Routines](#routines)), are ignored, and so are those of `System.CommandLine`,
-  whose 3.0 ships with .NET 11 and runs the package built against 2.0 (the island runs it), of `Marten`, whose next
-  major is a floor to decide, since the package reaches one of its internals, of `WolverineFx*`, whose packages share
-  one version and whose next major is a floor to decide, since the Wolverine.Http package reaches three of its
-  internals, and of five packages whose majors follow
-  one of them: `dotnet-ef`, the local tool pinned to EF Core's version; `NSwag.*`, which the tests take and whose majors
+  `Microsoft.Extensions.*`, `Microsoft.OpenApi`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `HotChocolate*` and
+  `NJsonSchema*`, whose packages share one version and move together, in the `dotnet` group
+  or, for Microsoft's patch, by hand ([Routines](#routines)), are ignored, and so are those of five packages whose
+  majors follow one of them: `dotnet-ef`, the local tool pinned to EF Core's version; `NSwag.*`, which the tests take and whose majors
   move with NJsonSchema's; `Swashbuckle.AspNetCore*`, whose next major moves to `Microsoft.OpenApi` 3;
   `Serilog.Extensions.Logging`, which only the tests use and whose majors follow .NET's, each built on the
   `Microsoft.Extensions.Logging` of its major; and `System.Security.Cryptography.Pkcs`, a test-only pin on .NET's
@@ -341,40 +320,6 @@ Without them the release job stops at its first step, before anything is publish
   the warnings its `aot-warnings.allowed` lists, one extended regular expression per line, and fails on any other. A
   protobuf-net update whose generated code or annotations warn otherwise fails the job, naming the new warning: read
   it, and move the list with the update when the warning is protobuf-net's own, never one of this library's code.
-- **Marten and the native AOT (Marten) job.** The application of
-  `tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Marten` runs in a job of its own, `native AOT (Marten)`, against its
-  PostgreSQL service container, beside `native AOT`, which it would take from about 6 minutes to about 27: the native
-  AOT compiler alone takes about 20 minutes over Marten, on one core. Both are jobs of `heavy.yml`, which run on every
-  Dependabot NuGet pull request and are never required checks
-  ([ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)). Keep its timeout ahead
-  of Marten's compile time (45 minutes today). Marten, JasperFx, Weasel and FastExpressionCompiler warn for themselves,
-  which its `aot-warnings.allowed` lists by their source paths and assemblies: a Marten update that warns otherwise
-  fails the job, naming the warning; move the list with the update when the warning is Marten's own, never one of this
-  library's code.
-- **Marten's internals.** The Marten package reaches Marten's internal list of value types through `[UnsafeAccessor]`,
-  keeps every value object out of it so that Marten refuses a compiled query taking one, lists its nullable type for the
-  duplicated field, which finds a value type by the type its member reports, and binds a compiled query's collections
-  through Marten's planning steps; `MartenInternalsTests`, in `Persistence/` of
-  `tests/AdCodicem.ValueObjects.UnitTests.Data`, pins each. A Marten update failing it moved one of them: adapt the
-  package in the same pull request (`src/AdCodicem.ValueObjects.Marten/CLAUDE.md`), never silence the test. The same
-  class pins the member types Marten binds in a compiled query and its refusal of an identity's `Value`, which
-  `VO0048`'s message rests on: when one of those fails, adapt the message in
-  `src/AdCodicem.ValueObjects.Generators/Analyzers/MartenCompiledQueryAnalyzer.cs` and the forms the Marten guide, the
-  diagnostics reference and the skill list.
-- **Wolverine and the native AOT job.** The main application of `tests/NativeAot` serves Wolverine.Http endpoints in
-  Wolverine's static mode, over the code `native-aot.sh` has `codegen write` write into `artifacts/wolverine-codegen`
-  before both runs, never committed. A Wolverine update that changes what that code needs shows there: in the codegen
-  pass, in the publish's warnings, or as a difference between the runs. Wolverine.Http's minor and patch updates come
-  weekly in the `dotnet` group, and each moves the package's floor, so its pull request is `fix(deps)`: the maintainer
-  chose this on 2026-10-18, the repository's rule for every shipped dependency, over ignoring WolverineFx's minors and
-  moving the floor by hand. Revisit it if the churn weighs.
-- **Wolverine's internals.** The Wolverine.Http package sets `HttpChain.IsFormData` and `RequestType` through
-  `[UnsafeAccessor]`, as Wolverine's own `[FromForm]` binding does, takes over the variables Wolverine's factories create
-  through `HttpElementVariable.ReassignCreator`, as Wolverine's own `[AsParameters]` binding does, and relies on Wolverine
-  describing ApiExplorer's parameters and looking a value up again by name from those variables' lists;
-  `WolverineHttpStrategyTests`, `WolverineHttpCodeTests` and `WolverineHttpDocumentTests` pin them. A Wolverine update
-  failing them moved one: adapt the package in the same pull request
-  (`src/AdCodicem.ValueObjects.Wolverine.Http/CLAUDE.md`), never silence the test.
 - **Microsoft.AspNetCore.Components and the native AOT job.** The main application of `tests/NativeAot` renders Blazor
   components, and Components warns for itself at assembly level, `IL2104` and `IL3053`, which that application's
   `aot-warnings.allowed` lists. Those warnings come from the runtime pack the SDK resolves, so an SDK or ASP.NET Core
@@ -444,6 +389,16 @@ and that `user: AdCodicem` in the workflows names the user who created it.
 `preview.yml` policy before that change merges, and delete the `ci.yml` one once `preview.yml` has published its first
 preview ([Checking a run's provenance](#checking-a-runs-provenance)).
 
+## Retired packages
+
+Six packages are retired without a stable release ([ADR-0015](adr/0015-retire-six-satellites.md)):
+`AdCodicem.ValueObjects.Marten`, `AdCodicem.ValueObjects.Wolverine.Http`, `AdCodicem.ValueObjects.HotChocolate.Data`,
+`AdCodicem.ValueObjects.Orleans`, `AdCodicem.ValueObjects.CommandLine` and `AdCodicem.ValueObjects.CsvHelper`. Their
+previews stay on nuget.org, and no workflow publishes them again. Deprecate each one by hand, once: nuget.org → the
+package → **Manage package** → **Deprecation**, every version selected, reason *Legacy*, no alternate package, and a
+custom message linking ADR 0015. Never unlist them: a deprecation shows in the NuGet package manager and in
+`dotnet list package --deprecated`, where unlisting only hides a package from search.
+
 ## The .NET compatibility island
 
 `tests/Compat` installs the packages a commit packs into `net11.0` applications on the .NET 11 release candidate, and
@@ -461,8 +416,7 @@ so it has no version to move at a release candidate. Dependabot never sees the i
   (`Microsoft.EntityFrameworkCore.Sqlite`, `Microsoft.EntityFrameworkCore.SqlServer`,
   `Microsoft.AspNetCore.Mvc.NewtonsoftJson`, `Microsoft.AspNetCore.OpenApi`, `Microsoft.AspNetCore.TestHost`,
   `Microsoft.AspNetCore.SignalR.Protocols.MessagePack`, `Microsoft.AspNetCore.SignalR.Client`),
-  `Npgsql.EntityFrameworkCore.PostgreSQL`, and `System.CommandLine`, whose `3.0.0-rc…` version carries .NET's build
-  number and moves to `3.0.0` when .NET 11 ships. Npgsql's provider pins EF Core to the exact build it was compiled
+  and `Npgsql.EntityFrameworkCore.PostgreSQL`. Npgsql's provider pins EF Core to the exact build it was compiled
   against, so moving one without the other fails the restore with NU1107. When Npgsql has not published its build for
   the new release candidate yet, the SDK and the five ASP.NET Core packages move alone, and EF Core's two packages and
   Npgsql's provider follow together once it has: the island is on the RC2 SDK and ASP.NET Core packages, EF Core and
@@ -477,7 +431,6 @@ so it has no version to move at a release candidate. Dependabot never sees the i
   - `global.json` becomes `"version": "11.0.100"`, `"rollForward": "latestFeature"`, `"allowPrerelease": false`,
     after which `setup-dotnet` installs the latest 11.0 SDK by itself;
   - the eight packages move to `11.0.0`, Npgsql's provider included;
-  - `System.CommandLine` moves to `3.0.0`;
   - `compat (.NET 11)` blocks previews from then on: set `compat-blocks: true` on `preview.yml`'s `heavy` job. It
     stays out of the required status checks, and informs only on a pull request and on `main`
     ([ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)).

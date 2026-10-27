@@ -31,7 +31,7 @@ dotnet test                                                          # everythin
 dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages   # the packable projects only
 ```
 
-The unit suite is eleven projects, one per package family of `.github/ci-families.json` (its `tests`): a test runs
+The unit suite is ten projects, one per package family of `.github/ci-families.json` (its `tests`): a test runs
 from the project of its family, and CI runs each family's project in a job of its own.
 
 Integration tests start PostgreSQL, SQL Server and MongoDB, and the Azure Functions host beside Azurite, through
@@ -97,11 +97,10 @@ site when a change reaches it, in a job that does not block the merge.
 
 The heavy jobs run after the merge, before every preview and stable release, and on a pull request labelled `ci:heavy`,
 where **build and test** waits for them: **native AOT**, which publishes an application using every AOT-compatible
-package but HotChocolate's, protobuf-net's, Marten's, Orleans' and CsvHelper's with native AOT, and protobuf-net's
+package but HotChocolate's and protobuf-net's with native AOT, and protobuf-net's
 compile-time model in an application of its own, and fails on a trimming or AOT warning, the known ones of
 protobuf-net's generated code and of Microsoft.AspNetCore.Components aside, or on any difference between the native
-binary and the JIT; **native AOT (Marten)**, a Marten application published the same way against a PostgreSQL service
-container, a job of its own since Marten takes about 20 minutes to compile natively; the integration suite; and the
+binary and the JIT; the integration suite; and the
 packages in .NET 11 applications. Ask for the label when your change touches native AOT, a store, the sample API or the
 next .NET, then push: the label is read when a run starts.
 
