@@ -216,6 +216,14 @@ which Entity Framework Core 11 leaves out of the SQL. On PostgreSQL, a `LIKE` pr
 `C` collation or with `varchar_pattern_ops`, as it does on a column of text; an equality uses the index whatever the
 collation.
 
+On SQLite, Entity Framework Core 10 orders a `decimal` column through its `EF_DECIMAL` collation, which reads the
+stored text in the current culture: under a culture whose decimal separator is not a point, fr-FR say, an `OrderBy`
+over a decimal throws a `FormatException`, "The input string '12.5' was not in a correct format.", whether it orders a
+value object over `decimal`, its `.Value` or a plain `decimal` property
+([dotnet/efcore#37432](https://github.com/dotnet/efcore/issues/37432), fixed in Entity Framework Core 11). A comparison
+or arithmetic goes through the provider's functions, which read no text, and is not affected. Until then, run such a
+query in the invariant culture.
+
 `.Value` reads what the column holds, in a projection too: `Select(x => x.Iban.Value)` returns the text as stored, which
 a [strict context](#validation-on-read) does not validate, since it validates the value objects it materializes. Project
 the value object to have it validated.
