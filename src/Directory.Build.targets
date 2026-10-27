@@ -1,60 +1,12 @@
 <Project>
 
   <!--
-    Before MinVer stamps a version, refuse what would stamp it silently wrong (src/Directory.Build.props, ADR 0012):
-    a project no train holds; MINVERVERSIONOVERRIDE, or MinVerVersionOverride as a property, which would give every
-    train one version; RELEASE_TRAIN_VERSIONS naming no version for the project's train, which MinVer would fill from
-    the tags.
-  -->
-  <Target Name="_CheckReleaseTrain" BeforeTargets="MinVer">
-    <Error Condition="'$(ReleaseTrain)' == ''" Text="$(MSBuildProjectName) rides no release train: src/release-trains.json names it nowhere and no train takes the others (&quot;projects&quot;: &quot;*&quot;)." />
-    <Error Condition="'$(_InheritedMinVerVersionOverride)' != ''" Text="MinVerVersionOverride is set to '$(_InheritedMinVerVersionOverride)' (MINVERVERSIONOVERRIDE or -p:), one version for every train: set RELEASE_TRAIN_VERSIONS=&quot;core=&lt;version&gt; satellites=&lt;version&gt;&quot; instead." />
-    <Error Condition="'$(RELEASE_TRAIN_VERSIONS)' != '' and '$(_ReleaseTrainVersion)' == ''" Text="RELEASE_TRAIN_VERSIONS ('$(RELEASE_TRAIN_VERSIONS)') names no version for the $(ReleaseTrain) train of $(MSBuildProjectName)." />
-  </Target>
-
-  <!--
-    A pack whose version MinVer derived from no tag of its train (0.0.0-preview.0.<height>: a clone without the tags, a
-    fork that never fetched upstream's) is refused rather than shipped as the lowest version there is. A build never
-    packs, and an override (RELEASE_TRAIN_VERSIONS) is not derived.
-  -->
-  <Target Name="_RefuseUntaggedVersion" BeforeTargets="GenerateNuspec" DependsOnTargets="MinVer" Condition="'$(MinVerVersionOverride)' == ''">
-    <Error Condition="$(PackageVersion.StartsWith('0.0.0-'))" Text="$(MSBuildProjectName) would pack at $(PackageVersion): no $(MinVerTagPrefix)&lt;version&gt; tag is merged into HEAD. Fetch the tags (git fetch --tags, or fetch-depth: 0), or set RELEASE_TRAIN_VERSIONS." />
-  </Target>
-
-  <!--
-    Every dependency on one of our own packages is bounded by the next version that may break it (ADR 0012):
-    [V, 0.(m+1).0) while that package is 0.x, [V, (M+1).0.0) from its 1.0, V being the version packed against. A
-    prerelease package closes the range at -0 ([1.2.0, 2.0.0-0)), which keeps a prerelease of the next breaking version
-    out; a stable package cannot (NU5104). dotnet pack writes a ProjectReference as a bare floor; NuGet's pack targets
-    read ProjectVersion as a range, so it is rewritten once _GetProjectReferenceVersions has computed it. Those are
-    private names of NuGet's: verify-packages.sh refuses a nuspec whose own dependency has no upper bound, so a renamed
-    target fails the pack's check rather than ship bare floors again.
-  -->
-  <Target Name="_BoundOwnPackageDependencies" AfterTargets="_GetProjectReferenceVersions" Condition="'@(_ProjectReferencesWithVersions)' != ''">
-    <PropertyGroup>
-      <_OwnUpperSuffix Condition="$(PackageVersion.Contains('-'))">-0</_OwnUpperSuffix>
-    </PropertyGroup>
-    <ItemGroup>
-      <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
-        <_OwnMajor>$([System.String]::Copy('%(ProjectVersion)').Split('.')[0])</_OwnMajor>
-        <_OwnMinor>$([System.String]::Copy('%(ProjectVersion)').Split('.')[1])</_OwnMinor>
-      </_ProjectReferencesWithVersions>
-      <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)" Condition="'%(_OwnMajor)' == '0'">
-        <ProjectVersion>[%(ProjectVersion), 0.$([MSBuild]::Add(%(_OwnMinor), 1)).0$(_OwnUpperSuffix))</ProjectVersion>
-      </_ProjectReferencesWithVersions>
-      <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)" Condition="'%(_OwnMajor)' != '0'">
-        <ProjectVersion>[%(ProjectVersion), $([MSBuild]::Add(%(_OwnMajor), 1)).0.0$(_OwnUpperSuffix))</ProjectVersion>
-      </_ProjectReferencesWithVersions>
-    </ItemGroup>
-  </Target>
-
-  <!--
     A package with no README of its own carries src/PackageReadme.md with its id and description in place of
-    {{PackageId}} and {{Description}} (ADR 0012): nuget.org shows a package's README instead of its description, never
-    both, so the README says what the package adds. Description is final only here, after the project file. Its
-    Markdown characters become character references, or nuget.org would read [ParsesAs] as a link and <TSelf, TValue> as
-    HTML: a backslash escape would not survive, as WriteLinesToFile turns a backslash into a slash on Linux, as in a
-    path. verify-packages.sh refuses a package whose README does not open with its id.
+    {{PackageId}} and {{Description}}: nuget.org shows a package's README instead of its description, never both, so
+    the README says what the package adds. Description is final only here, after the project file. Its Markdown
+    characters become character references, or nuget.org would read [ParsesAs] as a link and <TSelf, TValue> as HTML: a
+    backslash escape would not survive, as WriteLinesToFile turns a backslash into a slash on Linux, as in a path.
+    verify-packages.sh refuses a package whose README does not open with its id.
   -->
   <Target Name="_WritePackageReadme" BeforeTargets="_GetPackageFiles" Condition="'$(IsPackable)' == 'true' and !Exists('$(MSBuildProjectDirectory)/README.md')">
     <PropertyGroup>
