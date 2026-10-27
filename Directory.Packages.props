@@ -47,7 +47,7 @@
          a decision, not a bump (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). No version is
          pinned for Swashbuckle.AspNetCore.Swagger, which the tests take through it: a pin would make it a dependency of
          the package. -->
-    <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.3.0" />
+    <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.3.1" />
     <!-- The Serilog package's floor, the version it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its net10.0 asset depends on
          nothing. -->
@@ -69,7 +69,7 @@
          dependencies of the packages. -->
     <PackageVersion Include="AutoFixture" Version="4.18.1" />
     <PackageVersion Include="Bogus" Version="35.6.5" />
-    <PackageVersion Include="FsCheck" Version="3.4.0" />
+    <PackageVersion Include="FsCheck" Version="3.5.0" />
     <!-- The AI package's floor, the version it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its net10.0 asset depends on
          nothing. -->
@@ -170,7 +170,7 @@
          through, as a test of an application's form does; no package under src/ references it. It asks for Components
          10.0.10, which the pin of Microsoft.AspNetCore.Components.Web lifts, and the project loads the shared
          framework's Components assemblies. -->
-    <PackageVersion Include="bunit" Version="2.11.3" />
+    <PackageVersion Include="bunit" Version="2.12.5" />
     <!-- ObservableValidator, the view model base that validates DataAnnotations attributes as a property is set, which
          the unit suite runs [ParsesAs] and [NotDefault] through; no package under src/ references it. -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
