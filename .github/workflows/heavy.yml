@@ -341,20 +341,19 @@ jobs:
         if: inputs.packages-artifact-id == ''
         run: dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 
-      # The island installs every package the folder holds, each at exactly the
-      # version in its file name (tests/Compat/Directory.Packages.props): the
-      # release trains give the packages two versions.
-      - name: Packages
-        id: packages
+      # The version the island restores, exactly, read off the main package.
+      - name: Version
+        id: version
         run: |
           set -euo pipefail
           shopt -s nullglob
-          packages=(artifacts/packages/AdCodicem.ValueObjects*.nupkg)
-          if (( ${#packages[@]} == 0 )); then
-            echo "::error::artifacts/packages holds no package." >&2
+          main=(artifacts/packages/AdCodicem.ValueObjects.[0-9]*.nupkg)
+          if (( ${#main[@]} != 1 )); then
+            echo "::error::Expected one AdCodicem.ValueObjects package, found ${#main[@]}." >&2
             exit 1
           fi
-          printf '%s\n' "${packages[@]##*/}"
+          version="$(basename "${main[0]}" .nupkg)"
+          echo "version=${version#AdCodicem.ValueObjects.}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         id: sdk
@@ -369,9 +368,12 @@ jobs:
         continue-on-error: ${{ !inputs.compat-blocks }}
         timeout-minutes: 15
         working-directory: tests/Compat
+        env:
+          ADCODICEM_VERSION: ${{ steps.version.outputs.version }}
         run: >-
           dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj
           -c Release
+          -p:AdCodicemVersion="$ADCODICEM_VERSION"
           --report-trx --report-trx-filename compat.trx
 
       # Swashbuckle 10 fails on the Microsoft.OpenApi 3 that Microsoft.AspNetCore.OpenApi 11
@@ -380,13 +382,16 @@ jobs:
       # step failed, so that each break shows.
       - name: Compatibility tests, Swashbuckle
         id: swashbuckle
-        if: (success() || failure()) && steps.packages.outcome == 'success'
+        if: (success() || failure()) && steps.version.outcome == 'success'
         continue-on-error: ${{ !inputs.compat-blocks }}
         timeout-minutes: 5
         working-directory: tests/Compat
+        env:
+          ADCODICEM_VERSION: ${{ steps.version.outputs.version }}
         run: >-
           dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj
           -c Release
+          -p:AdCodicemVersion="$ADCODICEM_VERSION"
           --report-trx --report-trx-filename compat-swashbuckle.trx
 
       - name: It only informs

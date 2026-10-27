@@ -320,48 +320,19 @@ jobs:
       # The solution filter cannot glob: a project added under src/ and left out of it would
       # be missing from every preview and release. Caught here, on the pull request that adds
       # it, rather than when a preview or a release packs.
-      # Each package at the version MinVer gave its release train, read off its file, one
-      # version per train; and the train of each as MSBuild reads src/release-trains.json,
-      # which decides its version, equal to release-trains.mjs's reading, which decides the
-      # trains a commit releases (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).
       - name: Every packable project is packed
         if: needs.plan.outputs.pack == 'true'
         run: |
           set -euo pipefail
           shopt -s nullglob
-          trains="$(.github/scripts/package-ids.sh --trains)"
-          if ! diff <(cut -d' ' -f1 <<<"$trains" | xargs node .github/scripts/release-trains.mjs trains-of) <(echo "$trains"); then
-            echo "::error::release-trains.mjs (<) and MSBuild (>) read src/release-trains.json differently." >&2
+          main=(artifacts/packages/AdCodicem.ValueObjects.[0-9]*.nupkg)
+          if (( ${#main[@]} != 1 )); then
+            echo "::error::Expected one AdCodicem.ValueObjects package, found ${#main[@]}." >&2
             exit 1
           fi
-          # The tags MinVer reads for each project, as src/Directory.Build.props derives them from its train, are
-          # those release-trains.mjs names that train's releases by.
-          declare -A prefix_of=()
-          while read -r train prefix _; do prefix_of[$train]="$prefix"; done < <(node .github/scripts/release-trains.mjs trains)
-          while read -r id train prefix; do
-            if [[ "${prefix_of[$train]:-}" != "$prefix" ]]; then
-              echo "::error::$id reads the tags $prefix<version>, but release-trains.mjs names the $train train's tags ${prefix_of[$train]:-(none)}<version>." >&2
-              exit 1
-            fi
-          done < <(.github/scripts/package-ids.sh --prefixes)
-          pairs=()
-          declare -A train_version=()
-          while read -r id train; do
-            files=(artifacts/packages/"$id".[0-9]*.nupkg)
-            if (( ${#files[@]} != 1 )); then
-              echo "::error::Expected one $id package, found ${#files[@]}." >&2
-              exit 1
-            fi
-            version="$(basename "${files[0]}" .nupkg)"
-            version="${version#"$id".}"
-            if [[ -v "train_version[$train]" && "${train_version[$train]}" != "$version" ]]; then
-              echo "::error::$id is at $version, another package of the $train train at ${train_version[$train]}." >&2
-              exit 1
-            fi
-            train_version[$train]="$version"
-            pairs+=("$id=$version")
-          done <<<"$trains"
-          ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "${pairs[*]}"
+          version="$(basename "${main[0]}" .nupkg)"
+          version="${version#AdCodicem.ValueObjects.}"
+          ALLOW_ANY_VERSION=true .github/scripts/verify-packages.sh artifacts/packages "$version" "$(.github/scripts/package-ids.sh)"
 
       # .github/shipped-dependencies decides which Dependabot updates land as
       # fix(deps) and release (dependabot-auto-merge.yml): it has to name every
@@ -450,14 +421,14 @@ jobs:
           fail_ci_if_error: false
 
   # The version semantic-release's commit analyzer derives from the commits since the last stable tag, as preview.yml
-  # and release.yml compute it, when a pull request changes the tooling behind it: package.json, its lock file,
-  # .releaserc.json or next-version.mjs.
+  # and release.yml compute it, and the tests of the release configuration, when a pull request changes the tooling
+  # behind them: package.json, its lock file, .releaserc.json, next-version.mjs or release-config.test.mjs.
   release-tooling:
     name: release tooling
     needs: plan
     if: needs.plan.outputs.release == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -481,76 +452,9 @@ jobs:
       - name: Next version
         run: node .github/scripts/next-version.mjs
 
-      # The SDK of global.json, which release-pack.test.mjs evaluates the
-      # projects with, and the restore below.
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      # Every script's tests: which train a project rides, every shape of
-      # src/release-trains.json MSBuild's reading could get wrong, which trains
-      # a change releases, the preview gate's decisions against recorded
-      # nuget.org states, the entry docs-snapshot.sh writes in
-      # website/released-versions.json, the checks release-pack.sh makes of
-      # nuget.org before it packs, each train's release through the
-      # release-train plugin in throwaway repositories, the driver that runs
-      # it per train, re-runs and half-done releases included, against a fake
-      # GitHub API, and the weekly list of
-      # the majors Dependabot holds back. Before the steps that read the tags
-      # and the restore, so that they report whatever those find. The glob is
-      # quoted so that Node expands it: a directory argument fails from Node 21
-      # on ("Cannot find module").
-      - name: Release scripts
+      # A quoted glob, never a directory argument, which fails from Node 21 on ("Cannot find module").
+      - name: Release configuration tests
         run: node --test '.github/scripts/*.test.mjs'
-
-      # Each release train's version, which preview.yml publishes at
-      # (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md):
-      # release-trains.mjs gives each commit the trains whose packages it
-      # changes, a <PackageVersion> those whose restore graph holds the package.
-      # Fails when a train has no stable tag merged here.
-      - name: Restore the packages
-        run: dotnet restore src/AdCodicem.ValueObjects.Packages.slnf
-
-      # The attribution reads a project's items off its csproj, which
-      # release-trains.mjs check holds to one literal shape; MSBuild, which
-      # decides what ships, is the authority. Each project's evaluated Compile
-      # items (Release, each framework, after the restore) lie in its folder,
-      # artifacts/ or a NuGet package folder, or are src/Shared files its csproj
-      # links literally: an import or a condition compiling another file would
-      # ship a change no rule gives this project's train. An item a target adds,
-      # which evaluation does not see, release-trains.mjs check refuses.
-      - name: Every compiled file rides its project's train
-        run: node .github/scripts/release-trains.mjs compile-items
-
-      - name: Each train's version
-        run: node .github/scripts/next-version.mjs --trains
-
-      # A stable release cuts every train at one version until each computes
-      # its own, and release.yml's job "tag the other trains" places each
-      # train's tag beside the core's: a missing one would leave that train
-      # counting from an older release. From 0.2.1, the satellites' baseline.
-      - name: Every stable release tags each train
-        run: |
-          set -euo pipefail
-          listed="$(node .github/scripts/release-trains.mjs trains)"
-          status=0
-          while read -r tag; do
-            version="${tag#v}"
-            [[ "$(printf '%s\n' 0.2.1 "$version" | sort -V | head -n 1)" == 0.2.1 ]] || continue
-            commit="$(git rev-parse "$tag^{commit}")"
-            while read -r train prefix _; do
-              [[ "$train" != core ]] || continue
-              twin="$prefix$version"
-              if ! named="$(git rev-parse --quiet --verify "refs/tags/$twin^{commit}")"; then
-                echo "::error::$tag has no $twin: place it on $commit (git tag $twin \"$tag^{commit}\" && git push origin $twin, docs/maintaining.md)."
-                status=1
-              elif [[ "$named" != "$commit" ]]; then
-                echo "::error::$twin names $named, not $commit, the commit of $tag (docs/maintaining.md)."
-                status=1
-              fi
-            done <<<"$listed"
-          done < <(git tag --merged HEAD --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$')
-          exit "$status"
 
   # The jobs too slow for every pull request (heavy.yml): native AOT, native AOT
   # (Marten), the integration suite and compat (.NET 11), on the commit this run

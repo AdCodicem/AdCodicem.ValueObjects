@@ -70,21 +70,6 @@ jobs:
           done < <(git rev-list "$BASE_SHA..$HEAD_SHA")
           exit "$status"
 
-      # Which release trains each commit releases
-      # (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md),
-      # in the job summary, and a warning for a feat, fix or other releasing
-      # commit that changes the projects of two trains: each would release it
-      # under its own version and changelog. Advice, never a failure of this
-      # required check. Without a restore it cannot tell which trains a changed
-      # <PackageVersion> releases, and shows "deps". The runner's own Node: the
-      # script takes Node's built-ins only.
-      - name: Trains each commit releases
-        continue-on-error: true
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node .github/scripts/release-trains.mjs lint-commits "$BASE_SHA" "$HEAD_SHA"
-
   # preview.yml and release.yml never run on a pull request, and deploy-docs.yml
   # only through them, so a broken edit to any of them would otherwise merge
   # green and fail on the next Monday or at release time. actionlint checks
