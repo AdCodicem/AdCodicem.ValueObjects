@@ -114,7 +114,7 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); HotChocolate 17 is a decision, not a
          bump. Its other HotChocolate and GreenDonut packages come with it, at exactly its version, and are pinned by
          nothing here: a pin would make them dependencies of the package. -->
-    <PackageVersion Include="HotChocolate.Types" Version="16.6.8" />
+    <PackageVersion Include="HotChocolate.Types" Version="16.6.9" />
     <!-- The HotChocolate.Data package's floor, the version it is built against, HotChocolate.Types'
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its GreenDonut.Data,
          HotChocolate.Execution.Projections and other packages come with it, at exactly its version, and are pinned by
@@ -257,7 +257,7 @@
     <!-- What the unit suite drives the HotChocolate packages through, as an application does: the HTTP endpoint and, in a
          fixture, HotChocolate's source generator; no package under src/ references them. -->
     <PackageVersion Include="HotChocolate.AspNetCore" Version="16.6.8" />
-    <PackageVersion Include="HotChocolate.Types.Analyzers" Version="16.6.8" />
+    <PackageVersion Include="HotChocolate.Types.Analyzers" Version="16.6.9" />
     <!-- NSwag's document generation over TestHost and its C# client generator, and Confluent's JSON serdes for the Schema
          Registry over a substitute registry client, which the unit suite drives the NJsonSchema package through, as an
          application does; no package under src/ references them. The Kafka client's native library comes with the serdes
