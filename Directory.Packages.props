@@ -7,7 +7,7 @@
 
   <ItemGroup Label="Build">
     <PackageVersion Include="MinVer" Version="6.1.0" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.402" />
   </ItemGroup>
 
   <ItemGroup Label="Source generators and analyzers">
@@ -60,7 +60,7 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). MessagePack 3 lifts the 2.5.302 the
          hub protocol asks for. MessagePack.Annotations and MessagePackAnalyzer come with MessagePack and are pinned by
          nothing here: a pin would make them dependencies of the package. -->
-    <PackageVersion Include="MessagePack" Version="3.1.11" />
+    <PackageVersion Include="MessagePack" Version="3.1.12" />
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.13" />
     <!-- The test-data packages' floors, the versions they are built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). AutoFixture stays on 4.18.1 while
@@ -73,7 +73,7 @@
     <!-- The AI package's floor, the version it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its net10.0 asset depends on
          nothing. -->
-    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.1" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
     <!-- The Model Context Protocol package's floor, the version it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). ModelContextProtocol.Core comes with
          it at exactly that version, and Microsoft.Extensions.Hosting.Abstractions and Caching.Abstractions at their
@@ -128,7 +128,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Testing">
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.2" />
     <PackageVersion Include="xunit.v3.assert" Version="4.0.2" />
@@ -179,7 +179,7 @@
     <!-- Validates what the serializer writes against the JSON Schema exported for it, under draft 2020-12, the draft
          System.Text.Json exports. BSD-3-Clause, as is the package of its author it depends on, the others being
          Microsoft's, under MIT; JsonSchema.Net, which it replaces, moved to the Open Source Maintenance Fee EULA at 9.0. -->
-    <PackageVersion Include="LateApexEarlySpeed.Json.Schema" Version="4.2.0" />
+    <PackageVersion Include="LateApexEarlySpeed.Json.Schema" Version="4.2.2" />
     <!-- The attribute a consumer derives to classify a value object as personal data, which the generator recognizes
          by name: the tests classify value objects as a consumer does, and no package under src/ references it. At the
          version Microsoft.Extensions.Telemetry.Abstractions asks for, which a lower pin would fail the restore of
@@ -201,10 +201,10 @@
          application does, and the OpenAI adapter whose strict-mode request it captures; no package under src/ references
          them. Microsoft.Extensions.AI has no 10.10.1. -->
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
-    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.10.1" />
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
     <!-- Agent Framework's ChatClientAgent, which the unit suite runs the AI package's tools and response format through,
          as an application does; no package under src/ references it. -->
-    <PackageVersion Include="Microsoft.Agents.AI" Version="1.24.0" />
+    <PackageVersion Include="Microsoft.Agents.AI" Version="1.25.0" />
     <!-- The Functions application the integration suite runs in the host's container: the worker's build, and the queue
          trigger whose binding data it reads; no package under src/ references them. -->
     <PackageVersion Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.1.0" />
