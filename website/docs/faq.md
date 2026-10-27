@@ -25,26 +25,19 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The thirty-eight packages are released in two trains, each with one version driven by its own API and not by a
-framework's: the core, `AdCodicem.ValueObjects` and the nine packages released with it, and the satellites, every
-other package. [Supported frameworks](./packages.md#supported-frameworks) gives the train of each. Reference every
-package of a train at that train's version; the two trains carry the same version until they first part, and from
-then on they may differ. A framework's next major is supported by the same packages: their dependencies on the
-frameworks are minimums with no upper bound, and a CI job runs them on the next .NET before it ships. If a new major
-ever breaks what a package calls, the package moves to that major in a release of its train that says so, and an
-application on the older one keeps the version before.
-[ADR-0012](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md) has the reasoning.
+No. The thirty-eight packages share one version, driven by their own API and not by the framework's, and a framework's
+next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
+them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
+major in a release that says so, and an application on the older one keeps the version before.
+[ADR-0010](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md) has the reasoning.
 
 ### Is it ready for production?
 
-Both trains are still at 0.x. Each follows semantic versioning from its own 1.0.0 on, where only a major version
-breaks the public API; until then, a minor version of the train may break, deprecate or remove part of it, so read
-the changelog before taking a new minor ([Versioning](./packages.md#versioning)). The core reaches 1.0 first; the
-satellites stay 0.x and reach 1.0 together, later. Every change is recorded in the changelog of the package's train:
-[CHANGELOG.md](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.md) for the core,
-[CHANGELOG.satellites.md](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.satellites.md) for
-the satellites (CHANGELOG.md up to their first release of their own). Stable releases are cut by hand; in between, a
-preview is published in any week in which something that ships has changed
+It is still at 0.x. Semantic versioning holds from 1.0.0 on, where only a major version breaks the public API;
+until then, a minor version may break, deprecate or remove part of it, so read the changelog before taking a new
+minor ([Versioning](./packages.md#versioning)). Every change is recorded in the
+[changelog](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/CHANGELOG.md). Stable releases are
+cut by hand; in between, a preview is published in any week in which something that ships has changed
 ([Trying a preview](./packages.md#trying-a-preview)).
 
 ### How does it compare with Vogen, StronglyTypedId or Thinktecture?
@@ -509,6 +502,6 @@ Through `IValueObjectPatternValidator`, yes. Its `Pattern` is a `[GeneratedRegex
 regex source generator turns into code at build time, so it runs the same under native AOT as under the JIT and
 costs nothing until it first runs. The `Pattern` option of `[ValueObject<T>]` did not: it built its `Regex` at
 start-up with `RegexOptions.Compiled`, which native AOT cannot honour, so there the expression was interpreted. The
-option no longer compiles (`VO0021`), and any minor version of the core may remove it before the core's 1.0.0;
+option no longer compiles (`VO0021`), and any minor version may remove it before 1.0.0;
 [Diagnostics](./reference/diagnostics.md#moving-off-pattern) shows the change. [Benchmarks](./benchmarks.md)
 has the measurements.

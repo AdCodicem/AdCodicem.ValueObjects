@@ -6,41 +6,27 @@ is on, so this list is worth checking if something looks wired up but never happ
 
 ## Publishing a preview
 
-`preview.yml` publishes a preview of each release train to nuget.org every Monday at 07:15, Paris time, and whenever
-it is dispatched (**Actions → preview → Run workflow**, from `main`: a dispatch from another branch stops at its first
-job). It publishes only when a package input changed since the version nuget.org has of a train from the nearest
-commit, its base, and then every train at its own version, every package of the train at that version, or none. The
-core is pushed, and listed by nuget.org, before the satellites, which depend on it, are pushed.
-[ADR-0009](adr/0009-publish-previews-weekly-when-a-package-input-changed.md) has the reasoning, and
-[ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md) the trains.
+`preview.yml` publishes a preview of every package to nuget.org every Monday at 07:15, Paris time, and whenever it is
+dispatched (**Actions → preview → Run workflow**, from `main`: a dispatch from another branch stops at its first
+job). It publishes only when a package input changed since the version nuget.org has from the nearest commit, and
+then all thirty-eight packages at one version, or none.
+[ADR-0009](adr/0009-publish-previews-weekly-when-a-package-input-changed.md) has the reasoning.
 
-Leave **publish** ticked in the dispatch form to publish. Unticked, the run is a rehearsal: it decides, tests, packs
-and runs `heavy.yml` as a real run does, then skips the publish job and the site. Rehearse after a change to the plan
-or the publish job, then dispatch again with it ticked.
+Each run says what it decided. The **compute the version** job prints the version semantic-release would give the
+next release, and **decide what to publish** writes a summary, *Preview: publish*, *repair* or *none*, with the
+reason and the package inputs that changed:
 
-Each run says what it decided. The **compute the version** job prints each train's version, the one semantic-release
-would give the train's next release, and **decide what to publish** writes a summary, *Preview: publish*, *repair* or
-*none*, with the reason, a row per train (its last stable tag, its base, the version it is packed at, whether it is
-pushed) and the package inputs that changed:
-
-- **publish**: the tests run on `HEAD`, the pack job packs every train at its version, `<the train's next
-  release>-preview.<commits since the train's last stable tag>`, `heavy.yml` runs native AOT, Marten's and the
-  integration suite on that commit, and the .NET 11 island over those packages, and the publish job attests and pushes
-  the trains, the core first. A train nuget.org already has whole from `HEAD`, at the version computed for it, is
-  packed again and not pushed, so a new run of a commit whose run stopped after the core's push pushes the satellites
-  alone. Count about 25 minutes, Marten's native AOT job setting the time.
-- **repair**: a previous push stopped midway, so nuget.org has a train's base version for some of its packages only.
-  The run packs that commit again, tests included, and pushes only the missing packages, at the base version of each
-  train partial there. The other trains are packed beside them, for the tests and the dependency checks, and not
-  pushed. One commit is repaired per run, the core's first: trains partial at two commits stop the plan
-  ([below](#when-a-run-is-red)). Whatever `HEAD` changed since waits for the next run, so dispatch again once the
-  repair is green. A version packed before the release trains (ADR 0012) cannot be repaired by a later run, whose pack
-  step takes arguments that commit's scripts do not: the pack job fails and says so. Complete it with **Re-run failed
-  jobs** on the publish job of the run that stopped midway, as below.
+- **publish**: the tests run on `HEAD`, the pack job packs it at `<next release>-preview.<commits since the last stable
+  tag>`, `heavy.yml` runs native AOT, Marten's and the integration suite on that commit, and the .NET 11 island over
+  those packages, and the publish job attests and pushes it. Count about 25 minutes, Marten's native AOT job setting the
+  time.
+- **repair**: a previous push stopped midway, so nuget.org has the base version for some packages only. The run
+  packs that commit again at that version, tests included, and pushes only the missing packages. Whatever `HEAD`
+  changed since waits for the next run, so dispatch again once the repair is green.
 - **none**: nothing that ships changed. The tests, the pack and the push are skipped.
 
-Whatever it decided, a run whose jobs all succeeded redeploys the site, labelled with the core's version on nuget.org
-that describes the commit it builds. A run with a failed or cancelled job deploys nothing, nor does a rehearsal.
+Whatever it decided, a run whose jobs all succeeded redeploys the site, labelled with the version on nuget.org that
+describes the commit it builds. A run with a failed or cancelled job deploys nothing.
 
 ### When a run is red
 
@@ -48,77 +34,34 @@ that describes the commit it builds. A run with a failed or cancelled job deploy
   published. The same job on `main`, run by `heavy.yml` after the merge, has usually shown it first. Fix it on `main`
   and dispatch again; **Re-run failed jobs** helps only with a job that died before its tests ran. A **repair** run
   tests the base commit, whose code no fix on `main` changes: complete that version instead, with **Re-run failed jobs**
-  on the publish job of the run that stopped midway, or by pushing the missing packages of its
-  `packages-core-<version>-satellites-<version>` artifact by hand, dependencies first, then dispatch again. A failed
-  test of `heavy / compat (.NET 11)`, or its .NET 11 SDK failing to install, only informs until .NET 11 ships
-  ([below](#the-net-compatibility-island)).
-- **The publish job failed.** Use **Re-run failed jobs** on that run. It pushes the same bytes, already tested, and
-  only what nuget.org still lacks of each train the run pushes: its recheck accepts a train that already has, from
-  this run's commit, the version this run pushes. If a newer run has published since, its recheck refuses ("something
+  on the publish job of the run that stopped midway, or by pushing the missing packages of its `packages-<version>`
+  artifact by hand, dependencies first, then dispatch again. A failed test of `heavy / compat (.NET 11)`, or its .NET 11
+  SDK failing to install, only informs until .NET 11 ships ([below](#the-net-compatibility-island)).
+- **The publish job failed.** Use **Re-run failed jobs** on that run. It pushes the same bytes, already tested and
+  attested, and only what nuget.org still lacks. If a newer run has published since, its recheck refuses ("something
   was published since"): dispatch `preview.yml` instead, which decides again.
-- **The wait for nuget.org timed out.** The push succeeded, but nuget.org had not listed every package of the train,
-  or served every symbol package, within 30 minutes; a timeout after the core's push leaves the satellites unpushed.
-  Re-run the failed job once nuget.org has caught up; it pushes nothing that is already there, then what is left.
+- **The wait for nuget.org timed out.** The push succeeded, but nuget.org had not listed every package, or served
+  every symbol package, within 30 minutes. Re-run the failed job once nuget.org has caught up; it pushes nothing
+  that is already there.
 - **A symbol package is still missing.** Re-run the failed job, which pushes it. If nuget.org's validation rejected
   it, and e-mailed the account to say so, a re-run cannot help: the version stays without symbols, which blocks
-  nothing, since the gate does not look for them. Uploading the `.snupkg` from the run's
-  `packages-core-<version>-satellites-<version>` artifact through nuget.org's upload page is the manual way.
-- **The plan failed right after a stable release** ("v… is tagged, but nuget.org has no version of the core packages
-  from … on", or the same of `satellites-v…`). nuget.org has not listed the release yet: wait, and dispatch again. If
-  the release's push failed, complete it first ([Cutting a stable release](#cutting-a-stable-release)).
-- **The plan failed because "a `v…` tag is missing (a release without its twin tag?)"**, or a `satellites-v…` tag.
-  nuget.org has a stable version of that train above the train's newest tag merged into `HEAD`, usually a release
-  whose twin tag was never placed, and every version of the train would be computed from the wrong release. Place the
-  missing tag on the release commit, the one its twin names (`git tag satellites-v<version> "v<version>^{commit}"`, or
-  the other way round), never on the commit the packages' nuspec names, which is that commit's parent; push it as in
-  [Cutting a stable release](#cutting-a-stable-release), then dispatch again. A package
-  moved into another train behind a stable version it already has fails the same way, naming that package: no tag is
-  missing then, the move is early (ADR 0012 moves a package only to a train whose next version is above the package's
-  last), so revert it until a stable release of its new train reaches that version.
-- **The plan failed with "complete … by hand"** (or "complete the core first"). The gate repairs one commit per run,
-  and only a preview it publishes: trains partial at two commits, a partial stable release
-  ([Cutting a stable release](#cutting-a-stable-release)), or partial satellites whose nuspecs do not tell which core
-  they were packed against, or name a core nuget.org lacks, are left to you. Complete the version the message names,
-  with **Re-run failed jobs** on the publish job of the run that packed it, while its recheck passes, or by pushing its
-  missing packages from that run's artifact by hand, dependencies first; the core first when the message says so. Then
-  dispatch again: the next run repairs what is left, or publishes.
-- **The pack failed because a package "already has" the version "on nuget.org"**, or has a stable version at or above
-  it. The run was re-run after another one published its version, or after a release passed it: its plan is stale.
-  Dispatch again rather than re-running it.
+  nothing, since the gate does not look for them. Uploading the `.snupkg` from the run's `packages-<version>`
+  artifact through nuget.org's upload page is the manual way.
+- **The plan failed right after a stable release** ("v… is tagged, but nuget.org has no version of these packages
+  from … on"). nuget.org has not listed the release yet: wait, and dispatch again.
 - **The plan failed because the version "is already on nuget.org (…), packed from another commit".** A preview left
   above a later, lower stable release, after a revert, holds the number this one computed. The next commit on `main`
   moves the number.
-- **The pack failed on the API baseline (`CP0001` and the like).** The commits since the train's last release are
-  typed as fixes, so the train's preview is held to that release's API. A breaking change typed `fix` is the usual
-  cause: it needs a `!`.
+- **The pack failed on the API baseline (`CP0001` and the like).** The commits since the last release are typed as
+  fixes, so the preview is held to that release's API. A breaking change typed `fix` is the usual cause: it needs a
+  `!`.
 
 ### The version
 
-Each train's version is its next release's, as semantic-release would compute it from the commits that release the
-train, suffixed `-preview.<N>`, where `N` counts the commits since the train's last stable tag: `0.3.0-preview.172` is
-the 172nd commit after `v0.2.1`, leading to `0.3.0`. The plan computes it again, from the train's tags, for each
-train it publishes, and stops when the two differ. After a feature is reverted the next preview can be lower than one
-already published; the plan warns, train by train, and NuGet keeps offering the higher one as the latest prerelease
-until a higher version ships.
-
-The **compute the version** job's summary shows how
-([ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)): for each train, its last
-stable tag (`v<version>` for the core, `satellites-v<version>` for the satellites), how many commits since that tag
-release it, their release type, its next version and preview, and for the satellites the core they last released
-against and whether its line has moved since, which makes their release a breaking one, a minor while they are 0.x. A
-commit releases the trains whose packages it changes; a file of `src/Shared/`, the trains whose projects compiled it
-then. A changed `<PackageVersion>` releases the trains whose restore graph holds that package, read from the
-`dotnet restore` of the solution filter the step runs on the tree being released. Under Actions that graph holds
-SourceLink too, so a run on a laptop differs only on a SourceLink bump. `satellites-v0.2.1`, on the commit of
-`v0.2.1`, is the satellites' baseline: without it on GitHub, the step fails, as does **release tooling** on every pull
-request of the release lane. The same table shows in the release's **pack** job, where nothing uses it yet: a stable
-release still cuts every train at one version.
-
-On a pull request, **conventional commits** lists the trains each commit releases in its summary, and warns on a
-`feat`, `fix` or other releasing commit that changes the projects of two trains: each train would list it in its own
-changelog, under its own version. It is advice, not a gate: split such a commit when its parts stand on their own.
-Without a restore it cannot tell which trains a changed `<PackageVersion>` releases and shows `deps` instead, so a
-Dependabot `fix(deps)` commit never triggers it.
+The version is the next release's, as semantic-release would compute it, suffixed `-preview.<N>`, where `N` counts
+the commits since the last stable tag: `0.3.0-preview.172` is the 172nd commit after `v0.2.1`, leading to `0.3.0`.
+After a feature is reverted the next preview can be lower than one already published; the plan warns, and NuGet keeps
+offering the higher one as the latest prerelease until a higher version ships.
 
 ### Routines
 
@@ -141,9 +84,7 @@ Dependabot `fix(deps)` commit never triggers it.
   nor the `InternalsVisibleTo` entry, and the entry changes every package's bytes (`src/Directory.Build.props` is a
   package input), so the next preview publishes. A folder added to a project of the unit suite needs none of this.
 - **Before a stable release**, dispatch `preview.yml` if package inputs changed since the last preview, and start the
-  release once that run is green (see [Cutting a stable release](#cutting-a-stable-release)). Read the open issue
-  "Dependency majors Dependabot holds back" too, for a major the release should support or say it does not
-  ([Dependabot](#dependabot)): its Roslyn rows stand by design.
+  release once that run is green (see [Cutting a stable release](#cutting-a-stable-release)).
 - **After merging a security update of a dependency the packages ship**, dispatch `preview.yml` rather than wait for
   Monday, and consider a release: previews receive no fixes of their own (`SECURITY.md`). A release is possible only
   if the update landed as `fix(deps)` ([Dependabot](#dependabot)): a `chore(deps)` commit gives semantic-release
@@ -184,27 +125,20 @@ Dependabot `fix(deps)` commit never triggers it.
 
 ### Checking a run's provenance
 
-The first time `preview.yml` publishes each train at its own version, and after any change to its plan or its publish
-job, dispatch it rather than wait for Monday, first with **publish** unticked, then ticked, and check:
+The first time `preview.yml` publishes, and after any change to its publish job, dispatch it rather than wait for
+Monday, and check:
 
-1. every package is on nuget.org at its train's version, the one the plan's summary gives the train (*Packed at*),
-   and the publish job's `core: push` step logged "nuget.org lists `<core version>` for every package" before its
-   `satellites: push` step started, which logged the same of the satellites' version;
-2. a satellite's nuspec on nuget.org depends on the core at `[<core version>, <next core line>-0)`, for example
-   `[0.3.0-preview.<N>, 0.4.0-0)`;
-3. an assembly of each train restored from nuget.org verifies, and the certificate comes from Sigstore's public-good
-   instance:
+1. the thirty-eight packages are on nuget.org at the version the run printed, and the publish job finished its wait for
+   the listing;
+2. an assembly restored from nuget.org verifies, and the certificate comes from Sigstore's public-good instance:
 
    ```sh
-   gh attestation verify ~/.nuget/packages/adcodicem.valueobjects.json/<core version>/lib/net10.0/AdCodicem.ValueObjects.Json.dll \
-     --repo AdCodicem/AdCodicem.ValueObjects \
-     --signer-workflow AdCodicem/AdCodicem.ValueObjects/.github/workflows/preview.yml --format json
-   gh attestation verify ~/.nuget/packages/adcodicem.valueobjects.ai/<satellites version>/lib/net10.0/AdCodicem.ValueObjects.AI.dll \
+   gh attestation verify ~/.nuget/packages/adcodicem.valueobjects.json/<version>/lib/net10.0/AdCodicem.ValueObjects.Json.dll \
      --repo AdCodicem/AdCodicem.ValueObjects \
      --signer-workflow AdCodicem/AdCodicem.ValueObjects/.github/workflows/preview.yml --format json
    ```
 
-4. `/docs/preview/` reads `Preview (<core version>)`.
+3. `/docs/preview/` reads `Preview (<version>)`.
 
 Once the first publish from `preview.yml` has succeeded, delete the Trusted Publishing policy of `ci.yml` on
 nuget.org (see [Secrets and external services](#secrets-and-external-services)). Check the next Monday's run too:
@@ -232,20 +166,7 @@ pack job, which holds no credential, packs only the packable projects under `src
 .NET 11 island over the packed packages, compat blocking the release whatever .NET 11 it targets, and is skipped on a
 dry run; the release
 job builds nothing, checks what the pack job produced against its digests, and pushes it. Count about 25 minutes
-before the `nuget-stable` reviewer is asked: Marten's native AOT job sets that time. Approve or reject a run promptly,
-a dry run included: `release.yml` and `preview.yml` share one concurrency group, so a run waiting for its reviewer
-holds the next preview, the Monday one included, until it ends.
-
-Until each release train computes a version of its own
-([ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)), every train is released
-at one version, and the **tag the other trains** job puts `satellites-v<version>` on the commit semantic-release
-tagged `v<version>`, so that each train's last stable tag names what nuget.org last shipped of it. If that job fails,
-or is skipped because semantic-release failed after tagging (below), use **Re-run failed jobs** where it failed, or
-place the tag by hand, on the commit `v<version>` names:
-`git tag satellites-v<version> "v<version>^{commit}" && git push origin satellites-v<version>`. It fails, rather than
-moves it, when such a tag already names another commit. **release tooling** fails every pull request of the release
-lane while a stable release from `v0.2.1` on lacks its twin, or the twin names another commit; its error gives the
-same command.
+before the `nuget-stable` reviewer is asked: Marten's native AOT job sets that time.
 
 The pack job freezes the documentation on every run, the dry run included. A real run commits
 `website/versioned_docs/` along with the changelog, then redeploys the site from the new tag
@@ -257,36 +178,22 @@ site:
 - the release commit contains `website/versioned_docs/version-<line>/api/`.
 
 If the pack or the snapshot fails, the pack job fails and the release job never starts, so nothing is published:
-correct it and dispatch again. Before it packs, `release-pack.sh` looks every package up on nuget.org, and fails when
-one already has the version computed for its train, or a stable version at or above it, which NuGet would keep
-offering. The cause is one of three:
-- the run was dispatched while another release ran, and queued behind it in the `release` group, or it re-runs an
-  older run: its commit lies below that release, and the message names the release's tag when it finds it. If that
-  release completed, dispatch again from `main` when it has more to release; if it stopped midway, complete it as
-  below first. Never place a tag that exists;
-- a release without its tag: place it on the commit its twin names
-  (`git tag satellites-v<version> "v<version>^{commit}"`, or `git tag v<version> "satellites-v<version>^{commit}"`)
-  and push it, as above;
-- a package moved into another train before that train's next version was above the package's last one, which
-  [ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md) refuses: revert the move
-  until then.
-
-If the release is published but its **publish documentation** job fails, use **Re-run failed jobs** on that run: it
-keeps the tag the release job computed. Dispatching **preview** from `main` works too: it redeploys the site, labelled
-with the version on nuget.org, once nuget.org lists the release; before that, its plan fails on purpose.
+correct it and dispatch again. If the release is published but its **publish documentation** job fails, use **Re-run
+failed jobs** on that run: it keeps the tag the release job computed. Dispatching **preview** from `main` works too:
+it redeploys the site, labelled with the version on nuget.org, once nuget.org lists the release; before that, its
+plan fails on purpose.
 
 If semantic-release fails in its publish step, after it has tagged, nothing completes the release by itself.
 semantic-release tags and pushes the changelog commit before it pushes the packages, and creates the GitHub Release
 after them. `push-packages.sh` pushes in dependency order, with retries, so what reached nuget.org is a prefix of the
 set that can be restored; the rest is in the run's `release-packages` artifact. Push the missing packages by hand, in
 the order the log prints ("Push order: …"), then create the GitHub Release from the tag by hand, with that artifact's
-`.nupkg` and `.snupkg` files as its assets, and place `satellites-v<version>` by hand, as above: the **tag the other
-trains** job is skipped with the release job, and a re-run releases nothing. That release carries no provenance
-attestation and cannot get one. The **attest provenance** job runs only when the release job reports a tag, which a
-failed semantic-release never does, and a re-run releases nothing. Only a run of `release.yml` signs as `release.yml`,
-which is what the `--signer-workflow` check in a release's notes requires. Say in its notes that it is not attested,
-rather than copying the verification commands a release normally carries. Until the release is complete, `preview.yml`
-refuses to publish ("complete it by hand").
+`.nupkg` and `.snupkg` files as its assets. That release carries no provenance attestation and cannot get one. The
+**attest provenance** job runs only when the release job reports a tag, which a failed semantic-release never does,
+and a re-run releases nothing. Only a run of `release.yml` signs as `release.yml`, which is what the
+`--signer-workflow` check in a release's notes requires. Say in its notes that it is not attested, rather than
+copying the verification commands a release normally carries. Until the release is complete, `preview.yml` refuses
+to publish ("complete it by hand").
 
 The GitHub Release ends with a table linking each package to its version page on nuget.org, and carries the
 `.nupkg` and `.snupkg` files as assets, signed by a SLSA build provenance attestation that the **attest
@@ -308,37 +215,6 @@ list to semantic-release, and `release-pack.sh` fails the pack job, before anyth
 match the packages it built. The links can answer 404 for a few minutes after the release, until nuget.org has
 indexed the push. In the other direction, each package's release notes on nuget.org point to its GitHub Release, or
 to `CHANGELOG.md` for a preview, which has no release of its own (`src/Directory.Build.props`).
-
-### Rehearsing the release of each train
-
-Until `release.yml` releases each train on its own
-([ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)), that path runs as a
-rehearsal: run **Actions → release → Run workflow** with `dry_run` and `trains` both ticked (the pack job fails on
-`trains` alone). It runs on the current `main` what a release of each train will run, and writes nothing: no commit,
-tag, GitHub Release or push.
-- The pack job computes each train's version from its own tags (the table in its summary), then packs every train: a
-  train that releases at its next version, one that does not at its last release again, the core held to exactly
-  that release's API, any other train as it shipped. It fails as a stable release's pack does, with the causes and
-  remedies above, and also when nuget.org misses a package of the last release it packs again: complete that release
-  first.
-- Once the `nuget-stable` reviewer approves, the release job runs `release-train.mjs` for the core, then for the
-  satellites: a semantic-release dry run each, with the release App's token, which the GitHub plugin checks too. Each
-  step's summary shows the version semantic-release computed and the notes.
-
-Then check three things:
-- each train's version in its step's summary is the one in the pack job's table;
-- each train's notes list that train's commits alone, the core's with the documentation, site and decision commits no
-  train owns, and the satellites' end with "Packed against AdCodicem.ValueObjects <version>.", followed, when the
-  core's line moved since their last release, by a sentence naming the line it moved from;
-- both steps are green. "main moved since the dispatch" means a commit reached `main` after the dispatch: dispatch
-  again. "semantic-release failed for the <train> train" comes with semantic-release's own error above it: a commit
-  the plan did not walk, or one it walked that semantic-release does not see, a version other than the one packed, or
-  a changelog out of shape. "… has no <tag> on origin" names a release commit a run pushed without its tag: complete
-  that run with **Re-run failed jobs** before any new dispatch, which would release that version a second time.
-
-Approve or reject the run promptly: like any dry run, it holds the `release` group. Once each train releases on its
-own, a re-run of a failed run (**Re-run failed jobs**) completes a train that run tagged, whatever `main` holds since,
-without releasing it again (`.github/CLAUDE.md`).
 
 ## GitHub settings
 
@@ -395,14 +271,12 @@ Without them the release job stops at its first step, before anything is publish
   same families moving with them (`xunit.v3*`, `protobuf-net*`, `Microsoft.Azure.Functions.Worker*`,
   `ModelContextProtocol*`), and for the minors of `Microsoft.CodeAnalysis.CSharp*` too: its `major.minor` is the
   oldest compiler that loads the generator, which a minor raises as a major does (#190). Dependabot no longer proposes
-  those majors: `held-back-majors.yml` lists them every Monday, before the preview, in one open issue titled
-  "Dependency majors Dependabot holds back", against the newest stable version nuget.org or npm lists, and closes it
-  once nothing is held back. Its Roslyn rows (4.14.0, and the Wolverine.Http fixture's 5.0.0) stand by design. A new
-  major is supported by a decision, a dependency floor or a target framework
-  ([ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)), never by a bump.
-  Dependabot's NuGet updater applies these rules to security updates too: a security fix that exists only on a new
-  major of one of them opens no pull request, and its alert stays open. Treat it as a deliberate migration under
-  ADR-0012. A fix on the current major opens at once.
+  those majors, so check the shipped dependencies for one before each stable release. A new major is supported by a
+  decision, a dependency floor or a target framework
+  ([ADR-0010](adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)), never by a bump. Dependabot's
+  NuGet updater applies these rules to security updates too: a security fix that exists only on a new major of one of
+  them opens no pull request, and its alert stays open. Treat it as a deliberate migration under ADR-0010. A fix on the
+  current major opens at once.
 - **Families in groups of their own.** `xunit.v3*`, `Microsoft.CodeAnalysis*`, `HotChocolate*` and
   `ModelContextProtocol*` require one another at exactly one version, so a bump of some of them without the rest fails
   the restore with NU1608 (#189). Each family's minor and patch updates come in a pull request of their own, ahead of
@@ -575,7 +449,7 @@ preview ([Checking a run's provenance](#checking-a-runs-provenance)).
 `tests/Compat` installs the packages a commit packs into `net11.0` applications on the .NET 11 release candidate, and
 `heavy.yml`'s `compat (.NET 11)` job runs it after every push to `main`, before every preview and stable release, on
 the packages they publish, and on a pull request labelled `ci:heavy`
-([ADR-0012](adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md),
+([ADR-0010](adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md),
 [ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)). It holds two projects: the
 main one, and `tests/Compat/Swashbuckle`, which installs `AdCodicem.ValueObjects.Swashbuckle` apart, since Swashbuckle
 10 fails on the `Microsoft.OpenApi` 3 the main project's `Microsoft.AspNetCore.OpenApi` 11 brings; the job runs both,

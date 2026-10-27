@@ -44,13 +44,10 @@ in [ADR-0005](../docs/adr/0005-version-the-documentation-site.md).
 | Preview | `docs/` — it describes `main` | `/docs/preview/`, or `/docs/` until the first stable release |
 | Older stable lines | the other entries of `versions.json` | `/docs/<line>/`, e.g. `/docs/0.2.x/` |
 
-A line is the core's: `0.<minor>.x` while the core's major is 0 and `<major>.x` from its 1.0 on.
-`.github/scripts/docs-snapshot.sh` writes `versioned_docs/`, `versioned_sidebars/`, `versions.json` and
-`released-versions.json` during a stable release, and replaces a line's snapshot wholesale when that line ships
-again, a release of the satellites alone included. The last file maps each line to the exact release it was frozen
-at, for the version selector: one version (`"0.2.1"`), or each train's (`{"core": "0.3.2", "satellites": "0.4.1"}`),
-which the selector shows as `0.3.x (core 0.3.2, satellites 0.4.1)`, or with the one version when every train shipped
-the same. Those files are not edited by hand, except to
+A line is `0.<minor>.x` while the major is 0 and `<major>.x` from 1.0 on. `.github/scripts/docs-snapshot.sh`
+writes `versioned_docs/`, `versioned_sidebars/`, `versions.json` and `released-versions.json` during a stable
+release — the last one maps each line to the exact release it was frozen at, for the version selector — and
+replaces a line's snapshot wholesale when that line ships again. Those files are not edited by hand, except to
 correct a released page as described on the [Contributing](src/pages/contributing.md) page.
 
 `docusaurus.config.ts` derives every version option from those two JSON files, so the configuration never names
@@ -84,7 +81,7 @@ replaces that line's real snapshot. It needs `python3` for the DocFX post-proces
 git worktree add ../docs-try HEAD
 cd ../docs-try/website
 npm ci
-../.github/scripts/docs-snapshot.sh 0.99.0     # or "core=0.99.0 satellites=0.99.1"
+../.github/scripts/docs-snapshot.sh 0.99.0
 npm run build && npm run serve
 cd - && git worktree remove --force ../docs-try
 ```
