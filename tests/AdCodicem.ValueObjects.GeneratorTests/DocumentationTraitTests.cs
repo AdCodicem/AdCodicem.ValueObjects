@@ -10,10 +10,9 @@ namespace AdCodicem.ValueObjects.GeneratorTests;
 /// class, and no other test does.
 /// </summary>
 /// <remarks>
-/// A pull request that changes only <c>README.md</c>, a package's README, <c>website/docs/</c> or
-/// <c>skills/value-objects/</c> runs the tests of this suite carrying the trait, and none other
-/// (<c>.github/scripts/ci-plan.sh</c>): a test reading those files without it would let such a pull request break it
-/// unseen. A test reads the repository through a method named
+/// A pull request that changes only <c>README.md</c>, <c>website/docs/</c> or <c>skills/value-objects/</c> runs the
+/// tests of this suite carrying the trait, and none other (<c>.github/scripts/ci-plan.sh</c>): a test reading those
+/// files without it would let such a pull request break it unseen. A test reads the repository through a method named
 /// <c>RepositoryRoot()</c> or <c>SkillDirectory()</c>, or one looking for <c>AdCodicem.ValueObjects.slnx</c>, which
 /// this follows the test's IL to, for each class xUnit runs a test in, its inherited tests included. It walks every
 /// method of this assembly the test reaches: what it calls, the state machine of an asynchronous or iterator one, the

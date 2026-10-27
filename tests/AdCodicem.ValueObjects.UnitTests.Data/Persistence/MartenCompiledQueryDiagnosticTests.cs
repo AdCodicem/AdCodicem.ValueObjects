@@ -82,8 +82,8 @@ public sealed class MartenCompiledQueryDiagnosticTests
         diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
         diagnostic.Location.SourceTree!.GetText(TestContext.Current.CancellationToken).ToString(diagnostic.Location.SourceSpan)
             .Should().Be("Id");
-        // The package and its registration the message names, which ride another release train than the analyzer's
-        // (ADR 0012): a rename there fails here.
+        // The package and its registration the message names, which live in another package than the analyzer: a
+        // rename there fails here.
         var package = $"{typeof(ValueObjectStoreOptionsExtensions).Assembly.GetName().Name}'s "
             + $"{nameof(ValueObjectStoreOptionsExtensions.UseValueObjects)}()";
         diagnostic.GetMessage(CultureInfo.InvariantCulture).Should().Be(

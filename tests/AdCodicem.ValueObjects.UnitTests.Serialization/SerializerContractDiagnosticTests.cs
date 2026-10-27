@@ -14,9 +14,9 @@ namespace AdCodicem.ValueObjects.UnitTests;
 /// <summary>
 /// <c>VO0043</c> over the real protobuf-net, MessagePack and Newtonsoft.Json and this family's packages: the analyzer
 /// and the generator the compiler runs over this project, loaded from the copy <c>CopyValueObjectAnalyzers</c> puts
-/// next to the tests, over value objects the generator writes. The analyzer names the satellites' APIs by string, the
-/// core and the satellites ride two release trains (ADR 0012), so each name it writes is checked here against the
-/// satellite itself: a rename in one train fails the other's tests, not a consumer's build.
+/// next to the tests, over value objects the generator writes. The analyzer names the satellites' APIs by string, which
+/// nothing else compiles against the satellites, so each name it writes is checked here against the satellite itself:
+/// a rename in one package fails these tests, not a consumer's build.
 /// </summary>
 public sealed class SerializerContractDiagnosticTests
 {

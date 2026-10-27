@@ -26,7 +26,7 @@ package's traps in its `src/<Package>/CLAUDE.md`.
 - `Persistence/MartenCompiledQueryDiagnosticTests` runs `VO0048`'s analyzer, loaded from the generator's assembly that
   this project's `CopyValueObjectAnalyzers` target copies to `analyzers/`, over a snippet compiled against the trusted
   platform assemblies, on `Microsoft.CodeAnalysis.CSharp` 4.14.0, the Roslyn the analyzer is built against. Its expected
-  message names the package and `UseValueObjects()` through `typeof` and `nameof`, so a rename in the satellites' train
+  message names the package and `UseValueObjects()` through `typeof` and `nameof`, so a rename in the satellite
   fails it.
 - This project resolves Npgsql 9.0.4, the version Marten asks for; the EfCore project resolves 10.0.3.
 - Its `Persistence/MongoDbShapedCode.cs` (`ShapedCode<TShape>`, a value object written by hand for a pattern the
