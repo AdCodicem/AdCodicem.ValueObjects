@@ -5,13 +5,9 @@
 #
 # Usage: native-aot.sh [output directory, artifacts/native-aot by default] [project, the main application by default]
 #
-# The main application references every package that claims to be AOT-compatible but six: the two HotChocolate ones,
-# whose framework warns on its own publish and starts natively only rooted, and whose HotChocolate.Data filtering of a
-# struct has no native code (each package's CLAUDE.md), the protobuf-net one, which AdCodicem.ValueObjects.NativeAot.ProtobufNet
-# publishes apart, the Orleans one, since Orleans does not start natively, the CsvHelper one, whose CsvHelper record
-# API has no native code, and the Marten one, which AdCodicem.ValueObjects.NativeAot.Marten publishes apart and runs
-# against the PostgreSQL that NATIVE_AOT_POSTGRES names, which that application alone reads. Its Wolverine.Http
-# endpoints run Wolverine's static mode, whose code a pass before both runs writes (below). Each application runs a
+# The main application references every package that claims to be AOT-compatible but two: the HotChocolate one, whose
+# framework warns on its own publish and starts natively only rooted (its CLAUDE.md), and the protobuf-net one, which
+# AdCodicem.ValueObjects.NativeAot.ProtobufNet publishes apart. Each application runs a
 # fixed script over every value object of its domain, one line per scenario, into the file it is given: once under the
 # JIT, through dotnet run, and once as the binary the native AOT compiler wrote. The two files must be identical;
 # behaviour.diff holds the difference when they are not. The analyzers see what each library calls, but they do not run
@@ -23,12 +19,10 @@
 # publish that matches one is expected and does not fail the run; any other does. Each application has one: the main
 # application's lists the two assembly-level warnings Microsoft.AspNetCore.Components reports for itself once the Blazor
 # form of Forms.cs renders, the protobuf-net application's those of protobuf-net's annotations, which reach the
-# nested converters of every value object at each call into the model its generator writes, and protobuf-net.Core's own,
-# and the Marten application's those Marten, JasperFx, Weasel and FastExpressionCompiler report for themselves.
+# nested converters of every value object at each call into the model its generator writes, and protobuf-net.Core's own.
 #
-# heavy.yml runs the main and the protobuf-net applications in its native AOT job, and the Marten one in a job of its
-# own, native AOT (Marten), since the native AOT compiler alone takes about 20 minutes over Marten: after every merge,
-# before every preview and stable release, and on a pull request labelled ci:heavy (ADR 0013).
+# heavy.yml runs both applications in its native AOT job: after every merge, before every preview and stable release,
+# and on a pull request labelled ci:heavy (ADR 0013).
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
@@ -40,18 +34,6 @@ project="${2:-tests/NativeAot/AdCodicem.ValueObjects.NativeAot}"
 name="$(basename "$project")"
 binary="$out/bin/$name"
 allowed="$project/aot-warnings.allowed"
-
-# An application serving Wolverine.Http endpoints runs Wolverine's static mode, over the code codegen write writes for
-# them: written first, under the JIT, into artifacts/wolverine-codegen, never committed, then compiled into the
-# application for both runs. The project picks the pass from WOLVERINE_CODEGEN.
-if grep -q WOLVERINE_CODEGEN "$project/$name.csproj"; then
-  export WOLVERINE_CODEGEN_PATH="$PWD/artifacts/wolverine-codegen"
-  rm -rf "$WOLVERINE_CODEGEN_PATH"
-  echo "::group::Write the code of the Wolverine endpoints"
-  WOLVERINE_CODEGEN="write" dotnet run --project "$project" -c Release -- codegen write
-  echo "::endgroup::"
-  export WOLVERINE_CODEGEN=read
-fi
 
 echo "::group::Run under the JIT"
 dotnet run --project "$project" -c Release -- "$out/jit.txt"

@@ -20,21 +20,15 @@
     <Project Path="src/AdCodicem.ValueObjects.NewtonsoftJson/AdCodicem.ValueObjects.NewtonsoftJson.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Serilog/AdCodicem.ValueObjects.Serilog.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.MongoDB/AdCodicem.ValueObjects.MongoDB.csproj" />
-    <Project Path="src/AdCodicem.ValueObjects.Marten/AdCodicem.ValueObjects.Marten.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.MessagePack/AdCodicem.ValueObjects.MessagePack.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.ProtobufNet/AdCodicem.ValueObjects.ProtobufNet.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Grpc/AdCodicem.ValueObjects.Grpc.csproj" />
-    <Project Path="src/AdCodicem.ValueObjects.Orleans/AdCodicem.ValueObjects.Orleans.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AI/AdCodicem.ValueObjects.AI.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.ModelContextProtocol/AdCodicem.ValueObjects.ModelContextProtocol.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AzureFunctions/AdCodicem.ValueObjects.AzureFunctions.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AzureFunctions.AspNetCore/AdCodicem.ValueObjects.AzureFunctions.AspNetCore.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.HotChocolate/AdCodicem.ValueObjects.HotChocolate.csproj" />
-    <Project Path="src/AdCodicem.ValueObjects.HotChocolate.Data/AdCodicem.ValueObjects.HotChocolate.Data.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Blazor/AdCodicem.ValueObjects.Blazor.csproj" />
-    <Project Path="src/AdCodicem.ValueObjects.CommandLine/AdCodicem.ValueObjects.CommandLine.csproj" />
-    <Project Path="src/AdCodicem.ValueObjects.CsvHelper/AdCodicem.ValueObjects.CsvHelper.csproj" />
-    <Project Path="src/AdCodicem.ValueObjects.Wolverine.Http/AdCodicem.ValueObjects.Wolverine.Http.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing/AdCodicem.ValueObjects.Testing.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.Testing.Data/AdCodicem.ValueObjects.Testing.Data.csproj" />
     <Project Path="src/AdCodicem.ValueObjects.AutoFixture/AdCodicem.ValueObjects.AutoFixture.csproj" />
@@ -47,7 +41,6 @@
     <Project Path="tests/AdCodicem.ValueObjects.UnitTests.EfCore/AdCodicem.ValueObjects.UnitTests.EfCore.csproj" />
     <Project Path="tests/AdCodicem.ValueObjects.UnitTests.Data/AdCodicem.ValueObjects.UnitTests.Data.csproj" />
     <Project Path="tests/AdCodicem.ValueObjects.UnitTests.Serialization/AdCodicem.ValueObjects.UnitTests.Serialization.csproj" />
-    <Project Path="tests/AdCodicem.ValueObjects.UnitTests.Orleans/AdCodicem.ValueObjects.UnitTests.Orleans.csproj" />
     <Project Path="tests/AdCodicem.ValueObjects.UnitTests.Hosts/AdCodicem.ValueObjects.UnitTests.Hosts.csproj" />
     <Project Path="tests/AdCodicem.ValueObjects.UnitTests.GraphQL/AdCodicem.ValueObjects.UnitTests.GraphQL.csproj" />
     <Project Path="tests/AdCodicem.ValueObjects.UnitTests.Text/AdCodicem.ValueObjects.UnitTests.Text.csproj" />
@@ -60,20 +53,17 @@
   <Folder Name="/tests/Fixtures/">
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Blazor/AdCodicem.ValueObjects.Fixtures.Blazor.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Functions/AdCodicem.ValueObjects.Fixtures.Functions.csproj" />
-    <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Grains/AdCodicem.ValueObjects.Fixtures.Grains.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.GraphQL/AdCodicem.ValueObjects.Fixtures.GraphQL.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Redaction/AdCodicem.ValueObjects.Fixtures.Redaction.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.Untouched/AdCodicem.ValueObjects.Fixtures.Untouched.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WithoutGenerator/AdCodicem.ValueObjects.Fixtures.WithoutGenerator.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WithoutJson/AdCodicem.ValueObjects.Fixtures.WithoutJson.csproj" />
-    <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.WolverineHttp/AdCodicem.ValueObjects.Fixtures.WolverineHttp.csproj" />
     <Project Path="tests/Fixtures/AdCodicem.ValueObjects.Fixtures.XmlSerialization/AdCodicem.ValueObjects.Fixtures.XmlSerialization.csproj" />
   </Folder>
   <Folder Name="/tests/NativeAot/">
     <Project Path="tests/NativeAot/AdCodicem.ValueObjects.CompiledModel/AdCodicem.ValueObjects.CompiledModel.csproj" />
     <Project Path="tests/NativeAot/AdCodicem.ValueObjects.NativeAot/AdCodicem.ValueObjects.NativeAot.csproj" />
     <Project Path="tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Domain/AdCodicem.ValueObjects.NativeAot.Domain.csproj" />
-    <Project Path="tests/NativeAot/AdCodicem.ValueObjects.NativeAot.Marten/AdCodicem.ValueObjects.NativeAot.Marten.csproj" />
     <Project Path="tests/NativeAot/AdCodicem.ValueObjects.NativeAot.ProtobufNet/AdCodicem.ValueObjects.NativeAot.ProtobufNet.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">

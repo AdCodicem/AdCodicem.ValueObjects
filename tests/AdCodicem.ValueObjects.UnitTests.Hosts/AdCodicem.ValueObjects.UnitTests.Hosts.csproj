@@ -2,41 +2,13 @@
 
   <!--
     The hosts family's unit tests (.github/ci-families.json): the Azure Functions worker and its ASP.NET Core
-    integration, and Wolverine.Http, whose documents Swashbuckle writes.
+    integration.
   -->
   <Import Project="..\UnitTests.props" />
-
-  <PropertyGroup>
-    <!-- Microsoft.AspNetCore.OpenApi's generator reaches this project through the OpenApi project and intercepts
-         AddOpenApi; the package's build targets, which allow its interceptors, come only with a direct reference. -->
-    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
-  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AzureFunctions\AdCodicem.ValueObjects.AzureFunctions.csproj" />
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.AzureFunctions.AspNetCore\AdCodicem.ValueObjects.AzureFunctions.AspNetCore.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Wolverine.Http\AdCodicem.ValueObjects.Wolverine.Http.csproj" />
-    <!-- The documents WolverineHttp/WolverineHttpDocumentTests reads. -->
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.OpenApi\AdCodicem.ValueObjects.OpenApi.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Swashbuckle\AdCodicem.ValueObjects.Swashbuckle.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- An in-memory server, which Wolverine.Http's hosts are built over. -->
-    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
-    <!-- The compiler WolverineHttp/WolverineHttpCodeTests compiles the code Wolverine writes with. -->
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- The Wolverine.Http application WolverineHttp/WolverineHttpEndToEndTests.cs starts as a child process: built with
-         this project, never loaded by it, and found where the build writes it. Wolverine's dynamic mode compiles the
-         endpoints' code with Roslyn 5.0.0 and its Workspaces, which that project takes through conditional pins of its
-         own (Directory.Packages.props); a reference that does not reference its assembly brings none of its packages
-         here. -->
-    <ProjectReference Include="..\Fixtures\AdCodicem.ValueObjects.Fixtures.WolverineHttp\AdCodicem.ValueObjects.Fixtures.WolverineHttp.csproj"
-                      ReferenceOutputAssembly="false" />
-    <AssemblyMetadata Include="WolverineHttpApplication" Value="$(ArtifactsPath)/bin/AdCodicem.ValueObjects.Fixtures.WolverineHttp/$(Configuration.ToLowerInvariant())" />
   </ItemGroup>
 
   <!-- The sources of other families' folders this project compiles too, at the same path, so that a resource keeps

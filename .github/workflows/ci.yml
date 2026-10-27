@@ -456,8 +456,8 @@ jobs:
       - name: Release configuration tests
         run: node --test '.github/scripts/*.test.mjs'
 
-  # The jobs too slow for every pull request (heavy.yml): native AOT, native AOT
-  # (Marten), the integration suite and compat (.NET 11), on the commit this run
+  # The jobs too slow for every pull request (heavy.yml): native AOT, the
+  # integration suite and compat (.NET 11), on the commit this run
   # tests, when the plan calls them. Never on a push: heavy.yml runs on main's
   # pushes by itself, where a newer push cancels an older one's jobs.
   heavy:

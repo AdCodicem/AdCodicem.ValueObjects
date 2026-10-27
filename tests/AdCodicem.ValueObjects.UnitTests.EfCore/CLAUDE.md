@@ -15,8 +15,7 @@ suite's conventions are in `tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`, e
   integration suite.
 - `Persistence/EntityFrameworkCoreCheckErrorTests.cs` stands for the path only `SaveChangesFailed` sees by throwing
   SQLite's error from `DataReaderClosing`; the integration suite runs it for real.
-- This project resolves Npgsql 10.0.3, through Npgsql.EntityFrameworkCore.PostgreSQL; the Data project resolves Marten's
-  9.0.4.
+- This project resolves Npgsql 10.0.3, through Npgsql.EntityFrameworkCore.PostgreSQL.
 - It links the Data project's `Persistence/MongoDbShapedCode.cs` and core's `Persistence/NonUnicodeValueObjects.cs`
   (`RegisteredAsciiDeclaration`, which `EntityFrameworkCoreUnicodeTests` uses), at the same paths.
 - The GraphQL project references the Entity Framework Core package too, so a change to that package runs the graphql

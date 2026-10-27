@@ -42,8 +42,8 @@ only with HotChocolate.Types and the application rooted.
 - `ValueObjectScalarOptions.QuoteScalarNameIn(predicate)` quotes the scalar's name for a value refused in the argument or
   input field the predicate selects: the filter looks up the error's `coordinate`, which HotChocolate keeps as text
   (`IbanOperationFilterInput.eq`), sets to the innermost input value, and leaves out for a variable it coerces before any
-  field. That is how HotChocolate.Data reaches every operation with no reference from this package to it; without a
-  predicate nothing changes.
+  field. That is how an application quotes the scalar's name for the operands of HotChocolate.Data's filters, with no
+  reference from this package to it; without a predicate nothing changes.
 - A text scalar's `Pattern` comes from its `[GeneratedRegex]` text, which HotChocolate publishes as `@serializeAs` under
   `ApplySerializeAsToScalars`, beside the wire pattern of a `TimeSpan`, a `TimeOnly` or a `DateTime`.
 

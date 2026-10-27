@@ -1,6 +1,6 @@
 ---
 name: value-objects
-description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver, Marten, MessagePack and SignalR, protobuf-net and gRPC, Orleans, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker), Wolverine.Http, HotChocolate (GraphQL), Blazor forms, System.CommandLine and CsvHelper integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, money, strongly-typed identifier), and whenever a VO0001–VO0048 diagnostic needs fixing.
+description: Author and wire single-value DDD value objects with AdCodicem.ValueObjects on .NET — [ValueObject<T>] structs, [EntityId] public identifiers, the normalize/validate/format hook interfaces, and the JSON, EF Core, ASP.NET Core, Dapper, MongoDB.Driver, MessagePack and SignalR, protobuf-net and gRPC, FluentValidation, DataAnnotations, OpenAPI (built-in, Swashbuckle, NSwag), Kafka, Serilog, Microsoft.Extensions.AI (tools, structured output), Model Context Protocol servers, Azure Functions (isolated worker), HotChocolate (GraphQL) and Blazor forms integrations, valid test data for AutoFixture, Bogus and FsCheck, and XML serialization (XmlSerializer, DataContractSerializer) opted into per assembly. Use whenever a C# project references AdCodicem.ValueObjects, whenever a primitive is being wrapped in a domain type to address primitive obsession (IBAN, email, money, strongly-typed identifier), and whenever a VO0001–VO0047 diagnostic needs fixing.
 license: MIT
 ---
 
@@ -179,7 +179,7 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   validation. Construct through `Create`/`TryCreate`; express absence as `Iban?`, never as an empty or default
   instance. A test that needs one disables `VO0010` on that line with a comment saying why. One that slips past the
   analyzer (an entity property never set) is refused by every writer when its type rejects the default (JSON,
-  Dapper, MongoDB, MessagePack, protobuf-net, Orleans, CsvHelper, a HotChocolate output field, XML in an assembly marked
+  Dapper, MongoDB, MessagePack, protobuf-net, a HotChocolate output field, XML in an assembly marked
   `[assembly: ValueObjectXmlSerialization]`, EF Core `SaveChanges`); an EF Core `Iban?` column stores `NULL` instead,
   and so does an element of a `List<Iban?>` (over text only: an element of a `List<Quantity?>` is refused). Under
   `ConfigureValueObjects`, an EF Core primary key of one property over a `Guid` value object that nothing generates
@@ -208,8 +208,8 @@ about (`CountryCode => Value[..2]`, a `New()` factory, named format constants).
   `VO0043` (`VO0044` for `[MemoryPackable]`, and `[Serializable]` outside the XML opt-in): the serializer would describe
   the generator's members and lose the value. Remove it, or for protobuf-net name the serializer,
   `[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<Sku, string>))]`, which the code fix writes strict at
-  `Level200` (name the profile `AddValueObjects` used on another level or trust); for Orleans, call `AddValueObjects()`
-  of `AdCodicem.ValueObjects.Orleans` on the serializer of every silo and client. For `[Serializable]` where a
+  `Level200` (name the profile `AddValueObjects` used on another level or trust); for Orleans, give it a surrogate
+  holding the underlying value, with a converter reading it back through `TryCreate`. For `[Serializable]` where a
   `DataContractSerializer` writes the type, opt the assembly in instead: removed, it writes an empty element.
 - A value object classified as personal data on its type, logged by a `[LoggerMessage]` method under
   Microsoft.Extensions.Telemetry with no classification on the parameter or the property — warning `VO0045`: its
@@ -249,25 +249,19 @@ ValueObjectDapper.AddValueObjectHandlers(typeof(Iban).Assembly);                
 BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));    // MongoDB, first
 ValueObjectBson.Register(typeof(Iban).Assembly);                                       // MongoDB, before anything is serialized
 EntityIdBson.Register(typeof(AccountId).Assembly);                                     // Identifiers.MongoDB, on insert
-builder.Services.AddMarten(o => o.Connection(cs)).UseValueObjects();                   // Marten, after AddMarten's own configuration
 var msgpack = MessagePackSerializerOptions.Standard.WithValueObjects();                // MessagePack
 builder.Services.AddSignalR().AddMessagePackProtocol(o => o.UseValueObjects());        // MessagePack, client too
 RuntimeTypeModel.Default.AddValueObjects(typeof(Iban).Assembly);                       // ProtobufNet, before the first message
 builder.Services.AddSingleton(ValueObjectBinderConfiguration.ForServer(RuntimeTypeModel.Default)); // ProtobufNet: code-first gRPC
 builder.Services.AddGrpc(o => o.Interceptors.Add<ValueObjectExceptionInterceptor>());  // Grpc: contract-first, ValueObjectBadRequest too
-builder.UseOrleans(s => s.Services.AddSerializer(o => o.AddValueObjects()));            // Orleans, a silo; UseOrleansClient the same in a client
 builder.Services.AddGraphQLServer().AddQueryType<Query>().AddValueObjects();           // HotChocolate, a scalar per value object
-//   .AddFiltering().AddValueObjectFiltering();   // HotChocolate.Data, after AddFiltering(): every value object filtered through its scalar
 builder.Services.AddValueObjectInputs(o => o.UseResource<Messages>());                // Blazor, optional: messages by code
 // <InputValueObject @bind-Value="Model.Iban" /> in an EditForm                       // Blazor, an input per value object
-root.AcceptValueObjects(o => o.UseResource<Messages>());                              // CommandLine, once the whole tree is added
-csv.Context.TypeConverterCache.AddValueObjects();                                      // CsvHelper, each reader and writer, first
 new LoggerConfiguration().Enrich.FromLogContext()                                      // Serilog, after FromLogContext
     .Destructure.ValueObjects(o => { o.CaptureAsUnderlyingValue = true; o.Assemblies.Add(typeof(Iban).Assembly); });
 // [assembly: ValueObjectXmlSerialization]  in the domain assembly: XmlSerializer, DataContractSerializer, MVC XML formatters
 functions.UseValueObjects();                                                           // AzureFunctions, the isolated worker's binding data
 functions.UseValueObjectProblemDetails();                                              // AzureFunctions.AspNetCore, after ConfigureFunctionsWebApplication()
-app.MapWolverineEndpoints(o => o.UseValueObjects());                                  // Wolverine.Http, inside the callback
 
 protected override void ConfigureConventions(ModelConfigurationBuilder builder)        // EntityFrameworkCore
     => builder.ConfigureValueObjects(typeof(Iban).Assembly);
@@ -294,20 +288,9 @@ isolated worker binds a value object from a route, a query or binding data only 
 (`7`, never `007`), and fails a `Guid`, text or a date with a 500; it answers a refusal over HTTP with a 500 unless
 `UseValueObjectProblemDetails()` (`AdCodicem.ValueObjects.AzureFunctions.AspNetCore`) follows
 `ConfigureFunctionsWebApplication()`. Without `AddValueObjects()` (`AdCodicem.ValueObjects.HotChocolate`), a HotChocolate
-schema taking a value object as an argument does not start; without `AddValueObjectFiltering()`
-(`AdCodicem.ValueObjects.HotChocolate.Data`), a HotChocolate.Data filter names a value object's `value` and compares raw
-text. A Blazor form binds a value object through
+schema taking a value object as an argument does not start. A Blazor form binds a value object through
 `InputValueObject` (`AdCodicem.ValueObjects.Blazor`); `@bind` drops refused text without a message and binds empty
-text as the default instance. Without `AcceptValueObjects()` (`AdCodicem.ValueObjects.CommandLine`), a
-System.CommandLine option of a value object parses with no error and `GetValue` then throws, and `--flag` alone is
-refused for one over `bool`. Without `AddValueObjects()` on a context's `TypeConverterCache`
-(`AdCodicem.ValueObjects.CsvHelper`), CsvHelper writes a `Value` column per value object and reads default instances,
-with nothing thrown. Without `UseValueObjects()` (`AdCodicem.ValueObjects.Marten`), Marten throws on every comparison
-of a value object, answers no rows for `x.Iban.Value == "…"`, and fails `Duplicate(x => x.Iban)` at the first write.
-Without `UseValueObjects()` inside `MapWolverineEndpoints` (`AdCodicem.ValueObjects.Wolverine.Http`), a Wolverine.Http
-endpoint answers a refused route value 404 with no code, binds as the default instance a refused query value under the
-default `RejectUnparseableQueryValues = false`, an empty or absent one, and a refused, empty or absent header or form
-value, and fails to start on `[FromQuery]` over a value object.
+text as the default instance.
 Per-package details, EF `strict` mode and problem-details payloads:
 `references/integrations.md`.
 
@@ -357,8 +340,8 @@ library. AutoFixture, Bogus and FsCheck get the same values through `AdCodicem.V
 | File | Read it for |
 | --- | --- |
 | `references/authoring.md` | Every attribute option, known values and closed value sets, the example, arithmetic, formats, span normalization, personal data. |
-| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, Marten, MessagePack and SignalR, protobuf-net and gRPC (code-first and contract-first), Orleans grain calls, GraphQL (HotChocolate), FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, XML, test data for AutoFixture, Bogus and FsCheck, Azure Functions (isolated worker), Wolverine.Http endpoints, Blazor forms, System.CommandLine, CsvHelper, the run-time lookup when only a `Type` is known. |
+| `references/integrations.md` | ASP.NET Core, EF Core, JSON and JSON Schema, Dapper, MongoDB.Driver and its `$jsonSchema` validator, MessagePack and SignalR, protobuf-net and gRPC (code-first and contract-first), GraphQL (HotChocolate), FluentValidation, DataAnnotations (`[ParsesAs]`, `[NotDefault]`), OpenAPI (built-in, Swashbuckle, NSwag), Kafka with Confluent's Schema Registry, Newtonsoft, Serilog, language models (Microsoft.Extensions.AI), MCP servers, XML, test data for AutoFixture, Bogus and FsCheck, Azure Functions (isolated worker), Blazor forms, the run-time lookup when only a `Type` is known. |
 | `references/identifiers.md` | `[EntityId]` Stripe-style public identifiers, their EF Core columns and MongoDB id generation, `AnyEntityId`, deterministic tests. |
-| `references/diagnostics.md` | `VO0001`–`VO0048`, with the fix for each. |
+| `references/diagnostics.md` | `VO0001`–`VO0047`, with the fix for each. |
 
 Published documentation: <https://adcodicem.github.io/AdCodicem.ValueObjects/>

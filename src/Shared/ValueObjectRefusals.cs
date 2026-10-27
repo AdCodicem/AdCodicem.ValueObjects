@@ -18,9 +18,9 @@ namespace AdCodicem.ValueObjects.Shared;
 /// </param>
 /// <param name="services">The request's services, which hold the localizer the messages are read through.</param>
 /// <remarks>
-/// Linked into the three packages that answer a refused value object on ASP.NET Core with the minimal API's validation
-/// problem: the minimal API one, which adds the refusal of a request body in a part of its own, the Azure Functions
-/// ASP.NET Core one and the Wolverine.Http one. Every refusal is listed through this class, so that each gets the message
+/// Linked into the two packages that answer a refused value object on ASP.NET Core with the minimal API's validation
+/// problem: the minimal API one, which adds the refusal of a request body in a part of its own, and the Azure Functions
+/// ASP.NET Core one. Every refusal is listed through this class, so that each gets the message
 /// the application's resource holds for its code, when one is named, and keeps the English message of the rule
 /// otherwise.
 /// </remarks>

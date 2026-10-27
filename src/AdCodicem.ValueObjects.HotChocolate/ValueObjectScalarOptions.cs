@@ -132,8 +132,7 @@ public sealed class ValueObjectScalarOptions
     /// <para>
     /// Only the message of a localized refusal changes, which <see cref="UseResource{TResource}"/> asks for: its code, its
     /// path, its <c>inputPath</c> and its <c>coordinate</c> stay HotChocolate's. A predicate that throws fails the error
-    /// filter, as any error filter that throws does. <c>AddValueObjectFiltering()</c> of
-    /// AdCodicem.ValueObjects.HotChocolate.Data selects the operations of every filter itself.
+    /// filter, as any error filter that throws does.
     /// </para>
     /// </remarks>
     public ValueObjectScalarOptions QuoteScalarNameIn(Func<IInputValueDefinition, bool> inputValues)

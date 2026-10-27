@@ -1,10 +1,9 @@
 using AdCodicem.ValueObjects.UnitTests.Functions;
-using AdCodicem.ValueObjects.UnitTests.WolverineHttp;
 
 namespace AdCodicem.ValueObjects.UnitTests.GeneratedSurface;
 
-// The hosts family's part of Sample (GeneratedSurface/Sample.cs): the checks that hold every sample to Azure Functions
-// and Wolverine.Http.
+// The hosts family's part of Sample (GeneratedSurface/Sample.cs): the check that holds every sample to Azure
+// Functions.
 
 public abstract partial class Sample
 {
@@ -17,20 +16,9 @@ public abstract partial class Sample
     /// </summary>
     /// <returns>The check.</returns>
     public abstract Task BindsThroughTheFunctionsWorkerAsync();
-
-    /// <summary>
-    /// Binds the value object's text through the helpers the code Wolverine.Http generates for an endpoint calls, alone,
-    /// as its nullable type and as the elements of an array, and checks that it binds the value <c>TryParse</c> reads,
-    /// with nothing to answer, and that the refused text is answered with the message and the code a minimal API answers
-    /// it with, the code recorded on the request.
-    /// </summary>
-    /// <returns>The check.</returns>
-    public abstract Task BindsThroughAWolverineEndpointAsync();
 }
 
 public partial class Sample<TSelf, TValue>
 {
     public override Task BindsThroughTheFunctionsWorkerAsync() => FunctionsParity.CheckAsync<TSelf, TValue>(Small, Text, Refused);
-
-    public override Task BindsThroughAWolverineEndpointAsync() => WolverineHttpParity.CheckAsync<TSelf, TValue>(Small, Text, Refused);
 }

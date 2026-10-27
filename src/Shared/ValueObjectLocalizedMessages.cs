@@ -22,8 +22,8 @@ namespace AdCodicem.ValueObjects.Shared;
 /// <see cref="FormatException"/>, which is the application's error to see, not to hide behind the English text.
 /// </para>
 /// <para>
-/// This file is linked into the six packages that localize a refusal: the four that answer one on ASP.NET Core, the
-/// minimal API one, the MVC one, the Azure Functions ASP.NET Core one and the Wolverine.Http one, which link
+/// This file is linked into the five packages that localize a refusal: the three that answer one on ASP.NET Core, the
+/// minimal API one, the MVC one and the Azure Functions ASP.NET Core one, which link
 /// <c>ValueObjectLocalizedMessages.AspNetCore.cs</c> beside it for the options they share, and the HotChocolate one and
 /// the Blazor one, which link this file alone. Each compiles its own copy, as the AI and the Model Context Protocol packages each compile
 /// <c>ValueObjectArguments.cs</c>. It reads no annotation and closes no generic type at run time, so it runs in a native

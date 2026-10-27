@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The graphql family's unit tests (.github/ci-families.json): AdCodicem.ValueObjects.HotChocolate and
-    AdCodicem.ValueObjects.HotChocolate.Data, whose filtering runs over Entity Framework Core on SQLite.
+    The graphql family's unit tests (.github/ci-families.json): AdCodicem.ValueObjects.HotChocolate.
   -->
   <Import Project="..\UnitTests.props" />
 
@@ -15,9 +14,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.HotChocolate\AdCodicem.ValueObjects.HotChocolate.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.HotChocolate.Data\AdCodicem.ValueObjects.HotChocolate.Data.csproj" />
-    <!-- The model GraphQL/ filters over, on SQLite. -->
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.EntityFrameworkCore\AdCodicem.ValueObjects.EntityFrameworkCore.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,12 +23,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- What an application serves a HotChocolate schema through, its HTTP endpoint, over TestHost; HotChocolate.Data,
-         whose filtering and sorting GraphQL/ drives the HotChocolate.Data package through, comes with that package, and
-         SQLite runs the filters of the model. -->
+    <!-- What an application serves a HotChocolate schema through, its HTTP endpoint, over TestHost. -->
     <PackageReference Include="HotChocolate.AspNetCore" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
   </ItemGroup>
 
   <!-- The sources of other families' folders this project compiles too, at the same path, so that a resource keeps

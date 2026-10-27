@@ -1,8 +1,0 @@
-# Marten, Weasel and JasperFx warn for themselves, at their own source lines (/_/src/ is their Source Link root): Marten's
-# closed-shape storage, select clauses, compiled-query descriptors and identity value sources close generic types over
-# the document and its members at run time, its dynamic JSON converter serializes an object, and Weasel.Storage's
-# metadata binders build setters from a MemberInfo. Never this library's code, whose warnings name AdCodicem.ValueObjects.
-/_/src/(Marten|Weasel\.Storage)/[A-Za-z/.]+\.cs\([0-9,]+\): Trim analysis warning IL2026: (Marten|Weasel\.Storage)\.
-ILC : Trim analysis warning IL2026: Weasel\.Postgresql\.CommandBuilder\.Weasel\.Core\.ICommandBuilder\.AddParameters\(Object\)
-# The assemblies Marten brings report their warnings once each.
-(Marten|JasperFx|Weasel\.Core|Weasel\.Postgresql|FastExpressionCompiler)\.dll : warning IL(2104|3053): Assembly '(Marten|JasperFx|Weasel\.Core|Weasel\.Postgresql|FastExpressionCompiler)'

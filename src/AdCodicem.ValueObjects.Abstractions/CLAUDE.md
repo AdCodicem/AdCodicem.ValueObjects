@@ -25,7 +25,7 @@
 - A localised message comes from a resource `ErrorMessageResourceType` names alone, read through
   `ResourceManager(typeof(T))` (base name: the type's full name, never a `ResourcesPath`), cached per type; a
   `MissingManifestResourceException` is a missing key, and the next key is looked up. The lookup is
-  `src/Shared/ValueObjectResourceMessages.cs`, which the System.CommandLine package links too. `ErrorMessage`, or a
+  `src/Shared/ValueObjectResourceMessages.cs`. `ErrorMessage`, or a
   resource with its name, gives DataAnnotations' single message: MVC, .NET 10 and .NET 11 keep the message of an
   attribute naming `ErrorMessageResourceType`.
 - A misuse (a member of the wrong type, a type no value object, unregistered under native AOT) throws

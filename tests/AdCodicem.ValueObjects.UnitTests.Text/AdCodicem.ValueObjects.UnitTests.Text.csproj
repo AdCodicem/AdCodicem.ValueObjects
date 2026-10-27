@@ -1,17 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The text family's unit tests (.github/ci-families.json): AdCodicem.ValueObjects.Blazor,
-    AdCodicem.ValueObjects.CommandLine and AdCodicem.ValueObjects.CsvHelper, which share src/Shared/ValueObjectText.cs.
+    The text family's unit tests (.github/ci-families.json): AdCodicem.ValueObjects.Blazor.
   -->
   <Import Project="..\UnitTests.props" />
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.Blazor\AdCodicem.ValueObjects.Blazor.csproj" />
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.CommandLine\AdCodicem.ValueObjects.CommandLine.csproj" />
-    <!-- Under an alias too: src/Shared/ValueObjectText.cs is compiled into the Blazor, System.CommandLine and CsvHelper
-         packages, and the test of its Gregorian cultures names the CsvHelper package's copy through the alias. -->
-    <ProjectReference Include="..\..\src\AdCodicem.ValueObjects.CsvHelper\AdCodicem.ValueObjects.CsvHelper.csproj" Aliases="global,csvhelper" />
   </ItemGroup>
 
   <ItemGroup>

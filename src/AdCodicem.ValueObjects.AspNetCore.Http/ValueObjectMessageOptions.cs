@@ -9,8 +9,8 @@ namespace AdCodicem.ValueObjects.AspNetCore;
 /// <remarks>
 /// <para>
 /// The options of <c>WithValueObjectProblemDetails(messages =&gt; …)</c> on a minimal API, of
-/// <c>AddValueObjects(messages =&gt; …)</c> on MVC, of <c>UseValueObjectProblemDetails(messages =&gt; …)</c> on an
-/// Azure Functions HTTP trigger, and of <c>UseValueObjects(messages =&gt; …)</c> on Wolverine.Http endpoints. Without a
+/// <c>AddValueObjects(messages =&gt; …)</c> on MVC, and of <c>UseValueObjectProblemDetails(messages =&gt; …)</c> on an
+/// Azure Functions HTTP trigger. Without a
 /// resource, a refusal keeps the English message of the rule. With one, the message is looked up under the keys of
 /// <see cref="ValueObjectMessages.KeysFor"/>: the key of the code,
 /// <c>ValueObject.value_object.too_short</c>, after the same key followed by <c>.minimum</c> or <c>.maximum</c> for a
@@ -29,8 +29,8 @@ namespace AdCodicem.ValueObjects.AspNetCore;
 /// </para>
 /// <para>
 /// The type lives in <c>AdCodicem.ValueObjects.AspNetCore.Http</c>, beside <see cref="ValueObjectProblemDetails"/> and
-/// under the same namespace, so that the minimal API package, the MVC one, the Azure Functions ASP.NET Core one and the
-/// Wolverine.Http one, which reference it, share it.
+/// under the same namespace, so that the minimal API package, the MVC one and the Azure Functions ASP.NET Core one,
+/// which reference it, share it.
 /// </para>
 /// </remarks>
 public sealed class ValueObjectMessageOptions

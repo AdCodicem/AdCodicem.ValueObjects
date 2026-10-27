@@ -18,23 +18,17 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, a `$jsonSchema` validator from the rules. |
-| `AdCodicem.ValueObjects.Marten` | Marten: LINQ, `Contains`/`IsOneOf`, duplicated fields and identities over the underlying value, a compiled query's collections bound on every call, projected values read through the rules. AOT-compatible. |
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers and protobuf-net.Grpc code-first services: the underlying type's wire, strict reads, the scalar in the `.proto` export, a refused request answered `INVALID_ARGUMENT` with its code. AOT-compatible through protobuf-net's `[ProtoModel]`. |
 | `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC: every refused field at once in a `google.rpc.BadRequest`, a refusal escaping a handler as `INVALID_ARGUMENT` with a `google.rpc.ErrorInfo`. AOT-compatible. |
-| `AdCodicem.ValueObjects.Orleans` | Orleans grain calls: the underlying value's wire, strict reads, a refusal's code back at the caller, a `ValueObjectException` from a grain carried with its code. AOT-compatible code; Orleans does not run natively. |
 | `AdCodicem.ValueObjects.HotChocolate` | HotChocolate 16: one GraphQL scalar per value object, read through its rules; a refused value answered with its code under `extensions.code`. AOT-compatible. |
-| `AdCodicem.ValueObjects.HotChocolate.Data` | HotChocolate.Data 16: every value object filtered through its scalar's operations, normalized, refused with its code, translated by EF Core; text operations on request. AOT-compatible code; HotChocolate.Data filtering does not run natively. |
 | `AdCodicem.ValueObjects.Blazor` | Blazor forms: `InputValueObject`, an input per value object read through its rules; the refused rule's message under the field, its code on the `EditContext`. AOT-compatible, installable in Blazor WebAssembly. |
-| `AdCodicem.ValueObjects.CommandLine` | System.CommandLine 2.0 and 3.0: options and arguments read through the rules; the refused rule's message on the terminal, its code on the parse error. AOT-compatible. |
-| `AdCodicem.ValueObjects.CsvHelper` | CsvHelper 33.1: a column per value object, written as its own text, read through its rules; a refused field a `TypeConverterException` with its code in `Data`. AOT-compatible code; CsvHelper's record API does not run natively. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Serilog logs a value object as its underlying value, with `@` and, on request, without. AOT-compatible. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI: the rules in tool and structured-output schemas; a refused tool argument answered with its code. AOT-compatible. |
 | `AdCodicem.ValueObjects.ModelContextProtocol` | MCP C# SDK: the rules in tool input and output schemas; a refused tool argument answered with its code, as a tool execution error. AOT-compatible. |
 | `AdCodicem.ValueObjects.AzureFunctions` | Azure Functions isolated worker: route values, query values and binding data bound through `TryParse`; a refusal carrying its code. |
 | `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` | The minimal API problem details, with codes, for HTTP triggers on the Functions ASP.NET Core integration. |
-| `AdCodicem.ValueObjects.Wolverine.Http` | Wolverine.Http 6.51: route, query, header and form values bound through their rules; every refused or missing one answered 400 with the minimal API's problem details and codes. AOT-compatible in Wolverine's static mode. |
 | `AdCodicem.ValueObjects.Identifiers[.EntityFrameworkCore\|.MongoDB]` | Stripe-style public identifiers, their columns, their minting on insert. See `identifiers.md`. |
 | `AdCodicem.ValueObjects.Testing` | The xUnit contract kit. |
 | `AdCodicem.ValueObjects.Testing.Data` | Values each type accepts, drawn from its rules; the values at its edges and the values its schema rules out. |
@@ -44,7 +38,7 @@ closed over the concrete types at start-up, so per-request work is fully typed a
 
 Never put a serializer's contract attribute on a value object: `[GenerateSerializer]`, `[ProtoContract]`, `[DataContract]`,
 `[XmlType]`, `[MessagePackObject]`, `[JsonObject]`, `[MemoryPackable]`, or `[Serializable]` outside the XML opt-in
-(`VO0043`, `VO0044`); for Orleans, register `AddValueObjects()` of `AdCodicem.ValueObjects.Orleans` instead. The one
+(`VO0043`, `VO0044`); for Orleans, give it a surrogate holding the underlying value instead. The one
 exception is protobuf-net's attribute route,
 `[ProtoContract(Serializer = typeof(ValueObjectProtoSerializer<TSelf, TValue>))]`. Where `DataContractSerializer` writes
 a `[Serializable]` value object, opt the assembly into XML serialization rather than remove the attribute, which would
@@ -83,7 +77,7 @@ with `Minimum` 0, an unconstrained `Guid`) writes it.
 **Every exception an integration throws for a refused value carries the rule's code.** System.Text.Json:
 `ValueObjectJsonException.ErrorCode`, beside `ValueObjectType`. Newtonsoft.Json's `JsonSerializationException`, Dapper's
 `DataException`, MongoDB.Driver's `FormatException` (read) and `BsonSerializationException` (write), MessagePack's
-`MessagePackSerializationException`, protobuf-net's `ProtoException`, CsvHelper's `TypeConverterException`, and the
+`MessagePackSerializationException`, protobuf-net's `ProtoException`, and the
 `XmlException` of `XmlSerializer` and `DataContractSerializer` in an
 assembly marked `[assembly: ValueObjectXmlSerialization]`, inside the serializer's own exception:
 `exception.Data[ValueObjectErrors.ErrorCodeKey]`. EF Core: the `ValueObjectException` inside `DbUpdateException`; a
@@ -591,65 +585,6 @@ await database.CreateCollectionAsync("orders", new CreateCollectionOptions<BsonD
 - `For<TDocument>()` throws `InvalidOperationException` before `ValueObjectBson.Register`, and for a document the driver
   serializes without a class map.
 
-## Marten
-
-```csharp skip
-builder.Services.AddMarten(options =>
-{
-    options.Connection(connectionString);
-    options.Schema.For<Order>().Duplicate(x => x.Iban);
-}).UseValueObjects();                                   // whatever the order of the calls inside AddMarten
-// a ConfigureMarten replacing the serializer: register it first, or end it with options.UseValueObjects()
-
-// bare StoreOptions: after UseSystemTextJsonForSerialization, which replaces the serializer
-options.UseSystemTextJsonForSerialization(AppJsonContext.Default.Options);
-options.UseValueObjects();
-```
-
-Without it, Marten stores a value object as its bare value but throws on every comparison of one, answers no rows for
-`x.Iban.Value == "…"`, fails `list.Contains(x.Country)` at execution and `Duplicate(x => x.Iban)` at the first write.
-Never use Marten's `RegisterValueType` for a generated value object: it refuses one.
-
-- Query value objects as their values: `x.Iban == iban`, `x.Quantity > q`, `x.Iban.Value.StartsWith("FR")`,
-  `list.Contains(x.Country)`, `x.Country.IsOneOf(countries)`, `x.Countries.Contains(code)`, `x.Backup == null`,
-  `OrderBy`, `Select(x => x.Quantity)`, `MaxAsync`. Compare with `==`, never `Equals` or `CompareTo`; select the value
-  object, never `x.Iban.Value`; compare a value object over `char` with the value object, never its `.Value`.
-- Hand a source-generated context's options to Marten,
-  `UseSystemTextJsonForSerialization(AppJsonContext.Default.Options)`; never the context alone as a resolver
-  (`UseTypeInfoResolver`), which writes every value object as `{}`.
-- `Duplicate(x => x.Iban)` makes a column of the underlying type, `varchar(MaxLength)` for text. Never `Select` a
-  duplicated value-object field: Marten refuses it before a row is read (`NotSupportedException`;
-  `MissingMethodException` natively); select a member that is not duplicated, or the document.
-- Compiled queries: declare an array or a list of value objects (`CountryCode[]`, `List<CountryCode>`, any `IList<T>`;
-  never `IReadOnlyList<T>`, `IEnumerable<T>` or `HashSet<T>`, which Marten refuses) as a member of the query type, and
-  filter with `Contains` or `IsOneOf`; it is bound on every call. Never give the query type a public member holding a
-  single value object, which Marten refuses (`InvalidCompiledQueryException`) whatever the query does with it, and
-  `VO0048` fails the build on: declare the member as the underlying type and compare `.Value` with it
-  (`x.Iban.Value == Iban`) over `string`, `Guid`, `int`, `long`, `float`, `decimal`, `DateTime`, `DateTimeOffset` (set
-  in UTC, `ToUniversalTime()`: Npgsql refuses another offset); as an `int` over `sbyte`, `byte`, `short`; as a `long`
-  over `uint`. Over `bool`, `char`, `double`, `DateOnly`, `TimeOnly`, `TimeSpan`, declare an array or a list of the
-  value object. Never a `float` member against a `double`, nor a `bool` computed from an `int` member: Marten answers
-  every call with the first call's value. Never read values
-  through a local of `QueryIs` or a collection of `TSelf?`, and never put a constant collection beside a collection
-  member of the same value object: refused with a `NotSupportedException`.
-- Never give a compiled query a member of a value object Marten takes for a document's identity: once Marten has met
-  that document, every call answers the first call's value (`VO0048`). Load by identity, filter with an array or a list
-  of the identity (`x.Id.IsOneOf(ids)`), or use a LINQ query; never `x.Id.Value`, which Marten refuses.
-- An identity over `Guid`, `string`, `int` or `long` works when the value object has no other public property of an
-  identity type (an `[EntityId]` and a value object with a member of that type of its own are none).
-- Reads are strict, always: a stored value the rules refuse throws `ValueObjectJsonException` with its code, from a
-  document, a projected value and a raw event query; inside `EventDeserializationFailureException` from a stream, and,
-  without dynamic code (native AOT), inside `TargetInvocationException` for a projected value: read the code with
-  `ValueObjectErrors.TryGetCode`. A projected identity throws `ValueObjectException`.
-  `Patch<T>(id).Set(x => x.Iban, iban)` writes the bare value.
-- Native AOT: register a construction of a generic value object with its converter and a value object written by hand
-  with its schema before the store is built, or teach either with `UseValueObject<TSelf, TValue>()`; declare each
-  identity with `UseValueObjectId<TDocument, TSelf, TValue>()`; name every document type with `Schema.For<T>()`;
-  serialize through a source-generated context's options.
-- Not covered: the binding of a collection in Marten.SourceGenerator's compiled queries (`VO0048` reports their members
-  all the same; there, use none of the collection forms it names: compare `.Value` with a member of a type Marten binds,
-  load by identity, or use a LINQ query), Marten.Newtonsoft, patch operations other than `Set`.
-
 ## MessagePack and SignalR
 
 ```csharp skip
@@ -773,41 +708,6 @@ without the package.
 - The namespace `AdCodicem.ValueObjects.Grpc` hides the root `Grpc` namespace inside `AdCodicem.ValueObjects.*` code:
   put `using Grpc.Core;` at the top of the file, or write `global::Grpc`.
 
-## Orleans grain calls
-
-```csharp skip
-builder.UseOrleans(silo => silo.Services.AddSerializer(s => s.AddValueObjects()));         // a silo's host
-builder.UseOrleansClient(client => client.Services.AddSerializer(s => s.AddValueObjects())); // or a client's host
-// s.AddValueObjects(trusted: true)          a cluster of the application's own: reads skip the rules
-// s.AddValueObject<Reference<Order>, string>()  a generic construction or a hand-written one, without the registry
-```
-
-- Register on both sides: a silo without the package has no codec (`CodecNotFoundException`, at start in Development).
-  The last registration answers first. A process hosting a silo calls `UseOrleans` alone, never beside
-  `UseOrleansClient`: its own client uses the silo's serializer.
-- A value object writes its underlying value's bytes; in a member typed `object`, its type too. Put Orleans'
-  `[Alias("…")]` on a value object a grain returns or an `object` member holds, in a project referencing
-  Microsoft.Orleans.Sdk, so that renaming or moving it does not break calls between two versions. Never
-  `[GenerateSerializer]` on it (`VO0043`).
-- A refused value throws `SerializerException`, the code in `Data` (`ValueObjectErrors.TryGetCode`): on the caller for a
-  refused request or reply; a default its type rejects is refused before it is sent. A `null` is
-  `value_object.required`, an unreadable value `value_object.not_parsable`, whatever the trust.
-- A `ValueObjectException` a grain lets escape reaches the caller with `ErrorCode` and `ValueObjectType`, never
-  `AttemptedValue`; a subclass arrives as `ValueObjectException`. Type a member, an argument or a result carrying one
-  `ValueObjectException` or `Exception`, never a subclass (`NotSupportedException` on write).
-- Where a peer over the primitives sends the same string twice in a message, read it into `T`, never `T?`: Orleans'
-  codec of a nullable value fails on the repeat (`ReferenceNotFoundException`, no code).
-- A call between grains of one silo copies its arguments: a default instance arrives there unchecked. A member the
-  message leaves out holds the default instance: declare it `T?`.
-- Key a grain by the underlying value, `GetGrain<IOrderGrain>(orderId.Value)`, and read it back with
-  `OrderId.TryCreate(this.GetPrimaryKey(), out var id)`, never `CreateUnchecked`.
-- Grain state: `OrleansGrainStorageSerializer` uses the package; for the default `JsonGrainStorageSerializer`, configure
-  `OrleansJsonSerializerOptions` with `JsonSerializerSettings.AddValueObjects()` of `AdCodicem.ValueObjects.NewtonsoftJson`.
-- Without dynamic code, a value object nothing registered is refused with `NotSupportedException`: register it with
-  `ValueObjectRegistry.Register<TSelf, TValue>` or use `AddValueObject<TSelf, TValue>()`.
-- `AdCodicem.ValueObjects.Orleans` hides the root `Orleans` namespace inside `AdCodicem.ValueObjects.*` code: put
-  `using Orleans.Serialization;` at the top of the file.
-
 ## GraphQL (HotChocolate)
 
 ```csharp skip
@@ -845,44 +745,15 @@ found for input type type `Shop.Iban`.``), and an output value object is an obje
 - `UseResource<T>()`: an error filter looks the message up under `ValueObject.{code}` in the current UI culture
   (`UseRequestLocalization()`'s), `{0}` the argument, input field or variable (the scalar's name for a variable's
   default value, which HotChocolate's error names `root`, or for an input value `QuoteScalarNameIn(v => …)` selects by
-  the error's coordinate, as `AddValueObjectFiltering()` does for every filter operation); the executor fails to start without
+  the error's coordinate); the executor fails to start without
   `AddLocalization()`. An application filter registered after `AddValueObjects` sees the localized message.
 - A generic construction or a value object written by hand is described by the registry where dynamic code runs, else
   refused with `NotSupportedException`: `AddValueObjectScalar<TSelf, TValue>()` or `ValueObjectRegistry.Register`.
-- HotChocolate.Data filtering (`AdCodicem.ValueObjects.HotChocolate.Data`): after `AddFiltering()`,
-
-  ```csharp skip
-  builder.Services.AddGraphQLServer()
-      .AddQueryType<Query>()
-      .AddValueObjects()
-      .AddFiltering()
-      .AddValueObjectFiltering(o => o.IncludeTextOperations());   // text operations optional
-  ```
-
-  A type interceptor replaces the input HotChocolate.Data infers for every value-object member (`TSelf`, `TSelf?`, a
-  list or an array of either; every filter input, named conventions and `FilterConvention` subclasses included) with
-  `{Scalar}OperationFilterInput`: `eq`, `neq`, `in`, `nin`, `gt`, `gte`, `lt`, `lte` and their negations (`eq`/`neq`
-  alone over `bool`), operands read through the scalar (normalized, a refusal coded at `inputPath` `["eq"]`), translated
-  by EF Core with no `UseValueObjectQueries()`; a list is `List{Scalar}OperationFilterInput`. `in` takes no `null`
-  element. A hand-written value object needs `==`, `<`… or its `eq`/`gt` fail at execution. It calls `AddValueObjects()`
-  and quotes the scalar's name in a localized refusal (`« Iban »`, never `« eq »`).
-  `IncludeTextOperations()`: `contains`/`startsWith`/`endsWith` and negations over the underlying text of value objects
-  over `string`, fragment as typed, never normalized; EF Core needs `UseValueObjectQueries()` (else each fails at its
-  first query); default convention only, so it must follow `AddFiltering()`.
-  An application's own binding, a field it types and `[ID]` are left alone. Under no dynamic code, a generic
-  construction or hand-written type needs `ValueObjectRegistry.Register`, or `AddValueObjectScalar<TSelf, TValue>()`
-  with `AddFiltering(c => c.AddDefaults().BindValueObject<TSelf, TValue>())` (the binding alone meets the scalar's
-  `NotSupportedException`). Binding by hand: bind both `TSelf` and `TSelf?` to `ValueObjectOperationFilterInputType<TSelf>`
-  (or a subclass), or, over `string`, `ValueObjectTextOperationFilterInputType<TSelf>`, which needs
-  `IncludeTextOperations()` and the default convention (else the schema fails: "no handler found"). Without the package,
-  a filter names `value` and compares raw text, which EF Core translates only under `UseValueObjectQueries()`. Sorting
-  and projections need nothing.
-- Native AOT: the packages' code is clean, but HotChocolate 16.6.8's binary needs
+- Native AOT: the package's code is clean, but HotChocolate 16.6.8's binary needs
   `<TrimmerRootAssembly Include="HotChocolate.Types" />` and the application's assembly rooted; take list arguments as
-  `List<T>`, `IReadOnlyList<T>` or arrays. HotChocolate.Data's filtering of a value object has no native code.
-- Not covered: HotChocolate 15 and earlier, `AnyEntityId`, Relay `[ID]` (on a filtered value object, HotChocolate's
-  `IdOperationFilterInput` replaces the package's input, then fails), mutation conventions, subscriptions, Fusion,
-  HotChocolate.Data's MongoDb, Marten and Raven providers, text operations in a named convention.
+  `List<T>`, `IReadOnlyList<T>` or arrays.
+- Not covered: HotChocolate 15 and earlier, `AnyEntityId`, Relay `[ID]`, mutation conventions, subscriptions, Fusion,
+  HotChocolate.Data filtering (a filter names a value object's `value` and compares raw text).
 
 ## FluentValidation
 
@@ -1029,122 +900,6 @@ editContext.TryGetValueObjectErrorCode(FieldIdentifier.Create(() => Order.Iban),
   `RendererInfo("Server", true)`; prerendering: `RendererInfo("Static", false)` plus
   `SetAssignedRenderMode(RenderMode.InteractiveServer)` on the parameters; static: `RendererInfo("Static", false)`
   alone.
-
-## System.CommandLine
-
-`AdCodicem.ValueObjects.CommandLine`. Without it, an option of a value object parses with no error and `GetValue`
-throws, `--flag` alone is refused for one over `bool`, and `AcceptOnlyFromAmong` refuses text the normalizer would
-accept.
-
-```csharp skip
-using AdCodicem.ValueObjects.CommandLine;
-
-var iban = new Option<Iban>("--iban") { Required = true };
-var quantity = new Option<Quantity?>("--quantity");
-var root = new RootCommand { iban, quantity, new Command("pay") { new Argument<Iban>("account") } };
-root.AcceptValueObjects(o => o.UseResource<Messages>());   // after every option, argument and subcommand is added
-root.SetAction(result => Place(result.GetValue(iban), result.GetValue(quantity)));
-return root.Parse(args).Invoke();
-
-var single = new Option<Quantity>("--count").AcceptValueObject();   // one symbol, T inferred
-foreach (var error in root.Parse(args).Errors)
-{
-    error.TryGetValueObjectErrorCode(out var code);   // false for System.CommandLine's own errors
-}
-```
-
-- Call `AcceptValueObjects()` once the tree is complete: a symbol added afterwards is not read. It configures each
-  command once, subcommands and a parent's `Recursive` options included, and leaves alone other types and a symbol whose
-  `CustomParser` is set (under no dynamic code, register its value object even then); `AcceptValueObject()` throws for
-  such a symbol rather than replace its parser.
-- A parent command's options and arguments are read while the invoked subcommand is validated, once
-  `AcceptValueObjects()` reached it (System.CommandLine alone reads them at `GetValue`, inside the action). Configured
-  by `AcceptValueObject()` alone, under a subcommand no walk reached, their refusal throws at `GetValue`, with no code.
-- Shapes: `T`, `T?`, `T[]`, `List<T>`, `IEnumerable<T>`, `IReadOnlyList<T>`, for options and arguments. Another shape
-  holding a value object (`T?[]`) throws `InvalidOperationException` when configured; `HashSet<T>` is not detected.
-- A refusal is a parse error, `Option '--quantity': <rule message>` (`, the 2nd value` for one token of several,
-  counted from one; none for a single token), never quoting the text; an invocation writes it to standard error, shows
-  the help, returns 1 and runs no action. One value given several tokens by the application's arity reads each through
-  the rules, the last kept. Read the code with `TryGetValueObjectErrorCode`, the type with `TryGetValueObjectType`.
-  `GetValue` on a refused symbol throws System.CommandLine's `InvalidOperationException`, with no code.
-- Culture: invariant by default (`12,5` refused, never 125); `o.Culture = …` for a tool typed in one locale. Dates
-  read in the Gregorian calendar whatever the culture's.
-- An option left out: `T?` is `null`, `T` the default instance (no parser runs), `IReadOnlyList<T>` `null`, other
-  collections empty: declare `T?`, `Required`, or a `DefaultValueFactory`, whose value is not read again. Empty text is
-  a token the type's rules read (`AllowEmpty` accepts it), never `null`.
-- A value object over `bool` is a flag: `--x`, `--x false`, `--x:false`. Set its `DefaultValueFactory` before
-  `AcceptValueObjects()`. A positional argument right after the flag is read as its value and refused: put flags last,
-  or use `Option<bool>`.
-- Never call `AcceptOnlyFromAmong` on a value object: the known values become completions, the help lists a closed set
-  `<BE|FR|LU>`, and the rule refuses with `value_object.not_a_known_value`.
-- Messages: `UseResource<T>()`, keys `ValueObject.{code}` (as MVC), through a `ResourceManager` over the type's full
-  name (MVC's base name while `ResourcesPath` is unset), current UI culture; `{0}` is the alias typed or the argument's
-  name, `--ibans[1]` for the second of several tokens (counted from zero), bare for a single token.
-- Under no dynamic code, register a hand-written value object and a generic construction by hand
-  (`ValueObjectRegistry.Register<TSelf, TValue>(…)`) before configuring, or it throws `InvalidOperationException`.
-- `AdCodicem.ValueObjects.CommandLine` hides a root `CommandLine` namespace (CommandLineParser's) inside
-  `AdCodicem.ValueObjects.*` code; `using System.CommandLine;` is unaffected.
-
-## CsvHelper
-
-`AdCodicem.ValueObjects.CsvHelper`. Without it, CsvHelper writes a `Value` column per value object and reads default
-instances with nothing thrown; through a class map it refuses every field with "The conversion cannot be performed.",
-with no code.
-
-```csharp skip
-using AdCodicem.ValueObjects.CsvHelper;
-
-using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-csv.Context.TypeConverterCache.AddValueObjects();   // before the first GetRecords, WriteRecords or RegisterClassMap
-var orders = csv.GetRecords<Order>().ToList();
-
-csv.Context.TypeConverterCache.AddValueObject<Reference<PurchaseOrder>, string>();   // one type, no registry
-
-var configuration = new CsvConfiguration(CultureInfo.InvariantCulture)
-{
-    ReadingExceptionOccurred = args =>
-    {
-        if (args.Exception is TypeConverterException refusal && ValueObjectErrors.TryGetCode(refusal, out var code))
-        {
-            Report(refusal.Context?.Parser?.Row, refusal.MemberMapData.Names[0], code);
-            return false;   // skip the row
-        }
-
-        return true;        // rethrow anything else
-    },
-};
-```
-
-- Call `AddValueObjects()` on the context of every reader and every writer, before its first `GetRecords`,
-  `WriteRecords` or `RegisterClassMap`: CsvHelper reads its converter cache when it builds a map.
-- Never call `AutoMap(CultureInfo)` in a class map: it builds a context without the converters. Use `AutoMap(context)`
-  over a context given `AddValueObjects()`, `csv.Context.AutoMap<T>()` after it,
-  `TypeConverter<ValueObjectTypeConverter<TSelf, TValue>>()` on the member map, or
-  `[TypeConverter(typeof(ValueObjectTypeConverter<TSelf, TValue>))]` on the member.
-- Name no converter on a positional record's `T?` parameter: leave it to `AddValueObjects()` or
-  `AddValueObject<TSelf, TValue>()`, or an empty field is `value_object.required`.
-- Declare `T?` for a column that may be empty: an empty field read into `T` is `value_object.required`, unless the type
-  accepts empty text. `NullValues` work on `T?` only. A `T?` reads the empty instance of a type accepting empty text
-  back as `null`.
-- Map one column per value object, never a collection (`List<T>`, `T[]`): CsvHelper's own converters write each
-  element's `ToString()` and, by name, drop a refused element with nothing thrown.
-- Never make a value object the record itself (`GetRecords<Iban>()` fails): read and write it with `GetField<T>` and
-  `WriteField<T>`, or put it in a class of one member.
-- Set `TypeConverterOptions` for `T?` too: options set for `T` do not reach a `T?` member. Only the culture is read;
-  `Formats`, `NumberStyles` and the boolean values are not.
-- `Default(…, useOnConversionFailure: true)` drops the refusal and its code.
-- Read the code in `ReadingExceptionOccurred` with `ValueObjectErrors.TryGetCode`; the column is
-  `MemberMapData.Names[0]` (`MemberMapData.Member` is `null` for a positional record). Return `true` for anything else,
-  so a misuse wrapped in `ReaderException` is not skipped.
-- Set `ExceptionMessagesContainRawData = false` to keep the field (`TypeConverterException.Text`) and the raw record out
-  of logs.
-- An uninitialized instance its rules refuse is not written (`TypeConverterException` with its code). Write to a
-  temporary file and move it once `WriteRecords` returns: a refused write leaves a partial row.
-- Under native AOT, register a hand-written value object and a generic construction
-  (`ValueObjectRegistry.Register<TSelf, TValue>(…)`), or add `AddValueObject<TSelf, TValue>()`, before CsvHelper meets
-  it. CsvHelper's record API fails natively; `GetField<T>` and `WriteField<T>` work.
-- `AdCodicem.ValueObjects.CsvHelper` hides the root `CsvHelper` namespace inside `AdCodicem.ValueObjects.*` code: name
-  CsvHelper's types through usings at the top of the file.
 
 ## OpenAPI
 
@@ -1535,43 +1290,6 @@ new HostBuilder().ConfigureFunctionsWebApplication(worker => worker.UseValueObje
   `[QueueTrigger]` message holding value objects binds, and a bare value object message must be JSON (`"ABC-123"`). For
   a raw-text payload, `[QueueTrigger("codes")][InputConverter(typeof(ValueObjectInputConverter))] CustomerCode code`.
 - Not AOT-compatible (the worker is not). A query parameter named `code` never reaches a function (function keys).
-
-## Wolverine.Http endpoints
-
-```csharp skip
-using AdCodicem.ValueObjects.Wolverine.Http;
-
-builder.Services.AddWolverineHttp();
-builder.Services.AddProblemDetails();                      // required without reflection-based JSON (native AOT)
-var app = builder.Build();
-app.MapWolverineEndpoints(opts =>
-{
-    opts.UseValueObjects();                                // or opts.UseValueObjects(m => m.UseResource<Messages>())
-    opts.RejectUnparseableQueryValues = true;              // for Wolverine's own parameters, [AsParameters] members
-});
-```
-
-- Call it inside `MapWolverineEndpoints`'s callback, the one place Wolverine accepts a parameter strategy. Every
-  parameter of type `T`, `T?`, `T[]`, `List<T>`, `IList<T>`, `IReadOnlyList<T>` or `IEnumerable<T>`, of an endpoint or
-  of its `Before`/`Load`/`Validate` method, is read from where Wolverine reads it: `[FromForm]`, a route parameter
-  (`[FromRoute(Name)]`, or of the parameter's name), `[FromHeader]`, else the query string. A collection binds from the
-  query or a form only.
-- A refused value (empty text is parsed: refused unless the type accepts it, `AllowEmpty`), or an absent value that
-  cannot be `null`, is answered 400 with every refusal of the request at once, `errors` and `errorCodes`, through
-  `IProblemDetailsService`, before any middleware method runs; the codes are also on the request
-  (`ValueObjectProblemDetails.GetErrorCodes`). A refused route value is a 400, not Wolverine's 404; a route constraint
-  (`{id:int}`) still answers 404 first. `T?` binds `null`, an array none, when absent; an optional segment `{qty?}` does
-  not make `T` optional: declare `T?`.
-- Left to Wolverine: `[AsParameters]` members, a complex `[FromQuery]`/`[FromForm]` type's members, an `After`/`Finally`
-  parameter reading a value no value object of the endpoint reads, and the JSON body ("Invalid JSON format", with the
-  rule's message and no code). An `After`/`Finally` parameter or an `[Entity]`-style identity reading the same route,
-  query, header or form value as a value object of the endpoint receives the package's read. A complex type's property
-  bound to that same name stays default: read the value object parameter instead.
-- Static mode (`TypeLoadMode.Static`, native AOT): run `codegen write` again after installing or upgrading the package;
-  stale code runs without a warning. Messages in the request's language: `AddLocalization()` and
-  `UseRequestLocalization()`.
-- `AdCodicem.ValueObjects.Wolverine.Http` hides the root `Wolverine` namespace inside `AdCodicem.ValueObjects.*` code:
-  put `using Wolverine.Http;` at the top of the file.
 
 ## Run-time lookup, when only a `Type` is known
 

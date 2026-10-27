@@ -3,23 +3,16 @@
   <!--
     An application published with native AOT by heavy.yml's native AOT job, which runs it once under the JIT and once as
     the native binary and fails when the two outputs differ (Program.cs). It references every package that claims to
-    be AOT-compatible but six, AdCodicem.ValueObjects.HotChocolate and AdCodicem.ValueObjects.HotChocolate.Data, whose
-    framework warns on its own publish and starts natively only rooted, and whose HotChocolate.Data filtering of a
-    struct has no native code, AdCodicem.ValueObjects.ProtobufNet, which AdCodicem.ValueObjects.NativeAot.ProtobufNet
-    publishes apart, AdCodicem.ValueObjects.Marten, which AdCodicem.ValueObjects.NativeAot.Marten publishes apart against
-    PostgreSQL, AdCodicem.ValueObjects.Orleans, since Orleans 10.4 does not start natively, and
-    AdCodicem.ValueObjects.CsvHelper, whose CsvHelper record API has no native code, and its value objects come from a
-    domain project, where the Request Delegate Generator sees their
+    be AOT-compatible but two, AdCodicem.ValueObjects.HotChocolate, whose framework warns on its own publish and starts
+    natively only rooted, and AdCodicem.ValueObjects.ProtobufNet, which AdCodicem.ValueObjects.NativeAot.ProtobufNet
+    publishes apart, and its value objects come from a domain project, where the Request Delegate Generator sees their
     interfaces; the RDG suite covers those declared in the endpoints' project. Microsoft.Extensions.AI builds the tools
     of LanguageModels.cs from their methods at run time, over the source-generated context, and so does the Model Context
     Protocol SDK for the server of Mcp.cs, in process over a pair of pipes. ContractFirstGrpc.cs serves a contract-first
     gRPC service, whose messages Grpc.Tools compiles from ContractFirst.proto, over Kestrel's cleartext HTTP/2, with the
     gRPC package's interceptor and collector. Forms.cs renders a Blazor form of every registered value object through
     HtmlRenderer, its Razor components compiled by the Web SDK, and types text into each input; Microsoft.AspNetCore.Components
-    warns for itself once a component renders, which aot-warnings.allowed lists. Cli.cs parses a System.CommandLine command
-    of every registered value object, its options configured by AcceptValueObjects(). WolverineHttp.cs serves Wolverine.Http
-    endpoints in Wolverine's static mode, over the code codegen write writes first (see WOLVERINE_CODEGEN below). Two value objects written by
-    hand, linked from the unit suite, have no generated converter: Program.cs registers them without one, so the JSON
+    warns for itself once a component renders, which aot-warnings.allowed lists. Two value objects written by hand, linked from the unit suite, have no generated converter: Program.cs registers them without one, so the JSON
     factory serves them its general-purpose converter. A third, UnregisteredCode, is registered by nothing, and the
     factory refuses it.
   -->
@@ -40,26 +33,8 @@
          there, and still fails the native binary. -->
     <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
-    <DynamicCodeSupport Condition="'$(WOLVERINE_CODEGEN)' != 'write'">false</DynamicCodeSupport>
+    <DynamicCodeSupport>false</DynamicCodeSupport>
   </PropertyGroup>
-
-  <!--
-    Wolverine's static mode runs the code codegen write writes for its endpoints, which native-aot.sh writes into
-    artifacts/wolverine-codegen before either run, never committed. The WOLVERINE_CODEGEN environment variable, rather than
-    a global property, which would reach the referenced projects too, picks the pass: write compiles JasperFx's command
-    line in (WolverineHttp.Build().RunJasperFxCommands, which needs unreferenced and dynamic code) and runs under the JIT
-    with dynamic code; read compiles the code written into the application, for the JIT run and the publish. Unset, as in
-    the solution's build and dotnet format, the application builds without it, and its Wolverine endpoints would refuse to
-    start in static mode.
-  -->
-  <PropertyGroup Condition="'$(WOLVERINE_CODEGEN)' == 'write'">
-    <DefineConstants>$(DefineConstants);WOLVERINE_CODEGEN</DefineConstants>
-    <EnableAotAnalyzer>false</EnableAotAnalyzer>
-    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
-  </PropertyGroup>
-  <ItemGroup Condition="'$(WOLVERINE_CODEGEN)' == 'read'">
-    <Compile Include="$(ArtifactsPath)/wolverine-codegen/**/*.cs" Link="WolverineCodegen/%(RecursiveDir)%(Filename)%(Extension)" />
-  </ItemGroup>
 
   <!-- So that the AOT compiler finishes the publish, and the script, rather than TreatWarningsAsErrors, judges the two
        assembly-level warnings Microsoft.AspNetCore.Components reports for itself against aot-warnings.allowed. -->
@@ -79,14 +54,12 @@
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.AI\AdCodicem.ValueObjects.AI.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.AspNetCore.Http\AdCodicem.ValueObjects.AspNetCore.Http.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Blazor\AdCodicem.ValueObjects.Blazor.csproj" />
-    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.CommandLine\AdCodicem.ValueObjects.CommandLine.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Identifiers\AdCodicem.ValueObjects.Identifiers.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Json\AdCodicem.ValueObjects.Json.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.FluentValidation\AdCodicem.ValueObjects.FluentValidation.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Grpc\AdCodicem.ValueObjects.Grpc.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.ModelContextProtocol\AdCodicem.ValueObjects.ModelContextProtocol.csproj" />
     <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Serilog\AdCodicem.ValueObjects.Serilog.csproj" />
-    <ProjectReference Include="..\..\..\src\AdCodicem.ValueObjects.Wolverine.Http\AdCodicem.ValueObjects.Wolverine.Http.csproj" />
     <ProjectReference Include="..\AdCodicem.ValueObjects.NativeAot.Domain\AdCodicem.ValueObjects.NativeAot.Domain.csproj" />
   </ItemGroup>
 

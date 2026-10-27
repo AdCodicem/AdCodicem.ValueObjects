@@ -8,7 +8,7 @@ namespace AdCodicem.ValueObjects.UnitTests.Web;
 
 /// <summary>
 /// Reads a refusal as the hosts answer it: the message and the code a value object refuses text with, and the problem a
-/// response lists. The minimal API, MVC, Azure Functions and Wolverine.Http tests compare their answers with it.
+/// response lists. The minimal API, MVC and Azure Functions tests compare their answers with it.
 /// </summary>
 public static class ProblemReading
 {

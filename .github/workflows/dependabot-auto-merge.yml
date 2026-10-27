@@ -81,7 +81,7 @@ jobs:
       # and test" is the gate over the plan of .github/scripts/ci-plan.sh, which
       # holds an update to what the files it changes select. A NuGet update
       # changes Directory.Packages.props, which runs everything, and heavy.yml
-      # too (native AOT, native AOT (Marten) and the integration tests; compat
+      # too (native AOT and the integration tests; compat
       # (.NET 11) only informs). So a red build or suite, a native AOT publish
       # that warns or behaves differently, a red integration suite, a broken
       # workflow or a commit message that is not a Conventional Commit blocks
