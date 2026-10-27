@@ -1,3 +1,4 @@
+using System.Globalization;
 using AdCodicem.ValueObjects.EntityFrameworkCore;
 using AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore;
 using AdCodicem.ValueObjects.Metadata;
@@ -84,20 +85,35 @@ public sealed class ValueObjectQueryTests : IDisposable
     /// <c>.Value</c> of a value object over a number reads the column as that number, in a comparison, in arithmetic and in
     /// an ordering, as the same query over a property of the number does.
     /// </summary>
+    /// <remarks>
+    /// Run in the invariant culture: EF Core 10's SQLite provider orders decimals through its <c>EF_DECIMAL</c> collation,
+    /// which reads the stored text with <c>decimal.Parse(string)</c>, in the current culture, so that under fr-FR the
+    /// ordering throws a <see cref="FormatException"/> on <c>25.0</c>, whether or not a value object holds the column
+    /// (dotnet/efcore#37432, fixed in EF Core 11).
+    /// </remarks>
     [Fact]
     public async Task The_value_of_a_value_object_over_a_number_is_its_column()
     {
-        await SeedAsync();
-        await using var context = Open<OrderContext>();
-        short least = 2;
+        var culture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        try
+        {
+            await SeedAsync();
+            await using var context = Open<OrderContext>();
+            short least = 2;
 
-        var compared = context.Orders.Where(order => order.Quantity.Value > least && order.Total.Value * 2 > 10).Select(order => order.Id);
-        compared.ToQueryString().Should().Contain("""WHERE "o"."Quantity" > @least AND ef_compare(ef_multiply("o"."Total", '2.0'), '10.0') > 0""");
-        (await compared.ToListAsync(TestContext.Current.CancellationToken)).Should().Equal(1);
+            var compared = context.Orders.Where(order => order.Quantity.Value > least && order.Total.Value * 2 > 10).Select(order => order.Id);
+            compared.ToQueryString().Should().Contain("""WHERE "o"."Quantity" > @least AND ef_compare(ef_multiply("o"."Total", '2.0'), '10.0') > 0""");
+            (await compared.ToListAsync(TestContext.Current.CancellationToken)).Should().Equal(1);
 
-        var ordered = context.Orders.OrderBy(order => order.Total.Value * 2).Select(order => order.Id);
-        ordered.ToQueryString().Should().Contain("""ORDER BY ef_multiply("o"."Total", '2.0')""");
-        (await ordered.ToListAsync(TestContext.Current.CancellationToken)).Should().Equal(2, 1);
+            var ordered = context.Orders.OrderBy(order => order.Total.Value * 2).Select(order => order.Id);
+            ordered.ToQueryString().Should().Contain("""ORDER BY ef_multiply("o"."Total", '2.0')""");
+            (await ordered.ToListAsync(TestContext.Current.CancellationToken)).Should().Equal(2, 1);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
     }
 
     /// <summary>
