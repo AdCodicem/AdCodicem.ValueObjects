@@ -1,17 +1,12 @@
 name: preview
 
-# Publishes a preview of each release train to nuget.org, every week and on
-# dispatch, but only when something a package is built from changed since the
-# version nuget.org has of the train from the nearest commit: every package of
-# a train at the train's version, every train at its own version, or none. The
-# core is pushed, and listed, before the satellites are pushed. Each version is
-# the one semantic-release would give the train's next stable release,
-# suffixed -preview.<N>. Stable releases are cut by hand (release.yml). A
-# dispatch with publish unticked rehearses a run: it decides, tests and packs,
-# and neither pushes nor deploys the site.
-# docs/adr/0009-publish-previews-weekly-when-a-package-input-changed.md and
-# docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md
-# have the reasoning.
+# Publishes a preview of every package to nuget.org, every week and on dispatch,
+# but only when something a package is built from changed since the version
+# nuget.org has from the nearest commit: all thirty-eight packages at one version, or
+# none. The version is the one semantic-release would give the next stable
+# release, suffixed -preview.<N>. Stable releases are cut by hand (release.yml).
+# docs/adr/0009-publish-previews-weekly-when-a-package-input-changed.md has the
+# reasoning.
 on:
   schedule:
     # Monday 07:15 in Paris all year round: GitHub evaluates the expression in
@@ -20,11 +15,6 @@ on:
     - cron: '15 7 * * 1'
       timezone: Europe/Paris
   workflow_dispatch:
-    inputs:
-      publish:
-        description: Push to nuget.org and deploy /docs/preview/. Unticked, the run decides, tests and packs only.
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -34,11 +24,9 @@ permissions:
 # their turn (queue: max) instead of replacing one another: by default a
 # dispatch from another branch, or a re-run of an older run, would cancel a
 # pending run on main. A stale run is stopped by the plan's ancestry check or
-# the publish job's recheck. The group is release.yml's too, so that a preview
-# never decides, packs or pushes while a stable release tags and pushes: a
-# release waiting for its reviewer, a dry run included, holds the Monday run.
+# the publish job's recheck.
 concurrency:
-  group: release
+  group: preview
   cancel-in-progress: false
   queue: max
 
@@ -51,24 +39,22 @@ jobs:
   # The npm packages semantic-release's commit analyzer needs run in a job of
   # their own, whose only outputs are two strings: no third-party JavaScript
   # shares a machine with the decision of which commit gets tested, packed and
-  # published. The plan job takes each train's release type from them, and
-  # checks the train's version against it.
+  # published. The plan job takes the release type from them, and checks the
+  # version against it.
   version:
     name: compute the version
     # The nuget environment deploys from main only. A dispatch from another
     # branch stops here, rather than after the tests.
     if: github.ref == 'refs/heads/main'
-    # Ten minutes for the commit analyzer, and as many as setup-dotnet, the
-    # restore and the trains' versions may take.
     runs-on: ubuntu-latest
-    timeout-minutes: 22
+    timeout-minutes: 10
     outputs:
-      preview-versions: ${{ steps.next.outputs.preview_versions }}
-      release-types: ${{ steps.next.outputs.release_types }}
+      preview-version: ${{ steps.next.outputs.preview_version }}
+      release-type: ${{ steps.next.outputs.release_type }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The tags and every commit since each train's last stable one.
+          # The tags and every commit since the last stable one.
           fetch-depth: 0
           persist-credentials: false
 
@@ -83,26 +69,11 @@ jobs:
       - name: Install release tooling
         run: npm ci --ignore-scripts
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        timeout-minutes: 5
-        with:
-          global-json-file: global.json
-
-      # Which trains a changed <PackageVersion> releases is read off the
-      # restore graph of the packable projects (release-trains.mjs).
-      - name: Restore the packages
-        timeout-minutes: 5
-        run: dotnet restore src/AdCodicem.ValueObjects.Packages.slnf
-
-      # Each train's version, from its own last stable tag and the commits of
-      # its range that release it
-      # (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md).
-      - name: Each train's version
+      - name: Next version
         id: next
-        timeout-minutes: 2
         run: |
           set -euo pipefail
-          node .github/scripts/next-version.mjs --trains | tee -a "$GITHUB_OUTPUT"
+          node .github/scripts/next-version.mjs | tee -a "$GITHUB_OUTPUT"
 
   plan:
     name: decide what to publish
@@ -112,12 +83,12 @@ jobs:
     outputs:
       mode: ${{ steps.gate.outputs.mode }}
       ref: ${{ steps.gate.outputs.ref }}
-      versions: ${{ steps.gate.outputs.versions }}
-      pack: ${{ steps.gate.outputs.pack }}
-      push: ${{ steps.gate.outputs.push }}
-      bases: ${{ steps.gate.outputs.bases }}
+      version: ${{ steps.gate.outputs.version }}
+      base-version: ${{ steps.gate.outputs.base-version }}
       docs-ref: ${{ steps.gate.outputs.docs-ref }}
       docs-version: ${{ steps.gate.outputs.docs-version }}
+      release-type: ${{ steps.pack-args.outputs.release-type }}
+      last-release: ${{ steps.pack-args.outputs.last-release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -126,32 +97,41 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # The publish job logs in and pushes in steps that name each train, the
-      # core's first: a train added or renamed in src/release-trains.json would
-      # be packed and never pushed, so the run stops before deciding anything.
-      - name: The trains are core and satellites
-        run: |
-          set -euo pipefail
-          trains="$(node .github/scripts/release-trains.mjs trains | cut -d' ' -f1 | paste -sd ' ' -)"
-          if [[ "$trains" != "core satellites" ]]; then
-            echo "::error::src/release-trains.json lists the trains '$trains', where preview.yml's publish job pushes core, then satellites: give each train its login and push steps there first." >&2
-            exit 1
-          fi
-
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
 
-      # For each train it pushes in a publish, the gate takes the release type
-      # only as major, minor, patch or empty, and computes the version again
-      # from the train's tags and the commits since its last stable one: the
-      # train's entry of NEXT_VERSIONS must be that version.
+      # For a publish, the gate takes RELEASE_TYPE only as major, minor or
+      # patch, and computes the version again from the tags and the commits
+      # since the last stable one: NEXT_VERSION must be that version.
       - name: Did a package input change?
         id: gate
         env:
-          NEXT_VERSIONS: ${{ needs.version.outputs.preview-versions }}
-          RELEASE_TYPES: ${{ needs.version.outputs.release-types }}
+          NEXT_VERSION: ${{ needs.version.outputs.preview-version }}
+          RELEASE_TYPE: ${{ needs.version.outputs.release-type }}
         run: .github/scripts/preview-gate.sh
+
+      # A repair completes a version nuget.org already partly has: it was held
+      # to its baseline when it was first packed. Computed in a step, since an
+      # expression cannot yield an empty string from `cond && '' || x`.
+      - name: Pack arguments
+        id: pack-args
+        env:
+          MODE: ${{ steps.gate.outputs.mode }}
+          # Checked by the gate, for a publish, the one mode that uses it.
+          RELEASE_TYPE: ${{ needs.version.outputs.release-type }}
+          LAST_RELEASE: ${{ steps.gate.outputs.last-stable }}
+        run: |
+          set -euo pipefail
+          if [[ "$MODE" == repair ]]; then
+            echo "release-type=repair" >> "$GITHUB_OUTPUT"
+            echo "last-release=" >> "$GITHUB_OUTPUT"
+          else
+            # No commit that releases anything: the version is the next patch,
+            # and so is the API check.
+            echo "release-type=${RELEASE_TYPE:-patch}" >> "$GITHUB_OUTPUT"
+            echo "last-release=$LAST_RELEASE" >> "$GITHUB_OUTPUT"
+          fi
 
   test:
     name: suites
@@ -206,8 +186,7 @@ jobs:
 
   # Restores, builds and packs the packable projects under src/ and nothing else
   # (src/AdCodicem.ValueObjects.Packages.slnf): no test project, no Testcontainers,
-  # no Codecov in the job whose output is published. Every train is packed, at
-  # the version the plan gives it, whether or not the run pushes it.
+  # no Codecov in the job whose output is published.
   pack:
     name: pack
     needs: plan
@@ -216,8 +195,6 @@ jobs:
     timeout-minutes: 20
     outputs:
       ids: ${{ steps.pack.outputs.ids }}
-      packages: ${{ steps.pack.outputs.packages }}
-      trains: ${{ steps.pack.outputs.trains }}
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       sha256: ${{ steps.pack.outputs.sha256 }}
     steps:
@@ -237,61 +214,24 @@ jobs:
         with:
           global-json-file: global.json
 
-      # PACK is release-pack.sh's arguments, one per train, as the gate wrote
-      # them: <train>=<version>:<type>:<last stable> for a train this run
-      # publishes, and <train>=<version>:repair for a version nuget.org already
-      # has, in part or whole, held to its baseline when it was first packed,
-      # or for a placeholder a repair packs and never pushes.
       - name: Pack
         id: pack
         env:
-          REF: ${{ needs.plan.outputs.ref }}
-          PACK: ${{ needs.plan.outputs.pack }}
-          VERSIONS: ${{ needs.plan.outputs.versions }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          RELEASE_TYPE: ${{ needs.plan.outputs.release-type }}
+          LAST_RELEASE: ${{ needs.plan.outputs.last-release }}
         run: |
           set -euo pipefail
-          # A repair packs the commit a partial version came from, with that
-          # commit's scripts, which before the release trains take none of the
-          # arguments below: its own run completes it instead.
-          if [[ ! -f .github/scripts/release-trains.mjs ]]; then
-            echo "::error::$REF predates the release trains: complete what it left partial ($VERSIONS) with Re-run failed jobs on the publish job of the run that stopped midway (docs/maintaining.md)." >&2
-            exit 1
-          fi
-          # "<id> <train>" per packable project, the train MSBuild packs it in.
-          listed="$(.github/scripts/package-ids.sh --trains)"
-          RELEASE_PACKAGE_IDS="$(cut -d' ' -f1 <<<"$listed" | paste -sd ' ' -)"
+          RELEASE_PACKAGE_IDS="$(.github/scripts/package-ids.sh | paste -sd ' ' -)"
           export RELEASE_PACKAGE_IDS
-          read -ra pack <<<"$PACK"
-          .github/scripts/release-pack.sh "${pack[@]}"
-          # shellcheck disable=SC2086 # one id per word
-          PACKAGES="$(node .github/scripts/release-trains.mjs versions "$VERSIONS" $RELEASE_PACKAGE_IDS | paste -sd ' ' -)"
-          .github/scripts/verify-packages.sh artifacts/packages "$PACKAGES"
+          .github/scripts/release-pack.sh "$VERSION" "$RELEASE_TYPE" "$LAST_RELEASE"
+          .github/scripts/verify-packages.sh artifacts/packages "$VERSION" "$RELEASE_PACKAGE_IDS"
+          echo "ids=$RELEASE_PACKAGE_IDS" >> "$GITHUB_OUTPUT"
           # The digests travel as a job output, which only this job writes: the
           # publish job checks the artifact against them before attesting it.
-          # It stages each pushed train's packages by the trains.
-          {
-            echo "ids=$RELEASE_PACKAGE_IDS"
-            echo "packages=$PACKAGES"
-            echo "trains=$(paste -sd ' ' - <<<"${listed// /=}")"
-            echo "sha256=$(cd artifacts/packages && sha256sum -- *.*nupkg | base64 -w0)"
-          } >> "$GITHUB_OUTPUT"
+          echo "sha256=$(cd artifacts/packages && sha256sum -- *.*nupkg | base64 -w0)" >> "$GITHUB_OUTPUT"
 
-      # Named after the versions, so that the files of a run can be found again:
-      # packages-core-<version>-satellites-<version>. An artifact name takes
-      # none of : < > | * ? \ / or a quote, so any character but a letter, a
-      # digit, '.', '_' or '-' becomes '_'.
-      - name: Artifact name
-        id: artifact
-        env:
-          VERSIONS: ${{ needs.plan.outputs.versions }}
-        run: |
-          set -euo pipefail
-          name=packages
-          for pair in $VERSIONS; do
-            name+="-${pair%%=*}-${pair#*=}"
-          done
-          echo "name=${name//[^A-Za-z0-9._-]/_}" >> "$GITHUB_OUTPUT"
-
+      # Named after the version, so that the files of a run can be found again.
       # The publish job downloads it by the id this step returns, not by name:
       # any job of the run can delete an artifact by name and upload another,
       # and the test job runs third-party code beside this one. overwrite, for
@@ -299,16 +239,15 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         id: upload
         with:
-          name: ${{ steps.artifact.outputs.name }}
+          name: packages-${{ needs.plan.outputs.version }}
           path: artifacts/packages/*.*nupkg
           if-no-files-found: error
           overwrite: true
 
   # The heavy jobs (heavy.yml) on the commit the suites test, compat (.NET 11)
-  # installing the very packages the pack job uploaded, those the publish job
-  # pushes among them, by the id of their artifact. compat only informs until
-  # .NET 11 ships; from then on it blocks a preview too (ADR 0013): set
-  # compat-blocks then.
+  # installing the very packages the publish job pushes, by the id of their
+  # artifact. compat only informs until .NET 11 ships; from then on it blocks a
+  # preview too (ADR 0013): set compat-blocks then.
   heavy:
     name: heavy
     needs: [plan, pack]
@@ -325,16 +264,13 @@ jobs:
     name: publish to nuget.org
     needs: [plan, test, pack, heavy]
     # Every job it needs must have succeeded, checked by name: heavy is a called
-    # workflow, whose jobs the implied success() reads one by one. A dispatch
-    # with publish unticked skips it: a rehearsal of everything before it.
+    # workflow, whose jobs the implied success() reads one by one.
     if: >-
-      ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.publish) &&
-      needs.plan.result == 'success' && needs.plan.outputs.mode != 'none' &&
+      ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.mode != 'none' &&
       needs.test.result == 'success' && needs.pack.result == 'success' && needs.heavy.result == 'success' }}
     runs-on: ubuntu-latest
-    # Each train's push, then up to 30 minutes for nuget.org to list it: the
-    # core's, then the satellites'.
-    timeout-minutes: 120
+    # The push, then up to 30 minutes for nuget.org to list it.
+    timeout-minutes: 60
     environment: nuget
     permissions:
       contents: read
@@ -343,16 +279,13 @@ jobs:
       attestations: write
     steps:
       # The scripts at the commit the run was started on, the same the plan
-      # ran, rather than at the packed commit, with the list of the trains they
-      # read; the whole history, for the recheck below.
+      # ran, rather than at the packed commit; the whole history, for the
+      # recheck below.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-          sparse-checkout: |
-            /.github/scripts/
-            /src/release-trains.json
-          sparse-checkout-cone-mode: false
+          sparse-checkout: .github/scripts
           persist-credentials: false
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -361,103 +294,53 @@ jobs:
           path: packages
 
       # nuget.org takes no package back, so the whole set is checked once more,
-      # as it is about to be pushed: the bytes the pack job produced, each at
-      # its train's version of the X.Y.Z-preview.N shape, every packable
-      # project and nothing else.
+      # as it is about to be pushed: the bytes the pack job produced, one
+      # version of the X.Y.Z-preview.N shape, every packable project and
+      # nothing else.
       - name: Check the set
         env:
-          PACKAGES: ${{ needs.pack.outputs.packages }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          IDS: ${{ needs.pack.outputs.ids }}
           SHA256: ${{ needs.pack.outputs.sha256 }}
         run: |
           set -euo pipefail
           base64 -d <<<"$SHA256" | (cd packages && sha256sum --check --strict)
-          .github/scripts/verify-packages.sh packages "$PACKAGES"
+          .github/scripts/verify-packages.sh packages "$VERSION" "$IDS"
 
       # "Re-run failed jobs" on an old run reuses its plan. If nuget.org has
-      # moved on since -- a later run published a newer commit of a train --
-      # pushing this one would add a stale version, so the run stops here
-      # instead. A train this run pushes may already have its version, from
-      # this run's own push stopped midway, which the re-run completes.
+      # moved on since -- a later run published a newer commit -- pushing this
+      # one would add a stale version, so the run stops here instead.
       - name: Is the plan still current?
         env:
           GATE_REF: ${{ needs.plan.outputs.ref }}
-          PACKAGE_TRAINS: ${{ needs.pack.outputs.trains }}
-          EXPECT_BASES: ${{ needs.plan.outputs.bases }}
-          EXPECT_VERSIONS: ${{ needs.plan.outputs.versions }}
-          PUSH: ${{ needs.plan.outputs.push }}
+          PACKAGE_IDS: ${{ needs.pack.outputs.ids }}
+          EXPECT_BASE: ${{ needs.plan.outputs.base-version }}
+          EXPECT_VERSION: ${{ needs.plan.outputs.version }}
         run: .github/scripts/preview-gate.sh --recheck
 
-      # Only the trains the plan pushes go into push/, which alone is attested
-      # and pushed: a train nuget.org already has whole, or one a repair packs
-      # for the tests only, stays in packages/. Each package by its id and
-      # version, never by a glob: two trains may share a number.
-      - name: Stage the trains to push
-        id: stage
-        env:
-          PACKAGES: ${{ needs.pack.outputs.packages }}
-          PACKAGE_TRAINS: ${{ needs.pack.outputs.trains }}
-          VERSIONS: ${{ needs.plan.outputs.versions }}
-          PUSH: ${{ needs.plan.outputs.push }}
-        run: |
-          set -euo pipefail
-          declare -A train_of=() version=() ids=()
-          for pair in $PACKAGE_TRAINS; do
-            train_of[${pair%%=*}]="${pair#*=}"
-          done
-          for pair in $VERSIONS; do
-            version[${pair%%=*}]="${pair#*=}"
-          done
-          read -ra push <<<"$PUSH"
-          (( ${#push[@]} > 0 )) || { echo "::error::The plan pushes no train." >&2; exit 1; }
-          for train in "${push[@]}"; do
-            [[ -n "${version[$train]:-}" ]] || { echo "::error::The plan pushes the $train train, at no version." >&2; exit 1; }
-            ids[$train]=""
-          done
-          rm -rf push
-          mkdir push
-          for pair in $PACKAGES; do
-            id="${pair%%=*}" packed="${pair#*=}"
-            [[ -n "${train_of[$id]:-}" ]] || { echo "::error::$id rides no train of the pack job's list." >&2; exit 1; }
-            train="${train_of[$id]}"
-            [[ -v "ids[$train]" ]] || continue
-            if [[ "$packed" != "${version[$train]}" ]]; then
-              echo "::error::$id is packed at $packed, not at ${version[$train]}, the version of the $train train." >&2
-              exit 1
-            fi
-            cp -- "packages/$id.$packed.nupkg" push/
-            if [[ -f "packages/$id.$packed.snupkg" ]]; then
-              cp -- "packages/$id.$packed.snupkg" push/
-            fi
-            ids[$train]+="${ids[$train]:+ }$id"
-          done
-          for train in "${push[@]}"; do
-            [[ -n "${ids[$train]}" ]] || { echo "::error::The $train train has no package to push." >&2; exit 1; }
-            read -ra staged <<<"${ids[$train]}"
-            echo "$train: ${#staged[@]} packages at ${version[$train]}: ${ids[$train]}"
-            {
-              echo "$train-version=${version[$train]}"
-              echo "$train-ids=${ids[$train]}"
-            } >> "$GITHUB_OUTPUT"
-          done
-
       - name: Extract the assemblies
-        run: .github/scripts/package-assemblies.sh push assemblies
+        run: .github/scripts/package-assemblies.sh packages assemblies
 
-      # Before the push, so that nothing reaches nuget.org unattested, and over
-      # what this run pushes only: what nuget.org already has was attested by
-      # the run that pushed it, and a placeholder is never pushed. The
+      # Before the push, so that nothing reaches nuget.org unattested. The
       # assemblies are subjects too: nuget.org re-signs a .nupkg, which changes
       # its digest, but leaves the files inside as they were packed.
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: |
-            push/*.nupkg
-            push/*.snupkg
+            packages/*.nupkg
+            packages/*.snupkg
             assemblies/**/*.dll
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
+
+      # Last before the push: the key expires an hour after it is issued.
+      - name: NuGet login (OIDC -> temporary API key)
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        id: login
+        with:
+          user: AdCodicem
 
       # nuget.org has no transaction: a push that stops midway leaves the
       # version on some packages only. The script pushes dependencies first,
@@ -466,53 +349,22 @@ jobs:
       # same version. It then waits until nuget.org lists every package and
       # serves every symbol package, so that the next run, the documentation
       # label and release.yml's check all read a nuget.org that has caught up.
-      # The core first: the satellites, which depend on it, are pushed only once
-      # nuget.org lists the core they name. A login per train, each last before
-      # its push: the key expires an hour after it is issued, and the core's
-      # push and listing may outlast it.
-      - name: 'core: NuGet login'
-        if: contains(format(' {0} ', needs.plan.outputs.push), ' core ')
-        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
-        id: login-core
-        with:
-          user: AdCodicem
-
-      - name: 'core: push'
-        if: contains(format(' {0} ', needs.plan.outputs.push), ' core ')
+      - name: Push
         env:
-          NUGET_API_KEY: ${{ steps.login-core.outputs.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
           NUGET_LIST_TIMEOUT: 1800
-          VERSION: ${{ steps.stage.outputs.core-version }}
-          IDS: ${{ steps.stage.outputs.core-ids }}
-        run: .github/scripts/push-packages.sh push "$VERSION" "$IDS"
-
-      - name: 'satellites: NuGet login'
-        if: contains(format(' {0} ', needs.plan.outputs.push), ' satellites ')
-        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
-        id: login-satellites
-        with:
-          user: AdCodicem
-
-      - name: 'satellites: push'
-        if: contains(format(' {0} ', needs.plan.outputs.push), ' satellites ')
-        env:
-          NUGET_API_KEY: ${{ steps.login-satellites.outputs.NUGET_API_KEY }}
-          NUGET_LIST_TIMEOUT: 1800
-          VERSION: ${{ steps.stage.outputs.satellites-version }}
-          IDS: ${{ steps.stage.outputs.satellites-ids }}
-        run: .github/scripts/push-packages.sh push "$VERSION" "$IDS"
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: .github/scripts/push-packages.sh packages "$VERSION"
 
   # Every run that decided redeploys /docs/preview/, publishing or not, labelled
-  # with the core's version on nuget.org that describes the commit it builds --
-  # and none after a failed job, when the site would describe a main nobody can
-  # install, nor for a rehearsal, publish unticked
+  # with the version on nuget.org that describes the commit it builds -- and none
+  # after a failed job, when the site would describe a main nobody can install
   # (docs/adr/0005-version-the-documentation-site.md).
   docs:
     name: publish preview documentation
     needs: [plan, test, pack, heavy, publish]
     if: >-
-      ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.publish) &&
-      needs.plan.result == 'success' &&
+      ${{ !cancelled() && needs.plan.result == 'success' &&
       !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     permissions:
       contents: read

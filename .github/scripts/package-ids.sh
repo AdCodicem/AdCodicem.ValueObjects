@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 # Prints the PackageId of every packable project under src/, one per line, sorted.
 #
-# Usage: package-ids.sh [--trains | --prefixes] [root]
-#   --trains    prints "<id> <train>" instead, the release train MSBuild reads off src/release-trains.json for the
-#               project (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md), which
-#               ci.yml compares with release-trains.mjs's reading. A commit older than the list has no train.
-#   --prefixes  prints "<id> <train> <tag prefix>", the MinVerTagPrefix src/Directory.Build.props gives the project
-#               from its train, which ci.yml compares with release-trains.mjs's tag prefix of that train.
+# Usage: package-ids.sh [root]
 #
 # release.yml exports the result as RELEASE_PACKAGE_IDS before semantic-release
 # starts, because the GitHub Release body is rendered from the environment
@@ -22,18 +17,9 @@
 # need a restored tree first.
 set -euo pipefail
 
-mode=ids
-case "${1:-}" in
-  --trains) mode=trains; shift ;;
-  --prefixes) mode=prefixes; shift ;;
-esac
 cd "${1:-$(dirname "$0")/../..}"
 
 for project in src/*/*.csproj; do
-  dotnet msbuild "$project" -nologo -getProperty:IsPackable -getProperty:PackageId -getProperty:ReleaseTrain \
-    -getProperty:MinVerTagPrefix |
-    jq -r --arg mode "$mode" 'select(.Properties.IsPackable == "true") | .Properties |
-      if $mode == "trains" then "\(.PackageId) \(.ReleaseTrain)"
-      elif $mode == "prefixes" then "\(.PackageId) \(.ReleaseTrain) \(.MinVerTagPrefix)"
-      else .PackageId end'
+  dotnet msbuild "$project" -nologo -getProperty:IsPackable -getProperty:PackageId |
+    jq -r 'select(.Properties.IsPackable == "true") | .Properties.PackageId'
 done | LC_ALL=C sort -u

@@ -9,10 +9,7 @@
     "inputs selects, through dotnet-affected: its own files, the sources it links, what it references and imports. One",
     "per family, and every project of the suite is one family's.",
     "families.<name>.projects: the projects under src/, by folder name. Each is in exactly one family, whose project",
-    "of the unit suite tests it, and whose RuntimeClosingTests reads the IL of each but those no application loads.",
-    "The projects of a family all ride one release train of src/release-trains.json",
-    "(docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md), the one list of trains,",
-    "which the plan checks."
+    "of the unit suite tests it, and whose RuntimeClosingTests reads the IL of each but those no application loads."
   ],
   "families": {
     "core": {

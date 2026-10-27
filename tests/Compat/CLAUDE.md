@@ -1,20 +1,17 @@
 # tests/Compat — the .NET compatibility island
 
-The thirty-eight packages exactly as packed, installed from `artifacts/packages`, each at the version in its file
-name, into `net11.0` applications on the .NET 11 release candidate. It checks the packages, not the code. Runbook:
+The thirty-eight packages exactly as packed, installed from `artifacts/packages` at one fresh version into `net11.0`
+applications on the .NET 11 release candidate. It checks the packages, not the code. Runbook:
 `docs/maintaining.md`, "The .NET compatibility island".
 
 ```bash
-# From the repository root: pack into an empty folder at a fresh version, every release train at it, since NuGet reuses
-# whatever ~/.nuget/packages holds at a version it has seen, and the island installs every package the folder holds
+# From the repository root: pack at a fresh version, since NuGet reuses whatever ~/.nuget/packages holds at a version it has seen
 v=0.0.0-compat.$(date +%s)
-rm -rf artifacts/packages
-RELEASE_TRAIN_VERSIONS="core=$v satellites=$v" \
-  dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
+MINVERVERSIONOVERRIDE=$v dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 # Then from this folder
-cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj
+cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj -p:AdCodicemVersion=$v
 # Without Docker, add --filter-not-trait "Requires=Docker": the container tests fail rather than skip
-dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj   # no Docker
+dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj -p:AdCodicemVersion=$v   # no Docker
 ```
 
 - Invisible to the root tooling: its own `global.json` (the RC SDK CI installs exactly; `rollForward: latestFeature` lets a
@@ -57,14 +54,6 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
   Kafka client's native library.
 - The namespace rule of the root `CLAUDE.md` holds here too: `AdCodicem.ValueObjects.CompatTests` is an
   `AdCodicem.ValueObjects.*` namespace.
-- Over packages a run packed at a version nuget.org has too (a train `release-pack.sh` packs again, `strict` or
-  `keep`, beside one that releases), run the island locally with `NUGET_PACKAGES` set to an empty folder: NuGet takes a
-  version `~/.nuget/packages` already holds, nuget.org's copy, whatever `nuget.config` maps. CI's runners start empty.
-- Packed without `RELEASE_TRAIN_VERSIONS` (`heavy.yml` with no caller's packages), the packages take each train's
-  version from its own tags, and the pack stops when it finds none, so the checkout fetches them (`fetch-depth: 0`). A
-  commit tagged stable for the satellites alone fails that pack with NU5104, since a stable satellite cannot depend on
-  the core's next prerelease (`.github/CLAUDE.md`): never dispatch `heavy.yml` there. One tagged for the core alone
-  packs.
 - `compat (.NET 11)` is a job of `heavy.yml`, not a required check, and never becomes one (ADR 0013). It gates every
   stable release (`compat-blocks: true`), and every preview once .NET 11 ships; until then, and on `main` and a pull
   request labelled `ci:heavy`, it only informs. No coverage measures it.

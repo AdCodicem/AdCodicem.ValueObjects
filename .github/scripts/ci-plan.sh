@@ -25,40 +25,26 @@
 #
 # Every run first checks .github/ci-families.json against the repository, without a build: every project under src/
 # in exactly one family, every project of the unit suite a family's, every project but tests/Compat/'s in the solution,
-# src/release-trains.json as release-trains.mjs check holds it, each family's projects on one release train,
 # no file of tests (a [Fact], a [Theory] or a contract class) compiled into a second project but RuntimeClosingTests.cs
 # and DescriptorTests.Registered.cs, which every project runs over its own family, and codecov.yml's flags as
 # --codecov-flags prints them. So every other test belongs to one family, and runs in its project alone.
 #
 # A push to main runs everything. A pull request runs what the files its merge commit changes against the base branch
 # (its first parent, hence a checkout depth of 2) select, each file by the first rule below that matches it:
-#   none           CLAUDE.md files, docs/ but docs/docfx/, Markdown outside src/, website/ and skills/ but README.md
-#                  and the changelogs (CHANGELOG.md, CHANGELOG.<train>.md), the repository's own settings and
-#                  templates, and the workflows and scripts ci.yml never runs, each by name, so that a new one runs
-#                  everything until it is given a rule; only lint.yml checks them.
+#   none           CLAUDE.md files, docs/ but docs/docfx/, Markdown outside src/, website/ and skills/ but README.md,
+#                  the repository's own settings and templates, and the workflows and scripts ci.yml never runs, each
+#                  by name, so that a new one runs everything until it is given a rule; only lint.yml checks them.
 #   documentation  README.md, the package READMEs (src/PackageReadme.md, src/AdCodicem.ValueObjects/README.md),
 #                  website/docs/ and skills/value-objects/: the generator suite's tests that read them,
 #                  [Trait("Reads", "Documentation")]. The package READMEs are also packed, website/docs/ also built
 #                  into the site.
 #   site           website/, docs/docfx/ and the action that builds the site: the job "documentation site".
-#   everything     what every project or job reads: Directory.Build.* (the root's and src/'s, which the release
-#                  scripts' tests and release-trains.mjs compile-items read too), Directory.Packages.props, global.json,
-#                  nuget.config, .editorconfig, .gitattributes, the solution files, the local tools, ci.yml, this
-#                  script, the family table, the list of release trains (which every project reads by a property
-#                  function, invisible to dotnet-affected) and release-trains.mjs, which this script runs,
-#                  coverage-modules.sh, codecov.yml, tests/Directory.Build.*, and any path no rule names.
-#   release        package.json, its lock file, .releaserc.json, next-version.mjs, release-trains.test.mjs,
-#                  preview-gate.sh and semver.jq, which preview-gate.test.mjs replays against recorded nuget.org states
-#                  and whose inputs release-trains.test.mjs holds to the trains each path releases, that test,
-#                  docs-snapshot.sh, which docs-snapshot.test.mjs runs up to the entry it writes in
-#                  website/released-versions.json, that test, release-pack.sh, whose checks of what nuget.org holds
-#                  release-pack.test.mjs runs up to the pack, that test, the release-train plugin, its configuration,
-#                  and the changelogs, whose shape and title release-train-plugin.test.mjs holds, that test, the
-#                  driver that releases a train through them, release-train.mjs, its test, and the
-#                  weekly list of held-back majors (held-back-majors.mjs, its test, and dependabot.yml, whose shape its
-#                  reader holds): the job "release tooling", which runs every .github/scripts/*.test.mjs. A project
-#                  file under src/ runs it too, beside its graph lane: release-trains.mjs compile-items holds what
-#                  MSBuild compiles to the trains.
+#   everything     what every project or job reads: Directory.Build.* (the root's and src/'s),
+#                  Directory.Packages.props, global.json, nuget.config, .editorconfig, .gitattributes, the solution
+#                  files, the local tools, ci.yml, this script, the family table, coverage-modules.sh, codecov.yml,
+#                  tests/Directory.Build.*, and any path no rule names.
+#   release        package.json, its lock file, .releaserc.json, next-version.mjs and release-config.test.mjs: the job
+#                  "release tooling".
 #   pack           icon.png, .github/shipped-dependencies and the scripts that check the packed set.
 #   graph          src/, the unit suite's projects and tests/UnitTests.props, which they import, tests/Fixtures/ but
 #                  the Functions fixture, and the .NET code of the rules below: the projects dotnet-affected
@@ -170,18 +156,6 @@ check_table() {
     <(sed -n -E 's/.*<Project Path="([^"]*)".*/\1/p' "$solution" | LC_ALL=C sort) | paste -sd ' ' -)"
   [[ -z "$missing" ]] || fail "$solution does not hold $missing: add each project to the solution."
 
-  # The one list of release trains (src/release-trains.json, ADR 0012) reads alike in MSBuild and in the module, and
-  # agrees with the tree; each family's projects ride one train, so that what a family's lanes test one train releases.
-  node .github/scripts/release-trains.mjs check || fail "src/release-trains.json does not hold: see the errors above."
-  local trains spans
-  trains="$(jq -r '.families[].projects[]' "$table" | xargs node .github/scripts/release-trains.mjs trains-of)" ||
-    fail "release-trains.mjs could not name the train of the family table's projects."
-  spans="$(LC_ALL=C join <(jq -r '.families | to_entries[] | .key as $family | .value.projects[] | "\(.) \($family)"' \
-    "$table" | LC_ALL=C sort) <(LC_ALL=C sort <<<"$trains") | awk '{ print $2, $3 }' | LC_ALL=C sort -u |
-    awk '{ count[$1]++; trains[$1] = trains[$1] " " $2 } END { for (family in count) if (count[family] > 1) print family ":" trains[family] }' |
-    LC_ALL=C sort | paste -sd ';' - | sed 's/;/; /g')"
-  [[ -z "$spans" ]] || fail "$table: a family's projects ride two release trains ($spans): move a project to the family of its train."
-
   # A source a project of the unit suite compiles from another's folder holds no test, or the test would run in both:
   # but the two that every project runs over its own family, RuntimeClosingTests.cs (the IL of the family's packages)
   # and DescriptorTests.Registered.cs (the value objects the project's registry holds). Every Compile item counts,
@@ -273,7 +247,6 @@ rule() {
   case "$1" in
     CLAUDE.md | */CLAUDE.md) echo none; return ;;
     README.md) echo documentation; return ;;
-    CHANGELOG.md | CHANGELOG.*.md) echo release; return ;;
     src/* | website/* | skills/*) ;;
     *.md) echo none; return ;;
   esac
@@ -283,37 +256,29 @@ rule() {
     website/docs/*) echo website-docs ;;
     skills/value-objects/*) echo documentation ;;
     LICENSE | .gitignore | .pre-commit-config.yaml | .claude-plugin/* | .github/ISSUE_TEMPLATE/* | \
-      .github/DISCUSSION_TEMPLATE/* | .github/CODEOWNERS | .github/FUNDING.yml | .github/actionlint.yaml | \
-      .github/requirements/*) echo none ;;
+      .github/DISCUSSION_TEMPLATE/* | .github/CODEOWNERS | .github/FUNDING.yml | .github/dependabot.yml | \
+      .github/actionlint.yaml | .github/requirements/*) echo none ;;
     .github/workflows/ci.yml) echo everything ;;
     .github/workflows/heavy.yml) echo heavy-notice ;;
     .github/workflows/benchmarks.yml | .github/workflows/dependabot-auto-merge.yml | \
-      .github/workflows/deploy-docs.yml | .github/workflows/held-back-majors.yml | .github/workflows/lint.yml | \
-      .github/workflows/preview.yml | .github/workflows/release.yml | .github/workflows/scorecards.yml | \
-      .github/workflows/stale.yml) echo none ;;
+      .github/workflows/deploy-docs.yml | .github/workflows/lint.yml | .github/workflows/preview.yml | \
+      .github/workflows/release.yml | .github/workflows/scorecards.yml | .github/workflows/stale.yml) echo none ;;
     .github/actions/build-site/* | .github/scripts/docfx-postprocess.py) echo site ;;
-    .github/ci-families.json | .github/scripts/ci-plan.sh | .github/scripts/coverage-modules.sh | \
-      .github/scripts/release-trains.mjs) echo everything ;;
+    .github/ci-families.json | .github/scripts/ci-plan.sh | .github/scripts/coverage-modules.sh) echo everything ;;
     .github/scripts/native-aot.sh) echo heavy-notice ;;
     .github/scripts/compiled-model.sh) echo compiled-model ;;
     .github/scripts/ecmascript-patterns.mjs) echo text ;;
-    .github/scripts/next-version.mjs | .github/scripts/release-trains.test.mjs | .github/scripts/preview-gate.sh | \
-      .github/scripts/semver.jq | .github/scripts/preview-gate.test.mjs | .github/scripts/held-back-majors.mjs | \
-      .github/scripts/held-back-majors.test.mjs | .github/scripts/docs-snapshot.sh | \
-      .github/scripts/docs-snapshot.test.mjs | .github/scripts/release-pack.sh | .github/scripts/release-pack.test.mjs | \
-      .github/scripts/release-train-plugin.mjs | .github/scripts/release-train.releaserc.json | \
-      .github/scripts/release-train-plugin.test.mjs | .github/scripts/release-train.mjs | \
-      .github/scripts/release-train.test.mjs | .github/dependabot.yml) echo release ;;
+    .github/scripts/next-version.mjs | .github/scripts/release-config.test.mjs) echo release ;;
     .github/shipped-dependencies | .github/scripts/verify-packages.sh | .github/scripts/package-ids.sh | \
       .github/scripts/shipped-dependencies-check.sh) echo pack ;;
-    .github/scripts/dependabot-commit-type.sh | .github/scripts/package-assemblies.sh | .github/scripts/push-packages.sh) \
-      echo none ;;
+    .github/scripts/dependabot-commit-type.sh | .github/scripts/docs-snapshot.sh | \
+      .github/scripts/package-assemblies.sh | .github/scripts/preview-gate.sh | .github/scripts/push-packages.sh | \
+      .github/scripts/release-pack.sh | .github/scripts/semver.jq) echo none ;;
     package.json | package-lock.json | .releaserc.json) echo release ;;
     website/*) echo site ;;
     src/PackageReadme.md | src/AdCodicem.ValueObjects/README.md) echo readme ;;
     Directory.Build.* | src/Directory.Build.* | Directory.Packages.props | global.json | nuget.config | .editorconfig | \
-      .gitattributes | \
-      AdCodicem.ValueObjects.slnx | src/AdCodicem.ValueObjects.Packages.slnf | src/release-trains.json | \
+      .gitattributes | AdCodicem.ValueObjects.slnx | src/AdCodicem.ValueObjects.Packages.slnf | \
       .config/dotnet-tools.json | codecov.yml | tests/Directory.Build.*) echo everything ;;
     icon.png) echo pack ;;
     src/* | tests/UnitTests.props | tests/AdCodicem.ValueObjects.UnitTests/* | tests/AdCodicem.ValueObjects.UnitTests.*/*)
@@ -369,9 +334,6 @@ esac
 for path in "${changed[@]}"; do
   # The format job checks every .cs file of the repository, whichever rule the file falls under.
   [[ "$path" == *.cs ]] && format=true
-  # A project file decides what MSBuild compiles, which the job "release tooling" holds to the trains each change
-  # releases (release-trains.mjs compile-items); src/Directory.Build.* and the other imports run everything.
-  [[ "$path" == src/*.csproj ]] && release=true
   case "$(rule "$path")" in
     none) ;;
     readme) documentation=true; pack=true ;;
