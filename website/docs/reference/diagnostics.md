@@ -8,8 +8,8 @@ description: Every VO diagnostic the generator and the analyzers report, what it
 # Diagnostics
 
 Every rule the generator, the analyzers and the compiler enforce. `VO0008`, `VO0011`, `VO0025`, `VO0026`, `VO0033`,
-`VO0042`, `VO0044`, `VO0045`, `VO0046` and `VO0047` are warnings; every other one is an error. There is no `VO0012`, and `VO0004`, `VO0006`, `VO0013`, `VO0014`, `VO0022`
-and `VO0029` are [retired](#retired-diagnostics).
+`VO0042`, `VO0044`, `VO0045`, `VO0046` and `VO0047` are warnings; every other one is an error. There is no `VO0012`, and `VO0004`, `VO0006`, `VO0013`, `VO0014`, `VO0022`,
+`VO0029` and `VO0048` are [retired](#retired-diagnostics).
 
 | Id | Meaning | Fix |
 | --- | --- | --- |
@@ -53,7 +53,6 @@ and `VO0029` are [retired](#retired-diagnostics).
 | `VO0045` | A `[LoggerMessage]` parameter, a property `[LogProperties]` expands, a member of a record logged whole, or the element of a collection, that logs a value object classified on its type with no classification of its own, in a method Microsoft.Gen.Logging, Microsoft.Extensions.Telemetry's logging generator, writes (warning). | That generator reads a classification on the parameter or the property only, and writes the value in clear. Classify it with the type's attribute, which the code fix copies, or with `[NoDataClassification]` to log it in clear on purpose. [Data classification](../how-to/logging.md#data-classification) has the cases the fix leaves to you: an attribute written with arguments, a member of another assembly, a record logged whole. |
 | `VO0046` | A property carrying a classification whose value object, of another assembly or written by hand, `[LogProperties(Transitive = true)]`, or `[LogProperties]` on the property, expands into its `Value` (warning). | The expansion drops the property's classification, and writes the value in clear. Classify the value object's type, which the expansion then applies to `Value`, or drop `Transitive` (for `[LogProperties]` on the property, drop that attribute from the property). There is no code fix: the type is usually another project's. |
 | `VO0047` | `Unicode = false` on a value object whose rules let a character outside ASCII through (warning): no rule at all, a pattern not anchored at both ends (`^…$` or `\A…\z`, without `RegexOptions.Multiline`) or admitting a literal or range beyond U+007F, `.`, a negated class, `\d`, `\w`, `\s`, `\p{…}`, or `[A-Z]` under `IgnoreCase`, a known value spelled outside ASCII, or a closed set compared as a culture compares. | SQL Server writes a character the code page of a `varchar` column lacks as a look-alike or `?`, silently. Hold the rules to ASCII: an anchored pattern of ASCII classes (`[0-9]` rather than `\d`, `[A-Za-z]` rather than `IgnoreCase`), a closed set (`ValueSet = ValueSetKind.Closed`) of known values spelled in ASCII and compared `Ordinal` or `OrdinalIgnoreCase`, or a validator; or leave the text Unicode. A normalizer or a validator silences it. For a column of names kept under Latin-1 on purpose, `#pragma warning disable VO0047` around the attribute. [Non-Unicode text](../how-to/ef-core.md#non-unicode-text) says why. |
-| `VO0048` | A public field or property of a Marten compiled query, a type implementing `ICompiledQuery<TDoc, TOut>`, declared or inherited, read-only, write-only or an indexer, holding a value object or its nullable type: generated, written by hand, generic or an `[EntityId]`. Reported only where the project references Marten. | Marten reads every such member as a parameter and binds none of a value object: it refuses the query type with `InvalidCompiledQueryException`, or, once it takes the value object for a document's identity, answers every call with the first call's value. With `AdCodicem.ValueObjects.Marten`'s `UseValueObjects()`, without which Marten reads `x.Iban.Value` as a path no document holds and answers no rows, declare the member as a type Marten binds and compare the value object's `Value` with it, `x.Iban.Value == Iban`: the underlying type over `string`, `Guid`, `int`, `long`, `float`, `decimal`, `DateTime` and `DateTimeOffset`, the last set in UTC (`ToUniversalTime()`), since Marten writes the member as it stands and Npgsql refuses any other offset, an `int` over `sbyte`, `byte` and `short`, a `long` over `uint`. Over `bool`, `char`, `double`, `DateOnly`, `TimeOnly` and `TimeSpan`, and for a document's identity, whose `Value` Marten does not read, hold the values in an array or a list of the value object (a type implementing `IList<T>`, the only collections Marten lets the package bind), read with `Contains` or `IsOneOf`, which the package binds on every call; Marten queries no `ushort`, `ulong`, `Int128` or `UInt128`. An indexer, which Marten reads and can bind none of: make it non-public or remove it. A value object written by hand over a type outside the supported underlying types: query it with LINQ. A collection, a member marked `[MartenIgnore]`, and a member that is not public or is static are left alone. An analyzer's error: a severity setting lowers it, and `#pragma warning disable VO0048` silences it for a test pinning Marten's refusal. [Compiled queries](../how-to/marten.md#compiled-queries) has each form. |
 
 `VO0011` deserves its warning more than most. The code it reports compiles and looks right, and in a project
 without `TreatWarningsAsErrors` it ships with the rule silently absent. It also recognizes the names hooks had
@@ -190,7 +189,9 @@ object publishes no example, and an `[EntityId]` one of the right shape, derived
 
 ## Retired diagnostics
 
-These reported attribute options written as text, which no longer compile. Their identifiers are not reused.
+The first six reported attribute options written as text, which no longer compile. `VO0048` was retired with
+the Marten package ([ADR 0015](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0015-retire-six-satellites.md)).
+Their identifiers are not reused.
 
 | Id | Reported |
 | --- | --- |
@@ -200,6 +201,7 @@ These reported attribute options written as text, which no longer compile. Their
 | `VO0014` | An invalid regular expression in the `Pattern` option. |
 | `VO0022` | The `Pattern` option beside `IValueObjectPatternValidator`. |
 | `VO0029` | The `Minimum` or `Maximum` option beside its hook. |
+| `VO0048` | A public field or property of a Marten compiled query holding a value object, which Marten binds as no parameter. |
 
 ## A value object another generator creates
 
@@ -275,13 +277,13 @@ converter, never through that line.
 
 People put the serializer's contract attribute on every type they send. On a value object, it makes the serializer
 describe the type by its members, and those are the generator's: `Value`, the private field holding it and the
-explicit `IsDefault`, which the author has nothing to put `[Id]`, `[ProtoMember]`, `[Key]` or `[DataMember]` on. The
+explicit `IsDefault`, which the author has nothing to put `[ProtoMember]`, `[Key]` or `[DataMember]` on. The
 serializers' own analyzers report none of it, so `VO0043` and `VO0044` do, on the attribute, on whichever partial
 declaration carries it:
 
 | Attribute | Id | What the serializer does | Remedy |
 | --- | --- | --- | --- |
-| Orleans' `[GenerateSerializer]` | `VO0043` | Writes the value object with no field and reads it back as a default instance: a holder of two value objects is written `2020E021E0E0`. `DeepCopier` keeps the value, so a call Orleans copies rather than serializes does not show the loss. | Remove it, and call `AddValueObjects()` of `AdCodicem.ValueObjects.Orleans` on the serializer of every silo and client ([Orleans](#orleans)). |
+| Orleans' `[GenerateSerializer]` | `VO0043` | Writes the value object with no field and reads it back as a default instance: a holder of two value objects is written `2020E021E0E0`. `DeepCopier` keeps the value, so a call Orleans copies rather than serializes does not show the loss. | Remove it, and give the value object a surrogate holding its underlying value, with a converter that reads it back through `TryCreate`. |
 | protobuf-net's `[ProtoContract]`, naming no serializer | `VO0043` | Writes an empty message, `0A00`, read back as a default instance; under protobuf-net's compile-time model, whatever the registration. | Name the serializer, which the code fix does ([protobuf-net](#protobuf-net)). |
 | `[DataContract]` | `VO0043` | protobuf-net writes `0A00` and MessagePack's standard resolver `[]`, each read back as a default instance; in an assembly opted into XML serialization, `DataContractSerializer` refuses the type: "Type '…' cannot be IXmlSerializable and have DataContractAttribute attribute." | Remove it: [`[assembly: ValueObjectXmlSerialization]`](../how-to/xml.md) writes the value object as its value. |
 | `[XmlType]` | `VO0043` | protobuf-net writes `0A00`, read back as a default instance; in an assembly opted into XML serialization, `XmlSerializer` refuses the type: "Only XmlRoot attribute may be specified for the type …". | Remove it: the schema provider names the type, and `[XmlRoot]` names the element of a root value object. |
@@ -298,9 +300,9 @@ referenced assembly, which is reported in its own project. `[XmlRoot]`, Orleans'
 System.Text.Json needs nothing: `[JsonSerializable]` on a struct is `CS0592` already, and it ignores `[DataContract]` and
 `[JsonObject]`.
 
-Removing a `VO0043` attribute never makes things worse. Where nothing registers the value object, protobuf-net,
-MessagePack and Orleans then fail loudly, "No serializer defined for type", `FormatterNotRegisteredException`, "Could not
-find a codec for type", where they lost the value silently. `VO0043` is an error even where a build works today: a bare
+Removing a `VO0043` attribute never makes things worse. Where nothing registers the value object, protobuf-net and
+MessagePack then fail loudly, "No serializer defined for type", `FormatterNotRegisteredException`, where they lost the
+value silently. `VO0043` is an error even where a build works today: a bare
 `[ProtoContract]` that `AddValueObjects` takes over on a runtime model before its first use, or a `[DataContract]` value
 object only ever written through `WithValueObjects()`. Such a build loses the value as soon as another route meets the
 type, protobuf-net's `[ProtoModel]` or MessagePack's standard resolver. The code fix repairs it, by removing the
@@ -354,16 +356,6 @@ serializer:
 A `Surrogate`, a serializer of the application's own, and the package's serializer closed over the value object itself are
 the author's, and left alone, the last over `Int128` too, where protobuf-net's refusal is loud. So is `IsScalar`, which
 [Native AOT](../how-to/protobuf-net.md#native-aot) says to leave out.
-
-### Orleans
-
-[`AdCodicem.ValueObjects.Orleans`](../how-to/orleans.md) writes a value object as Orleans writes its underlying value,
-and reads it back through its rules: remove the attribute, and call `AddValueObjects()` on the serializer of every silo
-and client. The message names that registration once the package is in reach, and the package to reference otherwise.
-
-A surrogate under `[RegisterConverter]` is no substitute: in a grain call, it writes the value as a nested object, where
-a member of the underlying type writes it bare, and a value it refuses reaches the caller as `CodecNotFoundException`
-for `ValueObjectException`, with neither the rule nor its code.
 
 ### MemoryPack
 

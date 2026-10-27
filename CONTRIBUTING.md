@@ -121,11 +121,9 @@ the merge.
 
 The heavy jobs run in `heavy.yml`, after the merge on `main`, before every preview and stable release, and on a pull
 request labelled `ci:heavy`, where **build and test** waits for them: **native AOT**, which publishes the applications
-of `tests/NativeAot` but Marten's with native AOT and fails on a trimming or AOT warning, the known ones of
+of `tests/NativeAot` with native AOT and fails on a trimming or AOT warning, the known ones of
 protobuf-net's generated code and of Microsoft.AspNetCore.Components aside (each application's `aot-warnings.allowed`),
-or on any difference between the native binary and the JIT; **native AOT (Marten)**, the Marten application published
-the same way against a PostgreSQL service container, a job of its own since Marten takes about 20 minutes to compile
-natively; the integration suite; and the packages in a .NET 11 application. Ask for the label when your change touches
+or on any difference between the native binary and the JIT; the integration suite; and the packages in a .NET 11 application. Ask for the label when your change touches
 native AOT, a store, the sample API or the next .NET; the label is read when a run starts, so push after adding it.
 `CLAUDE.md` has the command to run actionlint locally, and `tests/NativeAot/CLAUDE.md` those of the native AOT scripts,
 which need clang and zlib.

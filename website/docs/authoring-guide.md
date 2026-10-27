@@ -299,22 +299,8 @@ MessagePack resolver](./how-to/messagepack.md#generic-value-objects-and-value-ob
 reflection the first time MessagePack asks for it, or takes one registered with
 `ValueObjectRegistry.Register<TSelf, TValue>()`, and so does [the HotChocolate
 handler](./how-to/graphql.md#generic-value-objects-and-value-objects-written-by-hand), beside a scalar
-`AddValueObjectScalar<TSelf, TValue>()` adds typed, and the HotChocolate.Data interceptor, beside a binding
-`BindValueObject<TSelf, TValue>()` makes typed over that scalar. [protobuf-net](./how-to/protobuf-net.md#generic-value-objects-and-value-objects-written-by-hand)
-never meets a construction by itself: `AddValueObject<TSelf, TValue>()` registers each on the model. [Orleans'
-codecs](./how-to/orleans.md#generic-value-objects-and-value-objects-written-by-hand) describe one by reflection the first
-time Orleans asks for it, or take one registered with `ValueObjectRegistry.Register<TSelf, TValue>()` or serialized with
-`AddValueObject<TSelf, TValue>()`. [The System.CommandLine
-symbols](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-and-native-aot) describe one by
-reflection when a command is configured, or take one registered with `ValueObjectRegistry.Register<TSelf, TValue>()`.
-[The CsvHelper factory](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-in-a-file-and-native-aot)
-describes one by reflection the first time a CsvHelper context meets it, or takes one registered with
-`ValueObjectRegistry.Register<TSelf, TValue>()`, beside a converter `AddValueObject<TSelf, TValue>()` adds typed.
-[Marten's member source](./how-to/marten.md#registering-the-value-objects) describes one by reflection the first time a
-query, a duplicated field or a compiled query meets it, or takes one registered with
-`ValueObjectRegistry.Register<TSelf, TValue>()` or taught with `UseValueObject<TSelf, TValue>()`.
-[A Wolverine.Http endpoint](./how-to/wolverine.md#where-a-value-is-read-from) binds a construction with no registration,
-natively too: the code Wolverine generates names it.
+`AddValueObjectScalar<TSelf, TValue>()` adds typed. [protobuf-net](./how-to/protobuf-net.md#generic-value-objects-and-value-objects-written-by-hand)
+never meets a construction by itself: `AddValueObject<TSelf, TValue>()` registers each on the model.
 Under native AOT, where describing a construction by reflection is out
 of reach, register each construction a type-driven integration needs; the registration reads its schema off the type:
 
@@ -331,7 +317,7 @@ generated converter inherits.
 
 ## Diagnostics
 
-The generator, the analyzers and the compiler report `VO0001` to `VO0048`. [Diagnostics](./reference/diagnostics.md)
+The generator, the analyzers and the compiler report `VO0001` to `VO0047`. [Diagnostics](./reference/diagnostics.md)
 lists each one with its fix.
 
 Next: [Generated members](./reference/generated-members.md), for what the generator writes from all of this.

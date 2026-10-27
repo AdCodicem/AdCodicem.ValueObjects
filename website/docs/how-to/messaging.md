@@ -2,7 +2,7 @@
 title: Use With Messaging and Job Libraries
 sidebar_label: Messaging and jobs
 slug: /how-to/messaging
-description: Send value objects through MassTransit, NServiceBus, Rebus, Wolverine, Kafka with Confluent's Schema Registry, the Azure messaging SDKs, Durable Functions, Dapr, Hangfire and Quartz as bare values, validated when they are received.
+description: Send value objects through MassTransit, NServiceBus, Rebus, Kafka with Confluent's Schema Registry, the Azure messaging SDKs, Durable Functions, Dapr, Hangfire and Quartz as bare values, validated when they are received.
 ---
 
 # Use with messaging and job libraries
@@ -73,16 +73,6 @@ saga data with Newtonsoft.Json, so its JSON settings need the converter; that pa
 ## Rebus
 
 Rebus 8 serializes with System.Text.Json by default: nothing to do.
-
-## Wolverine
-
-Wolverine's messaging needs nothing (WolverineFx 6.51.0): its default serializer is System.Text.Json, a value object
-travels as its underlying value, and a message whose value its type refuses moves to the error queue, the logged
-exception being the converter's `ValueObjectJsonException`, which carries the rule's code. Wolverine.Http endpoints bind
-route, query, header and form values in Wolverine's own terms, a refused route value answered 404, and an absent query
-value, or a refused one under the default `RejectUnparseableQueryValues = false`, bound as the default instance:
-`AdCodicem.ValueObjects.Wolverine.Http` binds them through their rules and answers a refusal with its code
-([Wolverine](./wolverine.md)).
 
 ## Kafka with Confluent's Schema Registry
 

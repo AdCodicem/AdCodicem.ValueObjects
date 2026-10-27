@@ -25,7 +25,7 @@ that run on older frameworks.
 
 ### Will there be a package per EF Core or .NET version?
 
-No. The thirty-eight packages share one version, driven by their own API and not by the framework's, and a framework's
+No. The thirty-two packages share one version, driven by their own API and not by the framework's, and a framework's
 next major is supported by the same packages: their dependencies are minimums with no upper bound, and a CI job runs
 them on the next .NET before it ships. If a new major ever breaks what a package calls, the package moves to that
 major in a release that says so, and an application on the older one keeps the version before.
@@ -114,23 +114,17 @@ and an application translates them under the key `ValueObject.` followed by the 
 supply: the length, the bounds, the known values, formatted in the request's culture. MVC and minimal APIs read the
 translations from a resource the application names, `AddValueObjects(messages => messages.UseResource<T>())` and
 `WithValueObjectProblemDetails(messages => messages.UseResource<T>())`, so do the HTTP triggers of Azure Functions,
-`UseValueObjectProblemDetails(messages => messages.UseResource<T>())`, Wolverine.Http endpoints,
-`UseValueObjects(messages => messages.UseResource<T>())`, a HotChocolate schema,
-`AddValueObjects(options => options.UseResource<T>())`, the inputs of a Blazor form,
-`AddValueObjectInputs(options => options.UseResource<T>())`, and the options and arguments of a System.CommandLine
-command, `AcceptValueObjects(options => options.UseResource<T>())`, FluentValidation reads them from its
+`UseValueObjectProblemDetails(messages => messages.UseResource<T>())`, a HotChocolate schema,
+`AddValueObjects(options => options.UseResource<T>())`, and the inputs of a Blazor form,
+`AddValueObjectInputs(options => options.UseResource<T>())`, FluentValidation reads them from its
 `LanguageManager`, and
 DataAnnotations' `[ParsesAs]` and `[NotDefault]` from the resource their `ErrorMessageResourceType` names alone.
-CsvHelper shows no message to a person: an import reads the code off the exception and looks the message up itself
-([CsvHelper](./how-to/files-and-command-line.md#what-a-refused-field-looks-like)). No translation ships with the
-packages. The
+No translation ships with the packages. The
 [errors reference](./reference/errors.md#a-message-in-the-applications-language) lists the keys and the arguments, with a
 French example, and the guides for [ASP.NET Core](./how-to/aspnet-core.md#messages-in-the-applications-language),
 [Azure Functions](./how-to/azure.md#messages-in-the-requests-language),
-[Wolverine](./how-to/wolverine.md#messages-in-the-requests-language),
 [GraphQL](./how-to/graphql.md#messages-in-the-applications-language),
 [Blazor](./how-to/blazor.md#messages-in-the-applications-language),
-[System.CommandLine](./how-to/files-and-command-line.md#messages-in-the-applications-language),
 [FluentValidation](./how-to/fluentvalidation.md#messages-in-another-language)
 and [DataAnnotations](./how-to/data-annotations.md#messages-in-another-language) the wiring.
 
@@ -179,10 +173,8 @@ constraint refuses carries the rule's code; Dapper validates only a column the v
 value object over a number, say. MongoDB reads are the other way round: validated, since a collection has no schema and
 is often written by more than one program, unless the serializer is registered with
 `ValueObjectBson.Register(trusted: true, …)`. So are MessagePack reads, since the bytes may come from another service,
-unless the resolver is trusted, `WithValueObjects(trusted: true)` or `UseValueObjects(trusted: true)`, protobuf-net
-reads, unless the serializers are registered with `AddValueObjects(trusted: true, …)` or name a trusted profile, and
-Orleans reads, unless every silo and client registers `AddValueObjects(trusted: true)`. Marten reads are validated
-always: a document goes through the generated JSON converter, and a value a query projects through the package.
+unless the resolver is trusted, `WithValueObjects(trusted: true)` or `UseValueObjects(trusted: true)`, and protobuf-net
+reads, unless the serializers are registered with `AddValueObjects(trusted: true, …)` or name a trusted profile.
 
 ### Does it work with minimal APIs?
 
@@ -240,18 +232,6 @@ uninitialized value object its type rejects. Without it, the driver writes `{}` 
 DocumentDB go through the same driver (not run). The MongoDB provider for Entity Framework Core goes through
 `ConfigureValueObjects` instead: [Other providers](./how-to/ef-core.md#other-providers).
 
-### Does it work with Marten?
-
-Marten stores a value object as its bare value without help, through the generated JSON converter, and refuses on read
-a stored value the rules refuse, but it cannot query one: a comparison throws, `.Value` reads a path no document has and
-answers no rows, and a duplicated field fails at the first write. Through Marten 9.50, with
-`AdCodicem.ValueObjects.Marten`, `AddMarten(…).UseValueObjects()` teaches the store every value object as Marten's own
-value types are taught: LINQ, `Contains`, `IsOneOf`, duplicated fields, computed indexes and identities see the
-underlying value, a compiled query binds a collection of value objects on every call, Marten refusing a single one,
-which `VO0048` reports when the project builds, and binding its `.Value` compared with a member of a type it binds, and
-a value a query projects is read through the rules, its refusal carrying the code.
-[Marten](./how-to/marten.md) has the wiring, the SQL each shape translates to, and what stays Marten's.
-
 ### Does it work with MessagePack and SignalR?
 
 Through MessagePack 3, with `AdCodicem.ValueObjects.MessagePack`: `options.WithValueObjects()` puts a resolver in front
@@ -281,17 +261,6 @@ generates, maps its fields to value objects in its handlers: `AdCodicem.ValueObj
 `Create` there with `INVALID_ARGUMENT` and the same `ErrorInfo`, through an interceptor, and every refused field of a
 request at once in a `google.rpc.BadRequest`, through `ValueObjectBadRequest`: [gRPC services](./how-to/grpc.md).
 
-### Does it work with Orleans?
-
-Through Orleans 10.4, with `AdCodicem.ValueObjects.Orleans`: `AddValueObjects()` on the serializer of every silo and
-client writes each value object in a grain call as Orleans writes its underlying value, byte for byte, a text in full
-even where Orleans would refer back to the same string, with its type where a member typed `object` holds it, and reads
-it back through its rules unless asked to trust the cluster. A refused
-request, a refused reply and a `ValueObjectException` a grain lets escape reach the caller with the rule's code.
-Without it, every grain call holding a value object fails with `CodecNotFoundException`, and `[GenerateSerializer]` on
-the value object, which would lose the value, fails the build (`VO0043`). A call within one silo copies its arguments,
-so a default instance arrives there; Orleans does not run natively yet: [Orleans](./how-to/orleans.md).
-
 ### Does it work with Kafka and the Schema Registry?
 
 Yes, with Confluent's JSON serdes: `AddValueObjects()` from `AdCodicem.ValueObjects.NJsonSchema` on the
@@ -308,13 +277,8 @@ Through HotChocolate 16, with `AdCodicem.ValueObjects.HotChocolate`: `AddValueOb
 every value object a scalar of its own, `scalar Iban`, named and described by its type and serialized as its underlying
 value, a Boolean, an Int, a Float or a String, which reads an argument, an input field or a variable through its rules
 and answers a refused value with the rule's code under `extensions.code`. Without it, HotChocolate infers an input
-object type from a value object it meets as an argument and the schema does not start. HotChocolate.Data filters every
-value object through its scalar with `AdCodicem.ValueObjects.HotChocolate.Data`'s `AddValueObjectFiltering()`: an
-operand normalized, refused with its rule code and translated by Entity Framework Core, with no binding per type, and
-`contains`, `startsWith` and `endsWith` over the text on request
-([Filtering](./how-to/graphql.md#filtering-and-sorting-with-hotchocolatedata)). The native binary of a HotChocolate
-application needs HotChocolate.Types and the application's assembly rooted, and HotChocolate.Data's filtering does not
-run natively: [GraphQL](./how-to/graphql.md).
+object type from a value object it meets as an argument and the schema does not start. The native binary of a
+HotChocolate application needs HotChocolate.Types and the application's assembly rooted: [GraphQL](./how-to/graphql.md).
 
 ### Does it work with Blazor?
 
@@ -325,29 +289,6 @@ with the rule's message under the field and its code on the form's `EditContext`
 default instance, and none of the built-in inputs takes a value object. A statically rendered form is mapped by the
 framework first, which answers a refused value with its own message, quoting the text, and refuses an empty optional
 value object: [Blazor forms](./how-to/blazor.md).
-
-### Does it work with System.CommandLine?
-
-Through `AdCodicem.ValueObjects.CommandLine`, whose `AcceptValueObjects()` reads every option and argument of a value
-object, its nullable type or a collection of it, in a command and its subcommands, through the rules, in the invariant
-culture unless told otherwise, a parent command's while a subcommand is validated. A refused value is a parse error
-naming the option and giving the rule's message, which an invocation writes to standard error before the help,
-returning 1 without running the action, and `TryGetValueObjectErrorCode` reads its code.
-Without it, System.CommandLine 2.0, which reads neither `TypeDescriptor` nor `IParsable<T>`, parses a valid value with
-no error and then throws from `GetValue`, and gives the flag syntax to `bool` alone. Spectre.Console.Cli reads the
-`TypeConverter`, and needs no package:
-[Files and command line](./how-to/files-and-command-line.md#systemcommandline).
-
-### Does it work with CsvHelper?
-
-Through `AdCodicem.ValueObjects.CsvHelper`, whose `AddValueObjects()` on a context's converter cache maps each value
-object as one column: written as its own text, which its parser reads back, and read through its rules, in the
-member's culture. A refused field is CsvHelper's own `TypeConverterException`, naming the type and the rule, never the
-field, the rule's code in its `Data`, which an import reads in `ReadingExceptionOccurred` to report each refused row and
-go on; an empty field read into a value object that cannot be `null` is `value_object.required`, and an uninitialized
-instance its rules refuse is not written. Register before the first read, write or class map of the context. Without
-it, CsvHelper 33.1 writes a `Value` column per value object and reads default instances, with nothing thrown:
-[Files and command line](./how-to/files-and-command-line.md#csvhelper).
 
 ### Does it work with `XmlSerializer`, `DataContractSerializer` or WCF?
 
@@ -406,20 +347,6 @@ binding's, read through the generated JSON converter. The in-process model is no
 worker does not support. [Azure Functions](./how-to/azure.md#azure-functions-isolated-worker) has the wiring, the
 answers, and the limits.
 
-### Does it work with Wolverine?
-
-Messaging needs nothing: Wolverine serializes with System.Text.Json, which writes a value object as its underlying value
-and reads it back through its rules, a refused message moving to the error queue with the converter's exception and its
-code. Wolverine.Http binds a route, query, header or form value through `TryParse`, but in its own terms: a refused
-route value is a 404, a refused query value reaches the handler as the default instance under its default
-`RejectUnparseableQueryValues = false`, and so do an empty or absent one in either mode and a refused, empty or absent
-header or form value, and `[FromQuery]` on a value object stops the application at startup.
-`AdCodicem.ValueObjects.Wolverine.Http`'s `UseValueObjects()`, inside `MapWolverineEndpoints`, binds each through its
-rules and answers every refused or missing one of a request at once with the validation problem a minimal API writes,
-and their codes, before any middleware method runs. `[AsParameters]` members and the JSON body stay Wolverine's. It runs
-in Wolverine's static mode under native AOT, over the code `codegen write` writes. [Wolverine](./how-to/wolverine.md)
-has the wiring, the answers, and the limits.
-
 ## Performance
 
 ### Does a value object cost more than the primitive it wraps?
@@ -440,14 +367,12 @@ lookup](./how-to/runtime-lookup.md#value-objects-written-by-hand) show. Code tha
 closes a generic adapter over it does so through the descriptor's visitor rather than `MakeGenericType`, which native
 AOT cannot run for a struct, as [Run-time lookup](./how-to/runtime-lookup.md#back-to-the-typed-path) shows; the Dapper
 integration registers its handlers that way, the MongoDB provider builds its serializers, the MessagePack resolver the
-formatter MessagePack asks it for, protobuf-net's `AddValueObjects` names the closed serializer type of each value object, the Orleans package the codec Orleans asks it for, the MongoDB identifiers package its id generators, through the visitor of an entity
+formatter MessagePack asks it for, protobuf-net's `AddValueObjects` names the closed serializer type of each value object, the MongoDB identifiers package its id generators, through the visitor of an entity
 identifier's descriptor, the MVC model binder provider creates its binders, the minimal API filter closes the check of
 each parameter it explains, the Azure Functions converter the conversion of each value object a parameter binds and its
 middleware the check of each it explains, the HotChocolate type discovery handler the scalar of each value object a schema
-meets, the HotChocolate.Data type interceptor the operations of each value-object member a filter input meets, the NJsonSchema package the converter it writes a value object's examples through under Newtonsoft.Json
-settings, the Blazor input the text adapters of the value object it binds, the System.CommandLine symbols the parser of
-the value object their option or argument holds, the CsvHelper factory the converter of each value object a context
-meets, the Marten package the member of each value object a query meets, the JSON converter factory closes the
+meets, the NJsonSchema package the converter it writes a value object's examples through under Newtonsoft.Json
+settings, the Blazor input the text adapters of the value object it binds, the JSON converter factory closes the
 general-purpose converter it gives a value object
 written by hand, the test-data sampler, the AutoFixture customization, the Bogus extensions and FsCheck's
 `MergeValueObjects` draw each value object they meet by its `Type`, and the Entity Framework Core conventions map each
@@ -466,31 +391,16 @@ trimming and AOT analyzers on, and CI publishes an
 application using them all with native AOT after every merge and before every preview and stable release, which
 publish nothing unless it passes: it fails on any trimming or AOT warning, and unless the native binary does exactly
 what the application does under the JIT. The
-two HotChocolate packages are marked AOT-compatible too, and their own code publishes with no warning, but CI publishes
-no HotChocolate application: HotChocolate's own publish warns, its binary starts only with HotChocolate.Types and the
-application's assembly rooted, and HotChocolate.Data's filtering of a struct has no native code
-([GraphQL](./how-to/graphql.md#native-aot)). The gRPC package is
+HotChocolate package is marked AOT-compatible too, and its own code publishes with no warning, but CI publishes no
+HotChocolate application: HotChocolate's own publish warns, and its binary starts only with HotChocolate.Types and the
+application's assembly rooted ([GraphQL](./how-to/graphql.md#native-aot)). The gRPC package is
 AOT-compatible, and CI's application serves a contract-first service with it. The Blazor package is AOT-compatible,
 and CI's application renders a form of every registered value object through `HtmlRenderer`; Microsoft.AspNetCore.Components
-warns for itself there ([Blazor](./how-to/blazor.md#native-aot-and-trimming)). The System.CommandLine package is
-AOT-compatible, and CI's application parses a command of every registered value object with it
-([System.CommandLine](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-and-native-aot)). The
+warns for itself there ([Blazor](./how-to/blazor.md#native-aot-and-trimming)). The
 protobuf-net package is marked
 AOT-compatible: its serializers run in protobuf-net's compile-time model, which CI publishes in an application of its
 own, whose generated code protobuf-net's annotations make warn, while its registration and its code-first binder serve
-protobuf-net's runtime model, which needs the JIT ([protobuf-net](./how-to/protobuf-net.md#native-aot)). The Orleans
-package is marked AOT-compatible, and its own code publishes with no warning, but Orleans 10.4 does not start in a
-native binary, so CI publishes no Orleans application ([Orleans](./how-to/orleans.md#native-aot)). The CsvHelper
-package is marked AOT-compatible, and its own code publishes with no warning, but CsvHelper's record API has no native
-code, its auto-mapping and class maps failing in a native binary, so CI publishes no CsvHelper application; its
-`GetField<T>` and `WriteField<T>` run natively
-([CsvHelper](./how-to/files-and-command-line.md#generic-and-hand-written-value-objects-in-a-file-and-native-aot)). The
-Marten package is AOT-compatible, and CI publishes a Marten application natively and runs it against PostgreSQL;
-Marten's own publish warns for Marten, JasperFx, Weasel and FastExpressionCompiler, never for this library
-([Marten](./how-to/marten.md#native-aot)). The Wolverine.Http package is AOT-compatible and closes nothing at run time:
-the code Wolverine writes for an endpoint names each value object, and CI's application serves Wolverine.Http endpoints
-natively in Wolverine's static mode, over the code `codegen write` writes first
-([Wolverine](./how-to/wolverine.md#native-aot)). The EF Core, ASP.NET Core MVC, OpenAPI, Swashbuckle, NJsonSchema,
+protobuf-net's runtime model, which needs the JIT ([protobuf-net](./how-to/protobuf-net.md#native-aot)). The EF Core, ASP.NET Core MVC, OpenAPI, Swashbuckle, NJsonSchema,
 Dapper, MongoDB, MongoDB identifiers, MessagePack, Azure Functions and Newtonsoft.Json integrations are not
 AOT-compatible, because the frameworks they plug into are not. Dapper, for one, files each handler
 in a cache it closes over the type at run time, so under native AOT a handler this package built without dynamic code

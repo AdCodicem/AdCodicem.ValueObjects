@@ -103,23 +103,17 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 | `AdCodicem.ValueObjects.FluentValidation` | Rules that reuse what the value object already enforces. |
 | `AdCodicem.ValueObjects.Dapper` | Type handlers for raw SQL. |
 | `AdCodicem.ValueObjects.MongoDB` | MongoDB.Driver serializers: the bare value in BSON, `.Value` in LINQ, strict reads, and a `$jsonSchema` validator built from the rules. |
-| `AdCodicem.ValueObjects.Marten` | Marten's LINQ, duplicated fields and identities over the underlying value, `Contains` and `IsOneOf`, a compiled query's collections bound on every call, and strict reads carrying the rule code. |
 | `AdCodicem.ValueObjects.MessagePack` | MessagePack formatters, and SignalR's MessagePack hub protocol: the bare value on the wire, strict reads. |
 | `AdCodicem.ValueObjects.ProtobufNet` | protobuf-net serializers, and protobuf-net.Grpc code-first services: the underlying value on the wire, strict reads, a refused request answered `INVALID_ARGUMENT` with its rule code. |
 | `AdCodicem.ValueObjects.Grpc` | Contract-first gRPC services: every refused field answered at once as `INVALID_ARGUMENT` with a `google.rpc.BadRequest`, and a refusal escaping a handler with a `google.rpc.ErrorInfo` carrying its rule code. |
-| `AdCodicem.ValueObjects.Orleans` | Orleans grain calls: the underlying value on the wire, strict reads, a refusal's rule code back at the caller, and a `ValueObjectException` a grain lets escape carried with its code. |
 | `AdCodicem.ValueObjects.HotChocolate` | One GraphQL scalar per value object under HotChocolate 16, read through its rules, a refused value answered with its rule code. |
-| `AdCodicem.ValueObjects.HotChocolate.Data` | Every value object filtered in HotChocolate.Data through its scalar: normalized, refused with its rule code, translated by Entity Framework Core, with no binding per type; text operations on request. |
 | `AdCodicem.ValueObjects.Blazor` | A Blazor input per value object, read through its rules, the refused rule's message under the field and its code on the `EditContext`. |
-| `AdCodicem.ValueObjects.CommandLine` | System.CommandLine options and arguments read through the rules, the refused rule's message on the terminal and its code on the parse error. |
-| `AdCodicem.ValueObjects.CsvHelper` | A CsvHelper column per value object, written as its own text and read through its rules, a refused field carrying its rule code. |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | Interop with code that has not moved to `System.Text.Json`. |
 | `AdCodicem.ValueObjects.Serilog` | Logs a value object as its underlying value, a number as a number. |
 | `AdCodicem.ValueObjects.AI` | Microsoft.Extensions.AI tool and structured-output schemas that carry the rules, and a refused tool argument answered with its rule code. |
 | `AdCodicem.ValueObjects.ModelContextProtocol` | Model Context Protocol tool schemas that carry the rules, and a refused tool argument answered with its rule code. |
 | `AdCodicem.ValueObjects.AzureFunctions` | Azure Functions isolated worker: route values, query values and binding data bound through the rules, a refusal carrying its code. |
 | `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` | The minimal API problem details for the HTTP triggers of the Functions ASP.NET Core integration. |
-| `AdCodicem.ValueObjects.Wolverine.Http` | Wolverine.Http endpoints: route, query, header and form values bound through the rules, every refused or missing one answered 400 with the minimal API's problem details and rule codes, native AOT included in Wolverine's static mode. |
 | `AdCodicem.ValueObjects.Identifiers` | Stripe-style public entity identifiers: `acc_2K7X9…`. |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | Fixed-width, non-Unicode columns for those identifiers. |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | Those identifiers minted by MongoDB.Driver for a document inserted without one. |
@@ -131,7 +125,7 @@ Task PayAsync(CustomerId customer, Iban iban, decimal amount);   // swapping the
 
 ## Supported frameworks
 
-Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-eight are
+Every package targets `net10.0`, so it installs into a project on .NET 10 or any later version. The thirty-two are
 released together under one version number: reference the same version of each. Their dependencies are minimums
 with no upper bound, and the exact minimum of each is in the package's dependency list on nuget.org. A framework's
 next major is supported by these same packages, never by a package per framework version
@@ -152,23 +146,17 @@ next major is supported by these same packages, never by a package per framework
 | `AdCodicem.ValueObjects.FluentValidation` | `net10.0` | FluentValidation 12 | FluentValidation 12 on .NET 11 |
 | `AdCodicem.ValueObjects.Dapper` | `net10.0` | Dapper 2.1, on PostgreSQL and SQL Server | Dapper 2.1, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 7.0² | MongoDB.Driver 3.12 on .NET 11, on MongoDB 7.0² |
-| `AdCodicem.ValueObjects.Marten` | `net10.0` | Marten 9.50, on PostgreSQL 17, and native AOT | Marten 9.50 on .NET 11, on PostgreSQL 17 |
 | `AdCodicem.ValueObjects.MessagePack` | `net10.0` | MessagePack 3.1, with SignalR's MessagePack hub protocol 10 | MessagePack 3.1 on .NET 11, with the hub protocol 11 |
 | `AdCodicem.ValueObjects.ProtobufNet` | `net10.0` | protobuf-net 3.4 and protobuf-net.Grpc 1.3 over Grpc.AspNetCore 2.84, and protobuf-net's compile-time model under native AOT | protobuf-net 3.4 on .NET 11, a code-first call over TestHost |
 | `AdCodicem.ValueObjects.Grpc` | `net10.0` | Grpc.StatusProto 2.84, over Grpc.AspNetCore 2.84 and native AOT | a contract-first service over TestHost on .NET 11 |
-| `AdCodicem.ValueObjects.Orleans` | `net10.0` | Orleans 10.4, its serializer and an in-process cluster of one silo and of two, with its client | Orleans 10.4 on .NET 11, its serializer |
 | `AdCodicem.ValueObjects.HotChocolate` | `net10.0` | HotChocolate 16.6, in process and over ASP.NET Core | HotChocolate 16.6 on .NET 11 |
-| `AdCodicem.ValueObjects.HotChocolate.Data` | `net10.0` | HotChocolate.Data 16.6, over EF Core 10 on SQLite, PostgreSQL and SQL Server, and in memory | HotChocolate.Data 16.6 over EF Core 11 on SQLite |
 | `AdCodicem.ValueObjects.Blazor` | `net10.0` | Blazor 10 (`Microsoft.AspNetCore.Components.Web` 10), through bUnit, static rendering over TestHost and `HtmlRenderer` under native AOT | Components 11, through `HtmlRenderer` |
-| `AdCodicem.ValueObjects.CommandLine` | `net10.0` | System.CommandLine 2.0, commands parsed and invoked in process, and native AOT | System.CommandLine 3.0 (release candidate) on .NET 11 |
-| `AdCodicem.ValueObjects.CsvHelper` | `net10.0` | CsvHelper 33.1, files read and written in memory | CsvHelper 33.1 on .NET 11 |
 | `AdCodicem.ValueObjects.NewtonsoftJson` | `net10.0` | Newtonsoft.Json 13 | Newtonsoft.Json 13 on .NET 11 |
 | `AdCodicem.ValueObjects.Serilog` | `net10.0` | Serilog 4, through Microsoft.Extensions.Logging too, and native AOT | Serilog 4 on .NET 11 |
 | `AdCodicem.ValueObjects.AI` | `net10.0` | Microsoft.Extensions.AI 10, with its OpenAI adapter in strict mode, and native AOT | Microsoft.Extensions.AI 10 on .NET 11 |
 | `AdCodicem.ValueObjects.ModelContextProtocol` | `net10.0` | ModelContextProtocol 2.2, in process over streams, and native AOT | ModelContextProtocol 2.2 on .NET 11 |
 | `AdCodicem.ValueObjects.AzureFunctions` | `net10.0` | Microsoft.Azure.Functions.Worker 2.52, in the Functions host's `dotnet-isolated` 10.0 image | Worker 2.52 on .NET 11 |
 | `AdCodicem.ValueObjects.AzureFunctions.AspNetCore` | `net10.0` | the Functions ASP.NET Core integration 2.1, in the Functions host's `dotnet-isolated` 10.0 image | the integration 2.1 beside ASP.NET Core 11 |
-| `AdCodicem.ValueObjects.Wolverine.Http` | `net10.0` | Wolverine.Http 6.51, in dynamic mode over TestHost, and in static mode under native AOT | Wolverine.Http 6.51 on .NET 11, in dynamic mode over TestHost |
 | `AdCodicem.ValueObjects.Identifiers` | `net10.0` | .NET 10 | .NET 11 |
 | `AdCodicem.ValueObjects.Identifiers.EntityFrameworkCore` | `net10.0` | EF Core 10, on PostgreSQL and SQL Server | EF Core 11, on SQLite, PostgreSQL and SQL Server |
 | `AdCodicem.ValueObjects.Identifiers.MongoDB` | `net10.0` | MongoDB.Driver 3.12, on MongoDB 7.0² | MongoDB.Driver 3.12 on .NET 11, on MongoDB 7.0² |
@@ -231,9 +219,8 @@ which is what makes the struct representation — zero allocation, no null — s
 its own output: `VO0032` reports it in the code of Riok.Mapperly and of the configuration binding generator, and
 of any generator a `.globalconfig` adds. What reaches a boundary the analyzer cannot see — an entity property never
 set, a default array element — is not written as it stands: the JSON converters, the Dapper handler, the MongoDB
-serializers, the MessagePack formatters, the protobuf-net serializers, the Orleans codecs, the CsvHelper converters,
-the HotChocolate scalars, the XML serialization of an assembly marked `[assembly: ValueObjectXmlSerialization]` and
-the EF Core converters refuse an uninitialized instance whose value its type rejects, and an optional EF Core column
+serializers, the MessagePack formatters, the protobuf-net serializers, the HotChocolate scalars, the XML serialization of an assembly marked
+`[assembly: ValueObjectXmlSerialization]` and the EF Core converters refuse an uninitialized instance whose value its type rejects, and an optional EF Core column
 stores a `NULL` instead, as does an element of a `List<Iban?>`. Under `ConfigureValueObjects`, an EF Core primary key
 of one property over a `Guid` value object, which nothing generates, refuses an entity added without it, whatever the
 type's rules.
@@ -242,23 +229,22 @@ type's rules.
 is valid. The integrations that take outside input go through `TryCreate` or `TryParse` and report a refusal in
 their own terms: a JSON exception, a model state error, a FluentValidation failure, a Dapper `DataException`, a
 MongoDB.Driver `FormatException`, a MessagePack `MessagePackSerializationException`, a protobuf-net `ProtoException`,
-an Orleans `SerializerException`, carried back to the caller of a grain, a CsvHelper `TypeConverterException`,
 the `INVALID_ARGUMENT` status a gRPC service answers, code-first or contract-first, whose `google.rpc.ErrorInfo` or
 `google.rpc.BadRequest` carries the code, an `XmlException` from
 `XmlSerializer` or `DataContractSerializer` in an assembly marked `[assembly: ValueObjectXmlSerialization]`, a tool
 result a language model reads, an MCP tool execution error, the `FormatException` that fails an Azure Functions
 parameter, whose text alone the worker keeps, and which therefore ends with the code, a GraphQL error whose
-`extensions.code` is the rule's, for an argument, a variable or the operand of a HotChocolate.Data filter, a
+`extensions.code` is the rule's, for an argument or a variable, a
 DataAnnotations `ValueObjectValidationResult`, from `[ParsesAs]` and `[NotDefault]`, which `Validator`'s throwing
 methods wrap in a `ValidationException`, a validation message under a Blazor form's field, its code on the form's
-`EditContext`, and the parse error of a System.CommandLine option or argument, its code beside it. Each
+`EditContext`. Each
 carries the code of the rule, which `ValueObjectErrors.TryGetCode` reads from any of those exceptions, and which
 the problem details of an MVC controller carry for a JSON body, read by System.Text.Json or Newtonsoft.Json, as for a
-query value, those of a minimal API for a route, query or header value, those of an Azure Functions HTTP trigger
-for a route or query value, and those of a Wolverine.Http endpoint for a route, query, header or form value. Under
+query value, those of a minimal API for a route, query or header value, and those of an Azure Functions HTTP
+trigger for a route or query value. Under
 `UseValueObjectCheckErrors()`, the database provider's error for a row a CHECK constraint from the rules refused carries
 the code too, read off the constraint's name. The message is English; the code keys the one an application shows in its
-users' language, which the MVC, minimal API, Azure Functions, Wolverine.Http, HotChocolate, Blazor, System.CommandLine,
+users' language, which the MVC, minimal API, Azure Functions, HotChocolate, Blazor,
 FluentValidation and DataAnnotations integrations look up with the arguments the declared rules supply
 ([a message in the application's language](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/reference/errors#a-message-in-the-applications-language)).
 `Create` throws `ValueObjectException`, and is for the call sites that want it; a strict EF Core read goes through
@@ -269,15 +255,12 @@ valid. It happens on construction, on parsing, on deserialization and on model b
 materializing a row through EF Core or Dapper, which is the hottest path in most applications and reads values this
 same application wrote, nor for the temporary value EF Core holds for an integer key it generates, which the database
 replaces before anything is written. `ConfigureValueObjects(strict: true)` turns that back on for a table another system
-also writes to. MongoDB, MessagePack, protobuf-net and Orleans reads validate, since a collection, a message or a grain
-call may come from another program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
-`WithValueObjects(trusted: true)`, `AddValueObjects(trusted: true, …)` on a protobuf-net model, and
-`AddValueObjects(trusted: true)` on an Orleans serializer. A CSV field is always read through the rules, since people
-and spreadsheets edit a file, and so is a Marten document, read through the generated JSON converter, and a value a
-Marten query projects.
+also writes to. MongoDB, MessagePack and protobuf-net reads validate, since a collection or a message may come
+from another program, unless the application trusts them: `ValueObjectBson.Register(trusted: true, …)`,
+`WithValueObjects(trusted: true)` and `AddValueObjects(trusted: true, …)` on a protobuf-net model.
 
 **Rules are declared once.** `MaxLength = 34` validates the value, sizes the EF Core column, each element of a
-collection of IBANs included, and a Marten duplicated field, and becomes the `maxLength` keyword of the OpenAPI
+collection of IBANs included, and becomes the `maxLength` keyword of the OpenAPI
 schema, NSwag's included, and of the JSON Schema a Kafka topic registers through Confluent's serdes. The
 `[GeneratedRegex]` behind `IValueObjectPatternValidator` validates the value, and its text becomes the `pattern`
 keyword, and the pattern of a GraphQL scalar, which HotChocolate publishes as `@serializeAs` under
@@ -294,8 +277,7 @@ the tools of a Model Context Protocol server. A DTO or an options class that kee
 with DataAnnotations' `[ParsesAs(typeof(Iban))]`, which the OpenAPI packages, NSwag's included, describe as the value
 object's text, rather than restating them in `[StringLength]` and `[RegularExpression]`. A Blazor input reads its text
 through them, and, on request, writes the maximum and minimum lengths and a pattern a browser reads as .NET does as the
-`maxlength`, `minlength` and `pattern` of the field. A System.CommandLine option reads its text through them too, and
-takes its description and its completions from the type, and a CsvHelper column reads its field through them.
+`maxlength`, `minlength` and `pattern` of the field.
 
 ## Compared with other libraries
 
@@ -443,19 +425,6 @@ await database.CreateCollectionAsync("orders", new CreateCollectionOptions<BsonD
 });
 ```
 
-Marten stores a value object as its bare value through the generated JSON converter, but cannot query one: a
-comparison throws `BadLinqExpressionException`, `x.Iban.Value == "FR76…"` reads a path no document has and answers no
-rows, and `Duplicate(x => x.Iban)` fails at the first write. `AdCodicem.ValueObjects.Marten` teaches the store every
-value object as Marten's own value types are taught, so that LINQ, `Contains`, `IsOneOf`, duplicated fields, computed
-indexes and identities see the underlying value, a compiled query binds a collection of value objects on every call,
-one taking a single value object fails the build (`VO0048`), since Marten refuses it or, for a document's identity,
-answers every call with the first call's value, and a value a query projects is read through the rules
-([the Marten guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/marten)):
-
-```csharp skip
-builder.Services.AddMarten(options => options.Connection(connectionString)).UseValueObjects();
-```
-
 SignalR's MessagePack hub protocol falls back to contractless serialization, which writes a value object as `{}`: the
 hub method receives a default instance, which no rule checked, and nothing throws; MessagePack's standard resolver
 has no formatter for one and throws on the first write. `AdCodicem.ValueObjects.MessagePack` writes each as the bare
@@ -487,22 +456,6 @@ builder.Services.AddSingleton(ValueObjectBinderConfiguration.ForServer(RuntimeTy
 builder.Services.AddCodeFirstGrpc();
 ```
 
-Orleans has no codec for a value object: every grain call that takes or returns one fails on the caller with
-`CodecNotFoundException`, and `[GenerateSerializer]` on the value object writes it with no field, which loses the value
-(`VO0043`). `AdCodicem.ValueObjects.Orleans` writes each as Orleans writes its underlying value, byte for byte, a text
-in full even where Orleans would refer back to the same string, with its type where a member typed `object` holds it,
-reads it back through its rules, and carries a refused request, a refused reply and a `ValueObjectException` a grain lets
-escape back to the caller with the rule's code
-([the Orleans guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/orleans)):
-
-```csharp skip
-// In a silo's host
-builder.UseOrleans(silo => silo.Services.AddSerializer(serializer => serializer.AddValueObjects()));
-
-// In a client's host
-builder.UseOrleansClient(client => client.Services.AddSerializer(serializer => serializer.AddValueObjects()));
-```
-
 A contract-first gRPC service's handlers map the strings and numbers of their messages to value objects, and a
 `ValueObjectException` that escapes one is answered `UNKNOWN`, the rule lost. `AdCodicem.ValueObjects.Grpc` answers it
 `INVALID_ARGUMENT` with a `google.rpc.ErrorInfo` carrying the rule's code, and collects every field a request maps into
@@ -530,19 +483,6 @@ builder.Services.AddGraphQLServer()
     .AddValueObjects();   // or AddValueObjects(options => options.UseResource<Messages>()) for messages in the users' language
 ```
 
-HotChocolate.Data infers a filter from the struct as well, `iban: { value: { eq: "…" } }`, comparing raw text the
-normalizer never saw. `AdCodicem.ValueObjects.HotChocolate.Data`'s `AddValueObjectFiltering()` filters every value
-object through the operations of its scalar instead, `iban: { eq: "fr76 3000 …" }`, normalized, refused with the rule's
-code and translated to its column by Entity Framework Core, with no binding per type:
-
-```csharp skip
-builder.Services.AddGraphQLServer()
-    .AddQueryType<Query>()
-    .AddValueObjects()
-    .AddFiltering()
-    .AddValueObjectFiltering();   // or (options => options.IncludeTextOperations()) for contains, startsWith, endsWith
-```
-
 A Blazor form has no input for a value object: `@bind` swallows the converter's refusal and binds empty text as the
 default instance, and `InputSelect` lets the refusal out of the change event. `AdCodicem.ValueObjects.Blazor`'s
 `InputValueObject` reads the text a person types through the value object's rules, binds the normalized instance, and
@@ -562,31 +502,6 @@ answers refused text with the rule's message under the field and its code on the
 builder.Services.AddValueObjectInputs(options => options.UseResource<Messages>());   // optional: messages in the users' language
 ```
 
-System.CommandLine reads neither `TypeDescriptor` nor `IParsable<T>`: an option of a value object parses with no error,
-then `GetValue` throws, and one over `bool` is no flag. `AdCodicem.ValueObjects.CommandLine`'s `AcceptValueObjects()`
-reads every option and argument of a value object through its rules, a parent command's ones while a subcommand is
-validated, in the invariant culture unless told otherwise, and answers refused text with a parse error naming the
-option and giving the rule's message, never the text, its code beside it
-([the command-line guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/files-and-command-line#systemcommandline)):
-
-```csharp skip
-var root = new RootCommand { new Option<Iban>("--iban"), new Option<Quantity?>("--quantity") };
-root.AcceptValueObjects();          // or (options => options.UseResource<Messages>()), messages in the users' language
-return root.Parse(args).Invoke();   // a refusal: its message on standard error, the help, exit code 1
-```
-
-CsvHelper reads no `TypeDescriptor` either: it writes a value object as a column per public property, `Value`, and reads
-it back as a default instance, with nothing thrown. `AdCodicem.ValueObjects.CsvHelper`'s `AddValueObjects()` maps each
-value object as one column, written as its own text, which its parser reads back, and read through its rules, a refused
-field throwing CsvHelper's `TypeConverterException` with the rule's code in its `Data` and no field in its message
-([the CsvHelper guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/files-and-command-line#csvhelper)):
-
-```csharp skip
-using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-csv.Context.TypeConverterCache.AddValueObjects();   // before the first GetRecords, WriteRecords or RegisterClassMap
-var orders = csv.GetRecords<Order>().ToList();      // a refusal: TypeConverterException, the rule's code in its Data
-```
-
 The Azure Functions isolated worker reads no `[TypeConverter]`: a route value, a query value or other binding data, such
 as a queue message's `Id`, falls through to its JSON conversion, which binds a value object only where its text happens
 to be JSON, `7` and never `007`, and fails a valid `Guid`, text or a date with a 500, a refused value's code lost in the
@@ -598,19 +513,6 @@ minimal API writes, carrying its code
 ```csharp skip
 builder.UseValueObjects();                // any application of the worker
 builder.UseValueObjectProblemDetails();   // HTTP triggers, after ConfigureFunctionsWebApplication()
-```
-
-Wolverine.Http binds a value object from its `TryParse`, but answers a refused route value 404, binds as the default
-instance a refused query value under its default `RejectUnparseableQueryValues = false`, an empty or absent one in
-either mode, and a refused, empty or absent header or form value, and stops at startup on `[FromQuery]` over one.
-`AdCodicem.ValueObjects.Wolverine.Http`'s `UseValueObjects()` plugs a parameter strategy into Wolverine's code
-generation: each value object is read through its rules from where Wolverine reads it, and every refused or missing one
-of a request is answered at once with the validation problem a minimal API writes, carrying the codes, before any
-middleware method runs
-([the Wolverine guide](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/preview/how-to/wolverine)):
-
-```csharp skip
-app.MapWolverineEndpoints(opts => opts.UseValueObjects());   // in static mode, run codegen write again afterwards
 ```
 
 ### Testing your own value objects
@@ -868,7 +770,9 @@ an internal surrogate key alongside it.
 ### Diagnostics
 
 `VO0004`, `VO0006`, `VO0013`, `VO0014`, `VO0022` and `VO0029` reported options written as text, which no longer
-compile, and are retired. There is no `VO0012`.
+compile, and are retired. `VO0048` was retired with the Marten package
+([ADR 0015](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0015-retire-six-satellites.md)).
+There is no `VO0012`.
 
 | Id | Severity | Meaning |
 | --- | --- | --- |
@@ -912,7 +816,6 @@ compile, and are retired. There is no `VO0012`.
 | `VO0045` | Warning | A value object classified on its type that a `[LoggerMessage]` method of Microsoft.Gen.Logging, Microsoft.Extensions.Telemetry's logging generator, writes in clear: that generator reads a classification on a parameter or a property only. A code fix copies the type's classification there. |
 | `VO0046` | Warning | A classified property whose value object a transitive `[LogProperties]`, or `[LogProperties]` on the property, expands into its `Value`, which drops the property's classification. |
 | `VO0047` | Warning | `Unicode = false` on a value object whose rules let a character outside ASCII through, which SQL Server replaces silently: no rule, a pattern not anchored at both ends or admitting `\d`, `.`, `IgnoreCase` and the like, a known value outside ASCII, or a closed set compared as a culture compares. |
-| `VO0048` | Error | A public field or property of a Marten compiled query holding a value object or its nullable type, which Marten refuses as a parameter or, for a document's identity, answers with the first call's value. The message names what to write instead: the member as a type Marten binds compared with the value object's `Value`, or an array or a list of the value object, both under `AdCodicem.ValueObjects.Marten`'s `UseValueObjects()`, without which Marten reads a `Value` no document holds and answers no rows; for an indexer, making it non-public or removing it; a LINQ query for a value object written by hand over another underlying type. |
 
 ## Using it with an AI coding agent
 
@@ -942,7 +845,7 @@ benchmarks/   the measurements behind the design decisions above
 skills/       the agent skill, and the plugin manifest that distributes it
 ```
 
-The unit suite is eleven projects, one per package family of `.github/ci-families.json` (its `tests`): a test runs
+The unit suite is ten projects, one per package family of `.github/ci-families.json` (its `tests`): a test runs
 from the project of its family, and CI runs each family's project in a job of its own.
 
 Integration tests start PostgreSQL, SQL Server, MongoDB and the Azure Functions host through Testcontainers, so they

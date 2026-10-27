@@ -12,29 +12,26 @@ about the library's own suites.
 
 Four suites, each with a distinct job:
 
-- **UnitTests** — behaviour of generated code, and of every integration package called directly, in eleven projects,
+- **UnitTests** — behaviour of generated code, and of every integration package called directly, in ten projects,
   one per package family of `.github/ci-families.json`, each of which CI runs in a job of its own
   ([ADR-0013](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)):
   `tests/AdCodicem.ValueObjects.UnitTests` for the core packages, and `tests/AdCodicem.ValueObjects.UnitTests.<Family>`
-  for each other family (`AspNet`, `EfCore`, `Data`, `Serialization`, `Orleans`, `Hosts`, `GraphQL`, `Text`,
+  for each other family (`AspNet`, `EfCore`, `Data`, `Serialization`, `Hosts`, `GraphQL`, `Text`,
   `Observability`, `TestData`); every other project compiles the sample value objects from the core project's folder,
   and each runs as a test process of its own. The sample value objects declare each of the 22 underlying types and
   each option and hook at least once, so that what the generator emits for every one of them runs rather than only
   compiles. Generated sources are emitted to disk
   during the build, so they can be read when diagnosing a failure instead of decompiled from memory. Value
   objects written by hand reach what the generator always replaces, such as the default members of the
-  contracts, and eight small fixture assemblies hold what a test assembly cannot: a generated value object whose
+  contracts, and seven small fixture assemblies hold what a test assembly cannot: a generated value object whose
   module has not been used yet, annotated value objects in an assembly the generator does not run on,
   generated value objects in an assembly that does not reference the JSON package, generated value objects of
   every underlying type in an assembly that opts into XML serialization, generated value objects beside a query
-  type HotChocolate's source generator binds, Blazor forms written in Razor markup, `[LoggerMessage]` methods
-  Microsoft.Gen.Logging writes, beside value objects classified as personal data, and grains whose codecs and proxies
-  Orleans' code generator writes; a ninth, a Wolverine.Http application, runs as a child process, Wolverine's dynamic
-  mode compiling its endpoints' code with a Roslyn this suite does not take. What needs a server and no container runs
-  here too, over TestHost: ASP.NET Core's
+  type HotChocolate's source generator binds, Blazor forms written in Razor markup, and `[LoggerMessage]` methods
+  Microsoft.Gen.Logging writes, beside value objects classified as personal data. What needs a server and no container
+  runs here too, over TestHost: ASP.NET Core's
   pipelines, a SignalR hub talking MessagePack with the .NET client, and a protobuf-net.Grpc code-first service and a
-  contract-first gRPC service with the .NET gRPC client; over localhost, an Orleans cluster in process, a silo and its
-  client, and two silos; and
+  contract-first gRPC service with the .NET gRPC client; and
   over SQLite in memory: collections of value objects through Entity Framework Core, every sample value object among
   them stored and read back, queries over their elements translated, queries on `.Value` translated to the column,
   for every sample value object as the same query over its underlying type is, and the CHECK constraints written from
@@ -59,37 +56,13 @@ Four suites, each with a distinct job:
   invocations written by the test, through the worker's own abstractions, answering each refusal as a minimal API
   answers it, in the request's language too. HotChocolate schemas built in process take every sample value object as a
   scalar of its own, from the edges its rules declare to the values they rule out, as literals and variables, and answer
-  each refusal with its code, in the language of the execution and, over TestHost, of the request. HotChocolate.Data's
-  filters over value objects run on SQLite and in memory, every sample value object's `eq`, `in` and `gt` (its `eq`
-  alone over `bool`) answering as the same comparisons of its instances do, and, but for the 128-bit integers, as SQLite
-  runs them on a column of the underlying type, with the text
-  operations, the refusals quoted by the scalar's name and what the package leaves to the application. Blazor forms rendered through bUnit read every sample value object's text through its
+  each refusal with its code, in the language of the execution and, over TestHost, of the request. Blazor forms rendered through bUnit read every sample value object's text through its
   rules, alone and nullable, the text an input writes reading back to its instance and each value its rules rule out
   refused with its code, in each culture the renderer calls for and in French from a resource, and the text it writes
   reads back in every culture .NET lists, those whose calendar is not the Gregorian one included; the static and the
   prerendered pages of the Razor fixture are served over TestHost, the framework's own messages pinned, and the patterns
   an input writes for browsers are checked against .NET here and against Node in the text family's job,
-  `unit (text)`.
-  System.CommandLine commands parsed and invoked in process read every sample value object through an option, its
-  nullable type, a list and an argument, the text of each instance and of each edge of its rules reading back to it and
-  each value its rules rule out refused with its code on the parse error, every known value completed as text that
-  reads back, with flags, cultures, a response file and messages in French from a resource. CsvHelper writes every
-  sample value object as a column and reads it back, alone and nullable, in the invariant culture and in French, and
-  the converter reads back the text it writes in every culture whose calendar is not the Gregorian one, each value its
-  rules rule out refused with its code on CsvHelper's exception, and its default written only where its rules accept
-  it, with class maps, defaults, the registration-order traps and CsvHelper's own behaviours pinned. Marten, over a
-  store that never connects, translates a comparison of every sample value object, of its nullable type and a `Contains`
-  over its values into the SQL and the parameters of the same query over its underlying type, and plans each compiled
-  query shape, binding its collections and refusing what Marten would freeze; the Marten members and planning steps the
-  package relies on, internal ones included, are pinned, so that a Marten release moving one fails here first.
-  Wolverine.Http hosts built in process, without Wolverine's runtime compiler, show the endpoints Wolverine builds once
-  the package claims their value objects: where each value is read from and under which name, what is declined, the
-  refusal answered before any middleware method, the form marking antiforgery reads, the descriptions ApiExplorer and
-  both OpenAPI documents give, and the code Wolverine writes for every family of value object, compiled; the helpers
-  that code calls bind every sample value object as its `TryParse` reads it and answer its refusal as a minimal API
-  does; and the fixture application answers a script of requests through the code Wolverine compiles, lenient, strict
-  and in French. The
-  DataAnnotations attributes hold the text of every sample value object to its rules, in both forms, and refuse each
+  `unit (text)`. The DataAnnotations attributes hold the text of every sample value object to its rules, in both forms, and refuse each
   default instance, through `Validator`, options validated as a host starts and by the validator `[OptionsValidator]`
   writes, CommunityToolkit.Mvvm's `ObservableValidator`, MVC and a minimal API under `AddValidation()` over TestHost,
   with their messages in French from a resource, and both OpenAPI documents describe each value object's text as the
@@ -116,8 +89,7 @@ Four suites, each with a distinct job:
   of serializers' contract attributes and its code fix, over protobuf-net itself and the other serializers' attributes
   declared under their real names, and the analyzer of data classifications held to the tags Microsoft.Gen.Logging, run
   beside the generator, writes, the analyzer of non-Unicode text held to what .NET's regular expressions match under
-  each option, and the analyzer of Marten's compiled queries, over Marten's interfaces declared under their real names,
-  which the unit suite runs over the real Marten and the identity query it pins. It drives
+  each option. It drives
   Roslyn directly rather than through a testing harness that binds to an older
   xUnit, and it compiles snippets **without** implicit usings, which is what catches an unqualified name that
   slipped into emitted code. The incrementality tests assert on the Roslyn incremental step run reason — the
@@ -135,18 +107,12 @@ Four suites, each with a distinct job:
   Server for a raw query reading back the rows it writes, their patterns matched value by value as .NET
   matches them on PostgreSQL and on SQL Server 2025, a value object declaring `Unicode = false` in `varchar` and
   compared through `varchar` parameters from EF Core and Dapper, an Always Encrypted column included, beside the audit
-  of the rows a migration to it converts and the migration of a key, HotChocolate.Data's filters over value objects
-  translated to the column, a list's element and the text operations under the column's collation included, plus the
-  API surface end to end; and a
+  of the rows a migration to it converts and the migration of a key, plus the API surface end to end; and a
   real MongoDB server, which stores a value object of every underlying type MongoDB.Bson can represent as the document
   its primitive writes, refuses one over `Int128` or `UInt128`, and answers each LINQ and `Builders` shape over them,
   `.Value` included; which, given the `$jsonSchema` validator built from the rules, refuses another writer's document
   and stores every value each type accepts, reads each pattern the validator publishes as .NET does, and mints an
-  entity identifier for a document inserted without one. On PostgreSQL too, Marten: every underlying type queried as
-  the primitive it replaces, each LINQ shape answering what the documents answer in memory, duplicated fields as columns
-  of the underlying type, a computed index over a date serving the query, events, identities, compiled queries binding
-  each call's collection and the forms `VO0048` names, a batch included, the identity a compiled query replays pinned,
-  patches, and a stored value the rules refuse refused with its code however it is read. And the Azure Functions host,
+  entity identifier for a document inserted without one. And the Azure Functions host,
   in Microsoft's `dotnet-isolated` image, running an application of the isolated worker with Azurite for its queues:
   route values and query values bound through the rules, each refusal answered with the minimal API's validation problem
   and its code, a `[FromBody]` one included, in the request's language, a failure no value object explains keeping the
@@ -172,18 +138,16 @@ schema rules out (`DerivesRejectedValues`), and checks that the type refuses eac
 
 ## Native AOT and compiled models
 
-Four applications, built as an application builds them, are published rather than tested.
+Three applications, built as an application builds them, are published rather than tested.
 
 The first references every package that claims to be AOT-compatible: the contracts, the generated code, the JSON package
 with a source-generated context and the JSON Schema it exports, the minimal API problem details, the identifiers,
 FluentValidation, the Serilog integration, the Microsoft.Extensions.AI one, the Model Context Protocol one, the gRPC
-one, the Blazor one, the System.CommandLine one and the Wolverine.Http one, all but
-the two HotChocolate ones, whose framework warns on its own publish and starts natively only rooted, and whose
-HotChocolate.Data filtering of a struct has no native code ([GraphQL](./how-to/graphql.md#native-aot)), and whose
+one and the Blazor one, all but
+the HotChocolate one, whose framework warns on its own publish and starts natively only rooted
+([GraphQL](./how-to/graphql.md#native-aot)), and whose
 refusal of a value object nothing registered the unit suite runs instead under the JIT, in a child process whose
-runtime supports no dynamic code, the protobuf-net one, which the third publishes, the Marten one, which the fourth
-publishes, the Orleans one, since Orleans does not start natively, and the CsvHelper one, whose CsvHelper record API has
-no native code, whose refusals of a value object nothing registered the unit suite runs under the JIT too. Its
+runtime supports no dynamic code, and the protobuf-net one, which the third publishes. Its
 value
 objects cover each of the 22 underlying types, a pattern hook, a
 closed set, an identifier, a generic value object registered by hand, and two value objects written by hand, registered
@@ -196,12 +160,8 @@ endpoints the Request Delegate Generator binds, refused values answered with pro
 `ThrowOnBadRequest`, in English and with the messages of a resource read through the localizer, each answer checked
 against the status, the codes and, translated, the messages the script expects, and the DataAnnotations attributes, both
 forms and `[NotDefault]`, through `Validator`, the validator `[OptionsValidator]` writes and a minimal API under
-`AddValidation()`, each refusal checked against its code, a Blazor form of every one of them through
-`HtmlRenderer`, each text of its underlying type typed into its input, alone and nullable, and a System.CommandLine
-command holding an option of every one of them, each text of its underlying type given to it alone and in an array, and
-its nullable option given nothing and empty text, and Wolverine.Http endpoints in Wolverine's static mode, over the code
-`codegen write` writes for them before both runs, each refused route, query, header or form value answered with its code
-and no handler or `Before` method run for it — once under the JIT and
+`AddValidation()`, each refusal checked against its code, and a Blazor form of every one of them through
+`HtmlRenderer`, each text of its underlying type typed into its input, alone and nullable — once under the JIT and
 once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT warning in the publish, but the two
 Microsoft.AspNetCore.Components reports for itself once a component renders, which the project lists in its
 `aot-warnings.allowed`, and on any difference between the two outputs. It runs after every merge, on a pull request
@@ -227,21 +187,11 @@ each call into a serializer, its annotations reaching the converters every value
 the warnings the project lists, `aot-warnings.allowed`, and fails on any other, this library's included
 ([protobuf-net](./how-to/protobuf-net.md#native-aot)).
 
-The fourth runs a Marten document store against the PostgreSQL service container of `native AOT (Marten)`, a job of
-its own beside `native AOT`, since the native AOT compiler alone takes about 20 minutes over Marten: documents
-holding value objects of every family Marten maps, a nullable one, a construction of a generic value object and one
-written by hand, both registered by hand, stored and read back as the bare values, each LINQ shape checked against what
-the documents answer in memory, an identity, compiled queries binding a collection and refusing a single value object,
-a value object nothing registered refused, and a stored value the rules refuse refused with its code, once under the
-JIT and once as a native binary. Marten, JasperFx, Weasel and FastExpressionCompiler warn for themselves: the job lets
-through the warnings the project lists, and fails on any other, this library's included
-([Marten](./how-to/marten.md#native-aot)).
-
 ## The compatibility island
 
-The four suites, fourteen test projects of the solution, build and test the source. One more project tests the
+The four suites, thirteen test projects of the solution, build and test the source. One more project tests the
 packages: `tests/Compat`, outside the solution,
-installs the thirty-eight packages exactly as they were packed — from the folder the build packs into, at that one
+installs the thirty-two packages exactly as they were packed — from the folder the build packs into, at that one
 version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
@@ -252,17 +202,14 @@ DataAnnotations attributes through `Validator`, options validation, the validato
 the minimal API validation of Microsoft.Extensions.Validation 11, its own message keys and its handling of an
 attribute's exception included,
 `Microsoft.AspNetCore.OpenApi` 11 over `Microsoft.OpenApi` 3, Dapper,
-MongoDB.Driver on MongoDB 7.0 with a collection validator and entity identifiers minted on insert, Marten on PostgreSQL
-17, its LINQ, a duplicated field and a compiled query's collection, MessagePack and SignalR's MessagePack hub protocol
+MongoDB.Driver on MongoDB 7.0 with a collection validator and entity identifiers minted on insert, MessagePack and SignalR's MessagePack hub protocol
 11 over TestHost, protobuf-net on a runtime model and on its compile-time model and a protobuf-net.Grpc code-first
-service over TestHost, a contract-first gRPC service answering through the gRPC package, Orleans' serializer,
+service over TestHost, a contract-first gRPC service answering through the gRPC package,
 FluentValidation, Newtonsoft.Json through its settings and its contract resolver, Serilog, Microsoft.Extensions.AI
 tools and structured output, Model Context Protocol tools over the SDK's own client, the Azure Functions converter and
 the problem details middleware beside ASP.NET Core 11, HotChocolate 16 scalars in a schema built in process, their
-messages in the language of the execution, HotChocolate.Data filters over Entity Framework Core 11 on SQLite, a Blazor input rendered by `HtmlRenderer` on the Components of .NET 11, its
-messages from a resource, System.CommandLine 3.0's release candidate over the package built against 2.0, CsvHelper 33.1
-reading and writing value objects as columns, Wolverine.Http 6.51 endpoints in Wolverine's dynamic mode over TestHost,
-an NSwag 14.7
+messages in the language of the execution, a Blazor input rendered by `HtmlRenderer` on the Components of .NET 11, its
+messages from a resource, an NSwag 14.7
 document and Confluent's JSON serdes 2.16 over NJsonSchema,
 `XmlSerializer` and
 `DataContractSerializer` over a domain that opts into XML serialization, the contract kit, and the test-data sampler
@@ -313,7 +260,7 @@ xUnit v3, AwesomeAssertions, NSubstitute, FsCheck, Testcontainers.
 
 ```bash
 dotnet build -c Release
-dotnet test -c Release                                    # every suite, the unit suite's eleven projects included
+dotnet test -c Release                                    # every suite, the unit suite's ten projects included
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests         # the core family's project of the unit suite
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text    # another family's
 # Every family's project of the unit suite (`tests` in .github/ci-families.json), as previews and releases run them:

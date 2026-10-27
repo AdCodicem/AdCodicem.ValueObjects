@@ -38,22 +38,19 @@ be corrected.
 | EF Core reads validate | on request (`strict: true`) | by default | — | no, reads use the constructor |
 | EF Core `.Value` in LINQ | translated to the column, on request (`UseValueObjectQueries()`) | no: compare the value objects | no: compare the value objects | no |
 | ASP.NET Core model binding | yes | through the `TypeConverter` | through the `TypeConverter` | yes |
-| Problem details carry the violated rule's code | MVC controllers (bodies and JSON Patch documents), minimal APIs, Azure Functions HTTP triggers and Wolverine.Http endpoints | no | no | no |
+| Problem details carry the violated rule's code | MVC controllers (bodies and JSON Patch documents), minimal APIs and Azure Functions HTTP triggers | no | no | no |
 | OpenAPI | built-in stack, Swashbuckle 10 and NSwag 14, with lengths, pattern, bounds, `enum` and its names | type and format; Swashbuckle or built-in stack | none | Swashbuckle, type of the key |
 | JSON Schema registry (Confluent's JSON serdes for Kafka) | the rules in the registered schema, numbers as numbers, a refused message with its code | no (8.0.7 and 9.0.0-beta.1 hold nothing for NJsonSchema) | not checked | not checked |
 | FluentValidation | yes | third-party package | no | no |
 | DataAnnotations | raw text held to the type's rules (`[ParsesAs]`), a default instance refused (`[NotDefault]`), the rule's code on the result | no | no | no |
 | Dapper | yes | yes | through a template | no |
-| Other serializers and stores | Newtonsoft.Json; XML (`XmlSerializer`, `DataContractSerializer`, opted in per assembly, read with validation, rules in the XSD); MongoDB.Driver (BSON, `.Value` in LINQ, read with validation, rules in a `$jsonSchema` validator, entity identifiers minted on insert); Marten (LINQ, duplicated fields and identities over the underlying value, a compiled query's collections bound, projected values read with validation); MessagePack and SignalR's MessagePack hub protocol (bare values, read with validation); protobuf-net and protobuf-net.Grpc code-first services (the underlying type's wire, read with validation, a refused request answered `INVALID_ARGUMENT` with its code); Orleans grain calls (the underlying value's wire, read with validation, the rule code back at the caller) | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
+| Other serializers and stores | Newtonsoft.Json; XML (`XmlSerializer`, `DataContractSerializer`, opted in per assembly, read with validation, rules in the XSD); MongoDB.Driver (BSON, `.Value` in LINQ, read with validation, rules in a `$jsonSchema` validator, entity identifiers minted on insert); MessagePack and SignalR's MessagePack hub protocol (bare values, read with validation); protobuf-net and protobuf-net.Grpc code-first services (the underlying type's wire, read with validation, a refused request answered `INVALID_ARGUMENT` with its code) | Newtonsoft.Json, LinqToDB, ServiceStack.Text, Orleans, MessagePack, BSON, XML (read without validation) | Newtonsoft.Json | Newtonsoft.Json, MessagePack |
 | Structured logging | Serilog: `{@X}`, and `{X}` on request, as the underlying value | no | no | Serilog destructuring policy, `{@X}` only |
 | Language-model tools and structured output | Microsoft.Extensions.AI: the rules in the schemas, a refused tool argument answered with its code | no | no | no |
 | Model Context Protocol tools | the C# SDK: the rules in `inputSchema` and `outputSchema`, a refused tool argument answered with its code | no | no | no |
-| GraphQL (HotChocolate) | a scalar per value object, read through its rules, a refused value answered with its code in `extensions.code`; HotChocolate.Data filters every value object through its scalar's operations | no | no | no |
+| GraphQL (HotChocolate) | a scalar per value object, read through its rules, a refused value answered with its code in `extensions.code` | no | no | no |
 | Blazor forms | an input per value object, read through its rules, its rule's message under the field and its code on the `EditContext` | no (8.0.7 and 9.0.0-beta.1 hold no `InputBase`) | no (1.0.0-beta08 holds none) | no (10.5.1 holds none) |
-| System.CommandLine | options and arguments read through the rules, the refused rule's message on the terminal and its code on the parse error | no (8.0.7 and 9.0.0-beta.1 hold nothing for System.CommandLine) | no (1.0.0-beta08 holds nothing for it) | no (10.5.1 holds nothing for it) |
-| CSV files (CsvHelper) | a column per value object, written as its own text and read through its rules, a refused field carrying its code | no (8.0.7 and 9.0.0-beta.1 hold nothing for CsvHelper) | no (1.0.0-beta08 holds nothing for it) | no (10.5.1 holds nothing for it) |
 | Azure Functions isolated worker | route values, query values and binding data bound through the rules; a refused one in an HTTP trigger answered 400 with its code | no (8.0.7 ships no Functions code) | not checked | not checked |
-| Wolverine.Http endpoints | route, query, header and form values bound through the rules; a refused or missing one answered 400 with its code, every refusal of a request at once | no (8.0.7 and 9.0.0-beta.1 hold nothing for Wolverine) | no (1.0.0-beta08 holds nothing for it) | no (10.5.1 holds nothing for it) |
 | Contract test kit for your own types | yes, with the values its schema rules out, on request | no | no | no |
 | Valid test data from the declared rules | AutoFixture, Bogus and FsCheck packages over a dependency-free sampler | no (Vogen#153, AutoFixture specimen builders, closed as not planned) | no | no |
 | Prefixed public identifiers (`acc_…`) | yes | no | no | no |
@@ -76,11 +73,11 @@ three, a length or a pattern is code inside a validation method, so the column a
 message, and allocates nothing when the value is valid. The code travels to the problem details of MVC controllers, for
 a JSON body, read by System.Text.Json or Newtonsoft.Json, and a JSON Patch document's values, as for a query value, and
 of minimal APIs, native AOT included, for a route, query or header value, and for a body where `ThrowOnBadRequest` is
-on, of Wolverine.Http endpoints, for a route, query, header or form value, to FluentValidation failures and to every
+on, to FluentValidation failures and to every
 exception an integration throws, so an API client branches on `value_object.too_long` rather than on English. The same
 code keys the message an application shows in its users' language, which MVC (for a route, query, header or form value,
-and a body System.Text.Json reads), minimal APIs, Azure Functions, Wolverine.Http, HotChocolate, Blazor,
-System.CommandLine, FluentValidation and the DataAnnotations attributes look up in its translations with
+and a body System.Text.Json reads), minimal APIs, Azure Functions, HotChocolate, Blazor,
+FluentValidation and the DataAnnotations attributes look up in its translations with
 the length, the bounds or the known values the type declares ([a message in the application's
 language](../reference/errors.md#a-message-in-the-applications-language)).
 
@@ -131,14 +128,7 @@ SignalR's MessagePack hub protocol, and which reads through the type's rules unl
 here. None of the others writes a value object to protobuf: Vogen's conversions hold no protobuf member, and
 Thinktecture's ProtoBuf package stopped at a beta, 8.7.0-beta02, with no project left in its sources, where
 [this library's](../how-to/protobuf-net.md) writes each as protobuf-net writes its underlying type, reads it through its
-rules, and answers a refused request of a code-first gRPC service with its code. Vogen and this library both send a
-value object in an Orleans grain call as its underlying codec's bytes, apart: Vogen's `Conversions.Orleans`, measured on
-8.0.7 and 9.0.0-beta.1, registers itself through a generated type manifest provider, validates on read with an exception
-that carries no code, fails a value object held in a member typed `object`, `UnexpectedLengthPrefixValueException`, and
-does not compile for a value object in the global namespace, `CS0119`, where [this library's](../how-to/orleans.md) is
-registered on the serializer, writes the type where a member typed `object` holds the value object, carries the rule's
-code of a refused request, a refused reply and a `ValueObjectException` back to the caller, and takes a trust option;
-StronglyTypedId and Thinktecture have nothing for Orleans.
+rules, and answers a refused request of a code-first gRPC service with its code.
 
 **Thinktecture goes beyond single values.** Complex value objects with several members, smart enums and
 discriminated unions are out of scope here.
