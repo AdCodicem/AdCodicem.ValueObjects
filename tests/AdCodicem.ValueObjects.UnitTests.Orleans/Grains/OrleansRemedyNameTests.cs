@@ -6,8 +6,8 @@ namespace AdCodicem.ValueObjects.UnitTests.Grains;
 
 /// <summary>
 /// The names <c>VO0043</c>'s remedy of <c>[GenerateSerializer]</c> writes for this family's package, checked against
-/// the package: the analyzer names it by string, and the core and the satellites ride two release trains (ADR 0012),
-/// so a rename in one fails the other's tests rather than a consumer's build. Read off the analyzer's source, which
+/// the package: the analyzer names it by string, which nothing else compiles against the package, so a rename in one
+/// fails the other's tests rather than a consumer's build. Read off the analyzer's source, which
 /// the project embeds: it cannot load the analyzer, Microsoft.CodeAnalysis.CSharp 4.14.0 refusing the
 /// Microsoft.CodeAnalysis.Common 5.0.0 Orleans brings (NU1608).
 /// </summary>

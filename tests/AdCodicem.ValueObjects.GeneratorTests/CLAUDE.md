@@ -35,8 +35,7 @@ The generator, every diagnostic, the analyzers and code fixes, incremental cachi
 ## Published snippets
 
 - `DocumentationSnippetTests` runs the generator and six analyzers over every ```` ```csharp ```` block of
-  `skills/value-objects/`, `README.md`, the package READMEs (`src/AdCodicem.ValueObjects/README.md`,
-  `src/PackageReadme.md`) and `website/docs/` (the homepage example included, through
+  `skills/value-objects/`, `README.md` and `website/docs/` (the homepage example included, through
   `website/docs/_homepage-example.md`; `website/versioned_docs/` is out of scope, describing older releases), compiled
   against Microsoft.Extensions.Logging.Abstractions and Microsoft.Extensions.Telemetry.Abstractions with
   Microsoft.Gen.Logging running.
@@ -49,7 +48,6 @@ The generator, every diagnostic, the analyzers and code fixes, incremental cachi
   missing from `skills/value-objects/`: add the entry it names.
 - A test reading a file of the repository, through a `RepositoryRoot()` or `SkillDirectory()` of any type or a method
   looking for `AdCodicem.ValueObjects.slnx`, from its body, its data, its class's set-up or a fixture, carries
-  `[Trait("Reads", "Documentation")]`, on itself or its class: a pull request changing only `README.md`, a package
-  README, `website/docs/` or `skills/value-objects/` runs those tests alone of this suite
-  (`.github/scripts/ci-plan.sh`), and `DocumentationTraitTests` fails on a reading test without the trait or a marked
-  test that reads nothing.
+  `[Trait("Reads", "Documentation")]`, on itself or its class: a pull request changing only `README.md`,
+  `website/docs/` or `skills/value-objects/` runs those tests alone (`.github/scripts/ci-plan.sh`), and
+  `DocumentationTraitTests` fails on a reading test without the trait or a marked test that reads nothing.
