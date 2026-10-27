@@ -6,10 +6,13 @@ Date: 2026-10-19
 
 Accepted.
 
-- Amends [ADR-0010](0010-version-every-package-in-lockstep-independently-of-dotnet.md), which
-  [ADR-0012](0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md) supersedes, on one point:
+- Amends [ADR-0010](0010-version-every-package-in-lockstep-independently-of-dotnet.md) on one point:
   `compat (.NET 11)` does not join the required checks when .NET 11 ships. It gates every preview and every stable
   release instead.
+- [ADR-0014](0014-return-to-one-version-for-every-package.md) withdraws the release trains of
+  [ADR-0012](0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md): what this record says of a
+  train (a family's train, the train check, the compat island's version per train, the per-train release tooling) no
+  longer holds, and a family is a set of projects alone.
 - Amends [ADR-0009](0009-publish-previews-weekly-when-a-package-input-changed.md): a preview runs this record's heavy
   jobs before it publishes.
 - Amends [ADR-0006](0006-coverage-is-a-signal-not-a-goal.md) in its second phase: the unit suite splits into a test

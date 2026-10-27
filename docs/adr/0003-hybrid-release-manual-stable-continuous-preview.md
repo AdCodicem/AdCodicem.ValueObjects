@@ -6,9 +6,9 @@ Date: 2026-09-14
 
 Accepted. Its preview track is superseded by [ADR-0009](0009-publish-previews-weekly-when-a-package-input-changed.md):
 previews are no longer published on every merge by `ci.yml`, but weekly by `preview.yml`, when a package input changed.
-The stable track stands, amended by
-[ADR-0012](0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md): each release train is tagged and
-released on its own, the core first. The body below is kept as the record of the decision as it was taken.
+The stable track stands: [ADR-0012](0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md) amended
+it with a tag and a release per train, which [ADR-0014](0014-return-to-one-version-for-every-package.md) withdraws. The
+body below is kept as the record of the decision as it was taken.
 
 ## Context
 
