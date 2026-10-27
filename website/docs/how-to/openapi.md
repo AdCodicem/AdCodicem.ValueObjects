@@ -334,7 +334,7 @@ Swashbuckle 10 is built on `Microsoft.OpenApi` 2. On .NET 11, an application tha
 (`MissingMethodException`), whatever this package does; one that takes Swashbuckle alone keeps `Microsoft.OpenApi` 2
 and works. A major of Swashbuckle that moves to `Microsoft.OpenApi` 3 is supported by a release of the packages that
 raises this one's floor, as for any framework's major
-([ADR-0012](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)).
+([ADR-0010](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md)).
 
 ## NSwag
 

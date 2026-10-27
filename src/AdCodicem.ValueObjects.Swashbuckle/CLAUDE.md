@@ -5,7 +5,7 @@ The description it shares with the OpenAPI transformer is `src/Shared/ValueObjec
 
 - Swashbuckle 10 is built on `Microsoft.OpenApi` 2 and throws `MissingMethodException` once `Microsoft.OpenApi` 3 is
   resolved, which `Microsoft.AspNetCore.OpenApi` 11 forces: the island installs this package from a project of its own,
-  `tests/Compat/Swashbuckle`. Moving to Swashbuckle's next major is a decision (ADR 0012), not a bump.
+  `tests/Compat/Swashbuckle`. Moving to Swashbuckle's next major is a decision (ADR 0010), not a bump.
 - The floor on `Microsoft.OpenApi` is the transitive pin of `Directory.Packages.props`, 2.12.2: the 2.7.5 Swashbuckle asks
   for drops the example of an OpenAPI 3.0 schema.
 - Pin no version of `Swashbuckle.AspNetCore.Swagger`, which the tests take through `Swashbuckle.AspNetCore.SwaggerGen`:

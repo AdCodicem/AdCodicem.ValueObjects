@@ -38,10 +38,6 @@ dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text
 dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text --filter-method "*The_name_of_the_test*"
 ```
 
-A pack (`dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages`) takes each release
-train's version from its own tags, `v<version>` for the core and `satellites-v<version>` for the satellites, and stops
-when it finds none. A fork has none until it fetches upstream's: `git fetch upstream --tags`.
-
 `TreatWarningsAsErrors` is on repository-wide — a warning fails the build, including in your editor.
 
 ## What a change usually touches
@@ -59,10 +55,7 @@ The pull request template lists this as a checklist; it is there because these g
 
 ## Commit messages — Conventional Commits
 
-The packages are released in two trains, the core and the satellites, each with one version
-([ADR-0012](docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md)):
-`src/release-trains.json` lists the core's projects, and every other project rides the satellites. Version numbers and
-the changelogs are computed from commit history, so commit messages must follow
+Version numbers and the changelog are computed from commit history, so commit messages must follow
 [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
@@ -70,20 +63,11 @@ the changelogs are computed from commit history, so commit messages must follow
 ```
 
 `feat` bumps the minor version, `fix` bumps the patch. `docs`, `refactor`, `test`, `chore` and `ci` trigger no
-release on their own, with two exceptions that bump the patch because they change what ships inside the
-packages: `build(pack)` for the package metadata, and `docs(readme)` for a package's README, its page on nuget.org
-(`src/AdCodicem.ValueObjects/README.md` for the main package, `src/PackageReadme.md` for every other). No package
-carries the repository's `README.md`: a change to it is plain `docs`. A breaking change is marked with `!` after
-the type, or a `BREAKING CHANGE:` footer. While a train is 0.x, a breaking change releases a minor of that train, and
-from that train's 1.0.0 on a major: before its 1.0.0, a minor of a train may break, deprecate or remove part of its
-public API. A deprecation reads "any minor version of its train may remove it before that train's 1.0.0", never "the
-next major version".
-
-Once each train releases on its own, a commit releases the trains whose package inputs it changes, each by its type
-(`.releaserc.json`); until then, a releasing commit releases both trains at one version. Either way:
-
-- Keep a releasing commit to one train, `src/Shared` and the global inputs aside; `lint.yml` warns otherwise.
-- Land the satellite adaptations of a core change as separate commits.
+release on their own, with two exceptions that bump the patch because they change what ships inside every
+package: `build(pack)` for the package metadata, and `docs(readme)` for the README, which is also each package's
+page on nuget.org. A breaking change is marked with `!` after the type, or a `BREAKING CHANGE:` footer. It bumps
+the minor while the version is 0.x, and the major from 1.0 on: before 1.0.0, a minor release may break, deprecate
+or remove part of the public API, and only from 1.0.0 on does a breaking change wait for a major.
 
 ```
 feat(generator): emit a span-based TryParse for numeric underlying types
@@ -109,8 +93,8 @@ pip install pre-commit && pre-commit install
 1. Branch from `main`.
 2. Keep it focused — one logical change.
 3. Keep it to 100 commits or fewer. `main` takes a linear history, and a pull request lands with *Rebase and merge*
-   so that each Conventional Commit reaches its train's changelog. GitHub refuses to rebase more than 100 commits, and
-   its web UI reports that as a conflict that does not exist. Split larger work into pull requests stacked on one
+   so that each Conventional Commit reaches the changelog. GitHub refuses to rebase more than 100 commits, and its
+   web UI reports that as a conflict that does not exist. Split larger work into pull requests stacked on one
    another.
 4. Add or update tests. The four suites, the unit suite split into a project per package family, have distinct jobs,
    described in [Testing](https://adcodicem.github.io/AdCodicem.ValueObjects/docs/testing); a defect confined to the

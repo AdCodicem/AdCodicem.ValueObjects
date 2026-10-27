@@ -15,14 +15,10 @@ npm run build       # production build; fails on a broken internal link
 - `docs/` is the preview: it describes `main` and is served under `/docs/preview/`, redeployed by every `preview.yml` run
   that decides, labelled with the nuget.org version describing the commit it builds. A change there reaches the stable
   pages at the next release, not before (ADR 0005, amended by ADR 0009).
-- `versioned_docs/` holds one frozen snapshot per line of the core (`0.<minor>.x` before its 1.0, `<major>.x` after),
-  generated API reference included, written wholesale by `.github/scripts/docs-snapshot.sh` in `release.yml`'s pack job
-  and committed by semantic-release. Never add or remove an entry by hand. Edit a released page only to correct an error
-  that misleads users of that release, and land the same fix in `docs/`, or the next snapshot of the line discards it.
-- `released-versions.json` maps each line to the release it was frozen at: one version (`"0.2.1"`), or each train's
-  (`{"core": "0.3.2", "satellites": "0.4.1"}`), which `describeLine` in `docusaurus.config.ts` turns into the version
-  label and the scope sentence of `llms.txt` (`core 0.3.2, satellites 0.4.1`, or the one version every train shipped).
-  Only `docs-snapshot.sh` writes it.
+- `versioned_docs/` holds one frozen snapshot per line (`0.<minor>.x` before 1.0, `<major>.x` after), generated API
+  reference included, written wholesale by `.github/scripts/docs-snapshot.sh` in `release.yml`'s pack job and committed
+  by semantic-release. Never add or remove an entry by hand. Edit a released page only to correct an error that misleads
+  users of that release, and land the same fix in `docs/`, or the next snapshot of the line discards it.
 - A pull request changing `website/`, `docs/docfx/`, the action or a project under `src/` builds the site without
   deploying it in `ci.yml`'s `documentation site` job, through `.github/actions/build-site`, the action
   `deploy-docs.yml` builds with, so a broken link fails there; every push to `main` builds it too.

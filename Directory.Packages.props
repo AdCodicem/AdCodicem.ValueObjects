@@ -56,52 +56,52 @@
     <PackageVersion Include="Dapper" Version="2.1.89" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
     <!-- Swashbuckle 10 builds on Microsoft.OpenApi 2, whose pin above is the Swashbuckle package's floor. Its next major is
-         a decision, not a bump (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). No
-         version is pinned for Swashbuckle.AspNetCore.Swagger, which the tests take through it: a pin would make it a
-         dependency of the package. -->
+         a decision, not a bump (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). No version is
+         pinned for Swashbuckle.AspNetCore.Swagger, which the tests take through it: a pin would make it a dependency of
+         the package. -->
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.3.0" />
     <!-- The Serilog package's floor, the version it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). Its net10.0 asset
-         depends on nothing. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its net10.0 asset depends on
+         nothing. -->
     <PackageVersion Include="Serilog" Version="4.4.0" />
     <!-- The MongoDB package's floor, the version it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). MongoDB.Bson comes with
-         it, at the same version, and is pinned by nothing here: a pin would make it a dependency of the package. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). MongoDB.Bson comes with it, at the
+         same version, and is pinned by nothing here: a pin would make it a dependency of the package. -->
     <PackageVersion Include="MongoDB.Driver" Version="3.12.0" />
     <!-- The Marten package's floor, the version it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md); Marten 10 is a decision,
-         not a bump. JasperFx, JasperFx.Events, Weasel and Npgsql come with it and are pinned by nothing here: a pin would
-         make them dependencies of the package. Marten asks for Npgsql 9.0.4, which the unit suite's data project,
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); Marten 10 is a decision, not a bump.
+         JasperFx, JasperFx.Events, Weasel and Npgsql come with it and are pinned by nothing here: a pin would make them
+         dependencies of the package. Marten asks for Npgsql 9.0.4, which the unit suite's data project,
          tests/AdCodicem.ValueObjects.UnitTests.Data, resolves; the integration suite resolves it at 10.0.3 through the
          Entity Framework Core provider. -->
     <PackageVersion Include="Marten" Version="9.50.3" />
     <!-- The MessagePack package's floors, the versions it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). MessagePack 3 lifts the
-         2.5.302 the hub protocol asks for. MessagePack.Annotations and MessagePackAnalyzer come with MessagePack and are
-         pinned by nothing here: a pin would make them dependencies of the package. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). MessagePack 3 lifts the 2.5.302 the
+         hub protocol asks for. MessagePack.Annotations and MessagePackAnalyzer come with MessagePack and are pinned by
+         nothing here: a pin would make them dependencies of the package. -->
     <PackageVersion Include="MessagePack" Version="3.1.11" />
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.13" />
     <!-- The test-data packages' floors, the versions they are built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). AutoFixture stays on 4.18.1
-         while 5.0 is a release candidate: a stable package depending on a prerelease is NU5104, which fails the pack.
-         Fare, which AutoFixture brings, and FSharp.Core, which FsCheck brings, are pinned by nothing here: a pin would
-         make them dependencies of the packages. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). AutoFixture stays on 4.18.1 while
+         5.0 is a release candidate: a stable package depending on a prerelease is NU5104, which fails the pack. Fare,
+         which AutoFixture brings, and FSharp.Core, which FsCheck brings, are pinned by nothing here: a pin would make them
+         dependencies of the packages. -->
     <PackageVersion Include="AutoFixture" Version="4.18.1" />
     <PackageVersion Include="Bogus" Version="35.6.5" />
     <PackageVersion Include="FsCheck" Version="3.4.0" />
     <!-- The AI package's floor, the version it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). Its net10.0 asset
-         depends on nothing. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its net10.0 asset depends on
+         nothing. -->
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.1" />
     <!-- The Model Context Protocol package's floor, the version it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). ModelContextProtocol.Core
-         comes with it at exactly that version, and Microsoft.Extensions.Hosting.Abstractions and Caching.Abstractions at
-         their floors; none is pinned here: a pin would make it a dependency of the package. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). ModelContextProtocol.Core comes with
+         it at exactly that version, and Microsoft.Extensions.Hosting.Abstractions and Caching.Abstractions at their
+         floors; none is pinned here: a pin would make it a dependency of the package. -->
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
     <!-- The Azure Functions packages' floors, the versions they are built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). Microsoft's own worker
-         extensions (Application Insights, OpenTelemetry, Durable Functions) take Worker.Core at 2.51 and 2.52 too.
-         Azure.Core and Microsoft.Extensions.Hosting come with Worker.Core, and the Http extension and its analyzer with
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Microsoft's own worker extensions
+         (Application Insights, OpenTelemetry, Durable Functions) take Worker.Core at 2.51 and 2.52 too. Azure.Core and
+         Microsoft.Extensions.Hosting come with Worker.Core, and the Http extension and its analyzer with
          Extensions.Http.AspNetCore; none is pinned here: a pin would make it a dependency of the packages. -->
     <PackageVersion Include="Microsoft.Azure.Functions.Worker.Core" Version="2.52.0" />
     <PackageVersion Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.1.1" />
@@ -111,12 +111,12 @@
          application takes the worker at the version of its core: removing it changes what that package packs. -->
     <PackageVersion Include="Microsoft.Azure.Functions.Worker" Version="2.52.0" />
     <!-- The HotChocolate package's floor, the version it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md); HotChocolate 17 is a
-         decision, not a bump. Its other HotChocolate and GreenDonut packages come with it, at exactly its version, and are
-         pinned by nothing here: a pin would make them dependencies of the package. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); HotChocolate 17 is a decision, not a
+         bump. Its other HotChocolate and GreenDonut packages come with it, at exactly its version, and are pinned by
+         nothing here: a pin would make them dependencies of the package. -->
     <PackageVersion Include="HotChocolate.Types" Version="16.6.8" />
     <!-- The HotChocolate.Data package's floor, the version it is built against, HotChocolate.Types'
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). Its GreenDonut.Data,
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its GreenDonut.Data,
          HotChocolate.Execution.Projections and other packages come with it, at exactly its version, and are pinned by
          nothing here: a pin would make them dependencies of the package. -->
     <PackageVersion Include="HotChocolate.Data" Version="16.6.8" />
@@ -125,51 +125,50 @@
          Microsoft.Extensions.Localization, and pinning lists it as a dependency of both too. -->
     <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.13" />
     <!-- The Blazor package's floors, the versions it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md): the package rather than
-         the ASP.NET Core shared framework, which a Blazor WebAssembly application lacks, and the localization services
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md): the package rather than the
+         ASP.NET Core shared framework, which a Blazor WebAssembly application lacks, and the localization services
          AddValueObjectInputs registers. Microsoft.AspNetCore.Components, its Forms and JSInterop come with
          Components.Web, at exactly its version, and are pinned by nothing here: a pin would make them dependencies of the
          package. -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Extensions.Localization" Version="10.0.13" />
     <!-- The NJsonSchema package's floor, the version it is built against, which NSwag 14.7 asks for
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md); Confluent's JSON serdes
-         take NJsonSchema.NewtonsoftJson 11.0.2 or later. Namotion.Reflection and NJsonSchema.Annotations come with it
-         and are pinned by nothing here: a pin would make them dependencies of the package. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); Confluent's JSON serdes take
+         NJsonSchema.NewtonsoftJson 11.0.2 or later. Namotion.Reflection and NJsonSchema.Annotations come with it and are
+         pinned by nothing here: a pin would make them dependencies of the package. -->
     <PackageVersion Include="NJsonSchema" Version="11.6.1" />
     <PackageVersion Include="NJsonSchema.NewtonsoftJson" Version="11.6.1" />
     <!-- The protobuf-net package's floors, the versions it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). protobuf-net.Grpc asks
-         for protobuf-net 2.4.8, which the direct reference lifts. protobuf-net.Core and Grpc.Core.Api come with them and
-         are pinned by nothing here: a pin would make them dependencies of the package. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). protobuf-net.Grpc asks for
+         protobuf-net 2.4.8, which the direct reference lifts. protobuf-net.Core and Grpc.Core.Api come with them and are
+         pinned by nothing here: a pin would make them dependencies of the package. -->
     <PackageVersion Include="protobuf-net" Version="3.4.30" />
     <PackageVersion Include="protobuf-net.Grpc" Version="1.3.14" />
     <!-- The gRPC package's floor, the version it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md). Grpc.Core.Api,
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Grpc.Core.Api,
          Google.Api.CommonProtos and Google.Protobuf come with it and are pinned by nothing here: a pin would make them
          dependencies of the package. -->
     <PackageVersion Include="Grpc.StatusProto" Version="2.84.0" />
     <!-- The Orleans package's floor, the version it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md); Orleans 11 is a decision,
-         not a bump. Microsoft.Orleans.Serialization.Abstractions comes with it at exactly its version, and the Roslyn
-         packages it lists though its assembly loads none; none is pinned here but Microsoft.CodeAnalysis.Analyzers,
-         above. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); Orleans 11 is a decision, not a bump.
+         Microsoft.Orleans.Serialization.Abstractions comes with it at exactly its version, and the Roslyn packages it lists
+         though its assembly loads none; none is pinned here but Microsoft.CodeAnalysis.Analyzers, above. -->
     <PackageVersion Include="Microsoft.Orleans.Serialization" Version="10.4.0" />
     <!-- The System.CommandLine package's floor, the version it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md); its net8.0 asset depends on
-         nothing. 3.0, whose version follows .NET 11's, runs the package as built (tests/Compat); its next major is a
-         decision, not a bump. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); its net8.0 asset depends on nothing.
+         3.0, whose version follows .NET 11's, runs the package as built (tests/Compat); its next major is a decision, not a
+         bump. -->
     <PackageVersion Include="System.CommandLine" Version="2.0.13" />
     <!-- The CsvHelper package's floor, the version it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md), and CsvHelper's latest
-         release, of 2025-06-02; its net8.0 and net9.0 assets depend on nothing. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md), and CsvHelper's latest release, of
+         2025-06-02; its net8.0 and net9.0 assets depend on nothing. -->
     <PackageVersion Include="CsvHelper" Version="33.1.0" />
     <!-- The Wolverine.Http package's floor, the version it is built against
-         (docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md), below which the tests do
-         not build (RejectUnparseableQueryValues came after 6.0); Wolverine 7 is a decision, not a bump. WolverineFx,
-         JasperFx, JasperFx.Events, JasperFx.SourceGenerator and the rest come with it and are pinned by nothing here: a
-         pin would make them dependencies of the package. The Microsoft.Extensions pins above are pruned by its ASP.NET
-         Core framework reference. -->
+         (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md), below which the tests do not build
+         (RejectUnparseableQueryValues came after 6.0); Wolverine 7 is a decision, not a bump. WolverineFx, JasperFx,
+         JasperFx.Events, JasperFx.SourceGenerator and the rest come with it and are pinned by nothing here: a pin would
+         make them dependencies of the package. The Microsoft.Extensions pins above are pruned by its ASP.NET Core
+         framework reference. -->
     <PackageVersion Include="WolverineFx.Http" Version="6.51.0" />
   </ItemGroup>
 

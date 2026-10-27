@@ -61,9 +61,7 @@ dotnet test --project tests/AdCodicem.ValueObjects.UnitTests.Text --filter-metho
 # errors for members the generator does emit.
 dotnet format whitespace . --folder --verify-no-changes
 
-# Pack as CI does: through the solution filter, never the whole solution. Without RELEASE_TRAIN_VERSIONS each train's
-# version comes from its own tags (v<version>, satellites-v<version>), and the pack stops when it finds none: in a
-# fork, git fetch upstream --tags first
+# Pack as CI does: through the solution filter, never the whole solution
 dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 
 actionlint                                   # as lint.yml's `workflows` job: 1.7.12, shellcheck on PATH
@@ -80,29 +78,22 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 ## Releases
 
 - Nothing you merge publishes. A preview comes from `preview.yml` (Mondays, or dispatched from `main`) when a package
-  input changed, every release train at its own version, or none, the core pushed and listed before the satellites are
-  pushed; a stable release from a manual `release.yml` dispatch the `nuget-stable` reviewer approves. Mechanics:
-  `.github/CLAUDE.md`; runbook: `docs/maintaining.md`; reasoning: ADR 0003, 0009 and 0012.
+  input changed; a stable release from a manual `release.yml` dispatch the `nuget-stable` reviewer approves.
+  Mechanics: `.github/CLAUDE.md`; runbook: `docs/maintaining.md`; reasoning: ADR 0003 and 0009.
 - The commit type sets the next version (Conventional Commits, `.releaserc.json`): `feat` a minor, `fix` and `perf` a
   patch; `chore`, `ci`, `test`, `docs`, `refactor` nothing, except `build(pack)` and `docs(readme)`, rated a patch
-  because the package metadata and a package's README (its nuget.org page) ship inside the `.nupkg`: the main package
-  carries `src/AdCodicem.ValueObjects/README.md`, every other `src/PackageReadme.md` with its own id and description
-  filled in (`_WritePackageReadme`, `src/Directory.Build.targets`). No package carries the
-  repository's `README.md`, so a change to it is plain `docs`. Scope such a commit that way, or it waits for the next
-  `feat` or `fix`.
+  because the package metadata and the package README (the nuget.org page: `src/AdCodicem.ValueObjects/README.md`, or
+  `src/PackageReadme.md` filled per package) ship inside every `.nupkg`. Scope such a commit that way, or it waits for
+  the next `feat` or `fix`. The repository's `README.md` ships in no package and publishes no preview.
 - While the major is 0, a breaking change (`!`, or a `BREAKING CHANGE:` footer) releases a minor: a minor may break,
   deprecate or remove public API, and a deprecation reads "any minor version may remove it before 1.0.0", never "the
   next major version". At 1.0, replace the first `releaseRules` entry with `{ "breaking": true, "release": "major" }`,
   never delete it, or `build(pack)!` and `docs(readme)!` fall back to a patch.
-- A stable release cuts the thirty-eight packages at one version, never aligned with .NET's or EF Core's; a framework's
-  next major is supported in the same packages. ADR 0012 replaces the one version with two trains (core, satellites):
-  `src/release-trains.json` lists them, and `RELEASE_TRAIN_VERSIONS` (`core=X satellites=Y`) gives each its version.
-  `preview.yml` gives each train its own (`next-version.mjs --trains`, checked train by train by `preview-gate.sh`);
-  `release.yml` still gives both one and tags each train on the release commit (`v<version>`, `satellites-v<version>`);
-  its `trains` input rehearses, as a dry run, the release of each train on its own (`.github/scripts/release-train.mjs`).
-  ADR 0013 targets the CI: its heavy jobs run after the merge and before a release (`heavy.yml`), and a pull request
-  runs the families of `.github/ci-families.json` and the lanes the files it changes select
-  (`.github/scripts/ci-plan.sh`; phase B, one unit-test project per family, each in a job of its own).
+- The thirty-eight packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
+  supported in the same packages (ADR 0010, restored by ADR 0014, which withdraws ADR 0012's two release trains).
+  ADR 0013 targets the CI: its heavy jobs run after the merge and before a
+  release (`heavy.yml`), and a pull request runs the families of `.github/ci-families.json` and the lanes the files it
+  changes select (`.github/scripts/ci-plan.sh`; phase B, one unit-test project per family, each in a job of its own).
 
 ## Architecture
 
@@ -298,18 +289,7 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   a new family brings a project of its own, which imports `tests/UnitTests.props` and joins the solution and the
   `InternalsVisibleTo` list of `src/Directory.Build.props`. Then replace `codecov.yml`'s flags between its `ci-families`
   markers with what `.github/scripts/ci-plan.sh --codecov-flags` prints (`.github/CLAUDE.md`).
-- **`src/release-trains.json` puts every project under `src/` in one release train** (ADR 0012): the core names its
-  projects, the generator and the code fix the main package carries included, and every other project rides the
-  train of `"*"`. MSBuild reads it at evaluation by a regular expression, so never a nested object, a brace or an
-  MSBuild expansion in a string: `.github/scripts/release-trains.mjs check` refuses them (`.github/CLAUDE.md`). Never
-  set `MINVERVERSIONOVERRIDE`: the build refuses it, since it would give every train one version; set
-  `RELEASE_TRAIN_VERSIONS` instead.
-- **Every dependency on one of our own packages is bounded** by the next version that may break it (ADR 0012):
-  `[V, 0.(m+1).0)` while it is 0.x, `[V, (M+1).0.0)` from 1.0, closed at `-0` in a prerelease package.
-  `src/Directory.Build.targets` rewrites the bare floor `dotnet pack` writes, after NuGet's private
-  `_GetProjectReferenceVersions`, and `verify-packages.sh` refuses any other range, so a renamed target fails the check.
-- **Anything that changes a package's bytes or metadata is a `preview-gate.sh` input**, or it never reaches a preview,
-  and a path rule or `GLOBAL_INPUTS` entry of `release-trains.mjs`, which a drift test holds to the gate's inputs;
+- **Anything that changes a package's bytes or metadata is a `preview-gate.sh` input**, or it never reaches a preview;
   **a dependency added to a shipped package goes into `.github/shipped-dependencies`** in the same pull request, or CI
   fails. Both: `.github/CLAUDE.md`.
 - **Two Roslyn versions, both in `Directory.Packages.props`.** `Microsoft.CodeAnalysis.CSharp` 4.14.0 is the API the

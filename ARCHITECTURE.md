@@ -267,10 +267,6 @@ depend on. [ADR-0004](docs/adr/0004-pin-the-supply-chain-by-digest-not-nuget-loc
 build's own dependencies are pinned, and why NuGet lock files are not part of it.
 [ADR-0005](docs/adr/0005-version-the-documentation-site.md) records how the documentation site follows the same
 two tracks: every `preview.yml` run redeploys the preview pages, and each stable release freezes its own.
-[ADR-0012](docs/adr/0012-version-the-packages-in-two-trains-independently-of-the-frameworks.md) records the
-versioning policy, which replaces the one version of
-[ADR-0010](docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md): two release trains, the core
-(`AdCodicem.ValueObjects` and the nine packages released with it, whose projects `src/release-trains.json` lists) and
-the satellites (every other package), each with one version, never aligned with .NET or another framework, and a
-framework's next major supported in the same packages. Once each train releases on its own, a commit releases only
-the trains whose package inputs it changes.
+[ADR-0010](docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md) records the versioning
+policy: one version for the thirty-eight packages, never aligned with .NET, and a framework's next major supported in
+the same packages.

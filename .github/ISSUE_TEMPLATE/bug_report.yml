@@ -79,17 +79,11 @@ body:
     validations:
       required: true
 
-  - type: textarea
+  - type: input
     id: version
     attributes:
-      label: Package versions
-      description: >-
-        The version of each AdCodicem.ValueObjects package the project references, as
-        `dotnet list package` prints it.
-      render: text
-      placeholder: |
-        AdCodicem.ValueObjects          0.2.1
-        AdCodicem.ValueObjects.Dapper   0.2.1
+      label: Package version
+      placeholder: '0.2.1'
     validations:
       required: true
 

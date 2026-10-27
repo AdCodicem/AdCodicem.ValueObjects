@@ -241,8 +241,8 @@ through the warnings the project lists, and fails on any other, this library's i
 
 The four suites, fourteen test projects of the solution, build and test the source. One more project tests the
 packages: `tests/Compat`, outside the solution,
-installs the thirty-eight packages exactly as they were packed — from the folder the build packs into, each at the
-version of its train, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
+installs the thirty-eight packages exactly as they were packed — from the folder the build packs into, at that one
+version, never from nuget.org — into `net11.0` applications on the .NET 11 release candidate. It has its own SDK, its own package
 versions and no transitive pinning, so the dependency floors of the packages meet the next major as they would in an
 application. It runs the generator in that SDK's compiler, Entity Framework Core 11 on SQLite, SQL Server and
 PostgreSQL, collections of value objects, queries on `.Value`, CHECK constraints from the rules on SQLite and a pattern
@@ -322,20 +322,15 @@ jq -r '.families[].tests' .github/ci-families.json | xargs -I{} dotnet test --pr
 dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests    # the generator itself
 dotnet test --project tests/AdCodicem.ValueObjects.IntegrationTests  # needs Docker
 dotnet test --project tests/AdCodicem.ValueObjects.RdgTests          # minimal APIs through the RDG
-# Without RELEASE_TRAIN_VERSIONS, each train's version comes from its own tags (v<version>, satellites-v<version>),
-# and the pack stops when it finds none: in a fork, git fetch upstream --tags first
 dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages   # the packable projects only
 
-# The compatibility island, from its own folder, with the .NET 11 SDK its global.json names. Pack into an empty
-# folder, which it installs whole, at a fresh version: NuGet reuses whatever its global packages folder already holds
-# at a version it has seen.
+# The compatibility island, from its own folder, with the .NET 11 SDK its global.json names. Pack at a fresh
+# version: NuGet reuses whatever its global packages folder already holds at a version it has seen.
 v=0.0.0-compat.$(date +%s)
-rm -rf artifacts/packages
-RELEASE_TRAIN_VERSIONS="core=$v satellites=$v" \
-  dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
-cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj
+MINVERVERSIONOVERRIDE=$v dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
+cd tests/Compat && dotnet test --project AdCodicem.ValueObjects.CompatTests.csproj -p:AdCodicemVersion=$v
 # the main project needs Docker for PostgreSQL, SQL Server and MongoDB; without it, add --filter-not-trait "Requires=Docker"
-dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj   # no Docker
+dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle.csproj -p:AdCodicemVersion=$v   # no Docker
 
 # Native AOT (needs clang and zlib), and the compiled model: compiled only (no database), for the JIT (a round trip,
 # needs Docker) and native AOT
