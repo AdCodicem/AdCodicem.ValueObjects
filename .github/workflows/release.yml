@@ -389,6 +389,10 @@ jobs:
     outputs:
       tag: ${{ steps.check.outputs.tag }}
       version: ${{ steps.check.outputs.version }}
+      # The tag's commit, for publish documentation: deploy-docs.yml builds a
+      # tag only when it descends from the run's commit, and the tag completed
+      # is an ancestor of it, which deploy-docs.yml takes as a full SHA.
+      commit: ${{ steps.check.outputs.commit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -429,6 +433,7 @@ jobs:
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse "refs/tags/$TAG^{commit}")" >> "$GITHUB_OUTPUT"
 
   # Signs the released packages, and every assembly inside them, with a SLSA
   # build provenance attestation: keyless, through Sigstore and this run's OIDC
@@ -549,6 +554,6 @@ jobs:
       id-token: write
     uses: ./.github/workflows/deploy-docs.yml
     with:
-      ref: ${{ needs.release.outputs.tag || needs.resume.outputs.tag }}
+      ref: ${{ needs.release.outputs.tag || needs.resume.outputs.commit }}
       # Passed rather than looked up: nuget.org can take minutes to list a push.
       preview-version: ${{ needs.release.outputs.version || needs.resume.outputs.version }}
