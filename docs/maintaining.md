@@ -436,6 +436,9 @@ so it has no version to move at a release candidate. Dependabot never sees the i
     ([ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)).
 - **When .NET 12 previews arrive**, moving the island to the next major, or adding a second one, is a decision of its
   own. Renaming the job changes the name of its check, which no ruleset requires.
+- **AutoFixture, Bogus and FsCheck move with the root `Directory.Packages.props`**, where their pins are the test-data
+  packages' dependency floors: the island references them directly at those floors, so a Dependabot bump of a root pin
+  left behind here fails the island's restore (NU1605, a downgrade), as FsCheck 3.5.0 did the release of 2026-10-29.
 - **`librdkafka.redist` moves with `Confluent.SchemaRegistry.Serdes.Json`**, in the island as in the repository's
   `Directory.Packages.props`, where Dependabot's `dotnet` group moves them together: the island and the unit suite's
   `tests/AdCodicem.ValueObjects.UnitTests.Serialization` reference the Kafka client's native library only to leave it
