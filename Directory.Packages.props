@@ -78,7 +78,7 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). ModelContextProtocol.Core comes with
          it at exactly that version, and Microsoft.Extensions.Hosting.Abstractions and Caching.Abstractions at their
          floors; none is pinned here: a pin would make it a dependency of the package. -->
-    <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
+    <PackageVersion Include="ModelContextProtocol" Version="2.3.0" />
     <!-- The Azure Functions packages' floors, the versions they are built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Microsoft's own worker extensions
          (Application Insights, OpenTelemetry, Durable Functions) take Worker.Core at 2.51 and 2.52 too. Azure.Core and
