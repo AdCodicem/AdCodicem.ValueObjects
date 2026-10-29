@@ -178,6 +178,15 @@ and a re-run releases nothing. Only a run of `release.yml` signs as `release.yml
 copying the verification commands a release normally carries. Until the release is complete, `preview.yml` refuses
 to publish ("complete it by hand").
 
+If semantic-release fails after its publish step, every package pushed and the draft created, as 0.3.0 did in its
+success step, dispatch **release** from `main` with `complete` set to the tag (`v0.3.0`). Every other job is
+skipped; the `resume` job, in the `nuget-stable` environment, checks that the tag is on `main` and that its GitHub
+Release is still a draft, then **attest provenance** attests the draft's own `.nupkg` and `.snupkg` and their
+assemblies, attaches the bundle and publishes the release, and **publish documentation** deploys the site at the tag.
+The draft's assets are the files semantic-release attached from the pack job's checked artifact, and the attestation
+signs as `release.yml`, so the release reads like any other. It refuses a tag whose release is published already, and
+one with no release at all, which the procedure above creates by hand.
+
 The GitHub Release ends with a table linking each package to its version page on nuget.org, and carries the
 `.nupkg` and `.snupkg` files as assets, signed by a SLSA build provenance attestation that the **attest
 provenance** job adds (`AdCodicem.ValueObjects.<version>.sigstore.json`). Its subjects are the packages and every
