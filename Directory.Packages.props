@@ -69,7 +69,7 @@
          dependencies of the packages. -->
     <PackageVersion Include="AutoFixture" Version="4.18.1" />
     <PackageVersion Include="Bogus" Version="35.6.5" />
-    <PackageVersion Include="FsCheck" Version="3.5.0" />
+    <PackageVersion Include="FsCheck" Version="3.6.0" />
     <!-- The AI package's floor, the version it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its net10.0 asset depends on
          nothing. -->
@@ -78,7 +78,7 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). ModelContextProtocol.Core comes with
          it at exactly that version, and Microsoft.Extensions.Hosting.Abstractions and Caching.Abstractions at their
          floors; none is pinned here: a pin would make it a dependency of the package. -->
-    <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
+    <PackageVersion Include="ModelContextProtocol" Version="2.3.0" />
     <!-- The Azure Functions packages' floors, the versions they are built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Microsoft's own worker extensions
          (Application Insights, OpenTelemetry, Durable Functions) take Worker.Core at 2.51 and 2.52 too. Azure.Core and
@@ -118,7 +118,7 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). protobuf-net.Grpc asks for
          protobuf-net 2.4.8, which the direct reference lifts. protobuf-net.Core and Grpc.Core.Api come with them and are
          pinned by nothing here: a pin would make them dependencies of the package. -->
-    <PackageVersion Include="protobuf-net" Version="3.4.30" />
+    <PackageVersion Include="protobuf-net" Version="3.4.40" />
     <PackageVersion Include="protobuf-net.Grpc" Version="1.3.14" />
     <!-- The gRPC package's floor, the version it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Grpc.Core.Api,
@@ -174,7 +174,7 @@
     <!-- ObservableValidator, the view model base that validates DataAnnotations attributes as a property is set, which
          the unit suite runs [ParsesAs] and [NotDefault] through; no package under src/ references it. -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.12" />
+    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.13" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <!-- Validates what the serializer writes against the JSON Schema exported for it, under draft 2020-12, the draft
          System.Text.Json exports. BSD-3-Clause, as is the package of its author it depends on, the others being
@@ -200,7 +200,7 @@
     <!-- FunctionInvokingChatClient and ChatResponse<T>, which the unit suite drives the AI package through, as an
          application does, and the OpenAI adapter whose strict-mode request it captures; no package under src/ references
          them. Microsoft.Extensions.AI has no 10.10.1. -->
-    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
     <!-- Agent Framework's ChatClientAgent, which the unit suite runs the AI package's tools and response format through,
          as an application does; no package under src/ references it. -->
