@@ -66,8 +66,10 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   nuget.org re-signs each `.nupkg`, so its digest changes, but leaves the assemblies as packed, which therefore verify
   (`SECURITY.md`). `preview.yml` attests the same subjects before its push.
 - Releases are immutable on this repository, so semantic-release creates a draft (`draftRelease`) and
-  `attest provenance` publishes it once the bundle is attached; never publish the draft by hand. The draft's URL dies on
-  publication, which is why `.releaserc.json` overrides `successComment` to link to the tag.
+  `attest provenance` publishes it once the bundle is attached; never publish the draft by hand.
+- `@semantic-release/github` comments on no pull request (`successCommentCondition: false`): its success step reads
+  every pull request a released commit came from, GitHub answers 422 for one with too many files changed (#227), and
+  the failure, after the push and the draft, skips `attest provenance` and the documentation (the 0.3.0 release).
 - `v0.1.0` is a baseline tag placed by hand, not a release (no `0.1.0` package exists): semantic-release ignores
   prerelease tags on a stable branch and would otherwise have started at `1.0.0`.
 

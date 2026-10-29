@@ -44,6 +44,13 @@ test("the GitHub Release cuts long notes below GitHub's limit and links the chan
   assert.match(cut, /\| `AdCodicem\.ValueObjects\.Json` \| \[0\.3\.0\]\(https:\/\/www\.nuget\.org\/packages\/AdCodicem\.ValueObjects\.Json\/0\.3\.0\) \|/);
 });
 
+test("the GitHub Release step comments on no pull request or issue", () => {
+  // Its success step reads every pull request a released commit came from, and GitHub answers 422 for one with too
+  // many files: the whole step fails after the push and the draft, and the release jobs after it never run.
+  assert.equal(entry("@semantic-release/github").successCommentCondition, false);
+  assert.equal(entry("@semantic-release/github").successComment, undefined);
+});
+
 test("the changelog opens with its title and the marker, which is the configuration's title", () => {
   const text = read(join(root, "CHANGELOG.md"));
   assert.ok(text.startsWith("# "));
