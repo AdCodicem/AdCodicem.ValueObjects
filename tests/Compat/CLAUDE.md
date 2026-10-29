@@ -24,6 +24,8 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
 - Transitive pinning is off, so the packages' dependency floors meet the next major as an application's would.
 - Its SDK and its .NET 11 packages are bumped by hand, together. Npgsql's provider pins EF Core exactly, so EF Core follows
   Npgsql's release candidate, not the SDK's: bump them in the same change.
+- AutoFixture, Bogus and FsCheck are pinned at the test-data packages' floors, the root `Directory.Packages.props` pins,
+  which Dependabot moves without this file: bump them here in the same change, or the restore fails with NU1605.
 - `Swashbuckle/` is a second project, excluded from the main one's sources (`DefaultItemExcludes`): Swashbuckle 10 fails
   on the `Microsoft.OpenApi` 3 that `Microsoft.AspNetCore.OpenApi` 11 brings. `compat (.NET 11)` runs both, against the
   packages `heavy.yml`'s caller packed or, on `main` and a pull request, the ones the job packs itself; documents are
