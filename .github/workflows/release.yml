@@ -431,9 +431,11 @@ jobs:
             echo "::error::The GitHub Release of $TAG is published already: there is nothing to complete." >&2
             exit 1
           fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-          echo "commit=$(git rev-parse "refs/tags/$TAG^{commit}")" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$TAG"
+            echo "version=${TAG#v}"
+            echo "commit=$(git rev-parse "refs/tags/$TAG^{commit}")"
+          } >> "$GITHUB_OUTPUT"
 
   # Signs the released packages, and every assembly inside them, with a SLSA
   # build provenance attestation: keyless, through Sigstore and this run's OIDC
