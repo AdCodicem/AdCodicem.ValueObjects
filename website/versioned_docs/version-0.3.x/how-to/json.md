@@ -1,0 +1,420 @@
+---
+title: Serialize to JSON
+sidebar_label: JSON
+slug: /how-to/json
+description: Serialize value objects as their bare underlying value with System.Text.Json, including source-generated contexts, and with Newtonsoft.Json, and describe them in the JSON Schema System.Text.Json exports.
+---
+
+# Serialize to JSON
+
+A value object travels as its underlying value: an `Iban` is a JSON string, a `Quantity` a JSON number. It is
+never wrapped in an object, so a client sees exactly what it would see if the property were a primitive.
+
+## System.Text.Json, reflection-based
+
+Nothing to do. Every generated value object carries its own `[JsonConverter]`, so `JsonSerializer`, ASP.NET
+Core's default options and `HttpClient`'s JSON extensions all serialize it as the bare value:
+
+```csharp skip
+JsonSerializer.Serialize(new { iban = Iban.Create("FR7630006000011234567890189") });
+// {"iban":"FR7630006000011234567890189"}
+```
+
+Reading goes through `TryCreate`, so an incoming value is normalized and validated like any other. A rejected
+value, or a token of the wrong kind, throws a `ValueObjectJsonException`, a `JsonException` naming the type and the
+reason, and carrying the code of the rule ([the code in an exception](../reference/errors.md#the-code-in-an-exception)).
+A value object also works as a dictionary key. The key carries the underlying value too, in the form the value travels
+in, whatever a formatting hook writes, and it is read back the same way and validated like a value: a key the value
+object rejects throws a `ValueObjectJsonException` as well.
+
+Writing refuses what reading would. An instance that never went through `Create` — a default array element, a member
+of a message no one set — holds the default value, and when its type rejects it, the converter throws a
+`ValueObjectJsonException`, "The value to write is not a valid Iban: …", from a value and from a key alike, rather
+than put on the wire a value the service reading it would refuse. Over a value type, nothing tells the default from a
+constructed zero, so a type that accepts its zero, an `Amount` with a minimum of 0 or an unconstrained `Guid`, writes
+it.
+
+## System.Text.Json, source-generated
+
+A source-generated `JsonSerializerContext` needs one line more. One source generator never sees another's
+output, so the System.Text.Json generator cannot see the `[JsonConverter]` this library emits. Name the
+hand-written factory from `AdCodicem.ValueObjects.Json`, which it *can* see:
+
+```bash
+dotnet add package AdCodicem.ValueObjects.Json
+```
+
+```csharp skip
+[JsonSourceGenerationOptions(Converters = [typeof(ValueObjectJsonConverterFactory)])]
+[JsonSerializable(typeof(AccountResponse))]
+public partial class ApiJsonContext : JsonSerializerContext;
+```
+
+It is declared at compile time, on the context, so there is nothing to remember when the options are built. It lives in
+the context's own options, though: a host given the context as a resolver alone, into options of its own, loses it, and
+writes every value object as `{}`; hand such a host `ApiJsonContext.Default.Options`.
+
+The context lists the types the application serializes, value objects included, never their underlying types, which
+the generated converter reads itself. That holds for a host that reads a method's parameters through the options it is
+given, as `AIFunctionFactory` does: where reflection-based serialization is disabled, as native AOT disables it, its
+default options know no value object, nor even `System.Guid`, and throw a `NotSupportedException`, while options from
+a context naming the factory, the types of the parameters and the type of the result describe and bind each one
+([language models](./language-models.md#native-aot-and-reflection-free-serialization)).
+
+The factory hands each value object the converter generated for it, which the generator registers with the value
+object's descriptor. The package belongs in the assembly that declares the context: a domain project declaring the
+value objects needs only `AdCodicem.ValueObjects`, the contracts and the generator, and its converters reach the
+context all the same, with nothing built by reflection, which trimming and native AOT would not support.
+
+Only a value object written by hand has no generated converter. The factory gives it a general-purpose one instead,
+closed over the value object through the type arguments its descriptor hands back, with nothing built by reflection
+either, and its underlying value goes through the context's contract for that type, which listing the value object
+brings along. Under native AOT, register such a value object, `ValueObjectRegistry.Register<Link, Uri>(Link.Schema)`:
+one nothing registered is described by reflection where the runtime supports dynamic code, and under native AOT the
+factory refuses it with a `NotSupportedException` naming that registration.
+
+A construction of a generic value object, `Reference<PurchaseOrder>`, is serialized as any other value object, by
+either serializer. Its registration registers the generic definition alone, though, so the factory finds the generated
+converter of the construction by reflection, the first time it meets it. Under native AOT, register the constructions
+the context serializes, as [Where a value object can be declared](../authoring-guide.md#where-a-value-object-can-be-declared)
+shows.
+
+## Explicit options
+
+The same package adds `AddValueObjects()` to `JsonSerializerOptions`, for a composition root that prefers to say
+so, or for options that must cover value objects written by hand against the contracts:
+
+```csharp skip
+var options = new JsonSerializerOptions().AddValueObjects();
+```
+
+In ASP.NET Core MVC, `AddControllers().AddValueObjects()` already does this for you.
+
+## A member missing from the payload
+
+System.Text.Json leaves a member the payload does not carry as it is, so a value object member holds its default,
+which no rule checks. Contracts evolve, and a producer that drops a property otherwise delivers a default instance to
+a consumer that never validated it. Make the members of every message contract holding value objects required:
+
+```csharp skip
+var options = new JsonSerializerOptions { RespectRequiredConstructorParameters = true };
+
+public sealed record OrderSubmitted(OrderId OrderId, CustomerCode Customer, Quantity Quantity);
+
+// {"OrderId":"3f2504e0-…"} throws a JsonException: JSON deserialization for type 'OrderSubmitted' was missing
+// required properties including: 'Customer', 'Quantity'.
+```
+
+`RespectRequiredConstructorParameters` covers the parameters of a constructor, a positional record's included, which
+is the form that was run here. For a settable property, `[JsonRequired]` and the C# `required` modifier are
+System.Text.Json's documented equivalents. The JSON payload is one source among others:
+[Where a default instance can come from](../reference/default-instances.md) lists them.
+
+## Large integers
+
+`Int128` and `UInt128` value objects are written as JSON **strings**: a JSON number cannot carry them without
+losing precision in most clients.
+
+## Number handling
+
+A value object over a number follows `JsonSerializerOptions.NumberHandling` as its underlying type does, since
+System.Text.Json leaves the number handling of a custom converter to the converter:
+
+- `AllowReadingFromString` reads `"1250.00"` as well as `1250.00`, and reads the text as System.Text.Json reads a
+  number from text: whole, with no white space, no group separator and no culture, so `"1,000"` and `" 5"` are
+  refused, as they are for the bare value;
+- `WriteAsString` writes every number as a string, `"1250.00"`, and an indented writer lays it out as any other;
+- over a `double` or a `float`, `AllowNamedFloatingPointLiterals` writes `NaN` and the infinities as `"NaN"`,
+  `"Infinity"` and `"-Infinity"`, and either reading option reads them back. `WriteAsString` writes them as text
+  too; with neither, writing one throws, as it does for the bare value.
+
+The [OpenAPI document](./openapi.md) describes what these options put on the wire, as it describes the bare value.
+
+What is read still goes through the value object's rules: a `Latitude` bounded to ±90 refuses `"NaN"` whatever the
+options let the reader read.
+
+## JSON Schema
+
+System.Text.Json's `JsonSchemaExporter`, which the schemas of Microsoft.Extensions.AI tools and structured output, of
+the Model Context Protocol SDK and of Agent Framework agents are built on, describes a type its converter serializes
+as `true`, the schema that accepts anything. Every value object comes out that way, a `List<Iban>` as an array with no
+`items`, and a `DeliveryDate?` loses the `null` it accepts. `ValueObjectJsonSchema`, in `AdCodicem.ValueObjects.Json`,
+fills each of them in from the rules its type declares, the ones the OpenAPI document publishes:
+
+```csharp skip
+var schema = JsonSchemaExporter.GetJsonSchemaAsNode(
+    ApiJsonContext.Default.Options,
+    typeof(Order),
+    new JsonSchemaExporterOptions { TransformSchemaNode = ValueObjectJsonSchema.TransformSchemaNode });
+```
+
+```json
+"iban": {
+  "description": "An International Bank Account Number.",
+  "type": "string",
+  "format": "iban",
+  "pattern": "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$",
+  "minLength": 15,
+  "maxLength": 34,
+  "examples": ["FR7630006000011234567890189"]
+}
+```
+
+| Declared | Keyword |
+| --- | --- |
+| Underlying type | `type`: `boolean`, `integer`, `number`, or `string` for text, a character, a `Guid`, a date or a time, and `Int128` or `UInt128`, which travel as strings; a character is `minLength` and `maxLength` 1 |
+| A nullable value object | `"null"` added to `type`, and to `enum` |
+| `MinLength`, `MaxLength` | `minLength`, `maxLength` |
+| `IValueObjectPatternValidator` | `pattern`; a `TimeSpan`, a `TimeOnly` and a `DateTime`, which declare none, get the pattern of the form they are written in, see [below](#times-without-an-offset) |
+| `IValueObjectMinimum<T>`, `IValueObjectMaximum<T>` | `minimum`, `maximum` on a number; a sentence of the `description` on anything written as a string, a date or a character, which those keywords cannot bound |
+| A closed set, its members marked `[KnownValue]` | `enum`, each value written by the type's own converter |
+| The summary, or `Description` | `description` |
+| `IValueObjectExample<TSelf>` | `examples`, written by the converter |
+| `SchemaFormat`, or the type's own | `format`, as the profile below says |
+
+A collection or a dictionary of value objects gets its `items` or `additionalProperties`, which the exporter leaves
+out, and a dictionary keyed by a value object gets the key's rules in `propertyNames`, as the key is written: always
+text, so a key over a number is a `string` held to the pattern of that number's text, `"4"` or `"-Infinity"`, its bounds
+in a sentence of the description, and a key over a `bool` is `True` or `False`, as the generated converter writes it,
+or `true` or `false`, as System.Text.Json writes the key of a `bool`. A value object is described in place, never as a
+`$ref`. The schema the exporter, or a host, hands over is completed rather
+than replaced: a description already there, from a `[Description]` on a tool's parameter for instance, comes first,
+the value object's after it, and a keyword the value object does not declare, such as a `default`, stays.
+
+### Two profiles
+
+The transform above uses `ValueObjectJsonSchemaProfile.OpenApi`, which describes what the serializer reads and writes
+under the options, as the [OpenAPI document](./openapi.md) does: under `AllowReadingFromString`, the default of
+ASP.NET Core and of `JsonSerializerDefaults.Web`, a number is `["string", "integer"]` with the pattern a number is
+written in, and a format such as `int32`, `decimal` or `iban` stays in `format`.
+
+`ValueObjectJsonSchemaProfile.LanguageModel` describes what a model should send. A number is a number alone, which the
+serializer reads under any options, and its example and known values are numbers. A format JSON Schema defines,
+`uuid`, `date`, `date-time`, `email` and the others, stays; any other moves into the description, where a model reads
+it and a provider that refuses an unknown format does not see it. A closed set lists its values in `enum`, which the
+description does not repeat:
+
+```csharp skip
+var options = new JsonSchemaExporterOptions
+{
+    TransformSchemaNode = ValueObjectJsonSchema.CreateTransform(ValueObjectJsonSchemaProfile.LanguageModel),
+};
+```
+
+```json
+"vat": {
+  "description": "A value-added tax rate, in percent.\n\nFormat: decimal.",
+  "type": "number",
+  "enum": [20.0, 5.5]
+}
+```
+
+### Times without an offset
+
+JSON Schema's `time` and `date-time` formats are RFC 3339's, which requires an offset. A `TimeOnly` never has one,
+`08:30:00.0000000`, and a `DateTime` of `DateTimeKind.Unspecified` is written without one, `2024-01-31T08:30:00`: a
+validator that asserts formats, as a gateway or a provider of structured output may, would refuse what the type writes.
+Neither type has a natural format therefore. A `TimeOnly` is held to the pattern of the forms it reads,
+`^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,7})?)?$`, and a `DateTime` to a date, followed by a time of day and
+the offset its kind gives it, `Z`, `+01:00` or none. A `DateTimeOffset` keeps `date-time` and a `DateOnly` `date`,
+which hold. A value object over `DateTime` whose normalizer guarantees a kind, `DateTimeKind.Utc` for instance, may
+declare `SchemaFormat = "date-time"`, which is then published beside the pattern.
+
+### In a host
+
+With Microsoft.Extensions.AI, `AdCodicem.ValueObjects.AI` does it in one call, for tools and structured output alike,
+and answers a tool argument a value object refuses with its rule
+([language models](./language-models.md)):
+
+```csharp skip
+var pay = AIFunctionFactory.Create(
+        PayAsync,
+        new AIFunctionFactoryOptions { JsonSchemaCreateOptions = new AIJsonSchemaCreateOptions().WithValueObjects() })
+    .WithValueObjectValidation();
+```
+
+Every other host built on the exporter hands a transform of its own the `JsonTypeInfo` of each node, whatever it calls
+its context, and `ValueObjectJsonSchema.Apply` takes it. Written by hand, with Microsoft.Extensions.AI:
+
+```csharp skip
+var schemaOptions = new AIJsonSchemaCreateOptions
+{
+    TransformSchemaNode = (context, schema) => ValueObjectJsonSchema.Apply(
+        context.TypeInfo, schema, ValueObjectJsonSchemaProfile.LanguageModel),
+};
+
+var pay = AIFunctionFactory.Create(PayAsync, new AIFunctionFactoryOptions { JsonSchemaCreateOptions = schemaOptions });
+```
+
+For a Model Context Protocol server, `AdCodicem.ValueObjects.ModelContextProtocol` registers the tools with these options
+through `WithValueObjectTools<T>()`, and answers a refused argument with its rule
+([Model Context Protocol servers](./language-models.md#model-context-protocol-servers)); a tool built by hand takes them
+through its `McpServerToolCreateOptions.SchemaCreateOptions`.
+
+A value object is found in the registry its generated registration fills, without reflection. One nothing registered,
+a value object written by hand or a construction of a generic one, is described by reflection where the runtime
+supports dynamic code; under native AOT it is left as the exporter described it until it is registered, as
+serializing it through the factory asks already.
+
+## Newtonsoft.Json
+
+For code, SDKs and message contracts that have not moved to System.Text.Json:
+
+```bash
+dotnet add package AdCodicem.ValueObjects.NewtonsoftJson
+```
+
+```csharp skip
+var settings = new JsonSerializerSettings().AddValueObjects();
+```
+
+`AddValueObjects()` adds `ValueObjectConverter`, once, and sets the two settings Newtonsoft.Json reads value objects
+best under: `DateParseHandling.None`, which hands the converter the text of every string, and
+`FloatParseHandling.Decimal`, which keeps every digit of a `decimal` ([Numbers](#numbers) says when to leave it off).
+A host that hands you its settings takes the same call:
+
+```csharp skip
+GlobalConfiguration.Configuration.UseRecommendedSerializerSettings(settings => settings.AddValueObjects());   // Hangfire
+```
+
+MVC is the exception: `AddValueObjectsNewtonsoftJson()`, from `AdCodicem.ValueObjects.AspNetCore.NewtonsoftJson`, makes
+that call on MVC's settings, binds value objects from the rest of the request, and records the code of a value a
+body refuses for the problem details
+([a body read by Newtonsoft.Json](./aspnet-core.md#a-body-read-by-newtonsoftjson)):
+
+```csharp skip
+builder.Services.AddControllers().AddNewtonsoftJson().AddValueObjectsNewtonsoftJson(); // MVC
+```
+
+Code that hands Newtonsoft.Json a contract resolver alone, with no settings to add the converter to, wraps the
+resolver instead ([A contract resolver](#a-contract-resolver)).
+
+One converter covers every value object, with the same rules as System.Text.Json and the same values on the wire:
+a number or a boolean as such, anything else as a string in the same form, `Int128` and `UInt128` included. The
+text is the same too, but for a whole `decimal`, `double` or `float`: Newtonsoft.Json always writes a real with a
+fraction, `1250.0` where System.Text.Json writes `1250`, and each serializer reads the other's text as the same
+value. A number written as a string is read as well, `"7"` as `7`, as System.Text.Json reads one under
+`AllowReadingFromString`: whole, with no white space, no group separator and no culture, so `"1,000"` and `" 5"` are
+refused. `NaN` and the infinities are refused, in a string or not. Otherwise the converter reads only the kind of
+token it writes, so a string where a boolean belongs, or a number where a string belongs, is refused as JSON rather
+than converted. A rejected value throws a `JsonSerializationException` naming the type and the rule, and so does a
+value the type rejects on its way out, as System.Text.Json refuses to write it; the code of the rule travels in its
+`Data`, where `ValueObjectErrors.TryGetCode` reads it.
+
+Newtonsoft.Json reads each token before a converter sees it, under the serializer's settings, and its defaults
+change what the converter is handed.
+
+### Without the converter
+
+Newtonsoft.Json falls back to the type converter the generator writes on every value object. A host that serializes
+through Newtonsoft.Json on settings of its own takes this path until its settings get the converter: the
+[Azure Cosmos DB SDK v3](./azure.md#cosmos-db-sdk) and [Hangfire](./messaging.md#hangfire) both do by default.
+Newtonsoft.Json then writes each value object as a string, a number included, `"Quantity":"7"`, and reads a string,
+or a number of any numeric type, through the value object's rules. For a number, the two modes read each other's
+data: a host without the converter reads the numbers System.Text.Json and the converter write, and the converter
+reads the numbers a host stored without it, which can add it without draining what it stored first. A boolean is the
+exception: the type converter writes `"True"`, a string where the converter reads a boolean.
+
+The converter is still the one to use. System.Text.Json on its default options refuses a number written as a
+string. A rejection loses its rule: Newtonsoft.Json reports `Could not cast or convert from System.String to
+Quantity`, with no `ValueObjectException` in the chain. And a JSON integer beyond the range of a `long`, which
+Newtonsoft.Json reads as a `BigInteger`, is converted by no type converter, so a `ulong` value object above
+`long.MaxValue` written as a number is not read without the converter.
+
+`[JsonObject]` on a value object overrides the type converter: Newtonsoft.Json then writes the value object as an object
+holding `Value`, `{"Value":"ab"}`, and reads that object back as a default instance. Only `ValueObjectConverter`, in the
+settings or on the contract `ValueObjectContractResolver` gives the type ([A contract resolver](#a-contract-resolver)),
+takes precedence over it. The attribute has no use on a value object, and `VO0043` fails the build on it
+([A serializer's contract attribute](../reference/diagnostics.md#a-serializers-contract-attribute)).
+
+### Dates
+
+Under the default `DateParseHandling`, Newtonsoft.Json turns a string that looks like a date into a `DateTime`, and
+converts one written with an offset to local time. What a value object makes of that date:
+
+- A `DateTime` value object reads it as System.Text.Json reads the text.
+- A `DateTimeOffset` value object reads it as System.Text.Json reads the text when the text ends in `Z` or names
+  no zone, and refuses any text with an explicit offset, which the date has lost. That includes its own output: a
+  `DateTimeOffset` is always written with its offset, `+00:00` for UTC, so under the default settings it cannot be
+  read back.
+- A string value object has lost its text, and refuses it.
+
+A date that no longer says what the text said is refused rather than read as another value. Set
+`DateParseHandling` to `None`, as `AddValueObjects()` does, and every string reaches the converter as text.
+
+### Numbers
+
+Under the default `FloatParseHandling`, Newtonsoft.Json reads a number with a fraction or an exponent as a
+`double`, and a `decimal` value object keeps the fifteen to seventeen significant digits a `double` carries, and loses
+its scale: a stored `12.50` reads back as 12.5, and `1234567890123456789.12` as 1234567890123456800. Any payload
+carrying an amount of money therefore needs `FloatParseHandling.Decimal`, whatever its number of digits, and a host
+that sets its own deserializer settings may leave it at `Double`. `AddValueObjects()` sets it, which keeps every digit
+and the scale, as System.Text.Json does.
+
+It applies to every number of the payload, and a `decimal` holds a narrower range than a `double`. Under it, a
+`double` or `float` value object beyond about ±7.9 × 10²⁸ makes the reader throw a `JsonReaderException`, and one
+smaller than a `decimal`'s 28 decimal places keeps only the digits that fit in them — none below about 10⁻²⁸, so it
+reads as zero. When a payload carries such values, leave the float handling as the settings have it:
+
+```csharp skip
+var settings = new JsonSerializerSettings().AddValueObjects(decimalReals: false);
+```
+
+`FloatParseHandling.Decimal` also gives an `object` or `JToken` member a `decimal` rather than a `double` for such a
+number.
+
+### A contract resolver
+
+Code that hands Newtonsoft.Json a contract resolver rather than settings wraps it in `ValueObjectContractResolver`:
+
+```csharp skip
+var camelCase = new ValueObjectContractResolver(new CamelCasePropertyNamesContractResolver());
+var resolver = new ValueObjectContractResolver();   // over a DefaultContractResolver of its own
+```
+
+It answers each value object, and its nullable type, with a contract of its own carrying `ValueObjectConverter`, a
+construction of a generic value object and a value object written by hand included, and every other type with the
+contract of the resolver it wraps. A value object whose type names a converter of its own with `[JsonConverter]` keeps
+that converter. The wrapped resolver's contracts are never changed: `CamelCasePropertyNamesContractResolver` shares its
+cache with every instance of its type in the process.
+
+Two consequences of how Newtonsoft.Json caches contracts:
+
+- The contract of a type holding value objects stays the wrapped resolver's, and Newtonsoft.Json keeps the contract of
+  each member on it from the first time a serializer reads or writes that member. A serializer over the wrapper and
+  another over the same wrapped resolver therefore see each other's member contracts, in whichever order they first
+  run. Wrap a resolver no other serializer uses, as the parameterless constructor does, and never MVC's default one,
+  a single instance every set of MVC's settings in the process shares.
+- A contract's converter wins over the converters the settings name: an application's own converter for a value
+  object in `Converters` loses to the resolver's. Name it on the type with `[JsonConverter]` instead.
+
+Neither `AddValueObjects()` nor `AddValueObjectsNewtonsoftJson()` wraps a resolver: settings keep the converter in
+`Converters`, which reaches every value object the resolver does.
+
+The one consumer found that reads a resolver alone is a JSON Patch document of `Microsoft.AspNetCore.JsonPatch` applied
+outside MVC. Give every document one resolver the application keeps:
+
+```csharp skip
+static readonly ValueObjectContractResolver PatchResolver = new();   // over a DefaultContractResolver of its own
+
+patch.ContractResolver = PatchResolver;
+patch.ApplyTo(order, error => logger.LogWarning("{Error}", error.ErrorMessage));
+```
+
+Through it, `replace` applies a value object written by hand, which has no type converter, and a `DateTimeOffset` in
+UTC, and a patched value follows the converter's wire, as a body does: `7.0` and `" 7"` are refused for an integer,
+`"true"` for a boolean. JSON Patch still reads each value again under settings of its own, with the document's resolver
+alone. A `decimal` loses the digits past a `double`'s, a `DateTimeOffset` refuses an explicit offset, a string value
+object refuses text that looks like a date, and a refusal is reported in JSON Patch's own words, which quote the value
+and carry no code. `copy` and the keys of a dictionary take no resolver at all.
+
+Never wrap the document's own resolver, `new ValueObjectContractResolver(patch.ContractResolver)`: it is one instance
+JSON Patch hands every document it reads, through which it reads an object value and its members. A document applied
+through it alone leaves the contracts of the members it read, without the converter, on the object's type, and a
+wrapped document applied after it reads those members without the converter too, as the first consequence above says.
+
+`JsonConvert.DefaultSettings = () => new JsonSerializerSettings().AddValueObjects();` reaches those reads too, and keeps
+the digits, the offsets, text that looks like a date and `copy`, but for every caller of `JsonConvert` in the process,
+and still with JSON Patch's messages and no code. In MVC, apply a document through `TryApplyTo` instead
+([A JSON Patch document](./aspnet-core.md#a-json-patch-document)), which reads every value through the rules, with
+their codes, and needs no resolver.
