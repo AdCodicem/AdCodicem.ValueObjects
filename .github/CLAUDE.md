@@ -67,6 +67,9 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   (`SECURITY.md`). `preview.yml` attests the same subjects before its push.
 - Releases are immutable on this repository, so semantic-release creates a draft (`draftRelease`) and
   `attest provenance` publishes it once the bundle is attached; never publish the draft by hand.
+- `release.yml`'s `complete` input (a tag) skips every job but `resume`, `attest provenance` and `publish
+  documentation`, which attest and publish that tag's draft from its own assets: the way back from a release that failed
+  after semantic-release's publish step, which neither a re-run nor a new dispatch reaches (`docs/maintaining.md`).
 - `@semantic-release/github` comments on no pull request (`successCommentCondition: false`): its success step reads
   every pull request a released commit came from, GitHub answers 422 for one with too many files changed (#227), and
   the failure, after the push and the draft, skips `attest provenance` and the documentation (the 0.3.0 release).

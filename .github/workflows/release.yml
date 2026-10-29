@@ -12,6 +12,10 @@ on:
         description: 'Compute the version and notes, publish nothing'
         type: boolean
         default: false
+      complete:
+        description: 'Complete the stable release whose tag this is (v1.2.3): attest its draft, publish it and the documentation'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -28,6 +32,7 @@ jobs:
   # the packable projects under src/: no test project, no Testcontainers.
   test:
     name: suites
+    if: inputs.complete == ''
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -77,6 +82,7 @@ jobs:
   # builds nothing.
   pack:
     name: pack
+    if: inputs.complete == ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -180,6 +186,7 @@ jobs:
   # run page while the nuget-stable reviewer decides whether to approve.
   previewed:
     name: was it previewed
+    if: inputs.complete == ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -206,7 +213,7 @@ jobs:
   heavy:
     name: heavy
     needs: pack
-    if: ${{ !inputs.dry_run && needs.pack.outputs.release == 'true' }}
+    if: ${{ inputs.complete == '' && !inputs.dry_run && needs.pack.outputs.release == 'true' }}
     permissions:
       contents: read
     uses: ./.github/workflows/heavy.yml
@@ -227,7 +234,7 @@ jobs:
     # are skipped on a dry run and when nothing was packed, and then only.
     needs: [test, pack, previewed, heavy]
     if: >-
-      ${{ !cancelled() && needs.test.result == 'success' && needs.pack.result == 'success' &&
+      ${{ !cancelled() && inputs.complete == '' && needs.test.result == 'success' && needs.pack.result == 'success' &&
       (needs.heavy.result == 'success' ||
       (needs.heavy.result == 'skipped' && (inputs.dry_run || needs.pack.outputs.release != 'true'))) }}
     runs-on: ubuntu-latest
@@ -359,6 +366,70 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
+  # Completes a stable release whose publish job failed after semantic-release
+  # tagged, pushed the packages and drafted the GitHub Release: the 0.3.0
+  # release failed so in its success step. Neither a re-run, which runs the
+  # dispatched commit's semantic-release again, nor a new dispatch, which
+  # would compute the version already tagged, can reach the jobs below.
+  # Dispatched from main with `complete` set to the tag, this job checks the
+  # tag and its draft, and hands them to attest provenance, which attests the
+  # draft's own assets, the files semantic-release attached from the pack
+  # job's checked artifact, then publishes it, and to publish documentation.
+  # In the nuget-stable environment, so that a release goes public only
+  # through the same approval as a release.
+  resume:
+    name: resume
+    if: inputs.complete != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: nuget-stable
+    permissions:
+      # A draft release is visible to a token that can write only.
+      contents: write
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the tag and its draft
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.complete }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "::error::complete publishes a release: it takes no dry run." >&2
+            exit 1
+          fi
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$TAG' is not a stable tag (v1.2.3)." >&2
+            exit 1
+          fi
+          if ! git rev-parse --verify --quiet "refs/tags/$TAG" > /dev/null; then
+            echo "::error::$TAG is not tagged." >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "refs/tags/$TAG" "$GITHUB_SHA"; then
+            echo "::error::$TAG is not on the dispatched commit's history." >&2
+            exit 1
+          fi
+          if ! draft="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"; then
+            echo "::error::$TAG has no GitHub Release, not even a draft: create it by hand (docs/maintaining.md)." >&2
+            exit 1
+          fi
+          if [[ "$draft" != "true" ]]; then
+            echo "::error::The GitHub Release of $TAG is published already: there is nothing to complete." >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
   # Signs the released packages, and every assembly inside them, with a SLSA
   # build provenance attestation: keyless, through Sigstore and this run's OIDC
   # token, verifiable with
@@ -384,10 +455,12 @@ jobs:
   # bundle is attached, so a release never goes public without its attestation.
   provenance:
     name: attest provenance
-    needs: [pack, release]
+    needs: [pack, release, resume]
     # A status function of its own, as the release job has: the implicit success()
     # covers every job upstream, so a failed previewed job would skip this one too.
-    if: ${{ !cancelled() && needs.pack.result == 'success' && needs.release.result == 'success' && needs.release.outputs.released == 'true' }}
+    if: >-
+      ${{ !cancelled() && ((needs.pack.result == 'success' && needs.release.result == 'success' &&
+      needs.release.outputs.released == 'true') || needs.resume.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -402,22 +475,40 @@ jobs:
       # Only the scripts, at the released tag.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.tag }}
+          ref: ${{ needs.release.outputs.tag || needs.resume.outputs.tag }}
           sparse-checkout: .github/scripts
           persist-credentials: false
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.resume.result != 'success'
         with:
           artifact-ids: ${{ needs.pack.outputs.packages-artifact-id }}
           path: packages
 
-      - name: Extract the assemblies
+      - name: Check the packed files
+        if: needs.resume.result != 'success'
         env:
           SHA256: ${{ needs.pack.outputs.packages-sha256 }}
+        run: base64 -d <<<"$SHA256" | (cd packages && sha256sum --check --strict)
+
+      # Completing a release, the files are the draft's assets, which
+      # semantic-release attached from the pack job's checked artifact.
+      - name: Download the draft's packages
+        if: needs.resume.result == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.resume.outputs.tag }}
+          VERSION: ${{ needs.resume.outputs.version }}
         run: |
           set -euo pipefail
-          base64 -d <<<"$SHA256" | (cd packages && sha256sum --check --strict)
-          .github/scripts/package-assemblies.sh packages assemblies
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir packages --pattern '*.nupkg' --pattern '*.snupkg'
+          if ! compgen -G "packages/AdCodicem.ValueObjects.$VERSION.nupkg" > /dev/null; then
+            echo "::error::The draft of $TAG carries no AdCodicem.ValueObjects.$VERSION.nupkg." >&2
+            exit 1
+          fi
+
+      - name: Extract the assemblies
+        run: .github/scripts/package-assemblies.sh packages assemblies
 
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         id: attest
@@ -432,7 +523,7 @@ jobs:
       - name: Attach the attestation and publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release.outputs.tag }}
+          TAG: ${{ needs.release.outputs.tag || needs.resume.outputs.tag }}
           BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
           set -euo pipefail
@@ -446,16 +537,18 @@ jobs:
   # without it the site would be rebuilt without the version just released.
   docs:
     name: publish documentation
-    needs: release
+    needs: [release, resume]
     # A status function of its own, as the release job has: the implicit success()
     # covers every job upstream, so a failed previewed job would skip this one too.
-    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.released == 'true' }}
+    if: >-
+      ${{ !cancelled() && ((needs.release.result == 'success' && needs.release.outputs.released == 'true') ||
+      needs.resume.result == 'success') }}
     permissions:
       contents: read
       pages: write
       id-token: write
     uses: ./.github/workflows/deploy-docs.yml
     with:
-      ref: ${{ needs.release.outputs.tag }}
+      ref: ${{ needs.release.outputs.tag || needs.resume.outputs.tag }}
       # Passed rather than looked up: nuget.org can take minutes to list a push.
-      preview-version: ${{ needs.release.outputs.version }}
+      preview-version: ${{ needs.release.outputs.version || needs.resume.outputs.version }}
