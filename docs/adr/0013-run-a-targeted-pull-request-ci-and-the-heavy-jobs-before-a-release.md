@@ -6,6 +6,10 @@ Date: 2026-10-19
 
 Accepted.
 
+- [ADR-0016](0016-run-every-job-on-every-pull-request.md) withdraws the targeting: every pull request runs every job of
+  `ci.yml`, and `heavy.yml`'s native AOT and integration jobs, with no plan, no `dotnet-affected` and no `ci:heavy`
+  label. The test project per family, the gate, the heavy jobs before a release and after every push to `main`, and
+  `compat (.NET 11)` off the required checks still hold.
 - Amends [ADR-0010](0010-version-every-package-in-lockstep-independently-of-dotnet.md) on one point:
   `compat (.NET 11)` does not join the required checks when .NET 11 ships. It gates every preview and every stable
   release instead.
