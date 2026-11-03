@@ -78,18 +78,13 @@ jobs:
       # Auto-merge is a queue, not an immediate merge: GitHub waits for the
       # status checks the "Default" ruleset requires on main -- "build and test"
       # (ci.yml), and "workflows" and "conventional commits" (lint.yml). "build
-      # and test" is the gate over the plan of .github/scripts/ci-plan.sh, which
-      # holds an update to what the files it changes select. A NuGet update
-      # changes Directory.Packages.props, which runs everything, and heavy.yml
-      # too (native AOT and the integration tests; compat
-      # (.NET 11) only informs). So a red build or suite, a native AOT publish
-      # that warns or behaves differently, a red integration suite, a broken
+      # and test" is the gate over every job of ci.yml, which every pull request
+      # runs (ADR 0016), heavy.yml's native AOT and integration tests included.
+      # So a red build, suite or release tooling, a native AOT publish that
+      # warns or behaves differently, a red integration suite, a broken
       # workflow or a commit message that is not a Conventional Commit blocks
-      # the merge of a NuGet update. An update of the root package.json waits
-      # for the release tooling too. An update under website/, a pip update and
-      # a GitHub Actions update that leaves ci.yml alone wait for the plan
-      # alone: the site build the first runs is not required. heavy.yml runs
-      # on main after each. A pull request nothing blocks is merged at
+      # the merge of any update. The site build is not required, and
+      # compat (.NET 11) runs on main after the merge. A pull request nothing blocks is merged at
       # once, failing checks the ruleset does not require included
       # ("documentation site"). It needs "Allow auto-merge" in the repository
       # settings. No --subject: the commit subject is the pull request title at

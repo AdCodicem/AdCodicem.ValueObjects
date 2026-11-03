@@ -23,64 +23,34 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  # What this run builds and tests, and which of its jobs the gate holds to success (ADR 0013): on a pull request, the
-  # families of .github/ci-families.json and the lanes the files it changes select, through dotnet-affected for the
-  # projects' files, the unit suite's included; on a push to main, everything. .github/scripts/ci-plan.sh has the rules, and checks the family
-  # table against the repository first. The depth of 2 gives it the merge commit's parents, against which it reads the
-  # files a pull request changes; the SDK is installed only when the plan asks dotnet-affected.
-  plan:
-    name: plan
+  # Every run, a pull request's as a push's, runs every job of this file (ADR 0016). This one checks
+  # .github/ci-families.json against the repository, without a build, and hands the matrices their lists: the families,
+  # whose project of the unit suite each `unit` job builds and tests, the projects the job build builds, and the
+  # Codecov flags. .github/scripts/ci-families-check.sh has the rules.
+  families:
+    name: families
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
-      heavy: ${{ steps.plan.outputs.heavy }}
-      expected: ${{ steps.plan.outputs.expected }}
-      format: ${{ steps.plan.outputs.format }}
-      dotnet: ${{ steps.plan.outputs.dotnet }}
-      families: ${{ steps.plan.outputs.families }}
-      build: ${{ steps.plan.outputs.build }}
-      generator: ${{ steps.plan.outputs.generator }}
-      rdg: ${{ steps.plan.outputs.rdg }}
-      compiled-model: ${{ steps.plan.outputs.compiled-model }}
-      pack: ${{ steps.plan.outputs.pack }}
-      site: ${{ steps.plan.outputs.site }}
-      release: ${{ steps.plan.outputs.release }}
-      coverage: ${{ steps.plan.outputs.coverage }}
-    env:
-      EVENT_NAME: ${{ github.event_name }}
-      LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-      AUTHOR: ${{ github.event.pull_request.user.login }}
-      HEAD_REF: ${{ github.head_ref }}
-      HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-      REPOSITORY: ${{ github.repository }}
+      families: ${{ steps.check.outputs.families }}
+      build: ${{ steps.check.outputs.build }}
+      coverage: ${{ steps.check.outputs.coverage }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
           persist-credentials: false
 
-      - name: Does the plan read the project graph?
-        id: graph
-        run: .github/scripts/ci-plan.sh --graph-needed
+      - name: Check the family table
+        id: check
+        run: .github/scripts/ci-families-check.sh
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        if: steps.graph.outputs.graph == 'true'
-        with:
-          global-json-file: global.json
-
-      - name: Plan
-        id: plan
-        run: .github/scripts/ci-plan.sh
-
-  # Whitespace, in every .cs file of the repository, tests/Compat/ included, against .editorconfig: with every build,
-  # and alone for tests/Compat/, which no solution holds. --folder loads no project, so it needs no restore and runs
+  # Whitespace, in every .cs file of the repository, tests/Compat/ included, against .editorconfig: tests/Compat/ is in
+  # no solution, so no build checks it. --folder loads no project, so it needs no restore and runs
   # beside the build; the style pass does not run, since EnforceCodeStyleInBuild already fails the build on the style
   # rules (Directory.Build.props). Never `analyzers`: its workspace cannot run the generator before the build, and
   # reports ASP0020 against every minimal API endpoint binding a value object.
   format:
     name: format
-    needs: plan
-    if: needs.plan.outputs.format == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -103,8 +73,7 @@ jobs:
   # the matrix as one job.
   unit:
     name: unit (${{ matrix.family }})
-    needs: plan
-    if: needs.plan.outputs.families != '[]'
+    needs: families
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -112,7 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        family: ${{ fromJSON(needs.plan.outputs.families) }}
+        family: ${{ fromJSON(needs.families.outputs.families) }}
     env:
       FAMILY: ${{ matrix.family }}
     steps:
@@ -200,14 +169,13 @@ jobs:
           path: '**/unit.${{ matrix.family }}.trx'
           if-no-files-found: ignore
 
-  # What the plan selects beyond the unit suite: the projects dotnet-affected marks but the unit suite's, which the unit
-  # jobs build, through a solution filter, then the generator and RDG suites, the compiled model and the pack. Reported
-  # as "build"; the required check "build and test" is the aggregator at the end of this file, which needs this job. The
+  # Everything but the unit suite: every project of the solution but the unit suite's, which the unit jobs build,
+  # through a solution filter, then the generator and RDG suites, the compiled model and the pack. Reported as "build";
+  # the required check "build and test" is the aggregator at the end of this file, which needs this job. The
   # integration suite runs in heavy.yml.
   build:
     name: build
-    needs: plan
-    if: needs.plan.outputs.dotnet == 'true'
+    needs: families
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -222,49 +190,34 @@ jobs:
         with:
           global-json-file: global.json
 
-      # The projects of the plan's `build` output, as a filter of the solution in the runner's temporary folder: every
-      # project but the unit suite's when everything runs.
+      # The projects of the check's `build` output, as a filter of the solution in the runner's temporary folder: every
+      # project but the unit suite's.
       - name: Projects
-        if: needs.plan.outputs.build != '[]'
         env:
-          PROJECTS: ${{ needs.plan.outputs.build }}
+          PROJECTS: ${{ needs.families.outputs.build }}
         run: |
           set -euo pipefail
           jq -n --arg solution "$GITHUB_WORKSPACE/AdCodicem.ValueObjects.slnx" --argjson projects "$PROJECTS" \
             '{solution: {path: $solution, projects: $projects}}' > "$RUNNER_TEMP/build.slnf"
 
       - name: Restore
-        if: needs.plan.outputs.build != '[]'
         run: dotnet restore "$RUNNER_TEMP/build.slnf"
 
       - name: Build
-        if: needs.plan.outputs.build != '[]'
         run: dotnet build "$RUNNER_TEMP/build.slnf" --no-restore -c Release
 
       - name: Generator tests
-        if: needs.plan.outputs.generator == 'full'
         run: >-
           dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests
           --no-build -c Release
           --report-trx --report-trx-filename generator.trx
           --coverage --coverage-output-format cobertura --coverage-output generator.cobertura.xml
 
-      # The tests that read README.md, website/docs/ and skills/value-objects/, which DocumentationTraitTests holds to
-      # the trait. No coverage: a partial report under the generator flag would replace the whole suite's.
-      - name: Generator tests that read the documentation
-        if: needs.plan.outputs.generator == 'documentation'
-        run: >-
-          dotnet test --project tests/AdCodicem.ValueObjects.GeneratorTests
-          --no-build -c Release
-          --report-trx --report-trx-filename generator.trx
-          --filter-trait Reads=Documentation
-
       # Minimal API endpoints whose binding the Request Delegate Generator writes,
       # as it does in every build under PublishAot or PublishTrimmed, over value
       # objects declared in the endpoints' own project: the case where it cannot
       # see what the generator adds, and where VO0033 fails the build.
       - name: Request Delegate Generator tests
-        if: needs.plan.outputs.rdg == 'true'
         run: >-
           dotnet test --project tests/AdCodicem.ValueObjects.RdgTests
           --no-build -c Release
@@ -277,7 +230,6 @@ jobs:
       # no database: heavy.yml takes the same model on a round trip through SQL
       # Server, and compiles it for native AOT.
       - name: Compiled model
-        if: needs.plan.outputs.compiled-model == 'true'
         run: .github/scripts/compiled-model.sh compile
 
       # The generator and RDG reports, for the coverage job, which uploads each under its own flag. The suites cover
@@ -285,7 +237,6 @@ jobs:
       # Delegate Generator writes it. The integration suite's report, against real engines, comes from heavy.yml, for
       # the same commit on main. Not the copies --report-trx attaches under TestResults/<run>/In/.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: needs.plan.outputs.generator == 'full' || needs.plan.outputs.rdg == 'true'
         with:
           # "Re-run all jobs" uploads the same name again in the same run.
           overwrite: true
@@ -299,7 +250,6 @@ jobs:
       # The generator and the code fix, which no unit test loads, in the generator suite's report: after the RDG suite,
       # the compiled model and the upload, so that a failure here hides none of them and the reports still reach Codecov.
       - name: The generator and the code fix are measured
-        if: needs.plan.outputs.generator == 'full'
         run: |
           set -euo pipefail
           mapfile -t reports < <(find . -name generator.cobertura.xml -not -path '*/In/*')
@@ -310,18 +260,15 @@ jobs:
           .github/scripts/coverage-modules.sh "${reports[0]}" --generator
 
       # The packable projects under src/ only, through the solution filter preview.yml and
-      # release.yml pack with, restored here, since the build restores only what the plan
-      # selects. Not --no-build: the generator is built into the main package through
+      # release.yml pack with. Not --no-build: the generator is built into the main package through
       # ResolveReferences during Pack, which trips NETSDK1085.
       - name: Pack
-        if: needs.plan.outputs.pack == 'true'
         run: dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 
       # The solution filter cannot glob: a project added under src/ and left out of it would
       # be missing from every preview and release. Caught here, on the pull request that adds
       # it, rather than when a preview or a release packs.
       - name: Every packable project is packed
-        if: needs.plan.outputs.pack == 'true'
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -339,7 +286,6 @@ jobs:
       # dependency the packed nuspecs declare, and classify every package a
       # project under src/ references.
       - name: Every shipped dependency is listed
-        if: needs.plan.outputs.pack == 'true'
         run: .github/scripts/shipped-dependencies-check.sh artifacts/packages
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -351,24 +297,23 @@ jobs:
           if-no-files-found: ignore
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: needs.plan.outputs.pack == 'true'
         with:
           overwrite: true
           name: packages
           path: artifacts/packages/*.*nupkg
 
-  # The reports, one upload per Codecov flag (codecov.yml): every unit report of the run under each family that ran,
-  # each upload keeping the lines of its family's projects, and the generator and RDG reports under their own. Every
-  # unit report, not the family's alone: the lines of a family's projects that another family's tests reach, and the
-  # copies of src/Shared/ another family's packages compile, stay counted, as they were in the one report of a single
-  # unit-test assembly. The flags of what did not run carry forward from the parent commit. One flag per upload, since
-  # Codecov drops a carried-forward upload whole when an upload sharing any of its flags arrives. No check the gate
-  # needs: a failed upload blocks nothing, and a flag missing a report of the run uploads nothing.
+  # The reports, one upload per Codecov flag (codecov.yml): every unit report of the run under each family, each upload
+  # keeping the lines of its family's projects, and the generator and RDG reports under their own. Every unit report,
+  # not the family's alone: the lines of a family's projects that another family's tests reach, and the copies of
+  # src/Shared/ another family's packages compile, stay counted, as they were in the one report of a single unit-test
+  # assembly. A flag whose upload failed carries forward from the parent commit. One flag per upload, since Codecov
+  # drops a carried-forward upload whole when an upload sharing any of its flags arrives. No check the gate needs: a
+  # failed upload blocks nothing, and a flag missing a report of the run uploads nothing.
   coverage:
     name: coverage (${{ matrix.flag }})
-    needs: [plan, unit, build]
-    # A failed plan writes no output, which fromJSON could not read.
-    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.coverage != '[]' }}
+    needs: [families, unit, build]
+    # A failed check writes no output, which fromJSON could not read.
+    if: ${{ !cancelled() && needs.families.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -376,7 +321,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flag: ${{ fromJSON(needs.plan.outputs.coverage) }}
+        flag: ${{ fromJSON(needs.families.outputs.coverage) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -395,7 +340,7 @@ jobs:
         id: report
         env:
           FLAG: ${{ matrix.flag }}
-          FAMILIES: ${{ needs.plan.outputs.families }}
+          FAMILIES: ${{ needs.families.outputs.families }}
           REPORTS: ${{ runner.temp }}/coverage
         run: |
           set -euo pipefail
@@ -421,12 +366,10 @@ jobs:
           fail_ci_if_error: false
 
   # The version semantic-release's commit analyzer derives from the commits since the last stable tag, as preview.yml
-  # and release.yml compute it, and the tests of the release configuration, when a pull request changes the tooling
-  # behind them: package.json, its lock file, .releaserc.json, next-version.mjs or release-config.test.mjs.
+  # and release.yml compute it, and the tests of the release configuration: package.json, its lock file,
+  # .releaserc.json, next-version.mjs and release-config.test.mjs.
   release-tooling:
     name: release tooling
-    needs: plan
-    if: needs.plan.outputs.release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -456,25 +399,25 @@ jobs:
       - name: Release configuration tests
         run: node --test '.github/scripts/*.test.mjs'
 
-  # The jobs too slow for every pull request (heavy.yml): native AOT, the
-  # integration suite and compat (.NET 11), on the commit this run
-  # tests, when the plan calls them. Never on a push: heavy.yml runs on main's
+  # native AOT and the integration suite (heavy.yml), on the commit this run
+  # tests, compat (.NET 11) skipped: it runs on main, before every preview and
+  # every release (ADR 0016). Only on a pull request: heavy.yml runs on main's
   # pushes by itself, where a newer push cancels an older one's jobs.
   heavy:
     name: heavy
-    needs: plan
-    if: needs.plan.outputs.heavy == 'true'
+    if: github.event_name == 'pull_request'
     permissions:
       contents: read
     uses: ./.github/workflows/heavy.yml
     with:
+      skip-compat: true
       coverage: true
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   # The documentation site, built as deploy-docs.yml builds it and deployed by
-  # nobody, when the plan selects it: a change to the site, or to a project under
-  # src/, whose API DocFX reads. ci.yml deploys nothing since preview.yml took the
+  # nobody, with the API DocFX reads off the projects under src/. ci.yml deploys
+  # nothing since preview.yml took the
   # site over, so a broken link, a sidebar entry that no longer resolves or an API
   # reference DocFX cannot generate would otherwise first fail the run that
   # deploys, on main. Here it fails the pull request that causes it, and main after
@@ -482,8 +425,6 @@ jobs:
   # together. Not a required check.
   site:
     name: documentation site
-    needs: plan
-    if: needs.plan.outputs.site == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -501,47 +442,34 @@ jobs:
       - name: Build the site
         uses: ./.github/actions/build-site
 
-  # The required check "build and test" of the "Default" ruleset on main, by its name (ADR 0013): it reports the jobs it
-  # needs as one, so that the ruleset names a single check of this workflow. It runs whatever happened to them, and
-  # fails unless the plan succeeded and each job of the plan's `expected` list succeeded: a job of that list that
-  # failed, was cancelled or was skipped fails it, where a required check skipped by its own `if` would read as a
-  # success. A job the plan left out may only be skipped, as its own `if` does: failed or cancelled, it fails the gate
-  # too, so that an `if` written wrong cannot pass a pull request. A job that must block a merge goes into `needs`, and
-  # into the plan's `expected` when it runs, never into the ruleset. Renaming the job leaves every pull request waiting
-  # for a check that never reports.
+  # The required check "build and test" of the "Default" ruleset on main, by its name (ADR 0013, 0016): it reports the
+  # jobs it needs as one, so that the ruleset names a single check of this workflow. It runs whatever happened to them,
+  # and fails unless each of them succeeded, heavy aside on a push, which it skips: a job that failed, was cancelled or
+  # was skipped fails it, where a required check skipped by its own `if` would read as a success. A job that must block
+  # a merge goes into `needs`, never into the ruleset. Renaming the job leaves every pull request waiting for a check
+  # that never reports.
   gate:
     name: build and test
     if: always()
-    needs: [plan, format, unit, build, release-tooling, heavy]
+    needs: [families, format, unit, build, release-tooling, heavy]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
     steps:
-      - name: Every job the plan expects succeeded
+      - name: Every job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          EXPECTED: ${{ needs.plan.outputs.expected }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          plan="$(jq -r '.plan.result // "missing"' <<< "$NEEDS")"
-          if [[ "$plan" != success ]]; then
-            echo "::error::The plan did not succeed ($plan)." >&2
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          if [[ "$(jq length <<< "$NEEDS")" -ne 6 ]]; then
+            echo "::error::The gate reads 6 jobs, and needs $(jq length <<< "$NEEDS"): change both together." >&2
             exit 1
           fi
-          # The plan always lists itself: with no job to read, the check below would pass anything.
-          if ! jq -e 'type == "array" and length > 0 and all(.[]; type == "string")' <<< "$EXPECTED" > /dev/null 2>&1; then
-            echo "::error::The plan expects no job, or not as a JSON array of names: '$EXPECTED'." >&2
-            exit 1
-          fi
-          jq -r --argjson expected "$EXPECTED" \
-            'to_entries[] | "\(.key): \(.value.result)\(if (.key | IN($expected[])) then "" else " (not expected)" end)"' <<< "$NEEDS"
-          unknown="$(jq -r --argjson expected "$EXPECTED" '. as $needs | [$expected[] | select($needs[.] == null)] | join(", ")' <<< "$NEEDS")"
-          if [[ -n "$unknown" ]]; then
-            echo "::error::The plan expects a job the gate does not need: $unknown." >&2
-            exit 1
-          fi
-          # An expected job must succeed; any job, expected or not, must not have failed or been cancelled.
-          failed="$(jq -r --argjson expected "$EXPECTED" '[to_entries[] | select((.key | IN($expected[])) and .value.result != "success" or .value.result == "failure" or .value.result == "cancelled") | "\(.key) (\(.value.result))"] | join(", ")' <<< "$NEEDS")"
+          failed="$(jq -r --arg event "$EVENT_NAME" '[to_entries[]
+            | select(.value.result != "success" and (.key != "heavy" or $event != "push" or .value.result != "skipped"))
+            | "\(.key) (\(.value.result))"] | join(", ")' <<< "$NEEDS")"
           if [[ -n "$failed" ]]; then
             echo "::error::Not successful: $failed." >&2
             exit 1

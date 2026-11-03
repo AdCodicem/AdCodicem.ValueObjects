@@ -43,14 +43,10 @@ Testcontainers, so they need a Docker daemon; the Functions host's image exists 
 
 ## Coverage
 
-CI uploads to [Codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects) the coverage of the suites a pull
-request runs: the unit suite's under the flag of each package family that ran, each upload carrying the reports of
-every family that ran, so that a family's packages keep the lines another family's tests reach; the generator and RDG
-suites' when they run in full; and the integration suite's with the heavy jobs, after the merge or on a pull request
-labelled `ci:heavy`. The flags a pull request does not upload carry forward from the commit before it, so the lines
-only the integration suite covers keep their coverage, and those the pull request changes count as missed in the
-patch. A pull request that runs only the tests reading the documentation, or no test, uploads nothing, and Codecov
-does not report on it. Otherwise it reports against two floors set in `codecov.yml`: 95 % of the lines the pull
+CI uploads to [Codecov](https://codecov.io/gh/AdCodicem/AdCodicem.ValueObjects) the coverage of every suite on every
+pull request: the unit suite's under the flag of each package family, each upload carrying the reports of every
+family, so that a family's packages keep the lines another family's tests reach; the generator and RDG suites'; and
+the integration suite's. Codecov reports against two floors set in `codecov.yml`: 95 % of the lines the pull
 request changes, a partial line counting as missed, and the project's coverage down by half a point at most. Only
 `src/` is measured. The floor is not the aim; 100 % of each patch is, under a rule that keeps the number honest
 ([ADR-0006](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0006-coverage-is-a-signal-not-a-goal.md)):
@@ -85,24 +81,19 @@ A pull request lands with *Rebase and merge*, so that each of its commits reache
 at most 100 commits: past that it refuses, and its web UI blames conflicts that do not exist. Keep a pull request to
 100 commits or fewer, and split larger work into pull requests stacked on one another.
 
-Three checks must pass before a pull request merges: **build and test**, which fails unless every job the run's plan
-selects succeeds; **workflows**, which runs [actionlint](https://github.com/rhysd/actionlint) over every workflow,
+Three checks must pass before a pull request merges: **build and test**, which fails unless every job of the run
+succeeds; **workflows**, which runs [actionlint](https://github.com/rhysd/actionlint) over every workflow,
 including those that never run on a pull request; and **conventional commits**, which checks every commit message of
-the pull request. The plan reads the files a pull request changes: a change to a package runs the unit tests of its
-family and of every family whose projects reference it, a change to a file of the unit suite the families whose
-projects hold or link it, a change to the core packages every family and the generator suite, and the build, the RDG
-suite, the compiled model and the pack run when their inputs change; a change to the documentation runs the tests
-that read it, and a change to `ci.yml`, a global build file or a file no rule names, everything. CI also builds this
-site when a change reaches it, in a job that does not block the merge.
-
-The heavy jobs run after the merge, before every preview and stable release, and on a pull request labelled `ci:heavy`,
-where **build and test** waits for them: **native AOT**, which publishes an application using every AOT-compatible
-package but HotChocolate's and protobuf-net's with native AOT, and protobuf-net's
+the pull request. Every pull request runs all of CI, whatever it changes, in about six minutes: the build, every test
+suite, the compiled model, the pack and its checks, and two heavier jobs. **native AOT** publishes an application
+using every AOT-compatible package but HotChocolate's and protobuf-net's with native AOT, and protobuf-net's
 compile-time model in an application of its own, and fails on a trimming or AOT warning, the known ones of
 protobuf-net's generated code and of Microsoft.AspNetCore.Components aside, or on any difference between the native
-binary and the JIT; the integration suite; and the
-packages in .NET 11 applications. Ask for the label when your change touches native AOT, a store, the sample API or the
-next .NET, then push: the label is read when a run starts.
+binary and the JIT; **integration tests** runs the integration suite against real servers. CI also builds this site,
+in a job that does not block the merge.
+
+The packages in .NET 11 applications run after the merge and before every preview and stable release, never on a pull
+request.
 
 Nothing you merge publishes a package by itself. A preview of every package goes to nuget.org each week in which
 something a package ships has changed, and a stable release is cut by hand; while the version is 0.x, a breaking

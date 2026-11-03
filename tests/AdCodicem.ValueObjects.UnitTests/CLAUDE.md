@@ -53,13 +53,10 @@ conventions.
   `Web/ProbeController.cs`; the Data project's `Persistence/MongoDbShapedCode.cs`). Grep `Link=` before editing one.
 - A file of tests is never linked, or its tests would run in two projects, but `RuntimeClosingTests.cs` and
   `DescriptorTests.Registered.cs`, which each project runs over its own family (its packages' IL, its registry's value
-  objects). The plan fails a `Compile` item (in `tests/UnitTests.props` or a project's csproj, whatever its `Link`)
-  that matches no file, or that is taken from another project's folder and holds `[Fact]`, `[Theory]` or a
-  `ValueObjectContract<…>` class.
-- A change to a project's files runs its family; one to a file several projects link or import (`tests/UnitTests.props`,
-  `Domain/`, a linked helper) runs each of their families, dotnet-affected following linked items and imports. Core's
-  family also runs the generator suite in full, aspnet's the RDG suite, efcore's the compiled model
-  (`.github/scripts/ci-plan.sh`'s header).
+  objects). `.github/scripts/ci-families-check.sh` fails a `Compile` item (in `tests/UnitTests.props` or a project's
+  csproj, whatever its `Link`) that matches no file, or that is taken from another project's folder and holds
+  `[Fact]`, `[Theory]` or a `ValueObjectContract<…>` class.
+- Every run of CI runs every family's project, each in a job of its own (ADR 0016).
 - `EmitCompilerGeneratedFiles` is on: generated sources land under `artifacts/obj/<project>/generated/` — read them when
   diagnosing emission.
 - Fixtures a test assembly cannot hold, because the generator runs on it and its module initializer has run before any
@@ -83,16 +80,15 @@ conventions.
 
 ## Adding a folder or a project
 
-- A new folder goes into its family's project; nothing maps it, since a change to the project's files selects its
-  family.
+- A new folder goes into its family's project; nothing maps it.
 - A new family's project is `tests/<name>/<name>.csproj`, `<name>` being `AdCodicem.ValueObjects.UnitTests.<Name>`; it
-  imports `..\UnitTests.props` and references its family's packages. Then, or the plan fails:
+  imports `..\UnitTests.props` and references its family's packages. Then, or `ci-families-check.sh` fails:
   - name it in the family's `tests` in `.github/ci-families.json`: every `tests/AdCodicem.ValueObjects.UnitTests*/`
     project must be one family's, and each family's `tests` such a project;
-  - add it to `AdCodicem.ValueObjects.slnx`, where dotnet-affected looks for the projects a change marks;
+  - add it to `AdCodicem.ValueObjects.slnx`;
   - replace `codecov.yml`'s flags between its `ci-families` markers with what
-    `.github/scripts/ci-plan.sh --codecov-flags` prints.
-- Give a new project an `InternalsVisibleTo` entry in `src/Directory.Build.props`, beside the ten: the plan does not
+    `.github/scripts/ci-families-check.sh --codecov-flags` prints.
+- Give a new project an `InternalsVisibleTo` entry in `src/Directory.Build.props`, beside the ten: the check does not
   check it, and it is a package input (`preview-gate.sh`), so the next preview publishes.
 - A family's report must cover a line of each of its packages with code of its own but the generator and the code fix
   (`.github/scripts/coverage-modules.sh`): `RuntimeClosingTests` loads each, which reports it but covers nothing.

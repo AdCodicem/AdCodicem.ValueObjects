@@ -21,8 +21,8 @@
 # form of Forms.cs renders, the protobuf-net application's those of protobuf-net's annotations, which reach the
 # nested converters of every value object at each call into the model its generator writes, and protobuf-net.Core's own.
 #
-# heavy.yml runs both applications in its native AOT job: after every merge, before every preview and stable release,
-# and on a pull request labelled ci:heavy (ADR 0013).
+# heavy.yml runs both applications in its native AOT job: on every pull request, after every merge, and before every
+# preview and stable release (ADR 0016).
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."

@@ -65,7 +65,7 @@ dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/pac
 
 actionlint                                   # as lint.yml's `workflows` job: 1.7.12, shellcheck on PATH
 node .github/scripts/ecmascript-patterns.mjs # Blazor's pattern table in Node's v-flag engine (`unit (text)` job)
-EVENT_NAME=push .github/scripts/ci-plan.sh   # checks .github/ci-families.json against the repository, then plans
+.github/scripts/ci-families-check.sh         # checks .github/ci-families.json against the repository (needs jq)
 
 # Benchmarks: a quiet machine; absolute timings are not comparable across runs
 cd benchmarks/AdCodicem.ValueObjects.Benchmarks && dotnet run -c Release -- --filter '*WrapperCost*'
@@ -90,9 +90,9 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   never delete it, or `build(pack)!` and `docs(readme)!` fall back to a patch.
 - The thirty-two packages share one version, never aligned with .NET's or EF Core's; a framework's next major is
   supported in the same packages (ADR 0010, restored by ADR 0014, which withdraws ADR 0012's two release trains).
-  ADR 0013 targets the CI: its heavy jobs run after the merge and before a
-  release (`heavy.yml`), and a pull request runs the families of `.github/ci-families.json` and the lanes the files it
-  changes select (`.github/scripts/ci-plan.sh`; phase B, one unit-test project per family, each in a job of its own).
+  Every pull request runs every job of `ci.yml` and `heavy.yml`'s native AOT and integration jobs (ADR 0016, which
+  withdraws ADR 0013's targeting); the unit suite is a test project per family of `.github/ci-families.json`, each in
+  a job of its own (ADR 0013, phase B).
 
 ## Architecture
 
@@ -256,7 +256,7 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   the integration suite and `tests/NativeAot`, three files of `Domain/HandWritten/` (`HandWrittenCode.cs`,
   `HandWrittenLink.cs`, `UnregisteredCode.cs`) by `tests/NativeAot`, and `HandWrittenCode.cs` by the Functions fixture
   of `tests/Fixtures` too. Grep `Link=` before editing one. Link a file of helpers only: a
-  linked test runs in both projects, and the plan fails any but `RuntimeClosingTests.cs` and
+  linked test runs in both projects, and `ci-families-check.sh` fails any but `RuntimeClosingTests.cs` and
   `DescriptorTests.Registered.cs`, which each project runs over its own family's packages and its own registry.
 - **Native AOT compatibility is per package** (`IsAotCompatible`, true by default in `Directory.Build.props`).
   `tests/NativeAot` references every package that claims it, but HotChocolate (its framework warns on its own publish
@@ -265,11 +265,12 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   so a project left out never ships; `ci.yml` fails when a packable project is missing. It sits under `src/` because
   `dotnet format` and `dotnet sln` refuse two solution files in one folder.
 - **`.github/ci-families.json` puts every project under `src/` and every project of the unit suite in one family**
-  (`projects`, `tests`), or the plan fails every run. A new project under `src/` joins a family, whose project
-  references it, and `AdCodicem.ValueObjects.slnx`, which the plan holds every tracked project but `tests/Compat/`'s to;
+  (`projects`, `tests`), or `.github/scripts/ci-families-check.sh` fails every run. A new project under `src/` joins a
+  family, whose project references it, and `AdCodicem.ValueObjects.slnx`, which the check holds every tracked project
+  but `tests/Compat/`'s to;
   a new family brings a project of its own, which imports `tests/UnitTests.props` and joins the solution and the
   `InternalsVisibleTo` list of `src/Directory.Build.props`. Then replace `codecov.yml`'s flags between its `ci-families`
-  markers with what `.github/scripts/ci-plan.sh --codecov-flags` prints (`.github/CLAUDE.md`).
+  markers with what `.github/scripts/ci-families-check.sh --codecov-flags` prints (`.github/CLAUDE.md`).
 - **Anything that changes a package's bytes or metadata is a `preview-gate.sh` input**, or it never reaches a preview;
   **a dependency added to a shipped package goes into `.github/shipped-dependencies`** in the same pull request, or CI
   fails. Both: `.github/CLAUDE.md`.
@@ -278,11 +279,10 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   projects take it too.
 - **Required checks are job names**: `build and test` (`ci.yml`), `workflows` and `conventional commits` (`lint.yml`).
   Renaming one leaves every pull request waiting for a check that never reports. `build and test` is `ci.yml`'s
-  aggregator (`gate`) over the jobs its plan expects, among `plan`, `format`, `unit` (a job per family, reported as
+  aggregator (`gate`) over every job it runs: `families`, `format`, `unit` (a job per family, reported as
   `unit (<family>)`), `build`, `release-tooling` and `heavy` (`.github/CLAUDE.md`). The heavy jobs never become one:
-  `native AOT`, `integration tests` and `compat (.NET 11)` run in `heavy.yml`, after every push
-  to `main`, before every preview and stable release, and on a pull request labelled `ci:heavy` or a Dependabot NuGet
-  update (ADR 0013). Label a pull request that touches native AOT, a store or the next .NET, then push.
+  `native AOT`, `integration tests` and `compat (.NET 11)` run in `heavy.yml`, on every pull request but compat, after
+  every push to `main`, and before every preview and stable release (ADR 0016).
 - **No NuGet lock files.** `Microsoft.SourceLink.GitHub` is referenced only under `GITHUB_ACTIONS == 'true'`, so the
   runner's package graph differs from a laptop's and `--locked-mode` fails with NU1004 (ADR 0004).
 - **A pull request of more than 100 commits cannot be rebase-merged**, and `main` takes a linear history landed with
@@ -302,13 +302,10 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
 - **GeneratorTests**: the generator, every diagnostic, the analyzers and code fixes, incremental caching, and every
   published C# snippet.
 - **IntegrationTests**: PostgreSQL, SQL Server, MongoDB and the Azure Functions host through Testcontainers, and the
-  sample API of `samples/` end to end. Needs Docker. CI runs it in `heavy.yml`, never on a pull request but one
-  labelled `ci:heavy` or a Dependabot NuGet update: run it locally when a change reaches a store.
+  sample API of `samples/` end to end. Needs Docker. CI runs it in `heavy.yml`, on every pull request too.
 - **RdgTests**: minimal API endpoints whose binding the Request Delegate Generator writes.
-- A pull request runs the unit projects of the families its files select (`.github/scripts/ci-plan.sh`): the family of
-  each package `dotnet-affected` marks, every family for one of core, and each family whose project it marks, through
-  what that project references, links or imports. Each runs in a job of its own, `unit (<family>)`, which restores,
-  builds and tests that project alone. A test of the generator suite reading the repository carries
+- Every run of CI runs every unit project, each in a job of its own, `unit (<family>)`, which restores, builds and
+  tests that project alone. A test of the generator suite reading the repository carries
   `[Trait("Reads", "Documentation")]`, which runs it on a pull request changing only the documentation
   (`DocumentationTraitTests` holds it).
 - `tests/NativeAot` holds applications CI publishes natively and compares with the JIT (`heavy.yml`'s `native AOT` job);
@@ -332,14 +329,12 @@ The aim is 100 % of each pull request's patch, as Codecov counts it (ADR 0006 ho
   adds and no input can take partial (the default arm of an exhaustive switch, a `?.` on a value never `null`).
 - Remove code only when no input can reach it, never because no test does. A defensive branch stays. A public member
   nothing calls is a question for the maintainer.
-- Codecov takes one flag per family, plus `generator`, `rdg` and `integration`, each carried forward: a pull request
-  uploads the flags of what it ran, each family's with every unit report of the run, so that the lines of its packages
-  another family's tests reach still count, and the others keep the coverage of its parent commit, so the patch is
-  measured by the families that ran (`codecov.yml`).
+- Codecov takes one flag per family, plus `generator`, `rdg` and `integration`, each carried forward: every run
+  uploads every flag, each family's with every unit report of the run, so that the lines of its packages another
+  family's tests reach still count; a flag whose upload failed keeps the coverage of the parent commit (`codecov.yml`).
 - Blind spots: a package no test loads is missing from the report rather than at 0 %, which
   `.github/scripts/coverage-modules.sh` fails, as it fails a package with no line covered, in each `unit (<family>)`
   job for its family's packages in its project's report (in `build`, for the generator and the code fix in the
   generator suite's); the code the generator emits lives in the unit test assemblies, which are not measured, and is
-  audited by hand. The integration suite reports from `heavy.yml`, and its flag carries forward: on a pull request that
-  is not labelled `ci:heavy`, the lines only it covers (the SQL Server and PostgreSQL branches of the EF Core CHECK
-  constraints) keep the parent commit's coverage, and those the pull request changes count as missed in `codecov/patch`.
+  audited by hand. The integration suite reports from `heavy.yml`, on every pull request too: the lines only it covers
+  are the SQL Server and PostgreSQL branches of the EF Core CHECK constraints.

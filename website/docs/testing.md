@@ -164,14 +164,14 @@ forms and `[NotDefault]`, through `Validator`, the validator `[OptionsValidator]
 `HtmlRenderer`, each text of its underlying type typed into its input, alone and nullable — once under the JIT and
 once as a native AOT binary. CI's `native AOT` job fails on any trimming or AOT warning in the publish, but the two
 Microsoft.AspNetCore.Components reports for itself once a component renders, which the project lists in its
-`aot-warnings.allowed`, and on any difference between the two outputs. It runs after every merge, on a pull request
-labelled `ci:heavy`, and before every preview and stable release, which publish nothing unless it passes, so the claim
+`aot-warnings.allowed`, and on any difference between the two outputs. It runs on every pull request, after every
+merge, and before every preview and stable release, which publish nothing unless it passes, so the claim
 of AOT compatibility is run, not only analysed.
 
 The second holds an Entity Framework Core context mapping every value object the conventions map, required and
 optional, a generic one, an identifier as the key and collections of them, `Guid` and `int` keys it generates and a
 `Guid` key it refuses to add unset, beside a strict context, both filtering on `.Value` and adding the CHECK
-constraints from the rules. `dotnet ef dbcontext optimize` writes its compiled model on every pull request reaching it, which
+constraints from the rules. `dotnet ef dbcontext optimize` writes its compiled model on every pull request, which
 the project then builds on; with the heavy jobs, the integration job takes it on a round trip through SQL Server, whose
 tables `EnsureCreated` creates with the constraints, a row SQL writes breaking a rule refused with the rule's code, and
 the native AOT job writes the model for native AOT, with its queries precompiled, and publishes it.
@@ -220,10 +220,11 @@ the Swashbuckle package, Swashbuckle 10 failing on the `Microsoft.OpenApi` 3 the
 `Microsoft.AspNetCore.OpenApi` 11 brings: there, Swashbuckle documents a minimal API over `Microsoft.OpenApi` 2, as in
 an application that takes Swashbuckle alone.
 
-CI's `compat (.NET 11)` job runs it with the heavy jobs: after every merge and on a pull request labelled `ci:heavy`,
-against the packages that commit packs, and before every preview and stable release, against the very packages they
-publish. It gates every stable release, previews once .NET 11 ships, and never a pull request
-([ADR-0013](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)).
+CI's `compat (.NET 11)` job runs it after every merge, against the packages that commit packs, and before every preview
+and stable release, against the very packages they publish; never on a pull request. It gates every stable release,
+and previews once .NET 11 ships
+([ADR-0013](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md),
+[ADR-0016](https://github.com/AdCodicem/AdCodicem.ValueObjects/blob/main/docs/adr/0016-run-every-job-on-every-pull-request.md)).
 The "On the next .NET" column of [Supported frameworks](./packages.md#supported-frameworks) states what it covers.
 
 ## Two ways to reach a value object — and why bugs hide in one of them
@@ -241,12 +242,11 @@ test for a new rule: prove it holds on both paths, not just the one that's conve
 
 ## Coverage
 
-A pull request reports the coverage of the suites it runs through Codecov: 95 % of the lines it changes, and the
-project's coverage down by half a point at most. It runs the unit project of each package family it changes, each in
-a job of its own, and uploads the reports of all of them under each of those families' flags, a flag keeping the lines
-of its own packages, those another family's tests reach included; the families it does not run keep their coverage
-from the commit before, and one that runs only the tests reading the documentation, or no test, uploads nothing. The
-integration suite reports with the heavy jobs, after the merge or on a pull request labelled `ci:heavy`. That is a
+A pull request reports the coverage of every suite through Codecov: 95 % of the lines it changes, and the project's
+coverage down by half a point at most. It runs the unit project of every package family, each in a job of its own,
+and uploads the reports of all of them under each family's flag, a flag keeping the lines of its own packages, those
+another family's tests reach included. The integration suite reports from its own job, on every pull request and
+after the merge. That is a
 floor; the aim is everything that can be covered, under a rule that keeps the number honest — a defensive branch no
 test reaches stays, a private member is covered through its callers or not at all, and code is removed only when no
 input can reach it. The rule, and the two things the figure cannot show (a package no test loads, and the code the

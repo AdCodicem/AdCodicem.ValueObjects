@@ -28,7 +28,7 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
   which Dependabot moves without this file: bump them here in the same change, or the restore fails with NU1605.
 - `Swashbuckle/` is a second project, excluded from the main one's sources (`DefaultItemExcludes`): Swashbuckle 10 fails
   on the `Microsoft.OpenApi` 3 that `Microsoft.AspNetCore.OpenApi` 11 brings. `compat (.NET 11)` runs both, against the
-  packages `heavy.yml`'s caller packed or, on `main` and a pull request, the ones the job packs itself; documents are
+  packages `heavy.yml`'s caller packed or, on `main` and on dispatch, the ones the job packs itself; documents are
   awaited with a timeout.
 - This is the only place EF Core 11, JSON Patch 11, MVC 11 and Components 11 run, so it is where a member removed or an
   `Internal` type changed upstream shows. It pins the .NET 11 side of the DataAnnotations hosts (`{Attribute}_Error`
@@ -44,5 +44,6 @@ dotnet test --project Swashbuckle/AdCodicem.ValueObjects.CompatTests.Swashbuckle
 - The namespace rule of the root `CLAUDE.md` holds here too: `AdCodicem.ValueObjects.CompatTests` is an
   `AdCodicem.ValueObjects.*` namespace.
 - `compat (.NET 11)` is a job of `heavy.yml`, not a required check, and never becomes one (ADR 0013). It gates every
-  stable release (`compat-blocks: true`), and every preview once .NET 11 ships; until then, and on `main` and a pull
-  request labelled `ci:heavy`, it only informs. No coverage measures it.
+  stable release (`compat-blocks: true`), and every preview once .NET 11 ships; until then, and on `main`, it only
+  informs. It never runs on a pull request (`skip-compat`, ADR 0016): dispatch `heavy.yml` on the branch to run it
+  before the merge. No coverage measures it.

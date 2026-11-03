@@ -1,13 +1,13 @@
 {
   "$comment": [
-    "The CI families of docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md, read by",
-    ".github/scripts/ci-plan.sh, which fails the plan when a project under src/ belongs to no family here, or to two, or",
-    "a project of the unit suite to none. coverage-modules.sh reads the projects, RuntimeClosingTests the projects of its",
-    "own family, which tests/UnitTests.props embeds; codecov.yml's flags are generated from them (ci-plan.sh",
-    "--codecov-flags).",
-    "families.<name>.tests: its project of the unit suite, tests/<tests>/<tests>.csproj, which a change to any of its",
-    "inputs selects, through dotnet-affected: its own files, the sources it links, what it references and imports. One",
-    "per family, and every project of the suite is one family's.",
+    "The families of the unit suite (docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md,",
+    "docs/adr/0016-run-every-job-on-every-pull-request.md), read by .github/scripts/ci-families-check.sh, which fails",
+    "ci.yml when a project under src/ belongs to no family here, or to two, or a project of the unit suite to none, and",
+    "hands ci.yml's unit matrix the families. coverage-modules.sh reads the projects, RuntimeClosingTests the projects of",
+    "its own family, which tests/UnitTests.props embeds; codecov.yml's flags are generated from them",
+    "(ci-families-check.sh --codecov-flags).",
+    "families.<name>.tests: its project of the unit suite, tests/<tests>/<tests>.csproj, which a job of its own builds",
+    "and tests. One per family, and every project of the suite is one family's.",
     "families.<name>.projects: the projects under src/, by folder name. Each is in exactly one family, whose project",
     "of the unit suite tests it, and whose RuntimeClosingTests reads the IL of each but those no application loads."
   ],
