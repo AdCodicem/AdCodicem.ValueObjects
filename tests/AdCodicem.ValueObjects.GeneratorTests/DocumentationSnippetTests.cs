@@ -40,7 +40,6 @@ namespace AdCodicem.ValueObjects.GeneratorTests;
 /// does in a project logging through Microsoft.Extensions.Telemetry, and is held to <c>VO0045</c> and <c>VO0046</c>.
 /// </para>
 /// </remarks>
-[Trait("Reads", "Documentation")]
 public sealed partial class DocumentationSnippetTests
 {
     /// <summary>

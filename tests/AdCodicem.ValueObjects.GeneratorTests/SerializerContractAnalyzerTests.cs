@@ -720,7 +720,6 @@ public sealed class SerializerContractAnalyzerTests
     }
 
     [Fact]
-    [Trait("Reads", "Documentation")]
     public void The_help_links_land_on_the_section_of_the_diagnostics_reference()
     {
         var analyzer = new SerializerContractAnalyzer();

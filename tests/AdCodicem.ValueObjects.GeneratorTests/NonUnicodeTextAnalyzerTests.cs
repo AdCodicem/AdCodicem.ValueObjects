@@ -499,7 +499,6 @@ public sealed class NonUnicodeTextAnalyzerTests
 
     /// <summary>The help link lands on the section of the Entity Framework Core page that explains the warning.</summary>
     [Fact]
-    [Trait("Reads", "Documentation")]
     public void The_help_link_lands_on_the_section_that_explains_it()
     {
         var link = new Uri(NonUnicodeTextAnalyzer.NonUnicodeTextAdmitsOtherCharacters.HelpLinkUri);

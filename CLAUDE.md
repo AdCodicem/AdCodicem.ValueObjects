@@ -305,9 +305,7 @@ Native AOT and the compiled model: `tests/NativeAot/CLAUDE.md`. The .NET 11 comp
   sample API of `samples/` end to end. Needs Docker. CI runs it in `heavy.yml`, on every pull request too.
 - **RdgTests**: minimal API endpoints whose binding the Request Delegate Generator writes.
 - Every run of CI runs every unit project, each in a job of its own, `unit (<family>)`, which restores, builds and
-  tests that project alone. A test of the generator suite reading the repository carries
-  `[Trait("Reads", "Documentation")]`, which runs it on a pull request changing only the documentation
-  (`DocumentationTraitTests` holds it).
+  tests that project alone.
 - `tests/NativeAot` holds applications CI publishes natively and compares with the JIT (`heavy.yml`'s `native AOT` job);
   `tests/Compat` installs the packed packages on the .NET 11 release candidate, outside the solution.
 - Stack: xUnit v3 (`TestContext.Current.CancellationToken`), AwesomeAssertions, NSubstitute, Testcontainers. Versions
