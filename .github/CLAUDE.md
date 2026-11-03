@@ -114,59 +114,49 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   `nuget-stable`): change the nuget.org policy before renaming either file or moving its publish job.
 - Required checks are job names: `build and test` (`ci.yml`), `workflows` and `conventional commits` (`lint.yml`). Never
   rename them without updating the `Default` ruleset. No job of `heavy.yml` is one, nor ever becomes one (ADR 0013).
-- `build and test` is `ci.yml`'s `gate` job, an aggregator (ADR 0013): `if: always()` and `needs` on `plan`, `format`,
-  `unit` (a matrix over the plan's `families`, `unit (<family>)` restoring, building and testing that family's project
-  of the unit suite alone; `needs` reads the matrix as one job), `build` (through a solution filter in the runner's
-  temporary folder, the projects `dotnet-affected` marks, or every project of the solution when everything runs, but
-  the unit suite's; then what the plan selects of the generator and RDG suites, the compiled model, the pack and their
-  checks), `release-tooling` and `heavy`, failing unless the plan succeeded and each job of its `expected` output
-  succeeded; `expected` always lists `plan`, and `unit` whenever a family runs, and a job left out of it may be
-  skipped, never failed or cancelled. Never give it an `if` that can skip it, or let it pass an expected job that
-  failed, was cancelled or was skipped: a required check that is skipped reads as a success.
-- `scripts/ci-plan.sh` plans each run from `ci-families.json` (its header holds the rules): a push to `main` runs
-  everything; a pull request runs the families and lanes the files of its merge commit select, those of the projects
-  (`src/`, the unit suite's projects and `tests/UnitTests.props`, `tests/Fixtures/`, the .NET code of the other lanes)
-  through `dotnet-affected` (`.config/dotnet-tools.json`, installed alone into a folder of its own, since
-  `dotnet tool restore` would fetch DocFX's 100 MB), which `--graph-needed` tells the workflow to install the SDK for.
-  The projects it marks select the families: a package its own, one of core every family, a unit project its family.
-  A file no rule names runs everything, so a new kind of file is safe before it is classified; give it a rule when it
-  should not. Any change to `Directory.Packages.props` runs everything: `dotnet-affected` misses a transitive pin no
-  project references, and Dependabot's NuGet pull requests wait for `heavy.yml` anyway. `preview.yml` and
-  `release.yml` never call `ci.yml`: they run every suite whole, the integration suite through `heavy.yml` and the
-  others in their `suites` job, the unit suite as each family's project from the table's `tests` in turn, its step
-  failing once all have run when any failed.
-- Every run first checks `ci-families.json` against the repository, without a build (`check_table`): every project
-  under `src/` in exactly one family; every family's `tests` a project of the unit suite, and every
-  `tests/AdCodicem.ValueObjects.UnitTests*/` project one family's; every tracked project but `tests/Compat/`'s in
-  `AdCodicem.ValueObjects.slnx`, where `dotnet-affected` looks; every `Compile` item of `tests/UnitTests.props` or of a
-  unit project's `.csproj`, whatever its `Link`, matching a file; no source taken from another project's folder holding
-  a `[Fact]`, a `[Theory]` or a `ValueObjectContract<…>` class, since its tests would run in two projects, but
-  `RuntimeClosingTests.cs` and `DescriptorTests.Registered.cs`, which every project runs over its own family; and
-  `codecov.yml`'s flags as `ci-plan.sh --codecov-flags` prints them.
+- Every run of `ci.yml`, a pull request's as a push's, runs every job (ADR 0016): no plan, no path rule, no label. A
+  job that only some changes need still runs on all of them; never add a path filter or an `if` on the files changed.
+- `build and test` is `ci.yml`'s `gate` job, an aggregator (ADR 0013, 0016): `if: always()` and `needs` on
+  `families`, `format`, `unit` (a matrix over the families, `unit (<family>)` restoring, building and testing that
+  family's project of the unit suite alone; `needs` reads the matrix as one job), `build` (every project of the
+  solution but the unit suite's, through a solution filter in the runner's temporary folder, then the generator and
+  RDG suites, the compiled model, the pack and their checks), `release-tooling` and `heavy`, failing unless each
+  succeeded, `heavy` aside on a push, which skips it. It counts its `needs` and fails when they are not six: change the
+  count with the list. Never give it an `if` that can skip it, or let it pass a job that failed, was cancelled or was
+  skipped: a required check that is skipped reads as a success.
+- `preview.yml` and `release.yml` never call `ci.yml`: they run every suite whole, the integration suite through
+  `heavy.yml` and the others in their `suites` job, the unit suite as each family's project from the table's `tests` in
+  turn, its step failing once all have run when any failed.
+- Every run first checks `ci-families.json` against the repository, without a build
+  (`scripts/ci-families-check.sh`, the `families` job): every project under `src/` in exactly one family; every
+  family's `tests` a project of the unit suite, and every `tests/AdCodicem.ValueObjects.UnitTests*/` project one
+  family's; every tracked project but `tests/Compat/`'s in `AdCodicem.ValueObjects.slnx`, which `build` builds; every
+  `Compile` item of `tests/UnitTests.props` or of a unit project's `.csproj`, whatever its `Link`, matching a file; no
+  source taken from another project's folder holding a `[Fact]`, a `[Theory]` or a `ValueObjectContract<…>` class,
+  since its tests would run in two projects, but `RuntimeClosingTests.cs` and `DescriptorTests.Registered.cs`, which
+  every project runs over its own family; and `codecov.yml`'s flags as `ci-families-check.sh --codecov-flags` prints
+  them. It then hands the matrices the families, the projects `build` builds and the Codecov flags.
 - The `coverage` matrix job, which the gate does not need, downloads the `coverage-*` artifacts
   (`coverage-unit-<family>`, `coverage-build`) and uploads one flag each: every unit report of the run under each
-  family that ran, so that the lines of a family's packages another family's tests reach still count, and the
+  family, so that the lines of a family's packages another family's tests reach still count, and the
   generator and RDG reports under their own. One flag per upload: Codecov drops a carried-forward upload whole when
   an upload sharing any of its flags arrives, so an upload carrying several flags would lose the other families' lines
   on the next commit.
 - `scripts/coverage-modules.sh <report> <family>` fails each `unit (<family>)` job whose report misses a package of its
   family, or covers no line of one, the generator and the code fix aside: `build` holds those two to the generator
   suite's report with `--generator`.
-- A job that must block a merge goes into the `gate` job's `needs`, and into `scripts/ci-plan.sh`'s `expected` whenever
-  it runs, never into the `Default` ruleset: a check per job would touch the ruleset at every rename (ADR 0013,
-  Rejected).
+- A job that must block a merge goes into the `gate` job's `needs`, never into the `Default` ruleset: a check per job
+  would touch the ruleset at every rename (ADR 0013, Rejected).
 - `heavy.yml` holds `native AOT`, `integration tests` (with `compiled-model.sh jit`, the SQL
   Server round trip) and `compat (.NET 11)`. It runs by itself on every push to `main` and on dispatch, and is called
-  by `ci.yml` when `ci-plan.sh` says so (a pull request labelled `ci:heavy`, or one Dependabot opens on a
-  `dependabot/nuget/` branch, every heavy job for now), and by `preview.yml` and `release.yml` before their publish
-  job. `ci.yml` never calls it on a push: heavy.yml's own push run is the one main gets.
+  by `ci.yml` on every pull request with `skip-compat: true`, and by `preview.yml` and `release.yml` before their
+  publish job. `ci.yml` never calls it on a push: heavy.yml's own push run is the one main gets.
+- `skip-compat` skips every step of compat, never the job, which stays green (see below). It is negative because a
+  push and a dispatch leave `inputs` empty, and an empty input compares equal to `false` in an expression: an input
+  `compat` defaulting to true would read false on main and skip compat there.
 - `heavy.yml`'s jobs set their concurrency each, `heavy-<github.ref on a push, the run's id otherwise>-<job>`, so that
   a push to `main` cancels only an older push's heavy jobs: in a called workflow `github.workflow` is the caller's name,
   and a workflow-level group could match the caller's.
-- `ci-plan.sh` reads the labels from the event, as the run starts: a `ci:heavy` label added later is seen by the next
-  push, never by **Re-run jobs**. It only raises a notice when a pull request changes what only `heavy.yml` runs
-  (`tests/NativeAot/`, `tests/Compat/`, the integration suite and its Functions fixture, `samples/`, `native-aot.sh`,
-  `compiled-model.sh`, `heavy.yml`, Markdown aside).
 - compat only informs unless the caller passes `compat-blocks: true`: `release.yml` does, `preview.yml` once .NET 11
   ships (`docs/maintaining.md`). Informing, the install of the island's SDK and its test steps take
   `continue-on-error`, each test step has a time limit below the job's, and a warning says it failed, so the job stays
@@ -188,6 +178,6 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   jobs it needs end.
 - `scripts/ecmascript-patterns.mjs`, run by `ci.yml`'s `unit (text)` job, holds the Blazor package's pattern table
   (`Forms/EcmaScriptPatterns.json` of `tests/AdCodicem.ValueObjects.UnitTests.Text`) to Node's v-flag engine, as
-  `EcmaScriptPatternTests` holds it to .NET: change both together. A change to the script runs the `text` family.
+  `EcmaScriptPatternTests` holds it to .NET: change both together.
 - `deploy-docs.yml` is `workflow_call` only, called by `preview.yml` and `release.yml`: redeploy the site by dispatching
   `preview.yml`.

@@ -17,4 +17,3 @@ OpenApi).
 - From core's folder it links `DataAnnotations/Annotated.cs` and the French messages of `Web/` (`ValidationMessages`,
   `SparseMessages`, each with its `.fr.resx`), at the same paths.
 - `Fixtures.WithoutGenerator` supplies hand-written value objects annotated where the generator does not run.
-- A change to this project runs the RDG suite too (`.github/scripts/ci-plan.sh`).

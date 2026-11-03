@@ -21,5 +21,4 @@ suite's conventions are in `tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`, e
 - This project resolves Npgsql 10.0.3, through Npgsql.EntityFrameworkCore.PostgreSQL.
 - It links the Data project's `Persistence/MongoDbShapedCode.cs` and core's `Persistence/NonUnicodeValueObjects.cs`
   (`RegisteredAsciiDeclaration`, which `EntityFrameworkCoreUnicodeTests` uses), at the same paths.
-- The GraphQL project references the Entity Framework Core package too, so a change to that package runs the graphql
-  family as well; a change to this project runs the compiled model (`.github/scripts/ci-plan.sh`).
+- The GraphQL project references the Entity Framework Core package too, so its tests exercise that package as well.

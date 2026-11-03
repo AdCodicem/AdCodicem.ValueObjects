@@ -15,13 +15,6 @@
         "dotnet-ef"
       ],
       "rollForward": false
-    },
-    "dotnet-affected": {
-      "version": "7.0.1",
-      "commands": [
-        "dotnet-affected"
-      ],
-      "rollForward": false
     }
   }
 }

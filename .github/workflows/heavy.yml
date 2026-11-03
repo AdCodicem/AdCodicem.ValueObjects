@@ -1,12 +1,12 @@
 name: heavy
 
-# The jobs too slow, or too far from what a pull request breaks, to run on every one of them
-# (docs/adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md): the native AOT applications,
-# the integration suite against real servers, and the packages on the next .NET major. It runs:
-#   - on every push to main, a newer push cancelling the jobs of an older one, so that a regression shows within about
-#     twenty minutes of its merge;
+# The jobs that need a native publish, real servers or the next .NET major
+# (docs/adr/0016-run-every-job-on-every-pull-request.md): the native AOT applications, the integration suite against
+# real servers, and the packages on the next .NET major. It runs:
+#   - on every push to main, a newer push cancelling the jobs of an older one, so that a commit landed through the
+#     ruleset's bypass is still tested;
 #   - on dispatch, from any branch;
-#   - from ci.yml, on a pull request labelled ci:heavy or a Dependabot NuGet update, as a job the gate holds to success;
+#   - from ci.yml, on every pull request, as a job the gate holds to success, compat (.NET 11) aside (skip-compat);
 #   - from preview.yml and release.yml, on the packages they packed, as a job the publish job needs.
 # A reusable workflow sets its concurrency on its jobs, since github.workflow there is its caller's name. Every job
 # runs, its conditions on its steps: a job of a called workflow skipped by its own `if` can skip the caller's jobs that
@@ -27,6 +27,12 @@ on:
         default: ''
       compat-blocks:
         description: 'Whether a red compat (.NET 11) fails the run; it only informs otherwise'
+        type: boolean
+        default: false
+      # Negative, so that a push and a dispatch, where `inputs` is empty, run compat: an empty input compares equal to
+      # false in an expression.
+      skip-compat:
+        description: 'Whether compat (.NET 11) skips every step, the job staying green; ci.yml sets it on a pull request'
         type: boolean
         default: false
       coverage:
@@ -172,7 +178,7 @@ jobs:
         if: success() || failure()
         run: .github/scripts/compiled-model.sh jit
 
-      # On main, and on a pull request whose ci.yml asks for it, beside the
+      # On main, and on every pull request, whose ci.yml asks for it, beside the
       # reports ci.yml's coverage job uploads for the same commit, under the
       # integration flag of codecov.yml, which carries forward to the commits
       # that do not run this suite. The lines only this suite covers are the SQL
@@ -218,7 +224,8 @@ jobs:
   # green with a warning on the run, since how a caller reads a job that fails
   # under job-level continue-on-error is not documented; each test step has a
   # time limit of its own below the job's, so that a hang fails the step, not the
-  # job. Never a required check of a pull request.
+  # job. Never run on a pull request: ci.yml sets skip-compat, which skips every
+  # step rather than the job, for the reason the header gives (ADR 0016).
   compat:
     name: compat (.NET 11)
     runs-on: ubuntu-latest
@@ -227,7 +234,12 @@ jobs:
       group: heavy-${{ github.event_name == 'push' && github.ref || github.run_id }}-compat
       cancel-in-progress: ${{ github.event_name == 'push' }}
     steps:
+      - name: Skipped
+        if: inputs.skip-compat
+        run: echo "compat (.NET 11) does not run on a pull request; it runs on main, before every preview and every release." >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ !inputs.skip-compat }}
         with:
           ref: ${{ inputs.ref }}
           # MinVer derives the version of a pack below from the tag history.
@@ -239,7 +251,7 @@ jobs:
       # of its run can delete an artifact by name and upload another. Never with
       # an empty id, which downloads every artifact of the run.
       - name: The caller's packages
-        if: inputs.packages-artifact-id != ''
+        if: ${{ !inputs.skip-compat && inputs.packages-artifact-id != '' }}
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ inputs.packages-artifact-id }}
@@ -250,17 +262,18 @@ jobs:
       # global.json. Not --no-build: the generator is built into the main package
       # through ResolveReferences during Pack, which trips NETSDK1085.
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        if: inputs.packages-artifact-id == ''
+        if: ${{ !inputs.skip-compat && inputs.packages-artifact-id == '' }}
         with:
           global-json-file: global.json
 
       - name: Pack
-        if: inputs.packages-artifact-id == ''
+        if: ${{ !inputs.skip-compat && inputs.packages-artifact-id == '' }}
         run: dotnet pack src/AdCodicem.ValueObjects.Packages.slnf -c Release -o artifacts/packages
 
       # The version the island restores, exactly, read off the main package.
       - name: Version
         id: version
+        if: ${{ !inputs.skip-compat }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -274,6 +287,7 @@ jobs:
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         id: sdk
+        if: ${{ !inputs.skip-compat }}
         continue-on-error: ${{ !inputs.compat-blocks }}
         with:
           global-json-file: tests/Compat/global.json
@@ -282,6 +296,7 @@ jobs:
       # runner. The containers need Docker, which the runner has.
       - name: Compatibility tests
         id: compat
+        if: ${{ !inputs.skip-compat }}
         continue-on-error: ${{ !inputs.compat-blocks }}
         timeout-minutes: 15
         working-directory: tests/Compat
@@ -299,7 +314,7 @@ jobs:
       # step failed, so that each break shows.
       - name: Compatibility tests, Swashbuckle
         id: swashbuckle
-        if: (success() || failure()) && steps.version.outcome == 'success'
+        if: (success() || failure()) && !inputs.skip-compat && steps.version.outcome == 'success'
         continue-on-error: ${{ !inputs.compat-blocks }}
         timeout-minutes: 5
         working-directory: tests/Compat
@@ -320,7 +335,7 @@ jobs:
           echo "compat (.NET 11) failed and only informs: see its test steps." >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
+        if: ${{ always() && !inputs.skip-compat }}
         with:
           # "Re-run all jobs" uploads the same name again in the same run.
           overwrite: true

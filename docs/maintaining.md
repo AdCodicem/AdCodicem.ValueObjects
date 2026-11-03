@@ -64,22 +64,20 @@ offering the higher one as the latest prerelease until a higher version ships.
 
 ### Routines
 
-- **After a merge**, `heavy.yml` runs on `main`: native AOT, the integration suite and the .NET 11 island,
-  which no pull request runs unless it is labelled `ci:heavy` or Dependabot opened it to update a NuGet package. A newer
-  push cancels an older one's run, so a red run names the tip of the push it tested, which may be later than the commit
-  that broke it; it also holds back the next preview, which runs the same jobs. Label a pull request `ci:heavy`, then
-  push to it, when it touches native AOT, a store, the sample API or the island; the label is read when a run starts, so
-  **Re-run jobs** does not see it.
-- **On a pull request**, `ci.yml` runs what its `plan` job picks from the files it changes (ADR 0013,
-  `.github/scripts/ci-plan.sh`): the unit tests of the package families those files reach, each family's project of
-  the unit suite in a job of its own, the generator and RDG suites, the compiled model, the pack and the site only when
-  their inputs change; the plan's summary on the run page lists what it picked and why. A push to `main` runs
-  everything. A pull request adding a project adds it to `AdCodicem.ValueObjects.slnx`. One under `src/` also goes into
+- **After a merge**, `heavy.yml` runs on `main`: native AOT, the integration suite and the .NET 11 island, the first
+  two of which the pull request already ran, so that a commit landed through the ruleset's bypass is tested too. A
+  newer push cancels an older one's run, so a red run names the tip of the push it tested, which may be later than the
+  commit that broke it; it also holds back the next preview, which runs the same jobs. The island runs on no pull
+  request: dispatch `heavy.yml` on the branch to run it before the merge.
+- **On a pull request**, `ci.yml` runs every job, whatever the pull request changes (ADR 0016): each family's project
+  of the unit suite in a job of its own, the build, the generator and RDG suites, the compiled model, the pack and its
+  checks, the release tooling, the site, and `heavy.yml`'s native AOT and integration jobs. A push to `main` runs the
+  same, `heavy.yml` running by itself. A pull request adding a project adds it to `AdCodicem.ValueObjects.slnx`. One under `src/` also goes into
   a family's `projects` in `.github/ci-families.json`, and that family's project of the unit suite references it; a new
   family's project, `tests/AdCodicem.ValueObjects.UnitTests.<Name>`, imports `..\UnitTests.props`
   (`tests/AdCodicem.ValueObjects.UnitTests/CLAUDE.md`) and goes into the family's `tests` and the `InternalsVisibleTo`
   entries of `src/Directory.Build.props`. Either then replaces `codecov.yml`'s flags between its `ci-families` markers
-  with what `.github/scripts/ci-plan.sh --codecov-flags` prints, or the plan fails; the plan checks neither the import
+  with what `.github/scripts/ci-families-check.sh --codecov-flags` prints, or the `families` job fails; it checks neither the import
   nor the `InternalsVisibleTo` entry, and the entry changes every package's bytes (`src/Directory.Build.props` is a
   package input), so the next preview publishes. A folder added to a project of the unit suite needs none of this.
 - **Before a stable release**, dispatch `preview.yml` if package inputs changed since the last preview, and start the
@@ -214,7 +212,7 @@ to `CHANGELOG.md` for a preview, which has no release of its own (`src/Directory
 |---|---|---|
 | Allow auto-merge | Settings → General → Pull Requests | `dependabot-auto-merge.yml` runs green and merges nothing. |
 | Squash merging allowed, with the pull request title as its default commit message, beside rebase merging | Settings → General → Pull Requests | A Dependabot pull request retitled `fix(deps)` lands as Dependabot's `chore(deps)` commit and releases nothing. Rebase merging stays the way every other pull request lands. |
-| Required status checks **`build and test`** (`ci.yml`), **`workflows`** and **`conventional commits`** (`lint.yml`), and no code coverage rule | Settings → Rules → Rulesets → `Default` (id 23842638) | Auto-merge can merge a red build, or one that breaks native AOT, and a red `fix(deps)` would then release a broken patch. The checks are job names: renaming any of these jobs leaves every pull request waiting for a check that never reports. **`build and test`** is `ci.yml`'s aggregator, which fails unless its plan and every job the plan expects succeeded: `format`, a `unit (<family>)` job per family the plan selects, the `build` job (the build, the generator and RDG suites, the compiled model and the pack the plan selects), `release tooling` when the release tooling changes, and `heavy.yml` on a pull request labelled `ci:heavy` or a Dependabot NuGet update ([ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)). A job that must block a merge goes into its `needs`, never into this list. The jobs of `heavy.yml` (`native AOT`, `integration tests`, `compat (.NET 11)`) never join them: they run after the merge, and gate every stable release, and every preview but compat, which gates previews once .NET 11 ships. No workflow reports coverage to GitHub, so a code coverage rule would measure nothing: Codecov's `codecov/patch` and `codecov/project` are the coverage signal ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
+| Required status checks **`build and test`** (`ci.yml`), **`workflows`** and **`conventional commits`** (`lint.yml`), and no code coverage rule | Settings → Rules → Rulesets → `Default` (id 23842638) | Auto-merge can merge a red build, or one that breaks native AOT, and a red `fix(deps)` would then release a broken patch. The checks are job names: renaming any of these jobs leaves every pull request waiting for a check that never reports. **`build and test`** is `ci.yml`'s aggregator, which fails unless every job it needs succeeded: `families`, `format`, a `unit (<family>)` job per family, the `build` job (the build, the generator and RDG suites, the compiled model and the pack), `release tooling`, and on a pull request `heavy.yml`'s native AOT and integration jobs ([ADR-0016](adr/0016-run-every-job-on-every-pull-request.md)). A job that must block a merge goes into its `needs`, never into this list. The jobs of `heavy.yml` (`native AOT`, `integration tests`, `compat (.NET 11)`) never join them: they run inside `build and test` on a pull request, compat aside, after the merge, and gate every stable release, and every preview but compat, which gates previews once .NET 11 ships. No workflow reports coverage to GitHub, so a code coverage rule would measure nothing: Codecov's `codecov/patch` and `codecov/project` are the coverage signal ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
 | Allow GitHub Actions to create and approve pull requests | Settings → Actions → General | Not needed for auto-merge, but required if a workflow is ever made to open PRs. |
 | Discussions | Settings → General → Features | `.github/DISCUSSION_TEMPLATE/q-a.yml` and the issue-template link to Discussions go nowhere. |
 | Pages source: GitHub Actions | Settings → Pages | `deploy-docs.yml` uploads an artifact that is never served. |
@@ -386,7 +384,7 @@ none, so the score climbs as new releases replace them rather than all at once.
 | **`nuget` environment** — deployment branches limited to `main`, no required reviewer | Settings → Environments | `preview.yml`'s publish job. A required reviewer here would hold every weekly preview until someone clicks; use `nuget-stable` for that instead. |
 | **`nuget-stable` environment** — deployment branches limited to `main`, required reviewer(s) | Settings → Environments | `release.yml`'s release job. This is the approval gate: `workflow_dispatch` starts the workflow, but the job waits for a reviewer before the OIDC exchange and `npx semantic-release` run. |
 | `RELEASE_APP_CLIENT_ID` (variable) and `RELEASE_APP_PRIVATE_KEY` (secret) on `nuget-stable` | Settings → Environments → `nuget-stable` | `release.yml`, to push the release commit and tag past the ruleset on `main` as a GitHub App. See [Repository settings](#github-settings) for creating the App. |
-| `CODECOV_TOKEN` | codecov.io → link the repository, then Settings → Secrets → Actions | The coverage uploads of `ci.yml`'s `coverage` job, one per Codecov flag of what the run tested, and of `heavy.yml`'s integration job on `main` and on a pull request labelled `ci:heavy`, which `ci.yml` hands the secret to. A public repository uploads without it — CI run 128 logged `Token length: 0` and the report still arrived —, so the secret is read only if it exists, which a private repository, or Codecov refusing tokenless uploads, would need. `fail_ci_if_error: false` keeps CI green when an upload is refused. Codecov posts `codecov/patch` and `codecov/project` on each pull request that uploads coverage, against the floors in `codecov.yml` ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
+| `CODECOV_TOKEN` | codecov.io → link the repository, then Settings → Secrets → Actions | The coverage uploads of `ci.yml`'s `coverage` job, one per Codecov flag, and of `heavy.yml`'s integration job on `main` and on every pull request, which `ci.yml` hands the secret to. A public repository uploads without it — CI run 128 logged `Token length: 0` and the report still arrived —, so the secret is read only if it exists, which a private repository, or Codecov refusing tokenless uploads, would need. `fail_ci_if_error: false` keeps CI green when an upload is refused. Codecov posts `codecov/patch` and `codecov/project` on each pull request that uploads coverage, against the floors in `codecov.yml` ([ADR-0006](adr/0006-coverage-is-a-signal-not-a-goal.md)). |
 
 Trusted Publishing is set at the account level on nuget.org, not per package, and a policy names a workflow file
 and an environment: a run of any other file, or of the same file in another environment, is refused at the OIDC
@@ -412,9 +410,10 @@ custom message linking ADR 0015. Never unlist them: a deprecation shows in the N
 
 `tests/Compat` installs the packages a commit packs into `net11.0` applications on the .NET 11 release candidate, and
 `heavy.yml`'s `compat (.NET 11)` job runs it after every push to `main`, before every preview and stable release, on
-the packages they publish, and on a pull request labelled `ci:heavy`
+the packages they publish, and on dispatch, never on a pull request
 ([ADR-0010](adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md),
-[ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)). It holds two projects: the
+[ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md),
+[ADR-0016](adr/0016-run-every-job-on-every-pull-request.md)). It holds two projects: the
 main one, and `tests/Compat/Swashbuckle`, which installs `AdCodicem.ValueObjects.Swashbuckle` apart, since Swashbuckle
 10 fails on the `Microsoft.OpenApi` 3 the main project's `Microsoft.AspNetCore.OpenApi` 11 brings; the job runs both,
 the second also when the first fails. The second takes Swashbuckle and `Microsoft.OpenApi` at the package's floors,
@@ -441,7 +440,7 @@ so it has no version to move at a release candidate. Dependabot never sees the i
     after which `setup-dotnet` installs the latest 11.0 SDK by itself;
   - the eight packages move to `11.0.0`, Npgsql's provider included;
   - `compat (.NET 11)` blocks previews from then on: set `compat-blocks: true` on `preview.yml`'s `heavy` job. It
-    stays out of the required status checks, and informs only on a pull request and on `main`
+    stays out of the required status checks and off pull requests, and informs only on `main`
     ([ADR-0013](adr/0013-run-a-targeted-pull-request-ci-and-the-heavy-jobs-before-a-release.md)).
 - **When .NET 12 previews arrive**, moving the island to the next major, or adding a second one, is a decision of its
   own. Renaming the job changes the name of its check, which no ruleset requires.

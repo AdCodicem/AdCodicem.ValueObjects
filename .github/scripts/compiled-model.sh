@@ -38,8 +38,8 @@ out="$PWD/artifacts/compiled-model/$model"
 rm -rf "$out"
 dotnet tool restore
 # `dotnet ef` reads the project's metadata before it builds, which needs its assets file: restore the project here
-# rather than rely on a restore run before: ci.yml's build job restores only the plan's solution filter, which may not
-# hold this project, and heavy.yml's jobs only the other projects they build.
+# rather than rely on a restore run before: ci.yml's build job restores through a solution filter, and heavy.yml's
+# jobs only the other projects they build.
 dotnet restore "$project"
 
 # The queries are precompiled once, for the relaxed context: they are the same calls for both, and a second run would
