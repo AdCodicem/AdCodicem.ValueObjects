@@ -7,7 +7,7 @@
 
   <ItemGroup Label="Build">
     <PackageVersion Include="MinVer" Version="6.1.0" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.402" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.403" />
   </ItemGroup>
 
   <ItemGroup Label="Source generators and analyzers">
@@ -26,8 +26,8 @@
     <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
     <!-- No project references these two: they are transitive pins. They raise the 6.0.0 that BenchmarkDotNet's
          Microsoft.Extensions.Logging asks for in the benchmarks to the version Entity Framework Core asks for,
          and pinning lists them as dependencies of both Entity Framework Core packages, of the MessagePack
@@ -55,7 +55,7 @@
     <!-- The MongoDB package's floor, the version it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). MongoDB.Bson comes with it, at the
          same version, and is pinned by nothing here: a pin would make it a dependency of the package. -->
-    <PackageVersion Include="MongoDB.Driver" Version="3.12.0" />
+    <PackageVersion Include="MongoDB.Driver" Version="3.13.0" />
     <!-- The MessagePack package's floors, the versions it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). MessagePack 3 lifts the 2.5.302 the
          hub protocol asks for. MessagePack.Annotations and MessagePackAnalyzer come with MessagePack and are pinned by
@@ -69,7 +69,7 @@
          dependencies of the packages. -->
     <PackageVersion Include="AutoFixture" Version="4.18.1" />
     <PackageVersion Include="Bogus" Version="35.6.5" />
-    <PackageVersion Include="FsCheck" Version="3.5.0" />
+    <PackageVersion Include="FsCheck" Version="3.6.0" />
     <!-- The AI package's floor, the version it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Its net10.0 asset depends on
          nothing. -->
@@ -78,7 +78,7 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). ModelContextProtocol.Core comes with
          it at exactly that version, and Microsoft.Extensions.Hosting.Abstractions and Caching.Abstractions at their
          floors; none is pinned here: a pin would make it a dependency of the package. -->
-    <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
+    <PackageVersion Include="ModelContextProtocol" Version="2.3.0" />
     <!-- The Azure Functions packages' floors, the versions they are built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Microsoft's own worker extensions
          (Application Insights, OpenTelemetry, Durable Functions) take Worker.Core at 2.51 and 2.52 too. Azure.Core and
@@ -95,11 +95,11 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md); HotChocolate 17 is a decision, not a
          bump. Its other HotChocolate and GreenDonut packages come with it, at exactly its version, and are pinned by
          nothing here: a pin would make them dependencies of the package. -->
-    <PackageVersion Include="HotChocolate.Types" Version="16.6.9" />
+    <PackageVersion Include="HotChocolate.Types" Version="16.7.3" />
     <!-- IStringLocalizerFactory, for the HotChocolate package's localized messages; its net10.0 asset depends on nothing.
          The Blazor package takes it through Microsoft.Extensions.Localization, and pinning lists it as a dependency of
          both. -->
-    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.14" />
     <!-- The Blazor package's floors, the versions it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md): the package rather than the
          ASP.NET Core shared framework, which a Blazor WebAssembly application lacks, and the localization services
@@ -118,13 +118,13 @@
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). protobuf-net.Grpc asks for
          protobuf-net 2.4.8, which the direct reference lifts. protobuf-net.Core and Grpc.Core.Api come with them and are
          pinned by nothing here: a pin would make them dependencies of the package. -->
-    <PackageVersion Include="protobuf-net" Version="3.4.30" />
+    <PackageVersion Include="protobuf-net" Version="3.4.40" />
     <PackageVersion Include="protobuf-net.Grpc" Version="1.3.14" />
     <!-- The gRPC package's floor, the version it is built against
          (docs/adr/0010-version-every-package-in-lockstep-independently-of-dotnet.md). Grpc.Core.Api,
          Google.Api.CommonProtos and Google.Protobuf come with it and are pinned by nothing here: a pin would make them
          dependencies of the package. -->
-    <PackageVersion Include="Grpc.StatusProto" Version="2.84.0" />
+    <PackageVersion Include="Grpc.StatusProto" Version="2.85.0" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
@@ -136,7 +136,7 @@
     <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
     <PackageVersion Include="NSubstitute" Version="6.2.0" />
     <PackageVersion Include="NSubstitute.Analyzers.CSharp" Version="1.0.17" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.1" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.2" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.16.0" />
@@ -146,12 +146,12 @@
     <PackageVersion Include="Testcontainers.Azurite" Version="4.16.0" />
     <PackageVersion Include="Azure.Storage.Queues" Version="12.28.1" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14" />
     <!-- Pinned explicitly: Microsoft.Data.SqlClient, which the SQL Server provider brings, asks for 9.0.11, which carries
          GHSA-846f-f764-76mx and GHSA-2fmv-rv2c-59x7. Only the SQL Server tests, the sample and the compiled model reach
          it, the last through a reference of its own, since it turns transitive pinning off; no package under src/ does,
          so it ships nowhere. Remove it, and that reference, once SqlClient asks for a patched version. -->
-    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
     <!-- An engine in memory, which needs no server and through which the unit suite runs what only an engine shows:
          primitive collections of value objects, their JSON included, the keys it generates, `.Value` translated in
          queries, and the CHECK constraints accepting and refusing rows; no package under src/ references it. -->
@@ -161,20 +161,20 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.13" />
     <!-- What `dotnet ef dbcontext optimize` loads into the project it compiles a model for: the version of the dotnet-ef
          tool in .config/dotnet-tools.json, which is Entity Framework Core's. -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14" />
     <!-- The .NET client the unit suite connects to a hub through, over TestHost; no package under src/ references it. -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
     <!-- bUnit's renderer, which Forms/ of tests/AdCodicem.ValueObjects.UnitTests.Text drives the Blazor package's input
          through, as a test of an application's form does; no package under src/ references it. It asks for Components
          10.0.10, which the pin of Microsoft.AspNetCore.Components.Web lifts, and the project loads the shared
          framework's Components assemblies. -->
-    <PackageVersion Include="bunit" Version="2.12.5" />
+    <PackageVersion Include="bunit" Version="2.13.3" />
     <!-- ObservableValidator, the view model base that validates DataAnnotations attributes as a property is set, which
          the unit suite runs [ParsesAs] and [NotDefault] through; no package under src/ references it. -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.12" />
+    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.13" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <!-- Validates what the serializer writes against the JSON Schema exported for it, under draft 2020-12, the draft
          System.Text.Json exports. BSD-3-Clause, as is the package of its author it depends on, the others being
@@ -200,11 +200,11 @@
     <!-- FunctionInvokingChatClient and ChatResponse<T>, which the unit suite drives the AI package through, as an
          application does, and the OpenAI adapter whose strict-mode request it captures; no package under src/ references
          them. Microsoft.Extensions.AI has no 10.10.1. -->
-    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
     <!-- Agent Framework's ChatClientAgent, which the unit suite runs the AI package's tools and response format through,
          as an application does; no package under src/ references it. -->
-    <PackageVersion Include="Microsoft.Agents.AI" Version="1.25.0" />
+    <PackageVersion Include="Microsoft.Agents.AI" Version="1.26.0" />
     <!-- The Functions application the integration suite runs in the host's container: the worker's build, and the queue
          trigger whose binding data it reads; no package under src/ references them. -->
     <PackageVersion Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.1.0" />
@@ -212,7 +212,7 @@
     <!-- What the unit suite drives the HotChocolate packages through, as an application does: the HTTP endpoint and, in a
          fixture, HotChocolate's source generator; no package under src/ references them. -->
     <PackageVersion Include="HotChocolate.AspNetCore" Version="16.6.9" />
-    <PackageVersion Include="HotChocolate.Types.Analyzers" Version="16.6.9" />
+    <PackageVersion Include="HotChocolate.Types.Analyzers" Version="16.7.3" />
     <!-- NSwag's document generation over TestHost and its C# client generator, and Confluent's JSON serdes for the Schema
          Registry over a substitute registry client, which the unit suite drives the NJsonSchema package through, as an
          application does; no package under src/ references them. The Kafka client's native library comes with the serdes
@@ -227,7 +227,7 @@
          references them. Google.Protobuf, Grpc.Core.Api and Grpc.Net.Client come with them and are pinned by nothing
          here: a pin would make them dependencies of every package whose restore graph holds them. -->
     <PackageVersion Include="protobuf-net.Grpc.AspNetCore" Version="1.3.14" />
-    <PackageVersion Include="Grpc.AspNetCore" Version="2.84.0" />
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.85.0" />
   </ItemGroup>
 
 </Project>
