@@ -187,7 +187,7 @@ public sealed class GraphQLScalarTests
         var error = result.Error();
         error.Code().Should().Be(code);
         error.Message().Should().Be(expected);
-        error.Member("path").Should().Be("""["v"]""");
+        error.Member("inputPath").Should().Be("""["v"]""");
     }
 
     /// <summary>
@@ -232,11 +232,11 @@ public sealed class GraphQLScalarTests
 
         var variable = (await executor.ExecuteAsync("query($l: [Iban!]!) { many(ibans: $l) }", $$"""{"l":["{{Valid}}","XX"]}""")).Error();
         variable.Code().Should().Be(ValueObjectErrorCodes.TooShort);
-        variable.Member("path").Should().Be("""["l",1]""");
+        variable.Member("inputPath").Should().Be("""["l",1]""");
 
         var nullable = (await executor.ExecuteAsync("query($l: [Iban]!) { maybeArray(ibans: $l) }", """{"l":[null,"XX"]}""")).Error();
         nullable.Code().Should().Be(ValueObjectErrorCodes.TooShort);
-        nullable.Member("path").Should().Be("""["l",1]""");
+        nullable.Member("inputPath").Should().Be("""["l",1]""");
     }
 
     /// <summary>A field of an input object is read through the rules, and a refused one answered at its path.</summary>

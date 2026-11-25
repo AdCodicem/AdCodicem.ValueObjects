@@ -139,8 +139,8 @@ which a client reads under `extensions.code`. The package adds no extension of i
    "data": null}
   ```
 
-- **A variable** is a request error. Its `path` is the variable, `["l", 1]` for an element of a list, and its
-  extensions hold the code alone. Over HTTP the answer is 400 under `application/graphql-response+json`, and 200 under
+- **A variable** is a request error, with no `path`. HotChocolate adds the variable's `inputPath`, `["l", 1]` for an
+  element of a list, and `fieldType`. Over HTTP the answer is 400 under `application/graphql-response+json`, and 200 under
   `application/json`.
 - **A literal of another kind** than the scalar's, `qty: "3"` or a number for an `Int128`, is refused by HotChocolate's
   validation before the scalar reads it: "The specified argument value does not match the argument type.", with no
@@ -189,8 +189,8 @@ The filter looks each refusal up under `ValueObject.{code}`, in the current UI c
 culture, which HotChocolate's execution keeps from the request that `UseRequestLocalization()` set it on. `{0}` is the
 argument, the input field or the variable the refusal concerns, the last name of the error's `inputPath`, or else of its
 `path`: `« iban » : au moins 15 caractères.`, `« q » doit être compris entre 1 et 100.` for a variable `$q`. A variable's
-default value, `query($q: Quantity = 5000)`, is the exception: HotChocolate reads it under a path of its own,
-`["root"]`, which names no variable, so the filter quotes the scalar's name, `« Quantity »`. A code the resource holds
+default value, `query($q: Quantity = 5000)`, is the exception: it is a literal of the document that no argument or input
+field holds, with no `coordinate`, so the filter quotes the scalar's name, `« Quantity »`. A code the resource holds
 no message for keeps the English one, and the code stays the rule's.
 
 A value refused in an argument or an input field a predicate of `QuoteScalarNameIn` selects, by the member the error's

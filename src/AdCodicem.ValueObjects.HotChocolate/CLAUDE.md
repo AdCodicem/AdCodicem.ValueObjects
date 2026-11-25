@@ -37,8 +37,10 @@ only with HotChocolate.Types and the application rooted.
 - Error filters live in the schema services, built with the executor: the localizing filter resolves the application's
   `IStringLocalizerFactory` through `GetRootServiceProvider()`, in the execution's culture, and the executor fails to start
   when `UseResource()` lacks `AddLocalization()`.
-- HotChocolate reads a variable's default value under the path `["root"]`, which the filter quotes as the scalar's name,
-  telling it from a variable named `$root`, read from its JSON value, by the refusal's `Literal`.
+- Since 16.7 a refused variable is a request error with no `path`: HotChocolate puts the variable in
+  `extensions.inputPath` (`["l", 1]` for a list element), beside `fieldType`. A variable's default value carries the
+  variable's name there too; the filter tells it apart as the one literal (the refusal's `Literal`) with no
+  `coordinate`, and quotes the scalar's name.
 - `ValueObjectScalarOptions.QuoteScalarNameIn(predicate)` quotes the scalar's name for a value refused in the argument or
   input field the predicate selects: the filter looks up the error's `coordinate`, which HotChocolate keeps as text
   (`IbanOperationFilterInput.eq`), sets to the innermost input value, and leaves out for a variable it coerces before any
