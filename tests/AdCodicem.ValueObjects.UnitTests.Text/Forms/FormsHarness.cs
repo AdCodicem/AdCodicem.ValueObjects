@@ -43,7 +43,12 @@ internal static class FormsHarness
     /// <param name="culture">The culture numbers and dates are read and written in.</param>
     /// <param name="uiCulture">The culture a resource is chosen in, <paramref name="culture"/> by default.</param>
     /// <returns>The scope.</returns>
-    public static IDisposable Culture(string culture, string? uiCulture = null) => new CultureScope(culture, uiCulture ?? culture);
+    public static IDisposable Culture(string culture, string? uiCulture = null) => new CultureScope(new CultureInfo(culture), new CultureInfo(uiCulture ?? culture));
+
+    /// <summary>Sets a culture built by the test as both current cultures until the scope is disposed.</summary>
+    /// <param name="culture">The culture, a calendar of its own set on it for instance.</param>
+    /// <returns>The scope.</returns>
+    public static IDisposable Culture(CultureInfo culture) => new CultureScope(culture, culture);
 
     /// <summary>Renders a form of one field over a model.</summary>
     /// <typeparam name="TValue">The value object, or its nullable type.</typeparam>
@@ -83,10 +88,10 @@ internal sealed class CultureScope : IDisposable
     private readonly CultureInfo _culture = CultureInfo.CurrentCulture;
     private readonly CultureInfo _uiCulture = CultureInfo.CurrentUICulture;
 
-    public CultureScope(string culture, string uiCulture)
+    public CultureScope(CultureInfo culture, CultureInfo uiCulture)
     {
-        CultureInfo.CurrentCulture = new CultureInfo(culture);
-        CultureInfo.CurrentUICulture = new CultureInfo(uiCulture);
+        CultureInfo.CurrentCulture = culture;
+        CultureInfo.CurrentUICulture = uiCulture;
     }
 
     public void Dispose()
