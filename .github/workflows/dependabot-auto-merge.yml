@@ -1,10 +1,18 @@
 name: dependabot auto-merge
 
-# Runs with a token that can write to the repository, so nothing a pull request
-# changed may run here: the only checkout is of the base branch, sparse, for the
-# list of shipped dependencies and the script that reads it.
+# `pull_request`, not `pull_request_target`, which GitHub blocks by default in
+# public repositories from 2026-12-02. A run Dependabot triggers gets a
+# read-only GITHUB_TOKEN and Dependabot's secrets only, treated as if from a
+# fork; the job's `permissions:` raise the token to what it writes ("Automating
+# Dependabot with GitHub Actions"). Under `pull_request` this file comes from the
+# pull request's head: a fork's run gets a read-only token whatever it asks for,
+# and the job's guards keep the write token to Dependabot's own branches of this
+# repository, which only Dependabot and the maintainer can push to. Nothing the
+# pull request changed runs in a step: the only checkout is of the base branch,
+# sparse, without credentials, for the list of shipped dependencies and the
+# script that reads it.
 on:
-  pull_request_target:
+  pull_request:
     # `edited`: Dependabot rewrites the title when it refreshes a pull request,
     # which brings its chore(deps) prefix back.
     types: [opened, synchronize, reopened, edited]
