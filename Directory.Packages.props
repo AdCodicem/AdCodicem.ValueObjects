@@ -23,7 +23,7 @@
 
   <ItemGroup Label="Integrations">
     <!-- Pinned explicitly: 2.0.0, which older ASP.NET Core patches resolve to, carries a known advisory. -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.15" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.15" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.15" />
@@ -38,8 +38,8 @@
          Microsoft.AspNetCore.Components.Web and Microsoft.Extensions.Localization: removing them changes what those
          seven pack. Dependabot never moves them, so an update of a package that asks for a later version of either fails
          the restore with NU1109, and opens no pull request, until they are raised by hand with it. -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.15" />
     <PackageVersion Include="FluentValidation" Version="12.2.0" />
     <PackageVersion Include="Dapper" Version="2.1.89" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
