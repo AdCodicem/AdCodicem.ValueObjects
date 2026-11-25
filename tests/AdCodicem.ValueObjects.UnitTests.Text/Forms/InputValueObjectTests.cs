@@ -322,17 +322,22 @@ public sealed class InputValueObjectTests
     /// A date is read in the Gregorian calendar its round-trip text is written in, whatever the culture's own: the Thai
     /// Buddhist calendar of <c>th-TH</c> would read <c>2000-01-01</c> 543 years earlier, the Persian one of <c>fa-IR</c> 621
     /// years later, and the Um al-Qura one of <c>ar-SA</c> not at all. The culture's own patterns stay, a year typed being
-    /// a Gregorian one, and a date alone typed into a <see cref="DateTime"/> field is read the same way.
+    /// a Gregorian one, and a date alone typed into a <see cref="DateTime"/> field is read the same way. Each culture's
+    /// calendar is set rather than taken as its default, which follows the machine's ICU data: <c>ar-SA</c>'s is Um al-Qura
+    /// under ICU 74 and Gregorian on the Ubuntu 26.04 runner.
     /// </summary>
     [Theory]
-    [InlineData("th-TH")]
-    [InlineData("fa-IR")]
-    [InlineData("ar-SA")]
-    public void A_date_is_read_in_the_Gregorian_calendar_it_is_written_in_whatever_the_culture_s_own(string culture)
+    [InlineData("th-TH", typeof(ThaiBuddhistCalendar))]
+    [InlineData("fa-IR", typeof(PersianCalendar))]
+    [InlineData("ar-SA", typeof(UmAlQuraCalendar))]
+    public void A_date_is_read_in_the_Gregorian_calendar_it_is_written_in_whatever_the_culture_s_own(string culture, Type calendar)
     {
-        using (FormsHarness.Culture(culture))
+        var own = new CultureInfo(culture);
+        own.DateTimeFormat.Calendar = own.OptionalCalendars.Single(optional => optional.GetType() == calendar);
+        using (FormsHarness.Culture(own))
         {
-            CultureInfo.CurrentCulture.Calendar.Should().NotBeOfType<GregorianCalendar>();
+            // DateTimeFormat's calendar, the one a date is read in: CultureInfo.Calendar stays the culture's default.
+            CultureInfo.CurrentCulture.DateTimeFormat.Calendar.Should().BeOfType(calendar);
             using var context = FormsHarness.Context(FormsHarness.Interactive);
 
             RoundTrip(context, BirthDate.Create(new DateOnly(1990, 10, 14)), "1990-10-14");
