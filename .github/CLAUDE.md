@@ -87,7 +87,10 @@ The runbook (one-time settings, routines, the Dependabot procedure) is `docs/mai
   changes a package's bytes or metadata, or it never reaches a preview.
 - `shipped-dependencies` must match the packed nuspecs: `ci.yml` (`scripts/shipped-dependencies-check.sh`) fails on a
   nuspec dependency the list lacks or a line matching nothing. `dependabot-auto-merge.yml` retitles a pull request
-  updating a listed dependency `fix(deps):`, or `fix(deps)!:` across a major. Dependabot pull requests are squash-merged,
+  updating a listed dependency `fix(deps):`, or `fix(deps)!:` across a major. It runs on `pull_request`, never
+  `pull_request_target`, which GitHub blocks by default in public repositories from 2026-12-02: the job's
+  `permissions:` raise Dependabot's read-only token, and its guards (author, actor, head repository) keep that token
+  off any branch but Dependabot's own. Dependabot pull requests are squash-merged,
   so that the title becomes the commit semantic-release reads; a rebase keeps `chore(deps)` and releases nothing.
 - A Dependabot security update pinning a transitive dependency the list does not name yet opens as `chore(deps)` (with
   no prefix when grouped) and fails `build`, so `build and test`. The workflow reads the list from the base branch and
