@@ -275,8 +275,10 @@ Without them the release job stops at its first step, before anything is publish
   `.github/shipped-dependencies`, and `fix(deps)!: …` when that update is a new major, so that merging it releases a
   patch, or a breaking change. The list holds the dependencies the nuspecs name, plus `Microsoft.CodeAnalysis.CSharp`
   and `PolySharp`, compiled into the generator; a step of `ci.yml` fails when it no longer matches the packed
-  nuspecs. That workflow runs on `pull_request_target` and only ever checks out the base branch, sparsely, never the
-  pull request's code. A grouped pull request that mixes shipped and test-only dependencies becomes one `fix(deps)`.
+  nuspecs. That workflow runs on `pull_request` (GitHub blocks `pull_request_target` by default in public repositories
+  from 2026-12-02), with a read-only token its job raises to `contents: write` and `pull-requests: write`; its guards
+  keep it to Dependabot's own branches of this repository, and it only ever checks out the base branch, sparsely,
+  never the pull request's code. A grouped pull request that mixes shipped and test-only dependencies becomes one `fix(deps)`.
 - **A security update that pins a new transitive dependency.** Dependabot can fix a vulnerable transitive dependency
   of a shipped package by adding a `<PackageVersion>` to `Directory.Packages.props`, which transitive pinning makes a
   dependency of the package. If `.github/shipped-dependencies` does not name it yet, the pull request opens as
