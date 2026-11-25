@@ -336,7 +336,8 @@ public sealed class InputValueObjectTests
         own.DateTimeFormat.Calendar = own.OptionalCalendars.Single(optional => optional.GetType() == calendar);
         using (FormsHarness.Culture(own))
         {
-            CultureInfo.CurrentCulture.Calendar.Should().NotBeOfType<GregorianCalendar>();
+            // DateTimeFormat's calendar, the one a date is read in: CultureInfo.Calendar stays the culture's default.
+            CultureInfo.CurrentCulture.DateTimeFormat.Calendar.Should().BeOfType(calendar);
             using var context = FormsHarness.Context(FormsHarness.Interactive);
 
             RoundTrip(context, BirthDate.Create(new DateOnly(1990, 10, 14)), "1990-10-14");
