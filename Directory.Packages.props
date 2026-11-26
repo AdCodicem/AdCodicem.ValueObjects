@@ -13,11 +13,11 @@
   <ItemGroup Label="Source generators and analyzers">
     <!-- The Roslyn API the generator is built against, which sets the oldest compiler a consumer may use, and which the
          generator tests compile snippets with, as the unit suite's projects compile NSwag's client. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" />
     <!-- The code fix, in an assembly of its own: RS1038 refuses Workspaces where an analyzer or a generator lives. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
     <!-- The analyzers that check the generator's and the code fix's own code, whose Roslyn API is the CSharp pin above. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.12.0" />
     <PackageVersion Include="PolySharp" Version="1.16.0" />
   </ItemGroup>
 
