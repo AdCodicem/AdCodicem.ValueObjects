@@ -8,6 +8,6 @@
 # whichever it resolves to. Dependabot keeps the version and the digests current.
 #
 #   pip install --require-hashes -r .github/requirements/requirements.txt
-conventional-pre-commit==4.4.0 \
-    --hash=sha256:5d266cb32a857344e1c4d87660c290cca1646d1ae480dcef6388e27bbc7f022f \
-    --hash=sha256:5426bef9039a162c3203cc7de3624954dea7120af8dec6f878d8f1c83c58af7b
+conventional-pre-commit==4.5.0 \
+    --hash=sha256:cf7b018d435c3f47ea8b1e42c52169ad88fdde726603f0bf0e1bef7d27d8fd48 \
+    --hash=sha256:f4696da7be7998dff6b7fe33a7ff4d2e87fed18bd77967e26346628d99ed8f29

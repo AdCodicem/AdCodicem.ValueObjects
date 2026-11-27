@@ -90,7 +90,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
 
@@ -157,7 +157,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
 
@@ -261,7 +261,7 @@ jobs:
       # filter preview.yml and release.yml pack with, by the SDK of the root
       # global.json. Not --no-build: the generator is built into the main package
       # through ResolveReferences during Pack, which trips NETSDK1085.
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         if: ${{ !inputs.skip-compat && inputs.packages-artifact-id == '' }}
         with:
           global-json-file: global.json
@@ -285,7 +285,7 @@ jobs:
           version="$(basename "${main[0]}" .nupkg)"
           echo "version=${version#AdCodicem.ValueObjects.}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         id: sdk
         if: ${{ !inputs.skip-compat }}
         continue-on-error: ${{ !inputs.compat-blocks }}
