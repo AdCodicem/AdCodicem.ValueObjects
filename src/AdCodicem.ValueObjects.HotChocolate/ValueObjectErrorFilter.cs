@@ -28,12 +28,6 @@ internal sealed class ValueObjectErrorFilter : IErrorFilter
 
     private const string Coordinate = "coordinate";
 
-    /// <summary>
-    /// The name of the path HotChocolate reads a literal under when no argument or input field holds it, a variable's
-    /// default value: <c>["root"]</c>.
-    /// </summary>
-    private const string ParserRoot = "root";
-
     private readonly ValueObjectScalarOptions _options;
     private readonly ISchemaDefinition _schema;
     private readonly IServiceProvider _services;
@@ -112,32 +106,29 @@ internal sealed class ValueObjectErrorFilter : IErrorFilter
     /// <param name="error">The error.</param>
     /// <param name="refusal">The refusal it carries.</param>
     /// <returns>
-    /// The last name of the error's input path, or else of its path, or else the scalar's name.
+    /// The scalar's name for a variable's default value, else the last name of the error's input path, or else of its
+    /// path, or else the scalar's name.
     /// </returns>
     /// <remarks>
-    /// HotChocolate reads a variable's default value, a literal no argument or input field holds, under a path of its
-    /// own, <c>["root"]</c>, which names nothing of the document: the scalar's name is quoted instead. A variable named
-    /// <c>$root</c> is read from its JSON value, never from a literal, and keeps its name.
+    /// A variable's default value is the one literal no argument or input field holds, so the one whose error carries no
+    /// coordinate: HotChocolate puts the variable's name in its input path, but the value is the document's, not the
+    /// variable's, and the scalar's name is quoted instead. A field of an input object written as a default value keeps
+    /// its coordinate, and its name; a variable read from its JSON value is no literal, and keeps its name.
     /// </remarks>
     private static string MemberOf(IError error, ValueObjectScalarRefusal refusal)
     {
+        if (refusal.Literal && CoordinateOf(error) is null)
+        {
+            return refusal.ScalarName;
+        }
+
         if (NameOf(error.Extensions?.GetValueOrDefault(InputPath) as Path) is { } input)
         {
             return input.Name;
         }
 
-        if (NameOf(error.Path) is not { } named || (refusal.Literal && IsParserRoot(named)))
-        {
-            return refusal.ScalarName;
-        }
-
-        return named.Name;
+        return NameOf(error.Path)?.Name ?? refusal.ScalarName;
     }
-
-    /// <summary>
-    /// Tells whether a name is the first segment of a path, and HotChocolate's own for a literal no member holds.
-    /// </summary>
-    private static bool IsParserRoot(NamePathSegment segment) => segment.Parent.IsRoot && segment.Name == ParserRoot;
 
     /// <summary>
     /// Gets the last name of a path, skipping the indexes of list elements.

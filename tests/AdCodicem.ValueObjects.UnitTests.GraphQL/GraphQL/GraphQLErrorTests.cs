@@ -34,7 +34,7 @@ public sealed class GraphQLErrorTests
         result["data"].Should().BeNull();
     }
 
-    /// <summary>A refused variable is a request error: its path is the variable, and its extensions the code alone.</summary>
+    /// <summary>A refused variable is a request error, with no path: its input path is the variable.</summary>
     [Fact]
     public async Task A_refused_variable_is_a_request_error_carrying_the_rules_code()
     {
@@ -43,8 +43,8 @@ public sealed class GraphQLErrorTests
         var result = await executor.ExecuteAsync("query($i: Iban!) { lookup(iban: $i) }", """{"i":"XX"}""");
 
         var error = result.Error();
-        error.Member("path").Should().Be("""["i"]""");
-        error["extensions"]!.ToJsonString().Should().Be("""{"code":"value_object.too_short"}""");
+        error.ContainsKey("path").Should().BeFalse();
+        error["extensions"]!.ToJsonString().Should().Be("""{"code":"value_object.too_short","inputPath":["i"],"fieldType":"Iban"}""");
         result.ContainsKey("data").Should().BeFalse();
     }
 
