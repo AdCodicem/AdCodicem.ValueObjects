@@ -32,6 +32,6 @@ public sealed class SourceGeneratedQueryTests
 
         var count = (await executor.ExecuteAsync("query($c: ItemCount!) { line(sku: \"AB-1\", count: $c) { count } }", """{"c":0}""")).Error();
         count.Code().Should().Be(ValueObjectErrorCodes.OutOfRange);
-        count.Member("path").Should().Be("""["c"]""");
+        count.Member("inputPath").Should().Be("""["c"]""");
     }
 }

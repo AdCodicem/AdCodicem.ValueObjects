@@ -738,7 +738,7 @@ found for input type type `Shop.Iban`.``), and an output value object is an obje
 - Always validates, no trusted mode. A refusal is a `LeafCoercionException` (code in `Data`), whose GraphQL error has the
   rule's message and `extensions.code`, and a `ValueObjectException` on `IError.Exception`
   (`ValueObjectErrors.TryGetCode(error.Exception, …)` in an error filter). An argument or input field: field error at
-  its `inputPath`, HTTP 200. A variable: request error at its `path`, 400 under `application/graphql-response+json`. A
+  its `inputPath`, HTTP 200. A variable: request error at its `inputPath`, no `path`, 400 under `application/graphql-response+json`. A
   variable of another JSON kind: `value_object.not_parsable`. A literal of another kind or a `null`: HotChocolate's own
   validation, no rule code (`HC0018` for a `null` variable). A default instance the type refuses, or a non-finite real, is not written: the field's error
   keeps the rule's message, code `EXEC_INVALID_LEAF_VALUE`.

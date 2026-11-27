@@ -60,9 +60,9 @@ public sealed class LocalizedGraphQLTests
     }
 
     /// <summary>
-    /// HotChocolate reads a variable's default value under a path of its own, <c>["root"]</c>, which names nothing of the
-    /// document: the filter quotes the scalar's name instead, and a field of an input object its field, while a variable
-    /// named <c>$root</c>, read from its JSON value, keeps its name.
+    /// A variable's default value is a literal of the document, which HotChocolate files under the variable's name with no
+    /// coordinate: the filter quotes the scalar's name instead, and a field of an input object its field, while a variable
+    /// read from its JSON value, <c>$root</c> included, keeps its name.
     /// </summary>
     [Fact]
     public async Task A_variables_refused_default_value_is_quoted_by_its_scalars_name()
@@ -73,7 +73,8 @@ public sealed class LocalizedGraphQLTests
         {
             var refusal = (await executor.ExecuteAsync("""query($i: Iban = "XX") { lookup(iban: $i) }""")).Error();
             refusal.Message().Should().Be("« Iban » : au moins 15 caractères.");
-            refusal.Member("path").Should().Be("""["root"]""", "HotChocolate names no variable for a default value");
+            refusal.Member("inputPath").Should().Be("""["i"]""", "HotChocolate files a default value under its variable");
+            refusal.Member("coordinate").Should().BeNull("no argument or input field holds a default value");
             refusal.Code().Should().Be(ValueObjectErrorCodes.TooShort);
             (await MessageAsync(executor, """query($i: Iban! = "XX") { account(iban: $i, qty: 3) { iban } }"""))
                 .Should().Be("« Iban » : au moins 15 caractères.");
@@ -206,8 +207,10 @@ public sealed class LocalizedGraphQLTests
     }
 
     /// <summary>
-    /// With no path to read the member from, or under the path HotChocolate reads a literal no member holds, the filter
-    /// quotes the scalar's name, and it leaves alone an error whose exception is not a refusal of a scalar of the package.
+    /// A literal no argument or input field holds, an error with no coordinate, and a value with no path to read the member
+    /// from are quoted by the scalar's name; a literal with a coordinate and a JSON value by the last name of the input
+    /// path, or else of the path. The filter leaves alone an error whose exception is not a refusal of a scalar of the
+    /// package.
     /// </summary>
     [Fact]
     public async Task The_filter_quotes_the_scalar_where_nothing_names_the_value_and_leaves_other_errors_alone()
@@ -230,10 +233,14 @@ public sealed class LocalizedGraphQLTests
             filter.OnError(refused).Message.Should().Be("« Iban » : au moins 15 caractères.");
             bare.Extensions.Should().BeNull();
             filter.OnError(bare).Message.Should().Be("« Iban » : au moins 15 caractères.");
-            filter.OnError(refused.WithPath(root)).Message.Should().Be("« Iban » : au moins 15 caractères.");
-            filter.OnError(refused.WithPath(root.Append(1))).Message.Should().Be("« Iban » : au moins 15 caractères.");
-            filter.OnError(refused.WithPath(Path.Root.Append("list").Append("root"))).Message.Should().Be("« root » : au moins 15 caractères.");
-            filter.OnError(refused.WithPath(Path.Root.Append("v"))).Message.Should().Be("« v » : au moins 15 caractères.");
+            filter.OnError(refused.SetExtension("inputPath", Path.Root.Append("i"))).Message.Should().Be("« Iban » : au moins 15 caractères.");
+            filter.OnError(refused.SetExtension("inputPath", Path.Root.Append("iban")).SetExtension("coordinate", "ShopQuery.lookup(iban:)"))
+                .Message.Should().Be("« iban » : au moins 15 caractères.");
+            filter.OnError(json).Message.Should().Be("« Iban » : au moins 15 caractères.");
+            filter.OnError(json.WithPath(root.Append(1))).Message.Should().Be("« root » : au moins 15 caractères.");
+            filter.OnError(json.WithPath(Path.Root.Append(1))).Message.Should().Be("« Iban » : au moins 15 caractères.");
+            filter.OnError(json.SetExtension("inputPath", Path.Root.Append("l").Append(1))).Message.Should().Be("« l » : au moins 15 caractères.");
+            filter.OnError(json.WithPath(Path.Root.Append("v"))).Message.Should().Be("« v » : au moins 15 caractères.");
             filter.OnError(json.WithPath(root)).Message.Should().Be("« root » : au moins 15 caractères.");
             filter.OnError(other).Should().BeSameAs(other);
             new ValueObjectErrorFilter(new ValueObjectScalarOptions(), executor.Schema, services).OnError(refused).Should().BeSameAs(refused);
@@ -257,7 +264,7 @@ public sealed class LocalizedGraphQLTests
             .QuoteScalarNameIn(static inputValue => inputValue.Name == "from");
         var filter = new ValueObjectErrorFilter(options, executor.Schema, services);
         var refused = GraphQLScalarTests.Scalar(executor, "Iban")
-            .Invoking(scalar => scalar.CoerceInputLiteral(new StringValueNode("XX")))
+            .Invoking(scalar => scalar.CoerceInputValue(JsonDocument.Parse("\"XX\"").RootElement, null!))
             .Should().Throw<LeafCoercionException>().Which.Errors[0]
             .WithPath(Path.Root.Append("v"));
 
